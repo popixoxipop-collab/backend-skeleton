@@ -6,7 +6,7 @@ metadata:
   version: 0.1.0
   author: popixoxipop
   based_on: "https://github.com/popixoxipop-collab/backend-skeleton"
-  status: "Phase 0 (spine) + Phase 1 (preflight) implemented. Phase 2-6 not yet built -- see below."
+  status: "Phase 0 (spine) + Phase 1 (preflight) + Phase 2 (brownfield scan) implemented. Phase 3-6 not yet built -- see below."
 ---
 
 # backend-skeleton
@@ -27,8 +27,8 @@ and this skill exists to make it a guarantee instead.
 | # | Command | Gate | Status |
 |---|---|---|---|
 | 1 | `bskel preflight` | blocks everything below | **implemented** |
-| 2 | `bskel feature init --slug <name>` | — | not yet built |
-| 3 | `bskel scan --feature <id>` (+ `scan disposition` if collision) | blocks 4-10 | not yet built |
+| 2 | `bskel feature init --slug <name>` | — | not yet built (feature_id string is currently just typed by hand, e.g. `001-organization-management`) |
+| 3 | `bskel scan --feature <id>` (+ `scan disposition` if collision) | blocks 4-10 | **implemented** |
 | 4 | `/speckit.specify` (or `bskel spec template`) | — | depends on spec-kit if present |
 | 5 | `bskel contract emit` + `bskel contract validate` | blocks 6-10 | not yet built |
 | 6 | `/speckit.plan` (with scan disposition injected) | — | depends on spec-kit if present |
@@ -43,11 +43,10 @@ re-verifiable input set (current `HEAD` sha + locally-resolved default branch), 
 downstream command that checks the `preflight` gate will refuse to proceed without it having
 actually run and passed.
 
-Steps 3, 5, 7, 8, 10 (marked "not yet built" above) do not exist yet. If you are asked to do
-brownfield-collision scanning, contract emission, handle codegen, or stack wiring right now:
-say so plainly, point at the plan file's phased build order, and do NOT hand-simulate what
-those commands would output -- that recreates exactly the "agent got lucky" problem this skill
-exists to eliminate.
+Steps 5, 7, 8, 10 (marked "not yet built" above) do not exist yet. If you are asked to do
+contract emission, handle codegen, or stack wiring right now: say so plainly, point at the plan
+file's phased build order, and do NOT hand-simulate what those commands would output -- that
+recreates exactly the "agent got lucky" problem this skill exists to eliminate.
 
 ## What's actually usable today
 
@@ -62,7 +61,20 @@ bskel preflight --max-behind N # tolerate up to N commits behind (default: 0)
 bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale
 bskel gate force preflight --reason "..."   # explicit, audited bypass
 bskel gate show                # dump the full gate-state JSON for this repo
+
+bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
+bskel scan --feature 001-organization-management      # writes specs/<id>/brownfield-scan.{json,md}, sets the `scan` gate
+bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel --note "..."
+                                                        # required before anything downstream can pass the `scan` gate
+                                                        # for a feature whose verdict was collision/adjacent
 ```
+
+`scan`'s verdict: `greenfield` (no related code found -- gate auto-passes), `adjacent` (weak
+relation found, still needs a disposition), `collision` (strong match -- e.g. an existing
+controller/entity/enum for the same module). Adapter is `java-spring` (ripgrep + full-file
+regex, no real Java parser -- see `scanners/adapters/java-spring.mjs`) when `build.gradle`/
+`pom.xml` + `src/main/java` are present, else `generic-grep` (lower confidence route-pattern
+matching for Express/Flask/FastAPI-shaped code).
 
 `preflight` exit codes: `0` PASS, `10` not a git repo, `11` STALE_BASE (HEAD is behind the real
 default branch -- this is the exact bug class the tool exists to catch: a worktree silently
@@ -72,9 +84,9 @@ is the default branch" disagree, or none could be determined -- never guess `mai
 
 ## Design reference (for implementing the remaining phases)
 
-- `scanners/`, `contracts/`, `handles/`, `stack/` directories exist but are currently empty --
-  see the plan file's Component 2-4 sections for exactly what each should contain, and the
-  phased build order (Phase 2 through 6) for what to implement next and in what order.
+- `scanners/` is implemented (Phase 2). `contracts/`, `handles/`, `stack/` are still empty --
+  see the plan file's Component 3-4 sections for exactly what each should contain, and the
+  phased build order (Phase 3 through 6) for what to implement next and in what order.
 - `~/.agents/skills/archify/` is the packaging precedent to copy from directly: `schemas/` +
   ajv-standalone-compiled validators (see `archify/scripts/generate-validators.mjs`, and this
   skill's own `package.json` already wires the same `generate:validators`/`check:validators`

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:scan-report:1",
+  "title": "backend-skeleton brownfield scan report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "terms", "adapter", "verdict", "related_modules", "collisions", "unknowns"],
+  "properties": {
+    "schema": { "const": "sbf.scan-report/1" },
+    "feature_id": { "type": "string" },
+    "terms": { "type": "array", "items": { "type": "string" } },
+    "adapter": { "enum": ["java-spring", "generic-grep"] },
+    "confidence": { "enum": ["high", "low"] },
+    "api_surface_source": { "type": "string" },
+    "verdict": { "enum": ["greenfield", "adjacent", "collision"] },
+    "related_modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["module", "score"],
+        "properties": {
+          "module": { "type": "string" },
+          "score": { "type": "number" },
+          "controllers": { "type": "array" },
+          "entities": { "type": "array" },
+          "enums": { "type": "array" },
+          "dtos": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "collisions": { "type": "array" },
+    "unknowns": { "type": "array", "items": { "type": "string" } },
+    "disposition": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["reuse", "extend", "replace", "parallel"] },
+        "note": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

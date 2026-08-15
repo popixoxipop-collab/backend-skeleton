@@ -73,6 +73,48 @@ so a failed call leaves the source empty rather than garbage; (2) the owner/repo
 only fires for remotes that actually match a `github.com` host pattern, so `gh api` is never
 invoked at all against a local path or non-GitHub remote in the first place.
 
+## D3: verdict -> disposition state machine instead of an agent question (implemented)
+
+**WHY**: the Spec Kit trial's agent *did* ask and *did* recommend the right disposition when it
+found a real collision -- but nothing forced the question and nothing recorded the answer
+machine-readably, so a later `/speckit.plan` run couldn't be constrained by it. `bskel scan`
+computes a verdict (`greenfield` / `adjacent` / `collision`, threshold-scored per module) and,
+for anything other than `greenfield`, leaves the `scan` gate in `awaiting_disposition` --
+`bskel contract emit`/future commands checking this gate will refuse to proceed until `bskel
+scan disposition --mode reuse|extend|replace|parallel --note "..."` records a human decision,
+which then writes `plan-constraints.md` (injected into the plan step) and flips the gate.
+**COST**: one extra CLI round-trip whenever a real collision is found; `replace` mode requires
+an explicit `--breaking-approved` flag as a deliberate speed bump.
+**EXIT**: `bskel scan disposition --feature <id> --mode greenfield-equivalent` isn't a real mode
+-- to bypass entirely, `bskel gate force scan --reason "..."` remains available and is audited
+the same way as any other forced gate.
+
+**Verified against the real Team-IZ-Backend repo** (not just a synthetic fixture): `bskel scan
+--terms organization` reproduces the trial's lucky discovery by construction -- finds
+`OrganizationController`'s all 10 operationIds in document order with correct verb+path
+correlation for every one of them, and `OrganizationStatus`'s exact 4 constants
+(`ACTIVE, SUSPENDED, DELETION_PENDING, DELETED`). This is now `test/scan.test.mjs`'s oracle
+test, run directly against that repo (skipped automatically if the repo isn't present on the
+machine running the tests).
+
+**Implementation notes from building this**:
+- Module relevance scoring also surfaces modules that don't semantically match the search terms
+  but whose routes are *nested under* a matching module's path (e.g. scanning for
+  "organization" against Team-IZ-Backend also surfaces `curriculum`/`member`/
+  `platformgovernance`/`usagemetering` at lower scores, because they expose endpoints like
+  `/organizations/{organizationId}/curricula`). Kept as intended behavior, not filtered out --
+  a feature touching `organization` plausibly needs to know about its dependents too, and the
+  score ordering (organization=175 vs. the next-highest=49) already makes the primary match
+  obvious.
+- The `@Operation`-to-mapping-annotation correlation heuristic is not 100% coverage across the
+  whole codebase -- it correctly resolves all 10 endpoints of `OrganizationController` (the
+  oracle), but some other controllers (`CurriculumController`, `CommitEmailController`) show
+  `operationId: (unmatched)` for a handful of endpoints, likely due to a structural pattern the
+  heuristic doesn't anticipate. Left as an honest gap: the renderer prints `(unmatched)` rather
+  than silently guessing, and `related_modules[].controllers[].endpoints[]` still reports the
+  verb+path either way. Revisit only if a real disposition decision is ever blocked by a missing
+  operationId for a non-organization module.
+
 ## D-name / D-repo / D-handles / D-ngrok
 
 User-confirmed choices, recorded in the approved plan
