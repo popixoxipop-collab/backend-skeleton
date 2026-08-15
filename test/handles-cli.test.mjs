@@ -168,3 +168,28 @@ test('handles emit writes a patch() that checks handle kind explicitly, not just
 	const content = fs.readFileSync(controllerPath, 'utf8');
 	assert.match(content, /!decoded\.kind\(\)\.equals\("f"\) \|\| decoded\.pointer\(\) == null/);
 });
+
+// S6 regression, real end-to-end path (as opposed to the lighter `gate force`-based version in
+// test/verify-cli.test.mjs): the `handles` gate's token (lib/gate-definitions.mjs) covers only
+// head_sha + the contract's hash -- NOT migration.sql's own content -- so deleting an emitted
+// migration.sql leaves the handles gate reporting "pass" forever. The artifact check in
+// lib/verify.mjs's checkArtifacts() is the only thing that can still notice.
+test('deleting an emitted migration.sql fails verify, even though the handles gate itself still reports pass', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	const beforeDelete = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(JSON.parse(beforeDelete.stdout).pass, true, 'sanity check: verify passes right after emit');
+
+	fs.rmSync(path.join(root, 'specs/001-widget-management/handles/migration.sql'));
+
+	const result = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 1);
+	const report = JSON.parse(result.stdout);
+	assert.equal(report.pass, false);
+	const migrationArtifact = report.artifacts.find((a) => a.artifact === 'handles migration');
+	assert.ok(migrationArtifact);
+	assert.equal(migrationArtifact.exists, false);
+	assert.equal(report.gates.find((g) => g.gate === 'handles').status, 'pass', 'the gate token does not cover migration.sql, so it stays pass -- the artifact check is the only defense');
+});

@@ -7,7 +7,11 @@
   "required": ["schema", "feature_id", "gates"],
   "properties": {
     "schema": { "const": "sbf.state/1" },
-    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_id": {
+      "type": "string",
+      "description": "a real feature_id, or the reserved repo-scope sentinel \"_repo\" used by repo-scoped gates (preflight, stack) -- see REPO_GATE_ID in lib/gate-definitions.mjs.",
+      "pattern": "^(_repo|[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*)$"
+    },
     "feature_uid": { "type": "string", "format": "uuid" },
     "gates": {
       "type": "object",
@@ -16,11 +20,14 @@
         "additionalProperties": false,
         "required": ["status", "token", "at"],
         "properties": {
-          "status": { "enum": ["pass", "awaiting_disposition", "fail", "stale"] },
+          "status": {
+            "description": "the only two statuses ever WRITTEN to disk (see lib/gates.mjs's passGate/awaitDispositionGate). `not_run`, `stale`, and `pass (forced)` are derived at READ time by requireGate() by recomputing the token from current inputs -- they are never stored, so they must not appear here.",
+            "enum": ["pass", "awaiting_disposition"]
+          },
           "token": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
           "at": { "type": "string", "format": "date-time" },
-          "forced": { "type": "boolean" },
-          "reason": { "type": "string" },
+          "forced": { "type": "boolean", "description": "a forced gate is always stored as status:\"pass\" with this set true -- there is no separate \"pass (forced)\" value on disk; requireGate() only reports that string back at read time." },
+          "reason": { "type": "string", "description": "required when forced is true -- see lib/gates.mjs's forceGate (\"every bypass must be auditable\")." },
           "evidence": { "type": "object" }
         }
       }

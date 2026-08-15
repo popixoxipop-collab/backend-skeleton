@@ -50,6 +50,13 @@ command (scan, contract — later phases) must register its own recomputer here,
 "cannot detect staleness" fallback (falls back to trusting stored evidence, which is honest but
 weaker than a real gate).
 
+**Superseded location (S1, see `D-gate-definitions` below)**: `GATE_RECOMPUTERS` as described
+above lived only in `bin/bskel.mjs` — the write side. `lib/verify.mjs` (the read side) kept its
+own separate `GATE_SPECS` list, and the two drifted (`stack` was in one and not the other). The
+recompute functions themselves are unchanged; they now live in `lib/gate-definitions.mjs` as
+`GATE_DEFINITIONS[name].recompute`, and both `bin/bskel.mjs` and `lib/verify.mjs` read from that
+one place.
+
 ## D2: `bash`, not POSIX `dash`-strict `sh` or Node, for `scripts/preflight-base-ref.sh`
 
 **WHY**: the script needs to be reusable outside this skill (drop into any repo or CI job) with
@@ -333,6 +340,62 @@ recognizes; an unrecognized project type gets an honest `ran: false` rather than
 or FAIL.
 **EXIT**: `detectBuildCommand` in `lib/verify.mjs` is the single place to extend for a new build
 tool.
+
+**Correction (S1/S6 hardening pass)**: "`stack` is OPTIONAL" above was the intended design from
+the start, but the implementation didn't actually deliver it -- `lib/verify.mjs`'s old local
+`GATE_SPECS` list simply never included `stack` at all, so `bskel verify` never queried it: a
+`stack apply` could pass the gate and `bskel verify` would report nothing about it either way
+(not pass, not fail, not even present in the report). Not a design change, a bug fix -- see
+`D-gate-definitions` below. Separately, `checkArtifacts()`'s `handles/migration.sql` check only
+ever added itself to the checks array when the file already existed, so a `handles` gate that
+had passed and then had its migration.sql deleted could never be caught (the `exists: false`
+outcome was structurally unreachable). Both fixed together since they're the same underlying
+class of bug: `bskel verify` believed something was fine because it never actually looked.
+
+## D-gate-definitions: one declared gate list, not a write-side list and a read-side list
+
+**WHY**: the `stack`-missing-from-verify bug above wasn't a one-off typo -- it was the natural
+consequence of the structure. `bin/bskel.mjs`'s `GATE_RECOMPUTERS` (what gets written, and how
+its token is computed) and `lib/verify.mjs`'s `GATE_SPECS` (what verify reads and aggregates)
+were two hand-maintained lists with no mechanism forcing them to agree. `lib/gate-definitions.mjs`
+replaces both with one `GATE_DEFINITIONS` object (plus an explicit `GATE_NAMES` order array,
+checked against `GATE_DEFINITIONS`' own keys by `test/gate-definitions.test.mjs`) declaring, per
+gate: `scope` (`repo` or `feature`), `verifyPolicy` (`required` or `required-when-present`), and
+`recompute`. `lib/gates.mjs` gained name-based wrappers (`passNamedGate`,
+`awaitNamedGateDisposition`, `requireNamedGate`) so call sites in `bin/bskel.mjs` no longer
+hand-assemble a gate's scope id or token inputs -- they ask for a gate by name and the definition
+supplies both. `bskel gate require/force/show` also gained validation against this same list: an
+unknown gate name now exits 14 with the list of real gate names, instead of `getGate` silently
+returning `null` and being reported as `not_run` -- which read exactly like "a real gate that
+hasn't run yet," so a typo could be waited on forever.
+
+`verifyPolicy: required-when-present` (used by `handles`/`stack`) formalizes what "optional"
+was always supposed to mean: a gate that's never run does not block `bskel verify`, but a gate
+that HAS run and is `stale` or `awaiting_disposition` still blocks -- optional means "not every
+feature needs this," not "once run, its correctness stops mattering." The old code's `required:
+false` boolean couldn't express that distinction at all; it only ever checked `code === PASS`
+against the required gates, so an optional gate's stale/awaiting status was invisible to the
+overall verdict by construction (a second, independent reason `stack` staleness could never have
+failed verify even after the `GATE_SPECS` omission was fixed on its own).
+
+**COST**: one more indirection layer (`gate name -> definition -> scope/policy/recompute`)
+between a call site and the actual gate primitives in `lib/gates.mjs`; a contributor unfamiliar
+with the module has one more file to read before touching gate logic.
+**EXIT**: `lib/gate-definitions.mjs`'s `GATE_DEFINITIONS` is the single place to register a new
+gate (both `scope`/`verifyPolicy` for verify AND `recompute` for staleness detection) or change
+an existing one's policy -- `bin/bskel.mjs` and `lib/verify.mjs` need no further changes to pick
+it up, and `test/gate-definitions.test.mjs`'s `GATE_NAMES`-vs-`GATE_DEFINITIONS` set-equality
+test fails loudly if a new gate is added to one but not the other.
+
+**Housekeeping done alongside this (zero runtime risk)**: `schemas/state.schema.json` is
+documentation only -- nothing in the codebase loads it (`lib/state.mjs` only string-compares
+`parsed.schema === 'sbf.state/1'`) -- but it was out of sync with reality on two points, fixed
+while `_repo` was being promoted to a first-class scope concept here: its `feature_id` pattern
+rejected the literal string `"_repo"`, even though `.sbf/_repo.json` genuinely stores
+`feature_id: "_repo"` for every repo-scoped gate; and its `status` enum listed `fail`/`stale`,
+neither of which `lib/gates.mjs` ever writes to disk (only `pass`/`awaiting_disposition` are
+ever stored -- `not_run`/`stale`/`pass (forced)` are `requireGate()`'s derived READ-time return
+values, recomputed from current inputs, never persisted).
 
 ## D-pressure-test: the real Phase 6 oracle was a fresh agent, not another self-review
 

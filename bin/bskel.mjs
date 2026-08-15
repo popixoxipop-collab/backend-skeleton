@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import { repoRoot, headSha, localDefaultBranch } from '../lib/repo.mjs';
-import { requireGate, forceGate, passGate, awaitDispositionGate, EXIT } from '../lib/gates.mjs';
+import { repoRoot } from '../lib/repo.mjs';
+import { forceGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
+import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState } from '../lib/state.mjs';
-import { sha256File, writeFileAtomic, readJsonIfExists } from '../lib/fsutil.mjs';
+import { writeFileAtomic, readJsonIfExists } from '../lib/fsutil.mjs';
+import { specDir, specPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
@@ -20,63 +22,6 @@ import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verif
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
-
-// The preflight gate is repo-scoped, not feature-scoped -- it runs before a feature_id exists.
-// Stored under the same per-feature state-file mechanism using the reserved id "_repo".
-const REPO_GATE_ID = '_repo';
-
-// Each gate's token must be computed from the SAME function both when the gate is written
-// (pass) and when it's re-verified (require) -- otherwise "require" degenerates into comparing
-// stored data against itself, which can never detect drift. One shared recomputer per gate name
-// closes that gap structurally instead of relying on call sites staying in sync by hand.
-// Gates without an entry here (scan/contract -- added in later phases) fall back to comparing
-// against their own stored evidence, which means they cannot yet detect staleness on their own;
-// each phase that adds a new gate-emitting command must register its recomputer here too.
-const GATE_RECOMPUTERS = {
-	preflight: (root) => ({ head_sha: headSha(root), default_branch: localDefaultBranch(root) }),
-	// The scan gate's token covers head_sha (has the codebase moved since scanning?), the scan
-	// report's own content hash (has disposition/re-scan changed it?), and spec.md's content
-	// hash if it exists yet (scan can run before a spec is written, so this may be null).
-	scan: (root, featureId) => ({
-		head_sha: headSha(root),
-		scan_report_hash: sha256File(specPath(root, featureId, 'brownfield-scan.json')),
-		spec_hash: sha256File(specPath(root, featureId, 'spec.md')),
-	}),
-	// The contract gate's token covers the emitted contract file's own hash (re-emitting after
-	// a re-scan invalidates it) and head_sha -- NOT the scan report's hash directly, since the
-	// contract is a derived artifact; if the scan changes but the contract hasn't been
-	// re-emitted, that should surface as "contract is out of date with scan", which is a
-	// judgment call for `bskel contract emit` to re-run, not something require silently papers
-	// over by trusting the old contract.
-	contract: (root, featureId) => ({
-		head_sha: headSha(root),
-		contract_hash: sha256File(specPath(root, featureId, 'contracts', `${featureId}.schema.json`)),
-	}),
-	// Repo-scoped like preflight (a stack choice is a project-wide decision, not per-feature).
-	// Staleness here means "the applied files or the choice-of-catalog-entry are gone/changed",
-	// not "re-verify the tunnel is currently running" -- that's a runtime concern, not a gate.
-	stack: (root) => ({ head_sha: headSha(root), stack_record_hash: sha256File(path.join(root, '.sbf', 'stack.json')) }),
-	// Staleness = the generated Java (or the contract it was generated from) has moved since
-	// emit -- NOT "does the migration still match the DB schema" (unknowable without a live DB
-	// connection this tool deliberately never opens on its own, see D-migration-scope).
-	handles: (root, featureId) => ({
-		head_sha: headSha(root),
-		contract_hash: sha256File(specPath(root, featureId, 'contracts', `${featureId}.schema.json`)),
-	}),
-};
-
-function currentGateInputs(root, gateName, featureId, storedEvidence) {
-	const recompute = GATE_RECOMPUTERS[gateName];
-	return recompute ? recompute(root, featureId) : (storedEvidence ?? {});
-}
-
-function specDir(root, featureId) {
-	return path.join(root, 'specs', featureId);
-}
-
-function specPath(root, featureId, ...segments) {
-	return path.join(specDir(root, featureId), ...segments);
-}
 
 function usage() {
 	console.error(`bskel -- backend-skeleton CLI
@@ -92,9 +37,9 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]
   bskel verify --feature <id> [--build] [--json]
-  bskel gate require <name> [--feature <id>]
+  bskel gate require <name> [--feature <id>]      (name: ${GATE_NAMES.join('|')})
   bskel gate force <name> --reason "..." [--feature <id>]
-  bskel gate show [--feature <id>]
+  bskel gate show [<name>] [--feature <id>]
   bskel doctor
 `);
 }
@@ -152,7 +97,7 @@ function cmdPreflight(args) {
 	const result = JSON.parse(stdout);
 
 	if (result.verdict === 'PASS') {
-		passGate(root, REPO_GATE_ID, 'preflight', GATE_RECOMPUTERS.preflight(root), result.evidence);
+		passNamedGate(root, 'preflight', null, result.evidence);
 	}
 
 	if (flags.json) {
@@ -165,23 +110,38 @@ function cmdPreflight(args) {
 	process.exit(exitCode);
 }
 
+// S1: validates a gate name against the shared definitions, and the --feature/--repo scope
+// shape (D-security-3), in one place shared by require/force/show. Before this, an unknown
+// gate name silently reported `not_run` (exit 2) from `getGate`/`requireGate` -- indistinguishable
+// from "a real gate that just hasn't run yet" -- so a typo read as "not done" instead of
+// "this gate doesn't exist".
+function resolveGateArg(gateName, featureFlag) {
+	let def;
+	try {
+		def = requireGateDefinition(gateName);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
+	try {
+		requireValidFeatureOrRepoId(featureFlag, REPO_GATE_ID);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
+	return { def, scopeId: gateScopeId(gateName, featureFlag) };
+}
+
 function cmdGateRequire(args) {
 	const root = requireRepoRoot();
 	const flags = parseFlags(args, { feature: { type: 'string', default: REPO_GATE_ID } });
 	const gateName = flags._[0];
 	if (!gateName) { console.error('usage: bskel gate require <name> [--feature <id>]'); process.exit(14); }
-	try {
-		requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
-	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
-	}
-	const record = getGate(root, flags.feature, gateName);
-	// `require` never re-runs the underlying check (e.g. it doesn't re-fetch or re-scan) --
-	// it freshly recomputes only the cheap, local inputs the gate's token was built from
-	// (see GATE_RECOMPUTERS) and compares against what was stored when the gate last passed.
-	const currentInputs = currentGateInputs(root, gateName, flags.feature, record?.evidence);
-	const result = requireGate(root, flags.feature, gateName, currentInputs);
+	resolveGateArg(gateName, flags.feature);
+	// `require` never re-runs the underlying check (e.g. it doesn't re-fetch or re-scan) -- it
+	// freshly recomputes only the cheap, local inputs the gate's token was built from (see
+	// lib/gate-definitions.mjs) and compares against what was stored when the gate last passed.
+	const result = requireNamedGate(root, gateName, flags.feature);
 	console.log(JSON.stringify({ gate: gateName, feature: flags.feature, ...result }));
 	process.exit(result.code);
 }
@@ -194,13 +154,8 @@ function cmdGateForce(args) {
 	});
 	const gateName = flags._[0];
 	if (!gateName) { console.error('usage: bskel gate force <name> --reason "..." [--feature <id>]'); process.exit(14); }
-	try {
-		requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
-	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
-	}
-	const state = forceGate(root, flags.feature, gateName, flags.reason);
+	const { scopeId } = resolveGateArg(gateName, flags.feature);
+	const state = forceGate(root, scopeId, gateName, flags.reason);
 	console.log(JSON.stringify(state.gates[gateName]));
 	process.exit(EXIT.PASS);
 }
@@ -208,13 +163,19 @@ function cmdGateForce(args) {
 function cmdGateShow(args) {
 	const root = requireRepoRoot();
 	const flags = parseFlags(args, { feature: { type: 'string', default: REPO_GATE_ID } });
-	try {
-		requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
-	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+	const gateName = flags._[0] ?? null;
+	if (gateName === null) {
+		try {
+			requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
+		} catch (err) {
+			console.error(err.message);
+			process.exit(14);
+		}
+		console.log(JSON.stringify(loadState(root, flags.feature), null, 2));
+		process.exit(0);
 	}
-	console.log(JSON.stringify(loadState(root, flags.feature), null, 2));
+	const { scopeId } = resolveGateArg(gateName, flags.feature);
+	console.log(JSON.stringify({ gate: gateName, feature: scopeId, record: getGate(root, scopeId, gateName) }, null, 2));
 	process.exit(0);
 }
 
@@ -223,7 +184,7 @@ function cmdGateShow(args) {
 // Ad-hoc `bskel scan` (no --feature) is exempt: it's an explicit side-channel quick-look
 // utility outside the gated workflow, same as `bskel gate show`.
 function requirePreflightPassed(root) {
-	const result = requireGate(root, REPO_GATE_ID, 'preflight', GATE_RECOMPUTERS.preflight(root));
+	const result = requireNamedGate(root, 'preflight', null);
 	if (result.code !== EXIT.PASS) {
 		console.error(`blocked: \`preflight\` gate is ${result.status} -- run \`bskel preflight\` first.`);
 		process.exit(result.code);
@@ -275,12 +236,11 @@ function cmdScan(args) {
 	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.json'), `${JSON.stringify(report, null, 2)}\n`);
 	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.md'), renderScanMarkdown(report));
 
-	const inputs = GATE_RECOMPUTERS.scan(root, flags.feature);
 	let gateState;
 	if (report.verdict === 'greenfield') {
-		gateState = passGate(root, flags.feature, 'scan', inputs, { verdict: report.verdict });
+		gateState = passNamedGate(root, 'scan', flags.feature, { verdict: report.verdict });
 	} else {
-		gateState = awaitDispositionGate(root, flags.feature, 'scan', inputs, {
+		gateState = awaitNamedGateDisposition(root, 'scan', flags.feature, {
 			verdict: report.verdict,
 			related_modules: report.related_modules.map((m) => m.module),
 		});
@@ -333,8 +293,7 @@ function cmdScanDisposition(args) {
 		writeFileAtomic(specPath(root, flags.feature, 'plan-constraints.md'), planConstraints);
 	}
 
-	const inputs = GATE_RECOMPUTERS.scan(root, flags.feature);
-	const gateState = passGate(root, flags.feature, 'scan', inputs, { verdict: report.verdict, disposition_mode: flags.mode });
+	const gateState = passNamedGate(root, 'scan', flags.feature, { verdict: report.verdict, disposition_mode: flags.mode });
 	console.log(JSON.stringify(gateState.gates.scan));
 	process.exit(EXIT.PASS);
 }
@@ -386,7 +345,7 @@ function cmdContractEmit(args) {
 	// Contract emission is only meaningful once the scan gate has actually passed (greenfield
 	// auto-pass, or a recorded disposition) -- an unresolved collision must not be allowed to
 	// silently flow into a contract as if it had been addressed.
-	const scanResult = requireGate(root, flags.feature, 'scan', GATE_RECOMPUTERS.scan(root, flags.feature));
+	const scanResult = requireNamedGate(root, 'scan', flags.feature);
 	if (scanResult.code !== EXIT.PASS) {
 		console.error(`blocked: \`scan\` gate for ${flags.feature} is ${scanResult.status} -- run \`bskel scan --feature ${flags.feature}\` (and \`scan disposition\` if it collides) first.`);
 		process.exit(scanResult.code);
@@ -409,8 +368,7 @@ function cmdContractEmit(args) {
 
 	writeFileAtomic(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`), `${JSON.stringify(contract, null, 2)}\n`);
 
-	const inputs = GATE_RECOMPUTERS.contract(root, flags.feature);
-	const gateState = passGate(root, flags.feature, 'contract', inputs, { operation_count: Object.keys(contract.operations).length });
+	const gateState = passNamedGate(root, 'contract', flags.feature, { operation_count: Object.keys(contract.operations).length });
 
 	if (flags.json) {
 		console.log(JSON.stringify(contract, null, 2));
@@ -541,8 +499,7 @@ function cmdStackApply(args) {
 	};
 	writeFileAtomic(path.join(root, '.sbf', 'stack.json'), `${JSON.stringify(stackRecord, null, 2)}\n`);
 
-	const inputs = GATE_RECOMPUTERS.stack(root);
-	const gateState = passGate(root, REPO_GATE_ID, 'stack', inputs, { choice: flags.choice });
+	const gateState = passNamedGate(root, 'stack', null, { choice: flags.choice });
 
 	if (flags.json) {
 		console.log(JSON.stringify({ written, gate: gateState.gates.stack }, null, 2));
@@ -625,7 +582,7 @@ function cmdHandlesEmit(args) {
 
 	// Handles are only emitted for a feature whose contract has actually been established --
 	// codegen against a feature nobody has scanned/contracted yet has nothing real to route to.
-	const contractResult = requireGate(root, flags.feature, 'contract', GATE_RECOMPUTERS.contract(root, flags.feature));
+	const contractResult = requireNamedGate(root, 'contract', flags.feature);
 	if (contractResult.code !== EXIT.PASS) {
 		console.error(`blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- run \`bskel contract emit --feature ${flags.feature}\` first.`);
 		process.exit(contractResult.code);
@@ -643,8 +600,7 @@ function cmdHandlesEmit(args) {
 	const plan = planHandles({ repoRoot: root, javaSrcRoot, scanReport, module: flags.module, resourceFilter });
 	const { written, resolverStubs } = emitHandles({ repoRoot: root, featureId: flags.feature, plan, basePackage });
 
-	const inputs = GATE_RECOMPUTERS.handles(root, flags.feature);
-	const gateState = passGate(root, flags.feature, 'handles', inputs, { resolverStubs });
+	const gateState = passNamedGate(root, 'handles', flags.feature, { resolverStubs });
 
 	if (flags.json) {
 		console.log(JSON.stringify({ written, resolverStubs, notes: plan.notes, gate: gateState.gates.handles }, null, 2));
@@ -664,8 +620,9 @@ function cmdHandlesEmit(args) {
 function renderVerifyReport({ featureId, gates, artifacts, build }) {
 	const lines = [`# Verify: ${featureId}`, '', '## Gates'];
 	for (const g of gates) {
-		const marker = g.code === EXIT.PASS ? 'PASS' : g.required ? 'FAIL' : `SKIP (${g.status})`;
-		lines.push(`- [${marker}] ${g.gate}${g.required ? '' : ' (optional)'}`);
+		const marker = g.code === EXIT.PASS ? 'PASS' : g.blocking ? 'FAIL' : `SKIP (${g.status})`;
+		const suffix = g.policy === 'required' ? '' : ` (${g.policy}, ${g.scope}-scoped)`;
+		lines.push(`- [${marker}] ${g.gate}${suffix}`);
 	}
 	lines.push('', '## Artifacts');
 	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
@@ -691,18 +648,14 @@ function cmdVerify(args) {
 	if (!flags.feature) { console.error('usage: bskel verify --feature <id> [--build] [--json]'); process.exit(14); }
 	requireValidFeatureId(flags.feature);
 
-	const gates = collectGateStatuses(root, flags.feature, {
-		getGate,
-		requireGate,
-		gateInputsFor: (gateName, r, scopeId, evidence) => currentGateInputs(r, gateName, scopeId, evidence),
-	});
-	const artifacts = checkArtifacts(root, flags.feature);
+	const gates = collectGateStatuses(root, flags.feature, { getGate, requireNamedGate });
+	const artifacts = checkArtifacts(root, flags.feature, gates);
 	const build = flags.build ? runBuildCheck(root) : null;
 
-	const requiredGatesPass = gates.filter((g) => g.required).every((g) => g.code === EXIT.PASS);
+	const gatesOk = gates.every((g) => !g.blocking);
 	const artifactsPresent = artifacts.every((a) => a.exists);
 	const buildOk = !build || !build.ran || build.ok;
-	const overallPass = requiredGatesPass && artifactsPresent && buildOk;
+	const overallPass = gatesOk && artifactsPresent && buildOk;
 
 	if (flags.json) {
 		console.log(JSON.stringify({ feature: flags.feature, pass: overallPass, gates, artifacts, build }, null, 2));

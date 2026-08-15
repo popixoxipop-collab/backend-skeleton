@@ -70,9 +70,10 @@ bskel preflight --json         # same, machine-readable
 bskel preflight --allow-dirty  # skip the clean-working-tree requirement
 bskel preflight --max-behind N # tolerate up to N commits behind (default: 0)
 
-bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale
+bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale (name must be one of: preflight|scan|contract|handles|stack -- an unknown name exits 14, it does not report not-run)
 bskel gate force preflight --reason "..."   # explicit, audited bypass
 bskel gate show                # dump the full gate-state JSON for this repo
+bskel gate show stack          # or just one gate's own record (optional <name> positional arg)
 
 bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
 bskel scan --feature 001-organization-management      # writes specs/<id>/brownfield-scan.{json,md}, sets the `scan` gate
@@ -159,11 +160,16 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
   #    section above and D-resolver-scope in DECISIONS.md for why.
 
 bskel verify --feature <id> [--build] [--json]
-  # -> aggregates preflight/scan/contract (required for overall PASS) + handles/stack (optional,
-  #    "not_run" doesn't fail verify) via the same gate machinery every other command uses, plus
-  #    artifact existence checks (contract file, handles migration if applicable). --build
-  #    actually runs the detected build tool (gradlew/mvnw/npm) and reports real pass/fail, not
-  #    just gate status -- exits 0 only if everything required passed.
+  # -> aggregates all 5 gates (lib/gate-definitions.mjs is the single source both this and every
+  #    gate-writing command consume) via the same machinery every other command uses, plus
+  #    artifact existence checks (contract file, handles migration if applicable). Each gate
+  #    carries a verifyPolicy: `required` (preflight/scan/contract -- not_run or stale always
+  #    fails overall) or `required-when-present` (handles/stack -- not_run does NOT fail overall,
+  #    but a gate that HAS run and is stale/awaiting_disposition still does -- "optional" means
+  #    "not every feature needs this", not "once run, correctness stops mattering"). Each gate's
+  #    JSON entry reports `scope`/`policy`/`blocking`/`ran` alongside its status. --build actually
+  #    runs the detected build tool (gradlew/mvnw/npm) and reports real pass/fail, not just gate
+  #    status -- exits 0 only if everything blocking passed.
 ```
 
 **Handle format**: `sbf1_<base64url(kind:type:uuid[:pointer])>` -- `kind` is `r` (whole
@@ -211,6 +217,11 @@ All 6 phases are implemented (`scanners/`, `contracts/`, `stack/`, `handles/`, `
   fixed to pre-compile the way archify's 5 diagram schemas are).
 - `~/.claude/skills/graphify/SKILL.md` is the structural precedent for this file's own
   numbered/gated workflow style, once later phases add more real steps here.
-- Every new gate-emitting command must register its own entry in `GATE_RECOMPUTERS` in
-  `bin/bskel.mjs` (see `D1` in `DECISIONS.md`) -- skipping this silently degrades that gate to
-  "cannot detect staleness."
+- Every new gate needs an entry in `GATE_DEFINITIONS` (and `GATE_NAMES`) in
+  `lib/gate-definitions.mjs` (see `D1` and `D-gate-definitions` in `DECISIONS.md`) -- `scope`,
+  `verifyPolicy`, and `recompute` all live there now, consumed by both the write side
+  (`bin/bskel.mjs`'s `passNamedGate`/`awaitNamedGateDisposition`) and the read side
+  (`lib/verify.mjs`'s `collectGateStatuses`). Registering in one but not the other is no longer
+  possible -- there is only one list. Forgetting `recompute` degrades that gate to "cannot detect
+  staleness"; forgetting to add the name to `GATE_NAMES` makes `bskel verify` silently skip it
+  entirely (`test/gate-definitions.test.mjs` catches exactly this).
