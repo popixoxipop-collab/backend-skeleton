@@ -164,6 +164,68 @@ judged an acceptable scope cut, not silently -- this note plus the code comment 
 class already located by Phase 2) could seed `response` schemas the same way `body` is seeded for
 requests now.
 
+## D7 (implemented): declarative catalog + generic apply, not per-stack bespoke code
+
+**WHY**: "add a stack choice" must be a data edit (one YAML file, optionally one template), or
+the mechanism rots as more choices get added. `stack/apply.mjs`'s `planApply`/`applyPlan` are
+entirely generic over any `stack/catalog/<id>.yml` matching `schemas/stack-choice.schema.json`
+-- adding e.g. `supabase` or `railway` later is exactly one new YAML + template pair, zero new
+JS. Verified for real: dry-run against Team-IZ-Backend correctly detected `allowed-origins` is
+already environment-variable-driven (`already-externalized`), so `--apply` there only needed to
+create `scripts/dev-tunnel.sh` + `scripts/_bskel-lib.sh` + `.env.example` entries -- nothing
+else, and re-running `--apply` afterward is a verified no-op (`alreadyDetected: true`, every
+file `unchanged`).
+**COST**: the YAML can't express genuinely exotic wiring (e.g. a multi-step OAuth dance).
+**EXIT**: a catalog entry could grow a `custom: <script>` escape hatch if that's ever needed;
+not built now since nothing requires it yet.
+
+## D-config-patch: `config_check` is informational only -- never auto-edits application config
+
+**WHY**: the target config file (Spring's `application.yaml` here) is often comment-dense and
+hand-tuned -- a wrong automatic YAML edit is a worse failure mode than asking a human to add one
+line. The plan's original design called for the `yaml` package's comment-preserving Document
+API to actually patch it; deferred because the real target (Team-IZ-Backend) turned out not to
+need it at all (`auth.login.allowed-origins` was already `${AUTH_LOGIN_ALLOWED_ORIGINS:...}`),
+so there's no concrete case yet to validate a patcher against.
+**COST**: a repo where the relevant config is genuinely hardcoded gets a `needs-manual-patch`
+status and a note, not an automatic fix.
+**EXIT**: build the Document-API patcher once a real target that actually needs it shows up --
+`config_check` entries in the catalog schema already carry the pattern/note a future `apply`
+action would need.
+
+## D-ngrok-no-static-config-file: no templated `ngrok.yml`, the bootstrap script calls `ngrok http` directly with CLI flags
+
+**WHY**: a static ngrok config file template would need to track ngrok's own config schema
+version (v2/v3 have different shapes) with no way to test it against a real tunnel start until
+runtime -- CLI flags (`ngrok http $PORT [--domain $NGROK_DOMAIN]`) are simpler, avoid an extra
+templated file, and were what got actually live-tested (see below).
+**COST**: doesn't support ngrok config features that only exist in the YAML config format
+(traffic policies, multiple simultaneous endpoints, etc.) -- fine for "expose one dev port."
+**EXIT**: a catalog entry's `static.files` list already supports adding a config-file template
+later without changing `stack/apply.mjs`.
+
+**What was actually verified, and how** (ngrok itself was NOT live-tunneled in the automated
+test suite -- see below for why):
+- Real dry-run + `--apply` + idempotent re-run against Team-IZ-Backend (see D7).
+- `scripts/_bskel-lib.sh`'s helpers (`env_upsert`, `env_append_unique`, `extract_https_url`,
+  `wait_for_tunnel`) unit-tested directly, including `wait_for_tunnel` against a real local
+  HTTP server standing in for ngrok's `/api/tunnels` API, and a real timeout case.
+- **Bug found while writing that test**: `wait_for_tunnel`'s `curl` call had no
+  `--connect-timeout`/`--max-time`, so a port that accepts a connection but never responds
+  could block a single poll far longer than the caller's overall `timeout_s` budget. Added
+  both flags. (A red herring on the way to finding this: the test's first attempt used
+  `execFileSync` to call `curl` against an in-process `http.createServer` from the SAME Node
+  process -- that hangs unconditionally regardless of the shell script's correctness, because
+  `execFileSync` blocks the event loop the server needs to respond. Fixed by using the async
+  `execFile` for that specific test. Worth remembering: never test a same-process mock HTTP
+  server with a synchronous child-process call.)
+- **Not done**: an actual live `ngrok http` invocation (ngrok CLI + a real authtoken are both
+  present on this machine). Starting a real tunnel is a visible external action (a live public
+  URL, under this machine's ngrok account) -- deliberately left for the user to try manually
+  (`./scripts/dev-tunnel.sh` after filling in `.env`) rather than have an agent do it
+  unprompted. If this needs closing later, the mock-server test above already proves the
+  request/response handling is correct; what's unverified is ngrok's actual CLI behavior itself.
+
 ## D-name / D-repo / D-handles / D-ngrok
 
 User-confirmed choices, recorded in the approved plan

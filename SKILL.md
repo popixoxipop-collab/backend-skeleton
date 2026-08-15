@@ -6,7 +6,7 @@ metadata:
   version: 0.1.0
   author: popixoxipop
   based_on: "https://github.com/popixoxipop-collab/backend-skeleton"
-  status: "Phase 0-3 implemented (spine, preflight, brownfield scan, feature_id contracts). Phase 4-6 (UUID handles, stack wiring, verify) not yet built -- see below."
+  status: "Phase 0-4 implemented (spine, preflight, brownfield scan, feature_id contracts, stack-choice wiring). Phase 5-6 (UUID handles, verify) not yet built -- see below."
 ---
 
 # backend-skeleton
@@ -33,7 +33,7 @@ and this skill exists to make it a guarantee instead.
 | 5 | `bskel contract emit` + `bskel contract validate` | blocks 6-10 | **implemented** |
 | 6 | `/speckit.plan` (with scan disposition injected) | — | depends on spec-kit if present |
 | 7 | `bskel handles plan` → `bskel handles emit` | — | not yet built |
-| 8 | `bskel stack apply --choice ngrok` | — | not yet built |
+| 8 | `bskel stack apply --choice ngrok` | — | **implemented** |
 | 9 | `/speckit.tasks` | — | depends on spec-kit if present |
 | 10 | `bskel verify` | — | not yet built |
 
@@ -43,10 +43,10 @@ re-verifiable input set (current `HEAD` sha + locally-resolved default branch), 
 downstream command that checks the `preflight` gate will refuse to proceed without it having
 actually run and passed.
 
-Steps 7, 8, 10 (marked "not yet built" above) do not exist yet. If you are asked to do handle
-codegen or stack wiring right now: say so plainly, point at the plan file's phased build order,
-and do NOT hand-simulate what those commands would output -- that recreates exactly the "agent
-got lucky" problem this skill exists to eliminate.
+Step 7 and step 10 (marked "not yet built" above) do not exist yet. If you are asked to do
+handle codegen or a final verify pass right now: say so plainly, point at the plan file's
+phased build order, and do NOT hand-simulate what those commands would output -- that recreates
+exactly the "agent got lucky" problem this skill exists to eliminate.
 
 ## What's actually usable today
 
@@ -106,6 +106,23 @@ bskel contract validate --feature <id> --file envelope.json
 bskel contract tool-schema --feature <id> --operation <operationId>
   # -> prints {name, description, input_schema} for that operation -- input_schema is plain
   #    JSON Schema, usable directly as an Anthropic tool-use tool definition.
+
+bskel stack apply --choice ngrok                # dry-run (default): prints the plan, writes nothing
+bskel stack apply --choice ngrok --apply        # actually writes; always idempotent to re-run
+bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run on 8080
+  # -> requires preflight. Creates scripts/dev-tunnel.sh + scripts/_bskel-lib.sh (both
+  #    self-contained -- no dependency on backend-skeleton being installed to run them later)
+  #    and appends NGROK_AUTHTOKEN/NGROK_DOMAIN/PUBLIC_BASE_URL doc entries to .env.example.
+  #    Also reports whether auth.login.allowed-origins is already environment-variable-driven
+  #    (it is, in Team-IZ-Backend) or needs a one-line manual patch -- never auto-edits
+  #    application config files, see D-config-patch in DECISIONS.md.
+  #
+  #    The runtime half is NOT run by this command: after --apply, a human fills in
+  #    NGROK_AUTHTOKEN in .env and runs ./scripts/dev-tunnel.sh themselves (starts the tunnel,
+  #    writes PUBLIC_BASE_URL + appends to AUTH_LOGIN_ALLOWED_ORIGINS in .env once the tunnel
+  #    is confirmed up, then either execs a given --exec "..." command or waits). Works in both
+  #    ephemeral mode (no NGROK_DOMAIN set) and reserved-domain mode (NGROK_DOMAIN set) --
+  #    same script, switched purely by env var presence, per D-ngrok.
 ```
 
 **Contract scope note**: only `direction: "request"` payloads are checked against an
@@ -116,9 +133,14 @@ actual Java DTO field-level parsing, out of scope for Phase 2's ripgrep+regex sc
 
 ## Design reference (for implementing the remaining phases)
 
-- `scanners/` (Phase 2) and `contracts/` (Phase 3) are implemented. `handles/`, `stack/` are
-  still empty -- see the plan file's Component 4-5 sections for exactly what each should
-  contain, and the phased build order (Phase 4 through 6) for what to implement next.
+- `scanners/` (Phase 2), `contracts/` (Phase 3), and `stack/` (Phase 4) are implemented.
+  `handles/` is still empty -- see the plan file's Component 5 section for what it should
+  contain (this is the only remaining phase that touches production Java code and the Supabase
+  schema, so it's deliberately last).
+- `stack/apply.mjs` is generic over any `stack/catalog/<id>.yml` -- adding a new stack choice
+  (Supabase, Railway, ...) is a new catalog YAML + template pair, not new JS (see `D7`). Config
+  files that need surgical, comment-preserving edits (rather than whole-file creation) are
+  deliberately NOT auto-patched yet -- see `D-config-patch`.
 - `~/.agents/skills/archify/` is the packaging precedent for `schemas/` + `bin/` + `test/`
   layout generally. Its ajv-standalone-compilation technique (`archify/scripts/
   generate-validators.mjs`) does NOT apply directly here, though -- see `D-ajv-runtime` in

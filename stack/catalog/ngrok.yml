@@ -1,0 +1,55 @@
+id: ngrok
+description: >
+  Expose the local dev server through an ngrok tunnel -- ephemeral URL by default, or a
+  reserved domain if NGROK_DOMAIN is set (paid ngrok plan). For webhook testing or sharing a
+  running instance without deploying. See D-ngrok in DECISIONS.md: both modes are supported by
+  the same script, switched purely by whether NGROK_DOMAIN is present in the environment --
+  this is not a fixed choice baked in at codegen time.
+
+detect:
+  files:
+    - scripts/dev-tunnel.sh
+  env_keys:
+    - NGROK_AUTHTOKEN
+
+static:
+  files:
+    - path: scripts/dev-tunnel.sh
+      template: bootstrap/ngrok.sh
+      mode: "755"
+    - path: scripts/_bskel-lib.sh
+      template: bootstrap/_lib.sh
+      mode: "644"
+
+  env_example:
+    - key: NGROK_AUTHTOKEN
+      required: true
+      secret: true
+      doc: "ngrok authtoken -- https://dashboard.ngrok.com/get-started/your-authtoken"
+    - key: NGROK_DOMAIN
+      required: false
+      doc: "reserved domain (paid ngrok plan). Unset = ephemeral URL, different every run."
+    - key: PUBLIC_BASE_URL
+      required: false
+      doc: "written automatically by scripts/dev-tunnel.sh once the tunnel is confirmed up -- do not set this by hand, it will be overwritten"
+
+  config_check:
+    - target: src/main/resources/application.yaml
+      externalized_pattern: "\\$\\{AUTH_LOGIN_ALLOWED_ORIGINS"
+      note: >
+        allowed-origins must be environment-variable-driven for the tunnel URL to actually take
+        effect (e.g. `allowed-origins: ${AUTH_LOGIN_ALLOWED_ORIGINS:default-value}`). If this
+        check reports needs-manual-patch, add that yourself -- backend-skeleton deliberately
+        does not auto-edit application config files (see D-config-patch in DECISIONS.md).
+
+runtime:
+  script: scripts/dev-tunnel.sh
+  readiness:
+    probe: "http://127.0.0.1:4040/api/tunnels"
+  produces:
+    - key: PUBLIC_BASE_URL
+      sink: env
+      mode: set
+    - key: AUTH_LOGIN_ALLOWED_ORIGINS
+      sink: env
+      mode: append-unique

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:stack-choice:1",
+  "title": "backend-skeleton stack catalog entry",
+  "description": "Validates a stack/catalog/<id>.yml file: what static, codegen-time artifacts a stack choice needs (files, .env.example entries, config checks) vs. what only exists once its bootstrap script actually runs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "description", "static", "runtime"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "description": { "type": "string" },
+    "detect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "env_keys": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "static": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "template"],
+            "properties": {
+              "path": { "type": "string" },
+              "template": { "type": "string" },
+              "mode": { "type": "string" }
+            }
+          }
+        },
+        "env_example": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "doc"],
+            "properties": {
+              "key": { "type": "string" },
+              "required": { "type": "boolean" },
+              "secret": { "type": "boolean" },
+              "doc": { "type": "string" }
+            }
+          }
+        },
+        "config_check": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["target", "externalized_pattern", "note"],
+            "properties": {
+              "target": { "type": "string" },
+              "externalized_pattern": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["script", "produces"],
+      "properties": {
+        "script": { "type": "string" },
+        "readiness": {
+          "type": "object",
+          "properties": { "probe": { "type": "string" } }
+        },
+        "produces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "sink"],
+            "properties": {
+              "key": { "type": "string" },
+              "sink": { "enum": ["env"] },
+              "mode": { "enum": ["set", "append-unique"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

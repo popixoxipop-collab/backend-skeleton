@@ -13,6 +13,7 @@ import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
 import { buildContract } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
+import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -48,6 +49,10 @@ const GATE_RECOMPUTERS = {
 		head_sha: headSha(root),
 		contract_hash: sha256File(specPath(root, featureId, 'contracts', `${featureId}.schema.json`)),
 	}),
+	// Repo-scoped like preflight (a stack choice is a project-wide decision, not per-feature).
+	// Staleness here means "the applied files or the choice-of-catalog-entry are gone/changed",
+	// not "re-verify the tunnel is currently running" -- that's a runtime concern, not a gate.
+	stack: (root) => ({ head_sha: headSha(root), stack_record_hash: sha256File(path.join(root, '.sbf', 'stack.json')) }),
 };
 
 function currentGateInputs(root, gateName, featureId, storedEvidence) {
@@ -73,6 +78,7 @@ function usage() {
   bskel contract emit --feature <id> [--module <name>] [--json]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
+  bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel gate require <name> [--feature <id>]
   bskel gate force <name> --reason "..." [--feature <id>]
   bskel gate show [--feature <id>]
@@ -438,6 +444,76 @@ function cmdContractToolSchema(args) {
 	process.exit(0);
 }
 
+function renderStackPlan(plan) {
+	const lines = [`# Stack apply plan: ${plan.choice}`, ''];
+	lines.push(plan.alreadyDetected ? '**Already detected as applied** (files/env keys from `detect:` found) -- re-running is idempotent.' : 'Not yet applied.');
+	lines.push('');
+	lines.push('## Files');
+	for (const f of plan.files) lines.push(`- [${f.action}] ${f.path}${f.mode ? ` (mode ${f.mode})` : ''}`);
+	lines.push('');
+	lines.push('## .env.example entries');
+	for (const e of plan.envExampleActions) lines.push(`- [${e.action}] ${e.key}${e.required ? ' (required)' : ''}${e.secret ? ' (secret)' : ''} -- ${e.doc}`);
+	lines.push('');
+	if (plan.configChecks.length > 0) {
+		lines.push('## Config checks (informational -- never auto-patched, see D-config-patch)');
+		for (const c of plan.configChecks) lines.push(`- ${c.target}: **${c.status}**${c.status === 'needs-manual-patch' ? `\n  ${c.note}` : ''}`);
+	}
+	return `${lines.join('\n')}\n`;
+}
+
+function cmdStackApply(args) {
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	const flags = parseFlags(args, {
+		choice: { type: 'string', default: null },
+		apply: { type: 'boolean', default: false },
+		port: { type: 'string', default: '8080' },
+		json: { type: 'boolean', default: false },
+	});
+	if (!flags.choice) {
+		console.error(`usage: bskel stack apply --choice <id> [--apply] [--port N]   (known choices: ${listCatalogChoices().join(', ') || '(none)'})`);
+		process.exit(14);
+	}
+
+	let entry;
+	try {
+		entry = loadCatalogEntry(flags.choice);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
+	const plan = planApply(root, entry, { port: Number.parseInt(flags.port, 10) });
+
+	if (!flags.apply) {
+		// Dry-run is the default -- nothing is written without an explicit --apply, matching the
+		// repo's own "minimal, explicit-approval" convention for anything that touches files.
+		console.log(flags.json ? JSON.stringify(plan, null, 2) : renderStackPlan(plan));
+		process.exit(0);
+	}
+
+	const written = applyPlan(root, plan);
+	const stackRecord = {
+		schema: 'sbf.stack/1', choice: flags.choice, applied_files: written,
+		env_example_keys: plan.envExampleActions.map((e) => e.key), at: new Date().toISOString(),
+	};
+	writeFileAtomic(path.join(root, '.sbf', 'stack.json'), `${JSON.stringify(stackRecord, null, 2)}\n`);
+
+	const inputs = GATE_RECOMPUTERS.stack(root);
+	const gateState = passGate(root, REPO_GATE_ID, 'stack', inputs, { choice: flags.choice });
+
+	if (flags.json) {
+		console.log(JSON.stringify({ written, gate: gateState.gates.stack }, null, 2));
+	} else {
+		console.log(written.length > 0 ? `wrote: ${written.join(', ')}` : 'nothing to write (already up to date)');
+		for (const c of plan.configChecks.filter((c) => c.status === 'needs-manual-patch')) {
+			console.log(`\nmanual step needed -- ${c.target}:\n${c.note}`);
+		}
+		console.log(`gate: stack -> ${gateState.gates.stack.status}`);
+		console.log(`\nnext: fill in ${entry.static?.env_example?.filter((e) => e.required).map((e) => e.key).join(', ') || 'the required'} in your .env, then run ./${entry.runtime.script}`);
+	}
+	process.exit(0);
+}
+
 function cmdDoctor() {
 	const root = repoRoot();
 	const checks = [];
@@ -485,6 +561,12 @@ function main() {
 			if (sub === 'emit') return cmdContractEmit(subArgs);
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'stack': {
+			if (rest[0] === 'apply') return cmdStackApply(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;
