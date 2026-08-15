@@ -14,6 +14,8 @@ import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mj
 import { buildContract } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
+import { planHandles } from '../handles/plan.mjs';
+import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -53,6 +55,13 @@ const GATE_RECOMPUTERS = {
 	// Staleness here means "the applied files or the choice-of-catalog-entry are gone/changed",
 	// not "re-verify the tunnel is currently running" -- that's a runtime concern, not a gate.
 	stack: (root) => ({ head_sha: headSha(root), stack_record_hash: sha256File(path.join(root, '.sbf', 'stack.json')) }),
+	// Staleness = the generated Java (or the contract it was generated from) has moved since
+	// emit -- NOT "does the migration still match the DB schema" (unknowable without a live DB
+	// connection this tool deliberately never opens on its own, see D-migration-scope).
+	handles: (root, featureId) => ({
+		head_sha: headSha(root),
+		contract_hash: sha256File(specPath(root, featureId, 'contracts', `${featureId}.schema.json`)),
+	}),
 };
 
 function currentGateInputs(root, gateName, featureId, storedEvidence) {
@@ -79,6 +88,8 @@ function usage() {
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
+  bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
+  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]
   bskel gate require <name> [--feature <id>]
   bskel gate force <name> --reason "..." [--feature <id>]
   bskel gate show [--feature <id>]
@@ -514,6 +525,110 @@ function cmdStackApply(args) {
 	process.exit(0);
 }
 
+function loadScanReportOrExit(root, featureId) {
+	const scanReportPath = specPath(root, featureId, 'brownfield-scan.json');
+	if (!fs.existsSync(scanReportPath)) {
+		console.error(`no scan report at ${scanReportPath} -- run \`bskel scan --feature ${featureId}\` first`);
+		process.exit(2);
+	}
+	return JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
+}
+
+function renderHandlesPlan(plan) {
+	const lines = [`# Handles plan: module "${plan.module ?? '(none)'}"`, ''];
+	if (plan.resources.length === 0) {
+		lines.push('No candidate resources.');
+	}
+	for (const r of plan.resources) {
+		lines.push(`## ${r.type}${r.willGenerateResolver ? '' : ' (resolver will NOT be generated -- see notes)'}`);
+		lines.push(`- table: ${r.table ?? '(unknown)'}, PK field: ${r.idField ?? '(unknown)'}`);
+		lines.push(`- fetch: ${r.fetchOperation ? `${r.fetchOperation.method}() via ${r.fetchOperation.path}` : '(none found)'}`);
+		lines.push(`- service: ${r.service ? r.service.serviceType : '(not found)'}`);
+		lines.push(`- requiredAuthority: ${r.requiredAuthority}`);
+		lines.push('');
+	}
+	if (plan.notes.length > 0) {
+		lines.push('## Notes');
+		for (const n of plan.notes) lines.push(`- ${n}`);
+	}
+	return `${lines.join('\n')}\n`;
+}
+
+function cmdHandlesPlan(args) {
+	const root = requireRepoRoot();
+	const flags = parseFlags(args, {
+		feature: { type: 'string', default: null },
+		module: { type: 'string', default: null },
+		resource: { type: 'string', default: '' },
+		json: { type: 'boolean', default: false },
+	});
+	if (!flags.feature) { console.error('usage: bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]'); process.exit(14); }
+	requireValidFeatureId(flags.feature);
+
+	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const basePackage = detectBasePackage(root);
+	if (!basePackage) {
+		console.error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+		process.exit(2);
+	}
+	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
+	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
+
+	const plan = planHandles({ repoRoot: root, javaSrcRoot, scanReport, module: flags.module, resourceFilter });
+	console.log(flags.json ? JSON.stringify(plan, null, 2) : renderHandlesPlan(plan));
+	process.exit(0);
+}
+
+function cmdHandlesEmit(args) {
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	const flags = parseFlags(args, {
+		feature: { type: 'string', default: null },
+		module: { type: 'string', default: null },
+		resource: { type: 'string', default: '' },
+		json: { type: 'boolean', default: false },
+	});
+	if (!flags.feature) { console.error('usage: bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]'); process.exit(14); }
+	requireValidFeatureId(flags.feature);
+
+	// Handles are only emitted for a feature whose contract has actually been established --
+	// codegen against a feature nobody has scanned/contracted yet has nothing real to route to.
+	const contractResult = requireGate(root, flags.feature, 'contract', GATE_RECOMPUTERS.contract(root, flags.feature));
+	if (contractResult.code !== EXIT.PASS) {
+		console.error(`blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- run \`bskel contract emit --feature ${flags.feature}\` first.`);
+		process.exit(contractResult.code);
+	}
+
+	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const basePackage = detectBasePackage(root);
+	if (!basePackage) {
+		console.error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+		process.exit(2);
+	}
+	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
+	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
+
+	const plan = planHandles({ repoRoot: root, javaSrcRoot, scanReport, module: flags.module, resourceFilter });
+	const { written, resolverStubs } = emitHandles({ repoRoot: root, featureId: flags.feature, plan, basePackage });
+
+	const inputs = GATE_RECOMPUTERS.handles(root, flags.feature);
+	const gateState = passGate(root, flags.feature, 'handles', inputs, { resolverStubs });
+
+	if (flags.json) {
+		console.log(JSON.stringify({ written, resolverStubs, notes: plan.notes, gate: gateState.gates.handles }, null, 2));
+	} else {
+		console.log(`wrote ${written.length} file(s):`);
+		for (const w of written) console.log(`  ${w}`);
+		if (plan.notes.length > 0) {
+			console.log('\nnotes:');
+			for (const n of plan.notes) console.log(`  - ${n}`);
+		}
+		console.log(`\ngate: handles -> ${gateState.gates.handles.status}`);
+		console.log('\nNOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.');
+	}
+	process.exit(0);
+}
+
 function cmdDoctor() {
 	const root = repoRoot();
 	const checks = [];
@@ -567,6 +682,13 @@ function main() {
 		}
 		case 'stack': {
 			if (rest[0] === 'apply') return cmdStackApply(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'handles': {
+			if (rest[0] === 'plan') return cmdHandlesPlan(rest.slice(1));
+			if (rest[0] === 'emit') return cmdHandlesEmit(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

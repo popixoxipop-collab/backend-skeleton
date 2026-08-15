@@ -226,6 +226,96 @@ test suite -- see below for why):
   unprompted. If this needs closing later, the mock-server test above already proves the
   request/response handling is correct; what's unverified is ngrok's actual CLI behavior itself.
 
+## D5/D6 (implemented): composite encoded handle + derived-and-registered UUID, not bare UUID PKs
+
+**WHY**: bare UUID PKs (already present throughout Team-IZ-Backend, e.g. `Organization.orgId`)
+can't address a *field*, can't dispatch a *type*, and can't *recover* history -- they're just
+row identity. The handle format (`sbf1_<base64url(kind:type:uuid[:pointer])>`) extends Relay's
+`base64(Type:id)` global-ID pattern with an RFC 6901 JSON Pointer for field-level addressing;
+`deriveHandleUid` gives a PLAIN UUID identity for the same address (kind=r: the resource's own
+uuid; kind=f: a UUIDv5 derived from type+uuid+pointer) so it can be a DB primary/foreign key
+without ever needing a lookup to mint or re-derive it.
+**COST**: two representations of the same identity to keep straight (the self-describing
+`sbf1_...` token for transport, the plain UUID for DB keys) -- documented explicitly in both
+the JS and Java codec's top comments to head off "why are there two."
+**EXIT**: `deriveHandleUid`'s algorithm is isolated behind one function on each side (JS/Java);
+changing it would need a migration path for already-issued handle_uids, not attempted here.
+
+**Verified, not just designed**: `uuidv5()` matches the standard test vector
+(`NAMESPACE_DNS` + `"example.com"` -&gt; `cfbff0d1-9375-5685-968c-48ce8b15ae17`, cross-checked
+against Python's `uuid.uuid5` stdlib implementation) in BOTH the JS reference (`handles/codec.mjs`)
+and a standalone-compiled-and-run Java version -- and, critically, the JS and Java
+implementations were run side-by-side on the exact same inputs and produced byte-identical
+tokens and handle_uids (see `test/handles-codec.test.mjs`). This is the actual "UUID로 짜두면
+양방향" (mint a UUID, get bidirectional round-trip) property the user asked for, confirmed
+across languages, not assumed.
+
+## D-resolver-scope: `fetch()` is auto-wired to a real service method; `patchField()` is deliberately a stub
+
+**WHY**: `fetch()` for a resource is a read-only call into an EXISTING, already-tested service
+method (`bskel handles plan` locates it by finding a controller whose class name matches the
+entity and a `GET {basePath}/{id}` endpoint on it, then reads the Java method name off that
+endpoint) -- low risk to auto-wire. `patchField()` is NOT auto-wired, because inspecting real
+update DTOs in this codebase during Phase 5 turned up THREE different partial-update
+conventions in active use (some fields use `PatchField<T>` because null is meaningful; most
+fields in the same DTO just treat null as "unchanged" with no wrapper; and `Organization`'s own
+update DTO isn't partial at all -- `status` is `@NotNull` even when only the name changes, so a
+field-level patch there means fetch-then-merge-then-resubmit). There's no way to pick the right
+one from scan data alone without guessing, and a wrong guess here would silently bypass real
+validation/business rules -- worse than leaving an honest `UnsupportedOperationException` stub.
+**COST**: `patchField` always needs a human/agent to finish it per resource before PATCH via a
+handle actually works for that resource.
+**EXIT**: none needed -- this is a permanent scope boundary, not a temporary gap; document it
+loudly in the generated resolver's own javadoc (done) so whoever completes it sees the three
+real patterns before choosing.
+
+**A second real bug found and fixed while testing this** (not a design decision, a mistake
+caught by testing against the actual module): the first version of `findFetchOperation` used a
+single shared `basePath` (`targetModule.controllers[0].basePath`) for every entity in the
+module. Team-IZ-Backend's `organization` module has TWO controllers --
+`OrganizationController` (`/organizations`) and `OperatorController`
+(`/organizations/{organizationId}/operators`) -- and depending on scan order, `controllers[0]`
+could be either one. Using the wrong controller's base path either found nothing or (in a
+differently-shaped module) could match an unrelated controller's endpoint. Fixed by having each
+candidate controller checked against ITS OWN base path, gated by a name-affinity check (only
+consider a controller whose class name contains the entity's name) -- `test/handles-plan.test.mjs`
+reproduces this exact two-controller shape as a fixture so it can't silently regress.
+
+## D-migration-scope: `bskel handles emit` never applies its own SQL migration, and this session never opened a live DB connection
+
+**WHY**: same rationale as D-config-patch -- Team-IZ-Backend has no Flyway/Liquibase (confirmed
+by Phase 2's scan), so there is no existing "apply a migration" convention to hook into safely,
+and this repo's own `CLAUDE.md` requires explicit human approval for anything touching shared
+infrastructure. The migration is written to `specs/<feature_id>/handles/migration.sql` for a
+human to review and run.
+**COST**: the registry/snapshot tables described by that SQL do not exist anywhere yet -- a
+live `fetch`/`patch`/`recover` round trip against a real database was NOT performed this
+session (there is no test database available, and creating one -- even a "throwaway" one --
+against Supabase wasn't done without explicit user sign-off first).
+**EXIT**: once a target repo actually applies the migration, `bskel handles emit`'s output is
+ready to use as-is; nothing about the generated code assumes it was verified against a live DB,
+by design (the codec's correctness -- the part that doesn't need a DB -- is what was verified,
+per D5/D6 above).
+
+**What Phase 5 verification actually consisted of, concretely** (so this isn't taken as more
+than it is): (1) the codec algorithm, cross-language, against a known UUIDv5 test vector and
+against itself JS-vs-Java on identical inputs; (2) `bskel handles plan`'s controller/service
+matching logic, via both a real-repo run (which is what surfaced the two-controller bug above)
+and a fixture-based regression test; (3) **a real `./gradlew compileJava` run against
+Team-IZ-Backend with all 9 generated files in place, which succeeded (BUILD SUCCESSFUL) with
+zero errors** -- this is the meaningful oracle available without a live DB: does the generated
+code actually compile against the real project's real classes (`OrganizationService`,
+`PatchField`, Spring/Jakarta/Lombok/Hibernate versions all real, not mocked). Compiling cleanly
+does NOT mean the DB-backed registry/snapshot/PATCH-via-service-layer behavior has been
+exercised end-to-end; that remains unverified until a real migration is applied somewhere.
+
+(Aside, not a design decision: compiling this required a JDK 17 toolchain, which wasn't
+discoverable by Gradle on this machine even though `openjdk@17` was already installed via
+Homebrew -- `/usr/libexec/java_home` doesn't see brew kegs unless linked into the standard
+`JavaVirtualMachines` location. Symlinked `~/Library/Java/JavaVirtualMachines/openjdk-17.jdk` ->
+the brew keg to fix this; harmless and reversible, but a real, persistent change to this
+machine worth knowing about if anyone wonders why JDK 17 shows up in `java_home -V` now.)
+
 ## D-name / D-repo / D-handles / D-ngrok
 
 User-confirmed choices, recorded in the approved plan

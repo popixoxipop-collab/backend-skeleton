@@ -6,7 +6,7 @@ metadata:
   version: 0.1.0
   author: popixoxipop
   based_on: "https://github.com/popixoxipop-collab/backend-skeleton"
-  status: "Phase 0-4 implemented (spine, preflight, brownfield scan, feature_id contracts, stack-choice wiring). Phase 5-6 (UUID handles, verify) not yet built -- see below."
+  status: "Phase 0-5 implemented (spine, preflight, brownfield scan, feature_id contracts, stack-choice wiring, UUID handles). Phase 6 (final verify pass) not yet built -- see below."
 ---
 
 # backend-skeleton
@@ -32,7 +32,7 @@ and this skill exists to make it a guarantee instead.
 | 4 | `/speckit.specify` (or `bskel spec template`) | — | depends on spec-kit if present |
 | 5 | `bskel contract emit` + `bskel contract validate` | blocks 6-10 | **implemented** |
 | 6 | `/speckit.plan` (with scan disposition injected) | — | depends on spec-kit if present |
-| 7 | `bskel handles plan` → `bskel handles emit` | — | not yet built |
+| 7 | `bskel handles plan` → `bskel handles emit` | — | **implemented** |
 | 8 | `bskel stack apply --choice ngrok` | — | **implemented** |
 | 9 | `/speckit.tasks` | — | depends on spec-kit if present |
 | 10 | `bskel verify` | — | not yet built |
@@ -43,10 +43,18 @@ re-verifiable input set (current `HEAD` sha + locally-resolved default branch), 
 downstream command that checks the `preflight` gate will refuse to proceed without it having
 actually run and passed.
 
-Step 7 and step 10 (marked "not yet built" above) do not exist yet. If you are asked to do
-handle codegen or a final verify pass right now: say so plainly, point at the plan file's
-phased build order, and do NOT hand-simulate what those commands would output -- that recreates
-exactly the "agent got lucky" problem this skill exists to eliminate.
+Step 10 (marked "not yet built" above) does not exist yet. If you are asked to do a final
+verify pass right now: say so plainly, point at the plan file's phased build order, and do NOT
+hand-simulate what that command would output -- that recreates exactly the "agent got lucky"
+problem this skill exists to eliminate.
+
+**Handles (Phase 5) have a real, permanent scope boundary, not a "not yet built" gap**:
+`bskel handles emit`'s generated `fetch()` is real and safe to trust (wired to an existing,
+already-tested read-only service method). `patchField()` is ALWAYS a stub requiring a
+human/agent to finish it, because this codebase uses at least three different partial-update
+DTO conventions (see `D-resolver-scope` in `DECISIONS.md`) and guessing wrong would silently
+bypass real validation. Do not "helpfully" implement a guessed `patchField` body without
+checking which of the three patterns the target DTO actually uses.
 
 ## What's actually usable today
 
@@ -125,6 +133,33 @@ bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run 
   #    same script, switched purely by env var presence, per D-ngrok.
 ```
 
+```bash
+bskel handles plan --feature <id> [--module <name>] [--resource Type1,Type2]
+  # -> read-only. For each entity found by `bskel scan` in the target module, reports whether
+  #    a resolver CAN be generated: a single-resource GET endpoint on a controller whose class
+  #    name contains the entity's name (for fetch), and a matching <Entity>Service.java file
+  #    (for the service to call). If either is missing, says so and will not generate a broken
+  #    stub for that entity.
+
+bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
+  # -> requires the `contract` gate to have passed. Writes, under the detected base package:
+  #      global/handle/{HandleCodec,HandleRegistry,HandleSnapshot,HandleRegistryRepository,
+  #        HandleSnapshotRepository,ResourceResolver,HandleController}.java
+  #      domain/<module>/infrastructure/<Type>Resolver.java   (one per resource `plan` approved)
+  #      specs/<id>/handles/migration.sql   (sbf_handle + sbf_handle_snapshot tables -- NOT applied)
+  #    <Type>Resolver's fetch() calls the real service method directly (verified safe -- it's a
+  #    read-only call into existing, tested code). patchField() is ALWAYS a stub -- see the
+  #    workflow section above and D-resolver-scope in DECISIONS.md for why.
+```
+
+**Handle format**: `sbf1_<base64url(kind:type:uuid[:pointer])>` -- `kind` is `r` (whole
+resource), `f` (one field, via an RFC 6901 JSON Pointer), or `o` (reserved, unused). A plain-
+UUID `handle_uid` is derivable from the same components (`kind=r`: the resource's own uuid;
+`kind=f`: a UUIDv5 of `type:uuid:pointer`) without any DB round-trip. Verified byte-identical
+between the JS reference implementation (`handles/codec.mjs`) and the generated Java
+(`HandleCodec.java`) on the same inputs, and `uuidv5` independently matches the standard RFC
+4122 test vector -- see `test/handles-codec.test.mjs` and `D5/D6` in `DECISIONS.md`.
+
 **Contract scope note**: only `direction: "request"` payloads are checked against an
 operation-specific shape (path params + whether a body is required/disallowed). `response`/
 `error` payloads pass envelope-structure validation but aren't checked further -- that would need
@@ -133,10 +168,14 @@ actual Java DTO field-level parsing, out of scope for Phase 2's ripgrep+regex sc
 
 ## Design reference (for implementing the remaining phases)
 
-- `scanners/` (Phase 2), `contracts/` (Phase 3), and `stack/` (Phase 4) are implemented.
-  `handles/` is still empty -- see the plan file's Component 5 section for what it should
-  contain (this is the only remaining phase that touches production Java code and the Supabase
-  schema, so it's deliberately last).
+- `scanners/` (Phase 2), `contracts/` (Phase 3), `stack/` (Phase 4), and `handles/` (Phase 5)
+  are all implemented. Only Phase 6 (a final `bskel verify` pass tying every gate together)
+  remains -- see the plan file's build-order table.
+- Generated Java was verified with a real `./gradlew compileJava` run against Team-IZ-Backend
+  (BUILD SUCCESSFUL, all 9 generated files including a working `OrganizationResolver`) -- not
+  just eyeballed. A live DB-backed round trip (mint -> fetch -> patch -> recover against an
+  actual `sbf_handle` table) was NOT performed -- no test database, and migrations are
+  deliberately emit-only (see `D-migration-scope`).
 - `stack/apply.mjs` is generic over any `stack/catalog/<id>.yml` -- adding a new stack choice
   (Supabase, Railway, ...) is a new catalog YAML + template pair, not new JS (see `D7`). Config
   files that need surgical, comment-preserving edits (rather than whole-file creation) are

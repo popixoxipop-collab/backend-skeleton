@@ -1,0 +1,37 @@
+package {{BASE_PACKAGE}}.global.handle;
+
+import java.util.UUID;
+
+/**
+ * One implementation per resource type, registered as a {@code @Component} so Spring collects
+ * them into a {@code Map<String, ResourceResolver>} (bean name -&gt; resolver) that
+ * {@link HandleController} dispatches through by decoded handle {@code type} -- no reflection,
+ * an unknown type is just a missing map key.
+ *
+ * <p>{@code fetch}/{@code patchField} return/accept plain {@code Object} (typically the
+ * resource's existing response DTO) rather than a fixed type, since resolvers are registered
+ * generically -- callers use {@link HandleCodec#decode} + {@link
+ * backend-skeleton.handles.codec}'s {@code resolveJsonPointer}-equivalent to navigate into
+ * whatever shape {@code fetch} returns.
+ */
+public interface ResourceResolver {
+
+	/** Must match the {@code type} segment used when this resource's handles were minted (e.g. "Organization"). */
+	String type();
+
+	/** Fetches the whole resource, serialized the same shape its normal API response uses. */
+	Object fetch(UUID resourceUid);
+
+	/**
+	 * Applies a single field-level patch. Implementations route through the resource's EXISTING
+	 * update path (its real service method + DTO) rather than raw persistence access, so
+	 * existing validation/business rules keep applying -- see the generated resolver stub for
+	 * this feature's target module for the specific pattern to follow (some DTOs use {@code
+	 * PatchField<T>} for null-has-meaning fields, most just treat null-vs-absent as "unchanged",
+	 * and some require re-submitting the whole object; check the target DTO before assuming).
+	 */
+	void patchField(UUID resourceUid, String pointer, Object value);
+
+	/** Spring Security role name (no "ROLE_" prefix) required to fetch/patch this resource type via a handle. */
+	String requiredAuthority();
+}
