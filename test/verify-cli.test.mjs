@@ -22,7 +22,13 @@ function run(args, cwd) {
 // (not appended afterward -- appending after the commit would leave the working tree dirty,
 // and `bskel preflight` refuses to pass judgment on a dirty tree without --allow-dirty, which
 // would block every test that needs preflight to actually PASS).
-function buildFixtureRepo({ gradlew } = {}) {
+// `unmatchedEndpoint`: adds a method with its own `@Operation(summary=...)` but no operationId --
+// produces a CONTRACT_UNMATCHED_ENDPOINT warning (completeness: partial). Giving it its own
+// `@Operation(...)` (not omitting the annotation) matters: scanners/adapters/java-spring.mjs's
+// operationId correlator walks backward to the nearest preceding `@Operation(` in the whole
+// file, so a method with NO `@Operation` of its own would incorrectly inherit findWidgets'
+// operationId instead of correlating to null.
+function buildFixtureRepo({ gradlew, unmatchedEndpoint } = {}) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-verify-cli-fixture-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -41,6 +47,10 @@ public class WidgetController {
 	@Operation(operationId = "findWidgets")
 	@GetMapping
 	public String findWidgets() { return "ok"; }
+${unmatchedEndpoint ? `
+	@Operation(summary = "delete a widget")
+	@DeleteMapping("/{widgetId}")
+	public String deleteWidget(@PathVariable String widgetId) { return "ok"; }` : ''}
 }
 `);
 	if (gradlew) {
@@ -257,4 +267,35 @@ test('verify --build: a real build success is reported', () => {
 	assert.equal(report.build.ran, true);
 	assert.equal(report.build.ok, true);
 	assert.equal(report.build.tool, 'gradle');
+});
+
+// A5 regression: a waiver lives in its own file precisely so it can drift independently of the
+// contract artifact -- the `contract` gate's token covers resolution_hash (lib/gate-definitions.
+// mjs), so deleting the resolution file that unblocked a partial contract must make the gate go
+// stale, same as corrupting stack.json does for the `stack` gate above.
+test('deleting a contract resolution (waiver) file after it unblocked the gate makes contract stale and fails verify', () => {
+	const root = buildFixtureRepo({ unmatchedEndpoint: true });
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(emit.code, 3, 'sanity: the partial contract must block before waiving');
+
+	const waive = run(['contract', 'waive', '--feature', '001-widget-management', '--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--all', '--reason', 'test'], root);
+	assert.equal(waive.code, 0);
+	assert.equal(JSON.parse(run(['verify', '--feature', '001-widget-management', '--json'], root).stdout).pass, true);
+
+	const resolutionFilePath = path.join(root, 'specs', '001-widget-management', 'contracts', '001-widget-management.resolution.json');
+	const backup = fs.readFileSync(resolutionFilePath, 'utf8');
+	fs.rmSync(resolutionFilePath);
+
+	const afterDelete = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(afterDelete.code, 1);
+	const report = JSON.parse(afterDelete.stdout);
+	assert.equal(report.pass, false);
+	assert.equal(report.gates.find((g) => g.gate === 'contract').status, 'stale');
+
+	fs.writeFileSync(resolutionFilePath, backup);
+	assert.equal(JSON.parse(run(['verify', '--feature', '001-widget-management', '--json'], root).stdout).pass, true, 'restoring the original resolution file must un-stale the gate');
 });

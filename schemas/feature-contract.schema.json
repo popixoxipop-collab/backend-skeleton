@@ -5,9 +5,9 @@
   "description": "Validates the SHAPE of specs/<feature_id>/contracts/<feature_id>.schema.json itself -- not a payload. See contracts/validate.mjs for payload validation against a specific operation inside a contract that already passed this meta-schema.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sbf_contract", "feature_id", "feature_uid", "generated_at", "source", "operations"],
+  "required": ["sbf_contract", "feature_id", "feature_uid", "generated_at", "source", "operations", "warnings", "completeness"],
   "properties": {
-    "sbf_contract": { "const": "1" },
+    "sbf_contract": { "const": "2" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
     "generated_at": { "type": "string", "format": "date-time" },
@@ -35,6 +35,32 @@
         }
       }
     },
-    "warnings": { "type": "array", "items": { "type": "string" } }
+    "warnings": {
+      "description": "A5: structured, not bare strings -- see contracts/completeness.mjs's WARNING_CODES for the known code table.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "subject", "message", "detail"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^CONTRACT_[A-Z_]+$" },
+          "severity": { "enum": ["error", "warn"] },
+          "subject": { "type": ["string", "null"] },
+          "message": { "type": "string" },
+          "detail": { "type": "object" }
+        }
+      }
+    },
+    "completeness": {
+      "description": "A5: derived from operations/warnings alone, independent of any recorded waiver -- see contracts/completeness.mjs's classifyContract().",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "operation_count", "endpoint_count"],
+      "properties": {
+        "status": { "enum": ["complete", "partial", "blocked"] },
+        "operation_count": { "type": "integer", "minimum": 0 },
+        "endpoint_count": { "type": "integer", "minimum": 0 }
+      }
+    }
   }
 }

@@ -96,3 +96,10 @@ test('recompute is deterministic for the same root/featureId', () => {
 		assert.deepEqual(a, b, `"${name}".recompute must be deterministic for identical inputs`);
 	}
 });
+
+// A5: the contract gate's token must cover the resolution (waiver) file too, not just the
+// contract artifact itself -- otherwise deleting/editing a waiver would leave the gate green.
+test('contract gate recompute covers head_sha, contract_hash, and resolution_hash', () => {
+	const inputs = gateInputs(process.cwd(), 'contract', '001-widget-management');
+	assert.deepEqual(Object.keys(inputs).sort(), ['contract_hash', 'head_sha', 'resolution_hash']);
+});

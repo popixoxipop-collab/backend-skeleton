@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:contract-resolution:1",
+  "title": "backend-skeleton contract waiver resolution",
+  "description": "Documentation only, like state.schema.json -- nothing in the codebase loads this file at runtime (see contracts/completeness.mjs's loadResolution, which parses the JSON directly). Validates specs/<feature_id>/contracts/<feature_id>.resolution.json, written by `bskel contract waive`. Deliberately separate from the contract artifact itself (feature-contract.schema.json) -- see D-contract-completeness in DECISIONS.md for why waivers live in their own file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "waivers"],
+  "properties": {
+    "schema": { "const": "sbf.contract-resolution/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "waivers": {
+      "description": "Each entry is a specific {code, subject} pair, never a wildcard -- `bskel contract waive --all` expands to one entry per occurrence present at waive time, so a warning that doesn't exist yet is never covered.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "subject", "reason", "at"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^CONTRACT_[A-Z_]+$" },
+          "subject": { "type": ["string", "null"] },
+          "reason": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

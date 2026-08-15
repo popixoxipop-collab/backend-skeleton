@@ -107,6 +107,25 @@ bskel contract emit --feature <id> [--module <name>]
   #    path-param schema (uuid-format for *Id-named params), and whether the endpoint takes a
   #    body (re-checks the source for @RequestBody per-method -- verb alone is not reliable,
   #    e.g. a DELETE that still takes a confirm-name body).
+  #    ALWAYS writes the contract file, even when incomplete -- but the `contract` gate only
+  #    passes when completeness is `complete`. `partial` (endpoints exist with no correlated
+  #    operationId, or a duplicate operationId) and `blocked` (zero operations -- no module
+  #    matched, or the matched module has zero controllers) both leave the gate
+  #    awaiting_disposition (exit 3), which blocks `handles emit` and `bskel verify` downstream
+  #    the same way an unresolved scan collision does. See `bskel contract waive` below to
+  #    resolve `partial`; `blocked` has no waiver path (nothing to waive) -- fix
+  #    --module/--terms, or `bskel gate force contract --reason "..."` if genuinely intentional.
+
+bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
+  # -> the `scan disposition` of contracts: explicitly accepts specific `partial` warnings so the
+  #    `contract` gate can pass, recorded in specs/<id>/contracts/<id>.resolution.json (kept
+  #    separate from the contract artifact itself, so re-emitting after a re-scan doesn't erase
+  #    the waiver, and waiving doesn't touch contract_hash). `--all` expands to the SPECIFIC
+  #    {code, subject} pairs present right now, as individual entries -- never a wildcard, so a
+  #    new unmatched endpoint added later is never silently covered by an old `--all`. Unknown
+  #    code, or a {code, subject} pair not currently present, exits 14. `blocked` contracts
+  #    cannot be waived at all (exit 14) -- see contracts/completeness.mjs's WARNING_CODES for
+  #    the full code table and which are waivable.
 
 bskel contract validate --feature <id> --file envelope.json
   # -> validates a {sbf, feature_id, feature_uid, operation_id, direction, payload} envelope:
@@ -169,7 +188,9 @@ bskel verify --feature <id> [--build] [--json]
   #    "not every feature needs this", not "once run, correctness stops mattering"). Each gate's
   #    JSON entry reports `scope`/`policy`/`blocking`/`ran` alongside its status. --build actually
   #    runs the detected build tool (gradlew/mvnw/npm) and reports real pass/fail, not just gate
-  #    status -- exits 0 only if everything blocking passed.
+  #    status -- exits 0 only if everything blocking passed. The `contract` gate's evidence
+  #    additionally carries `completeness` (complete/partial/blocked) and `waived_count` -- the
+  #    non-JSON report shows this inline, e.g. `[PASS] contract (partial: 6 waived)`.
 ```
 
 **Handle format**: `sbf1_<base64url(kind:type:uuid[:pointer])>` -- `kind` is `r` (whole

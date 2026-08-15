@@ -5,6 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
 import { buildContract } from '../contracts/emit.mjs';
 import { validateEnvelope, validateEnvelopeStructure } from '../contracts/validate.mjs';
 import { runScan } from '../scanners/index.mjs';
@@ -147,4 +149,92 @@ test('a urn:uuid: prefixed path param value is rejected, not accepted as a bare 
 	};
 	const result = validateEnvelope(envelope, contract);
 	assert.equal(result.ok, false);
+});
+
+// A5: `buildContract` itself, not just the CLI (see test/contract-cli.test.mjs for the
+// gate-blocking behavior). Synthetic scanReport -- duplicate operationId doesn't occur anywhere
+// in the real Team-IZ-Backend repo (0/96), so there's no real fixture to reuse here.
+test('duplicate operationId across two endpoints produces CONTRACT_DUPLICATE_OPERATION_ID and keeps the first', () => {
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: null,
+				endpoints: [
+					{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidgetV1' },
+					{ verb: 'GET', path: '/widgets/legacy/{widgetId}', operationId: 'findWidget', method: 'findWidgetV2' },
+				],
+			}],
+			entities: [], enums: [], dtos: [],
+		}],
+	};
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget' });
+	assert.equal(contract.completeness.status, 'partial');
+	assert.equal(Object.keys(contract.operations).length, 1);
+	assert.equal(contract.operations.findWidget.path, '/widgets/{widgetId}', 'first occurrence is kept');
+	const dup = contract.warnings.find((w) => w.code === 'CONTRACT_DUPLICATE_OPERATION_ID');
+	assert.ok(dup, 'must emit CONTRACT_DUPLICATE_OPERATION_ID');
+	assert.equal(dup.subject, 'findWidget');
+	assert.equal(dup.severity, 'error');
+});
+
+// A5: no matching module -- the exact shape that lets a contract silently end up with zero
+// operations. CONTRACT_NO_MODULE explains why; CONTRACT_EMPTY states the (more important)
+// consequence -- both fire together.
+test('no matching module in the scan report produces CONTRACT_NO_MODULE + CONTRACT_EMPTY, status blocked', () => {
+	const scanReport = { related_modules: [{ module: 'organization', controllers: [], entities: [], enums: [], dtos: [] }] };
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'nonexistent-module' });
+	assert.equal(contract.completeness.status, 'blocked');
+	assert.equal(contract.completeness.operation_count, 0);
+	const codes = contract.warnings.map((w) => w.code);
+	assert.ok(codes.includes('CONTRACT_NO_MODULE'));
+	assert.ok(codes.includes('CONTRACT_EMPTY'));
+});
+
+// A5, real-oracle regression: Team-IZ-Backend's `codeanalysis` module (1 entity, 0 controllers)
+// is the exact case that motivated A5 -- pre-A5, this produced operations:0 AND warnings:0 (no
+// signal at all) and the contract gate passed silently. See D-contract-completeness in
+// DECISIONS.md for the full before/after captured against this same module.
+test('Team-IZ-Backend codeanalysis module: zero controllers -> blocked with CONTRACT_EMPTY, not a silent empty pass', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+	const scanReport = runScan({ repoRoot: TEAM_IZ_BACKEND, terms: ['codeanalysis'] });
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'codeanalysis' });
+	assert.equal(contract.completeness.status, 'blocked');
+	assert.equal(contract.completeness.operation_count, 0);
+	assert.equal(contract.warnings.length, 1);
+	assert.equal(contract.warnings[0].code, 'CONTRACT_EMPTY');
+});
+
+// A5, real-oracle regression: Team-IZ-Backend's `curriculum` module -- 8 endpoints across two
+// controllers, only 2 carry an operationId. Locks in the exact counts D-pressure-test's fresh
+// agent encountered (and correctly refused to paper over) during Phase 6.
+test('Team-IZ-Backend curriculum module: 8 endpoints, 2 operations, 6 unmatched -> partial', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+	const scanReport = runScan({ repoRoot: TEAM_IZ_BACKEND, terms: ['curriculum'] });
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'curriculum' });
+	assert.equal(contract.completeness.status, 'partial');
+	assert.equal(contract.completeness.endpoint_count, 8);
+	assert.equal(contract.completeness.operation_count, 2);
+	const unmatched = contract.warnings.filter((w) => w.code === 'CONTRACT_UNMATCHED_ENDPOINT');
+	assert.equal(unmatched.length, 6);
+});
+
+// A5, real-oracle regression: organization (15/15, no unmatched anywhere) must stay `complete`
+// with zero warnings -- A5 must not turn an already-good contract into a false positive.
+test('Team-IZ-Backend organization module stays complete with zero warnings', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+	const contract = buildRealContract();
+	assert.equal(contract.completeness.status, 'complete');
+	assert.equal(contract.completeness.operation_count, 15);
+	assert.equal(contract.warnings.length, 0);
+});
+
+// A5: promotes schemas/feature-contract.schema.json from an unreferenced document into a live
+// regression guard -- confirmed via grep that nothing in the codebase loaded it before this test.
+test('an emitted contract validates against schemas/feature-contract.schema.json', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+	const contract = buildRealContract();
+	const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validate = ajv.compile(schema);
+	const ok = validate(contract);
+	assert.equal(ok, true, JSON.stringify(validate.errors));
 });

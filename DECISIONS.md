@@ -397,6 +397,98 @@ neither of which `lib/gates.mjs` ever writes to disk (only `pass`/`awaiting_disp
 ever stored -- `not_run`/`stale`/`pass (forced)` are `requireGate()`'s derived READ-time return
 values, recomputed from current inputs, never persisted).
 
+## D-contract-completeness (A5): "schema emitted" is not "complete enough to trust"
+
+**WHY**: after S1+S6, Codex's next suggested item was distinguishing a contract that was
+successfully *written* from one that's actually *usable*. `buildContract()`
+(`contracts/emit.mjs`) always succeeds and always returns some object, even with zero usable
+operations -- and the old `cmdContractEmit` passed the `contract` gate unconditionally,
+regardless of `operation_count` or `warnings.length`.
+
+**The scenario this isn't hypothetical about**: Team-IZ-Backend's `codeanalysis` module (1
+entity, 0 controllers) reproduces it exactly. Captured against the pre-A5 code, in an isolated
+worktree:
+```
+$ bskel contract emit --feature 001-code-analysis-baseline
+wrote specs/.../001-code-analysis-baseline.schema.json -- 0 operation(s)
+gate: contract -> pass
+$ bskel verify --feature 001-code-analysis-baseline --json | jq .pass
+true
+```
+Zero operations, zero warnings (the endpoint loop that would generate an unmatched-endpoint
+warning never runs when there are zero controllers to loop over), gate pass, verify PASS. No
+signal anywhere that anything is wrong. After A5, the same sequence: `completeness: blocked`,
+one `CONTRACT_EMPTY` warning, `contract` gate `awaiting_disposition` (exit 3), `verify` FAILs.
+
+**Repo-wide module survey** (16 Team-IZ-Backend modules, measured per-module since that's
+`contract emit`'s actual unit, not a repo-wide sum): 10/15 endpoint-bearing modules already had
+zero unmatched endpoints (`complete`); 5/15 (member, projectexecution, submission, curriculum,
+assessment) had at least one unmatched endpoint (`partial`); `codeanalysis` had zero controllers
+(`blocked`); duplicate `operationId` occurred 0/96 times anywhere in the repo. Compared against
+the `scan` gate, which already blocks 15/15 modules (100%) on first contact until a human runs
+`scan disposition` -- `contract`'s new default-blocking behavior for `partial` (33% of modules)
+is a smaller, not larger, imposition than a mechanism this project already ships and the user
+already accepted.
+
+**Design choice: no new gate status.** Completeness (`complete`/`partial`/`blocked`) is decided
+by `contracts/completeness.mjs` and stored as *data* in the gate's `evidence` -- the gate's own
+status stays exactly `pass` / `awaiting_disposition`, reusing S1's existing
+`VERIFY_POLICY.REQUIRED` + `awaitNamedGateDisposition` machinery unchanged.
+`awaiting_disposition`'s existing meaning ("ran, produced an artifact, but needs an explicit
+human decision before it's trusted downstream") already covers `partial`/`blocked` exactly --
+adding a third on-disk status would have meant touching the `EXIT` enum, `requireGate()`,
+`isBlockingGateResult()`, `renderVerifyReport()`, `state.schema.json`, and the exit-code table in
+SKILL.md all at once, for a distinction that already had a home. `lib/verify.mjs` required zero
+changes as a direct result -- `isBlockingGateResult` already treats a REQUIRED gate's non-PASS
+result as blocking, so a `partial` contract propagates to `bskel verify` and `bskel handles emit`
+automatically.
+
+**`bskel contract waive`, not a config flag**: mirrors `bskel scan disposition` exactly --
+warnings get stable `{code, severity, subject}` identity (`contracts/completeness.mjs`'s
+`WARNING_CODES`; `subject`, not `message`, is the waiver key, since message text is expected to
+get reworded over time and a prose-keyed waiver would silently stop matching), and a human
+explicitly accepts specific ones into `specs/<id>/contracts/<id>.resolution.json`. **No wildcard
+waivers**: `--all` expands to the exact `{code, subject}` pairs present at waive time, recorded
+as individual entries -- a new unmatched endpoint added later is never silently covered by an
+old `--all` (`test/contract-cli.test.mjs`'s "waiving all current unmatched endpoints does not
+cover a new one added later" locks this in by literally adding a new endpoint after waiving and
+confirming it re-blocks). `CONTRACT_EMPTY`/`CONTRACT_NO_MODULE` are never waivable -- a `blocked`
+contract has no content for a waiver to accept; `bskel gate force contract --reason "..."`
+remains the universal escape hatch, unaffected.
+
+**Gate token now covers the resolution file** (`resolution_hash` added to `lib/gate-
+definitions.mjs`'s `contract.recompute`): deleting or hand-editing a waiver must make the gate go
+stale, the same way corrupting `stack.json` does for the `stack` gate. **Migration cost**: any
+contract gate that was already `pass` under the old (2-input) token goes `stale` the first time
+it's re-verified after this change, since `resolution_hash` is a new, previously-uncomputed
+input. Acceptable -- the only real consumer so far is disposable validation worktrees, not a
+long-lived shared state file.
+
+**`lib/verify.mjs`'s `checkArtifacts()` was deliberately NOT extended** to re-derive
+completeness from the contract file's content. Unlike `handles`' migration.sql (whose token does
+NOT cover that file, making the artifact check the *only* defense against it going missing), the
+`contract` gate's token already covers `contract_hash` directly -- any edit to the contract file
+invalidates the gate on its own. Re-checking completeness in `checkArtifacts()` too would be
+pure duplication, not a second line of defense.
+
+**`schemas/feature-contract.schema.json` was dead code** (confirmed via grep: no test or command
+loaded it) until this pass -- promoted to a live regression guard
+(`test/contract.test.mjs`'s "an emitted contract validates against
+schemas/feature-contract.schema.json"). `sbf_contract` bumped `"1"` -> `"2"` since `warnings`
+changed shape from bare strings to `{code, severity, subject, message, detail}` objects (the
+only in-repo consumer of that shape, `cmdContractEmit`'s warning-printing loop, was updated in
+the same change).
+
+**COST**: `bskel contract emit` now exits 3 (not 0) for ~1/3 of Team-IZ-Backend's real modules on
+first run, requiring a `contract waive` step that didn't exist before A5. Judged acceptable given
+the `scan` gate precedent above, and because the failure mode being closed (a feature silently
+shipping with 2 of its intended 8 operations wired up, and nobody noticing because nothing said
+otherwise) is exactly the class of "agent got lucky, not the tool guaranteeing correctness" bug
+this whole project exists to close -- see D-pressure-test below, where a fresh agent avoided
+exactly this trap on `registerCurriculum` by chance, not because anything forced it to.
+**EXIT**: `contracts/completeness.mjs`'s `WARNING_CODES` table is the single place to add a new
+warning code, adjust its default severity, or change whether it's waivable.
+
 ## D-pressure-test: the real Phase 6 oracle was a fresh agent, not another self-review
 
 **WHY**: the whole project exists because the original Spec Kit trial showed "the agent

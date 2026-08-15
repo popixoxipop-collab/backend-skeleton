@@ -15,6 +15,7 @@ import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
 import { buildContract } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
+import { evaluateResolution, loadResolution, resolutionPath, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { planHandles } from '../handles/plan.mjs';
 import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
@@ -33,6 +34,7 @@ function usage() {
   bskel contract emit --feature <id> [--module <name>] [--json]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
+  bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]
@@ -366,18 +368,52 @@ function cmdContractEmit(args) {
 		module: flags.module,
 	});
 
+	// Written unconditionally, even when blocked/partial -- what the scan actually found is a
+	// real artifact worth inspecting, not just a side effect of a fully-passing run.
 	writeFileAtomic(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`), `${JSON.stringify(contract, null, 2)}\n`);
 
-	const gateState = passNamedGate(root, 'contract', flags.feature, { operation_count: Object.keys(contract.operations).length });
+	const resolution = loadResolution(root, flags.feature);
+	const evaluation = evaluateResolution(contract, resolution);
+	const evidence = {
+		operation_count: contract.completeness.operation_count,
+		endpoint_count: contract.completeness.endpoint_count,
+		completeness: evaluation.status,
+		warning_codes: countByCode(contract.warnings),
+		waived_count: evaluation.waived.length,
+		stale_waivers: evaluation.staleWaivers.length,
+	};
+	// A5: "schema emitted" (this always happens) is not "complete enough to trust" (this gates).
+	// A partial/blocked contract awaits a human decision the same way an unresolved scan
+	// collision does -- awaiting_disposition, not a silent pass. See D-contract-completeness.
+	const gateState = evaluation.blocking
+		? awaitNamedGateDisposition(root, 'contract', flags.feature, { ...evidence, unwaived: evaluation.unwaived.map(({ code, subject }) => ({ code, subject })) })
+		: passNamedGate(root, 'contract', flags.feature, evidence);
 
 	if (flags.json) {
 		console.log(JSON.stringify(contract, null, 2));
 	} else {
-		console.log(`wrote specs/${flags.feature}/contracts/${flags.feature}.schema.json -- ${Object.keys(contract.operations).length} operation(s)`);
-		for (const w of contract.warnings) console.error(`warning: ${w}`);
+		console.log(`wrote specs/${flags.feature}/contracts/${flags.feature}.schema.json -- ${contract.completeness.operation_count} operation(s), completeness: ${evaluation.status}`);
+		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
 		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		if (evaluation.staleWaivers.length > 0) {
+			console.error(`\nnote: ${evaluation.staleWaivers.length} recorded waiver(s) no longer match any current warning (kept as-is, not auto-removed):`);
+			for (const w of evaluation.staleWaivers) console.error(`  ${w.code} (${w.subject ?? '*'})`);
+		}
+		if (evaluation.blocking) {
+			if (evaluation.status === 'blocked') {
+				console.error(`\nblocked: this contract has zero operations and cannot be waived -- fix --module/--terms, or run \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if this module genuinely has no HTTP surface (yet).`);
+			} else {
+				const byCode = {};
+				for (const w of evaluation.unwaived) (byCode[w.code] ??= []).push(w);
+				console.error(`\nblocked: ${evaluation.unwaived.length} unresolved warning(s):`);
+				for (const [code, group] of Object.entries(byCode)) {
+					for (const w of group) console.error(`  bskel contract waive --feature ${flags.feature} --code ${code} --subject "${w.subject}" --reason "..."`);
+					console.error(`  # or all ${group.length} at once: bskel contract waive --feature ${flags.feature} --code ${code} --all --reason "..."`);
+				}
+			}
+		}
 	}
-	process.exit(0);
+	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
 function loadContract(root, featureId) {
@@ -387,6 +423,102 @@ function loadContract(root, featureId) {
 		process.exit(2);
 	}
 	return JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+}
+
+// A5: the `scan disposition` of contracts -- lets a human explicitly accept a `partial`
+// contract's outstanding warnings so the `contract` gate can pass. Deliberately no wildcard
+// waiver: `--all` expands to the SPECIFIC code+subject pairs present right now, recorded as
+// individual entries -- a warning that doesn't exist yet (e.g. a new unannotated endpoint added
+// later) is never covered by an old waive. See D-contract-completeness in DECISIONS.md.
+function cmdContractWaive(args) {
+	const root = requireRepoRoot();
+	const flags = parseFlags(args, {
+		feature: { type: 'string', default: null },
+		code: { type: 'string', default: null },
+		subject: { type: 'string', default: null },
+		all: { type: 'boolean', default: false },
+		reason: { type: 'string', default: '' },
+		json: { type: 'boolean', default: false },
+	});
+	const usage = 'usage: bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path" | --all) --reason "..."';
+	if (!flags.feature) { console.error(usage); process.exit(14); }
+	requireValidFeatureId(flags.feature);
+	if (!flags.code) { console.error(usage); process.exit(14); }
+	try {
+		requireWarningCode(flags.code);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
+	if (!flags.reason || !flags.reason.trim()) {
+		console.error('bskel contract waive requires --reason "..." -- every waiver must be auditable');
+		process.exit(14);
+	}
+	if (!flags.subject && !flags.all) {
+		console.error(usage);
+		process.exit(14);
+	}
+
+	const contract = loadContract(root, flags.feature);
+	if (contract.completeness.status === 'blocked') {
+		console.error(`\`${flags.feature}\`'s contract has zero operations -- there is nothing to waive. Fix --module/--terms, or use \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if this is intentional.`);
+		process.exit(14);
+	}
+
+	const currentMatches = contract.warnings.filter((w) => w.code === flags.code && w.severity === 'error');
+	let toWaive;
+	if (flags.all) {
+		toWaive = currentMatches;
+		if (toWaive.length === 0) {
+			console.error(`no current warning with code "${flags.code}" in this contract -- nothing to waive`);
+			process.exit(14);
+		}
+	} else {
+		const match = currentMatches.find((w) => w.subject === flags.subject);
+		if (!match) {
+			console.error(`no current warning with code "${flags.code}" and subject "${flags.subject}" in this contract -- known ${flags.code} subjects: ${currentMatches.map((w) => w.subject).join(', ') || '(none)'}`);
+			process.exit(14);
+		}
+		toWaive = [match];
+	}
+
+	const resolution = loadResolution(root, flags.feature);
+	const existingKeys = new Set((resolution.waivers ?? []).map(warningKey));
+	const at = new Date().toISOString();
+	const newEntries = toWaive
+		.filter((w) => !existingKeys.has(warningKey(w)))
+		.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at }));
+	const updatedResolution = {
+		schema: 'sbf.contract-resolution/1',
+		feature_id: flags.feature,
+		waivers: [...(resolution.waivers ?? []), ...newEntries],
+	};
+	writeFileAtomic(resolutionPath(root, flags.feature), `${JSON.stringify(updatedResolution, null, 2)}\n`);
+
+	const evaluation = evaluateResolution(contract, updatedResolution);
+	const evidence = {
+		operation_count: contract.completeness.operation_count,
+		endpoint_count: contract.completeness.endpoint_count,
+		completeness: evaluation.status,
+		warning_codes: countByCode(contract.warnings),
+		waived_count: evaluation.waived.length,
+		stale_waivers: evaluation.staleWaivers.length,
+	};
+	const gateState = evaluation.blocking
+		? awaitNamedGateDisposition(root, 'contract', flags.feature, { ...evidence, unwaived: evaluation.unwaived.map(({ code, subject }) => ({ code, subject })) })
+		: passNamedGate(root, 'contract', flags.feature, evidence);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ waived: newEntries, gate: gateState.gates.contract }, null, 2));
+	} else {
+		console.log(`waived ${newEntries.length} new warning(s)${newEntries.length < toWaive.length ? ` (${toWaive.length - newEntries.length} already waived)` : ''}`);
+		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		if (evaluation.blocking) {
+			console.error(`\nstill blocked: ${evaluation.unwaived.length} unresolved warning(s) remain:`);
+			for (const w of evaluation.unwaived) console.error(`  ${w.code} (${w.subject})`);
+		}
+	}
+	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
 function cmdContractValidate(args) {
@@ -584,7 +716,13 @@ function cmdHandlesEmit(args) {
 	// codegen against a feature nobody has scanned/contracted yet has nothing real to route to.
 	const contractResult = requireNamedGate(root, 'contract', flags.feature);
 	if (contractResult.code !== EXIT.PASS) {
-		console.error(`blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- run \`bskel contract emit --feature ${flags.feature}\` first.`);
+		// A5: awaiting_disposition here almost always means a contract WAS emitted but is
+		// partial/blocked (not "never ran") -- "run contract emit first" would be wrong advice in
+		// that case, so point at `contract waive`/`gate force` instead.
+		const hint = contractResult.status === 'awaiting_disposition'
+			? `resolve it first -- \`bskel contract waive --feature ${flags.feature} --code <CODE> (--subject "..."|--all) --reason "..."\`, or \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if intentional.`
+			: `run \`bskel contract emit --feature ${flags.feature}\` first.`;
+		console.error(`blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- ${hint}`);
 		process.exit(contractResult.code);
 	}
 
@@ -622,7 +760,14 @@ function renderVerifyReport({ featureId, gates, artifacts, build }) {
 	for (const g of gates) {
 		const marker = g.code === EXIT.PASS ? 'PASS' : g.blocking ? 'FAIL' : `SKIP (${g.status})`;
 		const suffix = g.policy === 'required' ? '' : ` (${g.policy}, ${g.scope}-scoped)`;
-		lines.push(`- [${marker}] ${g.gate}${suffix}`);
+		// A5: surfaces the contract gate's completeness (complete/partial/blocked) and how many
+		// warnings were waived, right in the verify report -- not just visible via `contract emit`'s
+		// own output.
+		const evidence = g.record?.evidence;
+		const completenessNote = g.gate === 'contract' && evidence?.completeness
+			? ` (${evidence.completeness}${evidence.waived_count ? `: ${evidence.waived_count} waived` : ''})`
+			: '';
+		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}`);
 	}
 	lines.push('', '## Artifacts');
 	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
@@ -713,6 +858,7 @@ function main() {
 			if (sub === 'emit') return cmdContractEmit(subArgs);
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
+			if (sub === 'waive') return cmdContractWaive(subArgs);
 			usage();
 			process.exit(14);
 			break;
