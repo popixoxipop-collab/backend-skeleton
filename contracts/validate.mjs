@@ -61,7 +61,13 @@ export function validateAgainstContract(envelope, contract) {
 	if (envelope.feature_uid !== contract.feature_uid) {
 		errors.push(`feature_uid mismatch: envelope has "${envelope.feature_uid}", contract is for "${contract.feature_uid}" (a stale payload from a renamed/recreated feature would land here)`);
 	}
-	const opContract = contract.operations[envelope.operation_id];
+	// D-security-1: Object.hasOwn, not a plain `[key]` lookup -- `contract.operations` is a
+	// plain object, so `operation_id: "constructor"` (or "toString", "__proto__", etc.) would
+	// otherwise resolve an inherited Object.prototype property and pass as if it were a real,
+	// defined operation. Found by the Codex security review, verified against this exact code.
+	const opContract = Object.hasOwn(contract.operations, envelope.operation_id)
+		? contract.operations[envelope.operation_id]
+		: undefined;
 	if (!opContract) {
 		errors.push(`operation_id "${envelope.operation_id}" is not defined in this feature's contract (known operations: ${Object.keys(contract.operations).join(', ') || '(none)'})`);
 		return { ok: false, errors };

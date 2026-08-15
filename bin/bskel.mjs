@@ -8,7 +8,7 @@ import { repoRoot, headSha, localDefaultBranch } from '../lib/repo.mjs';
 import { requireGate, forceGate, passGate, awaitDispositionGate, EXIT } from '../lib/gates.mjs';
 import { getGate, loadState } from '../lib/state.mjs';
 import { sha256File, writeFileAtomic, readJsonIfExists } from '../lib/fsutil.mjs';
-import { requireValidFeatureId, requireValidSlug, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
+import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
 import { buildContract } from '../contracts/emit.mjs';
@@ -170,6 +170,12 @@ function cmdGateRequire(args) {
 	const flags = parseFlags(args, { feature: { type: 'string', default: REPO_GATE_ID } });
 	const gateName = flags._[0];
 	if (!gateName) { console.error('usage: bskel gate require <name> [--feature <id>]'); process.exit(14); }
+	try {
+		requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
 	const record = getGate(root, flags.feature, gateName);
 	// `require` never re-runs the underlying check (e.g. it doesn't re-fetch or re-scan) --
 	// it freshly recomputes only the cheap, local inputs the gate's token was built from
@@ -188,6 +194,12 @@ function cmdGateForce(args) {
 	});
 	const gateName = flags._[0];
 	if (!gateName) { console.error('usage: bskel gate force <name> --reason "..." [--feature <id>]'); process.exit(14); }
+	try {
+		requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
 	const state = forceGate(root, flags.feature, gateName, flags.reason);
 	console.log(JSON.stringify(state.gates[gateName]));
 	process.exit(EXIT.PASS);
@@ -196,6 +208,12 @@ function cmdGateForce(args) {
 function cmdGateShow(args) {
 	const root = requireRepoRoot();
 	const flags = parseFlags(args, { feature: { type: 'string', default: REPO_GATE_ID } });
+	try {
+		requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
 	console.log(JSON.stringify(loadState(root, flags.feature), null, 2));
 	process.exit(0);
 }
@@ -495,7 +513,13 @@ function cmdStackApply(args) {
 		console.error(err.message);
 		process.exit(14);
 	}
-	const plan = planApply(root, entry, { port: Number.parseInt(flags.port, 10) });
+	let plan;
+	try {
+		plan = planApply(root, entry, { port: Number.parseInt(flags.port, 10) });
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
 
 	if (!flags.apply) {
 		// Dry-run is the default -- nothing is written without an explicit --apply, matching the
@@ -504,7 +528,13 @@ function cmdStackApply(args) {
 		process.exit(0);
 	}
 
-	const written = applyPlan(root, plan);
+	let written;
+	try {
+		written = applyPlan(root, plan);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
 	const stackRecord = {
 		schema: 'sbf.stack/1', choice: flags.choice, applied_files: written,
 		env_example_keys: plan.envExampleActions.map((e) => e.key), at: new Date().toISOString(),

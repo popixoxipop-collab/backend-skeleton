@@ -1,13 +1,20 @@
 import fs from 'node:fs';
 
+// D-security-2: a plain UUID `pattern`, not `format: 'uuid'`. ajv-formats' uuid format accepts
+// an optional `urn:uuid:` prefix (per its RFC 4122 reading), but Spring's `UUID` path-variable
+// converter expects the bare form -- a contract using `format: 'uuid'` could certify a
+// `urn:uuid:...` request as valid when the real endpoint would reject it. Found by the Codex
+// security review, verified against the installed ajv-formats@3.0.1.
+const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+
 function pathParamsSchema(routePath) {
 	const params = [...routePath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
 	const properties = {};
 	for (const p of params) {
 		// Naming convention seen throughout Team-IZ-Backend (`UUID organizationId`, etc.) --
 		// a heuristic, not a guarantee; wrong for a path param that happens to end in "Id" but
-		// isn't a UUID, which just means an over-strict `format: uuid` check on that one field.
-		properties[p] = /id$/i.test(p) ? { type: 'string', format: 'uuid' } : { type: 'string' };
+		// isn't a UUID, which just means an over-strict uuid-shaped check on that one field.
+		properties[p] = /id$/i.test(p) ? { type: 'string', pattern: BARE_UUID_PATTERN } : { type: 'string' };
 	}
 	return { type: 'object', additionalProperties: false, properties, required: params };
 }

@@ -105,6 +105,31 @@ test('scan disposition --mode replace requires --breaking-approved', () => {
 	assert.equal(accepted.code, 0);
 });
 
+// D-security-3 regression: `gate require/force/show` must reject a `--feature` that isn't
+// either the repo-scoped sentinel or a real feature_id -- reproduces the exact traversal shape
+// (writing/reading a state file outside .sbf/) the Codex security review verified before the fix.
+test('gate require/force/show reject path-traversal-shaped --feature values', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	const outsideMarker = path.join(root, '..', 'evil.json');
+	fs.rmSync(outsideMarker, { force: true });
+
+	for (const evil of ['../../evil', '..', '/etc/passwd', '001-fine/../../evil']) {
+		const req = run(['gate', 'require', 'scan', '--feature', evil], root);
+		assert.equal(req.code, 14, `gate require --feature "${evil}" must be rejected`);
+
+		const force = run(['gate', 'force', 'scan', '--feature', evil, '--reason', 'test'], root);
+		assert.equal(force.code, 14, `gate force --feature "${evil}" must be rejected`);
+		assert.ok(!fs.existsSync(outsideMarker), `gate force --feature "${evil}" must not write outside .sbf/`);
+
+		const show = run(['gate', 'show', '--feature', evil], root);
+		assert.equal(show.code, 14, `gate show --feature "${evil}" must be rejected`);
+	}
+
+	// Sanity: the sentinel and a real feature_id still work after the validation was added.
+	assert.equal(run(['gate', 'show'], root).code, 0);
+});
+
 test('scan for an unrelated term on the same fixture is greenfield and auto-passes', () => {
 	const root = buildFixtureRepo();
 	run(['preflight'], root);
