@@ -316,6 +316,61 @@ Homebrew -- `/usr/libexec/java_home` doesn't see brew kegs unless linked into th
 the brew keg to fix this; harmless and reversible, but a real, persistent change to this
 machine worth knowing about if anyone wonders why JDK 17 shows up in `java_home -V` now.)
 
+## D-verify: required vs. optional gates, and an opt-in real build check
+
+**WHY**: `bskel verify --feature <id>` aggregates the same `requireGate` machinery every other
+command already uses (no new gate-checking logic invented) rather than re-implementing status
+checks -- `preflight`/`scan`/`contract` are REQUIRED for an overall PASS (a feature with an
+unresolved collision or ungenerated contract genuinely isn't ready), `handles`/`stack` are
+OPTIONAL (not every feature needs UUID handles or a stack-choice decision, so `not_run` there
+must not fail verify). The `--build` flag actually invokes the detected build tool
+(`./gradlew compileJava`, `mvnw compile`, or `npm run build`) rather than just checking gate
+JSON -- verified against Team-IZ-Backend for both directions: a clean tree reports `[PASS]
+gradle`, and a deliberately-broken Java file (one extra garbage line appended to a generated
+file, reverted after) correctly reports `[FAIL] gradle` with the real compiler output attached.
+**COST**: `--build` is slow (a real Gradle invocation) and requires a build tool `bskel`
+recognizes; an unrecognized project type gets an honest `ran: false` rather than a false PASS
+or FAIL.
+**EXIT**: `detectBuildCommand` in `lib/verify.mjs` is the single place to extend for a new build
+tool.
+
+## D-pressure-test: the real Phase 6 oracle was a fresh agent, not another self-review
+
+**WHY**: the whole project exists because the original Spec Kit trial showed "the agent
+happened to behave correctly" isn't the same as "the tool guarantees correct behavior." Every
+prior phase's oracle was ME (with full session context) re-testing my own code -- useful for
+catching implementation bugs, but it can't test whether `SKILL.md` alone, read cold by an agent
+with zero memory of this build process, actually produces the gated workflow instead of getting
+skipped or hand-waved. So Phase 6's actual verification step was dispatching a genuinely fresh
+`general-purpose` agent with only a pointer to `SKILL.md` and a deliberately underspecified task
+(scaffold a contract for the `curriculum` module -- untouched by any prior phase -- with the
+exact `bskel` command sequence and the target feature scope both withheld on purpose).
+
+**What it actually did, independently re-verified against the files it left behind (not just
+its self-report)**: `doctor` -> `preflight` (PASS) -> `feature init --slug curriculum-material`
+-> `scan --feature 001-curriculum-material` (verdict `collision`, gate `awaiting_disposition`,
+exit 3 -- it hit the block) -> `scan disposition --mode extend` (gate flips to `pass`) ->
+`contract emit` -> `contract validate` (tried both a correct and a deliberately-broken
+envelope). Gate state (`.sbf/001-curriculum-material.json`) and the emitted contract
+(`specs/001-curriculum-material/contracts/...json`) were read directly after the agent
+finished and matched its report exactly: `scan:pass, contract:pass`, 2 operations
+(`findCurriculum`, `findOrganizationCurricula`) with 6 warnings for the endpoints the regex
+scanner couldn't correlate an operationId for (including `registerCurriculum`).
+
+**The load-bearing finding**: faced with that scan gap, the agent did NOT hand-write
+`registerCurriculum` into the contract to "complete" it, and did NOT fake `/speckit.specify`
+output when it found spec-kit wasn't installed -- it let the tool's own honest limitation stand
+and reported it as such. It also independently noticed the local `develop` ref was ~310 commits
+stale and branched its worktree off `origin/develop` explicitly instead -- the exact failure
+mode that started this whole project (the `EnterWorktree` bug in the original Spec Kit trial),
+avoided on its own, unprompted. This is the actual evidence that hard gates (not agent luck)
+are doing the work: a completely fresh agent, given no command sequence, produced correct,
+honest, non-fabricated behavior because the gates and the scan's explicit warnings forced it to.
+**COST**: one real agent-hour-ish of tokens for a test that, by construction, can't be
+fully scripted/automated the way the rest of this test suite is.
+**EXIT**: re-run this kind of pressure test whenever `SKILL.md`'s workflow section changes
+significantly -- it's checking the DOCUMENT's clarity as much as the code's correctness.
+
 ## D-name / D-repo / D-handles / D-ngrok
 
 User-confirmed choices, recorded in the approved plan

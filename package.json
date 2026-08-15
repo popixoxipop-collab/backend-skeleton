@@ -1,6 +1,6 @@
 {
   "name": "backend-skeleton",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Spec-driven backend scaffolding: brownfield-scan gate, feature_id-keyed contracts, UUID bidirectional handles, stack-choice wiring.",

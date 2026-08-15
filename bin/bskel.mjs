@@ -16,6 +16,7 @@ import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { planHandles } from '../handles/plan.mjs';
 import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
+import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verify.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -90,6 +91,7 @@ function usage() {
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]
+  bskel verify --feature <id> [--build] [--json]
   bskel gate require <name> [--feature <id>]
   bskel gate force <name> --reason "..." [--feature <id>]
   bskel gate show [--feature <id>]
@@ -629,6 +631,58 @@ function cmdHandlesEmit(args) {
 	process.exit(0);
 }
 
+function renderVerifyReport({ featureId, gates, artifacts, build }) {
+	const lines = [`# Verify: ${featureId}`, '', '## Gates'];
+	for (const g of gates) {
+		const marker = g.code === EXIT.PASS ? 'PASS' : g.required ? 'FAIL' : `SKIP (${g.status})`;
+		lines.push(`- [${marker}] ${g.gate}${g.required ? '' : ' (optional)'}`);
+	}
+	lines.push('', '## Artifacts');
+	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
+	if (build) {
+		lines.push('', '## Build');
+		if (!build.ran) {
+			lines.push(`- SKIPPED: ${build.message}`);
+		} else {
+			lines.push(`- [${build.ok ? 'PASS' : 'FAIL'}] ${build.tool}`);
+			if (!build.ok) lines.push('', '```', build.message, '```');
+		}
+	}
+	return `${lines.join('\n')}\n`;
+}
+
+function cmdVerify(args) {
+	const root = requireRepoRoot();
+	const flags = parseFlags(args, {
+		feature: { type: 'string', default: null },
+		build: { type: 'boolean', default: false },
+		json: { type: 'boolean', default: false },
+	});
+	if (!flags.feature) { console.error('usage: bskel verify --feature <id> [--build] [--json]'); process.exit(14); }
+	requireValidFeatureId(flags.feature);
+
+	const gates = collectGateStatuses(root, flags.feature, {
+		getGate,
+		requireGate,
+		gateInputsFor: (gateName, r, scopeId, evidence) => currentGateInputs(r, gateName, scopeId, evidence),
+	});
+	const artifacts = checkArtifacts(root, flags.feature);
+	const build = flags.build ? runBuildCheck(root) : null;
+
+	const requiredGatesPass = gates.filter((g) => g.required).every((g) => g.code === EXIT.PASS);
+	const artifactsPresent = artifacts.every((a) => a.exists);
+	const buildOk = !build || !build.ran || build.ok;
+	const overallPass = requiredGatesPass && artifactsPresent && buildOk;
+
+	if (flags.json) {
+		console.log(JSON.stringify({ feature: flags.feature, pass: overallPass, gates, artifacts, build }, null, 2));
+	} else {
+		console.log(renderVerifyReport({ featureId: flags.feature, gates, artifacts, build }));
+		console.log(overallPass ? 'VERIFY: PASS' : 'VERIFY: FAIL');
+	}
+	process.exit(overallPass ? 0 : 1);
+}
+
 function cmdDoctor() {
 	const root = repoRoot();
 	const checks = [];
@@ -693,6 +747,9 @@ function main() {
 			process.exit(14);
 			break;
 		}
+		case 'verify':
+			cmdVerify(rest);
+			break;
 		case 'gate': {
 			const sub = rest[0];
 			const subArgs = rest.slice(1);

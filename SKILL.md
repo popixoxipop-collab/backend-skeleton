@@ -3,10 +3,10 @@ name: backend-skeleton
 description: Use when scaffolding a new backend feature from a spec into an existing (brownfield) or new (greenfield) repo, and you need the plan to actually account for what already exists in the codebase instead of guessing. Covers pre-flight branch/worktree sanity, a brownfield collision scan before any spec/plan step, feature_id-scoped machine-readable contracts, UUID-addressable field handles, and stack-choice (e.g. ngrok) wiring.
 license: MIT
 metadata:
-  version: 0.1.0
+  version: 1.0.0
   author: popixoxipop
   based_on: "https://github.com/popixoxipop-collab/backend-skeleton"
-  status: "Phase 0-5 implemented (spine, preflight, brownfield scan, feature_id contracts, stack-choice wiring, UUID handles). Phase 6 (final verify pass) not yet built -- see below."
+  status: "Phase 0-6 implemented (spine, preflight, brownfield scan, feature_id contracts, stack-choice wiring, UUID handles, verify). All 5 gaps from the trial report closed."
 ---
 
 # backend-skeleton
@@ -35,18 +35,13 @@ and this skill exists to make it a guarantee instead.
 | 7 | `bskel handles plan` → `bskel handles emit` | — | **implemented** |
 | 8 | `bskel stack apply --choice ngrok` | — | **implemented** |
 | 9 | `/speckit.tasks` | — | depends on spec-kit if present |
-| 10 | `bskel verify` | — | not yet built |
+| 10 | `bskel verify` | — | **implemented** |
 
 **You MUST run `bskel preflight` before anything else touches this repo.** Do not substitute
 your own `git status`/`git log` reasoning for it -- the gate token is computed from a specific,
 re-verifiable input set (current `HEAD` sha + locally-resolved default branch), and every
 downstream command that checks the `preflight` gate will refuse to proceed without it having
 actually run and passed.
-
-Step 10 (marked "not yet built" above) does not exist yet. If you are asked to do a final
-verify pass right now: say so plainly, point at the plan file's phased build order, and do NOT
-hand-simulate what that command would output -- that recreates exactly the "agent got lucky"
-problem this skill exists to eliminate.
 
 **Handles (Phase 5) have a real, permanent scope boundary, not a "not yet built" gap**:
 `bskel handles emit`'s generated `fetch()` is real and safe to trust (wired to an existing,
@@ -150,6 +145,13 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
   #    <Type>Resolver's fetch() calls the real service method directly (verified safe -- it's a
   #    read-only call into existing, tested code). patchField() is ALWAYS a stub -- see the
   #    workflow section above and D-resolver-scope in DECISIONS.md for why.
+
+bskel verify --feature <id> [--build] [--json]
+  # -> aggregates preflight/scan/contract (required for overall PASS) + handles/stack (optional,
+  #    "not_run" doesn't fail verify) via the same gate machinery every other command uses, plus
+  #    artifact existence checks (contract file, handles migration if applicable). --build
+  #    actually runs the detected build tool (gradlew/mvnw/npm) and reports real pass/fail, not
+  #    just gate status -- exits 0 only if everything required passed.
 ```
 
 **Handle format**: `sbf1_<base64url(kind:type:uuid[:pointer])>` -- `kind` is `r` (whole
@@ -166,11 +168,20 @@ operation-specific shape (path params + whether a body is required/disallowed). 
 actual Java DTO field-level parsing, out of scope for Phase 2's ripgrep+regex scanner. See
 `D-contract-scope` in `DECISIONS.md`.
 
-## Design reference (for implementing the remaining phases)
+## Design reference / extension points
 
-- `scanners/` (Phase 2), `contracts/` (Phase 3), `stack/` (Phase 4), and `handles/` (Phase 5)
-  are all implemented. Only Phase 6 (a final `bskel verify` pass tying every gate together)
-  remains -- see the plan file's build-order table.
+All 6 phases are implemented (`scanners/`, `contracts/`, `stack/`, `handles/`, `lib/verify.mjs`)
+-- the 5 gaps from the trial report are closed. This section is for extending it further.
+
+- **Pressure-tested with a fresh agent, not just self-reviewed**: a `general-purpose` agent with
+  zero memory of building this skill was pointed only at this file and given an underspecified
+  task on the `curriculum` module (never touched during development). It independently followed
+  the full gated sequence (preflight -> feature init -> scan -> disposition -> contract emit ->
+  validate) without being told the command order, correctly stopped at a real scan limitation
+  (`registerCurriculum` had no correlatable operationId) instead of hand-writing around it, and
+  independently avoided the exact stale-worktree-base bug that started this whole project. See
+  `D-pressure-test` in `DECISIONS.md` -- this is the actual evidence the gates work, not a
+  hypothetical.
 - Generated Java was verified with a real `./gradlew compileJava` run against Team-IZ-Backend
   (BUILD SUCCESSFUL, all 9 generated files including a working `OrganizationResolver`) -- not
   just eyeballed. A live DB-backed round trip (mint -> fetch -> patch -> recover against an
