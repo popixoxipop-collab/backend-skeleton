@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+*.log
+# Ephemeral per-repo gate state this skill writes into a TARGET repo, not into this skill's own
+# repo -- listed here only in case a manual test run leaves one behind under examples/ or test/.
+.sbf/

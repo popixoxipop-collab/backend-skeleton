@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:state:1",
+  "title": "backend-skeleton per-feature state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "gates"],
+  "properties": {
+    "schema": { "const": "sbf.state/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "gates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "token", "at"],
+        "properties": {
+          "status": { "enum": ["pass", "awaiting_disposition", "fail", "stale"] },
+          "token": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "at": { "type": "string", "format": "date-time" },
+          "forced": { "type": "boolean" },
+          "reason": { "type": "string" },
+          "evidence": { "type": "object" }
+        }
+      }
+    }
+  }
+}
