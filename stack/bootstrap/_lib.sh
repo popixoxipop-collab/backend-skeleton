@@ -32,15 +32,26 @@ extract_https_url() {
 }
 
 # Idempotent: replaces `KEY=...` if the line already exists, appends a new line if not.
+#
+# D-security-5: `.env` holds real secrets (NGROK_AUTHTOKEN and whatever else the target app
+# needs), so this must never leave it more exposed than it started. Two fixes here, found by the
+# Codex security review:
+#   1. `mktemp`, not a predictable `${file}.$$.tmp` name -- the PID-based name let another local
+#      process race a symlink into that exact path before the `mv` lands.
+#   2. `chmod 600` unconditionally after every write -- shell redirection creates the temp file
+#      at the process umask (0644 under a typical 022 umask), and `mv` then replaced .env with
+#      that laxer-mode file, silently downgrading it from whatever it was (normally 0600).
 env_upsert() {
 	local file="$1" key="$2" value="$3"
 	touch "$file"
 	if grep -q "^${key}=" "$file" 2>/dev/null; then
-		local tmp="${file}.$$.tmp"
+		local tmp
+		tmp=$(mktemp "${file}.XXXXXX")
 		sed "s|^${key}=.*|${key}=${value}|" "$file" > "$tmp" && mv "$tmp" "$file"
 	else
 		echo "${key}=${value}" >> "$file"
 	fi
+	chmod 600 "$file"
 }
 
 # Appends `value` to a comma-separated `KEY=a,b,c` value, only if not already present verbatim

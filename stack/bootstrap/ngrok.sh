@@ -36,7 +36,10 @@ else
 	echo "no NGROK_DOMAIN set -- using an ephemeral URL (different every run)"
 fi
 
-LOG_FILE="/tmp/bskel-ngrok-$$.log"
+# D-security-5: mktemp, not a predictable /tmp/bskel-ngrok-$$.log name -- the PID-based name
+# let another local process race a symlink into that exact path before ngrok's stdout/stderr
+# ever gets written to it. Found by the Codex security review.
+LOG_FILE=$(mktemp "${TMPDIR:-/tmp}/bskel-ngrok-XXXXXX.log")
 ngrok "${NGROK_ARGS[@]}" > "$LOG_FILE" 2>&1 &
 NGROK_PID=$!
 mkdir -p .sbf 2>/dev/null || true

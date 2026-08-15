@@ -35,6 +35,38 @@ test('env_upsert: creates a fresh key, then replaces it idempotently', () => {
 	assert.equal(fs.readFileSync(file, 'utf8').trim(), 'PUBLIC_BASE_URL=https://b.example');
 });
 
+// D-security-5 regression: env_upsert must always leave the file at 0600, even if it started
+// looser (the pre-fix version replaced the file via `mv` from a temp file created at the
+// process umask, silently downgrading permissions on every key update).
+test('env_upsert: forces file mode to 0600 even if it started looser', () => {
+	const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-lib-')), '.env');
+	fs.writeFileSync(file, 'NGROK_AUTHTOKEN=x\n');
+	fs.chmodSync(file, 0o644);
+	sh(`env_upsert "${file}" NGROK_AUTHTOKEN "y"`);
+	assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+	assert.equal(fs.readFileSync(file, 'utf8').trim(), 'NGROK_AUTHTOKEN=y');
+
+	// A second update (the replace branch, not the create branch) must also re-assert 0600.
+	fs.chmodSync(file, 0o644);
+	sh(`env_upsert "${file}" NGROK_AUTHTOKEN "z"`);
+	assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+});
+
+// D-security-5 regression: the swap must go through an unpredictable mktemp name, not a
+// PID-based `${file}.$$.tmp` -- confirms no such predictable sibling is left behind after a
+// replace (the shape an attacker would need to pre-place a symlink at).
+test('env_upsert: does not leave a predictable ${file}.$$.tmp sibling behind', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-lib-'));
+	const file = path.join(dir, '.env');
+	fs.writeFileSync(file, 'KEY=old\n');
+	const before = new Set(fs.readdirSync(dir));
+	sh(`env_upsert "${file}" KEY "new"`);
+	const after = fs.readdirSync(dir).filter((f) => !before.has(f));
+	assert.deepEqual(after, [], `no leftover sibling files expected, got: ${after.join(', ')}`);
+	const predictablePath = `${file}.$$`;
+	assert.ok(!fs.existsSync(predictablePath));
+});
+
 test('env_append_unique: builds a comma list and de-duplicates', () => {
 	const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-lib-')), '.env');
 	sh(`env_append_unique "${file}" AUTH_LOGIN_ALLOWED_ORIGINS "http://localhost:5173"`);

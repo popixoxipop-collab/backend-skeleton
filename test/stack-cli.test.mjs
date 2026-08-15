@@ -75,3 +75,71 @@ test('stack apply --choice <unknown> fails with the list of known choices', () =
 	const result = run(['stack', 'apply', '--choice', 'not-a-real-choice'], root);
 	assert.notEqual(result.code, 0);
 });
+
+// D-security-4 regression: `--choice` must never be treated as a path component. Reproduces
+// the exact traversal shape the Codex security review used against this code before the fix.
+test('stack apply --choice rejects path-traversal-shaped values', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	for (const evil of ['../../../../etc/passwd', '..', './ngrok', '/etc/passwd', 'ngrok/../../evil']) {
+		const result = run(['stack', 'apply', '--choice', evil], root);
+		assert.notEqual(result.code, 0, `--choice "${evil}" must be rejected`);
+	}
+});
+
+// D-security-4 regression, catalog-content variant: even a validly-named catalog entry must not
+// be able to point its `template`/`path`/`config_check.target` fields outside the intended
+// roots. Writes a throwaway malicious catalog file into the real stack/catalog/ dir (there is no
+// other way to exercise loadCatalogEntry's real STACK_ROOT-relative resolution), and always
+// removes it in `finally` even if an assertion fails.
+test('a malicious catalog entry cannot write outside the target repo via template/path traversal', () => {
+	const catalogDir = path.join(__dirname, '..', 'stack', 'catalog');
+	const evilId = 'bskel-test-evil-traversal';
+	const evilCatalogPath = path.join(catalogDir, `${evilId}.yml`);
+	const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-security-test-outside-'));
+	try {
+		const root = buildFixtureRepo();
+		run(['preflight'], root);
+
+		// The escaping path field is computed relative to `root` (what stack/apply.mjs actually
+		// joins it against) so this genuinely exercises the traversal, not a path that happens
+		// to look dangerous but wouldn't actually resolve outside root.
+		const escapingPath = path.relative(root, path.join(outsideDir, 'pwned.txt')).split(path.sep).join('/');
+		fs.writeFileSync(evilCatalogPath, `
+id: ${evilId}
+description: "malicious fixture for a security regression test -- not a real stack choice"
+static:
+  files:
+    - path: "${escapingPath}"
+      template: "../../../../../../../../etc/hostname"
+runtime:
+  script: nonexistent.sh
+  produces: []
+`);
+
+		const result = run(['stack', 'apply', '--choice', evilId, '--apply'], root);
+		assert.notEqual(result.code, 0, 'a traversing catalog entry must be rejected, not applied');
+		assert.ok(!fs.existsSync(path.join(outsideDir, 'pwned.txt')), 'must not have written outside the target repo');
+	} finally {
+		fs.rmSync(evilCatalogPath, { force: true });
+		fs.rmSync(outsideDir, { recursive: true, force: true });
+	}
+});
+
+// D-security-6 regression: a stack-apply dry-run must never read the target repo's .env, even
+// read-only. Confirms detection still works via detect.files alone (no functional regression).
+test('stack apply dry-run does not read .env, and detection still works via detect.files', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	fs.writeFileSync(path.join(root, '.env'), 'NGROK_AUTHTOKEN=super-secret-value-must-not-appear-anywhere\n');
+
+	const dryRun = run(['stack', 'apply', '--choice', 'ngrok', '--json'], root);
+	assert.equal(dryRun.code, 0);
+	assert.doesNotMatch(dryRun.stdout, /super-secret-value-must-not-appear-anywhere/);
+	const plan = JSON.parse(dryRun.stdout);
+	assert.equal(plan.alreadyDetected, false, 'a bare NGROK_AUTHTOKEN in .env alone (no scripts/dev-tunnel.sh yet) should not count as already-applied');
+
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
+	const rerun = run(['stack', 'apply', '--choice', 'ngrok', '--json'], root);
+	assert.equal(JSON.parse(rerun.stdout).alreadyDetected, true, 'detect.files (scripts/dev-tunnel.sh) alone is sufficient once applied');
+});
