@@ -123,3 +123,48 @@ test('handles plan finds the Widget entity, its fetch operation, and its service
 	const gateResult = run(['gate', 'require', 'handles', '--feature', '001-widget-management'], root);
 	assert.equal(gateResult.code, 0);
 });
+
+// D-security-9 regression: HandleController.java's recover() must cross-check the decoded
+// type/kind/pointer against the HandleRegistry row for the derived handleUid (and reject a
+// revoked one), not look up snapshots by handleUid alone. Reproduces via static content
+// assertions on the emitted file -- there's no JVM in this test suite to actually run the
+// generated code against, but the fixed shape of the source is directly checkable, and the
+// pre-fix shape (registry consulted only for contractRef, without any equality check against
+// decoded.type()/kind()/pointer()) is exactly what these assertions would have failed against.
+test('handles emit writes a recover() that validates the registry row before returning a snapshot', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	const controllerPath = path.join(root, 'src/main/java/com/example/global/handle/HandleController.java');
+	const content = fs.readFileSync(controllerPath, 'utf8');
+
+	// The registry lookup must happen BEFORE the snapshot query, and must actually be assigned
+	// (not discarded) so it can gate access.
+	const registryLookupIdx = content.indexOf('handleRegistryRepository.findById(handleUid)');
+	const snapshotQueryIdx = content.indexOf('handleSnapshotRepository.findByHandleUidOrderByRecordedAtDesc(handleUid)');
+	assert.ok(registryLookupIdx >= 0, 'must look up the HandleRegistry row for this handleUid');
+	assert.ok(snapshotQueryIdx >= 0);
+	assert.ok(registryLookupIdx < snapshotQueryIdx, 'registry must be validated before snapshots are fetched');
+
+	// The three fields a type-confused handle could disagree on, each checked.
+	assert.match(content, /getResourceType\(\)\.equals\(decoded\.type\(\)\)/);
+	assert.match(content, /getKind\(\)\.equals\(decoded\.kind\(\)\)/);
+	assert.match(content, /Objects\.equals\(r\.getPointer\(\), decoded\.pointer\(\)\)/);
+	// A revoked handle must not be recoverable.
+	assert.match(content, /!r\.isRevoked\(\)/);
+});
+
+// D-security-10 regression: patch() must check kind == "f" explicitly, not infer "this is a
+// field handle" purely from pointer-presence -- HandleCodec.decode() doesn't itself enforce that
+// only kind=f carries a pointer (that's an encode-side check), so a hand-crafted token of a
+// different kind with a pointer appended must still be rejected here.
+test('handles emit writes a patch() that checks handle kind explicitly, not just pointer presence', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	const controllerPath = path.join(root, 'src/main/java/com/example/global/handle/HandleController.java');
+	const content = fs.readFileSync(controllerPath, 'utf8');
+	assert.match(content, /!decoded\.kind\(\)\.equals\("f"\) \|\| decoded\.pointer\(\) == null/);
+});

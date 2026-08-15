@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,7 +65,13 @@ public class HandleController {
 	@PatchMapping("/{handle}")
 	public ResponseEntity<Void> patch(@PathVariable String handle, @RequestBody Object value) {
 		HandleCodec.Decoded decoded = decodeOrThrow(handle);
-		if (decoded.pointer() == null) {
+		// D-security-10: checks kind explicitly rather than inferring "field handle" from
+		// pointer-presence alone -- HandleCodec.decode() doesn't itself enforce that only kind=f
+		// carries a pointer (that's enforced on the encode side, see HandleCodec#encode), so a
+		// hand-crafted token of a reserved/future kind (e.g. kind=o) with a pointer appended must
+		// still be rejected here rather than treated as a field handle. Found by the Codex
+		// security review.
+		if (!decoded.kind().equals("f") || decoded.pointer() == null) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cannot PATCH a resource-level handle (kind=r) -- only field handles (kind=f) support PATCH");
 		}
 		ResourceResolver resolver = resolverFor(decoded.type());
@@ -81,6 +88,24 @@ public class HandleController {
 		requireAuthority(resolver.requiredAuthority());
 
 		UUID handleUid = HandleCodec.deriveHandleUid(decoded.kind(), decoded.type(), decoded.uuid(), decoded.pointer());
+
+		// D-security-9: handleUid alone does not prove WHAT is being recovered -- kind=r's
+		// derivation returns the resource UUID verbatim (no type binding baked into the hash), so
+		// an attacker who controls `type` in the handle token (as long as it names a real,
+		// registered resolver whose requiredAuthority() they can pass) can request the snapshot
+		// history of a DIFFERENT, more sensitive resource type that happens to share the same
+		// UUID. Found by the Codex security review. Fix: cross-check the decoded type/kind/pointer
+		// against the registry row this handleUid was actually registered under, and 404 on ANY
+		// disagreement -- without saying which field mismatched, so the error can't be used to
+		// probe which part was wrong. A revoked handle is rejected the same way; it must not be
+		// recoverable at all.
+		HandleRegistry registry = handleRegistryRepository.findById(handleUid)
+				.filter(r -> r.getResourceType().equals(decoded.type()))
+				.filter(r -> r.getKind().equals(decoded.kind()))
+				.filter(r -> Objects.equals(r.getPointer(), decoded.pointer()))
+				.filter(r -> !r.isRevoked())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no snapshot recorded for this handle"));
+
 		List<HandleSnapshot> snapshots = handleSnapshotRepository.findByHandleUidOrderByRecordedAtDesc(handleUid);
 		Optional<HandleSnapshot> match = at == null
 				? snapshots.stream().findFirst()
@@ -90,10 +115,8 @@ public class HandleController {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "no snapshot recorded for this handle" + (at != null ? " at or before " + at : ""));
 		}
 		HandleSnapshot snapshot = match.get();
-		String currentContractRef = handleRegistryRepository.findById(handleUid)
-				.map(HandleRegistry::getContractRef)
-				.orElse(null);
-		boolean drift = currentContractRef != null && !currentContractRef.equals(snapshot.getContractHash());
+		// Reuses the registry row already fetched (and validated) above instead of querying again.
+		boolean drift = !registry.getContractRef().equals(snapshot.getContractHash());
 
 		return ResponseEntity.ok(Map.of(
 				"handle", handle,

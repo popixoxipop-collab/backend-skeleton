@@ -43,6 +43,29 @@ test('decodeHandle rejects a well-formed-base64 but malformed payload', () => {
 	assert.throws(() => decodeHandle(bogus), /malformed/);
 });
 
+// D-security-10 regression: Node's `Buffer.from(str, 'base64')` silently ignores characters
+// outside the base64 alphabet instead of rejecting them, unlike Java's
+// `Base64.getUrlDecoder().decode()` which throws -- the "byte-identical JS/Java behavior" claim
+// (D5/D6) didn't hold for malformed input before this fix. `!` is not in the base64url alphabet.
+test('decodeHandle rejects a payload containing characters outside the base64url alphabet', () => {
+	assert.throws(() => decodeHandle('sbf1_not!valid++base64=='), /not valid base64url/);
+});
+
+// D-security-10 regression: no upper bound on token length before attempting to decode.
+test('decodeHandle rejects a token exceeding the max length', () => {
+	const huge = `sbf1_${'A'.repeat(3000)}`;
+	assert.throws(() => decodeHandle(huge), /exceeds the maximum length/);
+});
+
+// D-security-10 regression: the symmetric case of "field handles require a pointer" -- a
+// non-field handle must not be allowed to carry one either, so patch()'s kind-vs-pointer
+// consistency isn't left as an unenforced assumption on the encode side.
+test('encodeHandle rejects a non-field handle (kind=r or kind=o) that carries a pointer', () => {
+	const base = { type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: '/name' };
+	assert.throws(() => encodeHandle({ ...base, kind: 'r' }), /must not carry a JSON Pointer/);
+	assert.throws(() => encodeHandle({ ...base, kind: 'o' }), /must not carry a JSON Pointer/);
+});
+
 test('deriveHandleUid: a resource handle (kind=r) IS the resource\'s own uuid', () => {
 	const uuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
 	assert.equal(deriveHandleUid({ kind: 'r', type: 'Organization', uuid }), uuid);

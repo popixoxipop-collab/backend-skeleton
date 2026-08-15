@@ -11,12 +11,27 @@ export const NS_SBF_FIELD = 'a3f1c2e0-8b4d-4f1a-9c3e-1d2b3a4c5d6e';
 
 const UUID_RE = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const HANDLE_RE = new RegExp(`^([rfo]):([^:]+):(${UUID_RE})(?::(.*))?$`, 'i');
+const BASE64URL_CHARSET_RE = /^[A-Za-z0-9_-]*$/;
+
+// D-security-10: no upper bound on token length before attempting to decode -- a defense-in-
+// depth cap, not a functional requirement (real handles are well under this). Found by the
+// Codex security review as part of the "other requested checks" pass.
+const MAX_HANDLE_TOKEN_LENGTH = 2048;
 
 function base64url(buf) {
 	return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+// D-security-10: Node's `Buffer.from(str, 'base64')` silently IGNORES characters outside the
+// base64 alphabet instead of rejecting them, while Java's `Base64.getUrlDecoder().decode()`
+// throws on the same input -- the two implementations' "byte-identical behavior" claim (D5/D6)
+// didn't actually hold for malformed input. Found by the Codex security review. The explicit
+// charset check below makes the JS side reject exactly what the Java side rejects, before either
+// one gets a chance to decode it differently.
 function base64urlDecode(str) {
+	if (!BASE64URL_CHARSET_RE.test(str)) {
+		throw new Error('not valid base64url after the sbf1_ prefix');
+	}
 	const pad = (4 - (str.length % 4)) % 4;
 	const padded = str.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(pad);
 	return Buffer.from(padded, 'base64');
@@ -26,6 +41,11 @@ export function encodeHandle({ kind, type, uuid, pointer = null }) {
 	if (!['r', 'f', 'o'].includes(kind)) throw new Error(`invalid handle kind "${kind}" (expected r, f, or o)`);
 	if (!type || !uuid) throw new Error('encodeHandle requires both type and uuid');
 	if (kind === 'f' && !pointer) throw new Error('field handles (kind=f) require a JSON Pointer');
+	// D-security-10: the symmetric case was previously unchecked -- a non-field handle silently
+	// carrying a pointer would encode fine and only cause confusion downstream (e.g. patch()
+	// deciding "field handle" purely from pointer-presence, not kind). Found by the Codex
+	// security review.
+	if (kind !== 'f' && pointer) throw new Error(`handle kind "${kind}" must not carry a JSON Pointer (only kind=f field handles do)`);
 	const raw = `${kind}:${type}:${uuid}${pointer ? `:${pointer}` : ''}`;
 	return `sbf1_${base64url(Buffer.from(raw, 'utf8'))}`;
 }
@@ -33,6 +53,9 @@ export function encodeHandle({ kind, type, uuid, pointer = null }) {
 export function decodeHandle(token) {
 	if (typeof token !== 'string' || !token.startsWith('sbf1_')) {
 		throw new Error('not an sbf1 handle (missing "sbf1_" prefix)');
+	}
+	if (token.length > MAX_HANDLE_TOKEN_LENGTH) {
+		throw new Error(`handle token exceeds the maximum length of ${MAX_HANDLE_TOKEN_LENGTH} characters`);
 	}
 	const raw = base64urlDecode(token.slice('sbf1_'.length)).toString('utf8');
 	const match = raw.match(HANDLE_RE);

@@ -29,11 +29,70 @@ function findFetchOperation(controllers, entityClassName) {
 	return null;
 }
 
-function findRequiredAuthority(controllerFilePath) {
-	if (!controllerFilePath || !fs.existsSync(controllerFilePath)) return null;
+// Same mapping-annotation shape scanners/adapters/java-spring.mjs uses to find endpoints --
+// duplicated here (not exported there) because this needs each match's source *position*, not
+// just the endpoint list plan.mjs already has, to locate the region immediately above one
+// specific method.
+const MAPPING_VERBS = ['Get', 'Post', 'Put', 'Patch', 'Delete'];
+const HAS_ROLE_RE = /@PreAuthorize\(\s*"hasRole\('([^']+)'\)"\s*\)/;
+const PRE_AUTH_RE = /@PreAuthorize\(/;
+
+function methodMappingBoundaries(text) {
+	const mappingRe = new RegExp(
+		`@(${MAPPING_VERBS.join('|')})Mapping(?:\\(([\\s\\S]*?)\\))?\\s*\\n\\s*public\\s+\\S+\\s+(\\w+)\\s*\\(`,
+		'g',
+	);
+	return [...text.matchAll(mappingRe)].map((m) => ({ index: m.index, methodName: m[3] }));
+}
+
+// Index just after the class body's opening brace -- the lower bound for a method-level search
+// when the target is the FIRST method in the file (no prior method boundary to anchor to).
+// Without this, that search's region would fall back to 0 and swallow the class-level
+// annotations (@PreAuthorize included) that sit BEFORE `class X {`, which is exactly the
+// class-vs-method conflation this fix exists to prevent.
+function classBodyStart(text) {
+	const m = text.match(/\bclass\s+\w+[^{]*\{/);
+	return m ? m.index + m[0].length : 0;
+}
+
+// Returns { authority, unsupported } for an @PreAuthorize search over one region of source text.
+// `unsupported: true` means an @PreAuthorize annotation IS present but isn't the simple
+// hasRole('X') shape this regex-based scanner understands (hasAnyRole, SpEL, etc.) -- the caller
+// must fail closed (TODO_ROLE) rather than silently treating it as "no authority found" and
+// falling back to a weaker/wrong source.
+function extractPreAuthorize(region) {
+	if (!PRE_AUTH_RE.test(region)) return null;
+	const hasRoleMatch = region.match(HAS_ROLE_RE);
+	return hasRoleMatch ? { authority: hasRoleMatch[1], unsupported: false } : { authority: null, unsupported: true };
+}
+
+// D-security-7: a controller with more than one method can require DIFFERENT roles per method --
+// the previous version always used the file's FIRST @PreAuthorize match, which for a controller
+// whose first-declared method happens to carry a weaker role than the actual fetch method being
+// planned would silently generate a resolver enforcing that weaker role instead. Found by the
+// Codex security review. Now searches method-level first: the region from the previous method's
+// mapping annotation (exclusive) up to this method's mapping annotation (exclusive) is exactly
+// the span that can only contain this method's own annotations, never the previous method's (its
+// own @PreAuthorize, if any, sits before that boundary). Only falls back to a genuine class-level
+// @PreAuthorize -- the region before the FIRST method mapping in the file -- when the method
+// level has nothing at all.
+function findRequiredAuthority(controllerFilePath, methodName) {
+	if (!controllerFilePath || !methodName || !fs.existsSync(controllerFilePath)) {
+		return { authority: null, unsupported: false };
+	}
 	const text = fs.readFileSync(controllerFilePath, 'utf8');
-	const match = text.match(/@PreAuthorize\("hasRole\('([^']+)'\)"\)/);
-	return match ? match[1] : null;
+	const boundaries = methodMappingBoundaries(text);
+	const target = boundaries.find((b) => b.methodName === methodName);
+	if (!target) return { authority: null, unsupported: false };
+
+	const priorBoundaries = boundaries.filter((b) => b.index < target.index);
+	const methodRegionStart = priorBoundaries.length > 0 ? priorBoundaries[priorBoundaries.length - 1].index : classBodyStart(text);
+	const methodLevel = extractPreAuthorize(text.slice(methodRegionStart, target.index));
+	if (methodLevel) return methodLevel;
+
+	const classRegion = text.slice(0, boundaries[0].index);
+	const classLevel = extractPreAuthorize(classRegion);
+	return classLevel ?? { authority: null, unsupported: false };
 }
 
 // Heuristic (this codebase's convention, verified for Organization -> OrganizationService, not
@@ -44,6 +103,38 @@ function findServiceFile(javaSrcRoot, module, entityClassName) {
 	const guessedType = `${entityClassName}Service`;
 	const guessedPath = path.join(javaSrcRoot, 'domain', module, 'application', `${guessedType}.java`);
 	return fs.existsSync(guessedPath) ? { serviceType: guessedType, file: guessedPath } : null;
+}
+
+// Counts top-level commas in a captured argument list, treating `<...>` (generics) as non-
+// splitting -- good enough for interface method signatures, which is all this reads.
+function countTopLevelCommas(argsText) {
+	let depth = 0;
+	let count = 0;
+	for (const ch of argsText) {
+		if (ch === '<') depth++;
+		else if (ch === '>') depth = Math.max(0, depth - 1);
+		else if (ch === ',' && depth === 0) count++;
+	}
+	return count;
+}
+
+// D-security-8: ResourceResolverStub.java.tmpl always generates `fetch(UUID resourceUid)` as
+// `{{SERVICE_FIELD}}.{{FETCH_METHOD}}(resourceUid)` -- exactly one argument, by construction. If
+// the real service method actually requires more (a common shape for anything scoped under an
+// org/cohort, e.g. `find(UUID organizationId, UUID cohortId)`), that's not just a compile error:
+// a method with the SAME NAME but a different single-UUID-arg overload could exist and get called
+// instead, silently dropping the scoping argument (an IDOR-shaped bug, not just a build failure).
+// Found by the Codex security review. Returns null if the method signature can't be found at all
+// (fails closed the same as a param-count mismatch -- caller must not assume 1).
+function countServiceMethodParams(serviceFilePath, methodName) {
+	if (!serviceFilePath || !methodName || !fs.existsSync(serviceFilePath)) return null;
+	const text = fs.readFileSync(serviceFilePath, 'utf8');
+	const escaped = methodName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const sigRe = new RegExp(`\\S+(?:<[^;{}]*?>)?\\s+${escaped}\\s*\\(([^)]*)\\)`);
+	const match = text.match(sigRe);
+	if (!match) return null;
+	const argsText = match[1].trim();
+	return argsText === '' ? 0 : countTopLevelCommas(argsText) + 1;
 }
 
 export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resourceFilter }) {
@@ -61,16 +152,25 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 	for (const entity of targetModule.entities) {
 		if (resourceFilter && !resourceFilter.includes(entity.className)) continue;
 		const fetchOp = findFetchOperation(targetModule.controllers, entity.className);
-		const requiredAuthority = findRequiredAuthority(fetchOp?.controllerFile ?? null);
+		const authorityResult = findRequiredAuthority(fetchOp?.controllerFile ?? null, fetchOp?.method ?? null);
+		const requiredAuthority = authorityResult.authority;
 		const service = findServiceFile(javaSrcRoot, targetModule.module, entity.className);
+		const serviceParamCount = (service && fetchOp) ? countServiceMethodParams(service.file, fetchOp.method) : null;
 
 		if (!fetchOp) {
 			notes.push(`${entity.className}: no single-resource GET endpoint found on a controller whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
+		} else if (authorityResult.unsupported) {
+			notes.push(`${entity.className}: @PreAuthorize found on ${fetchOp.controllerClassName}.${fetchOp.method} (or its class) but not in the simple hasRole('X') shape this scanner understands (e.g. hasAnyRole/SpEL) -- requiredAuthority() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
 		} else if (!requiredAuthority) {
-			notes.push(`${entity.className}: no class-level @PreAuthorize(hasRole(...)) found on ${fetchOp.controllerClassName} -- requiredAuthority() defaults to "TODO_ROLE", fix before relying on it`);
+			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)) found for ${fetchOp.controllerClassName}.${fetchOp.method} -- requiredAuthority() defaults to "TODO_ROLE", fix before relying on it`);
 		}
 		if (!service) {
 			notes.push(`${entity.className}: no ${entity.className}Service found under domain/${targetModule.module}/application/ -- resolver NOT generated for this entity (would produce a broken import). Emit it by hand once the right service is identified.`);
+		} else if (fetchOp && serviceParamCount !== 1) {
+			const reason = serviceParamCount === null
+				? `could not find a ${fetchOp.method}(...) method on ${service.serviceType} to confirm its argument count`
+				: `${service.serviceType}.${fetchOp.method} takes ${serviceParamCount} argument(s), not the single resource UUID the generated resolver always passes`;
+			notes.push(`${entity.className}: ${reason} -- resolver NOT generated (would either fail to compile or silently call the wrong overload and drop a required scoping argument, e.g. an organization/cohort id). Wire it by hand.`);
 		}
 
 		resources.push({
@@ -80,7 +180,7 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			fetchOperation: fetchOp,
 			requiredAuthority: requiredAuthority ?? 'TODO_ROLE',
 			service,
-			willGenerateResolver: Boolean(fetchOp && service),
+			willGenerateResolver: Boolean(fetchOp && service && serviceParamCount === 1),
 		});
 	}
 

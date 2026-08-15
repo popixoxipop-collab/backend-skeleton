@@ -26,6 +26,11 @@ public final class HandleCodec {
 	private static final Pattern HANDLE_PATTERN = Pattern.compile(
 			"^([rfo]):([^:]+):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?::(.*))?$");
 
+	// D-security-10: defense-in-depth cap, not a functional requirement -- real handles are well
+	// under this. Must match handles/codec.mjs's MAX_HANDLE_TOKEN_LENGTH. Found by the Codex
+	// security review.
+	private static final int MAX_HANDLE_TOKEN_LENGTH = 2048;
+
 	/**
 	 * Fixed namespace UUID for field-handle derivation. Must match {@code NS_SBF_FIELD} in
 	 * {@code handles/codec.mjs} exactly -- changing it silently re-derives every existing
@@ -49,6 +54,11 @@ public final class HandleCodec {
 		if (kind.equals("f") && (pointer == null || pointer.isEmpty())) {
 			throw new IllegalArgumentException("field handles (kind=f) require a JSON Pointer");
 		}
+		// D-security-10: symmetric case -- a non-field handle must not carry a pointer either
+		// (only kind=f addresses a field). Found by the Codex security review.
+		if (!kind.equals("f") && pointer != null && !pointer.isEmpty()) {
+			throw new IllegalArgumentException("handle kind \"" + kind + "\" must not carry a JSON Pointer (only kind=f field handles do)");
+		}
 		String raw = kind + ":" + type + ":" + uuid + (pointer != null && !pointer.isEmpty() ? ":" + pointer : "");
 		return "sbf1_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
 	}
@@ -56,6 +66,9 @@ public final class HandleCodec {
 	public static Decoded decode(String token) {
 		if (token == null || !token.startsWith("sbf1_")) {
 			throw new IllegalArgumentException("not an sbf1 handle (missing \"sbf1_\" prefix)");
+		}
+		if (token.length() > MAX_HANDLE_TOKEN_LENGTH) {
+			throw new IllegalArgumentException("handle token exceeds the maximum length of " + MAX_HANDLE_TOKEN_LENGTH + " characters");
 		}
 		String raw;
 		try {
