@@ -385,3 +385,80 @@ User-confirmed choices, recorded in the approved plan
 - **ngrok domain mode**: both ephemeral and reserved-domain flows are supported in one
   bootstrap script, switched by whether `NGROK_DOMAIN` is set in the environment — not
   hardcoded to one mode.
+
+## Security hardening pass (Codex review)
+
+**WHY**: v1.0.0 was built and pressure-tested (see D-pressure-test above) for whether the
+*intended* workflow gets followed by a cold agent, not for whether the tool is safe against an
+*adversarial* one — different question. Asked Codex to review the whole codebase independently,
+security-only lens (no context from this build process). It returned 8 findings with file:line
+citations and, for several, an actual reproducing payload — re-verified each by reading the
+cited code directly before touching anything, then fixed all 8 plus 3 lower-priority items from
+its "other things worth checking" pass, in the order below. Each fix has an inline `D-security-N`
+comment at its exact location; this section is the index, not a duplicate of the reasoning.
+
+1. **`contracts/validate.mjs` — prototype chain lookup** (Low). `contract.operations[operation_id]`
+   on a plain object let `operation_id: "constructor"` resolve to an inherited property instead
+   of correctly failing "unknown operation". Fixed with `Object.hasOwn`.
+2. **`contracts/emit.mjs` — `urn:uuid:` accepted by generated path-param schemas** (Low). ajv's
+   `format: "uuid"` accepts the URN form; Spring's `UUID` path-variable binder does not — a
+   generated contract could describe an input shape the real endpoint would 400 on. Fixed by
+   emitting a `pattern` (bare UUID regex) instead of `format: "uuid"`.
+3. **`bin/bskel.mjs` — `gate require/force/show` skipped `--feature` validation** (Low, path
+   traversal). Every other feature-scoped command validated `--feature` through
+   `requireValidFeatureId`; these three didn't, so `--feature ../../evil` could read/write state
+   outside `.sbf/`. Fixed with `requireValidFeatureOrRepoId` (`lib/featureid.mjs`).
+4. **`stack/apply.mjs` — catalog entry paths were unvalidated** (Medium). `--choice` went
+   straight into a path join with no shape check, and a catalog YAML's own `template`/`path`
+   fields had no containment check at all — a malicious catalog entry could write outside the
+   target repo. Fixed with a `choiceId` regex, ajv validation against
+   `schemas/stack-choice.schema.json`, and `assertContained()` on every resolved path.
+5. **`stack/bootstrap/_lib.sh` + `ngrok.sh` — predictable temp files, silent permission
+   downgrade** (Medium). `env_upsert`'s swap file was `${file}.$$` (PID-based, guessable) and the
+   `mv` from it silently dropped `.env` to the process umask instead of keeping 0600; `ngrok.sh`'s
+   log file had the same PID-based naming. Fixed with `mktemp` in both places plus an
+   unconditional `chmod 600` after every `env_upsert` write.
+6. **`stack/apply.mjs` `planApply()` — dry-run read the target repo's `.env`** (boundary
+   violation, not a leak — nothing from it was ever printed). Violated this project's own D8 and
+   the target repo's CLAUDE.md rule that the agent never reads/edits `.env`. Fixed by deciding
+   `alreadyDetected` from `detect.files` alone.
+7. **`handles/plan.mjs` `findRequiredAuthority()` — wrong method's `@PreAuthorize`** (Medium). Took
+   the file's FIRST `@PreAuthorize(hasRole(...))` match regardless of which method the resolver
+   was actually being generated for — a controller whose first-declared method carries a weaker
+   role than the fetch method being planned would silently wire the resolver to that weaker role.
+   Fixed by searching the region between the previous method's mapping annotation and the target
+   method's (method-level first, class-level only as a genuine fallback), and by failing closed to
+   `TODO_ROLE` (not silently falling back) when an `@PreAuthorize` is present but not the simple
+   `hasRole('X')` shape this regex scanner understands.
+8. **`handles/plan.mjs` — service method argument count was never checked** (Medium, IDOR-shaped).
+   `ResourceResolverStub.java.tmpl`'s `fetch()` always calls the service method with exactly one
+   argument (the resource UUID) by construction. A service method actually requiring more (e.g.
+   anything scoped under an organization/cohort) would either fail to compile or, worse, silently
+   call a same-named single-arg overload and drop the scoping argument. Fixed with
+   `countServiceMethodParams()`; a mismatch (including "method not found at all") now sets
+   `willGenerateResolver: false` with an explanatory note instead of generating.
+9. **`HandleController.java.tmpl` `recover()` — handle type confusion** (the most severe finding).
+   `recover()` checked the resolver's `requiredAuthority()` for the attacker-controlled `type`,
+   but then looked up snapshot history purely by `handleUid` — and `kind=r`'s derivation returns
+   the resource UUID verbatim, with no type binding baked in. An attacker who named a real but
+   weaker-privileged resolver type sharing the same UUID as a more sensitive resource could
+   recover that resource's snapshot history under the weaker role. Fixed by looking up the
+   `HandleRegistry` row for the derived `handleUid` and requiring `resourceType`/`kind`/`pointer`
+   to exactly match the decoded token AND the row not be revoked, 404ing (without saying which
+   check failed) on any mismatch — before any snapshot query runs.
+10. **Three defensive-hardening items** from Codex's broader pass, all low severity but cheap:
+    no upper bound on handle token length before decoding (added a 2048-char cap, both sides);
+    Node's `Buffer.from(str, 'base64')` silently ignores out-of-alphabet characters where Java's
+    decoder throws, so the "JS/Java byte-identical behavior" claim (D5/D6) didn't actually hold
+    for malformed input (added an explicit charset check to the JS side); `encodeHandle`/`encode`
+    only validated "kind=f requires a pointer", not the symmetric "non-f must not carry one" (now
+    both are checked), and `patch()` inferred "field handle" from pointer-presence alone rather
+    than checking `kind` explicitly (now it checks kind first).
+
+**COST**: none of these were caught by the Phase 1–6 pressure tests, because those tested
+*intended-workflow* correctness, not adversarial input — a reminder that a cooperative-agent
+oracle and a security review are answering different questions and neither substitutes for the
+other.
+**EXIT**: re-run an independent security-focused review after any change that touches
+`contracts/`, `stack/apply.mjs`'s path handling, or the `handles/` codec/resolver-generation
+path — those are exactly the modules this pass found issues in.

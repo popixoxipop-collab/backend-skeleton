@@ -44,12 +44,21 @@ downstream command that checks the `preflight` gate will refuse to proceed witho
 actually run and passed.
 
 **Handles (Phase 5) have a real, permanent scope boundary, not a "not yet built" gap**:
-`bskel handles emit`'s generated `fetch()` is real and safe to trust (wired to an existing,
-already-tested read-only service method). `patchField()` is ALWAYS a stub requiring a
-human/agent to finish it, because this codebase uses at least three different partial-update
-DTO conventions (see `D-resolver-scope` in `DECISIONS.md`) and guessing wrong would silently
-bypass real validation. Do not "helpfully" implement a guessed `patchField` body without
-checking which of the three patterns the target DTO actually uses.
+`bskel handles emit`'s generated `fetch()`, when it generates at all, is wired to an existing,
+already-tested read-only service method -- but "safe to trust" depends on generation actually
+having verified the right method and the right role, which is a fix from the post-v1.0.0 Codex
+security review (`## Security hardening pass` in `DECISIONS.md`), not something to assume blindly:
+`willGenerateResolver` is `false` (no resolver emitted at all) unless the service method's
+argument count matches what `fetch()` always passes (one UUID -- `D-security-8`), and
+`requiredAuthority()` is resolved from the SPECIFIC fetch method's own `@PreAuthorize`, not just
+the first one found in the controller file (`D-security-7`, fails closed to `TODO_ROLE` on an
+unsupported expression like `hasAnyRole`/SpEL rather than guessing). Still spot-check both before
+trusting a generated resolver in anything sensitive -- this is a regex scanner, not a compiler.
+`patchField()` is ALWAYS a stub requiring a human/agent to finish it, because this codebase uses
+at least three different partial-update DTO conventions (see `D-resolver-scope` in
+`DECISIONS.md`) and guessing wrong would silently bypass real validation. Do not "helpfully"
+implement a guessed `patchField` body without checking which of the three patterns the target
+DTO actually uses.
 
 ## What's actually usable today
 
@@ -132,9 +141,11 @@ bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run 
 bskel handles plan --feature <id> [--module <name>] [--resource Type1,Type2]
   # -> read-only. For each entity found by `bskel scan` in the target module, reports whether
   #    a resolver CAN be generated: a single-resource GET endpoint on a controller whose class
-  #    name contains the entity's name (for fetch), and a matching <Entity>Service.java file
-  #    (for the service to call). If either is missing, says so and will not generate a broken
-  #    stub for that entity.
+  #    name contains the entity's name (for fetch), a matching <Entity>Service.java file, AND
+  #    that service's same-named method taking exactly the one UUID argument fetch() always
+  #    passes (D-security-8 -- a 2+ arg service method, e.g. one scoped under an org/cohort id,
+  #    blocks generation instead of silently dropping the extra scope). If any of these is
+  #    missing, says so and will not generate a broken (or wrongly-scoped) stub for that entity.
 
 bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
   # -> requires the `contract` gate to have passed. Writes, under the detected base package:
@@ -142,9 +153,10 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
   #        HandleSnapshotRepository,ResourceResolver,HandleController}.java
   #      domain/<module>/infrastructure/<Type>Resolver.java   (one per resource `plan` approved)
   #      specs/<id>/handles/migration.sql   (sbf_handle + sbf_handle_snapshot tables -- NOT applied)
-  #    <Type>Resolver's fetch() calls the real service method directly (verified safe -- it's a
-  #    read-only call into existing, tested code). patchField() is ALWAYS a stub -- see the
-  #    workflow section above and D-resolver-scope in DECISIONS.md for why.
+  #    <Type>Resolver's fetch() calls the real service method directly -- a read-only call into
+  #    existing, tested code, and only ever emitted once `plan`'s D-security-7/8 checks above
+  #    passed, not assumed safe by default. patchField() is ALWAYS a stub -- see the workflow
+  #    section above and D-resolver-scope in DECISIONS.md for why.
 
 bskel verify --feature <id> [--build] [--json]
   # -> aggregates preflight/scan/contract (required for overall PASS) + handles/stack (optional,
