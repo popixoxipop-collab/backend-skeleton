@@ -24,7 +24,7 @@ function run(args, cwd) {
 
 function buildFixtureRepo() {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-cli-fixture-'));
-	execFileSync('git', ['init', '--quiet'], { cwd: root });
+	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
 	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
 	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture\n');
@@ -53,11 +53,19 @@ public class WidgetController {
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
+	// `bskel scan --feature` requires the `preflight` gate to have passed (see
+	// requirePreflightPassed in bin/bskel.mjs), which needs a real "origin" to cross-check the
+	// default branch against.
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-cli-origin-'));
+	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
+	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
 	return root;
 }
 
 test('scan -> blocked -> disposition -> unblocked, full CLI flow', () => {
 	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
 
 	const scan = run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--json'], root);
 	assert.equal(scan.code, 3, 'collision should block with AWAITING_DISPOSITION exit code');
@@ -89,6 +97,7 @@ test('scan without --feature is ad-hoc: no files written, no gate touched', () =
 
 test('scan disposition --mode replace requires --breaking-approved', () => {
 	const root = buildFixtureRepo();
+	run(['preflight'], root);
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	const rejected = run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'replace'], root);
 	assert.equal(rejected.code, 14);
@@ -98,6 +107,7 @@ test('scan disposition --mode replace requires --breaking-approved', () => {
 
 test('scan for an unrelated term on the same fixture is greenfield and auto-passes', () => {
 	const root = buildFixtureRepo();
+	run(['preflight'], root);
 	const scan = run(['scan', '--feature', '002-completely-unrelated', '--terms', 'zzznonexistentzzz', '--json'], root);
 	assert.equal(scan.code, 0);
 	const report = JSON.parse(scan.stdout);

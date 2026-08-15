@@ -6,7 +6,7 @@ metadata:
   version: 0.1.0
   author: popixoxipop
   based_on: "https://github.com/popixoxipop-collab/backend-skeleton"
-  status: "Phase 0 (spine) + Phase 1 (preflight) + Phase 2 (brownfield scan) implemented. Phase 3-6 not yet built -- see below."
+  status: "Phase 0-3 implemented (spine, preflight, brownfield scan, feature_id contracts). Phase 4-6 (UUID handles, stack wiring, verify) not yet built -- see below."
 ---
 
 # backend-skeleton
@@ -27,10 +27,10 @@ and this skill exists to make it a guarantee instead.
 | # | Command | Gate | Status |
 |---|---|---|---|
 | 1 | `bskel preflight` | blocks everything below | **implemented** |
-| 2 | `bskel feature init --slug <name>` | — | not yet built (feature_id string is currently just typed by hand, e.g. `001-organization-management`) |
+| 2 | `bskel feature init --slug <name>` | — | **implemented** |
 | 3 | `bskel scan --feature <id>` (+ `scan disposition` if collision) | blocks 4-10 | **implemented** |
 | 4 | `/speckit.specify` (or `bskel spec template`) | — | depends on spec-kit if present |
-| 5 | `bskel contract emit` + `bskel contract validate` | blocks 6-10 | not yet built |
+| 5 | `bskel contract emit` + `bskel contract validate` | blocks 6-10 | **implemented** |
 | 6 | `/speckit.plan` (with scan disposition injected) | — | depends on spec-kit if present |
 | 7 | `bskel handles plan` → `bskel handles emit` | — | not yet built |
 | 8 | `bskel stack apply --choice ngrok` | — | not yet built |
@@ -43,10 +43,10 @@ re-verifiable input set (current `HEAD` sha + locally-resolved default branch), 
 downstream command that checks the `preflight` gate will refuse to proceed without it having
 actually run and passed.
 
-Steps 5, 7, 8, 10 (marked "not yet built" above) do not exist yet. If you are asked to do
-contract emission, handle codegen, or stack wiring right now: say so plainly, point at the plan
-file's phased build order, and do NOT hand-simulate what those commands would output -- that
-recreates exactly the "agent got lucky" problem this skill exists to eliminate.
+Steps 7, 8, 10 (marked "not yet built" above) do not exist yet. If you are asked to do handle
+codegen or stack wiring right now: say so plainly, point at the plan file's phased build order,
+and do NOT hand-simulate what those commands would output -- that recreates exactly the "agent
+got lucky" problem this skill exists to eliminate.
 
 ## What's actually usable today
 
@@ -82,15 +82,49 @@ based on a stale/abandoned branch), `12` WRONG_DEFAULT (the three independent so
 is the default branch" disagree, or none could be determined -- never guess `main`), `13` DIRTY
 (uncommitted changes present, pass `--allow-dirty` to override), `14` bad arguments.
 
+```bash
+bskel feature init --slug organization-management
+  # -> mints feature_id (e.g. 001-organization-management, auto-numbered) + a UUIDv4 feature_uid,
+  #    writes specs/<id>/feature.json + .sbf/feature-index.json. Requires preflight to have passed.
+
+bskel contract emit --feature <id> [--module <name>]
+  # -> requires the `scan` gate to have passed (greenfield auto-pass, or a recorded disposition).
+  #    Seeds specs/<id>/contracts/<id>.schema.json's operations from the scan's controller
+  #    endpoints for the given module (defaults to the top-scoring related module): verb, path,
+  #    path-param schema (uuid-format for *Id-named params), and whether the endpoint takes a
+  #    body (re-checks the source for @RequestBody per-method -- verb alone is not reliable,
+  #    e.g. a DELETE that still takes a confirm-name body).
+
+bskel contract validate --feature <id> --file envelope.json
+  # -> validates a {sbf, feature_id, feature_uid, operation_id, direction, payload} envelope:
+  #    structural check against schemas/agent-envelope.schema.json, then feature_id/feature_uid
+  #    must match this exact contract, operation_id must be one it defines, and (for
+  #    direction:"request") payload.pathParams/body must satisfy that operation's specific
+  #    shape. Wrong feature, wrong operation, missing a required path param, and an unexpected
+  #    body on a bodyless operation all fail distinctly -- see test/contract.test.mjs.
+
+bskel contract tool-schema --feature <id> --operation <operationId>
+  # -> prints {name, description, input_schema} for that operation -- input_schema is plain
+  #    JSON Schema, usable directly as an Anthropic tool-use tool definition.
+```
+
+**Contract scope note**: only `direction: "request"` payloads are checked against an
+operation-specific shape (path params + whether a body is required/disallowed). `response`/
+`error` payloads pass envelope-structure validation but aren't checked further -- that would need
+actual Java DTO field-level parsing, out of scope for Phase 2's ripgrep+regex scanner. See
+`D-contract-scope` in `DECISIONS.md`.
+
 ## Design reference (for implementing the remaining phases)
 
-- `scanners/` is implemented (Phase 2). `contracts/`, `handles/`, `stack/` are still empty --
-  see the plan file's Component 3-4 sections for exactly what each should contain, and the
-  phased build order (Phase 3 through 6) for what to implement next and in what order.
-- `~/.agents/skills/archify/` is the packaging precedent to copy from directly: `schemas/` +
-  ajv-standalone-compiled validators (see `archify/scripts/generate-validators.mjs`, and this
-  skill's own `package.json` already wires the same `generate:validators`/`check:validators`
-  script names for when `scripts/generate-validators.mjs` is written in Phase 3).
+- `scanners/` (Phase 2) and `contracts/` (Phase 3) are implemented. `handles/`, `stack/` are
+  still empty -- see the plan file's Component 4-5 sections for exactly what each should
+  contain, and the phased build order (Phase 4 through 6) for what to implement next.
+- `~/.agents/skills/archify/` is the packaging precedent for `schemas/` + `bin/` + `test/`
+  layout generally. Its ajv-standalone-compilation technique (`archify/scripts/
+  generate-validators.mjs`) does NOT apply directly here, though -- see `D-ajv-runtime` in
+  `DECISIONS.md` for why `bskel` uses `ajv`/`ajv-formats` as real runtime dependencies instead
+  (per-feature contract schemas don't exist until `contract emit` runs, so there's nothing
+  fixed to pre-compile the way archify's 5 diagram schemas are).
 - `~/.claude/skills/graphify/SKILL.md` is the structural precedent for this file's own
   numbered/gated workflow style, once later phases add more real steps here.
 - Every new gate-emitting command must register its own entry in `GATE_RECOMPUTERS` in

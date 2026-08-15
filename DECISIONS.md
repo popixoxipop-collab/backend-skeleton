@@ -115,6 +115,55 @@ machine running the tests).
   verb+path either way. Revisit only if a real disposition decision is ever blocked by a missing
   operationId for a non-organization module.
 
+## D4: feature_id (spec-kit's NNN-slug) + minted feature_uid (UUIDv4), both required in every envelope
+
+**WHY**: `feature_id` (`NNN-slug`) is human-legible and is spec-kit's own folder-naming
+convention (reused, not reinvented) -- but it isn't stable across renames and isn't globally
+unique across repos. `feature_uid`, minted once by `bskel feature init` and never reused, closes
+both gaps: a stale envelope copy-pasted from a renamed/recreated feature fails on `feature_uid`
+mismatch even if `feature_id` still happens to match. UUIDv4 over a v5-derived-from-slug: v5
+would be recomputable from the slug alone, which is exactly the "stable identity survives
+rename" property we don't want -- a rename should count as a different feature unless a human
+explicitly re-points `.sbf/feature-index.json`.
+**COST**: an extra `bskel feature init` step before `scan`/`contract emit` can be meaningfully
+gated (both require it to exist -- see `requirePreflightPassed`/`loadFeatureRecord` in
+`bin/bskel.mjs`); numbering can only be assigned by this tool, so a feature_id typed by hand
+without running `feature init` first has no `feature_uid` and contract emit will refuse it.
+**EXIT**: `.sbf/feature-index.json`'s `by_uid` map is the reassignment point if a feature ever
+needs to be manually re-keyed (e.g. two features merged).
+
+## D-ajv-runtime: ajv is a real dependency, not a devDependency (deviates from archify)
+
+**WHY**: archify's `ajv` is a devDependency used only by `scripts/generate-validators.mjs` to
+standalone-compile a FIXED set of 5 diagram schemas, known at package-build time, into a
+zero-runtime-dependency validator bundle. `backend-skeleton`'s per-feature operation schemas
+don't exist until `bskel contract emit` runs for that specific feature -- there is nothing to
+pre-compile in advance, so `bskel contract validate` needs `Ajv2020`/`ajv-formats` at actual
+runtime. Kept the fixed `schemas/agent-envelope.schema.json` un-standalone-compiled too, for
+consistency (compiling only that one schema ahead-of-time while everything else needs runtime
+ajv anyway wouldn't remove the runtime dependency, just add asymmetry).
+**COST**: `bskel` itself now has 2 real npm dependencies (`ajv`, `ajv-formats`) instead of zero
+-- `npm install` is required after cloning, unlike a hypothetical pure-stdlib version.
+**EXIT**: if per-feature contracts ever become a small, closed enum of shapes (unlikely, given
+the whole point is scanning arbitrary existing code), revisit standalone compilation then.
+
+## D-contract-scope: `contract validate` only constrains `direction: "request"` payloads
+
+**WHY**: the per-operation schema built by `contracts/emit.mjs` is derived from what Phase 2's
+scan can see -- HTTP verb, path (with path-param names), and whether `@RequestBody` appears in
+the method signature. None of that describes a RESPONSE body's shape (that would need actual
+Java DTO field-level parsing, out of scope for a ripgrep+regex scanner). So `response`/`error`
+envelopes pass envelope-structure validation but are not checked against any operation-specific
+shape.
+**COST**: an agent could send a malformed response payload and `contract validate` wouldn't
+catch it -- request-side is where feature_id/operation_id scoping matters most (an agent acting
+on the wrong feature/operation is the failure mode the trial actually surfaced), so this was
+judged an acceptable scope cut, not silently -- this note plus the code comment in
+`contracts/validate.mjs` say so explicitly.
+**EXIT**: a future DTO-field scanner (reading `@Schema`/getter return types from the response DTO
+class already located by Phase 2) could seed `response` schemas the same way `body` is seeded for
+requests now.
+
 ## D-name / D-repo / D-handles / D-ngrok
 
 User-confirmed choices, recorded in the approved plan

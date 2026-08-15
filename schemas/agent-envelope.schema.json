@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:envelope:1",
+  "title": "backend-skeleton agent request/response envelope",
+  "description": "Every request/response an AI agent produces for a feature must be wrapped in this envelope. feature_id + feature_uid scope it to a specific feature (and reject a stale copy-pasted payload from a renamed feature, since feature_uid is minted once and never reused); operation_id scopes payload to a specific operation's schema, enforced by the per-feature contract in specs/<feature_id>/contracts/<feature_id>.schema.json, not by this schema alone.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf", "feature_id", "feature_uid", "operation_id", "direction", "payload"],
+  "properties": {
+    "sbf": { "const": "1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "operation_id": { "type": "string", "pattern": "^[a-zA-Z][A-Za-z0-9]*$" },
+    "direction": { "enum": ["request", "response", "error"] },
+    "handles": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^sbf1_[A-Za-z0-9_-]+$" }
+    },
+    "payload": {}
+  }
+}

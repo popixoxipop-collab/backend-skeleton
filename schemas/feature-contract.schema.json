@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:feature-contract:1",
+  "title": "backend-skeleton per-feature contract (meta-schema)",
+  "description": "Validates the SHAPE of specs/<feature_id>/contracts/<feature_id>.schema.json itself -- not a payload. See contracts/validate.mjs for payload validation against a specific operation inside a contract that already passed this meta-schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf_contract", "feature_id", "feature_uid", "generated_at", "source", "operations"],
+  "properties": {
+    "sbf_contract": { "const": "1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "required": ["adapter", "module", "provenance"],
+      "properties": {
+        "adapter": { "type": ["string", "null"] },
+        "module": { "type": ["string", "null"] },
+        "provenance": { "type": "string" }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["verb", "path", "pathParams", "body", "provenance"],
+        "properties": {
+          "verb": { "type": "string" },
+          "path": { "type": "string" },
+          "pathParams": { "type": "object" },
+          "body": { "enum": [true, false, "unknown"] },
+          "provenance": { "type": "string" }
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}
