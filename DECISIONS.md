@@ -1141,9 +1141,11 @@ comment at its exact location; this section is the index, not a duplicate of the
    log file had the same PID-based naming. Fixed with `mktemp` in both places plus an
    unconditional `chmod 600` after every `env_upsert` write.
 6. **`stack/apply.mjs` `planApply()` — dry-run read the target repo's `.env`** (boundary
-   violation, not a leak — nothing from it was ever printed). Violated this project's own D8 and
-   the target repo's CLAUDE.md rule that the agent never reads/edits `.env`. Fixed by deciding
-   `alreadyDetected` from `detect.files` alone.
+   violation, not a leak — nothing from it was ever printed). Violated this project's own
+   convention and the target repo's CLAUDE.md rule that the agent never reads/edits `.env`
+   (this item is itself `D-security-6`, referenced elsewhere in this codebase by that label — see
+   `stack/apply.mjs`'s inline comment). Fixed by deciding `alreadyDetected` from `detect.files`
+   alone.
 7. **`handles/plan.mjs` `findRequiredAuthority()` — wrong method's `@PreAuthorize`** (Medium). Took
    the file's FIRST `@PreAuthorize(hasRole(...))` match regardless of which method the resolver
    was actually being generated for — a controller whose first-declared method carries a weaker
@@ -1554,3 +1556,92 @@ gate-backed phases (1/2/3/5/7/8, i.e. preflight/feature-init/scan/contract/handl
 generic gate dependency graph was not built either, for the same reason S2 didn't build one:
 `GATE_NAMES`'s documented order is sufficient today, and a real graph only earns its cost once a
 gate has more than one direct predecessor.
+
+## D-artifact-determinism (O6): rerunning a command with nothing real changed must produce byte-identical output, and a doc reference must point at something that exists
+
+**WHY** -- three separate, small correctness gaps, plus a documentation-hygiene one, bundled
+because each is cheap and none depends on the others:
+
+1. **`generated_at` was baked into `contract emit`'s and the OpenAPI snapshot's output on every
+   run**, via `new Date().toISOString()` in `contracts/emit.mjs::buildContract()` and
+   `contracts/openapi.mjs::snapshotFromReconciliation()`. No test asserted its value
+   (`test/contract.test.mjs` explicitly strips it before comparing), so it was pure output churn
+   -- but `lib/gate-definitions.mjs`'s `contract` gate token hashes the emitted contract file's
+   bytes, so this churn moved the gate token on every re-emit even when nothing semantic changed.
+   Removed from both artifacts; `schemas/feature-contract.schema.json` updated in lockstep
+   (`additionalProperties: false` meant leaving it in `required`/`properties` while removing it
+   from the code would have made every future contract fail its own meta-schema). "When was this
+   generated" already lives in the right place -- the gate record's own `at` field
+   (`lib/gates.mjs`'s `passGate`/`awaitDispositionGate`/`forceGate`), which is the established
+   precedent this item generalizes: timestamps belong in gate history, not in the semantic
+   artifact itself.
+2. **Discovery order was never sorted.** `rg --files` (no `--sort` flag, used at every call site
+   in `scanners/adapters/java-spring.mjs`, `scanners/adapters/generic-grep.mjs`, and
+   `handles/emit.mjs::detectBasePackage()`) is explicitly unordered/parallel by ripgrep's own
+   documentation -- two runs against an *identical, unchanged* repo could return files in a
+   different order, propagating into non-deterministic controller/entity/module array order in
+   every scan report and contract. Fixed with a `.sort()` immediately after each `rg` call;
+   sorting the input file list is sufficient to make everything built by iterating it
+   deterministic too, no downstream sort needed. `scanners/index.mjs`'s
+   `scored.sort((a,b) => b.score - a.score)` also had no tie-breaker for equal-score modules --
+   added `|| a.module.localeCompare(b.module)` as a stable secondary key.
+3. **`detectBasePackage()` silently picked `files[0]`** when more than one `*Application.java`
+   matched, with no ambiguity handling at all -- combined with (2)'s non-determinism, which
+   package a multi-application repo got could vary run to run. Fixed to only treat this as
+   ambiguous when the candidates declare *genuinely different* packages (multiple
+   `*Application.java` files sharing the same package -- a real multi-module-monorepo shape --
+   isn't actually ambiguous, and now resolves quietly); a real mismatch throws, naming every
+   candidate file, caught at both call sites (`cmdHandlesPlan`/`cmdHandlesEmit` in `bin/bskel.mjs`,
+   both now routed through a new shared `detectBasePackageOrExit()`) and reported the same way the
+   pre-existing "no `*Application.java` found" case already was (`process.exit(2)`).
+4. **Three dead documentation references**, found by grepping the whole repo for every `D-<x>`/
+   `D<N>` token and checking it against DECISIONS.md's real headings. `scanners/index.mjs`'s
+   `--db` unknowns note pointed at a DECISIONS.md heading that could never exist, because the
+   feature it would document -- DB introspection -- was never built; repointed at CATALOG.md's
+   `A4`, the actual place that gap is tracked, rather than inventing a decision for unshipped
+   work. `stack/apply.mjs`'s security-hardening item #6 comment carried two different labels for
+   the same fix, one real (`D-security-6`, matching this file's own numbered-list item #6 below)
+   and one that never existed as a heading anywhere; unified on the real one (this item's own
+   earlier self-reference above has already been cleaned up the same way). `HandleAspect`
+   (`HandleSnapshot.java.tmpl`'s Javadoc referenced a class that is generated by no template and
+   exists nowhere in this codebase; reworded to say plainly that snapshot-recording is opt-in and
+   not yet implemented, pointing at CATALOG.md's `O4`).
+
+**A new regression mechanism for (4) specifically**: `test/doc-integrity.test.mjs` parses every
+`##`-level heading in DECISIONS.md into a real anchor set (handling combined headings like
+`D5/D6` and `D-name / D-repo / D-handles / D-ngrok` by splitting on `/`), greps the whole repo
+(`.mjs`/`.tmpl`/`.md`, excluding `node_modules`/`.git`) for every `D-<x>`/`D<N>` token referenced
+in code or prose, and fails if any doesn't resolve. The single biggest false-positive trap, found
+while building this: `D-security-1` through `D-security-10` are documented as a **numbered list**
+under one `## Security hardening pass (Codex review)` heading, not as ten separate `##
+D-security-N` headings -- that section already says so explicitly ("this section is the index,
+not a duplicate of the reasoning"). The test counts the list items and synthesizes
+`D-security-1..N` anchors rather than expecting individual headings, which is what keeps it from
+producing ~10 false positives against this repo's own real content. It also cross-checks
+`usage()`'s documented top-level commands against `main()`'s dispatch `switch` (by static source
+parsing, not runtime probing -- an earlier draft ran each verb bare and checked for usage()'s own
+banner in the output, which produces a false positive for any two-word command whose PARENT verb
+legitimately prints that same banner when called with no subcommand, e.g. `bskel feature` alone),
+and locks in that a `HandleAspect` mention anywhere in a generated template must carry an explicit
+not-yet-implemented caveat.
+
+`CATALOG.md` is deliberately **excluded** from the dangling-reference scan: it's an explicitly
+frozen, verbatim-recovered historical record of Codex's original catalog text (see
+`D-catalog-recovery`), and it still quotes both of the dead references fixed in item (4) above as
+evidence of the problem this very entry fixes -- editing that quoted text would misrepresent what
+Codex actually wrote. The doc-integrity test's own source file is also excluded from its own scan
+(it legitimately constructs the security-hardening synthetic-anchor prefix via template literal
+and references synthetic nonexistent tokens in its self-verification subtests -- neither is a
+real documentation reference).
+
+**COST**: `schemas/feature-contract.schema.json`'s change has no real backward-compatibility cost
+(nothing ever validated an *old* contract file against a *new* schema version -- contracts are
+regenerated, not migrated). The ambiguous-base-package error is untested against any real
+multi-application repo (none exists in this project's real-world testing, per `handles/emit.mjs`'s
+own comment) -- it could turn out to be too strict or insufficiently informative the first time it
+actually fires against a genuine case.
+**EXIT**: if a real multi-application-root repo is ever encountered and the "different packages
+throw" behavior is wrong for it, the fix is an explicit override (e.g. `--base-package
+com.example`) added to `detectBasePackageOrExit()`'s call sites -- not designed speculatively now,
+per this project's Data-First Numerics convention, since there's no real case yet to design
+against.

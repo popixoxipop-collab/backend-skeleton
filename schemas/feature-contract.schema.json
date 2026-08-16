@@ -5,12 +5,11 @@
   "description": "Validates the SHAPE of specs/<feature_id>/contracts/<feature_id>.schema.json itself -- not a payload. See contracts/validate.mjs for payload validation against a specific operation inside a contract that already passed this meta-schema.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sbf_contract", "feature_id", "feature_uid", "generated_at", "source", "operations", "warnings", "completeness"],
+  "required": ["sbf_contract", "feature_id", "feature_uid", "source", "operations", "warnings", "completeness"],
   "properties": {
     "sbf_contract": { "const": "4" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
-    "generated_at": { "type": "string", "format": "date-time" },
     "source": {
       "type": "object",
       "required": ["adapter", "module", "provenance"],

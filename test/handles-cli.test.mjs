@@ -254,3 +254,40 @@ test('hand-finishing patchField() in a generated resolver does NOT stale the han
 	const resolverArtifact = report.artifacts.find((a) => a.artifact === 'handles resolver' && a.path.endsWith('WidgetResolver.java'));
 	assert.equal(resolverArtifact.exists, true, 'existence-only check: the file is still there, its content is not re-examined');
 });
+
+// O6: detectBasePackage() used to silently pick files[0] on ANY multi-*Application.java repo --
+// unverified by any test until now (this exact gap Explore found). Two genuinely different
+// packages must fail loudly and name every candidate; two files sharing the SAME package (a real
+// multi-module-monorepo shape) is not actual ambiguity and must still work.
+test('handles plan fails clearly when *Application.java files declare genuinely different packages', () => {
+	const root = buildFixtureRepo();
+	const secondAppDir = path.join(root, 'src/main/java/com/other');
+	fs.mkdirSync(secondAppDir, { recursive: true });
+	fs.writeFileSync(path.join(secondAppDir, 'OtherApplication.java'), 'package com.other;\npublic class OtherApplication {}\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'add a second, differently-packaged application root'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	runWorkflowThroughContract(root);
+	const result = run(['handles', 'plan', '--feature', '001-widget-management'], root);
+	assert.equal(result.code, 2);
+	assert.match(result.stderr, /ambiguous base package/);
+	assert.match(result.stderr, /ExampleApplication\.java/);
+	assert.match(result.stderr, /OtherApplication\.java/);
+});
+
+test('handles plan still works when multiple *Application.java files share the same package (multi-module shape, not real ambiguity)', () => {
+	const root = buildFixtureRepo();
+	const secondAppDir = path.join(root, 'src/main/java/com/example/othermodule');
+	fs.mkdirSync(secondAppDir, { recursive: true });
+	fs.writeFileSync(path.join(secondAppDir, 'OtherModuleApplication.java'), 'package com.example;\npublic class OtherModuleApplication {}\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'add a second application root in the same package'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	runWorkflowThroughContract(root);
+	const result = run(['handles', 'plan', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 0);
+	const plan = JSON.parse(result.stdout);
+	assert.ok(plan.resources.find((r) => r.type === 'Widget'));
+});

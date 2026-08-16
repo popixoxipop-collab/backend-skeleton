@@ -787,7 +787,6 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 	return {
 		schema: 'sbf.openapi-snapshot/1',
 		feature_id: featureId,
-		generated_at: new Date().toISOString(),
 		source: {
 			file: sourceFile.file,
 			outside_repo: sourceFile.outsideRepo,

@@ -14,9 +14,13 @@ export function detectJavaSpringRoot(repoRoot) {
 	return fs.existsSync(srcRoot) ? srcRoot : null;
 }
 
+// O6: `rg --files` (no `--sort`) is explicitly unordered/parallel by ripgrep's own docs -- two
+// runs against an unchanged repo can return files in a different order, which without this sort
+// would propagate into non-deterministic controller/entity/module array order in every scan
+// report and contract, causing spurious diffs even when nothing real changed.
 function listJavaFiles(srcRoot) {
 	const out = execFileSync('rg', ['--files', '-g', '*.java', srcRoot], { encoding: 'utf8' });
-	return out.split('\n').filter(Boolean);
+	return out.split('\n').filter(Boolean).sort();
 }
 
 function stripComments(text) {
@@ -118,7 +122,7 @@ const APPLICATION_CONFIG_GLOB = 'application*.{yml,yaml,properties}';
 function findApplicationConfigFiles(repoRoot) {
 	try {
 		return execFileSync('rg', ['--files', '-g', APPLICATION_CONFIG_GLOB, repoRoot], { encoding: 'utf8' })
-			.split('\n').filter(Boolean);
+			.split('\n').filter(Boolean).sort(); // O6: rg --files order isn't guaranteed -- see listJavaFiles.
 	} catch {
 		return []; // rg exits 1 on "no files matched" -- not an error, just nothing to report
 	}
@@ -145,7 +149,7 @@ export function detectGlobalPathPrefixSignals(repoRoot) {
 	if (fs.existsSync(srcRoot)) {
 		let candidates = [];
 		try {
-			candidates = execFileSync('rg', ['-l', 'configurePathMatch', '-g', '*.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean);
+			candidates = execFileSync('rg', ['-l', 'configurePathMatch', '-g', '*.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean).sort();
 		} catch {
 			// no matches -- not an error
 		}

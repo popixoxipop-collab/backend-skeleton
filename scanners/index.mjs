@@ -64,9 +64,14 @@ export function runScan({ repoRoot, terms, includeDb = false }) {
 		pathPrefixSignals = [];
 	}
 
+	// O6: score alone isn't a deterministic sort key -- two modules tying on score fall back to
+	// whatever order they were already in, which traces back to non-deterministic rg discovery
+	// order in the adapters above (mitigated there too, but a second determinism layer here is
+	// cheap and doesn't depend on every adapter getting it right). Module name is a stable,
+	// meaningful secondary key.
 	const scored = modules
 		.map((m) => ({ ...m, score: scoreModule(m, terms) }))
-		.sort((a, b) => b.score - a.score);
+		.sort((a, b) => b.score - a.score || a.module.localeCompare(b.module));
 
 	const relatedModules = scored.filter((m) => m.score > 0);
 	const collisions = relatedModules.filter((m) => m.score >= COLLISION_THRESHOLD);
@@ -77,7 +82,7 @@ export function runScan({ repoRoot, terms, includeDb = false }) {
 
 	const unknowns = [];
 	if (!includeDb) {
-		unknowns.push('DB not scanned (Plane C is opt-in via --db, off by default -- see D-db in DECISIONS.md)');
+		unknowns.push('DB not scanned (Plane C is opt-in via --db, off by default and not yet implemented -- see A4 in CATALOG.md)');
 	}
 	// A1 §7: this scan can't correct a global path prefix (only --openapi-file's real-document
 	// reconciliation can, see D-openapi-reconciliation) -- but it CAN tell a user who doesn't know

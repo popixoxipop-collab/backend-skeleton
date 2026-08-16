@@ -272,7 +272,6 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 		sbf_contract: '4',
 		feature_id: featureId,
 		feature_uid: featureUid,
-		generated_at: new Date().toISOString(),
 		source: targetModule
 			? { adapter: scanReport.adapter, module: targetModule.module, provenance: openapi ? 'scan+openapi' : 'scan' }
 			: { adapter: scanReport.adapter ?? null, module: null, provenance: 'none' },

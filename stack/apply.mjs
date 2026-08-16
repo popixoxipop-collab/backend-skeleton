@@ -78,7 +78,7 @@ export function planApply(repoRoot, entry, { port = 8080 } = {}) {
 	const plan = { choice: entry.id, alreadyDetected: false, files: [], envExampleActions: [], configChecks: [] };
 
 	// D-security-6: never read the target repo's .env, even for a read-only dry-run detection
-	// check. This project's own convention (D8 in DECISIONS.md) and the target repo's CLAUDE.md
+	// check. This project's own convention (D-security-6 in DECISIONS.md) and the target repo's CLAUDE.md
 	// both say the agent doesn't read/edit .env -- only a human-invoked runtime bootstrap script
 	// does. Detection now relies solely on `detect.files` (e.g. does scripts/dev-tunnel.sh
 	// already exist), which is what the ngrok catalog entry primarily uses anyway. Found by the

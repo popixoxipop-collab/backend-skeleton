@@ -806,6 +806,24 @@ function renderHandlesPlan(plan) {
 	return `${lines.join('\n')}\n`;
 }
 
+// O6: shared by both handles commands -- detectBasePackage() now throws on a genuinely ambiguous
+// multi-application-root repo (previously silently picked one), so both call sites need the same
+// try/catch-and-exit-2 treatment the pre-existing "no *Application.java found" case already had.
+function detectBasePackageOrExit(root) {
+	let basePackage;
+	try {
+		basePackage = detectBasePackage(root);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(2);
+	}
+	if (!basePackage) {
+		console.error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+		process.exit(2);
+	}
+	return basePackage;
+}
+
 function cmdHandlesPlan(args) {
 	const root = requireRepoRoot();
 	const flags = parseFlags(args, {
@@ -818,11 +836,7 @@ function cmdHandlesPlan(args) {
 	requireValidFeatureId(flags.feature);
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
-	const basePackage = detectBasePackage(root);
-	if (!basePackage) {
-		console.error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
-		process.exit(2);
-	}
+	const basePackage = detectBasePackageOrExit(root);
 	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
 
@@ -867,11 +881,7 @@ function cmdHandlesEmit(args) {
 	}
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
-	const basePackage = detectBasePackage(root);
-	if (!basePackage) {
-		console.error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
-		process.exit(2);
-	}
+	const basePackage = detectBasePackageOrExit(root);
 	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
 

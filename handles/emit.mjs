@@ -35,18 +35,35 @@ function lowerFirst(s) {
 // Detected from the Spring Boot `*Application.java` file's own package declaration, rather
 // than assumed/configured -- works for any Spring Boot project following the standard
 // convention, not just Team-IZ-Backend's specific `com.bigproject.backend`.
+//
+// O6: previously used files[0] unconditionally when the glob matched more than one
+// *Application.java -- silently picking whichever one `rg --files`'s (unordered, see the .sort()
+// below) traversal happened to return first. Multiple candidates that all declare the SAME
+// package (a common multi-module-monorepo shape) aren't actually ambiguous, so that case still
+// resolves quietly; only genuinely DIFFERENT packages throw, naming every candidate so the caller
+// can see why. There is no existing repo in this project's real-world testing with more than one
+// application root, so this is unverified against a real multi-app case -- see
+// D-artifact-determinism's EXIT in DECISIONS.md for why no override flag was added speculatively.
 export function detectBasePackage(repoRoot) {
 	const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
 	if (!fs.existsSync(srcRoot)) return null;
 	let files;
 	try {
-		files = execFileSync('rg', ['--files', '-g', '*Application.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean);
+		files = execFileSync('rg', ['--files', '-g', '*Application.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean).sort();
 	} catch {
 		files = [];
 	}
 	if (files.length === 0) return null;
-	const match = fs.readFileSync(files[0], 'utf8').match(/^package\s+([\w.]+);/m);
-	return match ? match[1] : null;
+	const packages = new Set(
+		files.map((f) => fs.readFileSync(f, 'utf8').match(/^package\s+([\w.]+);/m)?.[1]).filter(Boolean),
+	);
+	if (packages.size > 1) {
+		throw new Error(
+			`ambiguous base package -- found ${files.length} *Application.java file(s) declaring ${packages.size} different packages: ` +
+			`${files.map((f) => path.relative(repoRoot, f)).join(', ')}. This tool doesn't support multi-application-root repos yet.`,
+		);
+	}
+	return packages.size === 1 ? [...packages][0] : null;
 }
 
 // O2: refuses --force on a target that isn't safely recoverable from git history -- a --force

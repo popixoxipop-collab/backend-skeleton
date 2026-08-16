@@ -22,10 +22,14 @@ const ROUTE_PATTERNS = [
 	{ re: /@router\.(get|post|put|patch|delete)\(\s*["']([^"']+)["']/gi, framework: 'fastapi', hasVerb: true },
 ];
 
+// O6: rg --files order isn't guaranteed (no --sort -- ripgrep's own docs say the default is
+// unordered/parallel) -- without sorting, two runs against an unchanged repo could produce
+// controllers in a different order, causing spurious output diffs. See java-spring.mjs's
+// listJavaFiles for the same fix.
 function listCandidateFiles(repoRoot) {
 	try {
 		const out = execFileSync('rg', ['--files', '-g', '*.{js,ts,mjs,py}', repoRoot], { encoding: 'utf8' });
-		return out.split('\n').filter(Boolean);
+		return out.split('\n').filter(Boolean).sort();
 	} catch {
 		return [];
 	}
