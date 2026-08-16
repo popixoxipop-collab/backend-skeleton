@@ -1184,3 +1184,29 @@ other.
 **EXIT**: re-run an independent security-focused review after any change that touches
 `contracts/`, `stack/apply.mjs`'s path handling, or the `handles/` codec/resolver-generation
 path — those are exactly the modules this pass found issues in.
+
+## D-catalog-recovery: the Codex enhancement-idea catalog was never lost, only its resume path was
+
+The full A1-A5/G1-G4/D1-D6/S1-S6/P1-P4/O1-O6 enhancement catalog (Top 5 + 29 items) that a Codex
+consultation produced on 2026-08-15 was originally only ever delivered as conversational output,
+never written to a file in this repo -- so when a later session's attempt to resume that same
+Codex thread failed (`"No previous Codex task thread was found"`), the catalog appeared permanently
+lost, and A2/A3 (this repo's own labels) ended up being planned from independent, freshly-derived
+Codex consultations whose "A2"/"A3" do NOT correspond to this original catalog's A2/A3.
+
+**It was not actually lost.** Codex CLI persists every session's full transcript to disk regardless
+of whether Claude's own `--resume-last`/thread bookkeeping can still reach it --
+`~/.codex/sessions/<year>/<month>/<day>/rollout-<timestamp>-<session-id>.jsonl`. The original
+catalog's `session_index.jsonl` entry (id `01a005a4-7d8f-7ac2-a4f6-255e967e76c7`) pointed straight
+at its rollout file; the `role: "assistant"` `response_item` containing the full catalog text was
+still there, byte-for-byte, on 2026-08-16. Recovered and committed verbatim to `CATALOG.md`, with
+a label-correspondence table documenting which of this repo's own A1-A5 (and S1/S6) actually match
+the original catalog's same-numbered items and which don't.
+**WHY this matters going forward**: "no previous thread found" is a claim about Claude's/the
+wrapper's resume bookkeeping, not about whether the content exists. Before treating any past Codex
+consultation as unrecoverable, check `~/.codex/sessions/` for a rollout file under that session ID
+first.
+**COST**: none -- this was pure recovery, no design change.
+**EXIT**: `CATALOG.md` at the repo root is now the durable source for this catalog; see
+`D-codex-consult-persist-hook` below for the mechanism preventing a future consultation from
+depending on manual recovery again.
