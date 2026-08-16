@@ -105,3 +105,34 @@ test('evaluateResolution: blocked (zero operations) is never waivable, even with
 	assert.equal(result.status, COMPLETENESS.BLOCKED);
 	assert.equal(result.blocking, true, 'blocked must block regardless of any waiver present');
 });
+
+// A1: the 4 OpenAPI reconciliation warning codes.
+test('the 4 A1 warning codes exist in WARNING_CODES with the expected severity/waivable', () => {
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_DRIFT, { severity: SEVERITY.ERROR, waivable: true });
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_MISSING_OPERATION, { severity: SEVERITY.ERROR, waivable: true });
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_AMBIGUOUS, { severity: SEVERITY.ERROR, waivable: true });
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_DERIVED_OPERATION_ID, { severity: SEVERITY.WARN, waivable: true });
+	for (const code of ['CONTRACT_OPENAPI_DRIFT', 'CONTRACT_OPENAPI_MISSING_OPERATION', 'CONTRACT_OPENAPI_AMBIGUOUS', 'CONTRACT_OPENAPI_DERIVED_OPERATION_ID']) {
+		assert.doesNotThrow(() => requireWarningCode(code));
+	}
+});
+
+test('evaluateResolution: an unwaived CONTRACT_OPENAPI_DRIFT blocks; an exact code+subject waiver resolves it', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [makeWarning('CONTRACT_OPENAPI_DRIFT', { subject: 'findWidget', message: 'x' })],
+	};
+	const unwaived = evaluateResolution(contract, { waivers: [] });
+	assert.equal(unwaived.blocking, true);
+
+	const waived = evaluateResolution(contract, { waivers: [{ code: 'CONTRACT_OPENAPI_DRIFT', subject: 'findWidget', reason: 'x' }] });
+	assert.equal(waived.blocking, false);
+});
+
+test('evaluateResolution: CONTRACT_OPENAPI_DERIVED_OPERATION_ID (WARN) never blocks, waived or not', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', { subject: 'createWidget', message: 'x' })],
+	};
+	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
+});

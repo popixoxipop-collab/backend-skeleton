@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +18,15 @@ function run(args, cwd) {
 	} catch (err) {
 		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
 	}
+}
+
+// Unlike run(), captures stderr even on a successful (exit 0) run -- execFileSync only exposes
+// stderr via its thrown error on non-zero exit, so a passing command that still writes an
+// informational note to stderr (e.g. the "snapshot left as-is" note below) needs spawnSync
+// instead, which always returns {stdout, stderr} regardless of exit code.
+function runCapturingStderr(args, cwd) {
+	const result = spawnSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+	return { code: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 // `includeDeleteWidget`/`includePatchWidget`/`includePutWidget` add mappings with an
@@ -115,6 +124,35 @@ function contractSchemaPath(root) {
 
 function contractResolutionPath(root) {
 	return path.join(root, 'specs/001-widget-management/contracts/001-widget-management.resolution.json');
+}
+
+function contractSnapshotPath(root) {
+	return path.join(root, 'specs/001-widget-management/contracts/001-widget-management.openapi.snapshot.json');
+}
+
+// Matches widgetControllerSource()'s endpoints, all under the real deployed `/api/v0` prefix --
+// the exact shape the real Team-IZ-Backend defect looks like (ApiPathConfig.java's global
+// addPathPrefix, invisible to source-annotation scanning).
+function widgetOpenApiDoc({ includeDeleteWidget = false, includePatchWidget = false } = {}) {
+	const paths = {
+		'/api/v0/widgets': {
+			get: { operationId: 'findWidgets' },
+			post: { operationId: 'createWidget' },
+		},
+		'/api/v0/widgets/{widgetId}': {
+			get: { operationId: 'findWidget' },
+		},
+	};
+	if (includeDeleteWidget) paths['/api/v0/widgets/{widgetId}'].delete = { operationId: 'deleteWidget' };
+	if (includePatchWidget) paths['/api/v0/widgets/{widgetId}'].patch = { operationId: 'patchWidget' };
+	return { openapi: '3.1.0', info: { title: 'fixture', version: '1' }, paths };
+}
+
+function writeOpenApiFixture(root, doc) {
+	const file = path.join(root, 'build', 'api-docs.json');
+	fs.mkdirSync(path.dirname(file), { recursive: true });
+	fs.writeFileSync(file, JSON.stringify(doc));
+	return file;
 }
 
 test('feature init -> scan -> disposition -> contract emit -> validate -> tool-schema, full flow', () => {
@@ -340,4 +378,120 @@ test('a blocked (zero-operation) contract cannot be waived, but gate force remai
 	const force = run(['gate', 'force', 'contract', '--feature', '001-widget-management', '--reason', 'escape hatch test'], root);
 	assert.equal(force.code, 0);
 	assert.equal(JSON.parse(run(['verify', '--feature', '001-widget-management', '--json'], root).stdout).pass, true);
+});
+
+// A1 regression suite below.
+
+test('--openapi-file corrects every path to the real deployed prefix and writes a snapshot', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc());
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(emit.code, 0);
+	assert.match(emit.stdout, /openapi: 3 path\(s\) corrected/);
+
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	for (const op of Object.values(contract.operations)) {
+		assert.ok(op.path.startsWith('/api/v0/'), `expected /api/v0/ prefix, got "${op.path}"`);
+		assert.equal(op.provenance, 'scan+openapi');
+	}
+	assert.ok(fs.existsSync(contractSnapshotPath(root)));
+	const snapshot = JSON.parse(fs.readFileSync(contractSnapshotPath(root), 'utf8'));
+	assert.equal(snapshot.path_prefix.value, '/api/v0');
+	assert.equal(snapshot.stats.matched, 3);
+});
+
+test('partial fixture: OpenAPI recovers the unmatched endpoints (adopted), no waive needed', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ includeDeleteWidget: true, includePatchWidget: true }));
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(emit.code, 0, 'no waive should be needed -- both previously-unmatched endpoints are adopted');
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.equal(contract.completeness.status, 'complete');
+	assert.equal(Object.keys(contract.operations).length, 5);
+	assert.equal(contract.operations.deleteWidget.provenance, 'openapi');
+	assert.equal(contract.operations.patchWidget.provenance, 'openapi');
+});
+
+test('a nonexistent --openapi-file, broken JSON, and an invalid --path-prefix all exit 14 without writing a contract or touching the gate', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+
+	const missing = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', path.join(root, 'does-not-exist.json')], root);
+	assert.equal(missing.code, 14);
+	assert.ok(!fs.existsSync(contractSchemaPath(root)));
+
+	const brokenFile = path.join(root, 'broken.json');
+	fs.writeFileSync(brokenFile, '{not valid json');
+	const broken = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', brokenFile], root);
+	assert.equal(broken.code, 14);
+	assert.ok(!fs.existsSync(contractSchemaPath(root)));
+
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc());
+	const badPrefix = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--path-prefix', '/api/{v}'], root);
+	assert.equal(badPrefix.code, 14);
+	assert.ok(!fs.existsSync(contractSchemaPath(root)));
+
+	const gateShow = run(['gate', 'show', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(gateShow.code, 0);
+	assert.equal(JSON.parse(gateShow.stdout).record, null, 'the contract gate must never have been touched by any of the three failed emits above');
+});
+
+test('gate token: deleting the openapi snapshot after a corrected emit makes contract stale; restoring it passes again', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc());
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	const backup = fs.readFileSync(contractSnapshotPath(root), 'utf8');
+	fs.rmSync(contractSnapshotPath(root));
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 4, 'deleting the snapshot must stale the gate');
+
+	fs.writeFileSync(contractSnapshotPath(root), backup);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+});
+
+test('re-emitting without --openapi-file after a corrected emit leaves an existing snapshot untouched, with only a stderr note', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc());
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	const before = fs.readFileSync(contractSnapshotPath(root), 'utf8');
+
+	const reEmit = runCapturingStderr(['contract', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(reEmit.code, 0);
+	assert.match(reEmit.stderr, /snapshot from a previous run exists/);
+	const after = fs.readFileSync(contractSnapshotPath(root), 'utf8');
+	assert.equal(before, after, 'the snapshot must not be rewritten or deleted when --openapi-file is omitted');
+});
+
+test('re-emitting with the same OpenAPI document is idempotent in outcome (same prefix, same match counts, gate stays pass)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc());
+
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	const second = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(second.code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+	const snapshot = JSON.parse(fs.readFileSync(contractSnapshotPath(root), 'utf8'));
+	assert.equal(snapshot.stats.matched, 3);
+	assert.equal(snapshot.path_prefix.value, '/api/v0');
+});
+
+// D-security-1-shaped regression, A1's added reachability: an operationId can now be adopted
+// directly from an external OpenAPI document, not just from Java source under the repo owner's
+// control -- confirms tool-schema's Object.hasOwn fix still rejects a prototype-chain lookup.
+test('contract tool-schema --operation constructor is rejected, not resolved via the prototype chain', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	const result = run(['contract', 'tool-schema', '--feature', '001-widget-management', '--operation', 'constructor'], root);
+	assert.equal(result.code, 2);
 });

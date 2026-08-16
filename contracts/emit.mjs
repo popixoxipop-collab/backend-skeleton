@@ -32,16 +32,35 @@ function detectRequestBody(filePath, methodName) {
 	return /@RequestBody/.test(match[1]);
 }
 
+// A1: shared with contracts/openapi.mjs so "which module" and "which endpoint is which" are
+// defined in exactly one place -- openapi.mjs imports these (never the reverse), so a
+// reconciliation is guaranteed to line up with the same module/endpoint buildContract() sees,
+// as long as both are called with the same (scanReport, moduleName) inputs.
+export function selectModule(scanReport, moduleName) {
+	return moduleName
+		? scanReport.related_modules.find((m) => m.module === moduleName)
+		: scanReport.related_modules[0];
+}
+
+// A string, not object identity, so it survives serialization into the openapi snapshot and
+// doesn't depend on both callers sharing the exact same parsed scanReport object.
+export function endpointKey(controllerIndex, endpointIndex) {
+	return `${controllerIndex}:${endpointIndex}`;
+}
+
 // A5: warnings are structured ({code, severity, subject, message, detail}), not bare strings --
 // see contracts/completeness.mjs. The three original warning conditions (no-module/unmatched/
 // duplicate) and their exact message text are unchanged; two are new (CONTRACT_EMPTY,
 // CONTRACT_BODY_UNKNOWN). This function still never looks at waivers -- it reports what the scan
 // found, nothing more; bin/bskel.mjs's cmdContractEmit is what weighs warnings against
 // contracts/completeness.mjs's evaluateResolution() to decide whether to block.
-export function buildContract({ featureId, featureUid, scanReport, module: moduleName }) {
-	const targetModule = moduleName
-		? scanReport.related_modules.find((m) => m.module === moduleName)
-		: scanReport.related_modules[0];
+//
+// A1: `openapi` (default null) is an already-computed contracts/openapi.mjs Reconciliation --
+// this function never opens the OpenAPI file itself (same "stays pure" discipline as never
+// looking at waivers). `openapi === null` is a hard guarantee of byte-identical output to
+// pre-A1 behavior -- see test/contract.test.mjs's "openapi param omitted" test.
+export function buildContract({ featureId, featureUid, scanReport, module: moduleName, openapi = null }) {
+	const targetModule = selectModule(scanReport, moduleName);
 
 	const operations = {};
 	const warnings = [];
@@ -52,22 +71,99 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 			message: 'no related module in the scan report -- emitting an empty operation set. Pass --module, or re-run `bskel scan` with terms that actually match the intended feature.',
 		}));
 	} else {
-		for (const controller of targetModule.controllers) {
-			for (const ep of controller.endpoints) {
+		for (const [ci, controller] of targetModule.controllers.entries()) {
+			for (const [ei, ep] of controller.endpoints.entries()) {
 				endpointCount++;
-				if (!ep.operationId) {
+				const res = openapi ? openapi.byEndpoint.get(endpointKey(ci, ei)) ?? null : null;
+
+				let operationId = ep.operationId;
+				let verb = ep.verb;
+				let route = ep.path;
+				let provenance = 'scan';
+				let openapiAttempted = false;
+				let openapiReason = null;
+
+				if (res) {
+					switch (res.kind) {
+						case 'matched':
+							// operationId came from source (scan), verb/path are OpenAPI-confirmed --
+							// this is A1's main fix: the endpoint was already addressable, but its path
+							// was wrong (missing e.g. a global /api/v0 prefix the scanner can't see).
+							verb = res.verb;
+							route = res.path;
+							provenance = 'scan+openapi';
+							break;
+						case 'adopted':
+							// No @Operation(operationId=...) in source at all -- the id itself comes from
+							// the document, not from anything pinned in Java. Real and addressable, but
+							// flagged (WARN, not ERROR) since renaming the handler method would silently
+							// change it.
+							operationId = res.operationId;
+							verb = res.verb;
+							route = res.path;
+							provenance = 'openapi';
+							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
+								subject: operationId,
+								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
+								detail: { verb: res.verb, path: res.path, scan_verb: ep.verb, scan_path: ep.path },
+							}));
+							break;
+						case 'drift':
+							// operationId matches on both sides, but verb/path disagree in a way the
+							// path prefix can't explain -- possibly the scanner's "nearest preceding
+							// @Operation(" heuristic mis-attributed this id to the wrong method. Fail
+							// closed: keep the scan's own value, don't silently adopt the document's.
+							warnings.push(makeWarning('CONTRACT_OPENAPI_DRIFT', {
+								subject: ep.operationId,
+								message: `operationId "${ep.operationId}" disagrees with the OpenAPI document on ${res.reason} -- scan has ${ep.verb} ${ep.path}, OpenAPI has ${res.openapi.verb} ${res.openapi.path}. Not auto-resolved.`,
+								detail: { reason: res.reason, scan: { verb: ep.verb, path: ep.path }, openapi: res.openapi },
+							}));
+							break;
+						case 'missing':
+							// The scan's operationId isn't in the document anywhere -- left uncorrected
+							// (still the unprefixed scan path) specifically so this can't be mistaken
+							// for a successful reconciliation.
+							warnings.push(makeWarning('CONTRACT_OPENAPI_MISSING_OPERATION', {
+								subject: ep.operationId,
+								message: `operationId "${ep.operationId}" (${ep.verb} ${ep.path}) was not found anywhere in the OpenAPI document -- path left uncorrected`,
+								detail: { verb: ep.verb, path: ep.path },
+							}));
+							break;
+						case 'ambiguous':
+							warnings.push(makeWarning('CONTRACT_OPENAPI_AMBIGUOUS', {
+								subject: `${ep.verb} ${ep.path}`,
+								message: `${ep.verb} ${ep.path} matched more than one OpenAPI operation candidate -- not guessed`,
+								detail: { verb: ep.verb, path: ep.path, candidates: res.candidates },
+							}));
+							continue; // still has no operationId -- can't be addressed either way
+						case 'unresolved':
+							// No candidate, or the path prefix couldn't be determined -- falls through
+							// to the ordinary CONTRACT_UNMATCHED_ENDPOINT path below, with detail
+							// recording that OpenAPI reconciliation was attempted and why it didn't help.
+							openapiAttempted = true;
+							openapiReason = res.reason;
+							break;
+						default:
+							break;
+					}
+				}
+
+				if (!operationId) {
 					warnings.push(makeWarning('CONTRACT_UNMATCHED_ENDPOINT', {
 						subject: `${ep.verb} ${ep.path}`,
 						message: `${ep.verb} ${ep.path} (method ${ep.method}) has no correlated operationId in the scan -- skipped, it cannot be addressed by operation_id in the envelope`,
-						detail: { verb: ep.verb, path: ep.path, method: ep.method },
+						detail: {
+							verb: ep.verb, path: ep.path, method: ep.method,
+							...(openapiAttempted ? { openapi_attempted: true, openapi_reason: openapiReason } : {}),
+						},
 					}));
 					continue;
 				}
-				if (operations[ep.operationId]) {
+				if (operations[operationId]) {
 					warnings.push(makeWarning('CONTRACT_DUPLICATE_OPERATION_ID', {
-						subject: ep.operationId,
-						message: `duplicate operationId "${ep.operationId}" seen more than once -- keeping the first occurrence`,
-						detail: { verb: ep.verb, path: ep.path, method: ep.method },
+						subject: operationId,
+						message: `duplicate operationId "${operationId}" seen more than once -- keeping the first occurrence`,
+						detail: { verb, path: route, method: ep.method },
 					}));
 					continue;
 				}
@@ -77,17 +173,17 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 					// WARNING_CODES in completeness.mjs). operationPayloadSchema() already treats
 					// body:'unknown' as optional, so this just makes that leniency visible instead of silent.
 					warnings.push(makeWarning('CONTRACT_BODY_UNKNOWN', {
-						subject: `${ep.verb} ${ep.path}`,
-						message: `${ep.verb} ${ep.path} (operationId "${ep.operationId}") -- could not determine whether this method takes a @RequestBody (controller source not found or method signature not matched); payload body is treated as optional`,
-						detail: { verb: ep.verb, path: ep.path, method: ep.method, operationId: ep.operationId },
+						subject: `${verb} ${route}`,
+						message: `${verb} ${route} (operationId "${operationId}") -- could not determine whether this method takes a @RequestBody (controller source not found or method signature not matched); payload body is treated as optional`,
+						detail: { verb, path: route, method: ep.method, operationId },
 					}));
 				}
-				operations[ep.operationId] = {
-					verb: ep.verb,
-					path: ep.path,
-					pathParams: pathParamsSchema(ep.path),
+				operations[operationId] = {
+					verb,
+					path: route,
+					pathParams: pathParamsSchema(route),
 					body: hasBody === null ? 'unknown' : hasBody,
-					provenance: 'scan',
+					provenance,
 				};
 			}
 		}
@@ -114,7 +210,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 		feature_uid: featureUid,
 		generated_at: new Date().toISOString(),
 		source: targetModule
-			? { adapter: scanReport.adapter, module: targetModule.module, provenance: 'scan' }
+			? { adapter: scanReport.adapter, module: targetModule.module, provenance: openapi ? 'scan+openapi' : 'scan' }
 			: { adapter: scanReport.adapter ?? null, module: null, provenance: 'none' },
 		operations,
 		warnings,

@@ -10,6 +10,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { buildContract } from '../contracts/emit.mjs';
 import { validateEnvelope, validateEnvelopeStructure } from '../contracts/validate.mjs';
 import { runScan } from '../scanners/index.mjs';
+import { indexOpenApiDocument, reconcileModule } from '../contracts/openapi.mjs';
 
 const TEAM_IZ_BACKEND = `${process.env.HOME}/Desktop/Team-IZ-Backend`;
 const repoPresent = fs.existsSync(`${TEAM_IZ_BACKEND}/build.gradle`);
@@ -237,4 +238,150 @@ test('an emitted contract validates against schemas/feature-contract.schema.json
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
 	assert.equal(ok, true, JSON.stringify(validate.errors));
+});
+
+// A1: buildContract() + contracts/openapi.mjs integration. Helper builds a real Reconciliation
+// (not a hand-rolled stand-in) by running the actual openapi.mjs functions against a synthetic
+// scanReport + OpenAPI doc, so these tests exercise the real integration surface, not a mock of it.
+// pathPrefix defaults to '/api/v0' (explicit, not inferred) since most of these fixtures are
+// deliberately single-endpoint and have no anchor to infer a prefix from -- prefix INFERENCE
+// itself is covered exhaustively in test/contract-openapi.test.mjs; this file's job is testing
+// buildContract()'s reaction to each resolution kind, not re-deriving the prefix.
+function reconcileFixture(scanReport, moduleName, doc, pathPrefix = '/api/v0') {
+	const targetModule = scanReport.related_modules.find((m) => m.module === moduleName);
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	return reconcileModule({ index: indexed, module: targetModule, pathPrefix });
+}
+
+function widgetScanReport(endpoints) {
+	return {
+		adapter: 'java-spring',
+		related_modules: [{
+			module: 'widget',
+			controllers: [{ className: 'WidgetController', basePath: '/widgets', file: null, endpoints }],
+			entities: [], enums: [], dtos: [],
+		}],
+	};
+}
+
+test('openapi param omitted (or explicit null) produces byte-identical output to no reconciliation at all', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets', operationId: 'findWidgets', method: 'findWidgets' }]);
+	const withoutParam = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget' });
+	const explicitNull = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi: null });
+	// generated_at is a timestamp -- strip before compare.
+	const strip = (c) => { const { generated_at, ...rest } = c; return rest; };
+	assert.deepEqual(strip(withoutParam), strip(explicitNull));
+	assert.equal(withoutParam.operations.findWidgets.provenance, 'scan');
+	assert.equal(withoutParam.source.provenance, 'scan');
+});
+
+test('matched: path is corrected to the OpenAPI value, provenance becomes scan+openapi, pathParams recomputed from the corrected path', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const doc = { paths: { '/api/v0/widgets/{widgetId}': { get: { operationId: 'findWidget' } } } };
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.findWidget;
+	assert.equal(op.path, '/api/v0/widgets/{widgetId}');
+	assert.equal(op.provenance, 'scan+openapi');
+	assert.deepEqual(op.pathParams.required, ['widgetId']);
+	assert.equal(contract.source.provenance, 'scan+openapi');
+	// CONTRACT_BODY_UNKNOWN still fires (fixture's controller.file is null) -- unrelated to path
+	// correction, so only assert no OpenAPI-specific ERROR warning was raised.
+	assert.ok(!contract.warnings.some((w) => w.code.startsWith('CONTRACT_OPENAPI_') && w.severity === 'error'));
+});
+
+test('adopted: operationId recovered from OpenAPI, provenance openapi, CONTRACT_OPENAPI_DERIVED_OPERATION_ID (WARN) emitted, no CONTRACT_UNMATCHED_ENDPOINT', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: null, method: 'createWidget' }]);
+	const doc = { paths: { '/api/v0/widgets': { post: { operationId: 'createWidget' } } } };
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	assert.ok(contract.operations.createWidget);
+	assert.equal(contract.operations.createWidget.provenance, 'openapi');
+	// CONTRACT_BODY_UNKNOWN also fires (fixture's controller.file is null) -- unrelated, so find
+	// the specific warning rather than asserting a total count.
+	const derived = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_DERIVED_OPERATION_ID');
+	assert.ok(derived);
+	assert.equal(derived.severity, 'warn');
+	assert.ok(!contract.warnings.some((w) => w.code === 'CONTRACT_UNMATCHED_ENDPOINT'));
+});
+
+test('drift: ERROR warning emitted, operation keeps the scan value verbatim, provenance stays scan', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const doc = { paths: { '/api/v0/widgets/{widgetId}': { post: { operationId: 'findWidget' } } } }; // verb drift
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.findWidget;
+	assert.equal(op.path, '/widgets/{widgetId}', 'must keep the scan path, not silently adopt the conflicting OpenAPI value');
+	assert.equal(op.verb, 'GET');
+	assert.equal(op.provenance, 'scan');
+	const drift = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_DRIFT');
+	assert.ok(drift);
+	assert.equal(drift.severity, 'error');
+	assert.equal(drift.subject, 'findWidget');
+});
+
+test('missing: ERROR warning emitted, path left uncorrected', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const doc = { paths: {} }; // operationId not in the document at all
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	assert.equal(contract.operations.findWidget.path, '/widgets/{widgetId}');
+	const missing = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_MISSING_OPERATION');
+	assert.ok(missing);
+	assert.equal(missing.severity, 'error');
+});
+
+test('ambiguous: operation is NOT added, CONTRACT_OPENAPI_AMBIGUOUS replaces CONTRACT_UNMATCHED_ENDPOINT', () => {
+	const scanReport = widgetScanReport([
+		{ verb: 'GET', path: '/widgets', operationId: 'anchorOp', method: 'anchor' }, // anchor for prefix inference
+		{ verb: 'GET', path: '/reports', operationId: null, method: 'findReports' },
+	]);
+	const doc = {
+		paths: {
+			'/api/v0/widgets': { get: { operationId: 'anchorOp' } },
+			'/api/v0/reports': { get: { operationId: 'findReportsPrefixed' } },
+			'/reports': { get: { operationId: 'findReportsBare' } },
+		},
+	};
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	assert.ok(!contract.operations.findReportsPrefixed);
+	assert.ok(!contract.operations.findReportsBare);
+	const ambiguous = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_AMBIGUOUS');
+	assert.ok(ambiguous);
+	assert.ok(!contract.warnings.some((w) => w.code === 'CONTRACT_UNMATCHED_ENDPOINT' && w.subject === 'GET /reports'));
+});
+
+test('unresolved: falls through to CONTRACT_UNMATCHED_ENDPOINT with detail.openapi_attempted, subject unchanged from the non-OpenAPI shape', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/nothing', operationId: null, method: 'nothing' }]);
+	const doc = { paths: {} };
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const unmatched = contract.warnings.find((w) => w.code === 'CONTRACT_UNMATCHED_ENDPOINT');
+	assert.ok(unmatched);
+	assert.equal(unmatched.subject, 'GET /nothing', 'subject must stay exactly what it would be without OpenAPI (waiver key stability)');
+	assert.equal(unmatched.detail.openapi_attempted, true);
+	assert.ok(unmatched.detail.openapi_reason);
+});
+
+test('two scan endpoints adopting the same OpenAPI operation still hit the existing CONTRACT_DUPLICATE_OPERATION_ID guard', () => {
+	const scanReport = widgetScanReport([
+		{ verb: 'POST', path: '/widgets/a', operationId: null, method: 'createWidgetA' },
+		{ verb: 'POST', path: '/widgets/b', operationId: null, method: 'createWidgetB' },
+	]);
+	// Both unmatched endpoints resolve (via forced --path-prefix) to the SAME single OpenAPI
+	// operation -- contrived, but exercises the guard regardless of how the collision arises.
+	const doc = { paths: { '/api/v0/widgets/a': { post: { operationId: 'createWidget' } } } };
+	const targetModule = scanReport.related_modules[0];
+	const indexed = indexOpenApiDocument(doc);
+	// Manually force both endpoints to resolve to the same adopted operationId by pointing
+	// pathPrefix such that only "a" resolves via the normal path -- instead, directly build a
+	// byEndpoint map for this contrived case to keep the test deterministic and independent of
+	// route-matching specifics tested elsewhere.
+	const recon = reconcileModule({ index: indexed, module: targetModule, pathPrefix: '/api/v0' });
+	recon.byEndpoint.set('0:1', { kind: 'adopted', operationId: 'createWidget', verb: 'POST', path: '/api/v0/widgets/a', scanVerb: 'POST', scanPath: '/widgets/b' });
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi: recon });
+	assert.equal(Object.keys(contract.operations).length, 1);
+	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_DUPLICATE_OPERATION_ID'));
 });

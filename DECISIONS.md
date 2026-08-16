@@ -489,6 +489,130 @@ exactly this trap on `registerCurriculum` by chance, not because anything forced
 **EXIT**: `contracts/completeness.mjs`'s `WARNING_CODES` table is the single place to add a new
 warning code, adjust its default severity, or change whether it's waivable.
 
+## D-openapi-reconciliation (A1): a source-annotation contract cannot see a framework-level path prefix
+
+**WHY**: after A5, Codex's next suggested item was OpenAPI operation reconciliation, scoped to a
+first vertical slice (recovering unmatched `operationId`s against a real OpenAPI document — full
+request/response schema projection and live drift detection stay out of scope). Verifying that
+recommendation directly, before designing anything, surfaced a bigger defect than "recover a few
+unmatched endpoints": Team-IZ-Backend's `ApiPathConfig.java` applies a global `/api/v0` path
+prefix to every controller in `com.bigproject.backend.domain` via
+`WebMvcConfigurer.configurePathMatch`, independently confirmed by `application.yaml`'s
+`springdoc.paths-to-match: /api/v0/**`. `scanners/adapters/java-spring.mjs` is a regex scanner
+over `.java` source — it never reads Java config classes or YAML, so it cannot see this prefix.
+**Every contract this tool had ever emitted had a wrong `path` field**, including modules already
+`complete` with 100% of operationIds matched (organization: 15/15 matched, `findOrganization.path`
+was `/organizations/{organizationId}` — the real, deployed path is
+`/api/v0/organizations/{organizationId}`). Path correction on already-matched operations, not
+unmatched-endpoint recovery, is therefore A1's primary function; recovery is secondary.
+
+**Real OpenAPI document, not a fixture, for the "does this actually work" question**: Team-IZ-
+Backend already ships `DumpSpecTest` (H2 + MockMvc against `/v3/api-docs`), so
+`build/api-docs.json` reflects the real, currently-annotated API surface, not a hand-maintained
+spec that can drift from source on its own. Read `SwaggerConfig.java`'s `OpenApiCustomizer`
+directly before trusting operationId-exact-match as safe: it touches error schemas, security
+requirements, and nullability — never operationId or path — so matching on operationId and
+adopting the document's path/verb for that operation is sound.
+
+**Resolution kind taxonomy** (`contracts/openapi.mjs`'s `reconcileModule`), one of six per
+endpoint: `matched` (operationId agrees between scan and doc — path/verb corrected to the doc's
+value, `provenance: 'scan+openapi'`), `adopted` (operationId recovered from the doc for a scan
+endpoint the regex correlator couldn't tag — `provenance: 'openapi'`, flagged
+`CONTRACT_OPENAPI_DERIVED_OPERATION_ID`, WARN, never blocks), `drift` (operationId agrees but
+verb/path conflict is NOT explainable by the inferred prefix — kept at the scan's own path/verb,
+fail-closed, `CONTRACT_OPENAPI_DRIFT`, ERROR), `missing` (scan's operationId isn't in the doc at
+all — same fail-closed treatment, `CONTRACT_OPENAPI_MISSING_OPERATION`, ERROR), `ambiguous`
+(unmatched endpoint's verb+path resolves to 2+ doc candidates — `CONTRACT_OPENAPI_AMBIGUOUS`,
+ERROR), `unresolved` (no candidate at all, or prefix could not be inferred — falls through to the
+pre-existing `CONTRACT_UNMATCHED_ENDPOINT`, unchanged). **`MISSING` is a separate code from
+`DRIFT`**, not folded together, because a waiver is keyed on `{code, subject}` — collapsing them
+would let a waiver recorded for one root cause silently cover an unrelated later failure on the
+same endpoint (the same reasoning A5 used to reject wildcard `--all` waivers).
+
+**Path-prefix inference is anchor-based, not configured by default**: for every endpoint where
+scan and doc agree on operationId, `computeDelta(scanPath, docPath)` requires
+`docPath.endsWith(scanPath)` and the remainder to match `PATH_PREFIX_RE`
+(`^(?:\/[A-Za-z0-9._~%-]+)+$`) — segment-boundary-safe, so `/api/v0/suborganizations` can never
+collapse onto `/organizations`. A single consistent delta across all anchors → `inferred`; zero or
+conflicting deltas → `origin: 'none'` (no guessing). Critically, this inconclusive case only
+disables *unmatched-endpoint recovery* — operations that already matched by operationId need no
+prefix inference at all, they take the document's path directly. `--path-prefix` overrides
+inference explicitly (`origin: 'flag'`) when a module's endpoint set is too small to anchor on
+(verified live: `organization`'s 15 anchors converge on a single `/api/v0` delta with zero
+conflicts).
+
+**Repo-wide module survey** (18 Team-IZ-Backend domain packages, real `build/api-docs.json`,
+isolated worktree, `--openapi-file` applied to every module): 16/18 modules resolved to
+`complete` with zero unmatched operations after reconciliation (up from a pre-A1 baseline where
+`member`, `projectexecution`, `submission`, `curriculum`, `assessment` were `partial`);
+`curriculum` went from 3/9 matched (`partial`) to 9/9 (`complete`, 3 matched + 6 adopted, all
+correctly path-corrected to `/api/v0/...`); `codeanalysis` stayed `blocked` (0 controllers — the
+document has nothing relevant to adopt, confirming reconciliation doesn't pull in unrelated
+operations when a module genuinely has no HTTP surface); `audit` returned 0 operations because
+`--terms audit` fuzzy-matched the unrelated `auth` module by scan-scoring, not an OpenAPI
+reconciliation defect. **One real, unplanned finding**: `projectexecution` stayed `partial` with
+2 genuinely `unresolved` endpoints (`findProjectsByClass` at `GET /classes/{classId}/projects`,
+`findActiveProjectsByClass` at `GET /classes/{classId}/active-projects`) — confirmed by grepping
+`build/api-docs.json` directly that neither path exists in the document at all. This is exactly
+the fail-closed design working as intended: rather than guess, A1 surfaces a real gap between
+what the source annotates and what the running application actually serves (dead/disabled routes,
+or an annotation ahead of a not-yet-wired handler) for a human to investigate — out of scope for
+this tool to resolve on its own.
+
+**`buildContract()` stays pure** (mirrors A5's "waiver stays external to `buildContract`"):
+`contracts/openapi.mjs` does all I/O (`loadOpenApiDocument` is the only function in this slice
+that reads a file) and pre-computes a `Reconciliation` object passed into `buildContract({...,
+openapi})` as plain data — `openapi = null` (the default) produces byte-identical output to the
+pre-A1 code, locked in by a dedicated regression test. `selectModule`/`endpointKey` were promoted
+from inline logic in `contracts/emit.mjs` to exports so `openapi.mjs` can import them —
+one-directional (`emit.mjs` never imports `openapi.mjs`) — rather than reimplementing module
+selection a second time with a chance to drift from the original.
+
+**Prototype-pollution surface, closed structurally**: every OpenAPI-document index in
+`openapi.mjs` (`byOperationId`, `byRoute`) is a `Map`, not a plain object — `JSON.parse` can put
+`__proto__` as an *own* property on a parsed object (unlike literal syntax), which a plain-object
+index (`obj[k] = v`) would be vulnerable to; `Map.set` has no such path structurally.
+`OPERATION_ID_RE` (`^[A-Za-z][A-Za-z0-9_.-]{0,199}$`) additionally rejects `__proto__` via its
+leading-letter requirement (still allows `constructor`/`toString`, which is fine — `Map` access to
+those keys is always a real, safe entry, never a prototype-chain hit). Input distrust: 16MB
+document-size cap, 5000-path / 10000-operation caps, malformed JSON / non-object root / oversized
+input all fail closed (`{ok:false, error}`, never throws across the module boundary) rather than
+processing a truncated partial result. **Same-class fix applied elsewhere**: `bin/bskel.mjs`'s
+`cmdContractToolSchema` did a plain `contract.operations[flags.operation]` lookup — the exact
+shape of bug D-security-1 fixed in `contracts/validate.mjs`, missed there because at the time no
+operationId could come from outside the source scan; A1 makes that no longer true (operationIds
+can now be adopted from an external document), so the same `Object.hasOwn` fix was applied here
+too.
+
+**Gate token extended, not a new gate status** (same mechanism as A5's `resolution_hash`):
+`lib/gate-definitions.mjs`'s `contract.recompute` gained `openapi_snapshot_hash`, covering
+`specs/<id>/contracts/<id>.openapi.snapshot.json` — deleting or hand-editing the snapshot after a
+`--openapi-file` emit makes the gate `stale` immediately, verified live (require → pass, delete
+snapshot → stale/exit 4, restore → pass again, exact bytes). The snapshot itself is written before
+`passNamedGate`/`awaitNamedGateDisposition` is called — the token reads current file state at
+that call, so writing after would leave the gate itself the sole means of noticing a bad
+snapshot. `null` when a feature has never used `--openapi-file` (the common case), which is a
+stable input for `sha256File` and needs no special-casing. **`lib/verify.mjs` unchanged**, for the
+identical reasoning D-contract-completeness gave for not extending `checkArtifacts()`: the gate
+token already covers the snapshot's hash directly, so any tampering invalidates the gate on its
+own — a second check would be pure duplication. **Migration cost**: any contract gate already
+`pass` under the 3-input token goes `stale` on first re-verification after this change, same
+acceptable cost A5 already took for `resolution_hash`.
+
+**Snapshot content is scoped to what the feature actually used**, not a copy of the whole
+document (`snapshotFromReconciliation`) — `source.file` is repo-relative when the OpenAPI file is
+inside the repo, basename-only + `outside_repo: true` otherwise, to avoid baking a machine-
+specific absolute path into a committed artifact.
+
+**Known limitation, by design, out of scope for this slice**: the gate defends the snapshot
+against tampering, not the *upstream* document against going stale — re-running `contract emit
+--openapi-file` against a `build/api-docs.json` nobody regenerated after a real source change
+will happily reconcile against outdated truth. Catching that is live drift detection, explicitly
+deferred to a later item, not this one.
+**EXIT**: `contracts/openapi.mjs`'s exports are the single place resolution-kind logic lives;
+`contracts/completeness.mjs`'s `WARNING_CODES` table remains the single place to add/adjust an
+OpenAPI-reconciliation warning code the same way it already is for every other contract warning.
+
 ## D-pressure-test: the real Phase 6 oracle was a fresh agent, not another self-review
 
 **WHY**: the whole project exists because the original Spec Kit trial showed "the agent

@@ -97,9 +97,10 @@ test('recompute is deterministic for the same root/featureId', () => {
 	}
 });
 
-// A5: the contract gate's token must cover the resolution (waiver) file too, not just the
-// contract artifact itself -- otherwise deleting/editing a waiver would leave the gate green.
-test('contract gate recompute covers head_sha, contract_hash, and resolution_hash', () => {
+// A5+A1: the contract gate's token must cover the resolution (waiver) file and the OpenAPI
+// reconciliation snapshot too, not just the contract artifact itself -- otherwise
+// deleting/editing either would leave the gate green.
+test('contract gate recompute covers head_sha, contract_hash, resolution_hash, and openapi_snapshot_hash', () => {
 	const inputs = gateInputs(process.cwd(), 'contract', '001-widget-management');
-	assert.deepEqual(Object.keys(inputs).sort(), ['contract_hash', 'head_sha', 'resolution_hash']);
+	assert.deepEqual(Object.keys(inputs).sort(), ['contract_hash', 'head_sha', 'openapi_snapshot_hash', 'resolution_hash']);
 });

@@ -13,9 +13,10 @@ import { specDir, specPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
-import { buildContract } from '../contracts/emit.mjs';
+import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, resolutionPath, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
+import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { planHandles } from '../handles/plan.mjs';
 import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
@@ -31,7 +32,7 @@ function usage() {
   bskel scan [--feature <id>] [--terms a,b,c] [--json]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
   bskel feature init --slug <name>
-  bskel contract emit --feature <id> [--module <name>] [--json]
+  bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
@@ -340,8 +341,10 @@ function cmdContractEmit(args) {
 		feature: { type: 'string', default: null },
 		module: { type: 'string', default: null },
 		json: { type: 'boolean', default: false },
+		'openapi-file': { type: 'string', default: null },
+		'path-prefix': { type: 'string', default: null },
 	});
-	if (!flags.feature) { console.error('usage: bskel contract emit --feature <id> [--module <name>]'); process.exit(14); }
+	if (!flags.feature) { console.error('usage: bskel contract emit --feature <id> [--module <name>] [--openapi-file <path>] [--path-prefix /api/v0]'); process.exit(14); }
 	requireValidFeatureId(flags.feature);
 
 	// Contract emission is only meaningful once the scan gate has actually passed (greenfield
@@ -361,16 +364,50 @@ function cmdContractEmit(args) {
 	const scanReport = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
 	const featureRecord = loadFeatureRecord(root, flags.feature);
 
+	// A1: computed before anything is written -- a bad --openapi-file (missing/unreadable/
+	// malformed/oversized) or an invalid --path-prefix must not leave a half-updated contract or
+	// touch the gate at all.
+	let reconciliation = null;
+	if (flags['openapi-file']) {
+		const targetModule = selectModule(scanReport, flags.module);
+		if (targetModule) {
+			const result = buildReconciliation({ filePath: flags['openapi-file'], module: targetModule, pathPrefix: flags['path-prefix'] });
+			if (!result.ok) {
+				console.error(result.error);
+				process.exit(14);
+			}
+			reconciliation = result;
+		}
+		// else: no module matched at all -- buildContract()'s existing CONTRACT_NO_MODULE/
+		// CONTRACT_EMPTY handling takes over unchanged; there is nothing to reconcile against.
+	}
+
 	const contract = buildContract({
 		featureId: flags.feature,
 		featureUid: featureRecord.feature_uid,
 		scanReport,
 		module: flags.module,
+		openapi: reconciliation,
 	});
 
 	// Written unconditionally, even when blocked/partial -- what the scan actually found is a
 	// real artifact worth inspecting, not just a side effect of a fully-passing run.
 	writeFileAtomic(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`), `${JSON.stringify(contract, null, 2)}\n`);
+
+	// A1: written BEFORE the gate is passed/awaited below -- lib/gate-definitions.mjs's contract
+	// token reads this file's hash at that moment, so writing it after would leave the gate
+	// looking at a stale (pre-snapshot) token.
+	const snapshotPath = specPath(root, flags.feature, 'contracts', `${flags.feature}.openapi.snapshot.json`);
+	if (reconciliation) {
+		const sourceFile = describeSourceFile(root, flags['openapi-file']);
+		const snapshot = snapshotFromReconciliation(reconciliation, { featureId: flags.feature, sourceFile });
+		writeFileAtomic(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+	} else if (fs.existsSync(snapshotPath)) {
+		// A5-style conservative handling: a snapshot from a PREVIOUS --openapi-file run is not
+		// deleted just because this run didn't pass one -- deleting it here would also silently
+		// invalidate the contract gate's token (see lib/gate-definitions.mjs).
+		console.error(`note: an OpenAPI reconciliation snapshot from a previous run exists (specs/${flags.feature}/contracts/${flags.feature}.openapi.snapshot.json) but --openapi-file was not given this time -- left as-is.`);
+	}
 
 	const resolution = loadResolution(root, flags.feature);
 	const evaluation = evaluateResolution(contract, resolution);
@@ -381,6 +418,15 @@ function cmdContractEmit(args) {
 		warning_codes: countByCode(contract.warnings),
 		waived_count: evaluation.waived.length,
 		stale_waivers: evaluation.staleWaivers.length,
+		openapi: reconciliation
+			? {
+				applied: true,
+				document_hash: reconciliation.document.hash,
+				path_prefix: reconciliation.prefix.value,
+				prefix_origin: reconciliation.prefix.origin,
+				...reconciliation.stats,
+			}
+			: { applied: false },
 	};
 	// A5: "schema emitted" (this always happens) is not "complete enough to trust" (this gates).
 	// A partial/blocked contract awaits a human decision the same way an unresolved scan
@@ -393,6 +439,9 @@ function cmdContractEmit(args) {
 		console.log(JSON.stringify(contract, null, 2));
 	} else {
 		console.log(`wrote specs/${flags.feature}/contracts/${flags.feature}.schema.json -- ${contract.completeness.operation_count} operation(s), completeness: ${evaluation.status}`);
+		if (reconciliation) {
+			console.log(`openapi: ${reconciliation.stats.matched} path(s) corrected, ${reconciliation.stats.adopted} adopted (prefix ${reconciliation.prefix.value ?? '(none)'}, ${reconciliation.prefix.origin})`);
+		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
 		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
 		if (evaluation.staleWaivers.length > 0) {
@@ -548,7 +597,12 @@ function cmdContractToolSchema(args) {
 	requireValidFeatureId(flags.feature);
 
 	const contract = loadContract(root, flags.feature);
-	const op = contract.operations[flags.operation];
+	// A1: same class of gap as D-security-1 (contracts/validate.mjs's Object.hasOwn fix) --
+	// `contract.operations` is a plain object, so `--operation constructor` would otherwise
+	// resolve an inherited Object.prototype property and be treated as a real, defined
+	// operation. Reachability went up with A1: an operationId can now be adopted directly from
+	// an external OpenAPI document, not just from Java source the repo owner controls.
+	const op = Object.hasOwn(contract.operations, flags.operation) ? contract.operations[flags.operation] : undefined;
 	if (!op) {
 		console.error(`operation "${flags.operation}" not in this feature's contract (known: ${Object.keys(contract.operations).join(', ') || '(none)'})`);
 		process.exit(2);

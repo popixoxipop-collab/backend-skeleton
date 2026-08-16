@@ -100,7 +100,7 @@ bskel feature init --slug organization-management
   # -> mints feature_id (e.g. 001-organization-management, auto-numbered) + a UUIDv4 feature_uid,
   #    writes specs/<id>/feature.json + .sbf/feature-index.json. Requires preflight to have passed.
 
-bskel contract emit --feature <id> [--module <name>]
+bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
   # -> requires the `scan` gate to have passed (greenfield auto-pass, or a recorded disposition).
   #    Seeds specs/<id>/contracts/<id>.schema.json's operations from the scan's controller
   #    endpoints for the given module (defaults to the top-scoring related module): verb, path,
@@ -115,6 +115,32 @@ bskel contract emit --feature <id> [--module <name>]
   #    the same way an unresolved scan collision does. See `bskel contract waive` below to
   #    resolve `partial`; `blocked` has no waiver path (nothing to waive) -- fix
   #    --module/--terms, or `bskel gate force contract --reason "..."` if genuinely intentional.
+  #
+  #    IMPORTANT LIMITATION: the scan is source-annotation-only (ripgrep + regex over .java
+  #    files) -- it CANNOT see a framework-level path prefix applied outside the controller
+  #    source (a WebMvcConfigurer.configurePathMatch global prefix, server.servlet.context-path,
+  #    a gateway rewrite, etc). Team-IZ-Backend applies exactly this via ApiPathConfig.java --
+  #    every contract path this tool emits without --openapi-file is missing `/api/v0`. Pass
+  #    --openapi-file pointing at a real generated OpenAPI document (e.g.
+  #    `./gradlew test --tests "...DumpSpecTest"` -> build/api-docs.json) to reconcile against
+  #    it: operations that already matched by operationId get their path/verb corrected to the
+  #    document's real value (provenance becomes `scan+openapi`); endpoints the scanner couldn't
+  #    correlate an operationId for may get adopted directly from the document instead
+  #    (provenance `openapi`, flagged CONTRACT_OPENAPI_DERIVED_OPERATION_ID -- a WARN, does not
+  #    block). An operationId that agrees between scan and document but whose verb/path conflict
+  #    can't be explained by the inferred prefix is left at its scan value and flagged
+  #    CONTRACT_OPENAPI_DRIFT (ERROR, blocks) rather than silently guessed -- same fail-closed
+  #    treatment for a scan operationId absent from the document entirely
+  #    (CONTRACT_OPENAPI_MISSING_OPERATION). The prefix itself is inferred from operations that
+  #    matched by operationId (no guessing when anchors disagree or there are none -- pass
+  #    --path-prefix explicitly in that case). Writes
+  #    specs/<id>/contracts/<id>.openapi.snapshot.json, covered by the `contract` gate's token --
+  #    deleting or hand-editing it makes the gate go stale the same way tampering with the
+  #    contract file itself does. See `D-openapi-reconciliation` in DECISIONS.md for the full
+  #    design and a real before/after measured against Team-IZ-Backend. Known limitation: this
+  #    only defends the snapshot against tampering, not the upstream OpenAPI document against
+  #    going stale (regenerate it after any real source change) -- live drift detection against
+  #    a running server is a separate, not-yet-built item.
 
 bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   # -> the `scan disposition` of contracts: explicitly accepts specific `partial` warnings so the

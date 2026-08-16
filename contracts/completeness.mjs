@@ -23,6 +23,26 @@ export const WARNING_CODES = Object.freeze({
 	CONTRACT_UNMATCHED_ENDPOINT: { severity: SEVERITY.ERROR, waivable: true },
 	CONTRACT_DUPLICATE_OPERATION_ID: { severity: SEVERITY.ERROR, waivable: true },
 	CONTRACT_BODY_UNKNOWN: { severity: SEVERITY.WARN, waivable: true },
+	// A1: an operationId correlated by the scan (or by OpenAPI reconciliation) that disagrees
+	// with the OpenAPI document on verb or path in a way the inferred/given path prefix can't
+	// explain -- a real conflict, not just a missing prefix. Never silently resolved in favor of
+	// either source; the scan's own value is kept (fail-closed) and this blocks until a human
+	// looks. See contracts/openapi.mjs.
+	CONTRACT_OPENAPI_DRIFT: { severity: SEVERITY.ERROR, waivable: true },
+	// A1: the scan found a real operationId that simply isn't in the OpenAPI document at all --
+	// distinct from DRIFT (found but disagrees) because a waiver keyed on one must never silently
+	// cover the other if the underlying cause changes later (see D-contract-completeness's
+	// wildcard-waiver reasoning, reapplied here). Left uncorrected (still the unprefixed scan
+	// path) specifically so this can't be mistaken for a successful reconciliation.
+	CONTRACT_OPENAPI_MISSING_OPERATION: { severity: SEVERITY.ERROR, waivable: true },
+	// A1: an unmatched (no operationId) endpoint's verb+normalized-path resolved to more than one
+	// OpenAPI operation candidate -- never guessed, see contracts/openapi.mjs's reconcileModule.
+	CONTRACT_OPENAPI_AMBIGUOUS: { severity: SEVERITY.ERROR, waivable: true },
+	// A1: an operationId was adopted from the OpenAPI document itself (the scan found no
+	// @Operation(operationId=...) at all) rather than confirmed against source -- low-risk (same
+	// class as CONTRACT_BODY_UNKNOWN): the id is real and addressable, but isn't pinned in Java
+	// source, so renaming the handler method silently changes what clients see.
+	CONTRACT_OPENAPI_DERIVED_OPERATION_ID: { severity: SEVERITY.WARN, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));
