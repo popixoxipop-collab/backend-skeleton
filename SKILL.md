@@ -60,6 +60,16 @@ at least three different partial-update DTO conventions (see `D-resolver-scope` 
 implement a guessed `patchField` body without checking which of the three patterns the target
 DTO actually uses.
 
+**`handles emit` is also fail-closed about overwriting, not just about authorization.** A rerun
+never blows away a generated file it can't prove it wrote unchanged -- it tracks what it generated
+in `.sbf/handles-manifest.json` and refuses to overwrite anything that diverged, whether that's a
+hand-finished `patchField()` or a second feature's take on the same resource (see
+`D-handles-ownership` in `DECISIONS.md`). This means completed handle work is safe across reruns
+and across features by construction, not by convention -- and the escape hatch is audited
+(`--force --reason "..."`), not silent. Do not "helpfully" reach for `--force` just to make a
+conflict go away and read the diff first -- a conflict on a resolver usually means someone finished
+`patchField()`, which is exactly the work this tool refuses to destroy.
+
 ## What's actually usable today
 
 ```bash
@@ -246,7 +256,7 @@ bskel handles plan --feature <id> [--module <name>] [--resource Type1,Type2]
   #    blocks generation instead of silently dropping the extra scope). If any of these is
   #    missing, says so and will not generate a broken (or wrongly-scoped) stub for that entity.
 
-bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
+bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--force --reason "..."]
   # -> requires the `contract` gate to have passed. Writes, under the detected base package:
   #      global/handle/{HandleCodec,HandleRegistry,HandleSnapshot,HandleRegistryRepository,
   #        HandleSnapshotRepository,ResourceResolver,HandleController}.java
@@ -256,6 +266,16 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2]
   #    existing, tested code, and only ever emitted once `plan`'s D-security-7/8 checks above
   #    passed, not assumed safe by default. patchField() is ALWAYS a stub -- see the workflow
   #    section above and D-resolver-scope in DECISIONS.md for why.
+  #
+  #    O2: every generated file's provenance is tracked in .sbf/handles-manifest.json (D-handles-
+  #    ownership). A file untouched since bskel last wrote it is regenerated normally; a diverged
+  #    one (hand-edited, or a different feature's take) BLOCKS with exit 15 and does not pass the
+  #    `handles` gate this run, though every other safe file still gets written. Infra
+  #    (global/handle/*) is one all-or-nothing unit; resolvers block independently per file.
+  #    Remediate with `--force --reason "..."` (refused if the target has uncommitted/untracked
+  #    changes -- force only ever overwrites content already recoverable from git history). A
+  #    resolver a feature no longer generates (e.g. after a service-signature change) is reported
+  #    as an orphan and left untouched, never deleted -- suppressed entirely under --resource.
 
 bskel verify --feature <id> [--build] [--json]
   # -> aggregates all 5 gates (lib/gate-definitions.mjs is the single source both this and every

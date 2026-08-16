@@ -38,7 +38,7 @@ function usage() {
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
-  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]
+  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."]
   bskel verify --feature <id> [--build] [--json]
   bskel gate require <name> [--feature <id>]      (name: ${GATE_NAMES.join('|')})
   bskel gate force <name> --reason "..." [--feature <id>]
@@ -805,10 +805,19 @@ function cmdHandlesEmit(args) {
 		feature: { type: 'string', default: null },
 		module: { type: 'string', default: null },
 		resource: { type: 'string', default: '' },
+		force: { type: 'boolean', default: false },
+		reason: { type: 'string', default: '' },
 		json: { type: 'boolean', default: false },
 	});
-	if (!flags.feature) { console.error('usage: bskel handles emit --feature <id> [--module <name>] [--resource type1,type2]'); process.exit(14); }
+	const usage = 'usage: bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."]';
+	if (!flags.feature) { console.error(usage); process.exit(14); }
 	requireValidFeatureId(flags.feature);
+	// O2: mirrors `cmdContractWaive`'s --reason requirement -- every overwrite of a diverged
+	// generated file must be auditable, not silent. See DECISIONS.md D-handles-ownership.
+	if (flags.force && (!flags.reason || !flags.reason.trim())) {
+		console.error('bskel handles emit --force requires --reason "..." -- every overwrite of diverged generated code must be auditable');
+		process.exit(14);
+	}
 
 	// Handles are only emitted for a feature whose contract has actually been established --
 	// codegen against a feature nobody has scanned/contracted yet has nothing real to route to.
@@ -834,18 +843,51 @@ function cmdHandlesEmit(args) {
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
 
 	const plan = planHandles({ repoRoot: root, javaSrcRoot, scanReport, module: flags.module, resourceFilter });
-	const { written, resolverStubs } = emitHandles({ repoRoot: root, featureId: flags.feature, plan, basePackage });
+	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked } = emitHandles({
+		repoRoot: root, featureId: flags.feature, plan, basePackage, resourceFilter, force: flags.force, reason: flags.reason,
+	});
+	const allNotes = [...plan.notes, ...notes];
+	if (flags.force && forced.length === 0 && conflicts.length === 0) allNotes.push('--force had no effect: 0 conflicts found in this run\'s scope');
+	else if (flags.force && forced.length > 0) allNotes.push(`--force overwrote ${forced.length} diverged file(s): ${forced.join(', ')}`);
+
+	// O2: a conflict means SOME generated file diverged from what backend-skeleton last wrote --
+	// files that were safe to (re)write still were, but the `handles` gate does not pass this run
+	// (partial writes are intentional, see D-handles-ownership; blocking the gate on any conflict
+	// is not).
+	if (blocked) {
+		if (flags.json) {
+			console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: true, gate: null }, null, 2));
+		} else {
+			console.error(`blocked: ${conflicts.length} generated file(s) diverged from what backend-skeleton last wrote -- refusing to overwrite without --force:`);
+			for (const c of conflicts) console.error(`  ${c.path} (${c.kind}${c.resourceType ? `: ${c.resourceType}` : ''})\n    ${c.reason}`);
+			if (written.length > 0) {
+				console.error(`\n${written.length} other file(s) were still written this run:`);
+				for (const w of written) console.error(`  ${w}`);
+			}
+			console.error(`\nre-run with: bskel handles emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''}${flags.resource ? ` --resource ${flags.resource}` : ''} --force --reason "..."`);
+			if (orphans.length > 0) {
+				console.error('\norphaned (previously generated, no longer in the current plan -- left untouched):');
+				for (const o of orphans) console.error(`  ${o.path} (${o.resourceType})`);
+			}
+		}
+		// D-process-exit-audit: bounded by 7 + plan.resources.length units, no pipe-truncation risk.
+		process.exit(15);
+	}
 
 	const gateState = passNamedGate(root, 'handles', flags.feature, { resolverStubs });
 
 	if (flags.json) {
-		console.log(JSON.stringify({ written, resolverStubs, notes: plan.notes, gate: gateState.gates.handles }, null, 2));
+		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: false, gate: gateState.gates.handles }, null, 2));
 	} else {
 		console.log(`wrote ${written.length} file(s):`);
 		for (const w of written) console.log(`  ${w}`);
-		if (plan.notes.length > 0) {
+		if (allNotes.length > 0) {
 			console.log('\nnotes:');
-			for (const n of plan.notes) console.log(`  - ${n}`);
+			for (const n of allNotes) console.log(`  - ${n}`);
+		}
+		if (orphans.length > 0) {
+			console.log('\norphaned (previously generated, no longer in the current plan -- left untouched):');
+			for (const o of orphans) console.log(`  ${o.path} (${o.resourceType})`);
 		}
 		console.log(`\ngate: handles -> ${gateState.gates.handles.status}`);
 		console.log('\nNOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.');
