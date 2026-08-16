@@ -91,3 +91,32 @@ export function scanGenericGrep(repoRoot) {
 
 	return { modules: [{ module: '_generic', controllers, entities: [], enums: [], dtos: [] }] };
 }
+
+// G1: adapter descriptor consumed by scanners/registry.mjs -- see D-adapter-registry in
+// DECISIONS.md. `id` must equal this file's stem ("generic-grep"). specificity 0: unconditional
+// last-resort fallback -- detect() always returns true, even when it finds zero routes, matching
+// the pre-G1 semantics where "java-spring failed to detect" always meant "generic-grep is used",
+// regardless of what generic-grep itself finds. See D-generic-grep-reconnaissance for why every
+// capability below is honestly false rather than a best-effort partial implementation.
+export const adapter = {
+	contract: 'sbf.adapter/1',
+	id: 'generic-grep',
+	title: 'Generic route-pattern grep (fallback)',
+	specificity: 0,
+	confidence: 'low',
+	capabilities: {
+		'api.operations': false,
+		'api.request-shape': false,
+		'resource.fetch': false,
+		'codegen.handles': false,
+	},
+	detect() {
+		return true;
+	},
+	scan(repoRoot, _detection) {
+		return scanGenericGrep(repoRoot);
+	},
+	diagnostics() {
+		return [{ level: 'info', code: 'always-detects', message: 'this is the unconditional last-resort fallback adapter (specificity 0) -- it always "detects"' }];
+	},
+};

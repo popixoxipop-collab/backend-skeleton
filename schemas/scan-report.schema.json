@@ -9,10 +9,11 @@
     "schema": { "const": "sbf.scan-report/1" },
     "feature_id": { "type": "string" },
     "terms": { "type": "array", "items": { "type": "string" } },
-    "adapter": { "enum": ["java-spring", "generic-grep"] },
+    "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
     "confidence": { "enum": ["high", "low"] },
     "api_surface_source": { "type": "string" },
     "verdict": { "enum": ["greenfield", "adjacent", "collision"] },
+    "path_prefix_signals": { "type": "array" },
     "related_modules": {
       "type": "array",
       "items": {

@@ -216,3 +216,49 @@ export function scanJavaSpring(repoRoot) {
 
 	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot) };
 }
+
+// G1: adapter descriptor consumed by scanners/registry.mjs -- see D-adapter-registry in
+// DECISIONS.md. Wraps the functions above without changing any of them; `id` must equal this
+// file's stem ("java-spring"). specificity 100: this adapter only detects when a Spring Boot
+// build file AND src/main/java both exist -- a build-file-plus-source-layout-confirmed match, the
+// strongest signal any adapter in this codebase can give.
+export const adapter = {
+	contract: 'sbf.adapter/1',
+	id: 'java-spring',
+	title: 'Java / Spring Boot',
+	specificity: 100,
+	confidence: 'high',
+	capabilities: {
+		'api.operations': true,
+		'api.request-shape': true,
+		'resource.fetch': true,
+		'codegen.handles': true,
+	},
+	detect: detectJavaSpringRoot,
+	scan(repoRoot, _detection) {
+		const result = scanJavaSpring(repoRoot);
+		return { modules: result.modules, pathPrefixSignals: result.pathPrefixSignals };
+	},
+	diagnostics(repoRoot) {
+		const messages = [];
+		const buildFiles = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
+		if (!buildFiles.some((f) => fs.existsSync(path.join(repoRoot, f)))) {
+			messages.push({ level: 'info', code: 'no-build-file', message: `none of ${buildFiles.join(', ')} found at repo root` });
+		}
+		const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
+		if (!fs.existsSync(srcRoot)) {
+			messages.push({ level: 'info', code: 'no-src-main-java', message: 'src/main/java does not exist' });
+		} else {
+			let rgOk = true;
+			try {
+				execFileSync('rg', ['--version'], { stdio: 'pipe' });
+			} catch {
+				rgOk = false;
+			}
+			if (!rgOk) {
+				messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
+			}
+		}
+		return messages;
+	},
+};

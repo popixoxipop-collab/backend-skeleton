@@ -161,3 +161,54 @@ test('an unrelated term still reports greenfield, but a low-confidence greenfiel
 	const report = JSON.parse(accepted.stdout);
 	assert.equal(report.verdict, 'greenfield');
 });
+
+// G1: this whole path (a generic-grep-scanned feature reaching contract/handles) was completely
+// untested before this item -- confirmed by Explore before writing it. Before G1, `contract emit`
+// wrote a near-empty contract and blocked with an unrelated hint ("fix --module/--terms"), and
+// `handles plan`/`handles emit` fell all the way through to detectBasePackageOrExit's "is this a
+// Spring Boot project?" -- a message that reads as a broken Spring detector, not "this adapter
+// doesn't support handle codegen". See D-adapter-registry in DECISIONS.md.
+test('generic-grep-scanned feature: `contract emit` is blocked by the api.operations capability check, and writes nothing', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--accept-low-confidence', '--json'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'extend', '--note', 'test'], root);
+
+	const result = run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(result.code, 17);
+	assert.match(result.stderr, /api\.operations/);
+	assert.match(result.stderr, /generic-grep/);
+	assert.ok(
+		!fs.existsSync(path.join(root, 'specs', '001-widget-management', 'contracts', '001-widget-management.schema.json')),
+		'no contract file should be written when the capability check blocks',
+	);
+	const gate = run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(gate.code, 2, 'contract gate must still be not_run');
+});
+
+test('generic-grep-scanned feature: `handles plan` is blocked by the capability check, and never falls through to the misleading "is this a Spring Boot project?" message', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--accept-low-confidence', '--json'], root);
+
+	const result = run(['handles', 'plan', '--feature', '001-widget-management'], root);
+	assert.equal(result.code, 17);
+	assert.match(result.stderr, /resource\.fetch|codegen\.handles/);
+	assert.ok(!result.stderr.includes('is this a Spring Boot project?'), 'must not fall through to the misleading Java-specific message');
+});
+
+test('generic-grep-scanned feature: `handles emit` is blocked by the capability check even after forcing past the contract gate, and touches no files or the handles gate', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--accept-low-confidence', '--json'], root);
+	run(['gate', 'force', 'contract', '--feature', '001-widget-management', '--reason', 'test: force past a capability-blocked contract'], root);
+
+	const result = run(['handles', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(result.code, 17);
+	assert.ok(!result.stderr.includes('is this a Spring Boot project?'));
+	const gate = run(['gate', 'require', 'handles', '--feature', '001-widget-management'], root);
+	assert.equal(gate.code, 2, 'handles gate must still be not_run');
+});

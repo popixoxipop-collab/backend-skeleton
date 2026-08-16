@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:adapter:1",
+  "title": "backend-skeleton scanner adapter descriptor",
+  "description": "Validates the JSON-shaped fields of the `adapter` object a scanners/adapters/<id>.mjs module must export (detect/scan/diagnostics are functions and are checked separately -- JSON Schema has no vocabulary for them). Loaded by scanners/registry.mjs at process start. See D-adapter-registry in DECISIONS.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "id", "title", "specificity", "confidence", "capabilities"],
+  "properties": {
+    "contract": { "const": "sbf.adapter/1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "title": { "type": "string" },
+    "specificity": { "type": "number" },
+    "confidence": { "enum": ["high", "low"] },
+    "capabilities": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["api.operations", "api.request-shape", "resource.fetch", "codegen.handles"]
+      },
+      "additionalProperties": { "type": "boolean" }
+    }
+  }
+}

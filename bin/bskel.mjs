@@ -13,6 +13,8 @@ import { specDir, specPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
+import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
+import { COMMAND_CAPABILITIES, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, resolutionPath, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
@@ -227,7 +229,21 @@ function cmdScan(args) {
 		requirePreflightPassed(root);
 	}
 
-	const report = runScan({ repoRoot: root, terms });
+	// G1: a broken adapter file doesn't stop the adapters that DID load, but every `scan` run
+	// says so loudly (also see `bskel doctor`, which exits 1 while any of these remain).
+	for (const e of LOAD_ERRORS) {
+		console.error(`warning: scanner adapter failed to load (${e.file}): ${e.message}`);
+	}
+	let report;
+	try {
+		report = runScan({ repoRoot: root, terms });
+	} catch (err) {
+		// Unreachable with the two shipped adapters (generic-grep's specificity-0 detect() is
+		// unconditional) -- becomes reachable the moment a future adapter's detect() is
+		// conditional, or two adapters tie at the same specificity. See scanners/index.mjs.
+		console.error(err.message);
+		process.exit(2);
+	}
 	if (flags.feature) report.feature_id = flags.feature;
 
 	if (!flags.feature) {
@@ -366,6 +382,32 @@ function loadFeatureRecord(root, featureId) {
 	return record;
 }
 
+// G1: intercepts BEFORE any adapter-specific codegen runs (in particular, before
+// detectBasePackageOrExit's Spring-only base-package detection below) -- a repo scanned by an
+// adapter that doesn't declare what this command needs gets an honest, actionable message
+// instead of a confusing framework-specific failure. Before this existed, a generic-grep-scanned
+// repo's ONLY visible error at `handles plan`/`handles emit` was detectBasePackageOrExit's "is
+// this a Spring Boot project?" -- which reads as a broken Spring detector, not "the adapter that
+// scanned this repo doesn't support handle codegen". See D-adapter-registry in DECISIONS.md.
+function requireCapabilitiesOrExit(scanReport, command, { featureId, scanReportPath }) {
+	const adapter = adapterById(ADAPTERS, scanReport.adapter);
+	if (!adapter) {
+		const loadErr = LOAD_ERRORS.find((e) => path.basename(e.file, '.mjs') === scanReport.adapter);
+		console.error(
+			loadErr
+				? `blocked: the "${scanReport.adapter}" adapter that produced this scan report failed to load: ${loadErr.message}`
+				: `blocked: this scan report was produced by adapter "${scanReport.adapter}", which this installed version of backend-skeleton does not have -- re-run \`bskel scan --feature ${featureId}\`.`,
+		);
+		process.exit(2);
+	}
+	for (const capability of COMMAND_CAPABILITIES[command] ?? []) {
+		if (!adapter.capabilities[capability]) {
+			console.error(explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
+			process.exit(17);
+		}
+	}
+}
+
 function cmdContractEmit(args) {
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
@@ -394,6 +436,7 @@ function cmdContractEmit(args) {
 		process.exit(2);
 	}
 	const scanReport = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
+	requireCapabilitiesOrExit(scanReport, 'contract emit', { featureId: flags.feature, scanReportPath });
 	const featureRecord = loadFeatureRecord(root, flags.feature);
 
 	// A1: computed before anything is written -- a bad --openapi-file (missing/unreadable/
@@ -836,6 +879,7 @@ function cmdHandlesPlan(args) {
 	requireValidFeatureId(flags.feature);
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
+	requireCapabilitiesOrExit(scanReport, 'handles plan', { featureId: flags.feature, scanReportPath: specPath(root, flags.feature, 'brownfield-scan.json') });
 	const basePackage = detectBasePackageOrExit(root);
 	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
@@ -881,6 +925,7 @@ function cmdHandlesEmit(args) {
 	}
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
+	requireCapabilitiesOrExit(scanReport, 'handles emit', { featureId: flags.feature, scanReportPath: specPath(root, flags.feature, 'brownfield-scan.json') });
 	const basePackage = detectBasePackageOrExit(root);
 	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
@@ -1085,7 +1130,24 @@ function cmdDoctor() {
 	for (const line of checks) {
 		console.log(`${line.ok ? 'OK  ' : 'FAIL'}  ${line.name}${line.detail ? ` (${line.detail})` : ''}`);
 	}
-	const allOk = checks.every((c) => c.ok);
+
+	// G1: answers "why didn't/did an adapter pick this repo" and "what can it actually do" --
+	// replaces the previously-unactionable advice to "investigate why scanJavaSpring() didn't
+	// detect it first" with a command that answers it directly. See D-adapter-registry.
+	console.log('');
+	console.log('Scanner adapters:');
+	for (const a of ADAPTERS) {
+		const caps = Object.entries(a.capabilities).filter(([, v]) => v).map(([k]) => k).join(', ') || '(none)';
+		let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}) -- capabilities: ${caps}`;
+		if (root) line += a.detect(root) ? ' -- DETECTS this repo' : ' -- does not detect this repo';
+		console.log(line);
+		if (root && typeof a.diagnostics === 'function') {
+			for (const d of a.diagnostics(root)) console.log(`      [${d.level}] ${d.code}: ${d.message}`);
+		}
+	}
+	for (const e of LOAD_ERRORS) console.log(`  FAIL  ${e.file}: ${e.message}`);
+
+	const allOk = checks.every((c) => c.ok) && LOAD_ERRORS.length === 0;
 	process.exit(allOk ? 0 : 1);
 }
 

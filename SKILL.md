@@ -81,7 +81,9 @@ conflict go away and read the diff first -- a conflict on a resolver usually mea
 
 ```bash
 cd <target-repo>            # must be a git repo
-bskel doctor                 # checks: inside a git repo, git/gh/rg on PATH
+bskel doctor                 # checks: inside a git repo, git/gh/rg on PATH, plus every installed
+                              #    scanner adapter's specificity/capabilities and whether it
+                              #    detects THIS repo (and why/why not) -- see `bskel scan` below
 bskel preflight               # 3-way default-branch cross-check + behind/ahead + worktree provenance
 bskel preflight --json         # same, machine-readable
 bskel preflight --allow-dirty  # skip the clean-working-tree requirement
@@ -109,10 +111,19 @@ bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel --not
 
 `scan`'s verdict: `greenfield` (no related code found -- gate auto-passes), `adjacent` (weak
 relation found, still needs a disposition), `collision` (strong match -- e.g. an existing
-controller/entity/enum for the same module). Adapter is `java-spring` (ripgrep + full-file
-regex, no real Java parser -- see `scanners/adapters/java-spring.mjs`) when `build.gradle`/
-`pom.xml` + `src/main/java` are present, else `generic-grep` (route-pattern grep for
-Express/Flask/FastAPI-shaped code -- see `D-generic-grep-reconnaissance` in DECISIONS.md).
+controller/entity/enum for the same module).
+
+Adapter selection is a zero-registration, capability-declaring registry, not a hardcoded
+if/else (see `D-adapter-registry` in DECISIONS.md) -- every `scanners/adapters/<id>.mjs` file
+declares its own `specificity` (an arbitration number; higher wins) and which capabilities
+(`api.operations`, `api.request-shape`, `resource.fetch`, `codegen.handles`) it supports. The
+highest-specificity adapter whose `detect()` matches this repo is chosen; `bskel doctor` lists
+every installed adapter and whether it detects the current repo. Shipped today: `java-spring`
+(specificity 100 -- ripgrep + full-file regex, no real Java parser, see
+`scanners/adapters/java-spring.mjs`; detects `build.gradle`/`pom.xml` + `src/main/java`;
+declares every capability) and `generic-grep` (specificity 0, unconditional last-resort fallback
+-- route-pattern grep for Express/Flask/FastAPI-shaped code, see
+`D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities).
 
 **`generic-grep` is reconnaissance only, never contract-grade** -- no real parser, no operationId
 (so `contract emit` can never build a usable operation from it, per `D-contract-completeness`),
@@ -123,7 +134,19 @@ report is still printed so you can see what triggered the block). Ad-hoc mode is
 never wrote files or touched a gate to begin with). Its role is to answer "something
 route-shaped exists here", not to drive a trustworthy contract -- do not "helpfully" pass
 `--accept-low-confidence` reflexively just to unblock a feature; if this repo is actually
-Java/Spring-shaped, investigate why `scanJavaSpring()` didn't detect it first.
+Java/Spring-shaped, run `bskel doctor` -- it reports exactly why the `java-spring` adapter did
+not detect it.
+
+**Capability negotiation, exit `17`**: `contract emit`, `handles plan`, and `handles emit` each
+require specific capabilities from the adapter that produced the feature's scan report
+(`api.operations` for `contract emit`; `resource.fetch` + `codegen.handles` for both `handles`
+commands) and refuse cleanly -- naming the missing capability, the adapter, and what you can do
+about it, writing nothing -- rather than falling through into Java-specific codegen that was
+never going to work. A `generic-grep`-scanned feature always hits this at `contract emit`
+(`api.operations` is always false for that adapter, see `D-generic-grep-reconnaissance`) and,
+if forced past that, at `handles plan`/`handles emit` too (`resource.fetch`/`codegen.handles`
+are also false -- no codegen provider exists for a non-Spring stack yet, see `G2`/`G4` in
+CATALOG.md). See `D-adapter-registry` in DECISIONS.md.
 
 For a `java-spring` scan, `report.path_prefix_signals` (also surfaced as a plain-language note in
 `unknowns` when non-empty) flags a global path prefix applied outside controller source -- a

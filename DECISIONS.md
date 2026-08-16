@@ -1645,3 +1645,163 @@ throw" behavior is wrong for it, the fix is an explicit override (e.g. `--base-p
 com.example`) added to `detectBasePackageOrExit()`'s call sites -- not designed speculatively now,
 per this project's Data-First Numerics convention, since there's no real case yet to design
 against.
+
+## D-adapter-registry (G1): adapters are discovered from a directory, and every command declares the capability it needs
+
+**WHY** -- three separate problems, found in that order while researching this item:
+
+1. **`runScan()` hardcoded exactly two adapters as an if/else, not a registry.** `scanJavaSpring()`
+   ran first unconditionally; only on `null` did `scanGenericGrep()` run. Adding a third adapter
+   meant editing that dispatch function directly, `schemas/scan-report.schema.json`'s closed
+   `adapter` enum, and the confidence/`pathPrefixSignals` special-casing around it -- three edits
+   for one addition, exactly the kind of mechanism-rots-as-choices-accumulate problem D7 already
+   solved for stack choices (`stack/catalog/*.yml`, discovered by a pure `readdirSync`, zero
+   registration array).
+2. **`scanReport.adapter` was recorded and never read.** `contracts/emit.mjs` already round-tripped
+   it into `contract.source.adapter` -- but `contract emit`/`handles plan`/`handles emit` ran the
+   identical Java-only code path for any adapter's output. For a repo scanned by `generic-grep`
+   (zero Java anywhere), the only visible failure was `handles/emit.mjs`'s `detectBasePackage()`
+   throwing "could not detect the base package ... is this a Spring Boot project?" -- a message
+   that reads as a broken Spring detector, not "the adapter that scanned this repo doesn't support
+   handle codegen." This path had **zero test coverage**: `test/generic-grep-cli.test.mjs` (6
+   tests) only ever exercised `bskel scan`, never `contract emit` or `handles plan`/`emit` against
+   a generic-grep-scanned feature.
+3. **`schemas/scan-report.schema.json` was not merely unenforced, it was wrong.** It declared
+   `additionalProperties: false` with no `path_prefix_signals` property, while `runScan()` has
+   emitted that field on every report since A1 §7. Every real scan report this tool has ever
+   produced therefore failed its own schema -- hard proof the schema was never actually loaded or
+   validated anywhere (confirmed: no non-test code path does).
+
+**The mechanism**: `scanners/registry.mjs` mirrors `stack/apply.mjs`'s `listCatalogChoices()`
+structurally -- `readdirSync('scanners/adapters')`, filtered to `.mjs` files not prefixed `_`/`.`,
+`.sort()`ed for determinism (same discipline as O6), each dynamically `import()`ed via
+`pathToFileURL` and validated against a new `schemas/adapter.schema.json`. Each adapter module
+exports one named binding, `adapter` (`sbf.adapter/1` contract): `id` (must equal the filename
+stem -- the same identifier discipline `stack/apply.mjs`'s `CHOICE_ID_RE` already enforces),
+`specificity` (an arbitration number -- 100 for `java-spring`, a build-file-plus-source-layout-
+confirmed match, the strongest signal any adapter here can give; 0 for `generic-grep`, the
+unconditional last-resort fallback), `confidence`, `capabilities`, and `detect`/`scan`/
+`diagnostics` functions. `scanners/index.mjs`'s `runScan()` now sorts every adapter that detects
+the repo by specificity (id as tiebreak, computed fresh regardless of input order -- specificity
+is the sole source of truth for arbitration, not caller-supplied ordering), picks the top one, and
+**throws, naming every candidate, when two adapters tie at the same specificity and both detect**
+-- refusing silently to pick one, the same principle `detectBasePackage()`'s O6 fix already
+established for an ambiguous multi-application repo. A broken adapter file is caught per-file (its
+error collected in `LOAD_ERRORS`) so it can never brick every `bskel` command; every `scan` run
+warns about it on stderr, and `bskel doctor` lists every installed adapter's specificity/
+capabilities, whether it detects the current repo, its `diagnostics()` output, and exits 1 if any
+`LOAD_ERRORS` remain -- replacing the previously unactionable "investigate why `scanJavaSpring()`
+didn't detect it first" advice with a command that actually answers it.
+
+`runScan`/`cmdScan`/`main()` all stay synchronous even though `import()` is inherently async:
+`registry.mjs` resolves the adapter list via a **top-level await**, and `scanners/index.mjs`
+statically imports the resulting constants -- Node resolves that top-level await while resolving
+the static import, before any of `index.mjs`'s own code runs. This is what keeps `runScan`'s five
+existing synchronous test call sites (`test/scan.test.mjs`, `test/contract.test.mjs`) untouched.
+
+**Capabilities -- four, fail-closed**: `api.operations`, `api.request-shape` (declared but
+non-blocking -- its absence already degrades gracefully to `body: "unknown"`), `resource.fetch`,
+`codegen.handles`. `schemas/adapter.schema.json` uses `propertyNames: {enum: [...]}` +
+`additionalProperties: {type: 'boolean'}`: a typo (`api.operation`) is a hard load error, not a
+silently-false capability; an omitted key normalizes to `false`. This is the property that makes
+both halves of the zero-hardcoding bar hold: **adding a capability touches zero adapter files**
+(an adapter that doesn't mention it is `false` by construction), and **adding an adapter touches
+one file** (nothing else has to change to register it). `test/adapter-registry.test.mjs` locks in
+both directions (a schema/`CAPABILITY_NAMES` drift guard, and five distinct malformed-adapter
+failure modes each isolated to `LOAD_ERRORS` without blocking the adapters that did load).
+
+`bin/bskel.mjs`'s new `requireCapabilitiesOrExit()` intercepts in `cmdContractEmit` (right after
+the scan report is parsed, before anything is written), `cmdHandlesPlan`, and `cmdHandlesEmit`
+(both right after `loadScanReportOrExit`, before `detectBasePackageOrExit` -- so the misleading
+Spring-specific message can no longer fire at all for a capability-blocked feature) with a new
+**exit 17**. Real captured output (generic-grep-scanned fixture, `contract emit`):
+
+```
+blocked: `bskel contract emit` requires the `api.operations` capability, which the `generic-grep`
+adapter -- the adapter that produced .../specs/001-widget-management/brownfield-scan.json -- does
+not declare.
+
+  api.operations: endpoints carry a source-pinned, non-null operationId. a contract operation must
+  be addressable by id -- generic-grep's route-pattern grep never correlates one (operationId is
+  always null by construction, see D-generic-grep-reconnaissance in DECISIONS.md).
+
+Nothing was written.
+
+What you can do:
+  - run `bskel doctor` -- it reports why each installed adapter did or did not detect this repo.
+  - hand-write the required artifact against its schema yourself, then `bskel gate force contract
+    --feature 001-widget-management --reason "..."` if you're confident it's correct.
+  - no adapter/codegen provider exists for this stack yet -- see G2/G4 in CATALOG.md.
+```
+
+`test/generic-grep-cli.test.mjs` gained three regression tests for this exact path -- one of them
+directly asserts the misleading "is this a Spring Boot project?" string never appears in
+`handles plan`/`emit`'s stderr for a generic-grep-scanned feature, a direct regression guard
+against re-introducing the confusing failure this item exists to remove.
+
+**Behavior change, stated plainly**: before this, a `generic-grep`-scanned feature could reach
+`contract emit`'s zero-operation `blocked` state (exit 3), then `bskel gate force contract
+--reason "..."`, producing a green `contract` gate and (with `handles` optional) a passing `bskel
+verify` over a contract with zero real operations. After this, `contract emit` exits 17 and writes
+nothing at all -- a human must either hand-write a real contract or explicitly force the gate with
+nothing on disk to point at. Stricter, and more honest, but a real behavior change -- documented
+here and in SKILL.md rather than discovered.
+
+**What was deliberately NOT done**:
+- **No scan-report byte/field change beyond the schema-accuracy fix.** Capability is a property of
+  the currently-installed adapter's code, checked at command time via `adapterById(report.adapter)`
+  -- not baked into the persisted report, which could otherwise claim a capability the installed
+  adapter no longer has. `lib/gate-definitions.mjs` hashes the report's bytes into the `scan` gate
+  token; a new field would stale every in-flight feature's scan gate for zero semantic gain.
+- **No ajv validation wired into `runScan()`'s actual write path.** That is S5's boundary ("enforce
+  the existing schemas at every persistence boundary") -- doing it for just this one artifact here
+  would be inconsistent with contract/state/resolution staying unvalidated. Instead,
+  `test/adapter-registry.test.mjs` adds a **test-time bridge**: a real `runScan()` output must
+  validate against the (now-corrected) `scan-report.schema.json`. Free at runtime, proves the
+  schema describes reality, and means S5 can flip on enforcement later without immediately
+  rediscovering the `path_prefix_signals` gap this item just fixed.
+- **No G2 (FastAPI adapter) or G4 (codegen provider split).** The registry is proven with the two
+  adapters that already exist. `handles/plan.mjs`/`handles/emit.mjs` stay exactly as Java/Spring-
+  hardcoded as before -- `codegen.handles: false` for `generic-grep` is the correct, honest answer,
+  not a limitation to work around with a generic fallback implementation.
+- **No `--adapters-dir` CLI flag or environment variable.** `loadAdapters({adaptersDir})` is a test
+  seam only. Wiring it to user input would turn "which directory of JS gets executed" into
+  attacker-controllable input -- a materially different trust model from `stack/catalog/`'s
+  schema-validated YAML data. Stated here so it doesn't get added later as a "convenience."
+- **No IR field renames** (`ep.method`, `controller.file`, `endpoints[].line` all stay exactly as
+  they were) and **no confidence tiers** (still blocked on real corpus data, per
+  `D-generic-grep-reconnaissance` -- unchanged by this item).
+
+**Verification**: `npm test` 321 -> 337 (13 new registry/arbitration/malformed-adapter tests, 3
+new generic-grep-CLI capability-block tests, both suites green). Real-world, against
+Team-IZ-Backend in isolated worktrees comparing a pre-G1 checkout against this change: `scan
+--terms organization` and `scan --terms a` (the largest known scan output) byte-identical across
+both versions; the full `feature init` -> `scan` -> `scan disposition` -> `contract emit` ->
+`handles plan` -> `handles emit` flow produces byte-identical `specs/` output and identical exit
+codes at every step (differences found were exactly the two expected non-deterministic
+timestamps -- `disposition.at` and the `handles` gate's `at` -- nothing else); generated Java files
+under `global/handle/` and `domain/organization/infrastructure/` diff byte-for-byte identical;
+`./gradlew compileJava` still `BUILD SUCCESSFUL`. The zero-registration claim itself was
+demonstrated, not just asserted: a synthetic adapter file was copied into the real
+`scanners/adapters/`, `bskel doctor` listed it immediately, it was deleted, and `git status`
+confirmed no other file had changed.
+
+**COST**: with exactly one codegen provider in existence, `codegen.handles: true` is currently
+synonymous with "this adapter is java-spring" -- this item's entire present-day payoff for that
+capability is a clearer error message; its real payoff arrives once G2/G4 exist. Adapter discovery
+now runs on every `bskel` invocation via top-level await (directory read + a couple of dynamic
+imports; sub-millisecond, but real I/O where there was none before). The registry is
+bundler-hostile (no build step exists today, so this costs nothing now, but would silently break
+if one were added later). `scanners/adapters/` is now a code-execution plugin directory, a
+different trust model from `stack/catalog/`'s validated-data one (see the explicit no-CLI-flag
+decision above).
+
+**EXIT**: G2 (a real FastAPI adapter) needs an actual FastAPI oracle repo to build and verify
+against, which doesn't exist on this machine -- the same "no corpus to calibrate against" reasoning
+`D-generic-grep-reconnaissance` used to withhold confidence tiers. G4 (splitting handle codegen
+into `providers/java-spring`, `providers/python-fastapi`, etc.) needs at least two real providers
+to factor a boundary against, or the split is guesswork about which seams matter, per this
+project's Data-First Numerics convention. If recorded-vs-live capability divergence ever actually
+bites (an adapter's capabilities changing between when a feature was scanned and when it's acted
+on), the correct fix is a versioned `sbf.scan-report/2` with an explicit `adapter_capabilities`
+snapshot block -- not designed speculatively now, since no real case has been observed.
