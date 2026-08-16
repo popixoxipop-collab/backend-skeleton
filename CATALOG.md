@@ -272,6 +272,7 @@ remain open. #3, #4, #5 are entirely open.
 - **Why:** `planApply()` reads the entire target `.env` to detect keys, contradicting both the target-repo instruction and the generated script's claim that only the human-invoked runtime step touches `.env`.
 - **Scope/Effort:** **S**.
 - **Concrete approach:** Detect static application from generated files and `.env.example`; report runtime secret configuration as `unknown`. If runtime checking is needed, put it in the human-run bootstrap script and output presence-only status.
+- **[ALREADY IMPLEMENTED, independently of this catalog — DECISIONS.md's security hardening pass item #6, `839259c`/`bcdc427`. `planApply()`'s `alreadyDetected` is now decided from `detect.files` alone, never reads `.env`; `test/stack-cli.test.mjs`'s "stack apply dry-run does not read .env" regression test covers exactly this. Flagged by Codex during the 2026-08-16 P&L pass, confirmed by grep against both files.]**
 
 ### O2. Conflict-safe generated-file ownership
 
