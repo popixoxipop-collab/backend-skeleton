@@ -24,6 +24,7 @@ import { planHandles } from '../handles/plan.mjs';
 import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
+import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -48,7 +49,7 @@ function usage() {
   bskel gate require <name> [--feature <id>]      (name: ${GATE_NAMES.join('|')})
   bskel gate force <name> --reason "..." [--feature <id>]
   bskel gate show [<name>] [--feature <id>]
-  bskel doctor
+  bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
 `);
 }
 
@@ -1110,44 +1111,62 @@ function cmdNext(args) {
 	process.exit(0);
 }
 
-function cmdDoctor() {
+// D5: renders whatever lib/doctor.mjs's computeDoctorChecks() decided -- this function is pure
+// CLI glue (arg parsing + printing), same split as D1's cmdStatus/lib/workflow.mjs.
+function cmdDoctor(args) {
 	const root = repoRoot();
-	const checks = [];
-	checks.push({ name: 'inside a git repo', ok: Boolean(root), detail: root ?? 'not a git repo' });
+	const flags = parseFlags(args, { workflow: { type: 'string', default: null }, json: { type: 'boolean', default: false } });
 
-	for (const bin of ['git', 'gh', 'rg']) {
-		let ok = true;
-		let detail = '';
-		try {
-			execFileSync(bin, ['--version'], { stdio: 'pipe' });
-		} catch {
-			ok = false;
-			detail = 'not found on PATH';
+	let checks;
+	let showAdapters;
+	try {
+		({ checks, showAdapters } = computeDoctorChecks(root, { workflow: flags.workflow }));
+	} catch (err) {
+		console.error(err.message);
+		process.exit(14);
+	}
+
+	const adapters = showAdapters
+		? ADAPTERS.map((a) => ({
+			id: a.id, specificity: a.specificity, confidence: a.confidence, capabilities: a.capabilities,
+			// `detect()` itself can return null on a legitimate non-match -- coerce to a real
+			// boolean here so `null` unambiguously means "not applicable, no root" below, not
+			// "detect() happened to return a falsy value".
+			detects: root ? Boolean(a.detect(root)) : null,
+			diagnostics: root && typeof a.diagnostics === 'function' ? a.diagnostics(root) : [],
+		}))
+		: [];
+	const loadErrors = showAdapters ? LOAD_ERRORS : [];
+
+	// D5: `required:false` checks never affect the verdict -- this is the direct fix for `gh`
+	// being unconditionally required before (missing `gh` failed `bskel doctor` even though
+	// preflight itself already tolerates its absence). See D-doctor-workflow in DECISIONS.md.
+	const allOk = checks.every((c) => c.required ? c.ok : true) && loadErrors.length === 0;
+
+	if (flags.json) {
+		console.log(JSON.stringify({ workflow: flags.workflow, checks, adapters, load_errors: loadErrors, ok: allOk }, null, 2));
+		process.exit(allOk ? 0 : 1);
+	}
+
+	for (const c of checks) {
+		const marker = c.ok ? 'OK  ' : (c.required ? 'FAIL' : 'WARN');
+		console.log(`${marker}  ${c.name}${c.detail ? ` (${c.detail})` : ''}`);
+		if (!c.ok && c.remediation) console.log(`      -> ${c.remediation}`);
+	}
+
+	if (showAdapters) {
+		console.log('');
+		console.log('Scanner adapters:');
+		for (const a of adapters) {
+			const caps = Object.entries(a.capabilities).filter(([, v]) => v).map(([k]) => k).join(', ') || '(none)';
+			let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}) -- capabilities: ${caps}`;
+			if (a.detects !== null) line += a.detects ? ' -- DETECTS this repo' : ' -- does not detect this repo';
+			console.log(line);
+			for (const d of a.diagnostics) console.log(`      [${d.level}] ${d.code}: ${d.message}`);
 		}
-		checks.push({ name: `binary: ${bin}`, ok, detail });
+		for (const e of loadErrors) console.log(`  FAIL  ${e.file}: ${e.message}`);
 	}
 
-	for (const line of checks) {
-		console.log(`${line.ok ? 'OK  ' : 'FAIL'}  ${line.name}${line.detail ? ` (${line.detail})` : ''}`);
-	}
-
-	// G1: answers "why didn't/did an adapter pick this repo" and "what can it actually do" --
-	// replaces the previously-unactionable advice to "investigate why scanJavaSpring() didn't
-	// detect it first" with a command that answers it directly. See D-adapter-registry.
-	console.log('');
-	console.log('Scanner adapters:');
-	for (const a of ADAPTERS) {
-		const caps = Object.entries(a.capabilities).filter(([, v]) => v).map(([k]) => k).join(', ') || '(none)';
-		let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}) -- capabilities: ${caps}`;
-		if (root) line += a.detect(root) ? ' -- DETECTS this repo' : ' -- does not detect this repo';
-		console.log(line);
-		if (root && typeof a.diagnostics === 'function') {
-			for (const d of a.diagnostics(root)) console.log(`      [${d.level}] ${d.code}: ${d.message}`);
-		}
-	}
-	for (const e of LOAD_ERRORS) console.log(`  FAIL  ${e.file}: ${e.message}`);
-
-	const allOk = checks.every((c) => c.ok) && LOAD_ERRORS.length === 0;
 	process.exit(allOk ? 0 : 1);
 }
 
@@ -1212,7 +1231,7 @@ function main() {
 			break;
 		}
 		case 'doctor':
-			cmdDoctor();
+			cmdDoctor(rest);
 			break;
 		default:
 			usage();

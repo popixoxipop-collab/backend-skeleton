@@ -44,6 +44,14 @@ static:
 
 runtime:
   script: scripts/dev-tunnel.sh
+  # D5: binaries scripts/dev-tunnel.sh (bootstrap/ngrok.sh) and its shared lib actually shell out
+  # to at runtime -- ngrok itself, plus curl (bootstrap/_lib.sh's wait_for_tunnel). `bskel stack
+  # apply` never runs either of these itself; `bskel doctor --workflow stack` reads this field to
+  # tell a human what the SCRIPT it's about to generate will need, before they hit a missing-
+  # binary failure mid-tunnel-setup.
+  requires:
+    - ngrok
+    - curl
   readiness:
     probe: "http://127.0.0.1:4040/api/tunnels"
   produces:

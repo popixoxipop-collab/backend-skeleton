@@ -81,9 +81,20 @@ conflict go away and read the diff first -- a conflict on a resolver usually mea
 
 ```bash
 cd <target-repo>            # must be a git repo
-bskel doctor                 # checks: inside a git repo, git/gh/rg on PATH, plus every installed
-                              #    scanner adapter's specificity/capabilities and whether it
-                              #    detects THIS repo (and why/why not) -- see `bskel scan` below
+bskel doctor [--workflow scan|handles|stack] [--json]
+                              # checks: inside a git repo, git, a compatible Node runtime (always);
+                              #    gh (preflight's soft cross-check, optional, unscoped view only);
+                              #    rg (scan/handles); a recognized build wrapper -- gradlew/pom.xml+
+                              #    mvnw/package.json at the repo root (handles, optional -- only
+                              #    `verify --build` needs it, not `handles emit` itself); every
+                              #    stack catalog entry's declared `runtime.requires` binaries
+                              #    (stack, optional -- needed by the generated bootstrap script
+                              #    later, not by `stack apply` itself). Only git/Node/rg are
+                              #    `required` -- everything else is informational with a
+                              #    remediation string. Also lists every installed scanner adapter's
+                              #    specificity/capabilities and whether it detects THIS repo (scan/
+                              #    handles/unscoped) -- see `bskel scan` below. See
+                              #    `D-doctor-workflow` in DECISIONS.md.
 bskel preflight               # 3-way default-branch cross-check + behind/ahead + worktree provenance
 bskel preflight --json         # same, machine-readable
 bskel preflight --allow-dirty  # skip the clean-working-tree requirement

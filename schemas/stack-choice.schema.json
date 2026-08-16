@@ -66,6 +66,7 @@
       "required": ["script", "produces"],
       "properties": {
         "script": { "type": "string" },
+        "requires": { "type": "array", "items": { "type": "string" } },
         "readiness": {
           "type": "object",
           "properties": { "probe": { "type": "string" } }

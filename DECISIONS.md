@@ -1805,3 +1805,110 @@ project's Data-First Numerics convention. If recorded-vs-live capability diverge
 bites (an adapter's capabilities changing between when a feature was scanned and when it's acted
 on), the correct fix is a versioned `sbf.scan-report/2` with an explicit `adapter_capabilities`
 snapshot block -- not designed speculatively now, since no real case has been observed.
+
+## D-doctor-workflow (D5): doctor's checks are workflow-scoped, required-vs-optional, and sourced from the same data the commands themselves already trust
+
+**WHY** -- `cmdDoctor()` checked exactly three binaries (`git`/`gh`/`rg`) unconditionally, all
+treated as equally required, with no relation to which command a user was actually about to run:
+
+1. **`gh` failing `bskel doctor` was a real, over-strict bug.** `gh` is used in exactly one place
+   in this codebase -- `scripts/preflight-base-ref.sh`'s 3-way default-branch cross-check, which
+   already `command -v gh`-guards it (missing `gh` just means one fewer cross-check; preflight
+   itself does not hard-fail without it). Doctor nonetheless folded `gh` into the same unconditional
+   `checks.every((c) => c.ok)` as `git`, so a machine without the `gh` CLI installed reported
+   `bskel doctor` as an overall FAIL even though nothing downstream was actually broken.
+2. **Every check applied to every workflow, whether relevant or not.** `bskel doctor` before a
+   `stack apply` told you nothing about whether the generated bootstrap script's `curl`/`ngrok`
+   dependencies were present; before a `handles emit` it told you nothing about whether this repo
+   even has a recognized build wrapper. Node version and adapter readiness (closed by G1) weren't
+   checked at all.
+3. **No remediation.** A FAIL line said what was missing, never what to do about it.
+
+**The mechanism**: new `lib/doctor.mjs::computeDoctorChecks(root, {workflow})` (mirrors D1's
+`lib/workflow.mjs` split -- pure-ish decision logic separate from `bin/bskel.mjs`'s CLI glue).
+`WORKFLOWS = ['scan', 'handles', 'stack']` -- deliberately not all five `GATE_NAMES`: `preflight`
+and `contract` need nothing beyond the two universal checks (`git`, a compatible Node runtime), so
+giving them their own `--workflow` value would offer a choice with no distinguishing content.
+Every check carries `required` (only `git`-repo / `git` binary / Node version / `rg` are `true`;
+everything else is informational) and a `remediation` string, populated only when `ok:false`.
+`bskel doctor`'s exit code and `--json`'s `ok` field are computed from `required` checks only --
+this is the direct, minimal fix for the `gh` bug above, not a special case for `gh` specifically.
+
+Two checks are reused, not reimplemented, from code that already had to solve the same problem:
+- **Build-wrapper detection** (`handles` workflow) calls `lib/verify.mjs`'s `detectBuildCommand()`
+  (newly `export`ed, logic unchanged) -- the exact function `bskel verify --build` already uses,
+  so doctor and `verify --build` can never disagree about what counts as "a build tool was found"
+  for the same repo. Note this is a **repo-content check** (does `./gradlew`/`pom.xml`+`./mvnw`/
+  `package.json` exist at the target repo's root), not a PATH-binary check -- `bskel` itself never
+  invokes `java`/`javac`/`gradle`/`mvn` directly; `handles emit`/`handles plan` only write `.java`
+  files, they never compile them. Marked `required: false` for exactly that reason: no build
+  wrapper blocks nothing about `handles emit` itself, only a later, explicit `verify --build`.
+- **Stack tooling** (`stack` workflow) reads `entry.runtime.requires` off every
+  `stack/catalog/*.yml` entry via the already-exported `listCatalogChoices()`/`loadCatalogEntry()`
+  (`stack/apply.mjs`) -- a new optional `requires: string[]` field on `schemas/stack-choice.
+  schema.json`'s `runtime` object, populated for the one entry that exists today
+  (`stack/catalog/ngrok.yml`: `[ngrok, curl]`, the two binaries `stack/bootstrap/ngrok.sh`/`_lib.sh`
+  actually shell out to at runtime). `bskel stack apply` itself never invokes either -- it only
+  *writes* the bootstrap script; a human runs it later. This is the same "fill a schema field, it
+  applies globally" pattern D7 established for the stack catalog and G1 just replicated for scanner
+  adapters: a future catalog entry declares its own `requires`, and `doctor --workflow stack` picks
+  it up with **zero code changes** -- not a hardcoded `["curl", "ngrok"]` literal in `bin/bskel.mjs`.
+
+Node version is checked against the **real** requirement (>=20.11.0, for `contracts/validate.mjs`'s
+`import.meta.dirname`), not `package.json`'s declared (and known-inaccurate) `>=18` floor --
+`nodeVersionCheck()`'s remediation names this discrepancy explicitly and points at CATALOG.md's P1,
+which owns actually fixing the declared floor. Doctor reports reality; it does not silently repeat
+the wrong number.
+
+G1's adapter-readiness block (specificity/confidence/capabilities/detect-result/diagnostics) is
+unchanged, just now gated by `showAdapters` (true for `scan`/`handles`/unscoped, false for
+`stack`) -- shown for `handles` too, since that workflow's actual readiness (`resource.fetch`/
+`codegen.handles`) depends on exactly the adapter capability G1 already computes.
+
+`bin/bskel.mjs`'s `cmdDoctor(args)` (previously took zero arguments -- `main()` captured `rest` but
+never passed it) now parses `--workflow`/`--json` via the existing `parseFlags()`; an unknown
+`--workflow` value throws from `computeDoctorChecks()` and is caught into **exit 14**, the same
+bad-argument convention `resolveGateArg`'s `requireGateDefinition` typo-defense already uses (S1).
+
+**Behavior change, stated plainly**: `bskel doctor` on a machine without `gh` installed used to
+report overall FAIL (exit 1); it now reports PASS (exit 0) with a `WARN` line, because `gh`'s
+absence never actually blocked anything. Verified directly: `test/doctor-cli.test.mjs` builds a
+restricted `PATH` containing only real, symlinked `git`/`rg` binaries (deliberately excluding
+whatever `gh` install this machine happens to have) and asserts `bskel doctor --json`'s `ok` field
+is still `true`.
+
+**Verification**: `npm test` 337 -> **345** (8 new tests in `test/doctor-cli.test.mjs`: unknown
+`--workflow` exit 14; `--workflow stack` shows no rg/gh/build-wrapper and sources curl/ngrok from
+the real `ngrok.yml` catalog entry; `--workflow handles` shows rg + a build-wrapper check that
+correctly flips `ok` based on whether the target fixture has a `gradlew`; `--json` shape; the `gh`-
+missing-does-not-fail-overall proof above; three `lib/doctor.mjs` unit tests). Real-world against
+Team-IZ-Backend (isolated worktree): unscoped `doctor` and `--workflow handles` both correctly
+detect the real `./gradlew` wrapper (`build wrapper (gradle (./gradlew))`) and both scanner
+adapters correctly report `DETECTS this repo`; `--workflow scan --json` parses cleanly.
+
+**A real bug caught before it shipped, during implementation, not by the test suite**: the first
+draft mapped each adapter's `detect()` result straight into the JSON/text output as
+`root ? a.detect(root) : null`. `detectJavaSpringRoot()` (java-spring's `detect`) legitimately
+returns `null` on a non-match, not `false` -- so for any non-Java repo, `a.detects` was `null`
+regardless of whether `root` was present or absent, and the renderer's `a.detects !== null` check
+silently dropped the "-- does not detect this repo" line for java-spring specifically (confirmed
+by running `bskel doctor` against this skill's own repo and noticing java-spring's line was
+missing that suffix, while generic-grep's wasn't). Fixed by coercing to `Boolean(a.detect(root))`
+so `null` unambiguously means "not evaluated, no root" and never collides with a legitimate falsy
+detection result -- caught by actually running the command and comparing output to G1's original
+behavior, not by code review.
+
+**COST**: `schemas/stack-choice.schema.json` gained one optional field -- no migration needed
+(`requires` defaults to absent/empty for any entry that doesn't declare it). `bskel doctor`'s
+output shape changed (new `WARN` marker for optional-and-failing checks, new `--workflow`/`--json`
+flags, new top-level JSON fields) -- no test previously asserted doctor's output, so no
+compatibility break, but any human muscle-memory around its old plain-text shape will notice.
+
+**EXIT**: `bash` itself was deliberately not added as its own check (near-universally present on
+any *nix target, low value); if that ever proves wrong for a real user's environment, it's a
+one-line `binaryCheck('bash', ...)` addition. If a future stack catalog entry's bootstrap script
+needs something `execFileSync(bin, ['--version'])` can't probe correctly (a binary with no
+`--version` flag, or one that needs arguments to run at all), `runtime.requires` can grow richer
+entries (`{binary, versionFlag}` objects) without breaking existing YAML -- not built now, since
+`ngrok`/`curl` both probe cleanly with the current shape and there is no second real case to design
+against yet.
