@@ -87,11 +87,15 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				let provenance = 'scan';
 				let openapiAttempted = false;
 				let openapiReason = null;
-				// A2: only ever set for matched/adopted (contracts/openapi.mjs's applyRequestBodySchema
-				// runs for those two kinds only) -- stays null for every other kind.
+				// A2/A3: only ever set for matched/adopted (contracts/openapi.mjs's applyRequestBodySchema/
+				// applyResponseSchemas run for those two kinds only) -- stays null for every other kind.
 				let requestBodySchema = null;
 				let requestBodyRequired = false;
 				let schemaUnresolvedReason = null;
+				let responseSchema = null;
+				let responseSchemaUnresolvedReason = null;
+				let errorSchema = null;
+				let errorSchemaUnresolvedReason = null;
 
 				if (res) {
 					switch (res.kind) {
@@ -105,6 +109,10 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							requestBodySchema = res.requestBodySchema ?? null;
 							requestBodyRequired = res.requestBodyRequired ?? false;
 							schemaUnresolvedReason = res.schemaUnresolvedReason ?? null;
+							responseSchema = res.responseSchema ?? null;
+							responseSchemaUnresolvedReason = res.responseSchemaUnresolvedReason ?? null;
+							errorSchema = res.errorSchema ?? null;
+							errorSchemaUnresolvedReason = res.errorSchemaUnresolvedReason ?? null;
 							break;
 						case 'adopted':
 							// No @Operation(operationId=...) in source at all -- the id itself comes from
@@ -118,6 +126,10 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							requestBodySchema = res.requestBodySchema ?? null;
 							requestBodyRequired = res.requestBodyRequired ?? false;
 							schemaUnresolvedReason = res.schemaUnresolvedReason ?? null;
+							responseSchema = res.responseSchema ?? null;
+							responseSchemaUnresolvedReason = res.responseSchemaUnresolvedReason ?? null;
+							errorSchema = res.errorSchema ?? null;
+							errorSchemaUnresolvedReason = res.errorSchemaUnresolvedReason ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
 								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
@@ -206,16 +218,36 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						detail: { reason: schemaUnresolvedReason, verb, path: route, operationId },
 					}));
 				}
+				// A3: same "found but couldn't project" distinction as the request-body warning above,
+				// applied separately to response (2xx) and error (4xx/5xx) -- two DIFFERENT codes (see
+				// D-openapi-response-schema), so a projection failure on one direction never shares a
+				// waiver key with an unrelated failure on another direction for the same operation.
+				if (responseSchemaUnresolvedReason) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) documents a 2xx JSON response, but its schema could not be projected (${responseSchemaUnresolvedReason}) -- the response stays unconstrained, same as before --openapi-file`,
+						detail: { reason: responseSchemaUnresolvedReason, verb, path: route, operationId },
+					}));
+				}
+				if (errorSchemaUnresolvedReason) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) documents a 4xx/5xx JSON response, but its schema could not be projected (${errorSchemaUnresolvedReason}) -- the error payload stays unconstrained, same as before --openapi-file`,
+						detail: { reason: errorSchemaUnresolvedReason, verb, path: route, operationId },
+					}));
+				}
 				operations[operationId] = {
 					verb,
 					path: route,
 					pathParams: pathParamsSchema(route),
 					body: hasBody === null ? 'unknown' : hasBody,
 					provenance,
-					// A2: omitted entirely (not null/false) when there's nothing to project -- keeps
+					// A2/A3: omitted entirely (not null/false) when there's nothing to project -- keeps
 					// `openapi:null` (and any operation that isn't matched/adopted) byte-identical to
-					// pre-A2 output, the same guarantee A1 established for its own fields.
+					// pre-A2/A3 output, the same guarantee A1 established for its own fields.
 					...(requestBodySchema ? { requestBodySchema, requestBodyRequired } : {}),
+					...(responseSchema ? { responseSchema } : {}),
+					...(errorSchema ? { errorSchema } : {}),
 				};
 			}
 		}
@@ -237,7 +269,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 	};
 
 	return {
-		sbf_contract: '3',
+		sbf_contract: '4',
 		feature_id: featureId,
 		feature_uid: featureUid,
 		generated_at: new Date().toISOString(),

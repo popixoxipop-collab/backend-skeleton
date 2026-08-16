@@ -156,11 +156,21 @@ bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <p
   #    a `$ref` cycle, an over-long or uncompilable `pattern`, more nesting/nodes than the fixed
   #    caps allow) is left unprojected -- CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (WARN, never blocks)
   #    and the operation falls back to the pre-existing bare-object check, same as if
-  #    --openapi-file had never been passed for that one operation. Response/error payloads
-  #    remain unconstrained regardless (see `contract validate` below) -- request-body-only for
-  #    now. See `D-openapi-request-schema` in DECISIONS.md for the full design, the real
-  #    Team-IZ-Backend before/after, and the ReDoS/recursion-depth caps (measured against 54 real
-  #    request bodies, not guessed).
+  #    --openapi-file had never been passed for that one operation. See `D-openapi-request-schema`
+  #    in DECISIONS.md for the full design, the real Team-IZ-Backend before/after, and the
+  #    ReDoS/recursion-depth caps (measured against 54 real request bodies, not guessed).
+  #
+  #    Response/error bodies are projected too (A3): every documented 2xx `application/json`
+  #    schema becomes `responseSchema`, every documented 4xx/5xx becomes `errorSchema` -- both
+  #    fully inlined, and unioned with `anyOf` (never `oneOf` -- projected schemas can legally
+  #    overlap) when an operation documents 2+ distinct shapes for that direction. No envelope
+  #    change was needed for this: in the real Team-IZ-Backend document every operation shares
+  #    exactly one error schema and (with 2 harmless exceptions) exactly one success schema, so a
+  #    status-code field would have bought nothing. Same fail-closed rule as the request side --
+  #    an unprojectable response/error schema gets its own WARN code
+  #    (CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED / CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED,
+  #    never blocks) and that direction alone falls back to unconstrained. See
+  #    `D-openapi-response-schema` in DECISIONS.md.
 
 bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   # -> the `scan disposition` of contracts: explicitly accepts specific `partial` warnings so the
@@ -176,19 +186,28 @@ bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all)
 bskel contract validate --feature <id> --file envelope.json
   # -> validates a {sbf, feature_id, feature_uid, operation_id, direction, payload} envelope:
   #    structural check against schemas/agent-envelope.schema.json, then feature_id/feature_uid
-  #    must match this exact contract, operation_id must be one it defines, and (for
-  #    direction:"request") payload.pathParams/body must satisfy that operation's specific
-  #    shape -- body is checked field-by-field (required/type/enum/pattern/length/...) when the
-  #    operation has a projected `requestBodySchema` (--openapi-file), else the pre-existing
-  #    bare-object check. Wrong feature, wrong operation, missing a required path param, and an
-  #    unexpected body on a bodyless operation all fail distinctly -- see test/contract.test.mjs.
-  #    response/error directions stay unconstrained beyond envelope structure either way -- see
-  #    D-contract-scope in DECISIONS.md (request-body schema projection doesn't change this).
+  #    must match this exact contract, operation_id must be one it defines, and payload must
+  #    satisfy that operation's specific shape for the envelope's `direction`:
+  #      - "request":          payload = {pathParams, body} -- body checked field-by-field
+  #                             (required/type/enum/pattern/length/...) when the operation has a
+  #                             projected `requestBodySchema` (--openapi-file), else the
+  #                             pre-existing bare-object check.
+  #      - "response"/"error": payload = {body: <the actual response/error body>} -- checked
+  #                             against `responseSchema`/`errorSchema` (A3, --openapi-file) when
+  #                             present; unconstrained (any payload passes) otherwise, exactly as
+  #                             every direction behaved before A2/A3. See
+  #                             `D-openapi-response-schema` in DECISIONS.md for why `payload` is
+  #                             `{body: ...}` and not the response value directly (keeps a future
+  #                             status-code field additive instead of a breaking `sbf` bump).
+  #    Wrong feature, wrong operation, missing a required path param, and an unexpected body on a
+  #    bodyless operation all fail distinctly -- see test/contract.test.mjs.
 
 bskel contract tool-schema --feature <id> --operation <operationId>
-  # -> prints {name, description, input_schema} for that operation -- input_schema is plain
-  #    JSON Schema (no $ref/$defs, even with a projected requestBodySchema -- contracts/openapi.mjs's
-  #    inlineSchema() guarantees this), usable directly as an Anthropic tool-use tool definition.
+  # -> prints {name, description, input_schema} for that operation's REQUEST shape only (response/
+  #    error schemas, even when projected, never appear here -- unchanged by A3). input_schema is
+  #    plain JSON Schema (no $ref/$defs, even with a projected requestBodySchema --
+  #    contracts/openapi.mjs's inlineSchema() guarantees this), usable directly as an Anthropic
+  #    tool-use tool definition.
 
 bskel stack apply --choice ngrok                # dry-run (default): prints the plan, writes nothing
 bskel stack apply --choice ngrok --apply        # actually writes; always idempotent to re-run
@@ -252,11 +271,16 @@ between the JS reference implementation (`handles/codec.mjs`) and the generated 
 (`HandleCodec.java`) on the same inputs, and `uuidv5` independently matches the standard RFC
 4122 test vector -- see `test/handles-codec.test.mjs` and `D5/D6` in `DECISIONS.md`.
 
-**Contract scope note**: only `direction: "request"` payloads are checked against an
-operation-specific shape (path params + whether a body is required/disallowed). `response`/
-`error` payloads pass envelope-structure validation but aren't checked further -- that would need
-actual Java DTO field-level parsing, out of scope for Phase 2's ripgrep+regex scanner. See
-`D-contract-scope` in `DECISIONS.md`.
+**Contract scope note**: without `--openapi-file`, only `direction: "request"` payloads are
+checked against an operation-specific shape (path params + whether a body is required/disallowed)
+-- `response`/`error` payloads pass envelope-structure validation but aren't checked further, since
+that needs real field-level shapes Phase 2's ripgrep+regex scanner alone can't produce. With
+`--openapi-file` (A1-A3), all three directions get field-level checks for `matched`/`adopted`
+operations whose schema resolved -- there is still no status-code precision (a `response`/`error`
+envelope is checked against a union of every documented shape for that direction, not the one
+specific status that actually occurred), and anything not covered by the above (no
+`--openapi-file`, an unmatched operation, an unprojectable schema) stays exactly as unconstrained
+as before. See `D-contract-scope` and `D-openapi-response-schema` in `DECISIONS.md`.
 
 ## Design reference / extension points
 

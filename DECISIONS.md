@@ -171,6 +171,14 @@ judged an acceptable scope cut, not silently -- this note plus the code comment 
 class already located by Phase 2) could seed `response` schemas the same way `body` is seeded for
 requests now.
 
+**Update (A3)**: this EXIT clause's prediction happened, via a different mechanism than it
+named — not a new Java DTO-field scanner, but the OpenAPI document `--openapi-file` already reads
+for A1/A2's path/body work. `contract validate` now DOES constrain `direction:"response"`/`"error"`
+payloads, for `matched`/`adopted` operations with a projected schema; see
+`D-openapi-response-schema` for the full design. The scope cut above still holds exactly as
+described for everything else: no `--openapi-file`, or an operation that isn't matched/adopted, or
+a schema that couldn't be projected, all still leave response/error fully unconstrained.
+
 ## D7 (implemented): declarative catalog + generic apply, not per-stack bespoke code
 
 **WHY**: "add a stack choice" must be a data edit (one YAML file, optionally one template), or
@@ -787,6 +795,179 @@ DTO this whitelist hasn't seen yet.
 error schema projection is the natural next slice, gated on first resolving how `direction:
 'response'|'error'` payloads map to a specific documented status code — see the envelope-schema
 scope note above.
+
+## D-openapi-response-schema (A3): the envelope question A2 deferred, answered by measurement
+
+**WHY**: A2's own EXIT clause named this as the natural next slice, gated on resolving how
+`direction:'response'|'error'` payloads map to a specific documented status code — the envelope
+(`schemas/agent-envelope.schema.json`) has no status-code field. Before writing any code, the
+actual Team-IZ-Backend OpenAPI document was measured directly: **every one of 142 operations
+documents exactly one distinct error schema** (`{"$ref":"#/components/schemas/ErrorResponse"}` —
+literally the same node, not just the same shape, on all 508 error-status response entries across
+the whole document), and **125/142 operations document exactly one distinct success schema** (the
+other 17 document zero — a 204-only response, or none at all). Real before/after against
+`createOrganization`: pre-A3, a `direction:"response"` payload of `{}` validated for every
+operation; post-A3 the same payload fails (`organizationId` required), and a `direction:"error"`
+payload missing `code` now fails too. **Conclusion: no envelope change, no `sbf` bump.** A
+status-code field would buy nothing measurable — error is already unambiguous regardless of
+status, and success is unambiguous in every real case — so the breaking change A2 wanted to avoid
+was never actually necessary.
+
+**Same `matched`/`adopted`-only, don't-guess-on-drift discipline as A1/A2.** `drift`/`missing`/
+`ambiguous`/`unresolved` operations get no `responseSchema`/`errorSchema`, same reasoning: an
+operation whose own identity hasn't been confirmed against the document has no business getting a
+richer body shape either.
+
+**`anyOf`, not `oneOf`, for the (real-data-rare) multi-schema case.** A2 established that projected
+schemas never carry `additionalProperties:false` (Team-IZ-Backend has no Jackson customization —
+real endpoints accept and ignore unknown fields), which means two documented response shapes for
+different statuses routinely *overlap* (a minimal 202/204 body is often a strict subset of the 200
+body's fields). `oneOf` requires *exactly one* branch to match; verified directly against the
+installed `Ajv2020` that a payload matching two overlapping branches is **rejected** by `oneOf` and
+**accepted** by `anyOf`. `oneOf` would have made this feature reject real, valid API responses —
+exactly the false-negative class A2 refused to introduce with `additionalProperties:false`. `anyOf`
+states precisely what's true given the envelope carries no status code: "matches at least one
+documented shape." (In real data this almost never fires — of the two operations with 2+ documented
+2xx statuses, both `findCurrentProject`/`findCurrentSession`, the extra status either shares the
+identical schema ref or has no body at all, so the distinct-shape count is 1 either way; the `anyOf`
+path is defense-in-depth for a shape this specific document doesn't actually need, same posture as
+A2's cycle detection.)
+
+**Fail closed on the FIRST unresolvable schema, never union the rest.** Unlike A2 (where dropping
+a bad property emits a schema *weaker* than reality, the failure mode to avoid), a partial
+response/error union runs the opposite risk: a union missing one of several documented shapes is
+*narrower* than reality, i.e. it would reject a real response the API actually produces. The fix
+runs in the opposite direction from A2's, but the underlying principle — never emit something that
+contradicts what the document says — is identical.
+
+**Deduplication, twice, before emitting a union.** Every matching status's raw schema node is
+deduplicated first by `JSON.stringify` (cheap, and collapses the overwhelmingly common case of many
+statuses pointing at the literal same node — this alone is what makes "508 error responses" become
+"1 resolution per operation"), then the *resolved* schemas are deduplicated again by a
+`canonicalJson` (key-sorted) comparison, since two different `$ref`s occasionally resolve to
+identical shapes. `canonicalJson` is deliberately array-order-sensitive, which makes the comparison
+conservative: two semantically-equal schemas that differ only in array order compare as distinct,
+producing an extra (still-correct) `anyOf` branch — the comparison can never falsely collapse two
+genuinely different schemas into one.
+
+**`MAX_RESPONSES_PER_OPERATION = 64`, the one new cap A3 needed.** A2 resolved at most one schema
+per operation (a request body has exactly one); A3 can resolve as many as an operation documents
+statuses for, so an adversarial document could declare unboundedly many. Real max observed: 9
+(`submitZip`). Every other defense (`inlineSchema`'s cycle detection, `MAX_SCHEMA_DEPTH`,
+`MAX_SCHEMA_NODES`, `MAX_PATTERN_LENGTH`, the keyword/format whitelist) is reused **completely
+unchanged** — decisive evidence for this, not just a keyword-histogram argument like A2 needed:
+every one of the 634 real response/error schema roots in the document resolves successfully through
+the shipped `inlineSchema()` at the shipped caps, zero failures. That single fact is why A3 skipped
+A2's Stage 0 measurement phase entirely — the hardest, riskiest part of this feature (the recursive
+resolver and its defenses) was already built and already proven against exactly this input shape.
+
+**Depth/node measurement correction, recorded honestly.** The naive keyword-histogram walker used
+to scope A2 (and initially reused to scope A3) counts a `properties`/`items` container object as
+its own recursion level — `inlineSchema()` itself does not. Re-measuring by binary-searching
+`opts.maxDepth` against the real function: max structural depth reachable from a response is **14**
+(not 21, the naive walker's number), and — re-measuring the same way on the request side —
+**A2's DECISIONS.md entry recording "8" was the same naive-walker artifact; the real number is 5.**
+Recorded here rather than silently editing A2's already-shipped entry: `MAX_SCHEMA_DEPTH=32` carries
+2.3x headroom over the real depth-14 maximum (not the 1.5x the naive number implied), and
+`MAX_SCHEMA_NODES=2000` carries 8.7x headroom over the real max node count (231, `getMy
+AssessmentRounds`, vs. 23 on the request side). Both caps are left unchanged — real usage doesn't
+approach either one, and there is no measured trigger to widen them; the actual defense the depth
+cap provides (bounding the JS recursion stack against a hostile document) is indistinguishable at
+32 vs. 64.
+
+**Genuine `oneOf` polymorphism, resolved with zero code change.** Every one of A2's real `oneOf`
+occurrences was the springdoc nullable-object idiom (`[{$ref}, {type:'null'}]`); A3's real data
+includes one genuine discriminated union with no `discriminator` keyword —
+`MySubmissionResponse.properties.content: oneOf: [GithubSubmissionContent, ZipSubmissionContent]`
+(distinguished by which of `repoUrl`/`fileName` is present). `inlineSchema()` already recurses into
+every `oneOf` array element generically, regardless of content, so this resolves correctly with the
+exact code A2 shipped — confirmed live, both through a synthetic unit test and end-to-end through
+the real CLI against `findMySubmission`.
+
+**`required` flips meaning; springdoc's own `type`-omission is deliberately not corrected.** In a
+request, `required` means "the client must send this"; in a response, it means "the server always
+sends this" — a real, intended behavioral change (an agent-authored response/error payload that
+used to validate against `{}` can now fail on a missing field). Separately, the real `ErrorResponse`
+root has `properties`+`required` but **no `type` keyword at all** (springdoc's own choice) —
+`inlineSchema` does not synthesize a `type:'object'` the document never stated, the same
+never-add-an-undocumented-constraint rule A2 applied to `additionalProperties:false`. (JSON
+Schema's `required`/`properties` are simply vacuous against a non-object payload in this case —
+accepted as-is, not worked around.)
+
+**Payload wrapper: `{body: <response>}`, not the response body directly** —
+`operationPayloadSchema(opContract, direction)` returns
+`{type:'object', additionalProperties:false, properties:{body: schema}, required:['body']}` for
+`response`/`error`, mirroring the shape `request` already had. Rejected the simpler alternative (the
+envelope's `payload` field *is* the response body, no wrapper) after direct verification that no
+existing code, test, or SKILL.md text asserts any response/error payload shape — a genuinely
+green-field choice either way — because the wrapper keeps a future status-code field purely
+*additive* (`payload.status` as a new optional property) instead of forcing the breaking `sbf`
+version bump A2 already declined once, and keeps `operationPayloadSchema`'s return shape uniform
+across all three directions ("a named-parts object, `additionalProperties:false`") rather than
+returning a structurally different kind of thing depending on `direction`.
+
+**Two new WARN codes — `CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED` /
+`CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED` — neither reusing nor renaming A2's
+`CONTRACT_OPENAPI_SCHEMA_UNRESOLVED`.** `warningKey` is `{code, subject}` where `subject` is
+always the operationId, so a shared code would let one direction's projection failure silently
+cover an unrelated failure on another direction for the same operation — the exact reasoning A1
+used to keep `CONTRACT_OPENAPI_DRIFT` and `CONTRACT_OPENAPI_MISSING_OPERATION` separate. Honestly
+noted: today this specific collision is inert, since `evaluateResolution`/`cmdContractWaive` only
+ever consider `ERROR`-severity warnings waivable, and all three of these codes are `WARN` — the
+argument becomes load-bearing the moment any one of them is promoted to `ERROR` in a future slice.
+The operative reasons *right now* are that `evidence.warning_codes` (surfaced on the gate record)
+would otherwise be unreadable (`{CONTRACT_OPENAPI_SCHEMA_UNRESOLVED: 3}` — request, response, or
+error?), that severity is set per-code globally, and that the three codes' messages are genuinely
+different (A5's "one specific, actionable message per code" discipline). A2's shipped code is not
+renamed to `..._REQUEST_..` — no live benefit large enough to justify a migration of a name already
+in shipped tests, real gate records, and (potentially) recorded waivers. Confirmed WARN, not ERROR,
+for the same two reasons A2 gave its own code: the pre-A3 unconstrained check is still *correct*,
+just less specific, and 0/634 real schema roots actually fail projection, so this exists as
+defense-in-depth, not because real modules routinely need it.
+
+**No new gate-token field, the third time this reasoning has applied (A1 needed one, A5 needed
+one, A2 and now A3 don't).** `lib/gate-definitions.mjs`'s `contract.recompute` is unchanged — its
+`contract_hash` already covers the whole contract file, including the two new fields, so tampering
+with either is caught without a dedicated token input. `test/gate-definitions.test.mjs`'s exact
+4-key assertion (`contract_hash, head_sha, openapi_snapshot_hash, resolution_hash`) was left
+untouched deliberately. Verified live: hand-editing a real `responseSchema` in an emitted contract
+stales the gate; re-emitting restores it.
+
+**`sbf_contract` bumped `"3"` → `"4"`, additive, no migration cost** — same reasoning as A2's `"2"`
+→ `"3"` bump: the new fields are optional, omitted (not `null`) when nothing was projected, and
+nothing in this codebase loads the meta-schema at runtime except the regression-guard test.
+
+**A real bug this feature's own verification found, unrelated to the schema-projection logic
+itself**: `bin/bskel.mjs`'s `cmdContractEmit` called `process.exit(...)` immediately after
+`console.log(JSON.stringify(contract, ...))` for `--json` output. This was silent and harmless
+through A1/A2 because no contract JSON had ever crossed roughly 64KB; A3's response/error schemas
+routinely push a real module's contract (organization, member, projectexecution) well past that.
+Reproduced directly during Team-IZ-Backend verification: `contract emit --json` for the real
+organization module, captured via a subshell, came back truncated at **exactly 65536 bytes** — a
+classic pipe-buffer-sized cutoff — while the identical command redirected to a file wrote its full,
+correct length. Node does not guarantee a large asynchronous pipe write completes before
+`process.exit()` forcibly tears the process down. Fixed by setting `process.exitCode` instead of
+calling `process.exit()` at that one call site (the last statement in the function, with nothing
+else pending in `main()`'s call path) — Node's event loop then drains (flushing the write) before
+exiting on its own with the same code. Locked in with a dedicated regression test that synthesizes
+a >64KB contract and confirms full, valid JSON comes back through the same `execFileSync` path the
+rest of the CLI test suite uses. **Scope note**: `bin/bskel.mjs` has 67 `process.exit(...)` call
+sites in total; only this one (the one A3's own real output size increase actually made reachable,
+and the one this session's own verification actually reproduced) was fixed. A sweep of the other
+66 for the same latent risk is a legitimate future hardening item, not part of this slice.
+
+**COST**: contract files for schema-rich modules are now substantially larger (Team-IZ-Backend's
+`createOrganization` operation gained a ~20-field response schema and a shared ~7-field error
+schema); the `required`-flips-meaning behavioral change is real and could surprise an agent that
+previously got away with an incomplete response payload; the same keyword-whitelist-extension COST
+A2 already accepted applies here too, though 0/634 real occurrences suggests it's a smaller
+practical risk on the response side than it was for requests.
+**EXIT**: the response/error status-mapping question this entry answers is specific to Team-IZ-
+Backend's *current* document shape (a single shared error schema, near-uniform single-success-status
+operations) — if a future document has genuinely per-status-varying error bodies or routine
+multi-schema successes, the `anyOf` union path (already built, just rarely exercised today) is what
+absorbs that without further design work. `contracts/openapi.mjs`'s `projectResponseSchemas`/
+`applyResponseSchemas` are the single place this logic lives.
 
 ## D-pressure-test: the real Phase 6 oracle was a fresh agent, not another self-review
 

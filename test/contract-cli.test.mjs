@@ -138,7 +138,16 @@ function contractSnapshotPath(root) {
 // opt-in adds a real requestBody to POST /api/v0/widgets, `unsupportedSchema` (opt-in) swaps
 // CreateWidgetRequest for one containing a keyword inlineSchema() doesn't support -- exercises
 // the "schema found but can't be projected" path distinctly from "no schema at all".
-function widgetOpenApiDoc({ includeDeleteWidget = false, includePatchWidget = false, withRequestBodies = false, unsupportedSchema = false, openapiVersion = '3.1.0' } = {}) {
+//
+// A3: `withResponses` (default false, same byte-for-byte preservation discipline) adds a 201
+// WidgetResponse + 400 ErrorResponse to POST /api/v0/widgets; `unsupportedResponseSchema` swaps
+// WidgetResponse for one inlineSchema() can't project, symmetric to `unsupportedSchema` above.
+function widgetOpenApiDoc({
+	includeDeleteWidget = false, includePatchWidget = false,
+	withRequestBodies = false, unsupportedSchema = false,
+	withResponses = false, unsupportedResponseSchema = false,
+	openapiVersion = '3.1.0',
+} = {}) {
 	const paths = {
 		'/api/v0/widgets': {
 			get: { operationId: 'findWidgets' },
@@ -151,19 +160,27 @@ function widgetOpenApiDoc({ includeDeleteWidget = false, includePatchWidget = fa
 	if (includeDeleteWidget) paths['/api/v0/widgets/{widgetId}'].delete = { operationId: 'deleteWidget' };
 	if (includePatchWidget) paths['/api/v0/widgets/{widgetId}'].patch = { operationId: 'patchWidget' };
 	const doc = { openapi: openapiVersion, info: { title: 'fixture', version: '1' }, paths };
+	const schemas = {};
 	if (withRequestBodies) {
-		doc.components = {
-			schemas: {
-				CreateWidgetRequest: unsupportedSchema
-					? { type: 'object', discriminator: { propertyName: 'kind' } }
-					: { type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 10 } } },
-			},
-		};
+		schemas.CreateWidgetRequest = unsupportedSchema
+			? { type: 'object', discriminator: { propertyName: 'kind' } }
+			: { type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 10 } } };
 		paths['/api/v0/widgets'].post.requestBody = {
 			required: true,
 			content: { 'application/json': { schema: { '$ref': '#/components/schemas/CreateWidgetRequest' } } },
 		};
 	}
+	if (withResponses) {
+		schemas.WidgetResponse = unsupportedResponseSchema
+			? { type: 'object', discriminator: { propertyName: 'kind' } }
+			: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } };
+		schemas.ErrorResponse = { type: 'object', required: ['code'], properties: { code: { type: 'string' } } };
+		paths['/api/v0/widgets'].post.responses = {
+			'201': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/WidgetResponse' } } } },
+			'400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/ErrorResponse' } } } },
+		};
+	}
+	if (Object.keys(schemas).length > 0) doc.components = { schemas };
 	return doc;
 }
 
@@ -648,4 +665,168 @@ test('an OpenAPI 3.0 document: emit exits 0, zero CONTRACT_OPENAPI_SCHEMA_UNRESO
 
 	const gateShow = run(['gate', 'show', 'contract', '--feature', '001-widget-management'], root);
 	assert.equal(JSON.parse(gateShow.stdout).record.evidence.openapi.schema_projection.enabled, false);
+});
+
+// A3 regression suite below: response/error JSON Schema projection, full CLI flow.
+
+test('--openapi-file with responses: responseSchema/errorSchema reflect the real DTO shapes, an operation with no documented responses gets neither key', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--json'], root);
+	assert.equal(emit.code, 0);
+	const contract = JSON.parse(emit.stdout);
+	assert.equal(contract.operations.createWidget.responseSchema.required[0], 'id');
+	assert.equal(contract.operations.createWidget.errorSchema.required[0], 'code');
+	assert.equal('responseSchema' in contract.operations.findWidgets, false);
+	assert.equal('errorSchema' in contract.operations.findWidgets, false);
+});
+
+test('contract validate, direction:"response": a body missing a required field exits 1, a valid one exits 0', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const envelopePath = path.join(root, 'envelope.json');
+	const base = { sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'response' };
+
+	fs.writeFileSync(envelopePath, JSON.stringify({ ...base, payload: { body: {} } }));
+	const missing = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(missing.code, 1);
+	assert.equal(JSON.parse(missing.stdout).ok, false);
+
+	fs.writeFileSync(envelopePath, JSON.stringify({ ...base, payload: { body: { id: 'w-1' } } }));
+	const ok = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(ok.code, 0);
+	assert.equal(JSON.parse(ok.stdout).ok, true);
+});
+
+test('the identical response envelope passes against a contract emitted WITHOUT --openapi-file (before/after contrast)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	const envelopePath = path.join(root, 'envelope.json');
+	const envelope = {
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'response',
+		payload: { body: {} }, // missing "id" -- would fail once a responseSchema is projected
+	};
+	fs.writeFileSync(envelopePath, JSON.stringify(envelope));
+
+	run(['contract', 'emit', '--feature', '001-widget-management'], root); // no --openapi-file
+	const withoutSchema = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(withoutSchema.code, 0);
+	assert.equal(JSON.parse(withoutSchema.stdout).ok, true);
+
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	const withSchema = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(withSchema.code, 1);
+	assert.equal(JSON.parse(withSchema.stdout).ok, false);
+});
+
+test('contract validate, direction:"error": an ErrorResponse-shaped body passes, one missing "code" exits 1', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const envelopePath = path.join(root, 'envelope.json');
+	const base = { sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'error' };
+
+	fs.writeFileSync(envelopePath, JSON.stringify({ ...base, payload: { body: { code: 'WIDGET_NOT_FOUND' } } }));
+	const ok = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(ok.code, 0);
+	assert.equal(JSON.parse(ok.stdout).ok, true);
+
+	fs.writeFileSync(envelopePath, JSON.stringify({ ...base, payload: { body: {} } }));
+	const missing = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(missing.code, 1);
+	assert.equal(JSON.parse(missing.stdout).ok, false);
+});
+
+test('an unsupported response schema: emit still exits 0 (WARN only), one CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED, evidence reflects it, and validate still accepts anything for that direction', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true, unsupportedResponseSchema: true }));
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--json'], root);
+	assert.equal(emit.code, 0, 'a schema-projection failure must never block completeness');
+	const contract = JSON.parse(emit.stdout);
+	assert.equal('responseSchema' in contract.operations.createWidget, false);
+	assert.equal(contract.operations.createWidget.errorSchema.required[0], 'code', 'error projection is unaffected by the response-side failure');
+	const unresolved = contract.warnings.filter((w) => w.code === 'CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED');
+	assert.equal(unresolved.length, 1);
+	assert.equal(unresolved[0].severity, 'warn');
+
+	const gateShow = run(['gate', 'show', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(JSON.parse(gateShow.stdout).record.evidence.openapi.response_schema_unresolved, 1);
+
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	const envelopePath = path.join(root, 'envelope.json');
+	fs.writeFileSync(envelopePath, JSON.stringify({
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'response',
+		payload: { anything: 'goes -- unconstrained fallback' },
+	}));
+	const validate = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(validate.code, 0, 'falls back to unconstrained when the schema could not be projected');
+});
+
+test('gate token: hand-editing responseSchema in the contract file stales the gate; re-emitting restores it -- no new token key needed', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	const contractPath = contractSchemaPath(root);
+	const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	contract.operations.createWidget.responseSchema.properties.id.type = 'integer';
+	fs.writeFileSync(contractPath, JSON.stringify(contract, null, 2));
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 4, 'hand-editing the contract file must stale the gate -- contract_hash covers responseSchema directly');
+
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+});
+
+test('snapshot markers: response_schema and error_schema both record "resolved"', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const snapshot = JSON.parse(fs.readFileSync(contractSnapshotPath(root), 'utf8'));
+	assert.equal(snapshot.operations.createWidget.response_schema, 'resolved');
+	assert.equal(snapshot.operations.createWidget.error_schema, 'resolved');
+});
+
+// A3 real-world find: `contract emit --json` writing a large contract to a PIPE (not a file or a
+// TTY) could be truncated -- process.exit() was called immediately after console.log(), and Node
+// does not guarantee a large async pipe write completes before a forced exit. Found live during
+// Team-IZ-Backend verification: organization's real contract (>64KB once response/error schemas
+// are projected) came back truncated at exactly 65536 bytes when captured via a subshell, while
+// the identical command redirected to a file wrote its full, correct length. Fixed by setting
+// process.exitCode instead of calling process.exit() in cmdContractEmit. This fixture
+// synthesizes a >64KB contract without needing many endpoints -- one operation with 400
+// long-`pattern` properties is enough to cross the boundary reliably.
+test('regression: a >64KB --json contract output is not truncated when captured via execFileSync (pipe-buffer-sized cutoff bug)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withResponses: true });
+	const bigProperties = {};
+	for (let i = 0; i < 400; i++) {
+		bigProperties[`field${i}`] = { type: 'string', pattern: `^${'a'.repeat(280)}$` };
+	}
+	doc.components.schemas.WidgetResponse = { type: 'object', required: ['id'], properties: { id: { type: 'string' }, ...bigProperties } };
+	const docFile = writeOpenApiFixture(root, doc);
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--json'], root);
+	assert.equal(emit.code, 0);
+	assert.ok(emit.stdout.length > 65536, `fixture must actually exceed the 64KB boundary that exposed the bug (got ${emit.stdout.length} bytes)`);
+	assert.doesNotThrow(() => JSON.parse(emit.stdout), 'output must be complete, valid JSON -- not truncated mid-write');
+	const contract = JSON.parse(emit.stdout);
+	assert.equal(Object.keys(contract.operations.createWidget.responseSchema.properties).length, 401);
 });

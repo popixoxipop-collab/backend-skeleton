@@ -411,7 +411,7 @@ function cmdContractEmit(args) {
 	// A2: unconditional (not gated behind !flags.json), same as the snapshot-reuse note above --
 	// a diagnostic side-channel note belongs on stderr regardless of what shape stdout takes.
 	if (reconciliation && !reconciliation.schemaProjection.enabled) {
-		console.error(`note: OpenAPI document declares version "${reconciliation.document.openapi_version ?? '(unknown)'}" -- request body schema projection needs 3.1.x, path/verb reconciliation above is unaffected`);
+		console.error(`note: OpenAPI document declares version "${reconciliation.document.openapi_version ?? '(unknown)'}" -- schema projection needs 3.1.x, path/verb reconciliation above is unaffected`);
 	}
 
 	const resolution = loadResolution(root, flags.feature);
@@ -452,7 +452,9 @@ function cmdContractEmit(args) {
 		if (reconciliation) {
 			console.log(`openapi: ${reconciliation.stats.matched} path(s) corrected, ${reconciliation.stats.adopted} adopted (prefix ${reconciliation.prefix.value ?? '(none)'}, ${reconciliation.prefix.origin})`);
 			if (reconciliation.schemaProjection.enabled) {
-				console.log(`openapi: ${reconciliation.stats.schema_resolved} request body schema(s) projected, ${reconciliation.stats.schema_unresolved} unresolved`);
+				const s = reconciliation.stats;
+				console.log(`openapi: ${s.schema_resolved} request body schema(s) projected, ${s.schema_unresolved} unresolved`);
+				console.log(`openapi: ${s.response_schema_resolved} response + ${s.error_schema_resolved} error schema(s) projected, ${s.response_schema_unresolved + s.error_schema_unresolved} unresolved`);
 			}
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
@@ -475,7 +477,19 @@ function cmdContractEmit(args) {
 			}
 		}
 	}
-	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
+	// A3: NOT process.exit() here -- found live, during real Team-IZ-Backend verification, not
+	// a hypothetical. A large `--json` contract (organization/member/projectexecution-sized,
+	// now routinely >64KB once response/error schemas are projected) written to a PIPE (not a
+	// TTY or a file) can have its stdout write still in flight when process.exit() forcibly
+	// tears the process down -- Node does not guarantee a pending async pipe write completes
+	// first. Reproduced directly: `contract emit --json` captured via a subshell truncated at
+	// exactly 65536 bytes (a classic pipe-buffer-sized cutoff) while the same command redirected
+	// to a file wrote its full, correct length. Setting exitCode (not calling exit()) lets the
+	// event loop drain -- including flushing this write -- before Node exits on its own with the
+	// same code. This is the last statement in this function, and cmdContractEmit is the last
+	// thing `main()` calls on this path, so there is nothing else pending that exitCode would
+	// incorrectly keep alive.
+	process.exitCode = evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS;
 }
 
 function loadContract(root, featureId) {

@@ -45,19 +45,38 @@ export function validateEnvelopeStructure(envelope) {
 // D-openapi-request-schema: Team-IZ-Backend has no Jackson customization, so the real endpoints
 // accept and ignore unknown body fields (Spring Boot's default), and a contract that rejects what
 // the real API accepts is a false negative, not a safety improvement.
-export function operationPayloadSchema(opContract) {
-	const properties = { pathParams: opContract.pathParams };
-	const required = ['pathParams'];
-	const bodySchema = opContract.requestBodySchema ?? { type: 'object' };
-	if (opContract.body === true) {
-		properties.body = bodySchema;
-		required.push('body');
-	} else if (opContract.body === 'unknown') {
-		properties.body = bodySchema;
+//
+// A3: `direction` selects which of the operation's three projected schemas this payload is
+// checked against. `request` behavior is completely unchanged (byte-identical, that branch always
+// returns a schema). `response`/`error` return `null` -- unconstrained, exactly as before A3 --
+// when the operation has no projected responseSchema/errorSchema; when it does, the payload must
+// be `{body: <the actual response/error body>}`, NOT the bare body. The wrapper (rather than
+// payload being the response body directly) keeps a future status-code field additive
+// (`payload.status`) instead of requiring a breaking `sbf` bump, and keeps this function's return
+// shape uniform across all three directions ("a named-parts object, additionalProperties:false")
+// -- see D-openapi-response-schema. An unrecognized `direction` also returns null (unconstrained),
+// matching the envelope schema's own enum being the actual gate on valid direction values.
+export function operationPayloadSchema(opContract, direction = 'request') {
+	if (direction === 'request') {
+		const properties = { pathParams: opContract.pathParams };
+		const required = ['pathParams'];
+		const bodySchema = opContract.requestBodySchema ?? { type: 'object' };
+		if (opContract.body === true) {
+			properties.body = bodySchema;
+			required.push('body');
+		} else if (opContract.body === 'unknown') {
+			properties.body = bodySchema;
+		}
+		// body === false: deliberately absent from `properties` -- with additionalProperties:false
+		// below, a payload that includes a body for a known-bodyless operation is rejected outright.
+		return { type: 'object', additionalProperties: false, properties, required };
 	}
-	// body === false: deliberately absent from `properties` -- with additionalProperties:false
-	// below, a payload that includes a body for a known-bodyless operation is rejected outright.
-	return { type: 'object', additionalProperties: false, properties, required };
+	if (direction === 'response' || direction === 'error') {
+		const schema = direction === 'response' ? opContract.responseSchema : opContract.errorSchema;
+		if (!schema) return null;
+		return { type: 'object', additionalProperties: false, properties: { body: schema }, required: ['body'] };
+	}
+	return null;
 }
 
 // Validates a full envelope against a specific feature's contract: feature_id/feature_uid must
@@ -84,12 +103,15 @@ export function validateAgainstContract(envelope, contract) {
 		errors.push(`operation_id "${envelope.operation_id}" is not defined in this feature's contract (known operations: ${Object.keys(contract.operations).join(', ') || '(none)'})`);
 		return { ok: false, errors };
 	}
-	if (envelope.direction === 'request') {
-		const payloadSchema = operationPayloadSchema(opContract);
-		// A2: before this, payloadSchema was always 100% synthesized by this codebase, so
-		// ajv().compile() never threw. Now it can embed a projected requestBodySchema, and the
-		// contract file itself is hand-editable on disk (the `contract` gate would go stale, but
-		// this function doesn't consult gates) -- a malformed schema must fail cleanly, not crash.
+	// A3: direction-agnostic -- operationPayloadSchema() returns null for response/error when
+	// nothing was projected (unconstrained, exactly as every direction behaved before A2/A3), and a
+	// real schema otherwise. request behavior is unchanged (that branch always returns a schema).
+	const payloadSchema = operationPayloadSchema(opContract, envelope.direction);
+	if (payloadSchema) {
+		// A2: before A2, payloadSchema was always 100% synthesized by this codebase, so
+		// ajv().compile() never threw. Now it can embed a projected schema, and the contract file
+		// itself is hand-editable on disk (the `contract` gate would go stale, but this function
+		// doesn't consult gates) -- a malformed schema must fail cleanly, not crash.
 		let validateFn;
 		try {
 			validateFn = ajv().compile(payloadSchema);
@@ -104,9 +126,8 @@ export function validateAgainstContract(envelope, contract) {
 			}
 		}
 	}
-	// response/error directions: not constrained beyond the envelope's own structure -- we don't
-	// have response DTO field shapes without deeper Java parsing than Phase 2's scan does. See
-	// DECISIONS.md D-contract-scope.
+	// No payloadSchema (unknown direction, or a known direction with nothing projected for this
+	// operation): not constrained beyond the envelope's own structure -- see D-contract-scope.
 	return { ok: errors.length === 0, errors };
 }
 

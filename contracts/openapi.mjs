@@ -33,6 +33,18 @@ const MAX_PATTERN_LENGTH = 300; // real max observed: 77
 const JSON_MEDIA_TYPE = 'application/json';
 const SCHEMA_REF_PREFIX = '#/components/schemas/';
 
+// A3: response/error JSON Schema projection. Reuses every inlineSchema() defense above
+// unchanged (keyword/format whitelist, MAX_SCHEMA_DEPTH/NODES/PATTERN_LENGTH) -- measured by
+// running inlineSchema() itself over all 634 real response/error schema roots in Team-IZ-
+// Backend's document at the current caps: 634/634 resolved, zero failures, max depth 14 (2.3x
+// headroom), max single-schema node count 231 (8.7x headroom). The one genuinely new risk A3
+// introduces is fan-out: A2 resolved at most 1 schema per operation (a request body), but a
+// response/error side can have many documented statuses -- MAX_RESPONSES_PER_OPERATION bounds
+// that (real max observed: 9). See D-openapi-response-schema in DECISIONS.md.
+const MAX_RESPONSES_PER_OPERATION = 64;
+const SUCCESS_STATUS_RE = /^2[0-9]{2}$/;
+const ERROR_STATUS_RE = /^[45][0-9]{2}$/;
+
 // Same shape convention as the rest of contracts/ -- operationId becomes an object key
 // downstream (contracts/emit.mjs's `operations[operationId]`), so it's whitelisted before it's
 // trusted anywhere. Deliberately excludes a leading `_` (so `__proto__` fails on the first
@@ -227,7 +239,12 @@ export function indexOpenApiDocument(doc) {
 			const requestBody = typeof operation.requestBody === 'object' && operation.requestBody !== null && !Array.isArray(operation.requestBody)
 				? operation.requestBody
 				: null;
-			const entry = { verb, path: routeKey, operationId, requestBody };
+			// A3: raw responses map retained verbatim, same "no new read, no new size cap" reasoning
+			// as requestBody above -- bounded by MAX_DOCUMENT_BYTES already.
+			const responses = typeof operation.responses === 'object' && operation.responses !== null && !Array.isArray(operation.responses)
+				? operation.responses
+				: null;
+			const entry = { verb, path: routeKey, operationId, requestBody, responses };
 
 			const routeMatchKey = `${verb} ${normalizedRoute}`;
 			const existingRoute = byRoute.get(routeMatchKey);
@@ -468,6 +485,113 @@ function applyRequestBodySchema(result, docEntry, componentSchemas, stats) {
 	}
 }
 
+// A3: recursive key-sorted serialization, used to compare two INLINE-RESOLVED schemas for
+// structural equality (two different raw response-object nodes can resolve to the identical
+// schema -- e.g. the real Team-IZ-Backend `findCurrentProject`, whose 200 and 204 responses are
+// separate objects but both reference the same `ProjectResponse` component). Array order
+// (`required`/`enum`) is significant, which makes this comparison CONSERVATIVE: two schemas that
+// are semantically equal but differ in array order compare as distinct, which only ever produces
+// an extra (still-correct) `anyOf` branch -- never a false "these are the same" collapse.
+function canonicalJson(value) {
+	if (value === null || typeof value !== 'object') return JSON.stringify(value);
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+	const keys = Object.keys(value).sort();
+	return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(',')}}`;
+}
+
+// A3: pure. Projects every documented response whose status matches `statusRe` (SUCCESS_STATUS_RE
+// or ERROR_STATUS_RE) and has an `application/json` schema, deduplicating on the RAW schema node
+// first (JSON.stringify -- cheap, and collapses the extremely common case of many statuses all
+// pointing at the literal same node, e.g. every error status sharing one $ref to `ErrorResponse`)
+// and then on the RESOLVED schema via canonicalJson (catches distinct $refs that happen to
+// resolve identically). Returns exactly one discriminated outcome:
+//   {outcome:'none'}                  no matching status, or none had a usable schema
+//   {outcome:'skipped-media-type'}    a matching status had `content` but no application/json
+//   {outcome:'unresolved', reason}    at least one matching schema failed inlineSchema()
+//   {outcome:'resolved', schema, sources}  sources = how many distinct resolved shapes were unioned
+// Fails closed on the FIRST unresolvable schema rather than unioning the rest -- a partial anyOf
+// would describe a NARROWER set of shapes than the document actually allows, i.e. it would reject
+// a real response the API produces. That is the same "never emit something that contradicts
+// reality" rule A2 applied in the opposite direction (never emit a schema weaker than the real
+// DTO) -- here the risk runs the other way, so the fix runs the other way too, but the underlying
+// principle (don't guess, don't approximate) is identical.
+function projectResponseSchemas(responses, statusRe, componentSchemas) {
+	if (!responses) return { outcome: 'none' };
+	const statusKeys = Object.keys(responses);
+	if (statusKeys.length > MAX_RESPONSES_PER_OPERATION) {
+		return { outcome: 'unresolved', reason: 'too-many-responses' };
+	}
+
+	const rawNodesByKey = new Map();
+	let sawContentWithoutJson = false;
+	for (const status of statusKeys) {
+		if (!statusRe.test(status)) continue;
+		const resp = responses[status];
+		if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) continue;
+		const content = resp.content;
+		if (typeof content !== 'object' || content === null || Array.isArray(content)) continue; // no content at all -- nothing to project for this status, not a failure
+		if (!Object.hasOwn(content, JSON_MEDIA_TYPE)) { sawContentWithoutJson = true; continue; }
+		const mediaEntry = content[JSON_MEDIA_TYPE];
+		const schemaNode = mediaEntry && typeof mediaEntry === 'object' && !Array.isArray(mediaEntry) ? mediaEntry.schema : null;
+		if (!schemaNode || typeof schemaNode !== 'object' || Array.isArray(schemaNode)) continue;
+		const rawKey = JSON.stringify(schemaNode);
+		if (!rawNodesByKey.has(rawKey)) rawNodesByKey.set(rawKey, schemaNode);
+	}
+
+	if (rawNodesByKey.size === 0) {
+		return { outcome: sawContentWithoutJson ? 'skipped-media-type' : 'none' };
+	}
+
+	const resolvedByCanonical = new Map();
+	for (const node of rawNodesByKey.values()) {
+		const resolved = inlineSchema(node, componentSchemas);
+		if (!resolved.ok) return { outcome: 'unresolved', reason: resolved.reason };
+		const canonicalKey = canonicalJson(resolved.schema);
+		if (!resolvedByCanonical.has(canonicalKey)) resolvedByCanonical.set(canonicalKey, resolved.schema);
+	}
+
+	const distinct = [...resolvedByCanonical.values()];
+	if (distinct.length === 1) return { outcome: 'resolved', schema: distinct[0], sources: 1 };
+	// A3: anyOf, NEVER oneOf. A2 established that projected schemas never carry
+	// additionalProperties:false (Team-IZ-Backend has no Jackson customization -- see
+	// D-openapi-request-schema), so two documented response shapes routinely overlap (a minimal
+	// 202/204 body is often a strict subset of the 200 body's fields). oneOf requires EXACTLY one
+	// branch to match and would reject a real, valid response matching more than one branch --
+	// verified directly against the installed Ajv2020: a payload matching two overlapping
+	// branches is rejected by oneOf and accepted by anyOf. anyOf states precisely what's true
+	// given the envelope carries no status code: "matches at least one documented shape."
+	return { outcome: 'resolved', schema: { anyOf: distinct }, sources: distinct.length };
+}
+
+// A3: applies both response (2xx) and error (4xx/5xx) projection to a `matched`/`adopted` result,
+// mirroring applyRequestBodySchema's placement/gating exactly (same two call sites, same
+// schemaProjection.enabled guard). Fields are set ONLY when resolved -- omitted, not null/false,
+// so an operation with nothing to project stays byte-identical to pre-A3 output (same discipline
+// as A2's requestBodySchema).
+function applyResponseSchemas(result, docEntry, componentSchemas, stats) {
+	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, SUCCESS_STATUS_RE, componentSchemas), stats, 'response');
+	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, ERROR_STATUS_RE, componentSchemas), stats, 'error');
+}
+
+function applyProjectionOutcome(result, projected, stats, kind) {
+	const fieldSchema = kind === 'response' ? 'responseSchema' : 'errorSchema';
+	const fieldSources = kind === 'response' ? 'responseSchemaSources' : 'errorSchemaSources';
+	const fieldReason = kind === 'response' ? 'responseSchemaUnresolvedReason' : 'errorSchemaUnresolvedReason';
+	const counterPrefix = kind === 'response' ? 'response_schema_' : 'error_schema_';
+	if (projected.outcome === 'resolved') {
+		result[fieldSchema] = projected.schema;
+		result[fieldSources] = projected.sources;
+		stats[`${counterPrefix}resolved`]++;
+	} else if (projected.outcome === 'unresolved') {
+		result[fieldReason] = projected.reason;
+		stats[`${counterPrefix}unresolved`]++;
+	} else if (projected.outcome === 'skipped-media-type') {
+		stats[`${counterPrefix}skipped_media_type`]++;
+	} else {
+		stats[`${counterPrefix}none`]++;
+	}
+}
+
 // The core reconciliation, pure (no I/O). `module` is a scanReport related_modules entry (as
 // selected by contracts/emit.mjs's selectModule -- caller's responsibility to pass the SAME
 // selection buildContract() will use, so endpointKey(ci,ei) lines up). `pathPrefix`, if given
@@ -495,7 +619,13 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 		// A2: initialized here (not left implicit) so they're always present in evidence.openapi /
 		// the snapshot, even for a document with no request bodies at all -- a stable shape for
 		// downstream consumers that already spread ...stats (bin/bskel.mjs, snapshotFromReconciliation).
+		// Bare `schema_*` means request-body specifically (A2) -- kept as-is, not renamed to
+		// `request_schema_*`, for evidence-key stability (test/contract-cli.test.mjs and real gate
+		// records already assert this exact name).
 		schema_resolved: 0, schema_unresolved: 0, schema_none: 0, schema_skipped_media_type: 0,
+		// A3: response (2xx) / error (4xx/5xx) counters, same stable-shape reasoning.
+		response_schema_resolved: 0, response_schema_unresolved: 0, response_schema_none: 0, response_schema_skipped_media_type: 0,
+		error_schema_resolved: 0, error_schema_unresolved: 0, error_schema_none: 0, error_schema_skipped_media_type: 0,
 	};
 	// A2: an OpenAPI 3.0 document's `exclusiveMinimum`/`nullable` mean something different under
 	// JSON Schema 2020-12 (the dialect Ajv2020 speaks) -- rather than silently misinterpreting
@@ -531,9 +661,12 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 							scanVerb: ep.verb, scanPath: ep.path,
 						};
 						stats.matched++;
-						// A2: matched/adopted ONLY -- schema enrichment never applies to drift/missing/
+						// A2/A3: matched/adopted ONLY -- schema enrichment never applies to drift/missing/
 						// ambiguous/unresolved, same "don't guess" rule A1 established for path/verb.
-						if (schemaProjection.enabled) applyRequestBodySchema(result, docEntry, index.componentSchemas, stats);
+						if (schemaProjection.enabled) {
+							applyRequestBodySchema(result, docEntry, index.componentSchemas, stats);
+							applyResponseSchemas(result, docEntry, index.componentSchemas, stats);
+						}
 					} else {
 						result = {
 							kind: 'drift', reason: 'path',
@@ -558,7 +691,10 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 						scanVerb: ep.verb, scanPath: ep.path,
 					};
 					stats.adopted++;
-					if (schemaProjection.enabled) applyRequestBodySchema(result, hits[0], index.componentSchemas, stats);
+					if (schemaProjection.enabled) {
+						applyRequestBodySchema(result, hits[0], index.componentSchemas, stats);
+						applyResponseSchemas(result, hits[0], index.componentSchemas, stats);
+					}
 				} else if (hits.length === 1) {
 					// A single route match, but the document itself never gave that operation an
 					// operationId -- nothing to route by, so this can't become an addressable
@@ -633,6 +769,17 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 					? 'resolved'
 					: result.schemaUnresolvedReason
 						? `unresolved:${result.schemaUnresolvedReason}`
+						: 'none',
+				// A3: same decision-only audit trail, for the response/error projections.
+				response_schema: result.responseSchema
+					? (result.responseSchemaSources > 1 ? `resolved:union:${result.responseSchemaSources}` : 'resolved')
+					: result.responseSchemaUnresolvedReason
+						? `unresolved:${result.responseSchemaUnresolvedReason}`
+						: 'none',
+				error_schema: result.errorSchema
+					? (result.errorSchemaSources > 1 ? `resolved:union:${result.errorSchemaSources}` : 'resolved')
+					: result.errorSchemaUnresolvedReason
+						? `unresolved:${result.errorSchemaUnresolvedReason}`
 						: 'none',
 			};
 		}

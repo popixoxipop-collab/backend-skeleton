@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
 import {
 	loadOpenApiDocument, indexOpenApiDocument, inferPathPrefix, reconcileModule,
 	normalizeRoute, OPERATION_ID_RE, PATH_PREFIX_RE,
@@ -613,4 +614,275 @@ test('reconcileModule: multipart/form-data content is skipped (schema_skipped_me
 	assert.equal(recon.stats.schema_none, 1);
 	assert.equal(recon.byEndpoint.get('0:0').requestBodySchema, undefined);
 	assert.equal(recon.byEndpoint.get('0:1').requestBodySchema, undefined);
+});
+
+// ===== A3: response/error JSON Schema projection =====
+
+function createWidgetModule() {
+	return oneControllerModule([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+}
+
+function docWithResponses(responses, { components = {}, openapiVersion = '3.1.0' } = {}) {
+	return {
+		openapi: openapiVersion,
+		components: { schemas: components },
+		paths: { '/api/v0/widgets': { post: { operationId: 'createWidget', responses } } },
+	};
+}
+
+function reconcileCreateWidget(doc) {
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0' });
+	return { recon, result: recon.byEndpoint.get('0:0') };
+}
+
+test('indexOpenApiDocument retains responses verbatim on each entry; null when absent/non-object', () => {
+	const doc = {
+		paths: {
+			'/a': { get: { operationId: 'x', responses: { '200': { description: 'ok' } } } },
+			'/b': { get: { operationId: 'y' } },
+		},
+	};
+	const indexed = indexOpenApiDocument(doc);
+	assert.deepEqual(indexed.byOperationId.get('x').responses, { '200': { description: 'ok' } });
+	assert.equal(indexed.byOperationId.get('y').responses, null);
+});
+
+test('matched + one 2xx JSON schema -> responseSchema attached, response_schema_resolved counted', () => {
+	const doc = docWithResponses(
+		{ '201': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } } },
+		{ components: { Widget: { type: 'object', properties: { id: { type: 'string' } } } } },
+	);
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(result.kind, 'matched');
+	assert.equal(result.responseSchema.properties.id.type, 'string');
+	assert.equal(recon.stats.response_schema_resolved, 1);
+});
+
+test('400 and 500 sharing the identical $ref node -> a single errorSchema, no anyOf (raw-node dedupe before resolving)', () => {
+	const doc = docWithResponses(
+		{
+			'400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/ErrorResponse' } } } },
+			'500': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/ErrorResponse' } } } },
+		},
+		{ components: { ErrorResponse: { type: 'object', properties: { code: { type: 'string' } } } } },
+	);
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('anyOf' in result.errorSchema, false);
+	assert.equal(result.errorSchema.properties.code.type, 'string');
+	assert.equal(recon.stats.error_schema_resolved, 1);
+});
+
+test('two 2xx sharing the identical $ref node (the real findCurrentProject shape) -> a single responseSchema, no anyOf', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'204': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+		},
+		{ components: { Widget: { type: 'object' } } },
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal('anyOf' in result.responseSchema, false);
+});
+
+test('two 2xx with genuinely different schemas -> anyOf union of 2, responseSchemaSources === 2', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Full' } } } },
+			'202': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Partial' } } } },
+		},
+		{
+			components: {
+				Full: { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
+				Partial: { type: 'object', properties: { b: { type: 'string' } } },
+			},
+		},
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal(result.responseSchema.anyOf.length, 2);
+	assert.equal(result.responseSchemaSources, 2);
+});
+
+test('two distinct $refs that resolve to the identical schema collapse to 1 via canonicalJson comparison (proves resolved-shape dedup, not just raw-node dedup)', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/A' } } } },
+			'201': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/B' } } } },
+		},
+		{
+			components: {
+				A: { type: 'object', properties: { x: { type: 'string' } } },
+				B: { type: 'object', properties: { x: { type: 'string' } } },
+			},
+		},
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal('anyOf' in result.responseSchema, false);
+	assert.equal(result.responseSchemaSources, 1);
+});
+
+test('anyOf semantics regression: a payload matching two overlapping branches validates -- oneOf would reject it', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Full' } } } },
+			'202': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Minimal' } } } },
+		},
+		{
+			components: {
+				Full: { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
+				Minimal: { type: 'object', properties: { a: { type: 'string' }, b: { type: 'string' } }, required: ['a'] },
+			},
+		},
+	);
+	const { result } = reconcileCreateWidget(doc);
+	const schema = result.responseSchema;
+	assert.ok(schema.anyOf, 'must be a union');
+	assert.equal('oneOf' in schema, false);
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validateFn = ajv.compile(schema);
+	assert.equal(validateFn({ a: 'x' }), true, 'a payload matching both overlapping branches must validate under anyOf');
+});
+
+test('a 2xx with only text/csv content -> response_schema_skipped_media_type, no key, no warning-worthy failure', () => {
+	const doc = docWithResponses({ '200': { content: { 'text/csv': { schema: { type: 'string' } } } } });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(recon.stats.response_schema_skipped_media_type, 1);
+	assert.equal('responseSchema' in result, false);
+});
+
+test('a 204 with no content at all -> response_schema_none, not a failure', () => {
+	const doc = docWithResponses({ '204': { description: 'no content' } });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(recon.stats.response_schema_none, 1);
+	assert.equal('responseSchema' in result, false);
+});
+
+test('a response documented only under "default" contributes to neither success nor error bucket', () => {
+	const doc = docWithResponses(
+		{ default: { content: { 'application/json': { schema: { '$ref': '#/components/schemas/X' } } } } },
+		{ components: { X: { type: 'object' } } },
+	);
+	const { recon } = reconcileCreateWidget(doc);
+	assert.equal(recon.stats.response_schema_none, 1);
+	assert.equal(recon.stats.error_schema_none, 1);
+});
+
+test('one 2xx resolves, another has an unsupported keyword -> the WHOLE responseSchema fails closed, no partial union', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Good' } } } },
+			'201': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Bad' } } } },
+		},
+		{
+			components: {
+				Good: { type: 'object' },
+				Bad: { type: 'object', discriminator: { propertyName: 'kind' } },
+			},
+		},
+	);
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('responseSchema' in result, false);
+	assert.match(result.responseSchemaUnresolvedReason, /unsupported-keyword:discriminator/);
+	assert.equal(recon.stats.response_schema_unresolved, 1);
+});
+
+test('exceeding MAX_RESPONSES_PER_OPERATION fails closed with too-many-responses, for both response and error', () => {
+	const responses = {};
+	for (let i = 0; i < 65; i++) responses[`2${String(i).padStart(2, '0')}`] = { description: 'x' };
+	const doc = docWithResponses(responses);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal(result.responseSchemaUnresolvedReason, 'too-many-responses');
+	assert.equal(result.errorSchemaUnresolvedReason, 'too-many-responses');
+});
+
+test('a 302 with a JSON schema contributes to neither success nor error bucket', () => {
+	const doc = docWithResponses(
+		{ '302': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/X' } } } } },
+		{ components: { X: { type: 'object' } } },
+	);
+	const { recon } = reconcileCreateWidget(doc);
+	assert.equal(recon.stats.response_schema_none, 1);
+	assert.equal(recon.stats.error_schema_none, 1);
+});
+
+test('drift never gets responseSchema/errorSchema, even with perfectly resolvable ones in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		components: { schemas: { X: { type: 'object' } } },
+		paths: { '/api/v0/widgets/{id}': { post: { // verb drift: doc says POST, scan says GET
+			operationId: 'findWidget',
+			responses: { '200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/X' } } } } },
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/{id}', operationId: 'findWidget', method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('responseSchema' in result, false);
+	assert.equal('errorSchema' in result, false);
+});
+
+test('an OpenAPI 3.0 document disables response/error projection too -- all 8 new counters stay 0', () => {
+	const doc = docWithResponses(
+		{ '200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/X' } } } } },
+		{ components: { X: { type: 'object' } }, openapiVersion: '3.0.1' },
+	);
+	const { recon } = reconcileCreateWidget(doc);
+	assert.equal(recon.schemaProjection.enabled, false);
+	for (const k of [
+		'response_schema_resolved', 'response_schema_unresolved', 'response_schema_none', 'response_schema_skipped_media_type',
+		'error_schema_resolved', 'error_schema_unresolved', 'error_schema_none', 'error_schema_skipped_media_type',
+	]) {
+		assert.equal(recon.stats[k], 0, k);
+	}
+});
+
+test('genuine oneOf polymorphism (the real MySubmissionResponse.content shape) resolves with zero code change, both branches inlined', () => {
+	const doc = docWithResponses(
+		{ '200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/MySubmissionResponse' } } } } },
+		{
+			components: {
+				MySubmissionResponse: {
+					type: 'object',
+					properties: {
+						content: {
+							oneOf: [
+								{ '$ref': '#/components/schemas/GithubSubmissionContent' },
+								{ '$ref': '#/components/schemas/ZipSubmissionContent' },
+							],
+						},
+					},
+				},
+				GithubSubmissionContent: { type: 'object', properties: { repoUrl: { type: 'string' } }, required: ['repoUrl'] },
+				ZipSubmissionContent: { type: 'object', properties: { fileName: { type: 'string' } }, required: ['fileName'] },
+			},
+		},
+	);
+	const { result } = reconcileCreateWidget(doc);
+	const schema = result.responseSchema;
+	assert.equal(JSON.stringify(schema).includes('$ref'), false);
+	assert.equal(schema.properties.content.oneOf.length, 2);
+	assert.equal(schema.properties.content.oneOf[0].properties.repoUrl.type, 'string');
+	assert.equal(schema.properties.content.oneOf[1].properties.fileName.type, 'string');
+});
+
+test('additionalProperties with a primitive value (real Map<K,Long> response shape) resolves', () => {
+	const doc = docWithResponses(
+		{ '200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/CountsResponse' } } } } },
+		{ components: { CountsResponse: { type: 'object', additionalProperties: { type: 'integer', format: 'int64' } } } },
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.deepEqual(result.responseSchema.additionalProperties, { type: 'integer', format: 'int64' });
+});
+
+test('a component with properties+required and no type (the real ErrorResponse root shape) resolves, required preserved', () => {
+	const doc = docWithResponses(
+		{ '400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/ErrorResponse' } } } } },
+		{ components: { ErrorResponse: { properties: { code: { type: 'string' }, message: { type: 'string' } }, required: ['code', 'message'] } } },
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal('type' in result.errorSchema, false);
+	assert.deepEqual(result.errorSchema.required, ['code', 'message']);
 });

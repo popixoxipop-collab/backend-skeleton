@@ -151,3 +151,23 @@ test('evaluateResolution: CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (WARN) never blocks
 	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
 	assert.equal(classifyContract(contract), COMPLETENESS.COMPLETE);
 });
+
+// A3: the response/error schema-projection warning codes.
+test('CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED and CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED exist with {severity: WARN, waivable: true}', () => {
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED'));
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED'));
+});
+
+test('evaluateResolution: both new A3 codes never block, waived or not; completeness stays COMPLETE even with both present', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [
+			makeWarning('CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED', { subject: 'createWidget', message: 'x' }),
+			makeWarning('CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED', { subject: 'createWidget', message: 'y' }),
+		],
+	};
+	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
+	assert.equal(classifyContract(contract), COMPLETENESS.COMPLETE);
+});

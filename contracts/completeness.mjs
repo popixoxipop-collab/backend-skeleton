@@ -53,6 +53,16 @@ export const WARNING_CODES = Object.freeze({
 	// every real module -- same class as CONTRACT_BODY_UNKNOWN. See contracts/openapi.mjs's
 	// inlineSchema() and D-openapi-request-schema in DECISIONS.md.
 	CONTRACT_OPENAPI_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	// A3: same shape as CONTRACT_OPENAPI_SCHEMA_UNRESOLVED above, one for the response (2xx) side
+	// and one for the error (4xx/5xx) side -- deliberately TWO codes, not one shared with each
+	// other or with the request-side code above. An operation's request/response/error projection
+	// can each fail independently for unrelated reasons; if they shared a code, a waiver for one
+	// failure (keyed on {code, subject=operationId}) would silently also cover the other, and a
+	// future severity change to one direction would force splitting a shipped code. Same WARN
+	// reasoning: the pre-A3 unconstrained response/error check still applies, so this is a missed
+	// enhancement, not a defect. See D-openapi-response-schema in DECISIONS.md.
+	CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));
