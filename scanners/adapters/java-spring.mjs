@@ -113,6 +113,71 @@ function extractDomainEnum(text, filePath) {
 	return { name, constants, file: filePath };
 }
 
+const APPLICATION_CONFIG_GLOB = 'application*.{yml,yaml,properties}';
+
+function findApplicationConfigFiles(repoRoot) {
+	try {
+		return execFileSync('rg', ['--files', '-g', APPLICATION_CONFIG_GLOB, repoRoot], { encoding: 'utf8' })
+			.split('\n').filter(Boolean);
+	} catch {
+		return []; // rg exits 1 on "no files matched" -- not an error, just nothing to report
+	}
+}
+
+// A1 §7: three independent Spring config signals for a GLOBAL path prefix the regex endpoint
+// scanner structurally cannot see -- extractController() reads one file at a time and has no
+// idea a WebMvcConfigurer or application.yaml elsewhere in the repo prepends something to every
+// path it found. Team-IZ-Backend's ApiPathConfig.java (configurePathMatch + addPathPrefix) is
+// exactly the real defect D-openapi-reconciliation documents: every contract path this tool
+// emits without --openapi-file was silently wrong until A1 closed it with real-document
+// reconciliation. This function can't fix that (only a real OpenAPI document can) -- it exists
+// so a user who doesn't know --openapi-file exists gets told the defect is likely present, via
+// scanners/index.mjs's `unknowns` note.
+export function detectGlobalPathPrefixSignals(repoRoot) {
+	const signals = [];
+
+	// (1) WebMvcConfigurer.configurePathMatch + addPathPrefix("...", ...). Two-step, same style
+	// as listJavaFiles/extractController elsewhere in this file: `rg -l` finds candidate FILES
+	// mentioning configurePathMatch, then a content read confirms addPathPrefix( is actually
+	// present (a configurePathMatch override that does something else entirely -- a custom
+	// PathMatcher, a trailing-slash setting -- must not be reported as a prefix).
+	const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
+	if (fs.existsSync(srcRoot)) {
+		let candidates = [];
+		try {
+			candidates = execFileSync('rg', ['-l', 'configurePathMatch', '-g', '*.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean);
+		} catch {
+			// no matches -- not an error
+		}
+		for (const file of candidates) {
+			const text = fs.readFileSync(file, 'utf8');
+			const prefixMatch = text.match(/addPathPrefix\s*\(\s*"([^"]+)"/);
+			if (!prefixMatch) continue;
+			signals.push({ kind: 'configurePathMatch', file: path.relative(repoRoot, file), prefix: prefixMatch[1] });
+		}
+	}
+
+	// (2)/(3) application.yml/.yaml/.properties -- server.servlet.context-path (Spring Boot's own
+	// built-in global-prefix mechanism, same blind spot as (1)) and springdoc.paths-to-match
+	// (doesn't itself apply a prefix, but a pattern narrower than "/**" is strong circumstantial
+	// evidence one is documented, even when (1)/(2) are what actually implement it). Same
+	// good-enough-regex-not-a-real-YAML-parser philosophy as the rest of this file -- matches
+	// either YAML (`key:`) or properties (`a.b.c=`) form.
+	for (const file of findApplicationConfigFiles(repoRoot)) {
+		const text = fs.readFileSync(file, 'utf8');
+		const contextPath = text.match(/(?:^|\n)\s*context-path\s*:\s*(\S+)/) ?? text.match(/server\.servlet\.context-path\s*=\s*(\S+)/);
+		if (contextPath) {
+			signals.push({ kind: 'context-path', file: path.relative(repoRoot, file), prefix: contextPath[1].replace(/^["']|["']$/g, '') });
+		}
+		const pathsToMatch = text.match(/(?:^|\n)\s*paths-to-match\s*:\s*(\S+)/) ?? text.match(/springdoc\.paths-to-match\s*=\s*(\S+)/);
+		if (pathsToMatch) {
+			signals.push({ kind: 'paths-to-match', file: path.relative(repoRoot, file), pattern: pathsToMatch[1].replace(/^["']|["']$/g, '') });
+		}
+	}
+
+	return signals;
+}
+
 export function scanJavaSpring(repoRoot) {
 	const srcRoot = detectJavaSpringRoot(repoRoot);
 	if (!srcRoot) return null;
@@ -145,5 +210,5 @@ export function scanJavaSpring(repoRoot) {
 		}
 	}
 
-	return { srcRoot, modules: [...modules.values()] };
+	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot) };
 }

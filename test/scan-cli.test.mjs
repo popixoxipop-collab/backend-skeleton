@@ -22,7 +22,10 @@ function run(args, cwd) {
 	}
 }
 
-function buildFixtureRepo() {
+// A1 §7: `withGlobalPathPrefix` (default false, preserving every existing assertion byte-for-byte)
+// opt-in adds a real WebMvcConfigurer.configurePathMatch + addPathPrefix and a springdoc
+// paths-to-match, mirroring Team-IZ-Backend's actual ApiPathConfig.java/application.yaml shape.
+function buildFixtureRepo({ withGlobalPathPrefix = false } = {}) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-cli-fixture-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -50,6 +53,36 @@ public class WidgetController {
 	}
 }
 `);
+	if (withGlobalPathPrefix) {
+		const configDir = path.join(root, 'src', 'main', 'java', 'com', 'example', 'global', 'config');
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.writeFileSync(path.join(configDir, 'ApiPathConfig.java'), `
+package com.example.global.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.method.HandlerTypePredicate;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class ApiPathConfig implements WebMvcConfigurer {
+
+	@Override
+	public void configurePathMatch(PathMatchConfigurer configurer) {
+		configurer.addPathPrefix(
+				"/api/v0",
+				HandlerTypePredicate.forBasePackage("com.example.domain")
+		);
+	}
+}
+`);
+		const resourcesDir = path.join(root, 'src', 'main', 'resources');
+		fs.mkdirSync(resourcesDir, { recursive: true });
+		fs.writeFileSync(path.join(resourcesDir, 'application.yaml'), `
+springdoc:
+  paths-to-match: /api/v0/**
+`);
+	}
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
@@ -139,4 +172,39 @@ test('scan for an unrelated term on the same fixture is greenfield and auto-pass
 	assert.equal(report.verdict, 'greenfield');
 	const gateResult = run(['gate', 'require', 'scan', '--feature', '002-completely-unrelated'], root);
 	assert.equal(gateResult.code, 0);
+});
+
+// A1 §7 regression suite below: the scanner's own global-path-prefix detector.
+
+test('a fixture with no WebMvcConfigurer/application.yaml reports zero path_prefix_signals (regression: opt-in default is inert)', () => {
+	const root = buildFixtureRepo();
+	const scan = run(['scan', '--terms', 'widget', '--json'], root);
+	assert.equal(scan.code, 0);
+	const report = JSON.parse(scan.stdout);
+	assert.deepEqual(report.path_prefix_signals, []);
+	assert.ok(!report.unknowns.some((u) => u.includes('global path prefix')));
+});
+
+test('a fixture with ApiPathConfig.java + springdoc.paths-to-match: both signals detected, and the markdown output warns with --openapi-file guidance', () => {
+	const root = buildFixtureRepo({ withGlobalPathPrefix: true });
+	const scan = run(['scan', '--terms', 'widget', '--json'], root);
+	assert.equal(scan.code, 0);
+	const report = JSON.parse(scan.stdout);
+	const byKind = Object.fromEntries(report.path_prefix_signals.map((s) => [s.kind, s]));
+	assert.equal(byKind.configurePathMatch.prefix, '/api/v0');
+	assert.match(byKind.configurePathMatch.file, /ApiPathConfig\.java$/);
+	assert.equal(byKind['paths-to-match'].pattern, '/api/v0/**');
+
+	const markdown = run(['scan', '--terms', 'widget'], root);
+	assert.match(markdown.stdout, /global path prefix/);
+	assert.match(markdown.stdout, /--openapi-file/);
+	assert.match(markdown.stdout, /D-openapi-reconciliation/);
+});
+
+test('api_surface_source no longer makes the unverified "no committed openapi spec found" claim', () => {
+	const root = buildFixtureRepo();
+	const scan = run(['scan', '--terms', 'widget', '--json'], root);
+	const report = JSON.parse(scan.stdout);
+	assert.equal(report.api_surface_source.includes('no committed openapi spec found'), false);
+	assert.match(report.api_surface_source, /does not check for a committed OpenAPI document/);
 });

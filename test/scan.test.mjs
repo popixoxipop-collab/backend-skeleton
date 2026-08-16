@@ -41,6 +41,28 @@ test('oracle: scanning Team-IZ-Backend for "organization" finds the real Organiz
 	assert.deepEqual(statusEnum.constants, ['ACTIVE', 'SUSPENDED', 'DELETION_PENDING', 'DELETED']);
 });
 
+// A1 §7: the scanner's own global-path-prefix detector, run against the real defect it exists to
+// flag -- Team-IZ-Backend's ApiPathConfig.java is exactly what caused every contract path to be
+// wrong before --openapi-file (D-openapi-reconciliation).
+test('oracle: scanning Team-IZ-Backend detects the real ApiPathConfig.java configurePathMatch prefix and springdoc.paths-to-match, not a context-path (which this repo does not use)', { skip: !repoPresent && 'Team-IZ-Backend not present on this machine' }, () => {
+	const report = runScan({ repoRoot: TEAM_IZ_BACKEND, terms: ['organization'] });
+	const byKind = Object.fromEntries(report.path_prefix_signals.map((s) => [s.kind, s]));
+
+	assert.ok(byKind.configurePathMatch, 'expected a configurePathMatch signal');
+	assert.equal(byKind.configurePathMatch.prefix, '/api/v0');
+	assert.match(byKind.configurePathMatch.file, /ApiPathConfig\.java$/);
+
+	assert.ok(byKind['paths-to-match'], 'expected a springdoc.paths-to-match signal');
+	assert.equal(byKind['paths-to-match'].pattern, '/api/v0/**');
+
+	assert.equal(byKind['context-path'], undefined, 'Team-IZ-Backend does not set server.servlet.context-path');
+
+	assert.ok(
+		report.unknowns.some((u) => u.includes('global path prefix') && u.includes('/api/v0')),
+		'expected a human-readable warning in unknowns naming the detected prefix',
+	);
+});
+
 test('oracle detail: individual endpoint verb+path+operationId correlation is correct', { skip: !repoPresent && 'Team-IZ-Backend not present on this machine' }, () => {
 	const result = scanJavaSpring(TEAM_IZ_BACKEND);
 	const orgModule = result.modules.find((m) => m.module === 'organization');

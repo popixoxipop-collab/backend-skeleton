@@ -89,6 +89,15 @@ regex, no real Java parser -- see `scanners/adapters/java-spring.mjs`) when `bui
 `pom.xml` + `src/main/java` are present, else `generic-grep` (lower confidence route-pattern
 matching for Express/Flask/FastAPI-shaped code).
 
+For a `java-spring` scan, `report.path_prefix_signals` (also surfaced as a plain-language note in
+`unknowns` when non-empty) flags a global path prefix applied outside controller source -- a
+`WebMvcConfigurer.configurePathMatch`+`addPathPrefix(...)`, a `server.servlet.context-path`, or a
+`springdoc.paths-to-match` narrower than `/**` -- none of which the endpoint scanner can see on
+its own (it reads one controller file at a time). This is detection only, never a fix: it exists
+so a repo like Team-IZ-Backend (whose `ApiPathConfig.java` prefixes every path with `/api/v0`,
+invisible to source annotations alone) gets pointed at `--openapi-file` even by a user who doesn't
+already know that flag exists. See `D-openapi-reconciliation`'s §7 addendum in DECISIONS.md.
+
 `preflight` exit codes: `0` PASS, `10` not a git repo, `11` STALE_BASE (HEAD is behind the real
 default branch -- this is the exact bug class the tool exists to catch: a worktree silently
 based on a stale/abandoned branch), `12` WRONG_DEFAULT (the three independent sources for "what
