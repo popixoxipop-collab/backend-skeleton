@@ -29,7 +29,7 @@ function usage() {
 	console.error(`bskel -- backend-skeleton CLI
 
   bskel preflight [--max-behind N] [--no-fetch] [--allow-dirty] [--json]
-  bskel scan [--feature <id>] [--terms a,b,c] [--json]
+  bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
   bskel feature init --slug <name>
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
@@ -209,6 +209,7 @@ function cmdScan(args) {
 		terms: { type: 'string', default: '' },
 		db: { type: 'boolean', default: false },
 		json: { type: 'boolean', default: false },
+		'accept-low-confidence': { type: 'boolean', default: false },
 	});
 	if (flags.db) {
 		console.error('note: --db (Plane C) is not implemented yet -- scanning without it. See DECISIONS.md.');
@@ -239,6 +240,25 @@ function cmdScan(args) {
 		// `return` is required -- exitCode alone does not stop execution the way exit() did.
 		process.exitCode = 0;
 		return;
+	}
+
+	// G3: a low-confidence (generic-grep) scan writes nothing and touches no gate without explicit
+	// acknowledgment -- regardless of verdict, including greenfield, which used to auto-pass the
+	// scan gate with zero confidence-awareness. The contract stage already refuses a zero-operation
+	// contract unconditionally (A5, contracts/completeness.mjs), but generic-grep's route-pattern
+	// grep can still mis-score a "collision"/"adjacent" verdict a human would act on in `scan
+	// disposition` -- see D-generic-grep-reconnaissance in DECISIONS.md.
+	if (report.confidence === 'low' && !flags['accept-low-confidence']) {
+		console.log(flags.json ? JSON.stringify(report, null, 2) : renderScanMarkdown(report));
+		console.error(
+			'\nblocked: this scan used the low-confidence generic-grep adapter (route-pattern grep, ' +
+			'not a real parser -- collapsed evidence, no operation IDs, never contract-grade). Re-run ' +
+			'with --accept-low-confidence to proceed, or point this at a java-spring-shaped repo / use ' +
+			'--openapi-file at contract emit for a trustworthy result.',
+		);
+		// D-process-exit-audit: bounded by the report size already audited for the ad-hoc branch
+		// above (same report object, same command) -- no pipe-truncation risk.
+		process.exit(16);
 	}
 
 	const dir = specDir(root, flags.feature);

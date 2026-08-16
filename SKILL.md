@@ -87,6 +87,7 @@ bskel gate show stack          # or just one gate's own record (optional <name> 
 
 bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
 bskel scan --feature 001-organization-management      # writes specs/<id>/brownfield-scan.{json,md}, sets the `scan` gate
+bskel scan --feature <id> --terms ... --accept-low-confidence   # required when confidence is "low" (see below) -- otherwise exit 16
 bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel --note "..."
                                                         # required before anything downstream can pass the `scan` gate
                                                         # for a feature whose verdict was collision/adjacent
@@ -96,8 +97,19 @@ bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel --not
 relation found, still needs a disposition), `collision` (strong match -- e.g. an existing
 controller/entity/enum for the same module). Adapter is `java-spring` (ripgrep + full-file
 regex, no real Java parser -- see `scanners/adapters/java-spring.mjs`) when `build.gradle`/
-`pom.xml` + `src/main/java` are present, else `generic-grep` (lower confidence route-pattern
-matching for Express/Flask/FastAPI-shaped code).
+`pom.xml` + `src/main/java` are present, else `generic-grep` (route-pattern grep for
+Express/Flask/FastAPI-shaped code -- see `D-generic-grep-reconnaissance` in DECISIONS.md).
+
+**`generic-grep` is reconnaissance only, never contract-grade** -- no real parser, no operationId
+(so `contract emit` can never build a usable operation from it, per `D-contract-completeness`),
+`confidence: "low"` always. A `--feature`-scoped scan with `confidence: "low"` refuses to write
+`specs/<id>/brownfield-scan.{json,md}` or touch the `scan` gate at all -- **regardless of verdict,
+including `greenfield`** -- unless `--accept-low-confidence` is passed (exit `16` otherwise; the
+report is still printed so you can see what triggered the block). Ad-hoc mode is unaffected (it
+never wrote files or touched a gate to begin with). Its role is to answer "something
+route-shaped exists here", not to drive a trustworthy contract -- do not "helpfully" pass
+`--accept-low-confidence` reflexively just to unblock a feature; if this repo is actually
+Java/Spring-shaped, investigate why `scanJavaSpring()` didn't detect it first.
 
 For a `java-spring` scan, `report.path_prefix_signals` (also surfaced as a plain-language note in
 `unknowns` when non-empty) flags a global path prefix applied outside controller source -- a

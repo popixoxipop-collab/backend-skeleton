@@ -1319,3 +1319,73 @@ actually overwritten -- the CLI now checks `forced.length`, not `conflicts.lengt
 had nothing to resolve" from "force resolved N things." Locked in with a regression test
 (`test/handles-ownership-cli.test.mjs`, "(d)") asserting the JSON `forced` array and the correct
 note text, plus a sibling test ("(d-1)") for the genuine zero-conflict no-op case.
+
+## D-generic-grep-reconnaissance (G3): a route-pattern grep is evidence, not a verdict
+
+**WHY**: `scanGenericGrep()` (the non-Java fallback scanner) is real-project safety-net code, not
+a target adapter -- it's regex over route-declaration syntax, with no operationId, no real
+parser, and no way to distinguish a genuine route from a string that merely looks like one.
+Codex's original concern ("the current workflow can nevertheless resolve the scan and pass an
+empty contract") turned out to be **stale at the contract stage**: `contracts/completeness.mjs`'s
+`classifyContract()` already makes a zero-operation contract unconditionally `blocked` (not
+waivable, only `gate force`-able) regardless of *why* it has zero operations, and every
+generic-grep endpoint has `operationId: null` by construction, so it always hits that path. The
+real gap this entry closes is one level earlier: `bin/bskel.mjs` never referenced `confidence` or
+`adapter` anywhere (confirmed by grep across all ~1000 lines) -- a low-confidence scan's verdict
+(including `greenfield`, which auto-passes the `scan` gate) was acted on with zero
+confidence-awareness, and `scan disposition`'s reuse/extend/replace/parallel judgment call was
+made without any forcing function requiring the human to have actually registered that the
+evidence behind it was regex noise.
+
+Two concrete bugs found while implementing the "add file/line evidence and route prefixes" half
+of this item, neither in the original catalog text:
+1. **Score inflation from route count, not module relevance**. `scanGenericGrep()` turned every
+   matched *route* into its own separate fake "controller" object. `scoreModule()`'s className
+   match (+10 for module name is separate, but the +6 controller-className rule) then got counted
+   once per route instead of once per source file -- a file with 50 Express routes could score
+   300 on the term "express" alone, nothing to do with whether that file is actually related to
+   the searched module. Fixed by grouping matched routes by source file (the natural code-module
+   boundary for this adapter, playing the same role a controller class plays for java-spring)
+   before scoring, with `basePath` computed as the real segment-aware shared path prefix across
+   that file's routes (not one route's own full path standing in for the whole file).
+2. **express-router/fastapi regex overlap, found while writing the grouping fix**: `router\.(get
+   |...)\(` (express-router) and `@router\.(get|...)\(` (fastapi) share the bare `router.get(`
+   substring with no anchor between them, so every FastAPI route matched BOTH patterns and was
+   silently double-counted (once tagged `express-router`, once `fastapi`) -- invisible before this
+   change because each route was already its own separate entry either way, but became an
+   obviously duplicated pair of endpoints once grouped by file. Fixed with a `(?<!@)` negative
+   lookbehind on the express-router pattern.
+
+Also fixed as genuinely cheap, per the catalog's own framing: `verb: '?'` was hardcoded even
+though 3 of the 4 route patterns (express, express-router, fastapi) already capture the HTTP verb
+in a regex group and simply discarded it; and file/line evidence (`endpoints[].line`) was added
+via a straightforward byte-offset-to-line-number walk, since `matchAll()` already returns the
+match index for free.
+
+**`--accept-low-confidence`** (new flag on `bskel scan --feature <id>`): when `confidence ===
+'low'`, blocks (new exit code `16`) before writing `specs/<id>/brownfield-scan.{json,md}` or
+touching the `scan` gate at all, regardless of verdict -- the report is still printed so the
+human/agent can see what triggered the block. Ad-hoc mode (`bskel scan --terms ...` without
+`--feature`) is unaffected: it was already read-only and gate-untouched, so there is nothing for
+this flag to protect there.
+
+**What was deliberately NOT done**: per-route or per-framework confidence scoring. There is no
+real corpus of non-Java target repos analogous to what Team-IZ-Backend provides for java-spring,
+so any confidence tier finer than the existing flat `'low'` would be an unmeasured guess -- this
+project's own Data-First Numerics convention (no invented thresholds without data to calibrate
+them) rules that out until a real target repo exists to measure against. Flask's `methods=[...]`
+kwarg is also not parsed (verb stays `'?'` for `@app.route(...)`) -- doing so safely needs actual
+argument parsing, not a cheap regex tweak like the other three frameworks' verb extraction was.
+Module inference (grouping generic-grep's routes into real domain modules the way java-spring
+infers `organization`/`member`/etc.) is explicitly out of scope -- G3's own text says to keep this
+adapter reconnaissance-only, not to grow it into a second real adapter (that's G1/G2's territory).
+
+**COST**: a repo whose real backend genuinely lives behind Express/Flask/FastAPI now requires an
+extra `--accept-low-confidence` flag on every `--feature`-scoped scan, forever (there is no
+"upgrade path" to high confidence for a non-Java repo short of building a real adapter). New test
+infrastructure (`test/generic-grep-cli.test.mjs`) had to be built from scratch -- no existing
+fixture-building helper for a non-Java repo existed anywhere in `test/`.
+**EXIT**: if a real non-Java target repo (a G2-class FastAPI adapter's future oracle, or any
+other) becomes available, the per-framework confidence tiers this entry deliberately withheld
+could be measured and added then, following the same "measure the real target, whitelist from the
+measurement" discipline A2's `inlineSchema()` keyword whitelist used.
