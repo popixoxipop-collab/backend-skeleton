@@ -28,7 +28,11 @@
           "at": { "type": "string", "format": "date-time" },
           "forced": { "type": "boolean", "description": "a forced gate is always stored as status:\"pass\" with this set true -- there is no separate \"pass (forced)\" value on disk; requireGate() only reports that string back at read time." },
           "reason": { "type": "string", "description": "required when forced is true -- see lib/gates.mjs's forceGate (\"every bypass must be auditable\")." },
-          "evidence": { "type": "object" }
+          "evidence": { "type": "object" },
+          "inputs": {
+            "type": "object",
+            "description": "S2: the raw, pre-hash input set `token` was computed from, canonically key-sorted -- stored so a stale gate can report exactly WHICH input changed instead of only that the token moved (lib/gates.mjs's diffInputs()/explainStaleness()). Absent on records written before S2; requireGate() reports those as stale with stale_reason \"no_recorded_inputs\" rather than guessing."
+          }
         }
       }
     }

@@ -294,8 +294,77 @@ test('deleting a contract resolution (waiver) file after it unblocked the gate m
 	assert.equal(afterDelete.code, 1);
 	const report = JSON.parse(afterDelete.stdout);
 	assert.equal(report.pass, false);
-	assert.equal(report.gates.find((g) => g.gate === 'contract').status, 'stale');
+	const contractGate = report.gates.find((g) => g.gate === 'contract');
+	assert.equal(contractGate.status, 'stale');
+	// S2: end-to-end proof that a stale gate reports exactly which input changed, through the real
+	// `verify --json` path -- not just contract's head_sha moving, specifically resolution_hash.
+	assert.equal(contractGate.stale_reason, 'inputs_changed');
+	assert.deepEqual(contractGate.changed_inputs, ['resolution_hash']);
 
 	fs.writeFileSync(resolutionFilePath, backup);
 	assert.equal(JSON.parse(run(['verify', '--feature', '001-widget-management', '--json'], root).stdout).pass, true, 'restoring the original resolution file must un-stale the gate');
+});
+
+// S2: same scenario, non-JSON path -- the human-readable report must also name the changed input,
+// not just print "stale".
+test('the non-JSON verify report names the changed input on a stale gate', () => {
+	const root = buildFixtureRepo({ unmatchedEndpoint: true });
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management', '--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--all', '--reason', 'test'], root);
+
+	fs.rmSync(path.join(root, 'specs', '001-widget-management', 'contracts', '001-widget-management.resolution.json'));
+
+	const result = run(['verify', '--feature', '001-widget-management'], root);
+	assert.match(result.stdout, /\[FAIL\] contract .*\(stale: resolution_hash\)/);
+});
+
+// S2 (c): a feature that never ran `handles emit` must not have another feature's manifest
+// entries (or the repo-owned infra) show up in ITS verify report -- checkArtifacts()'s
+// `!handlesRan && owned.length === 0` guard is what prevents this cross-feature bleed.
+test('a feature that never ran handles emit gets no handles-manifest artifact items, even when another feature has entries', () => {
+	const root = buildFixtureRepo({ unmatchedEndpoint: true });
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+
+	fs.mkdirSync(path.join(root, '.sbf'), { recursive: true });
+	fs.writeFileSync(path.join(root, '.sbf', 'handles-manifest.json'), JSON.stringify({
+		schema: 'sbf.handles-manifest/1',
+		files: {
+			'src/main/java/com/example/global/handle/HandleCodec.java': { kind: 'infra', ownership: 'repo', owner: '_repo', generated_hash: 'x' },
+			'src/main/java/com/example/domain/other/infrastructure/OtherResolver.java': { kind: 'resolver', ownership: 'feature', owner: '002-other-feature', generated_hash: 'y' },
+		},
+	}));
+
+	const result = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	const report = JSON.parse(result.stdout);
+	const handlesArtifacts = report.artifacts.filter((a) => a.artifact === 'handles infra' || a.artifact === 'handles resolver');
+	assert.deepEqual(handlesArtifacts, [], 'this feature never ran handles emit -- another feature\'s entries (and repo infra) must not appear in its report');
+});
+
+test('an unreadable handles manifest is reported as a finding, not thrown', () => {
+	const root = buildFixtureRepo({ unmatchedEndpoint: true });
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['gate', 'force', 'handles', '--feature', '001-widget-management', '--reason', 'test'], root);
+
+	fs.mkdirSync(path.join(root, '.sbf'), { recursive: true });
+	fs.writeFileSync(path.join(root, '.sbf', 'handles-manifest.json'), JSON.stringify({ schema: 'bogus/9', files: {} }));
+
+	const result = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 1);
+	assert.equal(result.stderr, '', 'must not crash with a stack trace');
+	const report = JSON.parse(result.stdout);
+	const unreadable = report.artifacts.find((a) => a.artifact === 'handles manifest (unreadable)');
+	assert.ok(unreadable);
+	assert.equal(unreadable.exists, false);
 });

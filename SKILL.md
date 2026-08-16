@@ -81,8 +81,15 @@ bskel preflight --allow-dirty  # skip the clean-working-tree requirement
 bskel preflight --max-behind N # tolerate up to N commits behind (default: 0)
 
 bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale (name must be one of: preflight|scan|contract|handles|stack -- an unknown name exits 14, it does not report not-run)
+  #    S2: a `stale` result also carries `changed_inputs` (the exact input keys that moved, e.g.
+  #    "resolution_hash" or "applied_file:scripts/dev-tunnel.sh") and `stale_reason`. A gate record
+  #    written before S2 shipped has no snapshot to diff, so it reports `stale_reason:
+  #    "no_recorded_inputs"` rather than guessing -- re-running the underlying command clears it.
 bskel gate force preflight --reason "..."   # explicit, audited bypass
-bskel gate show                # dump the full gate-state JSON for this repo
+bskel gate show                # dump the full gate-state JSON for this repo -- includes each
+  #    gate's `inputs` (the exact pre-hash input set its token was computed from). `show` is
+  #    deliberately a state DUMP: it never recomputes, so `gate require` is what tells you whether
+  #    the gate is CURRENTLY satisfied.
 bskel gate show stack          # or just one gate's own record (optional <name> positional arg)
 
 bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
@@ -256,6 +263,11 @@ bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run 
   #    is confirmed up, then either execs a given --exec "..." command or waits). Works in both
   #    ephemeral mode (no NGROK_DOMAIN set) and reserved-domain mode (NGROK_DOMAIN set) --
   #    same script, switched purely by env var presence, per D-ngrok.
+  #
+  #    S2: the `stack` gate now hashes the CONTENT of every applied file (scripts/dev-tunnel.sh,
+  #    scripts/_bskel-lib.sh, .env.example) -- deleting OR editing any of them stales the gate,
+  #    naming the exact file (D-gate-precision). It no longer stales merely because an unrelated
+  #    commit landed elsewhere in the repo. Re-running `--apply` (idempotent) is the remedy.
 ```
 
 ```bash
@@ -292,16 +304,21 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--
 bskel verify --feature <id> [--build] [--json]
   # -> aggregates all 5 gates (lib/gate-definitions.mjs is the single source both this and every
   #    gate-writing command consume) via the same machinery every other command uses, plus
-  #    artifact existence checks (contract file, handles migration if applicable). Each gate
+  #    artifact existence checks: the contract file, the handles migration if applicable, and
+  #    (S2) every generated handle file this feature owns plus repo-owned global/handle/* infra,
+  #    tracked via .sbf/handles-manifest.json (D-handles-ownership) -- existence-only, by design:
+  #    hand-finishing patchField() must never fail this, only the file being GONE does. Each gate
   #    carries a verifyPolicy: `required` (preflight/scan/contract -- not_run or stale always
   #    fails overall) or `required-when-present` (handles/stack -- not_run does NOT fail overall,
   #    but a gate that HAS run and is stale/awaiting_disposition still does -- "optional" means
   #    "not every feature needs this", not "once run, correctness stops mattering"). Each gate's
-  #    JSON entry reports `scope`/`policy`/`blocking`/`ran` alongside its status. --build actually
-  #    runs the detected build tool (gradlew/mvnw/npm) and reports real pass/fail, not just gate
-  #    status -- exits 0 only if everything blocking passed. The `contract` gate's evidence
-  #    additionally carries `completeness` (complete/partial/blocked) and `waived_count` -- the
-  #    non-JSON report shows this inline, e.g. `[PASS] contract (partial: 6 waived)`.
+  #    JSON entry reports `scope`/`policy`/`blocking`/`ran` alongside its status, and (S2) when
+  #    stale, `changed_inputs`/`stale_reason` -- the non-JSON report shows this inline too, e.g.
+  #    `[FAIL] contract (stale: resolution_hash)`. --build actually runs the detected build tool
+  #    (gradlew/mvnw/npm) and reports real pass/fail, not just gate status -- exits 0 only if
+  #    everything blocking passed. The `contract` gate's evidence additionally carries
+  #    `completeness` (complete/partial/blocked) and `waived_count` -- the non-JSON report shows
+  #    this inline, e.g. `[PASS] contract (partial: 6 waived)`.
 ```
 
 **Handle format**: `sbf1_<base64url(kind:type:uuid[:pointer])>` -- `kind` is `r` (whole
@@ -362,3 +379,9 @@ All 6 phases are implemented (`scanners/`, `contracts/`, `stack/`, `handles/`, `
   possible -- there is only one list. Forgetting `recompute` degrades that gate to "cannot detect
   staleness"; forgetting to add the name to `GATE_NAMES` makes `bskel verify` silently skip it
   entirely (`test/gate-definitions.test.mjs` catches exactly this).
+- S2: if a gate's real inputs are manifest-shaped (many files, one hash each -- see `stack`'s
+  `recompute` for the reference shape), flatten them into distinctly-prefixed top-level keys in
+  `recompute`'s returned object (`stack` uses `applied_file:<relpath>`), don't nest them under one
+  key. `lib/gates.mjs`'s `diffInputs()` only compares top-level keys, so flattening is what lets a
+  stale gate's `changed_inputs` name the exact file that drifted instead of just "some nested value
+  changed". See `D-gate-precision` in `DECISIONS.md`.

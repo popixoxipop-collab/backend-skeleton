@@ -63,6 +63,82 @@ test('stack apply --choice ngrok: dry-run writes nothing, --apply writes and is 
 	assert.ok(rerunPlan.files.every((f) => f.action === 'unchanged'));
 });
 
+// S2 (d): the stack gate's token now hashes the CONTENT of every applied file (not just
+// .sbf/stack.json's own bytes) -- deleting dev-tunnel.sh after apply used to leave stack.json
+// byte-identical and the gate `pass` forever, even though the comment right above the old
+// recompute() claimed applied-file drift was covered.
+test('deleting an applied file makes the stack gate stale and names the file', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0);
+
+	const devTunnelPath = path.join(root, 'scripts', 'dev-tunnel.sh');
+	const backup = fs.readFileSync(devTunnelPath);
+	fs.rmSync(devTunnelPath);
+
+	const stale = run(['gate', 'require', 'stack'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.equal(record.stale_reason, 'inputs_changed');
+	assert.deepEqual(record.changed_inputs, ['applied_file:scripts/dev-tunnel.sh']);
+
+	fs.writeFileSync(devTunnelPath, backup, { mode: 0o755 });
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0, 'restoring the file must un-stale the gate');
+});
+
+// The modification half -- something an existence-only check could never catch, and exactly why
+// this is a token-level fix (hashing content) rather than a checkArtifacts()-style existence check.
+test('editing an applied file, leaving stack.json byte-identical, still makes the stack gate stale', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
+
+	const devTunnelPath = path.join(root, 'scripts', 'dev-tunnel.sh');
+	const stackJsonBefore = fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8');
+	fs.appendFileSync(devTunnelPath, '\n# hand edit\n');
+	const stackJsonAfter = fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8');
+	assert.equal(stackJsonAfter, stackJsonBefore, 'sanity: editing the applied file does not touch stack.json itself');
+
+	const result = run(['gate', 'require', 'stack'], root);
+	assert.equal(result.code, 4);
+	const record = JSON.parse(result.stdout);
+	assert.deepEqual(record.changed_inputs, ['applied_file:scripts/dev-tunnel.sh']);
+});
+
+// Regression for the applied_files-erasure bug found while designing the token change: a second,
+// idempotent --apply used to overwrite applied_files with [] (applyPlan() only returns files it
+// actually wrote THIS run), silently discarding the only record of what the choice owns.
+test('a second, idempotent stack apply --apply still records the full applied file set', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
+	const firstRecord = JSON.parse(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'));
+	assert.deepEqual(firstRecord.applied_files.sort(), ['.env.example', 'scripts/_bskel-lib.sh', 'scripts/dev-tunnel.sh']);
+
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root); // idempotent: writes nothing new
+	const secondRecord = JSON.parse(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'));
+	assert.deepEqual(secondRecord.applied_files.sort(), ['.env.example', 'scripts/_bskel-lib.sh', 'scripts/dev-tunnel.sh'], 'applied_files must not collapse to [] on an idempotent re-apply');
+
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0, 'the gate must still be satisfiable after the idempotent re-apply');
+});
+
+// S2 (b), the one gate this slice fully closes it for: an unrelated commit must NOT stale the
+// stack gate, because its input set is now precisely enumerated (applied files) instead of the
+// repo-wide head_sha every other gate still uses.
+test('an unrelated commit does not stale the stack gate', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0);
+
+	fs.writeFileSync(path.join(root, 'UNRELATED.md'), 'nothing to do with the stack choice\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'chore: unrelated commit'], { cwd: root });
+
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0, 'an unrelated commit must not stale the stack gate -- its inputs no longer include head_sha');
+});
+
 test('stack apply requires preflight to have passed', () => {
 	const root = buildFixtureRepo();
 	const result = run(['stack', 'apply', '--choice', 'ngrok'], root);

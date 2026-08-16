@@ -1389,3 +1389,105 @@ fixture-building helper for a non-Java repo existed anywhere in `test/`.
 other) becomes available, the per-framework confidence tiers this entry deliberately withheld
 could be measured and added then, following the same "measure the real target, whitelist from the
 measurement" discipline A2's `inlineSchema()` keyword whitelist used.
+
+## D-gate-precision (S2, partial): a stale gate says which input moved; only the gate whose inputs are actually enumerable hashes them
+
+**WHY** -- three separate problems, closed with three different mechanisms because they're not
+actually the same problem:
+
+1. **`requireGate()` compared two sha256 strings and had no way to say more than "stale".** Once
+   both sides of a comparison are hashed down to one `sha256:...` string, there is nothing left to
+   diff -- "report exactly which input changed" needed the pre-hash inputs stored somewhere, not a
+   new flag. Fixed structurally: `passGate`/`awaitDispositionGate`/`forceGate` now persist
+   `inputs: sortKeysDeep(inputs)` alongside `token`, and `requireGate()`'s stale branch calls a new
+   `explainStaleness()` that diffs `record.inputs` against `currentInputs` key by key
+   (`lib/gates.mjs`'s `diffInputs()`) and returns `changed_inputs`/`stale_reason`. This applies to
+   all five gates immediately, with **zero change to what any gate currently hashes** -- pure
+   diagnostic upgrade. A gate record written before this shipped has no `inputs` to diff against;
+   `requireGate()` reports it `stale_reason: "no_recorded_inputs"` -- still definitively stale
+   (never a false pass), just honest that the reason is unavailable. The next real re-run of the
+   underlying command writes a record with `inputs`, so this self-heals; no migration, no
+   retroactive snapshot (a fabricated one would only fail the `RECORDED_INPUTS_MISMATCH` integrity
+   check this same mechanism adds -- `computeToken(record.inputs) === record.token` is now a total
+   invariant over every record this module writes, and a record that fails it, e.g. hand-edited
+   `.sbf` state, is reported as an integrity failure rather than diffed as if it were trustworthy).
+
+2. **`stack`'s token hashed only `.sbf/stack.json`'s own bytes, while the comment directly above
+   the old `recompute()` claimed "the applied files ... are gone/changed" was covered.** It wasn't
+   -- `stack.json`'s `applied_files` was a bare array of path strings, never a hash. Deleting or
+   editing `scripts/dev-tunnel.sh` after `stack apply` left the gate `pass` forever. Fixed at the
+   token level (not an existence check, unlike (3) below): `stack`'s `recompute()` now hashes every
+   file in `applied_files`, flattened into `applied_file:<relpath>` keys (so `diffInputs()` can name
+   the exact file). `head_sha` was deliberately **dropped** from this one gate -- its input set is
+   now precisely enumerated on disk, so a repo-wide "something, somewhere, moved" proxy adds nothing
+   except staling the gate on every unrelated commit. This is the one gate in this slice where the
+   catalog's full "unrelated commits stale every feature" complaint is completely closed, not just
+   diagnosed.
+
+   Designing this exposed a real, previously-harmless bug: `cmdStackApply` stored
+   `applied_files: written`, and `applyPlan()` (`stack/apply.mjs`) returns only files it actually
+   wrote *this run* (it skips `action: 'unchanged'`) -- so a second, idempotent `stack apply
+   --apply` silently overwrote `applied_files` with `[]`, erasing the record of what the choice
+   owns. Harmless while nothing read that array; would have silently gutted the new token's
+   protection the moment it shipped. Fixed in the same change: `applied_files` is now rebuilt from
+   `plan.files`/`plan.envExampleActions` every apply -- the choice's full desired file set in this
+   repo, not just this run's diff.
+
+3. **`handles`'s token never hashed the actual generated Java files, and nothing else did
+   either.** Unlike `stack`, this is **not** fixed at the token level, and that asymmetry is
+   deliberate: `ResourceResolverStub.java.tmpl`'s `patchField()` is *meant* to be hand-finished
+   (`D-resolver-scope`), so hashing generated content into the gate token would report every
+   intentional human edit as `stale` -- exactly backwards, and precisely the trap
+   `D-handles-ownership` already flagged this item would need to avoid. What's never legitimate is
+   the file being **gone**: nothing regenerates it implicitly, and the feature doesn't compile
+   without it. So this is checked the same way S6 checked `migration.sql` -- `lib/verify.mjs`'s
+   `checkArtifacts()` gained `handlesManifestChecks()`, which reads O2's
+   `.sbf/handles-manifest.json` and confirms every file this feature owns (plus repo-owned
+   `global/handle/*` infra, since every feature's resolvers depend on it) still exists on disk --
+   existence only, at verify time, entirely outside the gate token. A feature that never ran
+   `handles emit` gets zero items (no cross-feature bleed from another feature's manifest entries);
+   an unreadable/unrecognized manifest is reported as a `handles manifest (unreadable)` finding
+   instead of crashing `bskel verify`. Manifest paths are resolved through a new
+   `lib/fsutil.mjs::resolveWithinRoot()` (non-throwing sibling of `stack/apply.mjs`'s
+   `assertContained`) since they come from JSON, the same D-security-4 class of defense.
+
+**COST**: every gate record now carries a (usually small) `inputs` snapshot, so `gate show`/`verify
+--json` output grows a little. `schemas/state.schema.json` needed a new `inputs` property
+declaration (nothing loads this schema at runtime, but `D-gate-definitions` already treats keeping
+it accurate as a housekeeping obligation). Every repo with an already-passed `stack` gate goes
+stale exactly once after this ships (the token's shape changed) -- one idempotent `stack apply
+--choice <id> --apply` clears it; no other gate's token shape changed, so nothing else re-stales.
+A generated resolver a human deliberately wants gone now fails `verify` until its manifest entry is
+removed (or the feature re-emits) -- the same deliberate strictness S6 already established for a
+missing `migration.sql`, not a new kind of friction.
+
+**EXIT** -- what this slice deliberately did NOT do, and why, so it isn't quietly re-litigated
+later without checking this first:
+
+- **Complaints (a) "uncommitted Java changes do not stale `scan`" and (b) "unrelated commits stale
+  every feature" remain open for `scan`/`contract`/`handles`** (only `stack` is fully fixed, per
+  (2) above). Three cheap-looking alternatives were evaluated and rejected, on the record, so this
+  doesn't get re-explored from scratch next time: (i) `git log -1 -- <paths>` needs a narrow path
+  set that doesn't exist for a whole-repo collision scan -- `scanJavaSpring()` globs every `.java`
+  under `src/main/java`, and scoping to `src/` removes roughly none of a Spring backend's commits.
+  (ii) Building a manifest from the scan report's own matched files is structurally blind to a
+  **newly added** colliding controller -- the exact case `scan` exists to catch -- so it would make
+  `scan` look precise while being wrong about the one thing that matters most. (iii) Hashing the
+  whole `.java` glob fixes (a) but makes (b) strictly worse (every uncommitted edit anywhere, not
+  just every commit, would now stale every feature). The real fix is the scanners themselves
+  (`scanJavaSpring()`/`scanGenericGrep()`) reporting which files they actually read, plus a
+  per-feature narrowing policy built on top of that -- a real design, not a token tweak, and it's
+  the natural next S2 slice. Until then these four gates keep `head_sha`, and at least
+  `changed_inputs: ['head_sha']` now tells a human *why* they went stale instead of just that they
+  did.
+- **Transitive invalidation via an `upstream_token` input is deferred on a sequencing argument, not
+  effort.** While every gate but `stack` still hashes `head_sha`, any event that changes an
+  upstream gate's stored token also moves `head_sha`, which downstream gates already hash -- so an
+  explicit `upstream_token` input would be almost entirely redundant today, at the cost of
+  re-staling `contract`/`handles` for every existing repo for no real behavior change. It becomes
+  necessary in the exact slice that removes `head_sha` from those gates (the item above) and
+  belongs bundled with it, not built ahead of it.
+- Extension point for both: `lib/gate-definitions.mjs`'s `recompute` remains the single place to
+  make any gate's inputs more precise; the flat `prefix:<relpath>` key convention `stack` now uses
+  is what lets `diffInputs()` name an exact file, and any future manifest-shaped input (a `scan`
+  read-set, say) should follow it rather than nesting an object under one key.

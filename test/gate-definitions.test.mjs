@@ -104,3 +104,12 @@ test('contract gate recompute covers head_sha, contract_hash, resolution_hash, a
 	const inputs = gateInputs(process.cwd(), 'contract', '001-widget-management');
 	assert.deepEqual(Object.keys(inputs).sort(), ['contract_hash', 'head_sha', 'openapi_snapshot_hash', 'resolution_hash']);
 });
+
+// S2 (d): the stack gate's inputs are now precisely enumerated (one hash per applied file), so
+// head_sha -- a repo-wide "something, somewhere, moved" proxy -- was dropped as pure noise. With
+// no .sbf/stack.json present (true for this repo's own checkout), the only input left is the
+// record's own hash.
+test('the stack gate recompute no longer covers head_sha -- only the files it actually knows about', () => {
+	const inputs = gateInputs(process.cwd(), 'stack', null);
+	assert.deepEqual(Object.keys(inputs), ['stack_record_hash']);
+});

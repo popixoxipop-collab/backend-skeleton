@@ -193,3 +193,64 @@ test('deleting an emitted migration.sql fails verify, even though the handles ga
 	assert.equal(migrationArtifact.exists, false);
 	assert.equal(report.gates.find((g) => g.gate === 'handles').status, 'pass', 'the gate token does not cover migration.sql, so it stays pass -- the artifact check is the only defense');
 });
+
+// S2 (c): same gap as the migration.sql case above, but for the generated Java itself -- O2's
+// handles-manifest.json tracks every file `handles emit` wrote, and checkArtifacts() now checks
+// each one still exists, closing the one case S6 didn't (S6 only covered migration.sql).
+test('deleting an emitted resolver fails verify, even though the handles gate itself still reports pass', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	const resolverPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java');
+	fs.rmSync(resolverPath);
+
+	const result = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 1);
+	const report = JSON.parse(result.stdout);
+	assert.equal(report.pass, false);
+	const resolverArtifact = report.artifacts.find((a) => a.artifact === 'handles resolver' && a.path.endsWith('WidgetResolver.java'));
+	assert.ok(resolverArtifact);
+	assert.equal(resolverArtifact.exists, false);
+	assert.equal(report.gates.find((g) => g.gate === 'handles').status, 'pass', 'the gate token does not hash generated content -- the artifact check is the only defense');
+});
+
+test('deleting a shared global/handle infra file fails verify', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	fs.rmSync(path.join(root, 'src/main/java/com/example/global/handle/HandleCodec.java'));
+
+	const result = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 1);
+	const report = JSON.parse(result.stdout);
+	const infraArtifact = report.artifacts.find((a) => a.artifact === 'handles infra' && a.path.endsWith('HandleCodec.java'));
+	assert.ok(infraArtifact);
+	assert.equal(infraArtifact.exists, false);
+});
+
+// S2 (c), the deliberate flip side of the two tests above -- this is the test that would fail
+// loudly if someone later "improves" the handles gate by hashing generated CONTENT into its
+// token, which is precisely the trap D-handles-ownership and D-gate-precision both warn against:
+// patchField() is meant to be hand-finished, and that must never make the gate or verify unhappy.
+test('hand-finishing patchField() in a generated resolver does NOT stale the handles gate or fail verify', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	const resolverPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java');
+	const edited = fs.readFileSync(resolverPath, 'utf8').replace(
+		'throw new UnsupportedOperationException',
+		'// hand-completed: routes through widgetService\'s real update method\n\t\tif (true) return;\n\t\tthrow new UnsupportedOperationException',
+	);
+	fs.writeFileSync(resolverPath, edited);
+
+	const result = run(['verify', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 0);
+	const report = JSON.parse(result.stdout);
+	assert.equal(report.pass, true);
+	assert.equal(report.gates.find((g) => g.gate === 'handles').status, 'pass');
+	const resolverArtifact = report.artifacts.find((a) => a.artifact === 'handles resolver' && a.path.endsWith('WidgetResolver.java'));
+	assert.equal(resolverArtifact.exists, true, 'existence-only check: the file is still there, its content is not re-examined');
+});

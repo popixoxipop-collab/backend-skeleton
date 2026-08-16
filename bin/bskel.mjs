@@ -743,8 +743,18 @@ function cmdStackApply(args) {
 		console.error(err.message);
 		process.exit(14);
 	}
+	// S2: `applied_files` must be this choice's FULL file set in this repo (its desired state),
+	// not just whatever `applyPlan()` happened to write THIS run -- applyPlan() skips files whose
+	// action is 'unchanged', so a second, idempotent `--apply` used to overwrite this with `[]`,
+	// erasing the only record of what the choice owns. That silently gutted the `stack` gate's new
+	// applied-file hashing above (nothing left to hash -> nothing left to protect). `written` is
+	// still what's reported to the user below -- unchanged output, only the persisted record fixed.
+	const appliedFiles = [...new Set([
+		...plan.files.map((f) => f.path),
+		...(plan.envExampleActions.length > 0 ? ['.env.example'] : []),
+	])].sort();
 	const stackRecord = {
-		schema: 'sbf.stack/1', choice: flags.choice, applied_files: written,
+		schema: 'sbf.stack/1', choice: flags.choice, applied_files: appliedFiles,
 		env_example_keys: plan.envExampleActions.map((e) => e.key), at: new Date().toISOString(),
 	};
 	writeFileAtomic(path.join(root, '.sbf', 'stack.json'), `${JSON.stringify(stackRecord, null, 2)}\n`);
@@ -915,6 +925,16 @@ function cmdHandlesEmit(args) {
 	process.exit(0);
 }
 
+// S2: "stale" alone sends a human/agent re-running steps until one happens to stick. Name the
+// input that actually moved, using the exact reason requireGate()'s explainStaleness() reports.
+function describeStale(g) {
+	if (g.status !== 'stale') return '';
+	if (g.stale_reason === 'inputs_changed') return ` (stale: ${g.changed_inputs.join(', ')})`;
+	if (g.stale_reason === 'no_recorded_inputs') return ' (stale: recorded before input snapshots existed -- re-run this step for a precise reason)';
+	if (g.stale_reason === 'recorded_inputs_mismatch') return ' (stale: recorded inputs do not reproduce the recorded token -- .sbf state was hand-edited)';
+	return ' (stale)';
+}
+
 function renderVerifyReport({ featureId, gates, artifacts, build }) {
 	const lines = [`# Verify: ${featureId}`, '', '## Gates'];
 	for (const g of gates) {
@@ -927,7 +947,7 @@ function renderVerifyReport({ featureId, gates, artifacts, build }) {
 		const completenessNote = g.gate === 'contract' && evidence?.completeness
 			? ` (${evidence.completeness}${evidence.waived_count ? `: ${evidence.waived_count} waived` : ''})`
 			: '';
-		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}`);
+		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}${describeStale(g)}`);
 	}
 	lines.push('', '## Artifacts');
 	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
