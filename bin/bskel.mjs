@@ -21,6 +21,7 @@ import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../s
 import { planHandles } from '../handles/plan.mjs';
 import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verify.mjs';
+import { computeWorkflowState } from '../lib/workflow.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -40,6 +41,8 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."]
   bskel verify --feature <id> [--build] [--json]
+  bskel status [--feature <id>] [--json]
+  bskel next [--feature <id>] [--json]
   bskel gate require <name> [--feature <id>]      (name: ${GATE_NAMES.join('|')})
   bskel gate force <name> --reason "..." [--feature <id>]
   bskel gate show [<name>] [--feature <id>]
@@ -991,6 +994,67 @@ function cmdVerify(args) {
 	process.exit(overallPass ? 0 : 1);
 }
 
+// D1: same per-gate line shape renderVerifyReport uses (reusing describeStale), but framed as
+// "where am I" rather than a pass/fail verdict -- no VERIFY: PASS/FAIL line, and blocked_by/
+// next_actions/optional_not_run are appended so a human doesn't have to re-derive them by eye.
+function renderStatusReport(featureId, state) {
+	const lines = [`# Status: ${featureId ?? '(no feature -- repo scope only)'}`, '', '## Gates'];
+	for (const g of state.gates) {
+		const marker = g.code === EXIT.PASS ? 'PASS' : g.blocking ? 'BLOCKING' : `(${g.status})`;
+		const suffix = g.policy === 'required' ? '' : ` (${g.policy}, ${g.scope}-scoped)`;
+		lines.push(`- [${marker}] ${g.gate}${suffix}${describeStale(g)}`);
+	}
+	if (state.artifacts.length > 0) {
+		lines.push('', '## Artifacts');
+		for (const a of state.artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
+	}
+	lines.push('', '## Next');
+	if (state.next_actions.length > 0) {
+		lines.push(`- ${state.next_actions[0].command}   # ${state.next_actions[0].reason}`);
+	} else {
+		lines.push('- nothing blocking');
+	}
+	if (state.optional_not_run.length > 0) {
+		lines.push('', `## Optional, not yet run: ${state.optional_not_run.join(', ')}`);
+	}
+	return `${lines.join('\n')}\n`;
+}
+
+function cmdStatus(args) {
+	const root = requireRepoRoot();
+	const flags = parseFlags(args, { feature: { type: 'string', default: null }, json: { type: 'boolean', default: false } });
+	if (flags.feature) requireValidFeatureId(flags.feature);
+	const state = computeWorkflowState(root, flags.feature);
+	if (flags.json) {
+		console.log(JSON.stringify({ feature: flags.feature, ...state }, null, 2));
+	} else {
+		console.log(renderStatusReport(flags.feature, state));
+	}
+	process.exit(0);
+}
+
+// D1: prints exactly ONE copy-pasteable command on stdout (nothing else) so `$(bskel next)` is
+// safe to eval directly -- the reason it was chosen goes to stderr instead, matching the same
+// stdout/stderr split cmdContractEmit/cmdHandlesEmit already use for "here's the data" vs. "here's
+// what went wrong" output. Deliberately no --execute flag -- see D-status-next's EXIT in
+// DECISIONS.md for why running the recommended (often mutating) command automatically is out of
+// scope for this slice.
+function cmdNext(args) {
+	const root = requireRepoRoot();
+	const flags = parseFlags(args, { feature: { type: 'string', default: null }, json: { type: 'boolean', default: false } });
+	if (flags.feature) requireValidFeatureId(flags.feature);
+	const state = computeWorkflowState(root, flags.feature);
+	if (flags.json) {
+		console.log(JSON.stringify({ feature: flags.feature, blocked_by: state.blocked_by, next_actions: state.next_actions, optional_not_run: state.optional_not_run }, null, 2));
+	} else if (state.next_actions.length > 0) {
+		console.log(state.next_actions[0].command);
+		console.error(`# ${state.next_actions[0].reason}`);
+	} else {
+		console.log('# nothing blocking -- feature workflow complete (or no --feature given and preflight already passed)');
+	}
+	process.exit(0);
+}
+
 function cmdDoctor() {
 	const root = repoRoot();
 	const checks = [];
@@ -1058,6 +1122,12 @@ function main() {
 		}
 		case 'verify':
 			cmdVerify(rest);
+			break;
+		case 'status':
+			cmdStatus(rest);
+			break;
+		case 'next':
+			cmdNext(rest);
 			break;
 		case 'gate': {
 			const sub = rest[0];

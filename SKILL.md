@@ -37,6 +37,13 @@ and this skill exists to make it a guarantee instead.
 | 9 | `/speckit.tasks` | — | depends on spec-kit if present |
 | 10 | `bskel verify` | — | **implemented** |
 
+D1: not sure where you are in this table, or what to run next? `bskel status [--feature <id>]`
+shows every gate-backed phase's current state (1/2/3/5/7/8 -- the spec-kit phases 4/6/9 have no
+gate, so `bskel` cannot track them); `bskel next [--feature <id>]` prints exactly the one
+copy-pasteable command that resolves whatever's currently blocking, reusing the same gate
+computation `verify` uses (see `D-status-next` in `DECISIONS.md`). Neither auto-runs anything --
+`next`'s output is always read-only, even when the recommended command itself is mutating.
+
 **You MUST run `bskel preflight` before anything else touches this repo.** Do not substitute
 your own `git status`/`git log` reasoning for it -- the gate token is computed from a specific,
 re-verifiable input set (current `HEAD` sha + locally-resolved default branch), and every
@@ -319,6 +326,26 @@ bskel verify --feature <id> [--build] [--json]
   #    everything blocking passed. The `contract` gate's evidence additionally carries
   #    `completeness` (complete/partial/blocked) and `waived_count` -- the non-JSON report shows
   #    this inline, e.g. `[PASS] contract (partial: 6 waived)`.
+
+bskel status [--feature <id>] [--json]
+  # -> D1: same gate/artifact data `verify` computes (lib/verify.mjs's collectGateStatuses/
+  #    checkArtifacts, called directly -- not re-derived), framed as "where am I" rather than a
+  #    pass/fail verdict. No --feature: only the repo-scoped `preflight` gate is evaluated
+  #    (feature-scoped gates have nothing to look up without a feature_id). Also reports which
+  #    optional gates (handles/stack) haven't run yet.
+
+bskel next [--feature <id>] [--json]
+  # -> D1: prints exactly ONE copy-pasteable next command -- the earliest gate (in GATE_NAMES
+  #    order) that's currently blocking, with the remediation matching its ACTUAL status: a
+  #    not-run gate gets the command that establishes it, an awaiting_disposition gate gets that
+  #    gate's specific resolution (`scan disposition` for scan, `contract waive`/`gate force
+  #    contract` for contract -- never a generic re-run), and a stale gate gets the establishing
+  #    command again with S2's `changed_inputs` folded into the reason. Once every required gate
+  #    passes, recommends `bskel verify`. No --feature and preflight already passed: recommends
+  #    `feature init` (no feature exists yet) or points at `--feature <id>` naming known features.
+  #    Non-JSON output is stdout = the command only, reason on stderr -- safe for `$(bskel next)`.
+  #    No --execute flag: this never runs the command it recommends, even when it's read-only
+  #    (see D-status-next in DECISIONS.md for why auto-running mutating commands is out of scope).
 ```
 
 **Handle format**: `sbf1_<base64url(kind:type:uuid[:pointer])>` -- `kind` is `r` (whole

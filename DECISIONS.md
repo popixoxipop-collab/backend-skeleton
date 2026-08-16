@@ -1491,3 +1491,66 @@ later without checking this first:
   make any gate's inputs more precise; the flat `prefix:<relpath>` key convention `stack` now uses
   is what lets `diffInputs()` name an exact file, and any future manifest-shaped input (a `scan`
   read-set, say) should follow it rather than nesting an object under one key.
+
+## D-status-next (D1): `bskel status`/`bskel next` are presentation logic on top of gate state that already existed
+
+**WHY**: `bskel verify` already computes everything a human/agent needs to know where a feature
+stands -- `collectGateStatuses()` gives per-gate `blocking`/`status`/`stale_reason`/
+`changed_inputs` (S2), `checkArtifacts()` finds missing generated output -- but it flattens all of
+that into one pass/fail verdict for CI-style gating. `bskel gate show` goes the other way: raw
+state, zero interpretation. Neither answers "what do I actually run next" across the five-gate
+workflow, which is exactly the gap Codex's own P&L pass called out as unusually cheap to close
+*because* S1 already built `GATE_NAMES`/`GATE_DEFINITIONS` as the single ordered source of the
+workflow, and S2 already computes precisely why a gate is stale. `bskel next`/`bskel status` are
+almost entirely reuse: `lib/workflow.mjs`'s `computeWorkflowState()` calls `collectGateStatuses()`
+and `checkArtifacts()` directly (same functions `cmdVerify` calls), and only adds sequencing --
+walk `GATE_NAMES` in order, stop at the first blocking gate, and emit the one command that
+actually resolves *that* gate's *current* status (not a generic "re-run everything"): `not_run`
+gets the establishing command, `awaiting_disposition` gets the gate-specific remediation
+(`scan disposition` for scan, `contract waive`/`gate force contract` for contract -- the exact
+phrasing `cmdContractEmit`/`cmdHandlesEmit` already print inline), and `stale` gets the
+establishing command again but with S2's `changed_inputs` folded into the reason so it's not just
+"stale, try again."
+
+`bskel next`'s non-JSON stdout is **exactly one line, the command** -- the reason goes to stderr --
+specifically so `$(bskel next)` is safe to eval directly in a shell without accidentally executing
+prose. With no featureId given, feature-scoped gates cannot be evaluated at all (there's nothing to
+look up), so `computeWorkflowState(root, null)` only ever considers the repo-scoped `preflight`
+gate; once that passes, `next` falls back to either `bskel feature init --slug <name>` (no feature
+exists yet) or `bskel next --feature <id>` naming the known ones (`specs/*/feature.json` scanned
+directly via a new `listFeatures()` -- `.sbf/feature-index.json` is keyed by `feature_uid` with a
+single-element array per key, not a convenient "list every feature_id" source).
+
+**A real bug caught during manual verification, not by the test suite**: the first draft's "no
+feature specified" fallback lived *inside* the per-gate loop, keyed on `gateName === 'scan' &&
+!featureId`. It was dead code -- when `featureId` is `null`, `computeWorkflowState` never builds a
+`scan` gate entry at all (only `preflight`), so that branch could never be reached; `bskel next`
+with no `--feature` (after preflight passed) silently reported "nothing blocking" instead of
+recommending `feature init`. Caught immediately by manually walking the CLI end to end (not by any
+written test -- worth remembering that this class of bug, dead branches guarded by a condition
+that's never actually reachable given the surrounding data flow, doesn't show up from reading the
+code in isolation). Fixed by moving that case into the post-loop fallback, alongside the "all
+required gates pass" case, both keyed on `nextActions.length === 0` rather than being reachable
+only from inside the loop.
+
+**COST**: the gate-specific remediation phrasing in `lib/workflow.mjs` (`ESTABLISH_COMMAND`,
+`awaitingDispositionCommand`) is a second copy of text that also lives inline in
+`requirePreflightPassed`/`cmdContractEmit`/`cmdHandlesEmit` -- not exported/shared in this slice,
+so the two could drift if one is edited without the other. Accepted rather than refactored now:
+unifying them would mean pulling CLI-layer string-building into `lib/`, and the two copies are
+covered by tests on both sides (the existing blocked-message tests, and this slice's new
+`status-next-cli.test.mjs` asserting the `contract waive` wording matches `cmdHandlesEmit`'s own
+hint verbatim) that would catch drift if it happened.
+
+**EXIT**: `bskel next --execute` (the catalog's own "optionally") is deliberately not built --
+auto-running a recommended command that's frequently `mutating: true` (writes gate state, generates
+files, applies a stack choice) without a human confirming first runs directly against this
+project's "confirm before destructive/hard-to-reverse actions" default. If ever wanted, it needs
+its own explicit opt-in and confirmation step, not a flag that just shells out to whatever
+`next_actions[0].command` says. Tracking `/speckit.specify`/`/speckit.plan`/`/speckit.tasks`
+(SKILL.md's phases 4/6/9) is also out of scope -- none of them have a gate, so `bskel` has no way
+to know whether they've actually happened; `next`'s action computation only ever considers
+gate-backed phases (1/2/3/5/7/8, i.e. preflight/feature-init/scan/contract/handles/stack). A
+generic gate dependency graph was not built either, for the same reason S2 didn't build one:
+`GATE_NAMES`'s documented order is sufficient today, and a real graph only earns its cost once a
+gate has more than one direct predecessor.
