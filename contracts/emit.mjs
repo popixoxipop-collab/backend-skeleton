@@ -6,7 +6,12 @@ import { makeWarning, classifyContract } from './completeness.mjs';
 // converter expects the bare form -- a contract using `format: 'uuid'` could certify a
 // `urn:uuid:...` request as valid when the real endpoint would reject it. Found by the Codex
 // security review, verified against the installed ajv-formats@3.0.1.
-const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+//
+// A2: exported so contracts/openapi.mjs's inlineSchema() can apply the identical fix one layer
+// down -- springdoc renders a Java `UUID` request-body field as `{type:'string', format:'uuid'}`,
+// the exact shape this const was created to avoid, just inside a projected body schema instead of
+// a path param. Direction stays one-way (openapi.mjs imports from emit.mjs, never the reverse).
+export const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
 function pathParamsSchema(routePath) {
 	const params = [...routePath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
@@ -82,6 +87,11 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				let provenance = 'scan';
 				let openapiAttempted = false;
 				let openapiReason = null;
+				// A2: only ever set for matched/adopted (contracts/openapi.mjs's applyRequestBodySchema
+				// runs for those two kinds only) -- stays null for every other kind.
+				let requestBodySchema = null;
+				let requestBodyRequired = false;
+				let schemaUnresolvedReason = null;
 
 				if (res) {
 					switch (res.kind) {
@@ -92,6 +102,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							verb = res.verb;
 							route = res.path;
 							provenance = 'scan+openapi';
+							requestBodySchema = res.requestBodySchema ?? null;
+							requestBodyRequired = res.requestBodyRequired ?? false;
+							schemaUnresolvedReason = res.schemaUnresolvedReason ?? null;
 							break;
 						case 'adopted':
 							// No @Operation(operationId=...) in source at all -- the id itself comes from
@@ -102,6 +115,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							verb = res.verb;
 							route = res.path;
 							provenance = 'openapi';
+							requestBodySchema = res.requestBodySchema ?? null;
+							requestBodyRequired = res.requestBodyRequired ?? false;
+							schemaUnresolvedReason = res.schemaUnresolvedReason ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
 								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
@@ -178,12 +194,28 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						detail: { verb, path: route, method: ep.method, operationId },
 					}));
 				}
+				// A2: the schema was found and couldn't be projected -- distinct from "no schema to
+				// project at all" (requestBodySchema stays null with no warning in that case, see
+				// contracts/openapi.mjs's applyRequestBodySchema). Falls back to the pre-A2 bare-object
+				// check (operationPayloadSchema treats a missing requestBodySchema as before); never
+				// blocks completeness (WARN, see contracts/completeness.mjs).
+				if (schemaUnresolvedReason) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_SCHEMA_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) matched an OpenAPI operation with a JSON request body, but its schema could not be projected (${schemaUnresolvedReason}) -- the body is still validated, just as a bare object instead of its real shape`,
+						detail: { reason: schemaUnresolvedReason, verb, path: route, operationId },
+					}));
+				}
 				operations[operationId] = {
 					verb,
 					path: route,
 					pathParams: pathParamsSchema(route),
 					body: hasBody === null ? 'unknown' : hasBody,
 					provenance,
+					// A2: omitted entirely (not null/false) when there's nothing to project -- keeps
+					// `openapi:null` (and any operation that isn't matched/adopted) byte-identical to
+					// pre-A2 output, the same guarantee A1 established for its own fields.
+					...(requestBodySchema ? { requestBodySchema, requestBodyRequired } : {}),
 				};
 			}
 		}
@@ -205,7 +237,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 	};
 
 	return {
-		sbf_contract: '2',
+		sbf_contract: '3',
 		feature_id: featureId,
 		feature_uid: featureUid,
 		generated_at: new Date().toISOString(),

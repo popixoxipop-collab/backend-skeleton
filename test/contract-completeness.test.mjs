@@ -136,3 +136,18 @@ test('evaluateResolution: CONTRACT_OPENAPI_DERIVED_OPERATION_ID (WARN) never blo
 	};
 	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
 });
+
+// A2: the request-body-schema-projection warning code.
+test('CONTRACT_OPENAPI_SCHEMA_UNRESOLVED exists with {severity: WARN, waivable: true}', () => {
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_SCHEMA_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_SCHEMA_UNRESOLVED'));
+});
+
+test('evaluateResolution: CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (WARN) never blocks, waived or not', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [makeWarning('CONTRACT_OPENAPI_SCHEMA_UNRESOLVED', { subject: 'createWidget', message: 'x' })],
+	};
+	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
+	assert.equal(classifyContract(contract), COMPLETENESS.COMPLETE);
+});

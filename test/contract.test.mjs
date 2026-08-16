@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { buildContract } from '../contracts/emit.mjs';
-import { validateEnvelope, validateEnvelopeStructure } from '../contracts/validate.mjs';
+import { validateEnvelope, validateEnvelopeStructure, operationPayloadSchema } from '../contracts/validate.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { indexOpenApiDocument, reconcileModule } from '../contracts/openapi.mjs';
 
@@ -384,4 +384,176 @@ test('two scan endpoints adopting the same OpenAPI operation still hit the exist
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi: recon });
 	assert.equal(Object.keys(contract.operations).length, 1);
 	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_DUPLICATE_OPERATION_ID'));
+});
+
+// ===== A2: request body JSON Schema projection, buildContract() integration =====
+
+const WIDGET_REQUEST_SCHEMA_DOC = (schemaOverride) => ({
+	openapi: '3.1.0',
+	components: { schemas: { CreateWidgetRequest: schemaOverride ?? { type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 10 } } } } },
+	paths: { '/api/v0/widgets': { post: {
+		operationId: 'createWidget',
+		requestBody: { required: true, content: { 'application/json': { schema: { '$ref': '#/components/schemas/CreateWidgetRequest' } } } },
+	} } },
+});
+
+test('matched + a resolvable request body: requestBodySchema attached, body stays true, other A1 fields unchanged', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal(op.provenance, 'scan+openapi');
+	assert.equal(op.path, '/api/v0/widgets');
+	assert.deepEqual(op.requestBodySchema.required, ['name']);
+	assert.equal(op.requestBodySchema.properties.name.maxLength, 10);
+	assert.equal(op.requestBodyRequired, true);
+});
+
+test('adopted + a resolvable request body: schema attached AND CONTRACT_OPENAPI_DERIVED_OPERATION_ID still fires', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: null, method: 'createWidget' }]);
+	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal(op.provenance, 'openapi');
+	assert.deepEqual(op.requestBodySchema.required, ['name']);
+	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DERIVED_OPERATION_ID'));
+});
+
+test('an unresolvable schema on a matched operation: no requestBodySchema key, CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (WARN), completeness stays complete', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	// discriminator is not in inlineSchema's whitelist -- fails closed.
+	const doc = WIDGET_REQUEST_SCHEMA_DOC({ type: 'object', discriminator: { propertyName: 'kind' } });
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal('requestBodySchema' in op, false);
+	assert.notEqual(op.body, false, 'body-presence flag is unaffected by schema-projection failure (fixture has no controller.file, so it reads "unknown", not the projection outcome)');
+	const unresolved = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_SCHEMA_UNRESOLVED');
+	assert.ok(unresolved);
+	assert.equal(unresolved.severity, 'warn');
+	assert.equal(unresolved.subject, 'createWidget');
+	assert.match(unresolved.detail.reason, /unsupported-keyword:discriminator/);
+	assert.equal(contract.completeness.status, 'complete', 'a WARN-severity code never demotes completeness');
+});
+
+test('openapi:null produces no requestBodySchema/requestBodyRequired keys anywhere -- extends the A1 byte-identity guarantee', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets', operationId: 'findWidgets', method: 'findWidgets' }]);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi: null });
+	assert.equal('requestBodySchema' in contract.operations.findWidgets, false);
+	assert.equal('requestBodyRequired' in contract.operations.findWidgets, false);
+});
+
+test('drift never gets a requestBodySchema, even though the doc entry has a perfectly resolvable one', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const doc = {
+		openapi: '3.1.0',
+		components: { schemas: { X: { type: 'object' } } },
+		paths: { '/api/v0/widgets/{widgetId}': { post: { // verb drift: doc says POST, scan says GET
+			operationId: 'findWidget',
+			requestBody: { content: { 'application/json': { schema: { '$ref': '#/components/schemas/X' } } } },
+		} } },
+	};
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.findWidget;
+	assert.equal('requestBodySchema' in op, false);
+	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
+});
+
+test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v3)', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validate = ajv.compile(schema);
+	const ok = validate(contract);
+	assert.equal(ok, true, JSON.stringify(validate.errors));
+	assert.equal(contract.sbf_contract, '3');
+});
+
+// ===== A2: operationPayloadSchema() / envelope validation with a projected requestBodySchema =====
+
+const WIDGET_FEATURE_UID = '22222222-2222-4222-8222-222222222222';
+
+function widgetContract(op) {
+	return {
+		feature_id: '001-x', feature_uid: WIDGET_FEATURE_UID,
+		operations: { createWidget: op },
+		warnings: [], completeness: { status: 'complete', operation_count: 1, endpoint_count: 1 },
+	};
+}
+
+test('operationPayloadSchema: requestBodySchema present + body:true -> properties.body IS that schema, body required', () => {
+	const op = {
+		verb: 'POST', path: '/widgets', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: true, provenance: 'scan+openapi',
+		requestBodySchema: { type: 'object', required: ['name'], properties: { name: { type: 'string' } } },
+		requestBodyRequired: true,
+	};
+	const schema = operationPayloadSchema(op);
+	assert.deepEqual(schema.properties.body, op.requestBodySchema);
+	assert.ok(schema.required.includes('body'));
+});
+
+test('operationPayloadSchema: body:false + a requestBodySchema present -> byte-identical to pre-A2 (body still absent)', () => {
+	const op = {
+		verb: 'DELETE', path: '/widgets/{id}', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: false, provenance: 'scan+openapi',
+		requestBodySchema: { type: 'object', properties: { confirmName: { type: 'string' } } },
+	};
+	const schema = operationPayloadSchema(op);
+	assert.equal('body' in schema.properties, false);
+	assert.deepEqual(schema.required, ['pathParams']);
+});
+
+test('operationPayloadSchema: no requestBodySchema -> deep-equals pre-A2 output for all three body values', () => {
+	const base = { verb: 'POST', path: '/widgets', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] }, provenance: 'scan' };
+	for (const bodyValue of [true, false, 'unknown']) {
+		const schema = operationPayloadSchema({ ...base, body: bodyValue });
+		if (bodyValue === false) {
+			assert.equal('body' in schema.properties, false);
+		} else {
+			assert.deepEqual(schema.properties.body, { type: 'object' });
+		}
+		assert.equal(schema.required.includes('body'), bodyValue === true);
+	}
+});
+
+test('end-to-end: a body missing a required field, and one violating maxLength, both fail against a projected schema (both used to pass)', () => {
+	const op = {
+		verb: 'POST', path: '/widgets', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: true, provenance: 'scan+openapi',
+		requestBodySchema: { type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 5 } } },
+		requestBodyRequired: true,
+	};
+	const contract = widgetContract(op);
+	const envelopeBase = { sbf: '1', feature_id: '001-x', feature_uid: WIDGET_FEATURE_UID, operation_id: 'createWidget', direction: 'request' };
+
+	const missingRequired = validateEnvelope({ ...envelopeBase, payload: { pathParams: {}, body: {} } }, contract);
+	assert.equal(missingRequired.ok, false);
+
+	const tooLong = validateEnvelope({ ...envelopeBase, payload: { pathParams: {}, body: { name: 'way too long' } } }, contract);
+	assert.equal(tooLong.ok, false);
+
+	const valid = validateEnvelope({ ...envelopeBase, payload: { pathParams: {}, body: { name: 'ok' } } }, contract);
+	assert.equal(valid.ok, true, JSON.stringify(valid.errors));
+});
+
+test('a hand-edited, uncompilable requestBodySchema returns {ok:false, errors}, not a thrown exception', () => {
+	const op = {
+		verb: 'POST', path: '/widgets', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: true, provenance: 'scan+openapi',
+		requestBodySchema: { type: 'object', properties: { name: { pattern: '(' } } }, // invalid regex, ajv.compile throws
+	};
+	const contract = widgetContract(op);
+	const envelope = {
+		sbf: '1', feature_id: '001-x', feature_uid: WIDGET_FEATURE_UID, operation_id: 'createWidget', direction: 'request',
+		payload: { pathParams: {}, body: { name: 'x' } },
+	};
+	assert.doesNotThrow(() => {
+		const result = validateEnvelope(envelope, contract);
+		assert.equal(result.ok, false);
+		assert.ok(result.errors.length > 0);
+	});
 });

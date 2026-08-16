@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["sbf_contract", "feature_id", "feature_uid", "generated_at", "source", "operations", "warnings", "completeness"],
   "properties": {
-    "sbf_contract": { "const": "2" },
+    "sbf_contract": { "const": "3" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
     "generated_at": { "type": "string", "format": "date-time" },
@@ -31,7 +31,12 @@
           "path": { "type": "string" },
           "pathParams": { "type": "object" },
           "body": { "enum": [true, false, "unknown"] },
-          "provenance": { "type": "string" }
+          "provenance": { "type": "string" },
+          "requestBodySchema": {
+            "description": "A2: the operation's request body projected from a real OpenAPI 3.1 document, fully inlined (no $ref) -- see contracts/openapi.mjs's inlineSchema(). Present only when reconciliation matched/adopted this operation AND its application/json schema resolved; omitted otherwise. Not deeply validated as 'is this a valid JSON Schema' here -- that would need a schema-of-schemas, out of scope.",
+            "type": "object"
+          },
+          "requestBodyRequired": { "type": "boolean" }
         }
       }
     },

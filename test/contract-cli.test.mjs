@@ -133,7 +133,12 @@ function contractSnapshotPath(root) {
 // Matches widgetControllerSource()'s endpoints, all under the real deployed `/api/v0` prefix --
 // the exact shape the real Team-IZ-Backend defect looks like (ApiPathConfig.java's global
 // addPathPrefix, invisible to source-annotation scanning).
-function widgetOpenApiDoc({ includeDeleteWidget = false, includePatchWidget = false } = {}) {
+//
+// A2: `withRequestBodies` (default false, preserving every existing assertion byte-for-byte)
+// opt-in adds a real requestBody to POST /api/v0/widgets, `unsupportedSchema` (opt-in) swaps
+// CreateWidgetRequest for one containing a keyword inlineSchema() doesn't support -- exercises
+// the "schema found but can't be projected" path distinctly from "no schema at all".
+function widgetOpenApiDoc({ includeDeleteWidget = false, includePatchWidget = false, withRequestBodies = false, unsupportedSchema = false, openapiVersion = '3.1.0' } = {}) {
 	const paths = {
 		'/api/v0/widgets': {
 			get: { operationId: 'findWidgets' },
@@ -145,7 +150,21 @@ function widgetOpenApiDoc({ includeDeleteWidget = false, includePatchWidget = fa
 	};
 	if (includeDeleteWidget) paths['/api/v0/widgets/{widgetId}'].delete = { operationId: 'deleteWidget' };
 	if (includePatchWidget) paths['/api/v0/widgets/{widgetId}'].patch = { operationId: 'patchWidget' };
-	return { openapi: '3.1.0', info: { title: 'fixture', version: '1' }, paths };
+	const doc = { openapi: openapiVersion, info: { title: 'fixture', version: '1' }, paths };
+	if (withRequestBodies) {
+		doc.components = {
+			schemas: {
+				CreateWidgetRequest: unsupportedSchema
+					? { type: 'object', discriminator: { propertyName: 'kind' } }
+					: { type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 10 } } },
+			},
+		};
+		paths['/api/v0/widgets'].post.requestBody = {
+			required: true,
+			content: { 'application/json': { schema: { '$ref': '#/components/schemas/CreateWidgetRequest' } } },
+		};
+	}
+	return doc;
 }
 
 function writeOpenApiFixture(root, doc) {
@@ -494,4 +513,139 @@ test('contract tool-schema --operation constructor is rejected, not resolved via
 	run(['contract', 'emit', '--feature', '001-widget-management'], root);
 	const result = run(['contract', 'tool-schema', '--feature', '001-widget-management', '--operation', 'constructor'], root);
 	assert.equal(result.code, 2);
+});
+
+// A2 regression suite below: request body JSON Schema projection, full CLI flow.
+
+test('--openapi-file with request bodies: requestBodySchema reflects the real DTO shape, bodyless ops get no such key', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true }));
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--json'], root);
+	assert.equal(emit.code, 0);
+	const contract = JSON.parse(emit.stdout);
+	assert.equal(contract.operations.createWidget.requestBodySchema.properties.name.maxLength, 10);
+	assert.deepEqual(contract.operations.createWidget.requestBodySchema.required, ['name']);
+	assert.equal('requestBodySchema' in contract.operations.findWidgets, false);
+});
+
+test('contract validate rejects a body exceeding maxLength (exit 1), accepts a valid one (exit 0)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true }));
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const envelopePath = path.join(root, 'envelope.json');
+	const baseEnvelope = { sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'request' };
+
+	fs.writeFileSync(envelopePath, JSON.stringify({ ...baseEnvelope, payload: { pathParams: {}, body: { name: 'x'.repeat(50) } } }));
+	const tooLong = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(tooLong.code, 1);
+	assert.equal(JSON.parse(tooLong.stdout).ok, false);
+
+	fs.writeFileSync(envelopePath, JSON.stringify({ ...baseEnvelope, payload: { pathParams: {}, body: { name: 'x' } } }));
+	const ok = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(ok.code, 0);
+	assert.equal(JSON.parse(ok.stdout).ok, true);
+});
+
+test('contract validate rejects a body missing a required field -- the identical envelope passes against a contract emitted WITHOUT --openapi-file', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	const envelopePath = path.join(root, 'envelope.json');
+	const envelope = {
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'request',
+		payload: { pathParams: {}, body: {} }, // missing required "name"
+	};
+	fs.writeFileSync(envelopePath, JSON.stringify(envelope));
+
+	// Without --openapi-file: pre-A2 shallow {type:'object'} check -- an empty body passes.
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	const withoutSchema = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(withoutSchema.code, 0);
+	assert.equal(JSON.parse(withoutSchema.stdout).ok, true);
+
+	// With --openapi-file: the same envelope now fails, because the real DTO requires "name".
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	const withSchema = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(withSchema.code, 1);
+	assert.equal(JSON.parse(withSchema.stdout).ok, false);
+});
+
+test('contract tool-schema exposes the real field shape, with zero $ref anywhere in the output', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const toolSchema = run(['contract', 'tool-schema', '--feature', '001-widget-management', '--operation', 'createWidget'], root);
+	assert.equal(toolSchema.code, 0);
+	const parsed = JSON.parse(toolSchema.stdout);
+	assert.equal(parsed.input_schema.properties.body.properties.name.maxLength, 10);
+	assert.equal(toolSchema.stdout.includes('$ref'), false);
+});
+
+test('an unsupported schema keyword: emit still exits 0 (WARN only), one CONTRACT_OPENAPI_SCHEMA_UNRESOLVED, and validate still accepts a plain object body', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true, unsupportedSchema: true }));
+
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--json'], root);
+	assert.equal(emit.code, 0, 'a schema-projection failure must never block completeness');
+	const contract = JSON.parse(emit.stdout);
+	assert.equal('requestBodySchema' in contract.operations.createWidget, false);
+	const unresolved = contract.warnings.filter((w) => w.code === 'CONTRACT_OPENAPI_SCHEMA_UNRESOLVED');
+	assert.equal(unresolved.length, 1);
+	assert.equal(unresolved[0].severity, 'warn');
+
+	const gateShow = run(['gate', 'show', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(JSON.parse(gateShow.stdout).record.evidence.openapi.schema_unresolved, 1);
+
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	const envelopePath = path.join(root, 'envelope.json');
+	fs.writeFileSync(envelopePath, JSON.stringify({
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'request',
+		payload: { pathParams: {}, body: { anything: 'goes' } },
+	}));
+	const validate = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(validate.code, 0, 'falls back to the pre-A2 bare-object check when the schema could not be projected');
+});
+
+test('gate token: hand-editing requestBodySchema in the contract file (without touching the snapshot) stales the gate; contract_hash alone covers it, no new token key', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	const inputs = run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(JSON.parse(inputs.stdout).record.evidence.openapi.schema_projection.enabled, true);
+
+	const contractPath = contractSchemaPath(root);
+	const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	contract.operations.createWidget.requestBodySchema.properties.name.maxLength = 999999;
+	fs.writeFileSync(contractPath, JSON.stringify(contract, null, 2));
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 4, 'hand-editing the contract file must stale the gate -- contract_hash covers the new fields directly, no dedicated token key needed for them');
+
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+});
+
+test('an OpenAPI 3.0 document: emit exits 0, zero CONTRACT_OPENAPI_SCHEMA_UNRESOLVED warnings, one stderr note, schema_projection.enabled is false', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true, openapiVersion: '3.0.1' }));
+
+	const emit = runCapturingStderr(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile, '--json'], root);
+	assert.equal(emit.code, 0);
+	const contract = JSON.parse(emit.stdout);
+	assert.equal(contract.warnings.filter((w) => w.code === 'CONTRACT_OPENAPI_SCHEMA_UNRESOLVED').length, 0);
+	assert.match(emit.stderr, /declares version "3\.0\.1"/);
+
+	const gateShow = run(['gate', 'show', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(JSON.parse(gateShow.stdout).record.evidence.openapi.schema_projection.enabled, false);
 });

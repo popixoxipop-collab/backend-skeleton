@@ -34,14 +34,26 @@ export function validateEnvelopeStructure(envelope) {
 	return { ok, errors: ok ? [] : (validateFn.errors ?? []) };
 }
 
+// A2: `requestBodySchema` (projected from a real OpenAPI document, contracts/openapi.mjs's
+// inlineSchema()) replaces the bare {type:'object'} placeholder when present -- every branch is
+// byte-identical to pre-A2 output when it's absent (the common case: openapi=null, or an
+// operation that isn't matched/adopted). Requiredness of the `body` KEY in the envelope is
+// decided by the SAME `body===true` condition as before, not by the document's
+// `requestBody.required` -- the scan remains the oracle for whether an operation takes a body at
+// all (A1's provenance split); `requestBodySchema` only ever tightens what's INSIDE that body.
+// `additionalProperties:false` is deliberately never added to `bodySchema` itself -- see
+// D-openapi-request-schema: Team-IZ-Backend has no Jackson customization, so the real endpoints
+// accept and ignore unknown body fields (Spring Boot's default), and a contract that rejects what
+// the real API accepts is a false negative, not a safety improvement.
 export function operationPayloadSchema(opContract) {
 	const properties = { pathParams: opContract.pathParams };
 	const required = ['pathParams'];
+	const bodySchema = opContract.requestBodySchema ?? { type: 'object' };
 	if (opContract.body === true) {
-		properties.body = { type: 'object' };
+		properties.body = bodySchema;
 		required.push('body');
 	} else if (opContract.body === 'unknown') {
-		properties.body = { type: 'object' };
+		properties.body = bodySchema;
 	}
 	// body === false: deliberately absent from `properties` -- with additionalProperties:false
 	// below, a payload that includes a body for a known-bodyless operation is rejected outright.
@@ -74,7 +86,17 @@ export function validateAgainstContract(envelope, contract) {
 	}
 	if (envelope.direction === 'request') {
 		const payloadSchema = operationPayloadSchema(opContract);
-		const validateFn = ajv().compile(payloadSchema);
+		// A2: before this, payloadSchema was always 100% synthesized by this codebase, so
+		// ajv().compile() never threw. Now it can embed a projected requestBodySchema, and the
+		// contract file itself is hand-editable on disk (the `contract` gate would go stale, but
+		// this function doesn't consult gates) -- a malformed schema must fail cleanly, not crash.
+		let validateFn;
+		try {
+			validateFn = ajv().compile(payloadSchema);
+		} catch (err) {
+			errors.push(`this operation's contract payload schema could not be compiled: ${err.message} -- the contract file may have been hand-edited (re-run \`bskel contract emit\`)`);
+			return { ok: false, errors };
+		}
 		const ok = validateFn(envelope.payload);
 		if (!ok) {
 			for (const e of validateFn.errors ?? []) {

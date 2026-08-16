@@ -141,6 +141,26 @@ bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <p
   #    only defends the snapshot against tampering, not the upstream OpenAPI document against
   #    going stale (regenerate it after any real source change) -- live drift detection against
   #    a running server is a separate, not-yet-built item.
+  #
+  #    ALSO source-annotation-only (no @Schema field-level shape on request DTOs): every
+  #    `matched`/`adopted` operation's request body is likewise only known to exist, never its
+  #    actual field shape, so `contract validate`/`tool-schema` accepted ANY object for a
+  #    body-bearing operation. `--openapi-file` closes this too: an operation's real
+  #    `application/json` requestBody schema (with `$ref`s fully inlined against
+  #    components.schemas -- never left as `$ref`) is projected onto that operation as
+  #    `requestBodySchema`, and `contract validate`/`tool-schema` enforce it from then on.
+  #    Requires an OpenAPI 3.1.x document (a 3.0 document still gets path/verb reconciliation, but
+  #    schema projection is disabled for the whole document -- one stderr note, not a flood of
+  #    per-operation warnings -- since 3.0/2020-12 disagree on `exclusiveMinimum`/`nullable`
+  #    semantics). A schema that references an unsupported construct (an unrecognized keyword,
+  #    a `$ref` cycle, an over-long or uncompilable `pattern`, more nesting/nodes than the fixed
+  #    caps allow) is left unprojected -- CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (WARN, never blocks)
+  #    and the operation falls back to the pre-existing bare-object check, same as if
+  #    --openapi-file had never been passed for that one operation. Response/error payloads
+  #    remain unconstrained regardless (see `contract validate` below) -- request-body-only for
+  #    now. See `D-openapi-request-schema` in DECISIONS.md for the full design, the real
+  #    Team-IZ-Backend before/after, and the ReDoS/recursion-depth caps (measured against 54 real
+  #    request bodies, not guessed).
 
 bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   # -> the `scan disposition` of contracts: explicitly accepts specific `partial` warnings so the
@@ -158,12 +178,17 @@ bskel contract validate --feature <id> --file envelope.json
   #    structural check against schemas/agent-envelope.schema.json, then feature_id/feature_uid
   #    must match this exact contract, operation_id must be one it defines, and (for
   #    direction:"request") payload.pathParams/body must satisfy that operation's specific
-  #    shape. Wrong feature, wrong operation, missing a required path param, and an unexpected
-  #    body on a bodyless operation all fail distinctly -- see test/contract.test.mjs.
+  #    shape -- body is checked field-by-field (required/type/enum/pattern/length/...) when the
+  #    operation has a projected `requestBodySchema` (--openapi-file), else the pre-existing
+  #    bare-object check. Wrong feature, wrong operation, missing a required path param, and an
+  #    unexpected body on a bodyless operation all fail distinctly -- see test/contract.test.mjs.
+  #    response/error directions stay unconstrained beyond envelope structure either way -- see
+  #    D-contract-scope in DECISIONS.md (request-body schema projection doesn't change this).
 
 bskel contract tool-schema --feature <id> --operation <operationId>
   # -> prints {name, description, input_schema} for that operation -- input_schema is plain
-  #    JSON Schema, usable directly as an Anthropic tool-use tool definition.
+  #    JSON Schema (no $ref/$defs, even with a projected requestBodySchema -- contracts/openapi.mjs's
+  #    inlineSchema() guarantees this), usable directly as an Anthropic tool-use tool definition.
 
 bskel stack apply --choice ngrok                # dry-run (default): prints the plan, writes nothing
 bskel stack apply --choice ngrok --apply        # actually writes; always idempotent to re-run

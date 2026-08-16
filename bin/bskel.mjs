@@ -408,6 +408,11 @@ function cmdContractEmit(args) {
 		// invalidate the contract gate's token (see lib/gate-definitions.mjs).
 		console.error(`note: an OpenAPI reconciliation snapshot from a previous run exists (specs/${flags.feature}/contracts/${flags.feature}.openapi.snapshot.json) but --openapi-file was not given this time -- left as-is.`);
 	}
+	// A2: unconditional (not gated behind !flags.json), same as the snapshot-reuse note above --
+	// a diagnostic side-channel note belongs on stderr regardless of what shape stdout takes.
+	if (reconciliation && !reconciliation.schemaProjection.enabled) {
+		console.error(`note: OpenAPI document declares version "${reconciliation.document.openapi_version ?? '(unknown)'}" -- request body schema projection needs 3.1.x, path/verb reconciliation above is unaffected`);
+	}
 
 	const resolution = loadResolution(root, flags.feature);
 	const evaluation = evaluateResolution(contract, resolution);
@@ -424,6 +429,11 @@ function cmdContractEmit(args) {
 				document_hash: reconciliation.document.hash,
 				path_prefix: reconciliation.prefix.value,
 				prefix_origin: reconciliation.prefix.origin,
+				// A2: schema_projection + the schema_resolved/unresolved/none/skipped_media_type
+				// counters arrive for free via this spread -- reconciliation.stats already carries
+				// them (initialized in contracts/openapi.mjs's reconcileModule), no separate
+				// derivation needed here.
+				schema_projection: reconciliation.schemaProjection,
 				...reconciliation.stats,
 			}
 			: { applied: false },
@@ -441,6 +451,9 @@ function cmdContractEmit(args) {
 		console.log(`wrote specs/${flags.feature}/contracts/${flags.feature}.schema.json -- ${contract.completeness.operation_count} operation(s), completeness: ${evaluation.status}`);
 		if (reconciliation) {
 			console.log(`openapi: ${reconciliation.stats.matched} path(s) corrected, ${reconciliation.stats.adopted} adopted (prefix ${reconciliation.prefix.value ?? '(none)'}, ${reconciliation.prefix.origin})`);
+			if (reconciliation.schemaProjection.enabled) {
+				console.log(`openapi: ${reconciliation.stats.schema_resolved} request body schema(s) projected, ${reconciliation.stats.schema_unresolved} unresolved`);
+			}
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
 		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
@@ -609,7 +622,10 @@ function cmdContractToolSchema(args) {
 	}
 
 	// Anthropic tool-use `input_schema` is a JSON Schema subset -- the operation's payload
-	// schema (already plain JSON Schema, no $ref/$defs) is directly usable as-is.
+	// schema (already plain JSON Schema, no $ref/$defs) is directly usable as-is. A2: when `op`
+	// carries a projected `requestBodySchema`, it flows through here for free -- this function
+	// changed not at all; contracts/openapi.mjs's inlineSchema() is what guarantees the no-$ref
+	// promise this comment makes.
 	const toolSchema = {
 		name: flags.operation,
 		description: `${op.verb} ${op.path} (feature ${flags.feature})`,

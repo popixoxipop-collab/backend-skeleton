@@ -43,6 +43,16 @@ export const WARNING_CODES = Object.freeze({
 	// class as CONTRACT_BODY_UNKNOWN): the id is real and addressable, but isn't pinned in Java
 	// source, so renaming the handler method silently changes what clients see.
 	CONTRACT_OPENAPI_DERIVED_OPERATION_ID: { severity: SEVERITY.WARN, waivable: true },
+	// A2: a `matched`/`adopted` operation (path/verb already reconciled) whose OpenAPI requestBody
+	// declares an application/json schema, but that schema could not be projected into a
+	// self-contained JSON Schema -- an unsupported keyword, an over-long or uncompilable `pattern`,
+	// a $ref cycle, or a depth/node-count cap. Deliberately WARN, not ERROR: the contract is still
+	// CORRECT (the pre-A2 `body:true -> {type:'object'}` fallback still applies), just less
+	// specific -- a missed enhancement, not a defect. Making this ERROR would make `partial`/
+	// `blocked` depend on how exotic a downstream DTO's validation annotations happen to be, across
+	// every real module -- same class as CONTRACT_BODY_UNKNOWN. See contracts/openapi.mjs's
+	// inlineSchema() and D-openapi-request-schema in DECISIONS.md.
+	CONTRACT_OPENAPI_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));

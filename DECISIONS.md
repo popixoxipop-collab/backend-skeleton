@@ -613,6 +613,181 @@ deferred to a later item, not this one.
 `contracts/completeness.mjs`'s `WARNING_CODES` table remains the single place to add/adjust an
 OpenAPI-reconciliation warning code the same way it already is for every other contract warning.
 
+## D-openapi-request-schema (A2): a contract that says "some object" isn't a contract
+
+**WHY**: A1's own DECISIONS.md entry explicitly deferred "full request/response schema projection"
+out of scope. Before this change, `contracts/emit.mjs`'s `detectRequestBody()` only recorded
+whether an operation takes a body at all (`body: true|false|'unknown'`), and
+`contracts/validate.mjs`'s `operationPayloadSchema()` turned `body:true` into a bare
+`{type:'object'}` — **any object validated**, with zero field constraints. Real before/after
+against Team-IZ-Backend's `createOrganization`: pre-A2, `{}`, `{dataRetentionDays:9999}`, and
+`{typo:'x'}` all validated as a correct request. Post-A2, all three fail — enum, required-field,
+and unknown-field-shape violations respectively are now real, caught defects, not silently passed.
+
+**Scope**: request body only. Response/error schema projection is deliberately a separate later
+item ("A3") — `schemas/agent-envelope.schema.json` has no status-code field (`properties`:
+`sbf`/`feature_id`/`feature_uid`/`operation_id`/`direction`/`handles`/`payload`, nothing else), so
+"which response schema does this payload validate against" is a genuine open design question
+(single success status? union of all documented error shapes? add a status field to the envelope,
+a breaking `sbf:'1'→'2'` change?) that deserves its own decision, not a quiet default buried in a
+larger change. Confirmed with the user via `AskUserQuestion` before starting, mirroring the same
+scope-narrowing instinct A1 used ("path correction is a bigger, more certain win than unmatched-
+endpoint recovery — do that first").
+
+**`matched`/`adopted` only**, same as A1's path/verb correction: `drift`/`missing`/`ambiguous`/
+`unresolved` operations haven't earned trust on path/verb, so they don't get schema enrichment
+either — a body shape attached to an operation whose very identity is still in question would be
+worse than no shape at all.
+
+**Full inlining, zero `$ref` in the output, for two independent reasons**: (1) Ajv would otherwise
+need every one of a document's `components.schemas` registered by `$id` just to validate ONE
+operation's body — Team-IZ-Backend has 308; (2) `bin/bskel.mjs`'s `cmdContractToolSchema` already
+promised its `input_schema` output is "a JSON Schema subset ... directly usable as-is" for
+Anthropic tool-use, which forbids `$ref`/`$defs` outright. `contracts/openapi.mjs`'s `inlineSchema`
+is the one function that upholds both. A projected schema's `format:'uuid'` is rewritten to
+`pattern: BARE_UUID_PATTERN` rather than copied — D-security-2 (ajv-formats' `uuid` format accepts
+a `urn:uuid:` prefix Spring's binder rejects) re-applies one layer down: springdoc renders a Java
+`UUID` request-body field exactly this way, and A2 is what makes that field reachable through this
+codebase for the first time. `$id` is treated as an unsupported keyword outright (not copied, not
+dropped) — the shared `ajv()` singleton in `contracts/validate.mjs` already has
+`urn:sbf:envelope:1` registered; a projected schema carrying its own `$id` risks colliding with or
+polluting that process-wide registry.
+
+**Two risk classes new to this codebase, with real measured defenses, not guesses**: repo-wide
+grep before writing any code confirmed no prior `D-security-N` fix addresses (a) unbounded
+recursion from untrusted nested JSON Schema, or (b) ReDoS from a `pattern` string Ajv compiles and
+matches. `inlineSchema` in `contracts/openapi.mjs` adds, for the first time in this repo:
+- `MAX_SCHEMA_DEPTH = 32` — real max structural depth reachable from a request body, measured
+  across all 54 real `application/json` request-body schemas in Team-IZ-Backend: **8**. 32 is 4x
+  headroom, chosen to bound the JS recursion stack regardless of what a hostile document claims,
+  not tuned to the measured value.
+- `MAX_SCHEMA_NODES = 2000` (shared counter per top-level call, `enum` entries count toward it) —
+  real max single-operation node count measured: **23**.
+- `MAX_PATTERN_LENGTH = 300` — real max `pattern` length measured: **77**
+  (`CreateOrganizationRequest.emailDomain`'s domain-format regex).
+- Cycle detection via a `visiting` Set of component names, delete-on-exit (a diamond — two sibling
+  properties referencing the SAME component — stays legal; only a true ancestor-chain cycle
+  fails). Real data has zero cycles (verified via a full $ref-graph DFS over all 308 component
+  schemas before writing any code), so this is pure defense-in-depth against a document this
+  codebase doesn't currently see, not a fix for an observed problem.
+- **ReDoS is explicitly, honestly only partially mitigated.** The 300-char cap bounds the SIZE of
+  what gets compiled into a `new RegExp(...)`; it performs no structural analysis of the regex
+  itself. `CreateOrganizationRequest.emailDomain`'s real, already-shipping pattern
+  (`^(?=.{1,253}$)([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`) contains a
+  nested quantifier well within the 300-char cap — a general ReDoS-detection system was judged
+  over-engineering for this vertical slice and was not built. Named here as an accepted residual
+  risk, in the same register as this document's other honestly-flagged known limitations, rather
+  than silently assumed solved.
+- Java `@Pattern(regexp=...)` and JS `RegExp` are different regex dialects. `inlineSchema` catches
+  the case where a Java-only construct fails to compile in JS (`invalid-pattern`, e.g. possessive
+  quantifiers, `\p{Alpha}`), but NOT the case where a construct compiles in both but means
+  something different — that gap is a known, documented limitation, not a silent bug.
+
+**Keyword whitelist is a measurement output, not an input assumption.** Before writing
+`inlineSchema`, a Stage-0 script measured the keyword/format histogram over exactly the 54 schemas
+actually reachable from a real `requestBody.content['application/json'].schema` in Team-IZ-Backend
+(not all 308 component schemas — most of those are response-only and irrelevant to this slice).
+Measured keywords: `$ref`(67), `type`(202), `properties`(56), `required`(52), `enum`(17),
+`items`(11), `minItems`(6), `format`(52), `minimum`(10), `maxLength`(25), `minLength`(38),
+`pattern`(6), `maxItems`(1), `maximum`(3), `minProperties`(1), `oneOf`(3) — every one of these is
+covered by `inlineSchema`'s `RECURSED_KEYWORDS`/`COPIED_KEYWORDS`. Measured `format` values:
+`uuid`(20, rewritten), `int32`(10), `email`(7), `date`(10), `date-time`(3), `int64`(2) — all in
+`SAFE_FORMATS`. `oneOf`'s 3 real occurrences (and 41 across the full 308-schema document) are
+**always** the springdoc OpenAPI-3.1 nullable-object idiom, `[{"$ref":...},{"type":"null"}]` —
+`inlineSchema` needs no special case for this; recursing into each `oneOf` array element handles
+it for free. `anyOf`/`allOf`/`discriminator`/`patternProperties` all measured **zero** occurrences
+anywhere in the 308-schema document. `additionalProperties` appears only as either a `$ref` value
+(a real Java `Map<UUID,DTO>`) or a primitive-type value, never a boolean `false` on a
+request-relevant schema. All 308 component-schema names passed `COMPONENT_SCHEMA_NAME_RE` with
+zero rejections. Confirmed a second time end-to-end: the 18-module real survey's total
+`schema_resolved` (54) plus `schema_skipped_media_type` (4, all real `multipart/form-data`
+uploads) sums exactly to the Stage-0-measured request-body count — no drift between the static
+measurement and the dynamic per-module run.
+
+**`additionalProperties:false` is deliberately NEVER added to a projected body schema.** Verified
+directly against Team-IZ-Backend's source before deciding this: no `spring.jackson` config in
+`application.yaml`, no `@Bean ObjectMapper` anywhere in `src/main/java` — Spring Boot's default
+`FAIL_ON_UNKNOWN_PROPERTIES=false` applies, so the real, deployed endpoints accept and silently
+ignore unknown body fields. A contract that rejects what the real API accepts is a false negative,
+not a safety improvement — it would contradict the entire reason this tool exists (the contract is
+supposed to tell the truth about the real endpoint). The payload envelope's own top-level
+`additionalProperties:false` (in `operationPayloadSchema`, unrelated — it governs the envelope's
+`{pathParams, body}` shape, not the body's own internal fields) is unaffected.
+
+**Prototype-pollution surface, extended to two new classes of externally-influenceable string,
+both closed the same way A1 closed `operationId`**: OpenAPI component-schema names
+(`COMPONENT_SCHEMA_NAME_RE`) and, inside a resolved schema, `properties` keys and `required[]`
+entries (`SCHEMA_PROPERTY_NAME_RE`) — both become plain-object keys downstream
+(`inlineSchema`'s output `properties` object, later `JSON.stringify`'d into the contract file and
+re-`JSON.parse`'d by `loadContract`). A violating key **fails the whole schema closed**, not a
+per-property drop — dropping one bad property would silently emit a schema *weaker* than the real
+one, the identical reasoning behind rejecting an unsupported keyword outright rather than ignoring
+it. Verified live with `JSON.parse('{"__proto__":...}')` fixtures (a JS object *literal* with a
+`__proto__` key sets the prototype instead of creating an own property — a real gotcha hit while
+writing this test suite, not a hypothetical; the fix was building the fixture via `JSON.parse` to
+match the actual attack surface `loadOpenApiDocument` sees).
+
+**`WARN`, not `ERROR`, for `CONTRACT_OPENAPI_SCHEMA_UNRESOLVED`** — two reasons: the pre-A2
+fallback (`body:true → {type:'object'}`) is still *correct*, just less specific, so a projection
+failure is a missed enhancement, not a contract defect; and making it `ERROR` would couple
+`partial`/`blocked` status to how exotic a downstream DTO's validation annotations happen to be.
+The 18-module real survey backs this up directly: `schema_unresolved` was **0 across every one of
+the 18 real modules** — the measurement-driven whitelist (above) already covers everything real,
+so this WARN path exists for defense-in-depth against an OpenAPI document this repo doesn't
+currently produce, not because real modules routinely hit it.
+
+**Dialect gate, once per document, not per operation.** OpenAPI 3.0 and JSON Schema 2020-12 (what
+`Ajv2020` speaks, already a runtime dependency before A2 — see `D-ajv-runtime`) disagree on
+`exclusiveMinimum` (3.0: boolean modifier of `minimum`; 2020-12: a number) and `nullable` (3.0: a
+keyword; 2020-12: `type` becomes an array). Rather than silently misinterpreting a 3.0 document,
+`indexOpenApiDocument` checks `/^3\.1(?:\.|$)/` against `doc.openapi` and disables schema
+projection for the **whole document** if it doesn't match — path/verb reconciliation (dialect-
+independent) stays fully active either way. One stderr note, not N per-operation warnings, for the
+one root cause. Team-IZ-Backend's real document is `3.1.0` (confirmed), so this path is exercised
+only by the dedicated test fixture, not by anything in the real survey.
+
+**`ajv().compile()` guarded for the first time.** Before A2, every schema `contracts/validate.mjs`
+compiled was 100% synthesized by this codebase, so `ajv().compile()` never threw. A2 embeds
+externally-derived content, and a contract file is hand-editable on disk (the `contract` gate goes
+stale, but `contract validate`/`contract tool-schema` don't consult gates) — a malformed schema
+now fails with a clean `{ok:false, errors}`, not an uncaught exception.
+
+**`sbf_contract` bumped `"2"` → `"3"`, no migration cost.** The new `requestBodySchema`/
+`requestBodyRequired` operation fields are additive and optional — **omitted entirely** (not
+`null`/`false`) when there's nothing to project, so `openapi:null` and any non-matched/adopted
+operation stays byte-identical to pre-A2 output, the same discipline A1 established for its own
+fields. Nothing in this codebase loads the meta-schema at runtime (only
+`test/contract.test.mjs`'s regression guard does), so there's no live-consumer migration cost the
+way A5's `resolution_hash`/A1's `openapi_snapshot_hash` gate-token additions had.
+
+**No new gate-token field, unlike A1 and A5.** `lib/gate-definitions.mjs`'s `contract.recompute`
+is unchanged (`test/gate-definitions.test.mjs`'s exact 4-key assertion —
+`contract_hash, head_sha, openapi_snapshot_hash, resolution_hash` — was left untouched
+deliberately, and would fail loudly if a 5th key were added by mistake). The new schema fields
+live inside the contract file itself, already covered end-to-end by `contract_hash` — verified
+live by hand-editing a `requestBodySchema` in a real emitted contract and watching the gate go
+stale, then restoring it and watching it pass again. Contrast with A1's `openapi_snapshot_hash`
+and A5's `resolution_hash`, both of which needed a new token input because they cover *separate*
+files the contract's own hash doesn't reach.
+
+**`requestBodyRequired` is recorded but never acted on.** Acting on it could only ever *loosen*
+validation (the scan remains the oracle for whether an operation takes a body at all — A1's
+provenance split), so a `body:false` scan verdict alongside a document that actually declares a
+requestBody is a visible, deliberately un-warned disagreement in the contract file for a human to
+notice — a natural candidate for a future A3 warning code, not something this slice resolves.
+
+**COST**: larger contract files (Team-IZ-Backend's `createOrganization` operation grew from a
+handful of fields to a full nested schema); a new WARN code that didn't exist before (though
+measured zero occurrences in the real repo); a keyword whitelist that will need extending,
+correctly failing closed with a diagnosable reason, the day a new annotation shape appears in a
+DTO this whitelist hasn't seen yet.
+**EXIT**: `contracts/openapi.mjs`'s `RECURSED_KEYWORDS`/`COPIED_KEYWORDS`/`DROPPED_KEYWORDS`/
+`SAFE_FORMATS` constants are the single place to extend keyword/format support;
+`contracts/completeness.mjs`'s `WARNING_CODES` remains the single place for severity. Response/
+error schema projection is the natural next slice, gated on first resolving how `direction:
+'response'|'error'` payloads map to a specific documented status code — see the envelope-schema
+scope note above.
+
 ## D-pressure-test: the real Phase 6 oracle was a fresh agent, not another self-review
 
 **WHY**: the whole project exists because the original Spec Kit trial showed "the agent
