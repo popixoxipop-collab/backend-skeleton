@@ -231,7 +231,14 @@ function cmdScan(args) {
 		// example invocation `bskel scan --terms organization` for a quick look before committing
 		// to a feature_id.
 		console.log(flags.json ? JSON.stringify(report, null, 2) : renderScanMarkdown(report));
-		process.exit(0);
+		// Process-exit audit (post-A3): exitCode, not exit() -- a scan report for a broad term can
+		// be large (reproduced live: `scan --terms a --json` against Team-IZ-Backend is 177583
+		// bytes; captured via a pipe with the old process.exit(0) here, it truncated at exactly
+		// 65536 bytes, the same pipe-buffer-sized cutoff A3 found and fixed in cmdContractEmit).
+		// This is a guard-clause exit (more code follows below for the --feature path), so the
+		// `return` is required -- exitCode alone does not stop execution the way exit() did.
+		process.exitCode = 0;
+		return;
 	}
 
 	const dir = specDir(root, flags.feature);
@@ -258,7 +265,9 @@ function cmdScan(args) {
 			console.log(`\nblocked: run \`bskel scan disposition --feature ${flags.feature} --mode reuse|extend|replace|parallel --note "..."\` before continuing.`);
 		}
 	}
-	process.exit(report.verdict === 'greenfield' ? EXIT.PASS : EXIT.AWAITING_DISPOSITION);
+	// Same truncation risk as the ad-hoc branch above, and the last statement in this function --
+	// safe to set exitCode directly, nothing else pending in this call path.
+	process.exitCode = report.verdict === 'greenfield' ? EXIT.PASS : EXIT.AWAITING_DISPOSITION;
 }
 
 function cmdScanDisposition(args) {
@@ -614,7 +623,12 @@ function cmdContractValidate(args) {
 
 	const result = validateEnvelope(envelope, contract);
 	console.log(JSON.stringify(result, null, 2));
-	process.exit(result.ok ? 0 : 1);
+	// Process-exit audit (post-A3): a validation failure against a schema-rich A2/A3 contract can
+	// produce a very large `errors` array under ajv's allErrors:true -- reproduced live: 5000
+	// wrong-typed array elements against a real registerTrainees contract produced a real,
+	// correct 243926-byte result that a piped capture truncated at exactly 65536 bytes with the
+	// old process.exit() here. Last statement in this function -- safe to set exitCode directly.
+	process.exitCode = result.ok ? 0 : 1;
 }
 
 function cmdContractToolSchema(args) {

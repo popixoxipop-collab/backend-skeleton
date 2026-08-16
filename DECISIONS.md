@@ -988,10 +988,60 @@ calling `process.exit()` at that one call site (the last statement in the functi
 else pending in `main()`'s call path) — Node's event loop then drains (flushing the write) before
 exiting on its own with the same code. Locked in with a dedicated regression test that synthesizes
 a >64KB contract and confirms full, valid JSON comes back through the same `execFileSync` path the
-rest of the CLI test suite uses. **Scope note**: `bin/bskel.mjs` has 67 `process.exit(...)` call
-sites in total; only this one (the one A3's own real output size increase actually made reachable,
-and the one this session's own verification actually reproduced) was fixed. A sweep of the other
-66 for the same latent risk is a legitimate future hardening item, not part of this slice.
+rest of the CLI test suite uses. **Scope note (superseded, see D-process-exit-audit below)**:
+`bin/bskel.mjs` has 67 `process.exit(...)` call sites in total; only this one was fixed here. A
+sweep of the other 66 for the same latent risk was flagged as a legitimate future hardening item.
+
+## D-process-exit-audit: sweeping the other 66 `process.exit(...)` call sites A3 flagged
+
+A3's own real-world verification found one genuine pipe-truncation bug (`cmdContractEmit`, above)
+and explicitly deferred a sweep of the remaining 66 call sites. That sweep found **2 more genuine
+bugs, at 3 call sites**, by the same mechanism: `console.log(JSON.stringify(x))` immediately
+followed by `process.exit()`, where Node does not guarantee a large async pipe write completes
+before a forced exit tears the process down.
+
+**`cmdScan`, both exit points** (the ad-hoc no-`--feature` branch and the `--feature` tail exit):
+reproduced live against the real Team-IZ-Backend checkout (main worktree, read-only ad-hoc mode --
+no files written, no git state touched), `scan --terms a --json` (a deliberately broad term
+matching 16 real modules) is a correct 177583-byte report that a piped capture truncated at
+exactly 65536 bytes before the fix, and came back complete after it.
+
+**`cmdContractValidate`**: reproduced live in an isolated worktree, a validation failure against a
+schema-rich A2/A3 contract can make ajv's `allErrors: true` produce a very large `errors` array --
+5000 wrong-typed array elements against the real `registerTrainees` contract produced a correct
+243926-byte result, truncated at exactly 65536 bytes before the fix, complete after it.
+
+Both fixes follow the same `process.exitCode =` pattern as `cmdContractEmit`, with one added
+correctness wrinkle the first fix didn't need to handle: **`process.exitCode = X` does not stop
+execution the way `process.exit(X)` does.** `cmdContractValidate`'s exit is the true last statement
+in its function, so a direct swap was safe. `cmdScan`'s ad-hoc-branch exit is a **guard clause** --
+more code follows below it for the `--feature` path -- so the swap there required adding an
+explicit `return;` immediately after, or execution would have incorrectly fallen through into the
+`--feature` write path on every ad-hoc invocation. Both regression tests for `cmdScan`
+(`test/scan-cli.test.mjs`) assert on this directly: the ad-hoc test additionally checks that
+`specs/`/`.sbf/` were NOT written, which would only be true if the `return` is actually there.
+
+**The rest of the 65 remaining call sites were examined and left unchanged**, each for a
+specifically checked reason, not by assumption:
+- `cmdGateRequire`/`cmdGateForce`/`cmdContractToolSchema`/`cmdContractWaive`/`cmdHandlesPlan`/
+  `cmdHandlesEmit`/`cmdStackApply` -- measured real output sizes against real Team-IZ-Backend
+  fixtures (schema-rich where applicable): all well under 2KB, nowhere close to the 64KB boundary.
+- `cmdGateShow`'s no-`--feature` branch was the one candidate that looked risky by reasoning alone
+  (a repo-wide state dump that could plausibly grow with feature count) -- checked against
+  `lib/state.mjs`'s actual `loadState(repoRoot, featureId)` before including it, and confirmed
+  state is one file per feature/scope, never aggregated across features. Genuinely bounded, not
+  excluded on a guess.
+- `cmdVerify` -- `lib/verify.mjs`'s `runBuildCheck()` already caps failure output to the last 30
+  lines, and its `gates`/`artifacts` arrays are bounded by the fixed 5-gate count.
+- `cmdPreflight`, `cmdFeatureInit`, `cmdScanDisposition`, `cmdDoctor`, all `usage()`-then-exit
+  dispatch paths in `main()`, and every simple `console.error('usage: ...')` guard clause
+  throughout -- trivially small or fixed-size output regardless of repo content.
+
+**COST**: none beyond the two fixes themselves -- no interface change, no new gate-token field, no
+new WARN code (this is a CLI-transport bug fix, not a contract/schema behavior change).
+**EXIT**: if a future `process.exit(...)` call site's output genuinely starts scaling with repo/
+contract content (a new command, or an existing one whose output shape changes), the same
+live-reproduction-via-pipe technique used here is the right way to check it before assuming safety.
 
 **COST**: contract files for schema-rich modules are now substantially larger (Team-IZ-Backend's
 `createOrganization` operation gained a ~20-field response schema and a shared ~7-field error

@@ -830,3 +830,42 @@ test('regression: a >64KB --json contract output is not truncated when captured 
 	const contract = JSON.parse(emit.stdout);
 	assert.equal(Object.keys(contract.operations.createWidget.responseSchema.properties).length, 401);
 });
+
+// Process-exit audit (post-A3): the same pipe-truncation bug class in cmdContractEmit also lived
+// in cmdContractValidate -- a validation failure against a schema-rich contract can produce a
+// very large ajv `errors` array under allErrors:true. Reproduced live during Team-IZ-Backend
+// verification: 5000 wrong-typed array elements against the real registerTrainees contract
+// produced a correct 243926-byte result that a piped capture truncated at exactly 65536 bytes.
+// Fixed by setting process.exitCode instead of calling process.exit() in cmdContractValidate.
+// This fixture forces the same ajv allErrors blowup with a synthetic array-typed request field.
+test('regression: a >64KB contract-validate error output is not truncated when captured via execFileSync (pipe-buffer-sized cutoff bug)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true });
+	doc.components.schemas.CreateWidgetRequest = {
+		type: 'object',
+		required: ['name', 'tags'],
+		properties: {
+			name: { type: 'string' },
+			tags: { type: 'array', items: { type: 'string' } },
+		},
+	};
+	const docFile = writeOpenApiFixture(root, doc);
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const featureUid = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8')).feature_uid;
+	const envelopePath = path.join(root, 'envelope.json');
+	const badTags = Array.from({ length: 5000 }, (_, i) => i); // wrong type: number, not string -- one ajv error per element
+	fs.writeFileSync(envelopePath, JSON.stringify({
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid, operation_id: 'createWidget', direction: 'request',
+		payload: { pathParams: {}, body: { name: 'x', tags: badTags } },
+	}));
+
+	const validate = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(validate.code, 1);
+	assert.ok(validate.stdout.length > 65536, `fixture must actually exceed the 64KB boundary that exposed the bug (got ${validate.stdout.length} bytes)`);
+	assert.doesNotThrow(() => JSON.parse(validate.stdout), 'output must be complete, valid JSON -- not truncated mid-write');
+	const result = JSON.parse(validate.stdout);
+	assert.equal(result.ok, false);
+	assert.equal(result.errors.length, 5000);
+});

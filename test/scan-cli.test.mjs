@@ -22,10 +22,28 @@ function run(args, cwd) {
 	}
 }
 
+// Process-exit audit (post-A3): `manyEndpoints` (default 0, preserving every existing assertion
+// byte-for-byte) opt-in adds N extra @GetMapping endpoints to WidgetController, used only by the
+// large-scan-report regression test below -- a single controller with many endpoints keeps the
+// fixture cheap to build (one file write) while still crossing the 64KB scan-report boundary that
+// exposed the cmdScan pipe-truncation bug.
+function manyEndpointsSource(count) {
+	const methods = [];
+	for (let i = 0; i < count; i++) {
+		methods.push(`
+	@Operation(operationId = "findWidget${i}")
+	@GetMapping("/${i}")
+	public String findWidget${i}() {
+		return "ok";
+	}`);
+	}
+	return methods.join('\n');
+}
+
 // A1 §7: `withGlobalPathPrefix` (default false, preserving every existing assertion byte-for-byte)
 // opt-in adds a real WebMvcConfigurer.configurePathMatch + addPathPrefix and a springdoc
 // paths-to-match, mirroring Team-IZ-Backend's actual ApiPathConfig.java/application.yaml shape.
-function buildFixtureRepo({ withGlobalPathPrefix = false } = {}) {
+function buildFixtureRepo({ withGlobalPathPrefix = false, manyEndpoints = 0 } = {}) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-cli-fixture-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -51,6 +69,7 @@ public class WidgetController {
 	public String findWidgets() {
 		return "ok";
 	}
+${manyEndpoints > 0 ? manyEndpointsSource(manyEndpoints) : ''}
 }
 `);
 	if (withGlobalPathPrefix) {
@@ -126,6 +145,42 @@ test('scan without --feature is ad-hoc: no files written, no gate touched', () =
 	assert.equal(scan.code, 0);
 	assert.ok(!fs.existsSync(path.join(root, 'specs')), 'ad-hoc scan must not write specs/');
 	assert.ok(!fs.existsSync(path.join(root, '.sbf')), 'ad-hoc scan must not write .sbf/');
+});
+
+// Process-exit audit (post-A3): the same pipe-truncation bug class found in cmdContractEmit also
+// lived in both of cmdScan's exit points -- console.log(JSON.stringify(report)) immediately
+// followed by process.exit(). Reproduced live during Team-IZ-Backend verification: `scan --terms
+// a --json` (a deliberately broad term matching 16 real modules) produced a correct 177583-byte
+// report that a piped capture truncated at exactly 65536 bytes. Fixed by setting process.exitCode
+// instead of calling process.exit() at both cmdScan exit points. This fixture forces a >64KB
+// report with one controller carrying many endpoints, exercising the ad-hoc (no --feature) exit.
+test('regression: a >64KB ad-hoc scan --json report is not truncated when captured via execFileSync (pipe-buffer-sized cutoff bug)', () => {
+	const root = buildFixtureRepo({ manyEndpoints: 600 });
+	const scan = run(['scan', '--terms', 'widget', '--json'], root);
+	assert.equal(scan.code, 0);
+	assert.ok(scan.stdout.length > 65536, `fixture must actually exceed the 64KB boundary that exposed the bug (got ${scan.stdout.length} bytes)`);
+	assert.doesNotThrow(() => JSON.parse(scan.stdout), 'output must be complete, valid JSON -- not truncated mid-write');
+	const report = JSON.parse(scan.stdout);
+	assert.ok(report.related_modules.some((m) => m.module === 'widget'));
+	// The ad-hoc exit is a guard clause (needs `return;`, not just `exitCode =`) -- if that
+	// `return` were ever dropped, execution would fall through into the --feature write path below.
+	assert.ok(!fs.existsSync(path.join(root, 'specs')), 'ad-hoc scan must not write specs/ (guard-clause fallthrough check)');
+	assert.ok(!fs.existsSync(path.join(root, '.sbf')), 'ad-hoc scan must not write .sbf/ (guard-clause fallthrough check)');
+});
+
+// Same bug, the other cmdScan exit point: the `--feature` tail exit (after scan/disposition/gate
+// logic). Uses a matching term so the many-endpoint module is actually included in
+// related_modules (an unrelated term would score 0 and stay small regardless of endpoint count) --
+// that makes the verdict 'collision' (AWAITING_DISPOSITION), same as the full-flow test above.
+test('regression: a >64KB --feature scan --json report is not truncated when captured via execFileSync (pipe-buffer-sized cutoff bug)', () => {
+	const root = buildFixtureRepo({ manyEndpoints: 600 });
+	assert.equal(run(['preflight'], root).code, 0);
+	const scan = run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--json'], root);
+	assert.equal(scan.code, 3, 'collision should block with AWAITING_DISPOSITION exit code');
+	assert.ok(scan.stdout.length > 65536, `fixture must actually exceed the 64KB boundary that exposed the bug (got ${scan.stdout.length} bytes)`);
+	assert.doesNotThrow(() => JSON.parse(scan.stdout), 'output must be complete, valid JSON -- not truncated mid-write');
+	const report = JSON.parse(scan.stdout);
+	assert.equal(report.verdict, 'collision');
 });
 
 test('scan disposition --mode replace requires --breaking-approved', () => {
