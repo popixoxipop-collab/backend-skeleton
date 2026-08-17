@@ -29,6 +29,17 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
+# D-cli-contract (D2): a non-numeric --max-behind used to make the `[ "$BEHIND" -gt "$MAX_BEHIND" ]`
+# comparison below fail with a bash arithmetic error (status 2) rather than raise -- under
+# `set -euo pipefail` that error is INSIDE a conditional test, so the shell does not exit, and the
+# comparison is simply treated as false. That silently disabled this script's entire reason for
+# existing (the stale-base check) instead of refusing the bad argument. `bskel preflight` itself
+# now validates --max-behind before ever invoking this script, but this script is documented as
+# "reusable outside this skill" (see the file header) and must not rely on that caller alone.
+case "$MAX_BEHIND" in
+	''|*[!0-9]*) echo "--max-behind must be a non-negative whole number, got: $MAX_BEHIND" >&2; exit 14 ;;
+esac
+
 # Minimal JSON string escaper (backslash, double-quote, control chars) so this script has
 # zero external deps -- not a general JSON encoder, just enough for the strings *this* script
 # builds itself (branch names, paths, our own messages).

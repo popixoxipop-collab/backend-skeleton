@@ -175,6 +175,41 @@ test('every top-level command documented in usage() has a matching case label in
 	}
 });
 
+// D-cli-contract (D2): usage()'s prose and lib/cli.mjs's COMMANDS table are two independent
+// descriptions of the same 18 commands' flags -- nothing keeps them in sync except this test.
+// Deliberately excludes --help/--json/--quiet (universal, not documented per-line -- see
+// D-cli-contract's design) so this only ever flags a genuine command-specific flag drifting out
+// of one description or the other.
+test('usage() and lib/cli.mjs\'s COMMANDS table document the same command-specific flags for every command', async () => {
+	const { COMMANDS } = await import('../lib/cli.mjs');
+	const source = fs.readFileSync(CLI, 'utf8');
+	const usageBody = source.match(/function usage\(\) \{\s*console\.error\(`([\s\S]*?)`\);\s*\n\}/);
+	assert.ok(usageBody, 'could not locate usage()\'s template literal in bin/bskel.mjs -- did its shape change?');
+	const lines = usageBody[1].split('\n').filter((l) => /^\s{2}bskel /.test(l));
+	assert.ok(lines.length >= Object.keys(COMMANDS).length, `expected at least ${Object.keys(COMMANDS).length} usage() lines, got ${lines.length}`);
+
+	const GLOBAL_FLAGS = new Set(['help', 'json', 'quiet']);
+	const seenKeys = new Set();
+	for (const line of lines) {
+		const words = line.trim().split(/\s+/).slice(1); // drop the leading 'bskel'
+		const pathWords = [];
+		for (const w of words) {
+			if (/^[[<-]/.test(w)) break;
+			pathWords.push(w);
+		}
+		const key = pathWords.join(' ');
+		const spec = COMMANDS[key];
+		assert.ok(spec, `usage() line "${line.trim()}" parses to command key "${key}", which has no lib/cli.mjs COMMANDS entry`);
+		seenKeys.add(key);
+
+		const usageFlags = new Set([...line.matchAll(/--([\w-]+)/g)].map((m) => m[1]).filter((f) => !GLOBAL_FLAGS.has(f)));
+		const tableFlags = new Set(Object.keys(spec.options).filter((f) => !spec.options[f].hidden && !GLOBAL_FLAGS.has(f)));
+		for (const f of usageFlags) assert.ok(tableFlags.has(f), `usage() documents --${f} for "${key}" but COMMANDS["${key}"].options has no such flag`);
+		for (const f of tableFlags) assert.ok(usageFlags.has(f), `COMMANDS["${key}"].options declares --${f} but usage() does not document it on the "${key}" line`);
+	}
+	assert.deepEqual([...seenKeys].sort(), Object.keys(COMMANDS).sort(), 'every COMMANDS entry must have exactly one corresponding usage() line, and vice versa');
+});
+
 // O6 (c): the HandleAspect fix specifically -- if it's ever reintroduced, it must carry an
 // explicit "not yet implemented" caveat, not silently claim a class that doesn't exist.
 test('any HandleAspect reference in a generated template is explicitly caveated as not yet implemented', () => {

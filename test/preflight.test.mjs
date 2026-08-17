@@ -96,3 +96,19 @@ test('NOT_A_REPO: exits 10 outside any git repository', () => {
 	const result = runPreflight(plainDir);
 	assert.equal(result.code, 10);
 });
+
+// D-cli-contract (D2): a non-numeric --max-behind used to make `[ "$BEHIND" -gt "$MAX_BEHIND" ]`
+// fail with a bash arithmetic error that `set -euo pipefail` does NOT catch (it's inside a `[ ]`
+// test, not a bare statement), silently treating the comparison as false -- disabling this
+// script's entire stale-base check instead of refusing the bad argument. Exercises the script
+// directly (bskel itself now also validates --max-behind before ever invoking it, but this
+// script is documented as reusable standalone and must not rely on that caller alone).
+test('a non-numeric --max-behind is rejected outright (exit 14), not silently treated as "not stale"', () => {
+	const { workDir } = buildFixture();
+	sh('git', ['fetch', '--quiet', 'origin'], workDir);
+	for (const bad of ['abc', '-1', '1.5', '']) {
+		const result = runPreflight(workDir, ['--max-behind', bad]);
+		assert.equal(result.code, 14, `expected --max-behind ${JSON.stringify(bad)} to be rejected`);
+		assert.equal(result.json, null, 'a rejected argument must not produce a verdict JSON document at all');
+	}
+});

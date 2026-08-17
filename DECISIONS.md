@@ -2271,3 +2271,189 @@ precedent both `detectBasePackage` and this item's own `detectImportRoot` follow
 (the charset-validation fix this item found and closed a second time, independently, for Python),
 `D-resolver-scope` (the reason `patch_field()` is always a stub, carried over identically),
 `D-config-patch` (the "a human adds two lines" precedent this item's router-wiring note follows).
+
+## D-cli-contract (D2): strict argument parsing, one exit-code table, and a JSON error channel that is added to the existing output rather than replacing it
+
+**WHY**: three real bugs, all reproduced live, not hypothetical. (1) `bskel verify --feature
+--json` -- the pre-D2 `parseFlags()` let a value-taking flag's missing value silently swallow the
+NEXT token as its own value, so `--feature` consumed the literal string `"--json"`, which then
+failed `requireValidFeatureId()` with an **uncaught throw** -- a full Node stack trace on stderr
+and exit 1, for what should have been a one-line usage error. (2) `bskel preflight --max-behind
+abc` -- `scripts/preflight-base-ref.sh`'s `[ "$BEHIND" -gt "$MAX_BEHIND" ]` comparison, given a
+non-numeric `$MAX_BEHIND`, fails with a bash arithmetic error (`integer expression expected`,
+status 2) that `set -euo pipefail` does **not** catch (the error is inside a `[ ]` test, not a bare
+statement) -- the comparison is simply treated as false. Reproduced live against a genuinely
+1-commit-stale worktree: the pre-fix script reported `{"verdict":"PASS", "behind":1, ...}` at exit
+0, silently disabling this tool's entire reason for existing (the stale-base check that this
+project itself started from -- a worktree branched 658 commits behind the real default branch).
+(3) `bskel status 001-widget` (a common typo for `--feature 001-widget`) silently absorbed the
+stray positional and reported a "repo scope only" success at exit 0 -- the most common mistake a
+human/agent makes with this command was invisible. Exit-code definitions were also scattered
+across three places with no cross-reference (`lib/gates.mjs`'s `EXIT`, 4 values; ~6 more literal
+numbers in `bin/bskel.mjs`; 3 more -- `11`/`12`/`13` -- defined only inside
+`scripts/preflight-base-ref.sh`, invisible to any JS-side reference), and `--help`/`--version`/
+`--quiet` did not exist at all.
+
+**SCOPE**: `node:util.parseArgs`-based strict parsing (`lib/cli.mjs`, one `COMMANDS` table
+mechanically transcribed from the pre-D2 `parseFlags()` call sites -- 18 commands, byte-identical
+defaults, proven by a default-value snapshot test), a single exit-code table (`lib/exit-codes.mjs`,
+`lib/gates.mjs`'s `EXIT` now assembled from it and re-exported unchanged), global `--help`/
+`--version`/`--json`/`--quiet`, an additive `sbf.cli-diagnostic/1` JSON envelope for payload-less
+early-exit failures when `--json` is set, a clean diagnosis for the two crash classes above
+(uncaught validation throws, the swallowed-value ambiguity), and two directly-related side fixes
+found during the audit: a numeric guard in `scripts/preflight-base-ref.sh` itself (bug 2, since the
+script is documented as reusable standalone and must not rely on `bskel`'s own pre-validation), and
+materializing a `{{PORT}}` substitution site in `stack/bootstrap/ngrok.sh` (found while auditing
+`--port`: it had **zero effect** on the deployed script regardless of value, because
+`stack/apply.mjs`'s `planApply()` already computed and passed a `PORT` template variable that the
+template itself never referenced -- adding numeric validation to a flag with no effect would have
+been validation theater, not a real fix).
+
+**Re-estimated scope, and what was rejected**: the catalog's own M estimate, and its concrete-
+approach text ("every handler returns `{ok,code,command,diagnostics,next_actions}`"), did not
+survive contact with the real code -- confirmed by direct execution, not assumed. `bskel scan
+--json`, `contract emit --json`, and `handles plan --json` each print a **schema-validated
+artifact document** (`schemas/scan-report.schema.json` / `feature-contract.schema.json` /
+`handles-plan.schema.json`, two of which are `additionalProperties:false`), and `cmdScan` writes
+the identical object to stdout and to `specs/<id>/brownfield-scan.json` in the same call --
+wrapping or merging keys into that output would make `bskel scan --json > brownfield-scan.json`
+fail its own schema. Separately, this CLI already runs on the model "a non-zero exit does not mean
+an empty payload" -- `verify --json` returns its real report at exit 1, `scan --json` returns the
+real report at exit 16/3, `handles emit --json` returns `{written, conflicts, ...}` at exit 15,
+`contract validate --json` returns `{ok:false, errors:[...]}` at exit 1 -- and 12+ existing tests
+assert exactly those shapes. A uniform envelope would have broken all of it. The approved design
+(user-selected "A+" over a minimal "A" and the catalog's own full envelope, presented with real
+before/after evidence) instead adds the envelope **only** on payload-less early-exit paths, leaving
+every payload-bearing exit and every schema-validated stdout artifact completely untouched.
+
+**EXCLUDED** (and why): exit-code renumbering -- the numbers are already a public contract
+(`SKILL.md` documents several directly, 11+ existing tests across 6+ files assert specific values)
+-- instead, exit 2's long-standing double meaning ("a gate this command depends on hasn't passed"
+vs. "a referenced resource/adapter/provider doesn't exist") is disambiguated by a `reason` string
+in the diagnostic envelope, never by a new number. `package.json`'s inaccurate `engines: ">=18"`
+(P1's job). JSON-encoding a successful run's stderr advisory notes (already an established,
+tested convention -- see A2's "a diagnostic side-channel note belongs on stderr regardless of what
+shape stdout takes"). Short flags (`-h`/`-v`/`-j`) and `--no-<flag>` negation (`allowNegative` is
+Node 22.4+; this project's declared floor is 20.11, unverified locally -- not used without being
+able to confirm it). Shell completion. A `--json` output compact/pretty toggle.
+
+**Mechanism**:
+- `lib/cli.mjs`'s `parseCommand(name, argv)` returns the **exact same shape** the old
+  `parseFlags()` did (`{ _: [...positionals], ...values }`) -- every pre-existing `flags.feature`/
+  `flags._[0]`/`flags['max-behind']` reference in `bin/bskel.mjs` needed zero changes. Internally:
+  `util.parseArgs({strict:true, allowPositionals: <only for the 3 `gate` subcommands>})`, with
+  per-flag `default` applied AFTER parsing (handing a `null` string default straight to
+  `parseArgs` throws `ERR_INVALID_ARG_TYPE` -- confirmed by direct execution on Node v26.5.0, not
+  assumed), numeric fields validated as a plain digit string (`/^(0|[1-9]\d*)$/` plus min/max --
+  never forced through `Number()`, so `--port`'s existing `Number.parseInt()` call and
+  `--max-behind`'s existing string pass-through to the bash script are unchanged), and `required`
+  fields whose failure message is always the command's own `usage` line -- exactly what every
+  pre-D2 required-flag check already printed (confirmed per call site, not assumed).
+- Real `node:util.parseArgs` behavior confirmed by direct execution (v26.5.0): an unknown flag
+  throws `ERR_PARSE_ARGS_UNKNOWN_OPTION`; a missing value throws
+  `ERR_PARSE_ARGS_INVALID_OPTION_VALUE`; `--feature --json` (the exact shape of bug 1) throws
+  "argument is ambiguous" -- the precise fix for the swallowed-value crash; `--feature=--json`
+  (an explicit inline value) is correctly accepted, never ambiguous;
+  `allowPositionals:true`/`false` correctly supports `gate require <name> --feature <id>` while
+  rejecting a stray positional everywhere else.
+- Every command's parsing now happens **first**, before `requireRepoRoot()`/
+  `requirePreflightPassed()` -- previously several commands called those guards before parsing,
+  so `--json` was unknown at the moment a guard could fail. This is an observable, intentional
+  change: a non-git directory combined with an unknown flag now reports the argument error (14)
+  rather than the directory error (10) -- no existing test asserted the old ordering for that
+  specific combination (verified by direct execution against the affected commands).
+- `fail(code, reason, message)` / `exitWithDiagnostic(code, reason, message)`: the stderr text is
+  **always exactly what it was before** (same strings, same call sites, same multi-line blocks for
+  the handful of commands with multi-part explanations) -- the JSON envelope, when `CTX.json` is
+  set, is purely additive on top, never a replacement. `CTX` is process-lifetime module state
+  (`{command, json, quiet}`, set once right after a command's own `parseCommand()` succeeds) --
+  the same lifetime class as `process.exitCode` itself; threading it through ~20 helper functions'
+  parameter lists for a value fixed for the life of one invocation would be pure noise.
+- Exit 2's `reason` disambiguation: `GATE_NOT_PASSED` / `MISSING_ARTIFACT` / `ADAPTER_UNAVAILABLE`
+  / `PROVIDER_UNAVAILABLE` / `UNKNOWN_OPERATION` / `SCAN_FAILED` / `PLAN_FAILED`, plus one each for
+  `BAD_ARGS`(14) / `NOT_A_REPO`(10) / `MISSING_CAPABILITY`(17) / `GATE_AWAITING_DISPOSITION`(3) /
+  `GATE_STALE`(4) -- 12 reasons total, covering every code that can appear in a diagnostic
+  envelope. Exit 15 (`handles emit` conflict) and 16 (`scan` low-confidence) never appear in a
+  diagnostic envelope at all -- both are payload-bearing exits (the real conflict/report data is
+  already on stdout), so they need no `reason` disambiguation.
+- `main()`'s try/catch is the single point that turns an uncaught `CliUsageError` (from
+  `parseCommand()`) or a plain, message-only `Error` thrown by a domain validator
+  (`requireValidFeatureId`/`requireValidSlug`/`requireValidFeatureOrRepoId`, or a malformed-state
+  read) into a clean one-line diagnosis at exit 14 -- this is what fixes bug 1 and the `status
+  --feature bogus` crash class. A genuine JS-native error (`TypeError`/`ReferenceError`/
+  `RangeError`) is treated differently -- `bskel: internal error: ...` at exit 1, stack shown only
+  under `BSKEL_DEBUG=1` -- since that signals a bug in this codebase, not a bad user input; no new
+  error class was introduced in `lib/featureid.mjs` to make this distinction, the JS-native-error-
+  type check already does it correctly for every reachable case.
+- `--help`: per-command (`renderCommandHelp(name)`, stdout, exit 0, checked before required-field
+  validation so `handles emit --help` works without `--feature`) and top-level (`bskel --help`/
+  `bskel help`/bare `bskel`, stdout, exit 0). `usage()`'s exact shape -- a single template literal
+  passed directly to `console.error` -- is preserved byte-for-byte, because
+  `test/doc-integrity.test.mjs`'s existing drift guard parses it as source text via a regex that
+  requires exactly that shape. The stdout path is a local, temporary `console.error` -> `console.log`
+  redirect around a real call to `usage()` (`printUsageToStdout()`), not a second copy of the
+  banner text -- avoids the two copies silently drifting apart, at the cost of one small, clearly-
+  commented redirect.
+- `--version`: reads `package.json`'s `version` at call time (no hardcoding -- automatically
+  tracks whatever P1 eventually publishes).
+- `--quiet`: suppresses only human-rendered **narration** stdout (`renderScanMarkdown`/
+  `renderVerifyReport`/`renderStackPlan`/`renderHandlesPlan`/`wrote N file(s)`/`gate: X -> Y`/
+  `VERIFY: PASS`-class lines) -- never a `--json` payload, never an "always-JSON" command's sole
+  output (`gate require`/`force`/`show`, `feature init`, `contract validate`/`tool-schema`, `scan
+  disposition` -- these commands' one console.log call **is** their payload, not narration, so
+  `--quiet` does not touch it), and never stderr (warnings/blocking explanations stay visible
+  unconditionally -- silencing them would manufacture exactly the "quiet failure" class this
+  project has consistently refused elsewhere). `bskel next`'s single stdout line is a deliberate
+  exception -- it IS the command's entire payload (a copy-pasteable command for `$(bskel next)`),
+  not narration, so `--quiet` does not affect it either.
+
+**Verification**: `npm test` 386 -> **444** (a net 58: 54 in the new `test/cli-contract.test.mjs`
+covering parse-unit behavior, the full 18-command default-value snapshot, numeric validation,
+static regression guards -- every `process.exit`/`process.exitCode` literal in `bin/bskel.mjs` is
+in the exit-code table, `parseFlags(` no longer exists -- and e2e coverage of every claim above;
+2 in `test/preflight.test.mjs` and `test/stack-cli.test.mjs` for the two side fixes; 2 in
+`test/doc-integrity.test.mjs`, a new bidirectional drift guard between `usage()`'s prose and
+`lib/cli.mjs`'s `COMMANDS` table). **All 386 pre-existing tests pass completely unmodified** --
+the load-bearing proof that this was a genuine behavior-preserving restructuring, not a rewrite
+that happened to still pass.
+
+Real-world, against Team-IZ-Backend (an isolated worktree off `origin/develop`, cleaned up after):
+a full pre/post command-transcript capture (every command, `--json` on and off, ~43 invocations)
+was taken before implementation began and re-taken after, then diffed byte-for-byte. Every
+difference fell into exactly the three predicted classes (a new global flag's output, a new
+diagnostic envelope on a previously-empty stdout, or the parsing-first ordering change) plus
+unavoidable timestamp noise from re-running the same stateful workflow twice, plus the two
+deliberate side fixes -- zero unexplained differences. Pipe-truncation safety re-confirmed directly
+(`scan --terms a --json` piped: 217909 bytes, byte-identical to a direct-to-file capture -- the
+`D-process-exit-audit` `process.exitCode` sites were not touched). The stale-base bypass (bug 2)
+was demonstrated by executing the actual pre-D2 script (`git show`) against a freshly built,
+genuinely-one-commit-stale clean worktree: `--max-behind abc` reported `{"verdict":"PASS",
+"behind":1}` at exit 0 on the old script, and is rejected outright at exit 14 on the fixed one,
+with a same-worktree sanity check confirming a *valid* `--max-behind` still correctly reports
+`STALE_BASE` (exit 11) -- the fix closes the bypass without weakening the real check.
+
+**COST**: exit 2's public contract is now two-layered (the number is authoritative; `reason` is
+"stable but supplementary" and requires reading the envelope, not just the exit code, for full
+precision). A non-git directory combined with a bad flag now reports the argument error before the
+directory error (see Mechanism). Bare `bskel` and `--help` now write to stdout instead of stderr.
+`--quiet` was invented for this item with no prior specification to match -- its scope (narration
+only) is this item's own judgment call, not a pre-existing convention. `usage()`'s stdout path is
+a temporary `console.error` redirect rather than a second, independent render function.
+
+**EXIT**: if a genuine need for a fully uniform `{ok,code,command,...}` envelope emerges later, add
+it behind an explicit opt-in flag (e.g. `--envelope`) that leaves the default, schema-validated
+artifact outputs completely untouched -- do not retrofit the default behavior, for the same reason
+this item didn't. If exit 2's `reason` values prove insufficient (a genuinely new failure class that
+doesn't fit any of the 7 existing sub-reasons), add a new `reason` string, not a new exit code,
+unless a real caller needs to distinguish it by exit code alone without parsing the envelope. Short
+flags and `--no-<flag>` negation, if `util.parseArgs`'s `allowNegative` is confirmed available on
+this project's actual minimum supported Node version.
+
+Cross-references: `D-adapter-registry` (G1) and `D-handles-providers` (G4), whose own capability-
+dispatch exit codes (17) and `MISSING_CAPABILITY` messaging this item's `reason` taxonomy absorbs
+unchanged; `D-process-exit-audit`, whose `process.exitCode` (not `process.exit()`) sites on large-
+payload commands this item re-verifies rather than disturbs; `D-status-next` (D1), whose
+`computeWorkflowState()`/`next_actions` shape this item's gate-blocked diagnostics reuse directly
+rather than inventing a second remediation format; `D-doctor-workflow` (D5), the precedent for
+`--workflow`-style optional/required check separation this item's own `required`-field design in
+`lib/cli.mjs` follows.

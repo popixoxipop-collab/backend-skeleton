@@ -195,7 +195,61 @@ already know that flag exists. See `D-openapi-reconciliation`'s §7 addendum in 
 default branch -- this is the exact bug class the tool exists to catch: a worktree silently
 based on a stale/abandoned branch), `12` WRONG_DEFAULT (the three independent sources for "what
 is the default branch" disagree, or none could be determined -- never guess `main`), `13` DIRTY
-(uncommitted changes present, pass `--allow-dirty` to override), `14` bad arguments.
+(uncommitted changes present, pass `--allow-dirty` to override), `14` bad arguments. See "CLI
+contract" below for the complete, cross-command exit-code table and the global flags every
+command accepts.
+
+## CLI contract (D2)
+
+Every `bskel` command is parsed with `node:util.parseArgs` in strict mode (`lib/cli.mjs`) -- an
+unknown flag or a value-taking flag given no value (including the ambiguous shape
+`--feature --json`, where `--json` used to be silently swallowed as `--feature`'s value) is
+rejected outright with a usage message, never silently absorbed as a positional argument or left
+`undefined`. `--max-behind`/`--port` are validated as non-negative whole numbers (with `--port`
+additionally bounded to 1-65535) before anything downstream ever sees them.
+
+**Global flags, every command**: `--help` (prints that command's own usage to stdout and exits 0,
+checked before any required-flag validation -- `bskel handles emit --help` works without
+`--feature`); `bskel --help`/`bskel help`/bare `bskel` prints the full command list to stdout and
+exits 0. `--version` prints `bskel <version>` (or `{"name":"bskel","version":"..."}` with
+`--json`), read live from `package.json`. `--json`: accepted by every command, even ones whose own
+output is always JSON already (`gate require`/`force`/`show`, `feature init`, `contract
+validate`/`tool-schema`, `scan disposition` -- a no-op there, documented, not an error). `--quiet`
+suppresses only human-rendered **narration** stdout (markdown reports, `wrote N file(s):`, `gate:
+X -> Y` lines) -- it never suppresses a `--json` payload, never an "always-JSON" command's sole
+output (that IS its payload, not narration), and never stderr (warnings and blocking explanations
+stay visible unconditionally). `bskel next`'s one-line stdout (meant for `$(bskel next)`) is a
+deliberate exception -- it is the command's entire payload, so `--quiet` does not touch it either.
+
+**The `--json` invariant**: whenever `--json` is given, every exit path leaves stdout holding
+*exactly one JSON document*. A command whose success output is a schema-validated artifact (`scan`,
+`contract emit`, `handles plan`, etc.) keeps printing exactly that artifact, unchanged, on every
+exit code that carries real data (including several non-zero ones -- `verify` exit `1`, `scan`
+exit `16`/`3`, `handles emit` exit `15`, `contract validate` exit `1` all print a real payload, not
+an empty stdout). Only a payload-**less** early exit (a bad flag, a missing prerequisite gate, an
+unknown adapter/operation) gets a new, additive `sbf.cli-diagnostic/1` envelope on stdout --
+`{schema, ok: false, command, code, reason, diagnostics: [{level, reason, message}],
+next_actions}` -- while the exact same human-readable message that was always printed stays on
+stderr, unchanged. This design was chosen specifically because `scan --json`/`contract emit
+--json`/`handles plan --json`'s stdout is written to disk byte-identical
+(`brownfield-scan.json`/etc, two of which are `additionalProperties:false` schemas) -- wrapping
+every command's output in a uniform envelope, as originally floated for this item, would have
+broken `bskel scan --json > brownfield-scan.json`'s own schema validation. See D-cli-contract in
+DECISIONS.md for the full design and the real bugs (an uncaught-throw crash, a preflight
+stale-base-check bypass, a silently-ignored stray positional) this closed.
+
+**Exit-code table** (`lib/exit-codes.mjs` is the single source; `lib/gates.mjs`'s `EXIT` assembles
+from it unchanged): `0` OK, `1` CHECK_FAILED (a real payload -- `verify`/`contract validate`'s own
+pass/fail), `2` NOT_PASSED (a required gate hasn't passed, OR a referenced resource/adapter/
+provider doesn't exist -- disambiguated in a `--json` envelope's `reason` field:
+`GATE_NOT_PASSED`/`MISSING_ARTIFACT`/`ADAPTER_UNAVAILABLE`/`PROVIDER_UNAVAILABLE`/
+`UNKNOWN_OPERATION`/`SCAN_FAILED`/`PLAN_FAILED`), `3` AWAITING_DISPOSITION, `4` STALE, `10`
+NOT_A_REPO, `11` STALE_BASE, `12` WRONG_DEFAULT, `13` DIRTY (11-13 are `preflight`-only, defined in
+`scripts/preflight-base-ref.sh` itself), `14` BAD_ARGS, `15` HANDLES_CONFLICT (a real payload --
+`handles emit`'s own conflict list), `16` LOW_CONFIDENCE_SCAN (a real payload -- the scan report
+itself), `17` MISSING_CAPABILITY. The number is the stable, primary contract (several of these are
+already asserted by exact value across the test suite); `reason` in a diagnostic envelope is
+"stable but supplementary" precision on top of it, not a replacement for checking the exit code.
 
 ```bash
 bskel feature init --slug organization-management

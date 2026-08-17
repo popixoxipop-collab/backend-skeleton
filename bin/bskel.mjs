@@ -24,6 +24,8 @@ import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/regist
 import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
+import { parseCommand, renderCommandHelp, diagnostic } from '../lib/cli.mjs';
+import { EXIT_CODES } from '../lib/exit-codes.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -52,41 +54,69 @@ function usage() {
 `);
 }
 
+// D2 (D-cli-contract): usage()'s exact shape (a single template literal passed directly to
+// console.error) is load-bearing -- test/doc-integrity.test.mjs's regex-based drift guard parses
+// it as source text, so it is never restructured. This is the "same text, but to stdout" bridge
+// for --help/`help`/bare `bskel` -- a local, temporary console.error redirect rather than a second
+// copy of the banner text (which could silently drift from the real one).
+function printUsageToStdout() {
+	const original = console.error;
+	console.error = console.log;
+	try {
+		usage();
+	} finally {
+		console.error = original;
+	}
+}
+
+// D2: module-level, set once per process right after a command's own parseCommand() succeeds --
+// same lifetime class as `process.exitCode` itself. Threading {json,quiet,command} through every
+// helper function's own parameter list would add noise to ~20 call sites for a value that is, by
+// construction, fixed for the entire life of one `bskel` invocation.
+const CTX = { command: null, json: false, quiet: false };
+
+function setContext(command, flags) {
+	CTX.command = command;
+	CTX.json = Boolean(flags.json);
+	CTX.quiet = Boolean(flags.quiet);
+}
+
+// Prints the diagnostic envelope to stdout IF --json was requested -- never prints the human
+// message itself (the caller already did, on stderr, possibly across several console.error calls
+// for a multi-line explanation). See DECISIONS.md D-cli-contract: this only ever fires on a
+// PAYLOAD-LESS early exit -- a command whose stdout would otherwise be empty on this path.
+function exitWithDiagnostic(code, reason, message, { next_actions = [] } = {}) {
+	if (CTX.json) {
+		console.log(JSON.stringify(diagnostic({ command: CTX.command, code, reason, message, next_actions }), null, 2));
+	}
+	process.exit(code);
+}
+
+// The common case: exactly one stderr line, then the (optional) JSON envelope, then exit.
+function fail(code, reason, message, opts = {}) {
+	console.error(message);
+	exitWithDiagnostic(code, reason, message, opts);
+}
+
 function requireRepoRoot() {
 	const root = repoRoot();
-	if (!root) {
-		console.error('bskel: not inside a git repository');
-		process.exit(10);
-	}
+	if (!root) fail(EXIT_CODES.NOT_A_REPO, 'NOT_A_REPO', 'bskel: not inside a git repository');
 	return root;
 }
 
-function parseFlags(args, spec) {
-	const out = { _: [] };
-	for (const key of Object.keys(spec)) out[key] = spec[key].default;
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i];
-		const flagName = arg.startsWith('--') ? arg.slice(2) : null;
-		if (flagName && flagName in spec) {
-			if (spec[flagName].type === 'boolean') {
-				out[flagName] = true;
-			} else {
-				out[flagName] = args[++i];
-			}
-		} else {
-			out._.push(arg);
-		}
-	}
-	return out;
+// D2: a gate blocked in a way where the underlying result.code varies (2/3/4 depending on
+// current gate status) still needs the right `reason` for the envelope -- this is the one place
+// that mapping lives, reused by every "some other gate must pass first" check below.
+function gateReasonForCode(code) {
+	if (code === EXIT.AWAITING_DISPOSITION) return 'GATE_AWAITING_DISPOSITION';
+	if (code === EXIT.STALE) return 'GATE_STALE';
+	return 'GATE_NOT_PASSED';
 }
 
 function cmdPreflight(args) {
-	const flags = parseFlags(args, {
-		'max-behind': { type: 'string', default: '0' },
-		'no-fetch': { type: 'boolean', default: false },
-		'allow-dirty': { type: 'boolean', default: false },
-		json: { type: 'boolean', default: false },
-	});
+	const flags = parseCommand('preflight', args);
+	if (flags.help) { console.log(renderCommandHelp('preflight')); process.exit(0); }
+	setContext('preflight', flags);
 	const root = requireRepoRoot();
 	const scriptPath = path.join(SKILL_ROOT, 'scripts', 'preflight-base-ref.sh');
 	const scriptArgs = ['--max-behind', flags['max-behind']];
@@ -111,7 +141,7 @@ function cmdPreflight(args) {
 	if (flags.json) {
 		console.log(stdout.trim());
 	} else if (result.verdict === 'PASS') {
-		console.log(`PASS: HEAD is up to date with origin/${result.evidence.default_branch}`);
+		if (!flags.quiet) console.log(`PASS: HEAD is up to date with origin/${result.evidence.default_branch}`);
 	} else {
 		console.error(`FAIL (${result.reason}): ${result.message}`);
 	}
@@ -128,23 +158,23 @@ function resolveGateArg(gateName, featureFlag) {
 	try {
 		def = requireGateDefinition(gateName);
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 	try {
 		requireValidFeatureOrRepoId(featureFlag, REPO_GATE_ID);
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 	return { def, scopeId: gateScopeId(gateName, featureFlag) };
 }
 
 function cmdGateRequire(args) {
+	const flags = parseCommand('gate require', args);
+	if (flags.help) { console.log(renderCommandHelp('gate require')); process.exit(0); }
+	setContext('gate require', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, { feature: { type: 'string', default: REPO_GATE_ID } });
 	const gateName = flags._[0];
-	if (!gateName) { console.error('usage: bskel gate require <name> [--feature <id>]'); process.exit(14); }
+	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate require <name> [--feature <id>]');
 	resolveGateArg(gateName, flags.feature);
 	// `require` never re-runs the underlying check (e.g. it doesn't re-fetch or re-scan) -- it
 	// freshly recomputes only the cheap, local inputs the gate's token was built from (see
@@ -155,13 +185,12 @@ function cmdGateRequire(args) {
 }
 
 function cmdGateForce(args) {
+	const flags = parseCommand('gate force', args);
+	if (flags.help) { console.log(renderCommandHelp('gate force')); process.exit(0); }
+	setContext('gate force', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: REPO_GATE_ID },
-		reason: { type: 'string', default: '' },
-	});
 	const gateName = flags._[0];
-	if (!gateName) { console.error('usage: bskel gate force <name> --reason "..." [--feature <id>]'); process.exit(14); }
+	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate force <name> --reason "..." [--feature <id>]');
 	const { scopeId } = resolveGateArg(gateName, flags.feature);
 	const state = forceGate(root, scopeId, gateName, flags.reason);
 	console.log(JSON.stringify(state.gates[gateName]));
@@ -169,15 +198,16 @@ function cmdGateForce(args) {
 }
 
 function cmdGateShow(args) {
+	const flags = parseCommand('gate show', args);
+	if (flags.help) { console.log(renderCommandHelp('gate show')); process.exit(0); }
+	setContext('gate show', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, { feature: { type: 'string', default: REPO_GATE_ID } });
 	const gateName = flags._[0] ?? null;
 	if (gateName === null) {
 		try {
 			requireValidFeatureOrRepoId(flags.feature, REPO_GATE_ID);
 		} catch (err) {
-			console.error(err.message);
-			process.exit(14);
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 		}
 		console.log(JSON.stringify(loadState(root, flags.feature), null, 2));
 		process.exit(0);
@@ -194,8 +224,9 @@ function cmdGateShow(args) {
 function requirePreflightPassed(root) {
 	const result = requireNamedGate(root, 'preflight', null);
 	if (result.code !== EXIT.PASS) {
-		console.error(`blocked: \`preflight\` gate is ${result.status} -- run \`bskel preflight\` first.`);
-		process.exit(result.code);
+		fail(result.code, gateReasonForCode(result.code), `blocked: \`preflight\` gate is ${result.status} -- run \`bskel preflight\` first.`, {
+			next_actions: [{ command: 'bskel preflight', reason: 'the preflight gate has not passed yet', mutating: true }],
+		});
 	}
 }
 
@@ -208,21 +239,16 @@ function deriveTerms(flags) {
 }
 
 function cmdScan(args) {
+	const flags = parseCommand('scan', args);
+	if (flags.help) { console.log(renderCommandHelp('scan')); process.exit(0); }
+	setContext('scan', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		terms: { type: 'string', default: '' },
-		db: { type: 'boolean', default: false },
-		json: { type: 'boolean', default: false },
-		'accept-low-confidence': { type: 'boolean', default: false },
-	});
 	if (flags.db) {
 		console.error('note: --db (Plane C) is not implemented yet -- scanning without it. See DECISIONS.md.');
 	}
 	const terms = deriveTerms(flags);
 	if (terms.length === 0) {
-		console.error('usage: bskel scan [--feature <id>] --terms a,b,c   (need at least one search term, from --terms or a --feature slug)');
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel scan [--feature <id>] --terms a,b,c   (need at least one search term, from --terms or a --feature slug)');
 	}
 	if (flags.feature) {
 		requireValidFeatureId(flags.feature);
@@ -241,8 +267,7 @@ function cmdScan(args) {
 		// Unreachable with the two shipped adapters (generic-grep's specificity-0 detect() is
 		// unconditional) -- becomes reachable the moment a future adapter's detect() is
 		// conditional, or two adapters tie at the same specificity. See scanners/index.mjs.
-		console.error(err.message);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'SCAN_FAILED', err.message);
 	}
 	if (flags.feature) report.feature_id = flags.feature;
 
@@ -250,7 +275,8 @@ function cmdScan(args) {
 		// Ad-hoc mode: no feature_id, no files written, no gate touched -- matches the plan's own
 		// example invocation `bskel scan --terms organization` for a quick look before committing
 		// to a feature_id.
-		console.log(flags.json ? JSON.stringify(report, null, 2) : renderScanMarkdown(report));
+		if (flags.json) console.log(JSON.stringify(report, null, 2));
+		else if (!flags.quiet) console.log(renderScanMarkdown(report));
 		// Process-exit audit (post-A3): exitCode, not exit() -- a scan report for a broad term can
 		// be large (reproduced live: `scan --terms a --json` against Team-IZ-Backend is 177583
 		// bytes; captured via a pipe with the old process.exit(0) here, it truncated at exactly
@@ -268,7 +294,8 @@ function cmdScan(args) {
 	// grep can still mis-score a "collision"/"adjacent" verdict a human would act on in `scan
 	// disposition` -- see D-generic-grep-reconnaissance in DECISIONS.md.
 	if (report.confidence === 'low' && !flags['accept-low-confidence']) {
-		console.log(flags.json ? JSON.stringify(report, null, 2) : renderScanMarkdown(report));
+		if (flags.json) console.log(JSON.stringify(report, null, 2));
+		else if (!flags.quiet) console.log(renderScanMarkdown(report));
 		console.error(
 			'\nblocked: this scan used the low-confidence generic-grep adapter (route-pattern grep, ' +
 			'not a real parser -- collapsed evidence, no operation IDs, never contract-grade). Re-run ' +
@@ -276,7 +303,8 @@ function cmdScan(args) {
 			'--openapi-file at contract emit for a trustworthy result.',
 		);
 		// D-process-exit-audit: bounded by the report size already audited for the ad-hoc branch
-		// above (same report object, same command) -- no pipe-truncation risk.
+		// above (same report object, same command) -- no pipe-truncation risk. This exit carries a
+		// real payload (the report, already printed above) -- no diagnostic envelope on top of it.
 		process.exit(16);
 	}
 
@@ -297,7 +325,7 @@ function cmdScan(args) {
 
 	if (flags.json) {
 		console.log(JSON.stringify(report, null, 2));
-	} else {
+	} else if (!flags.quiet) {
 		console.log(renderScanMarkdown(report));
 		console.log(`gate: scan -> ${gateState.gates.scan.status}`);
 		if (report.verdict !== 'greenfield') {
@@ -310,28 +338,21 @@ function cmdScan(args) {
 }
 
 function cmdScanDisposition(args) {
+	const flags = parseCommand('scan disposition', args);
+	if (flags.help) { console.log(renderCommandHelp('scan disposition')); process.exit(0); }
+	setContext('scan disposition', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		mode: { type: 'string', default: null },
-		note: { type: 'string', default: '' },
-		'breaking-approved': { type: 'boolean', default: false },
-	});
-	if (!flags.feature) { console.error('usage: bskel scan disposition --feature <id> --mode <mode> [--note "..."]'); process.exit(14); }
 	requireValidFeatureId(flags.feature);
 	if (!DISPOSITION_MODES.includes(flags.mode)) {
-		console.error(`--mode must be one of: ${DISPOSITION_MODES.join(', ')}`);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--mode must be one of: ${DISPOSITION_MODES.join(', ')}`);
 	}
 	if (flags.mode === 'replace' && !flags['breaking-approved']) {
-		console.error('--mode replace requires --breaking-approved (this is a deliberate speed bump, not a bug)');
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--mode replace requires --breaking-approved (this is a deliberate speed bump, not a bug)');
 	}
 
 	const reportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	if (!fs.existsSync(reportPath)) {
-		console.error(`no scan report at ${reportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${reportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
 	}
 	const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 	report.feature_id = flags.feature;
@@ -354,10 +375,11 @@ function featureIndexPath(root) {
 }
 
 function cmdFeatureInit(args) {
+	const flags = parseCommand('feature init', args);
+	if (flags.help) { console.log(renderCommandHelp('feature init')); process.exit(0); }
+	setContext('feature init', flags);
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
-	const flags = parseFlags(args, { slug: { type: 'string', default: null } });
-	if (!flags.slug) { console.error('usage: bskel feature init --slug <name>'); process.exit(14); }
 	requireValidSlug(flags.slug);
 
 	const featureId = `${nextFeatureNumber(path.join(root, 'specs'))}-${flags.slug}`;
@@ -376,8 +398,7 @@ function cmdFeatureInit(args) {
 function loadFeatureRecord(root, featureId) {
 	const record = readJsonIfExists(specPath(root, featureId, 'feature.json'));
 	if (!record) {
-		console.error(`no feature.json at specs/${featureId}/ -- run \`bskel feature init --slug ${slugWords(featureId).join('-')}\` first (or hand-write specs/${featureId}/feature.json with a minted feature_uid)`);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no feature.json at specs/${featureId}/ -- run \`bskel feature init --slug ${slugWords(featureId).join('-')}\` first (or hand-write specs/${featureId}/feature.json with a minted feature_uid)`);
 	}
 	return record;
 }
@@ -398,33 +419,25 @@ function requireCapabilitiesOrExit(scanReport, command, { featureId, scanReportP
 	const adapter = adapterById(ADAPTERS, scanReport.adapter);
 	if (!adapter) {
 		const loadErr = LOAD_ERRORS.find((e) => path.basename(e.file, '.mjs') === scanReport.adapter);
-		console.error(
-			loadErr
-				? `blocked: the "${scanReport.adapter}" adapter that produced this scan report failed to load: ${loadErr.message}`
-				: `blocked: this scan report was produced by adapter "${scanReport.adapter}", which this installed version of backend-skeleton does not have -- re-run \`bskel scan --feature ${featureId}\`.`,
-		);
-		process.exit(2);
+		const message = loadErr
+			? `blocked: the "${scanReport.adapter}" adapter that produced this scan report failed to load: ${loadErr.message}`
+			: `blocked: this scan report was produced by adapter "${scanReport.adapter}", which this installed version of backend-skeleton does not have -- re-run \`bskel scan --feature ${featureId}\`.`;
+		fail(EXIT_CODES.NOT_PASSED, 'ADAPTER_UNAVAILABLE', message);
 	}
 	for (const capability of COMMAND_CAPABILITIES[command] ?? []) {
 		if (adapter.capabilities[capability]) continue;
 		const satisfier = CAPABILITY_SATISFIERS[capability];
 		if (satisfier && satisfiedBy.has(satisfier.flag)) continue;
-		console.error(explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
-		process.exit(17);
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
 	}
 }
 
 function cmdContractEmit(args) {
+	const flags = parseCommand('contract emit', args);
+	if (flags.help) { console.log(renderCommandHelp('contract emit')); process.exit(0); }
+	setContext('contract emit', flags);
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		module: { type: 'string', default: null },
-		json: { type: 'boolean', default: false },
-		'openapi-file': { type: 'string', default: null },
-		'path-prefix': { type: 'string', default: null },
-	});
-	if (!flags.feature) { console.error('usage: bskel contract emit --feature <id> [--module <name>] [--openapi-file <path>] [--path-prefix /api/v0]'); process.exit(14); }
 	requireValidFeatureId(flags.feature);
 
 	// Contract emission is only meaningful once the scan gate has actually passed (greenfield
@@ -432,14 +445,14 @@ function cmdContractEmit(args) {
 	// silently flow into a contract as if it had been addressed.
 	const scanResult = requireNamedGate(root, 'scan', flags.feature);
 	if (scanResult.code !== EXIT.PASS) {
-		console.error(`blocked: \`scan\` gate for ${flags.feature} is ${scanResult.status} -- run \`bskel scan --feature ${flags.feature}\` (and \`scan disposition\` if it collides) first.`);
-		process.exit(scanResult.code);
+		fail(scanResult.code, gateReasonForCode(scanResult.code), `blocked: \`scan\` gate for ${flags.feature} is ${scanResult.status} -- run \`bskel scan --feature ${flags.feature}\` (and \`scan disposition\` if it collides) first.`, {
+			next_actions: [{ command: `bskel scan --feature ${flags.feature}`, reason: 'the scan gate has not passed yet', mutating: true }],
+		});
 	}
 
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	if (!fs.existsSync(scanReportPath)) {
-		console.error(`no scan report at ${scanReportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${scanReportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
 	}
 	const scanReport = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
 	requireCapabilitiesOrExit(scanReport, 'contract emit', {
@@ -458,8 +471,7 @@ function cmdContractEmit(args) {
 		if (targetModule) {
 			const result = buildReconciliation({ filePath: flags['openapi-file'], module: targetModule, pathPrefix: flags['path-prefix'] });
 			if (!result.ok) {
-				console.error(result.error);
-				process.exit(14);
+				fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', result.error);
 			}
 			reconciliation = result;
 		}
@@ -533,17 +545,19 @@ function cmdContractEmit(args) {
 	if (flags.json) {
 		console.log(JSON.stringify(contract, null, 2));
 	} else {
-		console.log(`wrote specs/${flags.feature}/contracts/${flags.feature}.schema.json -- ${contract.completeness.operation_count} operation(s), completeness: ${evaluation.status}`);
-		if (reconciliation) {
-			console.log(`openapi: ${reconciliation.stats.matched} path(s) corrected, ${reconciliation.stats.adopted} adopted (prefix ${reconciliation.prefix.value ?? '(none)'}, ${reconciliation.prefix.origin})`);
-			if (reconciliation.schemaProjection.enabled) {
-				const s = reconciliation.stats;
-				console.log(`openapi: ${s.schema_resolved} request body schema(s) projected, ${s.schema_unresolved} unresolved`);
-				console.log(`openapi: ${s.response_schema_resolved} response + ${s.error_schema_resolved} error schema(s) projected, ${s.response_schema_unresolved + s.error_schema_unresolved} unresolved`);
+		if (!flags.quiet) {
+			console.log(`wrote specs/${flags.feature}/contracts/${flags.feature}.schema.json -- ${contract.completeness.operation_count} operation(s), completeness: ${evaluation.status}`);
+			if (reconciliation) {
+				console.log(`openapi: ${reconciliation.stats.matched} path(s) corrected, ${reconciliation.stats.adopted} adopted (prefix ${reconciliation.prefix.value ?? '(none)'}, ${reconciliation.prefix.origin})`);
+				if (reconciliation.schemaProjection.enabled) {
+					const s = reconciliation.stats;
+					console.log(`openapi: ${s.schema_resolved} request body schema(s) projected, ${s.schema_unresolved} unresolved`);
+					console.log(`openapi: ${s.response_schema_resolved} response + ${s.error_schema_resolved} error schema(s) projected, ${s.response_schema_unresolved + s.error_schema_unresolved} unresolved`);
+				}
 			}
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
-		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		if (!flags.quiet) console.log(`gate: contract -> ${gateState.gates.contract.status}`);
 		if (evaluation.staleWaivers.length > 0) {
 			console.error(`\nnote: ${evaluation.staleWaivers.length} recorded waiver(s) no longer match any current warning (kept as-is, not auto-removed):`);
 			for (const w of evaluation.staleWaivers) console.error(`  ${w.code} (${w.subject ?? '*'})`);
@@ -580,8 +594,7 @@ function cmdContractEmit(args) {
 function loadContract(root, featureId) {
 	const contractPath = specPath(root, featureId, 'contracts', `${featureId}.schema.json`);
 	if (!fs.existsSync(contractPath)) {
-		console.error(`no contract at ${contractPath} -- run \`bskel contract emit --feature ${featureId}\` first`);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no contract at ${contractPath} -- run \`bskel contract emit --feature ${featureId}\` first`);
 	}
 	return JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 }
@@ -592,38 +605,26 @@ function loadContract(root, featureId) {
 // individual entries -- a warning that doesn't exist yet (e.g. a new unannotated endpoint added
 // later) is never covered by an old waive. See D-contract-completeness in DECISIONS.md.
 function cmdContractWaive(args) {
+	const flags = parseCommand('contract waive', args);
+	if (flags.help) { console.log(renderCommandHelp('contract waive')); process.exit(0); }
+	setContext('contract waive', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		code: { type: 'string', default: null },
-		subject: { type: 'string', default: null },
-		all: { type: 'boolean', default: false },
-		reason: { type: 'string', default: '' },
-		json: { type: 'boolean', default: false },
-	});
-	const usage = 'usage: bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path" | --all) --reason "..."';
-	if (!flags.feature) { console.error(usage); process.exit(14); }
-	requireValidFeatureId(flags.feature);
-	if (!flags.code) { console.error(usage); process.exit(14); }
+	const usageText = 'usage: bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path" | --all) --reason "..."';
 	try {
 		requireWarningCode(flags.code);
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 	if (!flags.reason || !flags.reason.trim()) {
-		console.error('bskel contract waive requires --reason "..." -- every waiver must be auditable');
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel contract waive requires --reason "..." -- every waiver must be auditable');
 	}
 	if (!flags.subject && !flags.all) {
-		console.error(usage);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', usageText);
 	}
 
 	const contract = loadContract(root, flags.feature);
 	if (contract.completeness.status === 'blocked') {
-		console.error(`\`${flags.feature}\`'s contract has zero operations -- there is nothing to waive. Fix --module/--terms, or use \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if this is intentional.`);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `\`${flags.feature}\`'s contract has zero operations -- there is nothing to waive. Fix --module/--terms, or use \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if this is intentional.`);
 	}
 
 	const currentMatches = contract.warnings.filter((w) => w.code === flags.code && w.severity === 'error');
@@ -631,14 +632,12 @@ function cmdContractWaive(args) {
 	if (flags.all) {
 		toWaive = currentMatches;
 		if (toWaive.length === 0) {
-			console.error(`no current warning with code "${flags.code}" in this contract -- nothing to waive`);
-			process.exit(14);
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no current warning with code "${flags.code}" in this contract -- nothing to waive`);
 		}
 	} else {
 		const match = currentMatches.find((w) => w.subject === flags.subject);
 		if (!match) {
-			console.error(`no current warning with code "${flags.code}" and subject "${flags.subject}" in this contract -- known ${flags.code} subjects: ${currentMatches.map((w) => w.subject).join(', ') || '(none)'}`);
-			process.exit(14);
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no current warning with code "${flags.code}" and subject "${flags.subject}" in this contract -- known ${flags.code} subjects: ${currentMatches.map((w) => w.subject).join(', ') || '(none)'}`);
 		}
 		toWaive = [match];
 	}
@@ -672,8 +671,10 @@ function cmdContractWaive(args) {
 	if (flags.json) {
 		console.log(JSON.stringify({ waived: newEntries, gate: gateState.gates.contract }, null, 2));
 	} else {
-		console.log(`waived ${newEntries.length} new warning(s)${newEntries.length < toWaive.length ? ` (${toWaive.length - newEntries.length} already waived)` : ''}`);
-		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		if (!flags.quiet) {
+			console.log(`waived ${newEntries.length} new warning(s)${newEntries.length < toWaive.length ? ` (${toWaive.length - newEntries.length} already waived)` : ''}`);
+			console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		}
 		if (evaluation.blocking) {
 			console.error(`\nstill blocked: ${evaluation.unwaived.length} unresolved warning(s) remain:`);
 			for (const w of evaluation.unwaived) console.error(`  ${w.code} (${w.subject})`);
@@ -683,18 +684,16 @@ function cmdContractWaive(args) {
 }
 
 function cmdContractValidate(args) {
+	const flags = parseCommand('contract validate', args);
+	if (flags.help) { console.log(renderCommandHelp('contract validate')); process.exit(0); }
+	setContext('contract validate', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, { feature: { type: 'string', default: null }, file: { type: 'string', default: null } });
-	if (!flags.feature || !flags.file) { console.error('usage: bskel contract validate --feature <id> --file <envelope.json>'); process.exit(14); }
-	requireValidFeatureId(flags.feature);
-
 	const contract = loadContract(root, flags.feature);
 	let envelope;
 	try {
 		envelope = JSON.parse(fs.readFileSync(flags.file, 'utf8'));
 	} catch (err) {
-		console.error(`could not read/parse ${flags.file}: ${err.message}`);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read/parse ${flags.file}: ${err.message}`);
 	}
 
 	const result = validateEnvelope(envelope, contract);
@@ -704,15 +703,16 @@ function cmdContractValidate(args) {
 	// wrong-typed array elements against a real registerTrainees contract produced a real,
 	// correct 243926-byte result that a piped capture truncated at exactly 65536 bytes with the
 	// old process.exit() here. Last statement in this function -- safe to set exitCode directly.
+	// This exit code (0/1) carries a real payload (the result just printed), never a diagnostic
+	// envelope on top of it.
 	process.exitCode = result.ok ? 0 : 1;
 }
 
 function cmdContractToolSchema(args) {
+	const flags = parseCommand('contract tool-schema', args);
+	if (flags.help) { console.log(renderCommandHelp('contract tool-schema')); process.exit(0); }
+	setContext('contract tool-schema', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, { feature: { type: 'string', default: null }, operation: { type: 'string', default: null } });
-	if (!flags.feature || !flags.operation) { console.error('usage: bskel contract tool-schema --feature <id> --operation <operationId>'); process.exit(14); }
-	requireValidFeatureId(flags.feature);
-
 	const contract = loadContract(root, flags.feature);
 	// A1: same class of gap as D-security-1 (contracts/validate.mjs's Object.hasOwn fix) --
 	// `contract.operations` is a plain object, so `--operation constructor` would otherwise
@@ -721,8 +721,7 @@ function cmdContractToolSchema(args) {
 	// an external OpenAPI document, not just from Java source the repo owner controls.
 	const op = Object.hasOwn(contract.operations, flags.operation) ? contract.operations[flags.operation] : undefined;
 	if (!op) {
-		console.error(`operation "${flags.operation}" not in this feature's contract (known: ${Object.keys(contract.operations).join(', ') || '(none)'})`);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'UNKNOWN_OPERATION', `operation "${flags.operation}" not in this feature's contract (known: ${Object.keys(contract.operations).join(', ') || '(none)'})`);
 	}
 
 	// Anthropic tool-use `input_schema` is a JSON Schema subset -- the operation's payload
@@ -757,38 +756,33 @@ function renderStackPlan(plan) {
 }
 
 function cmdStackApply(args) {
+	const flags = parseCommand('stack apply', args);
+	if (flags.help) { console.log(renderCommandHelp('stack apply')); process.exit(0); }
+	setContext('stack apply', flags);
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
-	const flags = parseFlags(args, {
-		choice: { type: 'string', default: null },
-		apply: { type: 'boolean', default: false },
-		port: { type: 'string', default: '8080' },
-		json: { type: 'boolean', default: false },
-	});
 	if (!flags.choice) {
-		console.error(`usage: bskel stack apply --choice <id> [--apply] [--port N]   (known choices: ${listCatalogChoices().join(', ') || '(none)'})`);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `usage: bskel stack apply --choice <id> [--apply] [--port N]   (known choices: ${listCatalogChoices().join(', ') || '(none)'})`);
 	}
 
 	let entry;
 	try {
 		entry = loadCatalogEntry(flags.choice);
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 	let plan;
 	try {
 		plan = planApply(root, entry, { port: Number.parseInt(flags.port, 10) });
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 
 	if (!flags.apply) {
 		// Dry-run is the default -- nothing is written without an explicit --apply, matching the
 		// repo's own "minimal, explicit-approval" convention for anything that touches files.
-		console.log(flags.json ? JSON.stringify(plan, null, 2) : renderStackPlan(plan));
+		if (flags.json) console.log(JSON.stringify(plan, null, 2));
+		else if (!flags.quiet) console.log(renderStackPlan(plan));
 		process.exit(0);
 	}
 
@@ -796,8 +790,7 @@ function cmdStackApply(args) {
 	try {
 		written = applyPlan(root, plan);
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 	// S2: `applied_files` must be this choice's FULL file set in this repo (its desired state),
 	// not just whatever `applyPlan()` happened to write THIS run -- applyPlan() skips files whose
@@ -819,7 +812,7 @@ function cmdStackApply(args) {
 
 	if (flags.json) {
 		console.log(JSON.stringify({ written, gate: gateState.gates.stack }, null, 2));
-	} else {
+	} else if (!flags.quiet) {
 		console.log(written.length > 0 ? `wrote: ${written.join(', ')}` : 'nothing to write (already up to date)');
 		for (const c of plan.configChecks.filter((c) => c.status === 'needs-manual-patch')) {
 			console.log(`\nmanual step needed -- ${c.target}:\n${c.note}`);
@@ -833,8 +826,7 @@ function cmdStackApply(args) {
 function loadScanReportOrExit(root, featureId) {
 	const scanReportPath = specPath(root, featureId, 'brownfield-scan.json');
 	if (!fs.existsSync(scanReportPath)) {
-		console.error(`no scan report at ${scanReportPath} -- run \`bskel scan --feature ${featureId}\` first`);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${scanReportPath} -- run \`bskel scan --feature ${featureId}\` first`);
 	}
 	return JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
 }
@@ -868,12 +860,10 @@ function selectProviderOrExit(scanReport) {
 	const provider = providerById(PROVIDERS, scanReport.adapter);
 	if (!provider) {
 		const loadErr = PROVIDER_LOAD_ERRORS.find((e) => path.basename(e.file, '.mjs') === scanReport.adapter);
-		console.error(
-			loadErr
-				? `blocked: the "${scanReport.adapter}" codegen provider failed to load: ${loadErr.message}`
-				: `blocked: no codegen provider is registered for adapter "${scanReport.adapter}" even though it declares codegen.handles -- this is a drift bug, please report it.`,
-		);
-		process.exit(2);
+		const message = loadErr
+			? `blocked: the "${scanReport.adapter}" codegen provider failed to load: ${loadErr.message}`
+			: `blocked: no codegen provider is registered for adapter "${scanReport.adapter}" even though it declares codegen.handles -- this is a drift bug, please report it.`;
+		fail(EXIT_CODES.NOT_PASSED, 'PROVIDER_UNAVAILABLE', message);
 	}
 	return provider;
 }
@@ -886,22 +876,15 @@ function requireProviderCapabilitiesOrExit(scanReport, provider, command, { feat
 	const adapter = adapterById(ADAPTERS, scanReport.adapter);
 	for (const capability of provider.requiresCapabilities ?? []) {
 		if (adapter.capabilities[capability]) continue;
-		console.error(explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
-		process.exit(17);
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
 	}
 }
 
 function cmdHandlesPlan(args) {
+	const flags = parseCommand('handles plan', args);
+	if (flags.help) { console.log(renderCommandHelp('handles plan')); process.exit(0); }
+	setContext('handles plan', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		module: { type: 'string', default: null },
-		resource: { type: 'string', default: '' },
-		json: { type: 'boolean', default: false },
-	});
-	if (!flags.feature) { console.error('usage: bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]'); process.exit(14); }
-	requireValidFeatureId(flags.feature);
-
 	const scanReport = loadScanReportOrExit(root, flags.feature);
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	requireCapabilitiesOrExit(scanReport, 'handles plan', { featureId: flags.feature, scanReportPath });
@@ -913,32 +896,22 @@ function cmdHandlesPlan(args) {
 	try {
 		plan = provider.plan({ repoRoot: root, scanReport, module: flags.module, resourceFilter });
 	} catch (err) {
-		console.error(err.message);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 	}
 	console.log(flags.json ? JSON.stringify(plan, null, 2) : renderHandlesPlan(plan));
 	process.exit(0);
 }
 
 function cmdHandlesEmit(args) {
+	const flags = parseCommand('handles emit', args);
+	if (flags.help) { console.log(renderCommandHelp('handles emit')); process.exit(0); }
+	setContext('handles emit', flags);
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		module: { type: 'string', default: null },
-		resource: { type: 'string', default: '' },
-		force: { type: 'boolean', default: false },
-		reason: { type: 'string', default: '' },
-		json: { type: 'boolean', default: false },
-	});
-	const usage = 'usage: bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."]';
-	if (!flags.feature) { console.error(usage); process.exit(14); }
-	requireValidFeatureId(flags.feature);
 	// O2: mirrors `cmdContractWaive`'s --reason requirement -- every overwrite of a diverged
 	// generated file must be auditable, not silent. See DECISIONS.md D-handles-ownership.
 	if (flags.force && (!flags.reason || !flags.reason.trim())) {
-		console.error('bskel handles emit --force requires --reason "..." -- every overwrite of diverged generated code must be auditable');
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel handles emit --force requires --reason "..." -- every overwrite of diverged generated code must be auditable');
 	}
 
 	// Handles are only emitted for a feature whose contract has actually been established --
@@ -951,8 +924,9 @@ function cmdHandlesEmit(args) {
 		const hint = contractResult.status === 'awaiting_disposition'
 			? `resolve it first -- \`bskel contract waive --feature ${flags.feature} --code <CODE> (--subject "..."|--all) --reason "..."\`, or \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if intentional.`
 			: `run \`bskel contract emit --feature ${flags.feature}\` first.`;
-		console.error(`blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- ${hint}`);
-		process.exit(contractResult.code);
+		fail(contractResult.code, gateReasonForCode(contractResult.code), `blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- ${hint}`, {
+			next_actions: [{ command: `bskel contract emit --feature ${flags.feature}`, reason: 'the contract gate has not passed yet', mutating: true }],
+		});
 	}
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
@@ -966,8 +940,7 @@ function cmdHandlesEmit(args) {
 	try {
 		plan = provider.plan({ repoRoot: root, scanReport, module: flags.module, resourceFilter });
 	} catch (err) {
-		console.error(err.message);
-		process.exit(2);
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 	}
 	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, postEmitNotes = [] } = provider.emit({
 		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason,
@@ -997,6 +970,7 @@ function cmdHandlesEmit(args) {
 			}
 		}
 		// D-process-exit-audit: bounded by 7 + plan.resources.length units, no pipe-truncation risk.
+		// Carries a real payload (already printed above in --json mode) -- no diagnostic envelope.
 		process.exit(15);
 	}
 
@@ -1004,7 +978,7 @@ function cmdHandlesEmit(args) {
 
 	if (flags.json) {
 		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: false, gate: gateState.gates.handles, postEmitNotes }, null, 2));
-	} else {
+	} else if (!flags.quiet) {
 		console.log(`wrote ${written.length} file(s):`);
 		for (const w of written) console.log(`  ${w}`);
 		if (allNotes.length > 0) {
@@ -1060,15 +1034,10 @@ function renderVerifyReport({ featureId, gates, artifacts, build }) {
 }
 
 function cmdVerify(args) {
+	const flags = parseCommand('verify', args);
+	if (flags.help) { console.log(renderCommandHelp('verify')); process.exit(0); }
+	setContext('verify', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, {
-		feature: { type: 'string', default: null },
-		build: { type: 'boolean', default: false },
-		json: { type: 'boolean', default: false },
-	});
-	if (!flags.feature) { console.error('usage: bskel verify --feature <id> [--build] [--json]'); process.exit(14); }
-	requireValidFeatureId(flags.feature);
-
 	const gates = collectGateStatuses(root, flags.feature, { getGate, requireNamedGate });
 	const artifacts = checkArtifacts(root, flags.feature, gates);
 	const build = flags.build ? runBuildCheck(root) : null;
@@ -1080,10 +1049,12 @@ function cmdVerify(args) {
 
 	if (flags.json) {
 		console.log(JSON.stringify({ feature: flags.feature, pass: overallPass, gates, artifacts, build }, null, 2));
-	} else {
+	} else if (!flags.quiet) {
 		console.log(renderVerifyReport({ featureId: flags.feature, gates, artifacts, build }));
 		console.log(overallPass ? 'VERIFY: PASS' : 'VERIFY: FAIL');
 	}
+	// This exit code (0/1) carries a real payload (the report just printed) -- never a diagnostic
+	// envelope on top of it, matching the "one execution, one JSON document" rule.
 	process.exit(overallPass ? 0 : 1);
 }
 
@@ -1114,13 +1085,15 @@ function renderStatusReport(featureId, state) {
 }
 
 function cmdStatus(args) {
+	const flags = parseCommand('status', args);
+	if (flags.help) { console.log(renderCommandHelp('status')); process.exit(0); }
+	setContext('status', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, { feature: { type: 'string', default: null }, json: { type: 'boolean', default: false } });
 	if (flags.feature) requireValidFeatureId(flags.feature);
 	const state = computeWorkflowState(root, flags.feature);
 	if (flags.json) {
 		console.log(JSON.stringify({ feature: flags.feature, ...state }, null, 2));
-	} else {
+	} else if (!flags.quiet) {
 		console.log(renderStatusReport(flags.feature, state));
 	}
 	process.exit(0);
@@ -1131,10 +1104,13 @@ function cmdStatus(args) {
 // stdout/stderr split cmdContractEmit/cmdHandlesEmit already use for "here's the data" vs. "here's
 // what went wrong" output. Deliberately no --execute flag -- see D-status-next's EXIT in
 // DECISIONS.md for why running the recommended (often mutating) command automatically is out of
-// scope for this slice.
+// scope for this slice. D2: this stdout line is `next`'s entire PAYLOAD, not narration -- --quiet
+// deliberately does not touch it (quieting it would defeat the command's whole purpose).
 function cmdNext(args) {
+	const flags = parseCommand('next', args);
+	if (flags.help) { console.log(renderCommandHelp('next')); process.exit(0); }
+	setContext('next', flags);
 	const root = requireRepoRoot();
-	const flags = parseFlags(args, { feature: { type: 'string', default: null }, json: { type: 'boolean', default: false } });
 	if (flags.feature) requireValidFeatureId(flags.feature);
 	const state = computeWorkflowState(root, flags.feature);
 	if (flags.json) {
@@ -1151,16 +1127,17 @@ function cmdNext(args) {
 // D5: renders whatever lib/doctor.mjs's computeDoctorChecks() decided -- this function is pure
 // CLI glue (arg parsing + printing), same split as D1's cmdStatus/lib/workflow.mjs.
 function cmdDoctor(args) {
+	const flags = parseCommand('doctor', args);
+	if (flags.help) { console.log(renderCommandHelp('doctor')); process.exit(0); }
+	setContext('doctor', flags);
 	const root = repoRoot();
-	const flags = parseFlags(args, { workflow: { type: 'string', default: null }, json: { type: 'boolean', default: false } });
 
 	let checks;
 	let showAdapters;
 	try {
 		({ checks, showAdapters } = computeDoctorChecks(root, { workflow: flags.workflow }));
 	} catch (err) {
-		console.error(err.message);
-		process.exit(14);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
 
 	const adapters = showAdapters
@@ -1185,30 +1162,83 @@ function cmdDoctor(args) {
 		process.exit(allOk ? 0 : 1);
 	}
 
-	for (const c of checks) {
-		const marker = c.ok ? 'OK  ' : (c.required ? 'FAIL' : 'WARN');
-		console.log(`${marker}  ${c.name}${c.detail ? ` (${c.detail})` : ''}`);
-		if (!c.ok && c.remediation) console.log(`      -> ${c.remediation}`);
-	}
-
-	if (showAdapters) {
-		console.log('');
-		console.log('Scanner adapters:');
-		for (const a of adapters) {
-			const caps = Object.entries(a.capabilities).filter(([, v]) => v).map(([k]) => k).join(', ') || '(none)';
-			let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}) -- capabilities: ${caps}`;
-			if (a.detects !== null) line += a.detects ? ' -- DETECTS this repo' : ' -- does not detect this repo';
-			console.log(line);
-			for (const d of a.diagnostics) console.log(`      [${d.level}] ${d.code}: ${d.message}`);
+	if (!flags.quiet) {
+		for (const c of checks) {
+			const marker = c.ok ? 'OK  ' : (c.required ? 'FAIL' : 'WARN');
+			console.log(`${marker}  ${c.name}${c.detail ? ` (${c.detail})` : ''}`);
+			if (!c.ok && c.remediation) console.log(`      -> ${c.remediation}`);
 		}
-		for (const e of loadErrors) console.log(`  FAIL  ${e.file}: ${e.message}`);
+
+		if (showAdapters) {
+			console.log('');
+			console.log('Scanner adapters:');
+			for (const a of adapters) {
+				const caps = Object.entries(a.capabilities).filter(([, v]) => v).map(([k]) => k).join(', ') || '(none)';
+				let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}) -- capabilities: ${caps}`;
+				if (a.detects !== null) line += a.detects ? ' -- DETECTS this repo' : ' -- does not detect this repo';
+				console.log(line);
+				for (const d of a.diagnostics) console.log(`      [${d.level}] ${d.code}: ${d.message}`);
+			}
+			for (const e of loadErrors) console.log(`  FAIL  ${e.file}: ${e.message}`);
+		}
 	}
 
 	process.exit(allOk ? 0 : 1);
 }
 
+function printVersion(json) {
+	const pkg = JSON.parse(fs.readFileSync(path.join(SKILL_ROOT, 'package.json'), 'utf8'));
+	if (json) console.log(JSON.stringify({ name: 'bskel', version: pkg.version }));
+	else console.log(`bskel ${pkg.version}`);
+	process.exit(0);
+}
+
+// D2: `--help`/`help`/bare `bskel` and `--version` are handled BEFORE this switch -- they are not
+// "a command's own arguments are bad", they're requests for information that never touch a repo,
+// a gate, or any command-specific parsing. Every other thrown error (a CliUsageError from
+// parseCommand(), or a plain Error from a domain validator like requireValidFeatureId/
+// requireValidSlug that used to propagate as an uncaught exception) is caught here and turned
+// into a clean, single-line diagnosis -- see D-cli-contract in DECISIONS.md for the crash this
+// fixes (`bskel verify --feature --json` used to print a full Node stack trace).
 function main() {
-	const [cmd, ...rest] = process.argv.slice(2);
+	const argv = process.argv.slice(2);
+	const [cmd, ...rest] = argv;
+
+	if (cmd === undefined || cmd === 'help' || cmd === '--help') {
+		printUsageToStdout();
+		process.exit(0);
+	}
+	if (cmd === '--version') {
+		printVersion(rest.includes('--json'));
+		return;
+	}
+
+	try {
+		dispatchCommand(cmd, rest);
+	} catch (err) {
+		// A JS-native error class (TypeError/ReferenceError/RangeError) signals something this
+		// codebase itself got wrong, not a bad user input -- everything else reaching here is
+		// either a CliUsageError (parseCommand()) or a plain, message-only Error a domain
+		// validator (requireValidFeatureId/requireValidSlug/requireValidFeatureOrRepoId, or a
+		// malformed-state read) deliberately threw with an already user-facing message.
+		const isInternalBug = err instanceof TypeError || err instanceof ReferenceError || err instanceof RangeError;
+		const jsonRequested = CTX.command ? CTX.json : argv.includes('--json');
+		const commandName = CTX.command ?? cmd ?? '(none)';
+
+		if (isInternalBug) {
+			console.error(`bskel: internal error: ${err.message}`);
+			if (process.env.BSKEL_DEBUG === '1') console.error(err.stack);
+			if (jsonRequested) console.log(JSON.stringify(diagnostic({ command: commandName, code: EXIT_CODES.CHECK_FAILED, reason: 'INTERNAL_ERROR', message: err.message }), null, 2));
+			process.exit(EXIT_CODES.CHECK_FAILED);
+		}
+
+		console.error(err.message);
+		if (jsonRequested) console.log(JSON.stringify(diagnostic({ command: commandName, code: EXIT_CODES.BAD_ARGS, reason: 'BAD_ARGS', message: err.message }), null, 2));
+		process.exit(EXIT_CODES.BAD_ARGS);
+	}
+}
+
+function dispatchCommand(cmd, rest) {
 	switch (cmd) {
 		case 'preflight':
 			cmdPreflight(rest);

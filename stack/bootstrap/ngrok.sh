@@ -10,7 +10,13 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source scripts/_bskel-lib.sh
 
-PORT="${PORT:-8080}"
+# D-cli-contract (D2): {{PORT}} is substituted by stack/apply.mjs's renderTemplate() at `bskel
+# stack apply --port N` time -- before this, the template had no substitution site for the PORT
+# variable planApply() already computed and passed in, so --port silently had zero effect no
+# matter what value was given (the deployed default was always literally 8080). This only sets
+# the DEFAULT baked into the deployed script -- a human re-running it later can still override
+# with the script's own runtime `--port` flag (line below), unchanged.
+PORT="${PORT:-{{PORT}}}"
 ENV_FILE=".env"
 EXEC_CMD=""
 PRINT_ONLY=0

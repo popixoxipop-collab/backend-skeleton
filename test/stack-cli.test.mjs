@@ -63,6 +63,25 @@ test('stack apply --choice ngrok: dry-run writes nothing, --apply writes and is 
 	assert.ok(rerunPlan.files.every((f) => f.action === 'unchanged'));
 });
 
+// D-cli-contract (D2): --port used to have zero effect on the rendered script (no {{PORT}}
+// substitution site existed in the template at all) -- this is the regression guard for the fix.
+test('stack apply --port 9090 actually renders into the deployed script, and an invalid --port is rejected', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+
+	const dryRun = run(['stack', 'apply', '--choice', 'ngrok', '--port', '9090', '--json'], root);
+	assert.equal(dryRun.code, 0, dryRun.stderr);
+	const plan = JSON.parse(dryRun.stdout);
+	const devTunnelFile = plan.files.find((f) => f.path === 'scripts/dev-tunnel.sh');
+	assert.match(devTunnelFile.content, /PORT="\$\{PORT:-9090\}"/);
+	assert.ok(!devTunnelFile.content.includes('{{PORT}}'), 'the {{PORT}} placeholder must not leak into the rendered output');
+
+	for (const bad of ['abc', '0', '70000']) {
+		const r = run(['stack', 'apply', '--choice', 'ngrok', '--port', bad], root);
+		assert.equal(r.code, 14, `expected --port ${bad} to be rejected`);
+	}
+});
+
 // S2 (d): the stack gate's token now hashes the CONTENT of every applied file (not just
 // .sbf/stack.json's own bytes) -- deleting dev-tunnel.sh after apply used to leave stack.json
 // byte-identical and the gate `pass` forever, even though the comment right above the old
