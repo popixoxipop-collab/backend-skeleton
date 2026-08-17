@@ -20,8 +20,7 @@ import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.
 import { evaluateResolution, loadResolution, resolutionPath, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
-import { planHandles } from '../handles/plan.mjs';
-import { emitHandles, detectBasePackage } from '../handles/emit.mjs';
+import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
@@ -848,8 +847,7 @@ function renderHandlesPlan(plan) {
 	for (const r of plan.resources) {
 		lines.push(`## ${r.type}${r.willGenerateResolver ? '' : ' (resolver will NOT be generated -- see notes)'}`);
 		lines.push(`- table: ${r.table ?? '(unknown)'}, PK field: ${r.idField ?? '(unknown)'}`);
-		lines.push(`- fetch: ${r.fetchOperation ? `${r.fetchOperation.method}() via ${r.fetchOperation.path}` : '(none found)'}`);
-		lines.push(`- service: ${r.service ? r.service.serviceType : '(not found)'}`);
+		lines.push(`- read via: ${r.readPath ?? '(not found)'}`);
 		lines.push(`- requiredAuthority: ${r.requiredAuthority}`);
 		lines.push('');
 	}
@@ -860,22 +858,37 @@ function renderHandlesPlan(plan) {
 	return `${lines.join('\n')}\n`;
 }
 
-// O6: shared by both handles commands -- detectBasePackage() now throws on a genuinely ambiguous
-// multi-application-root repo (previously silently picked one), so both call sites need the same
-// try/catch-and-exit-2 treatment the pre-existing "no *Application.java found" case already had.
-function detectBasePackageOrExit(root) {
-	let basePackage;
-	try {
-		basePackage = detectBasePackage(root);
-	} catch (err) {
-		console.error(err.message);
+// D-handles-providers (G4): selects the codegen provider for this scan report's adapter by exact
+// id match -- never arbitrated, since there is nothing to arbitrate (see handles/registry.mjs).
+// Reachable only after requireCapabilitiesOrExit has already confirmed codegen.handles === true
+// for this adapter, which by construction means a provider SHOULD exist -- the drift-bug branch
+// below exists only to fail loudly if that invariant is ever violated (e.g. the provider file
+// itself failed to load), not as an expected path.
+function selectProviderOrExit(scanReport) {
+	const provider = providerById(PROVIDERS, scanReport.adapter);
+	if (!provider) {
+		const loadErr = PROVIDER_LOAD_ERRORS.find((e) => path.basename(e.file, '.mjs') === scanReport.adapter);
+		console.error(
+			loadErr
+				? `blocked: the "${scanReport.adapter}" codegen provider failed to load: ${loadErr.message}`
+				: `blocked: no codegen provider is registered for adapter "${scanReport.adapter}" even though it declares codegen.handles -- this is a drift bug, please report it.`,
+		);
 		process.exit(2);
 	}
-	if (!basePackage) {
-		console.error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
-		process.exit(2);
+	return provider;
+}
+
+// A provider declares its OWN capability requirements (e.g. java-spring/python-fastapi both need
+// `resource.fetch`) separately from the command-level dispatch capability (`codegen.handles`,
+// checked by requireCapabilitiesOrExit before the provider is even selected) -- see
+// D-handles-providers in DECISIONS.md for why this is two checks, not one.
+function requireProviderCapabilitiesOrExit(scanReport, provider, command, { featureId, scanReportPath }) {
+	const adapter = adapterById(ADAPTERS, scanReport.adapter);
+	for (const capability of provider.requiresCapabilities ?? []) {
+		if (adapter.capabilities[capability]) continue;
+		console.error(explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
+		process.exit(17);
 	}
-	return basePackage;
 }
 
 function cmdHandlesPlan(args) {
@@ -890,12 +903,19 @@ function cmdHandlesPlan(args) {
 	requireValidFeatureId(flags.feature);
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
-	requireCapabilitiesOrExit(scanReport, 'handles plan', { featureId: flags.feature, scanReportPath: specPath(root, flags.feature, 'brownfield-scan.json') });
-	const basePackage = detectBasePackageOrExit(root);
-	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
+	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
+	requireCapabilitiesOrExit(scanReport, 'handles plan', { featureId: flags.feature, scanReportPath });
+	const provider = selectProviderOrExit(scanReport);
+	requireProviderCapabilitiesOrExit(scanReport, provider, 'handles plan', { featureId: flags.feature, scanReportPath });
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
 
-	const plan = planHandles({ repoRoot: root, javaSrcRoot, scanReport, module: flags.module, resourceFilter });
+	let plan;
+	try {
+		plan = provider.plan({ repoRoot: root, scanReport, module: flags.module, resourceFilter });
+	} catch (err) {
+		console.error(err.message);
+		process.exit(2);
+	}
 	console.log(flags.json ? JSON.stringify(plan, null, 2) : renderHandlesPlan(plan));
 	process.exit(0);
 }
@@ -936,14 +956,21 @@ function cmdHandlesEmit(args) {
 	}
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
-	requireCapabilitiesOrExit(scanReport, 'handles emit', { featureId: flags.feature, scanReportPath: specPath(root, flags.feature, 'brownfield-scan.json') });
-	const basePackage = detectBasePackageOrExit(root);
-	const javaSrcRoot = path.join(root, 'src', 'main', 'java', ...basePackage.split('.'));
+	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
+	requireCapabilitiesOrExit(scanReport, 'handles emit', { featureId: flags.feature, scanReportPath });
+	const provider = selectProviderOrExit(scanReport);
+	requireProviderCapabilitiesOrExit(scanReport, provider, 'handles emit', { featureId: flags.feature, scanReportPath });
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
 
-	const plan = planHandles({ repoRoot: root, javaSrcRoot, scanReport, module: flags.module, resourceFilter });
-	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked } = emitHandles({
-		repoRoot: root, featureId: flags.feature, plan, basePackage, resourceFilter, force: flags.force, reason: flags.reason,
+	let plan;
+	try {
+		plan = provider.plan({ repoRoot: root, scanReport, module: flags.module, resourceFilter });
+	} catch (err) {
+		console.error(err.message);
+		process.exit(2);
+	}
+	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, postEmitNotes = [] } = provider.emit({
+		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason,
 	});
 	const allNotes = [...plan.notes, ...notes];
 	if (flags.force && forced.length === 0 && conflicts.length === 0) allNotes.push('--force had no effect: 0 conflicts found in this run\'s scope');
@@ -976,7 +1003,7 @@ function cmdHandlesEmit(args) {
 	const gateState = passNamedGate(root, 'handles', flags.feature, { resolverStubs });
 
 	if (flags.json) {
-		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: false, gate: gateState.gates.handles }, null, 2));
+		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: false, gate: gateState.gates.handles, postEmitNotes }, null, 2));
 	} else {
 		console.log(`wrote ${written.length} file(s):`);
 		for (const w of written) console.log(`  ${w}`);
@@ -989,7 +1016,7 @@ function cmdHandlesEmit(args) {
 			for (const o of orphans) console.log(`  ${o.path} (${o.resourceType})`);
 		}
 		console.log(`\ngate: handles -> ${gateState.gates.handles.status}`);
-		console.log('\nNOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.');
+		for (const n of postEmitNotes) console.log(`\n${n}`);
 	}
 	process.exit(0);
 }

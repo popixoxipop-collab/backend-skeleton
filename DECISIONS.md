@@ -2067,3 +2067,207 @@ zero-registration for beyond the two shipped adapters), `D-generic-grep-reconnai
 the reconciliation/adoption mechanism this item depends on entirely unchanged), and
 `D-contract-completeness` (A5, `CONTRACT_EMPTY`/`blocked` is what makes finding 2's negative
 control end honestly rather than silently).
+
+## D-handles-providers (G4): a real second codegen provider, and the boundary it forced java-spring to prove out
+
+**WHY**: `D-adapter-registry`'s own EXIT held G4 back explicitly -- "needs at least two real
+providers to factor a boundary against, or the split is guesswork about which seams matter." G2
+(the python-fastapi adapter) added a real second SCANNER but shipped zero codegen
+(`codegen.handles: false`), so that precondition was still unmet after G2 landed. Asked to
+prioritize, the user chose to build a real second, minimal Python codegen provider now rather than
+defer G4 again. An opus Plan agent (43 tool calls, 853s) then re-estimated scope against the real
+source and the real oracle (`fastapi/full-stack-fastapi-template`) rather than from reading alone,
+and found the catalog's own L estimate did not account for "a genuine second provider" at all --
+the honest size was ~13 units (XL). Presented with that finding plus two optional cuts, the user
+chose the full design: fetch+PATCH router, both oracle modules measured. Four facts the Plan
+agent's real-code/real-oracle grounding surfaced, each of which changed the design before a line
+of provider code was written:
+- java-spring's `findFetchOperation` requires `ep.operationId` truthy; python-fastapi's scan output
+  always sets `operationId: null` (D-fastapi-adapter -- FastAPI generates operation ids at request
+  time, never pinned in source). The two providers' canonical-fetch detection cannot be shared as
+  one function; python-fastapi's own `findFetchRoute` keys on `ep.method` instead.
+- The real oracle's `User` table carries `hashed_password` with no protection besides each
+  individual route's own `response_model=UserPublic` declaration. A single generic fetch route
+  serving multiple resource types cannot rely on that convention -- an `<Entity>Public` projection
+  class had to become a hard *precondition* for generating a resolver at all (missing one blocks
+  codegen with a note naming the leak risk), not a decorative nicety.
+- The oracle's own two real authorization checks (`items.py::read_item`,
+  `users.py::read_user_by_id`) are BOTH inside the route function body (`if not
+  current_user.is_superuser and ...: raise HTTPException(403)`), not a decorator -- unreachable by
+  static source scanning. Route-decorator authorization-signal extraction was cut from scope as a
+  direct result (see EXCLUDED below); the honest, and only defensible, default is
+  `check_access()` denying every request until a human wires the app's real check in.
+- Python's `base64.urlsafe_b64decode` has the identical "silently discards characters outside the
+  alphabet instead of rejecting them" defect that `D-security-10` already fixed for Node's
+  `Buffer.from(str, 'base64')` on the JS side -- confirmed by direct execution (see Verification),
+  not assumed. The Python codec port needed its own explicit charset guard, not just the padding
+  fix.
+
+**SCOPE**: provider dispatch mechanism (`handles/registry.mjs`, mirroring `scanners/registry.mjs`'s
+zero-registration design exactly); java-spring extracted, behavior-unchanged, into
+`handles/providers/java-spring/` with the shared safety-critical write/conflict/manifest/orphan
+logic pulled out into `handles/_engine.mjs`; a framework-neutral `handles-plan` schema; a real
+Python/FastAPI/SQLModel provider (codec ported and EXECUTED round-trip against the JS reference,
+in-process registry, `fetch`/`to_public` really wired, `check_access`/`patch_field` always stubs,
+`GET`+`PATCH` router, no migration/no `recover()`); the cross-cutting edits every one of those
+implies (python-fastapi's `codegen.handles` flip, `COMMAND_CAPABILITIES` narrowed to dispatch-only,
+`bin/bskel.mjs`'s provider selection, `lib/verify.mjs`'s provider-aware artifact check,
+`lib/handles-manifest.mjs`'s marker generalization, `lib/doctor.mjs`'s `python3` check).
+
+**EXCLUDED** (named, not silently dropped): `recover()` + the `sbf_handle`/`sbf_handle_snapshot`
+tables + their migration -- even on the Java side nothing has ever called `recover()` (O4 is still
+not implemented), so a Python translation would only add an unwired artifact, not close a real gap.
+`resolveJsonPointer`/kind=f,o *fetch* (field/object-level handle reads stay 501, matching Java's own
+current limit exactly -- porting `resolve_json_pointer` today would be dead code). A `--provider`
+override flag (no N:1 real case observed -- selection stays 1:1 by adapter id, see Mechanism).
+`src/`-layout / PEP 420 namespace packages (refused with a named exit 2, not guessed). Auto-wiring
+the generated router into `api/main.py` (two lines a human adds by hand -- the same reasoning
+`D-config-patch` already established for a different generated-file-wiring step). Route-decorator
+authorization-signal extraction (cut after the oracle grounding above showed both real checks live
+in route bodies, not decorators -- there was nothing reliable to extract). Fixing the Java codec's
+own never-executed "byte-identical" claim (see the honest gap this item leaves open, below) --
+closing it for Python only was the explicit, scoped goal this time.
+
+**Mechanism**:
+- `handles/registry.mjs` mirrors `scanners/registry.mjs` exactly: `handles/providers/<id>.mjs`
+  (descriptor) + `handles/providers/<id>/` (implementation + templates), zero-registration
+  (filename-filtered, `.sort()`ed, `pathToFileURL` dynamic `import()`, per-file try/catch into
+  `PROVIDER_LOAD_ERRORS`), `sbf.handles-provider/1` contract + `schemas/handles-provider.schema.json`
+  validation for the JSON-shaped fields (`plan`/`emit` are functions, checked separately by
+  `typeof`). The one deliberate difference from the adapter registry: **no arbitration**.
+  Adapter selection is genuinely competitive (which of several detectors best matches this repo);
+  provider selection is not -- it is an exact id match against `scanReport.adapter`, the one
+  persistent artifact linking scan time to codegen time. Inventing a second linking mechanism here
+  would just create a second source of truth to keep in sync with the first.
+- `requiresCapabilities` moved from being a COMMAND property to a PROVIDER property.
+  `COMMAND_CAPABILITIES['handles plan'/'handles emit']` shrank to `['codegen.handles']` --
+  dispatch only, "does a provider exist for this adapter's stack at all." Each provider now
+  declares its own `requiresCapabilities` (both shipped providers: `['resource.fetch']`), checked
+  by a new `requireProviderCapabilitiesOrExit` immediately after `selectProviderOrExit`
+  (`bin/bskel.mjs`). This produces a genuinely unfakeable biconditional:
+  `adapter.capabilities['codegen.handles'] === true` if and only if `providerById(PROVIDERS,
+  adapter.id) !== null` -- pinned as a dedicated regression in
+  `test/handles-provider-registry.test.mjs`, run against every real shipped adapter, not a
+  hand-picked pair.
+- `handles/_engine.mjs::emitUnits()` is the conflict/manifest/force/orphan write engine, extracted
+  from what was `handles/emit.mjs` (pre-G4, Java-only) as **pure code motion** -- parameterized on
+  `{infraUnits, resolverUnits, orphanScan, provider}` rather than on Java-specific paths/templates.
+  `orphanScan.resourceTypeOf(filename, content)` now receives file content, not just the filename --
+  java-spring's callback still derives the type from the filename alone (`XResolver.java` ->
+  `X`), but python-fastapi's callback reads a `type = "X"` class attribute the resolver template
+  itself carries, because a Python filename cannot reliably recover a class name
+  (`organization_policy.py` could be `OrganizationPolicy` or `Organizationpolicy`). Manifest
+  entries gained an additive `provider` field; a pre-G4 manifest entry with no `provider` field is
+  treated as `'java-spring'` for orphan-detection filtering, so an existing target repo's first
+  post-G4 run does not silently go blind on orphans it used to catch.
+- java-spring's own `detectBasePackageOrExit`/`javaSrcRoot` assembly moved out of `bin/bskel.mjs`
+  entirely, into the java-spring provider's own `plan()` -- the clearest evidence G4 is not just a
+  file reshuffle. The exact pre-existing error strings ("ambiguous base package...",
+  "is this a Spring Boot project?") are preserved byte-for-byte (a plain `throw new Error(...)`,
+  caught by a generic try/catch around `provider.plan()`/`provider.emit()` in `bin/bskel.mjs` that
+  prints `.message` and exits 2) -- simpler than the `ProviderPreconditionError{message,exitCode}`
+  class floated at design time, since every provider-precondition failure in this design already
+  exits 2, so a dedicated exception class would carry a configurable field nothing ever configures
+  differently. `test/handles-cli.test.mjs`'s exact-string assertions needed zero changes.
+- Two DELIBERATE stubs, for two DIFFERENT reasons, both in every generated Python resolver:
+  `check_access()` always denies (fail-closed sentinel -- FastAPI has no imperative global security
+  context the way Spring's `SecurityContextHolder` is, and the oracle grounding above showed this
+  stack's real checks live in route bodies anyway, unreachable by static scan). `patch_field()`
+  always 501s (same reasoning as Java's `patchField()` stub -- `D-resolver-scope`: this codebase
+  has incompatible partial-update conventions per app, a human must pick the right one).
+
+**Verification**: the 27 pre-existing java-spring handles tests (`handles-plan.test.mjs` x8,
+`handles-cli.test.mjs` x10, `handles-ownership-cli.test.mjs` x9) pass with only ONE line changed
+across all three files -- `handles-plan.test.mjs`'s import path, nothing else -- confirming the
+extraction was truly behavior-preserving, not just "still green by coincidence." 30 new tests:
+`test/handles-provider-registry.test.mjs` (9 -- real 2-provider load, zero-registration, 6
+malformed-provider failure modes isolated, `_`/`.` skip, the biconditional drift guard against
+every real shipped adapter, a `requiresCapabilities` drift guard, both providers' real `plan()`
+output validated against the new schema), `test/handles-python-codec.test.mjs` (7, `python3`
+**required, not skippable** -- the reference `uuid.uuid5(NAMESPACE_DNS, "example.com")` vector,
+encode-in-JS/decode-in-Python and encode-in-Python/decode-in-JS round trips including a JSON
+Pointer with `~0`/`~1` escapes and a non-ASCII type name, all 3 base64 padding-remainder classes,
+`derive_handle_uid` parity, negative parity for every JS rejection case, and a DIRECT, EXECUTED
+confirmation that Python's `base64.urlsafe_b64decode` really does silently discard invalid
+characters -- `"QU!JD"` decodes to `b"ABC"` instead of raising), `test/python-fastapi-handles.test.mjs`
+(14 -- plan-unit tests proving `ep.method`-keyed fetch detection works with `operationId: null`,
+the list route is never mistaken for the single-resource fetch, a missing `<Entity>Public` blocks
+codegen with a leak-risk note, a missing primary key blocks codegen, `--resource` filtering, and
+both the absent- and ambiguous-package-root exit-2 cases; e2e tests proving the exact expected file
+set with no `.java`/`migration.sql`, every generated file syntax-valid via `python3 -c
+"ast.parse(...)"`, `check_access`/`patch_field`'s exact status codes and that the resolver never
+references `hashed_password`, the PATCH route's kind-AND-pointer check, `bskel verify` passing with
+zero migration artifact checks created, re-emit idempotency, and hand-edit-then-re-emit exiting 15
+with the file byte-for-byte untouched). Two existing tests rewritten to match G4's own inverted
+premise: `python-fastapi-cli.test.mjs`'s old "still exit 17 on codegen.handles" test is now a
+positive success test (plan/emit/gate all pass, a real resolver is written, no `.java` anywhere);
+`generic-grep-cli.test.mjs`'s two exit-17 tests now assert `codegen.handles` BY NAME and assert
+`resource.fetch` is absent from the message, proving the blocker is attributed correctly now that
+`resource.fetch` no longer lives at the dispatch layer. `npm test`: 356 -> **386** (30 net new).
+
+Real-world, against the oracle (`fastapi/full-stack-fastapi-template`, throwaway branch
+`sbf-g4-verify`, cleaned up after): `bskel scan --terms item,user` on a fresh feature correctly
+selects `python-fastapi` (`verdict: collision`, `confidence: high`) across all three real modules
+(`items`, `users`, `private`). After forcing past `contract` (out of scope for this handles-only
+pass -- the oracle's `api.operations: false` would need `--openapi-file`, covered by G2's own
+verification, not repeated here), `handles plan`/`emit --module items` and `--module users` BOTH
+produce `willGenerateResolver: true` and a real, written resolver -- this is the headline result
+the Plan agent predicted from the grounding above: **both resolvers generate, and both correctly
+fail closed on `check_access()`**, an honest reflection of authorization logic this scan genuinely
+cannot see, not a false negative. The `User` resolver imports and projects through `UserPublic`
+(confirmed: `app.models` really defines `User`/`UserPublic`/`Item`/`ItemPublic`, and `User` really
+carries `hashed_password`) -- a repo-wide grep of the entire `backend/app/handles/` tree for
+`hashed_password` finds zero matches. Every one of the 7 generated files parses cleanly under
+`python3 -c "ast.parse(...)"`. A second `handles emit` for both modules writes nothing (idempotent).
+`bskel verify` shows every handles artifact (`infra` x5 + both resolvers) `exists: true` with the
+`handles` gate passing (the report's overall `pass: false` is solely the still-missing `contract`
+artifact from the deliberate force-past above, not a handles regression). Final `git status
+--porcelain` before cleanup: exactly `.sbf/`, `backend/app/handles/`, `specs/` untracked, nothing
+else touched -- then `git checkout . && git clean -fd && git checkout master && git branch -D
+sbf-g4-verify` restored the oracle to its original, clean state.
+
+**COST**: no `recover()` path for Python (EXCLUDED above -- consistent with Java's own dead code,
+not a new gap). `check_access()` always denies until hand-wired -- every Python resolver ships
+non-functional for reads until a human completes it, by design (the alternative, a false-negative
+"looks secure" default, is strictly worse). `patch_field()` always 501s, same as Java. Field/object-
+level handle fetch (`kind=f`/`kind=o`) stays unimplemented for Python, matching Java's own current
+limit. `src/`-layout and PEP 420 namespace packages are refused outright. The generated router
+needs two lines of manual wiring into the app's own router composition -- never automatic. `npm
+test` now requires `python3` on PATH as a hard dependency (`lib/doctor.mjs`'s new check is
+`required: false` for `bskel` itself, but the test suite's own codec cross-check is not skippable).
+Python's `SessionDep`-alias detection is a single regex looking for `Annotated[Session,
+Depends(...)]` -- an app using a different session-dependency shape (no `Annotated`, a different
+type name than `Session`) gets no router/resolvers generated at all, silently narrowed rather than
+guessed at.
+
+**Honest verification gap, left open on purpose**: this item closes the "byte-identical" claim for
+JS<->Python (executed, both directions, positive AND negative parity, see Verification). The
+matching JS<->Java claim (`handles/codec.mjs`'s own header comment, and
+`HandleCodec.java.tmpl`'s) has **never once been executed in this repository** -- no `.java` file
+from that template has ever actually been compiled or run here; the claim rests entirely on
+javadoc-level assertion. This item does not close that gap (closing Python's was the explicit,
+scoped goal) -- it is recorded here, honestly, as still open. Two options for whoever picks it up:
+gate a `test/handles-codec.test.mjs`-analogous Java test behind a real JDK/`javac` check (mirroring
+this item's `python3`-required pattern exactly), or commit the JS reference vectors as a JSON
+fixture a target repo's own JVM test suite can consume without this project needing a JDK at all.
+
+**EXIT**: add a `--provider` override flag if a real N:1 (one adapter, multiple viable providers)
+case is ever observed -- none has been, so it was not spec'd speculatively. Implement `recover()` +
+its tables for Python if `O4` (the Java side) ever actually gets implemented and used -- until then,
+both stay unwired by design, not oversight. Relax the `SessionDep`-shaped-alias requirement (or add
+a second detection pattern) if a real FastAPI app using a different session-dependency convention
+needs this provider. Generalize `RESOLVER_OWNER_MARKER_RE`/`BSKEL_GENERATED_MARKER` further if a
+third provider's own doc-comment convention doesn't fit the two `(...)`/`({@code ...})` forms this
+item's regex already handles. Close the Java codec's own never-executed verification gap (see
+above) using either of the two named approaches.
+
+Cross-references: `D-adapter-registry` (G1, the registry design this item's `handles/registry.mjs`
+mirrors, and the EXIT that held this item back until a real second provider existed),
+`D-handles-ownership` (O2, the manifest/conflict/force semantics `handles/_engine.mjs` preserves
+completely unchanged), `D-fastapi-adapter` (G2, the scanner this provider's `plan()` consumes
+unchanged, and the `operationId: null`/`api.operations: false` facts this item's fetch-route
+detection had to route around), `D-artifact-determinism` (O6, the ambiguity-over-silent-pick
+precedent both `detectBasePackage` and this item's own `detectImportRoot` follow), `D-security-10`
+(the charset-validation fix this item found and closed a second time, independently, for Python),
+`D-resolver-scope` (the reason `patch_field()` is always a stub, carried over identically),
+`D-config-patch` (the "a human adds two lines" precedent this item's router-wiring note follows).

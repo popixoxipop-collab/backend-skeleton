@@ -1,0 +1,169 @@
+// D-handles-providers (G4): executed cross-language verification of handles/providers/python-
+// fastapi/templates/codec.py.tmpl against handles/codec.mjs, the JS reference implementation.
+// Mandatory, not skippable if python3 is missing -- unlike the Java codec (whose "byte-identical"
+// claim has never once been executed against a real .java file in this repo, see the EXIT this
+// item files in DECISIONS.md for that gap), closing this same gap for Python is a first-class
+// goal of this item, not an optional nicety.
+import { test, before } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { encodeHandle, decodeHandle, deriveHandleUid } from '../handles/codec.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CODEC_TEMPLATE = path.join(__dirname, '..', 'handles', 'providers', 'python-fastapi', 'templates', 'codec.py.tmpl');
+
+// A small, test-only driver -- not a generated artifact, never shipped -- that lets this JS test
+// exercise the rendered codec.py the same way a real resolver would import it. Takes a JSON array
+// of {op, ...args} on stdin, prints a JSON array of {ok, result} | {ok, error} to stdout.
+const DRIVER_SOURCE = `
+import sys, json, importlib.util, uuid
+
+spec = importlib.util.spec_from_file_location("codec", sys.argv[1])
+codec = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(codec)
+
+ops = json.loads(sys.stdin.read())
+results = []
+for op in ops:
+    try:
+        kind = op.get("op")
+        if kind == "encode":
+            token = codec.encode_handle(op["kind"], op["type"], op["uuid"], op.get("pointer"))
+            results.append({"ok": True, "result": token})
+        elif kind == "decode":
+            d = codec.decode_handle(op["token"])
+            results.append({"ok": True, "result": {"kind": d.kind, "type": d.type, "uuid": d.uuid, "pointer": d.pointer}})
+        elif kind == "derive":
+            uid = codec.derive_handle_uid(op["kind"], op["type"], op["uuid"], op.get("pointer"))
+            results.append({"ok": True, "result": uid})
+        elif kind == "uuid5":
+            uid = str(uuid.uuid5(uuid.UUID(op["namespace"]), op["name"]))
+            results.append({"ok": True, "result": uid})
+        else:
+            results.append({"ok": False, "error": f"unknown op {kind}"})
+    except Exception as e:
+        results.append({"ok": False, "error": str(e)})
+print(json.dumps(results))
+`;
+
+let workDir;
+let codecPyPath;
+let driverPath;
+
+before(() => {
+	// python3 is required, not optional -- this is exactly the gap this item exists to close.
+	execFileSync('python3', ['--version']);
+
+	workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-codec-'));
+	codecPyPath = path.join(workDir, 'codec.py');
+	fs.copyFileSync(CODEC_TEMPLATE, codecPyPath); // codec.py.tmpl has zero {{VAR}} substitutions
+	driverPath = path.join(workDir, 'driver.py');
+	fs.writeFileSync(driverPath, DRIVER_SOURCE);
+});
+
+function runPython(ops) {
+	const out = execFileSync('python3', [driverPath, codecPyPath], { input: JSON.stringify(ops), encoding: 'utf8' });
+	return JSON.parse(out);
+}
+
+test('uuid.uuid5 (Python stdlib) matches the same NAMESPACE_DNS + "example.com" reference vector handles/codec.mjs\'s hand-rolled uuidv5 is checked against', () => {
+	const [result] = runPython([{ op: 'uuid5', namespace: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', name: 'example.com' }]);
+	assert.equal(result.ok, true);
+	assert.equal(result.result, 'cfbff0d1-9375-5685-968c-48ce8b15ae17');
+});
+
+test('encode in JS, decode in Python: byte-identical for kind=r, kind=f (with a pointer), and kind=o', () => {
+	const vectors = [
+		{ kind: 'r', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null },
+		{ kind: 'f', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: '/policy/monthlyTokenLimit' },
+		{ kind: 'o', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null },
+	];
+	const tokens = vectors.map((v) => encodeHandle(v));
+	const results = runPython(tokens.map((token) => ({ op: 'decode', token })));
+	results.forEach((r, i) => {
+		assert.equal(r.ok, true, r.error);
+		assert.deepEqual(r.result, { kind: vectors[i].kind, type: vectors[i].type, uuid: vectors[i].uuid, pointer: vectors[i].pointer });
+	});
+});
+
+test('encode in Python, decode in JS: byte-identical, including a JSON Pointer with ~0/~1 escapes and a non-ASCII type name', () => {
+	const vectors = [
+		{ kind: 'r', type: 'Организация', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null },
+		{ kind: 'f', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: '/a~1b/c~0d' },
+	];
+	const results = runPython(vectors.map((v) => ({ op: 'encode', kind: v.kind, type: v.type, uuid: v.uuid, pointer: v.pointer })));
+	results.forEach((r, i) => {
+		assert.equal(r.ok, true, r.error);
+		assert.match(r.result, /^sbf1_[A-Za-z0-9_-]+$/);
+		const decoded = decodeHandle(r.result);
+		assert.deepEqual(decoded, { ...vectors[i], pointer: vectors[i].pointer ?? null });
+	});
+});
+
+test('padding-class parity: raw payload lengths that land on all 3 base64 padding remainders round-trip byte-identical', () => {
+	// The `/`-joined uuid+type text length (before base64) varies with type-name length, which
+	// changes how much '=' padding base64 needs (0, 1, or 2 chars) -- exercise all three.
+	const vectors = ['a', 'ab', 'abc'].map((type) => ({ kind: 'r', type, uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null }));
+	const tokens = vectors.map((v) => encodeHandle(v));
+	const results = runPython(tokens.map((token) => ({ op: 'decode', token })));
+	results.forEach((r, i) => {
+		assert.equal(r.ok, true, r.error);
+		assert.deepEqual(r.result, { kind: vectors[i].kind, type: vectors[i].type, uuid: vectors[i].uuid, pointer: null });
+	});
+});
+
+test('derive_handle_uid matches handles/codec.mjs\'s deriveHandleUid exactly for kind=r/f/o', () => {
+	const base = { type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97' };
+	const cases = [
+		{ kind: 'r', ...base, pointer: null },
+		{ kind: 'f', ...base, pointer: '/policy/monthlyTokenLimit' },
+		{ kind: 'o', ...base, pointer: null },
+	];
+	const results = runPython(cases.map((c) => ({ op: 'derive', kind: c.kind, type: c.type, uuid: c.uuid, pointer: c.pointer })));
+	cases.forEach((c, i) => {
+		assert.equal(results[i].ok, true, results[i].error);
+		assert.equal(results[i].result, deriveHandleUid(c));
+	});
+});
+
+test('negative parity: Python rejects the exact same malformed input JS rejects (charset, missing prefix, over-length, kind/pointer mismatch)', () => {
+	const [charset, prefix, tooLong] = runPython([
+		{ op: 'decode', token: 'sbf1_not!valid++base64==' },
+		{ op: 'decode', token: 'not-a-handle' },
+		{ op: 'decode', token: `sbf1_${'A'.repeat(3000)}` },
+	]);
+	assert.equal(charset.ok, false);
+	assert.match(charset.error, /not valid base64url/);
+	assert.equal(prefix.ok, false);
+	assert.match(prefix.error, /sbf1/);
+	assert.equal(tooLong.ok, false);
+	assert.match(tooLong.error, /exceeds the maximum length/);
+
+	const [noPointer, strayPointer] = runPython([
+		{ op: 'encode', kind: 'f', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null },
+		{ op: 'encode', kind: 'r', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: '/name' },
+	]);
+	assert.equal(noPointer.ok, false);
+	assert.match(noPointer.error, /require.*Pointer/i);
+	assert.equal(strayPointer.ok, false);
+	assert.match(strayPointer.error, /must not carry a JSON Pointer/);
+});
+
+// D-security-10 parity, confirmed directly against this Python runtime (not assumed): Python's
+// own `base64.urlsafe_b64decode` has the identical "silently discards junk characters" defect
+// Node's `Buffer.from(str, 'base64')` had before D-security-10 fixed it for JS -- the explicit
+// charset check in codec.py.tmpl is what closes this for Python, not the padding fix alone.
+test('Python\'s base64.urlsafe_b64decode really does silently discard invalid characters (confirms why the explicit charset check in codec.py.tmpl is load-bearing, not redundant)', () => {
+	const out = execFileSync('python3', ['-c', `
+import base64
+print(base64.urlsafe_b64decode("QU!JD").decode("latin1"))
+`], { encoding: 'utf8' }).trim();
+	// "QU!JD" with the invalid "!" silently stripped decodes exactly as "QUJD" would (-> "ABC"),
+	// instead of raising -- confirmed by direct execution, the exact defect D-security-10 already
+	// fixed on the JS side (Node's `Buffer.from(str, 'base64')` had the same behavior).
+	assert.equal(out, 'ABC');
+});

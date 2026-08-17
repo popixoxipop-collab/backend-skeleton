@@ -178,7 +178,7 @@ test('every top-level command documented in usage() has a matching case label in
 // O6 (c): the HandleAspect fix specifically -- if it's ever reintroduced, it must carry an
 // explicit "not yet implemented" caveat, not silently claim a class that doesn't exist.
 test('any HandleAspect reference in a generated template is explicitly caveated as not yet implemented', () => {
-	const templatesDir = path.join(REPO_ROOT, 'handles', 'templates', 'java-spring');
+	const templatesDir = path.join(REPO_ROOT, 'handles', 'providers', 'java-spring', 'templates');
 	for (const file of fs.readdirSync(templatesDir)) {
 		if (!file.endsWith('.tmpl')) continue;
 		const text = fs.readFileSync(path.join(templatesDir, file), 'utf8');

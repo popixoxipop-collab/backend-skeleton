@@ -50,6 +50,19 @@ re-verifiable input set (current `HEAD` sha + locally-resolved default branch), 
 downstream command that checks the `preflight` gate will refuse to proceed without it having
 actually run and passed.
 
+**Handles (Phase 5) dispatch to a codegen provider chosen by the scan report's adapter** (G4, see
+`D-handles-providers` in DECISIONS.md) -- `java-spring` and `python-fastapi` both ship one today.
+The rest of this section describes the **`java-spring` provider's** specific generated shape
+(`@PreAuthorize`-derived `requiredAuthority()`, service-method argument counting, etc.); the
+`python-fastapi` provider (`handles/providers/python-fastapi/`) generates a structurally different
+but equally real artifact: `fetch()`/`to_public()` are wired to `session.get(...)`/`<Entity>Public
+.model_validate(...)`, `check_access()` is ALWAYS a fail-closed stub (FastAPI has no global
+security context to inspect the way Spring's is, and this project's own real-oracle testing found
+FastAPI apps' actual authorization checks routinely live inside route bodies, not decorators --
+unreachable by static scanning either way), and `patch_field()` is ALWAYS a 501 stub for the exact
+same `D-resolver-scope` reason `patchField()` is on the Java side. Neither provider generates a
+migration/`recover()` path for Python (see COST in `D-handles-providers`).
+
 **Handles (Phase 5) have a real, permanent scope boundary, not a "not yet built" gap**:
 `bskel handles emit`'s generated `fetch()`, when it generates at all, is wired to an existing,
 already-tested read-only service method -- but "safe to trust" depends on generation actually
@@ -134,12 +147,13 @@ every installed adapter and whether it detects the current repo. Shipped today: 
 `scanners/adapters/java-spring.mjs`; detects `build.gradle`/`pom.xml` + `src/main/java`;
 declares every capability), `python-fastapi` (specificity 90 -- same ripgrep + regex philosophy,
 see `scanners/adapters/python-fastapi.mjs`; detects a `fastapi` dependency declaration AND
-source-level confirmation together; declares `resource.fetch` only -- `api.operations`/
-`api.request-shape` are honestly `false` because FastAPI generates operation ids at runtime and
-this project's request-body detection is Java-only, and `codegen.handles` is `false` because no
-Python codegen provider exists yet (G4). A real OpenAPI document via `--openapi-file` (usually
-also needing `--path-prefix`, see `D-fastapi-adapter`) is the trustworthy path to a contract for
-this adapter -- see `D-fastapi-adapter` in DECISIONS.md), and `generic-grep` (specificity 0,
+source-level confirmation together; declares `resource.fetch` AND `codegen.handles` true -- a real
+Python/FastAPI/SQLModel handle codegen provider exists (G4, see `D-handles-providers` in
+DECISIONS.md). `api.operations`/`api.request-shape` stay honestly `false` because FastAPI
+generates operation ids at runtime and this project's request-body detection is Java-only. A real
+OpenAPI document via `--openapi-file` (usually also needing `--path-prefix`, see
+`D-fastapi-adapter`) is still the trustworthy path to a *contract* for this adapter -- see
+`D-fastapi-adapter` in DECISIONS.md), and `generic-grep` (specificity 0,
 unconditional last-resort fallback -- route-pattern grep for Express/Flask/FastAPI-shaped code,
 see `D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities).
 
@@ -157,14 +171,16 @@ not detect it.
 
 **Capability negotiation, exit `17`**: `contract emit`, `handles plan`, and `handles emit` each
 require specific capabilities from the adapter that produced the feature's scan report
-(`api.operations` for `contract emit`; `resource.fetch` + `codegen.handles` for both `handles`
-commands) and refuse cleanly -- naming the missing capability, the adapter, and what you can do
-about it, writing nothing -- rather than falling through into Java-specific codegen that was
-never going to work. A `generic-grep`-scanned feature always hits this at `contract emit`
-(`api.operations` is always false for that adapter, see `D-generic-grep-reconnaissance`) and,
-if forced past that, at `handles plan`/`handles emit` too (`resource.fetch`/`codegen.handles`
-are also false -- no codegen provider exists for a non-Spring stack yet, see `G2`/`G4` in
-CATALOG.md). See `D-adapter-registry` in DECISIONS.md.
+(`api.operations` for `contract emit`; `codegen.handles` -- "does a codegen *provider* exist for
+this adapter's stack at all" -- for both `handles` commands) and refuse cleanly -- naming the
+missing capability, the adapter, and what you can do about it, writing nothing -- rather than
+falling through into codegen that was never going to work. Once a provider is selected (G4, see
+`D-handles-providers` in DECISIONS.md), that PROVIDER checks its own further requirements
+(`resource.fetch`, for both shipped providers) as a second pass -- so a `generic-grep`-scanned
+feature always hits `contract emit`'s `api.operations` check first (always false for that adapter,
+see `D-generic-grep-reconnaissance`), and, if forced past that, `handles plan`/`handles emit`'s
+`codegen.handles` check next (also false -- no codegen provider exists for a route-pattern-only
+stack, see `G3` in CATALOG.md). See `D-adapter-registry` and `D-handles-providers` in DECISIONS.md.
 
 For a `java-spring` scan, `report.path_prefix_signals` (also surfaced as a plain-language note in
 `unknowns` when non-empty) flags a global path prefix applied outside controller source -- a
@@ -320,16 +336,30 @@ bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run 
 
 ```bash
 bskel handles plan --feature <id> [--module <name>] [--resource Type1,Type2]
-  # -> read-only. For each entity found by `bskel scan` in the target module, reports whether
-  #    a resolver CAN be generated: a single-resource GET endpoint on a controller whose class
-  #    name contains the entity's name (for fetch), a matching <Entity>Service.java file, AND
-  #    that service's same-named method taking exactly the one UUID argument fetch() always
-  #    passes (D-security-8 -- a 2+ arg service method, e.g. one scoped under an org/cohort id,
-  #    blocks generation instead of silently dropping the extra scope). If any of these is
-  #    missing, says so and will not generate a broken (or wrongly-scoped) stub for that entity.
+  # -> read-only, JSON output validates against schemas/handles-plan.schema.json (framework-
+  #    neutral -- G4). For each entity found by `bskel scan` in the target module, reports whether
+  #    a resolver CAN be generated. Gating conditions are provider-specific:
+  #
+  #    java-spring: a single-resource GET endpoint on a controller whose class name contains the
+  #    entity's name (for fetch), a matching <Entity>Service.java file, AND that service's
+  #    same-named method taking exactly the one UUID argument fetch() always passes (D-security-8
+  #    -- a 2+ arg service method, e.g. one scoped under an org/cohort id, blocks generation
+  #    instead of silently dropping the extra scope).
+  #
+  #    python-fastapi: a single-resource GET route (matched by function name, since FastAPI never
+  #    pins an operationId in source -- D-fastapi-adapter), a real <Entity>Public class in the same
+  #    file (required, not decorative -- protects against a generic fetch route ever serializing a
+  #    column the app doesn't otherwise expose, e.g. a password hash), a detected primary-key
+  #    field, AND a SessionDep-shaped dependency alias found anywhere in the package.
+  #
+  #    If any of these is missing, says so and will not generate a broken (or unsafe) stub for
+  #    that entity.
 
 bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--force --reason "..."]
-  # -> requires the `contract` gate to have passed. Writes, under the detected base package:
+  # -> requires the `contract` gate to have passed. Dispatches to the codegen PROVIDER matching the
+  #    scan report's adapter (G4, D-handles-providers) -- output shape is provider-specific:
+  #
+  #    java-spring: writes, under the detected base package:
   #      global/handle/{HandleCodec,HandleRegistry,HandleSnapshot,HandleRegistryRepository,
   #        HandleSnapshotRepository,ResourceResolver,HandleController}.java
   #      domain/<module>/infrastructure/<Type>Resolver.java   (one per resource `plan` approved)
@@ -338,6 +368,15 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--
   #    existing, tested code, and only ever emitted once `plan`'s D-security-7/8 checks above
   #    passed, not assumed safe by default. patchField() is ALWAYS a stub -- see the workflow
   #    section above and D-resolver-scope in DECISIONS.md for why.
+  #
+  #    python-fastapi: writes, under the detected package's own `handles/` subpackage (e.g.
+  #    backend/app/handles/ for the reference oracle):
+  #      {__init__,codec,registry,router}.py, resolvers/__init__.py
+  #      resolvers/<snake_type>.py   (one per resource `plan` approved)
+  #    NO migration.sql, no recover() -- deliberately excluded, see D-handles-providers COST.
+  #    check_access() ALWAYS fail-closed-denies (403); patch_field() ALWAYS 501s. The router
+  #    itself is NOT wired into the app automatically -- `postEmitNotes` in the JSON output (or the
+  #    plain-text tail) names the two lines to add by hand.
   #
   #    O2: every generated file's provenance is tracked in .sbf/handles-manifest.json (D-handles-
   #    ownership). A file untouched since bskel last wrote it is regenerated normally; a diverged

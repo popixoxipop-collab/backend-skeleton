@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:handles-plan:1",
+  "title": "backend-skeleton framework-neutral handles plan",
+  "description": "Validates the output of a handles provider's plan(). Top-level and resource objects both allow additionalProperties: true so each provider can carry its own extra fields (Java: service/fetchOperation; Python: publicModel/modelImport/fetchRoute/sessionDep) alongside the neutral subset the CLI renderer and dispatch layer consume. See D-handles-providers in DECISIONS.md.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema", "provider", "module", "resources", "notes"],
+  "properties": {
+    "schema": { "const": "sbf.handles-plan/1" },
+    "provider": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "module": { "type": ["string", "null"] },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["type", "table", "idField", "readPath", "requiredAuthority", "willGenerateResolver"],
+        "properties": {
+          "type": { "type": "string" },
+          "table": { "type": ["string", "null"] },
+          "idField": { "type": ["string", "null"] },
+          "readPath": { "type": ["string", "null"] },
+          "requiredAuthority": { "type": "string" },
+          "willGenerateResolver": { "type": "boolean" }
+        }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

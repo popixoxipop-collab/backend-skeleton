@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 // The "canonical fetch" for an entity: a GET endpoint whose path is exactly
 // `${controller.basePath}/{id}` (one trailing path param, nothing after it) on a controller
@@ -189,4 +190,69 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 	}
 
 	return { module: targetModule.module, resources, notes };
+}
+
+// Detected from the Spring Boot `*Application.java` file's own package declaration, rather
+// than assumed/configured -- works for any Spring Boot project following the standard
+// convention, not just Team-IZ-Backend's specific `com.bigproject.backend`. Moved here from the
+// pre-G4 handles/emit.mjs -- G1's original `bin/bskel.mjs`-level `detectBasePackageOrExit` no
+// longer exists; the CLI has no Java-specific knowledge left, this provider owns it entirely.
+//
+// O6: previously used files[0] unconditionally when the glob matched more than one
+// *Application.java -- silently picking whichever one `rg --files`'s (unordered, see the .sort()
+// below) traversal happened to return first. Multiple candidates that all declare the SAME
+// package (a common multi-module-monorepo shape) aren't actually ambiguous, so that case still
+// resolves quietly; only genuinely DIFFERENT packages throw, naming every candidate so the caller
+// can see why. There is no existing repo in this project's real-world testing with more than one
+// application root, so this is unverified against a real multi-app case -- see
+// D-artifact-determinism's EXIT in DECISIONS.md for why no override flag was added speculatively.
+export function detectBasePackage(repoRoot) {
+	const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
+	if (!fs.existsSync(srcRoot)) return null;
+	let files;
+	try {
+		files = execFileSync('rg', ['--files', '-g', '*Application.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean).sort();
+	} catch {
+		files = [];
+	}
+	if (files.length === 0) return null;
+	const packages = new Set(
+		files.map((f) => fs.readFileSync(f, 'utf8').match(/^package\s+([\w.]+);/m)?.[1]).filter(Boolean),
+	);
+	if (packages.size > 1) {
+		throw new Error(
+			`ambiguous base package -- found ${files.length} *Application.java file(s) declaring ${packages.size} different packages: ` +
+			`${files.map((f) => path.relative(repoRoot, f)).join(', ')}. This tool doesn't support multi-application-root repos yet.`,
+		);
+	}
+	return packages.size === 1 ? [...packages][0] : null;
+}
+
+// The descriptor-facing entry point (handles/providers/java-spring.mjs's provider.plan). Wraps
+// planHandles() above with base-package detection and the framework-neutral sbf.handles-plan/1
+// envelope -- see schemas/handles-plan.schema.json. `basePackage` rides along as a provider-
+// specific extra field (additionalProperties: true) so emit() below can reuse the SAME detected
+// value instead of re-detecting it (each is a separate `bskel handles plan`/`bskel handles emit`
+// process invocation, but within one process this plan object is computed once and threaded
+// through -- a small improvement over the pre-G4 code, which detected it independently in each
+// command's own function body; detectBasePackage is deterministic so this changes no observable
+// behavior).
+export function plan({ repoRoot, scanReport, module: moduleName, resourceFilter }) {
+	const basePackage = detectBasePackage(repoRoot);
+	if (!basePackage) {
+		throw new Error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+	}
+	const javaSrcRoot = path.join(repoRoot, 'src', 'main', 'java', ...basePackage.split('.'));
+	const inner = planHandles({ javaSrcRoot, scanReport, module: moduleName, resourceFilter });
+	return {
+		schema: 'sbf.handles-plan/1',
+		provider: 'java-spring',
+		basePackage,
+		module: inner.module,
+		resources: inner.resources.map((r) => ({
+			...r,
+			readPath: (r.service && r.fetchOperation) ? `${r.service.serviceType}.${r.fetchOperation.method}()` : null,
+		})),
+		notes: inner.notes,
+	};
 }

@@ -1,7 +1,7 @@
 // D5/D6 (DECISIONS.md): the "handle" is a composite address -- kind:type:uuid[:pointer],
 // base64url-encoded with an `sbf1_` prefix -- extending Relay's `base64(Type:id)` global-ID
 // pattern with an RFC 6901 JSON Pointer for field-level addressing. This is the JS reference
-// implementation; handles/templates/java-spring/HandleCodec.java.tmpl must stay byte-identical
+// implementation; handles/providers/java-spring/templates/HandleCodec.java.tmpl must stay byte-identical
 // in behavior (see test/handles-codec.test.mjs's cross-check against fixed vectors).
 import { createHash } from 'node:crypto';
 

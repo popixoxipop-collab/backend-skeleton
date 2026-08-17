@@ -284,9 +284,10 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 // (dependency declaration AND source-confirmed, exactly java-spring's "build file AND src layout"
 // bar), but a polyglot monorepo containing BOTH a Spring build file+src/main/java AND a FastAPI
 // pyproject.toml must resolve deterministically rather than hitting runScan()'s "ambiguous adapter
-// selection" hard error, which is what specificity 100 would cause. java-spring wins that tie --
-// the stack with codegen.handles:true -- a real, documented trade-off (see DECISIONS.md), checkable
-// via `bskel doctor`.
+// selection" hard error, which is what specificity 100 would cause. java-spring still wins that
+// tie -- both adapters now declare codegen.handles:true (G4), so the actual reason is just "one of
+// them has to win, and it must be the same one every time" -- not a functional gap on this side
+// anymore, a real, documented trade-off (see DECISIONS.md), checkable via `bskel doctor`.
 export const adapter = {
 	contract: 'sbf.adapter/1',
 	id: 'python-fastapi',
@@ -303,13 +304,15 @@ export const adapter = {
 		// still arrives via --openapi-file's existing, adapter-agnostic schema projection (A2).
 		'api.request-shape': false,
 		// true: table/idField ARE genuinely extracted and cross-checked against the real oracle's
-		// own Alembic migration. Has no behavioral effect today (codegen.handles is also required
-		// and stays false), but makes the eventual `handles plan`/`emit` exit-17 message correctly
-		// name codegen.handles as the actual blocker, not misattribute it to this satisfied one.
+		// own Alembic migration. `table` itself is no longer load-bearing for codegen (the Python
+		// provider re-derives SQLModel's read path from idField + the class itself, not the table
+		// name) -- idField and the entity's own GET route are what `handles plan`/`emit` actually
+		// depend on now.
 		'resource.fetch': true,
-		// false, non-negotiable: no Python codegen provider exists (G4's job). handles/plan.mjs and
-		// handles/emit.mjs remain entirely unchanged, entirely Java/Spring-specific.
-		'codegen.handles': false,
+		// true (G4): handles/providers/python-fastapi/ is a real, executed-and-verified codegen
+		// provider -- see D-handles-providers in DECISIONS.md for what it generates, what it always
+		// stubs (check_access, patch_field), and what it deliberately excludes (recover(), migration).
+		'codegen.handles': true,
 	},
 	detect: detectPythonFastApiRoot,
 	scan(repoRoot, detection) {

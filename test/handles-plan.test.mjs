@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { planHandles } from '../handles/plan.mjs';
+import { planHandles } from '../handles/providers/java-spring/plan.mjs';
 
 function fixtureScanReport() {
 	return {

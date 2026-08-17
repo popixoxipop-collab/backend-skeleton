@@ -34,6 +34,13 @@ function buildFixtureRepo() {
 	fs.mkdirSync(path.join(root, 'backend', 'app', 'api', 'routes'), { recursive: true });
 	fs.mkdirSync(path.join(root, 'backend', 'app', 'core'), { recursive: true });
 
+	// G4: real package markers -- backend/app/ is the detected import root's top package
+	// (backend/ itself has none, so importRoot="backend", topPackage="app"), matching the real
+	// oracle's own layout. Needed for the python-fastapi handles provider's package-root detection.
+	fs.writeFileSync(path.join(root, 'backend', 'app', '__init__.py'), '');
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', '__init__.py'), '');
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'routes', '__init__.py'), '');
+
 	fs.writeFileSync(path.join(root, 'backend', 'pyproject.toml'), `
 [project]
 name = "fixture-backend"
@@ -48,6 +55,22 @@ class Settings:
     API_V1_STR: str = "/api/v1"
 
 settings = Settings()
+`);
+
+	// G4: the actual SessionDep alias declaration the python-fastapi handles provider looks for --
+	// the route files below only USE `SessionDep` as a parameter annotation, they never declare it,
+	// exactly like the real oracle (deps.py is where it actually lives).
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'deps.py'), `
+from typing import Annotated
+from fastapi import Depends
+from sqlmodel import Session
+
+
+def get_db():
+    pass
+
+
+SessionDep = Annotated[Session, Depends(get_db)]
 `);
 
 	fs.writeFileSync(path.join(root, 'backend', 'app', 'main.py'), `
@@ -313,23 +336,38 @@ test('contract emit --openapi-file --path-prefix /api/v1 together adopt all 4 re
 	assert.equal(gate.code, 0);
 });
 
-test('handles plan/emit against a python-fastapi-scanned feature still exit 17 on codegen.handles (not resource.fetch), never the misleading "is this a Spring Boot project?" message, and never write .java or touch the handles gate', () => {
+// G4: this used to be the test proving `codegen.handles` blocked every python-fastapi feature at
+// exit 17 -- that premise is exactly what G4 exists to invert. See D-handles-providers in
+// DECISIONS.md and test/python-fastapi-handles.test.mjs for the provider's own dedicated plan-
+// unit/e2e coverage; this test's job is narrower: prove the CLI's provider dispatch actually
+// reaches python-fastapi for a python-fastapi-scanned feature (never misattributes to java-spring,
+// never writes .java, never shows the Spring-specific error), using this file's own existing
+// fixture/workflow helpers rather than a second copy of them.
+test('handles plan/emit against a python-fastapi-scanned feature dispatches to the python-fastapi provider, generates a resolver for Item, and passes the handles gate', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughScan(root, '001-item-management', 'item');
 	const docPath = writeOpenApiDoc(root);
 	run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', docPath, '--path-prefix', '/api/v1'], root);
 
-	const plan = run(['handles', 'plan', '--feature', '001-item-management'], root);
-	assert.equal(plan.code, 17);
-	assert.match(plan.stderr, /codegen\.handles/);
-	assert.ok(!plan.stderr.includes('resource.fetch'), 'resource.fetch is genuinely satisfied -- the message must name the real blocker, not misattribute it');
-	assert.ok(!plan.stderr.includes('is this a Spring Boot project?'));
+	const plan = run(['handles', 'plan', '--feature', '001-item-management', '--module', 'items', '--json'], root);
+	assert.equal(plan.code, 0);
+	const planJson = JSON.parse(plan.stdout);
+	assert.equal(planJson.provider, 'python-fastapi');
+	const itemResource = planJson.resources.find((r) => r.type === 'Item');
+	assert.ok(itemResource, 'expected an Item resource in the plan');
+	assert.equal(itemResource.willGenerateResolver, true, `Item should generate a resolver -- notes: ${JSON.stringify(planJson.notes)}`);
 
-	const emit = run(['handles', 'emit', '--feature', '001-item-management'], root);
-	assert.equal(emit.code, 17);
-	assert.match(emit.stderr, /codegen\.handles/);
-	assert.ok(!emit.stderr.includes('is this a Spring Boot project?'));
+	const emit = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items'], root);
+	assert.equal(emit.code, 0, emit.stderr);
+	assert.ok(!(emit.stderr ?? '').includes('is this a Spring Boot project?'));
+
+	const resolverPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item.py');
+	assert.ok(fs.existsSync(resolverPath), 'expected backend/app/handles/resolvers/item.py to be written');
+	assert.ok(!fs.existsSync(path.join(root, 'specs', '001-item-management', 'handles', 'migration.sql')), 'python-fastapi generates no migration.sql');
 
 	const gate = run(['gate', 'require', 'handles', '--feature', '001-item-management'], root);
-	assert.equal(gate.code, 2, 'handles gate must still be not_run -- G2 must never accidentally unlock Java codegen for a Python-scanned feature');
+	assert.equal(gate.code, 0);
+
+	const javaFiles = execFileSync('find', [root, '-name', '*.java'], { encoding: 'utf8' }).trim();
+	assert.equal(javaFiles, '', 'no .java file should ever be written for a python-fastapi-scanned feature');
 });

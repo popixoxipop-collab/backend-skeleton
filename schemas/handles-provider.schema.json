@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:handles-provider:1",
+  "title": "backend-skeleton handles codegen provider descriptor",
+  "description": "Validates the JSON-shaped fields of the `provider` object a handles/providers/<id>.mjs module must export (plan/emit are functions, checked separately by handles/registry.mjs since a schema can't validate a function). Loaded at process start. See D-handles-providers in DECISIONS.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "id", "title", "requiresCapabilities", "outputs"],
+  "properties": {
+    "contract": { "const": "sbf.handles-provider/1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "requiresCapabilities": {
+      "type": "array",
+      "items": { "enum": ["api.operations", "api.request-shape", "resource.fetch", "codegen.handles"] }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spec"],
+      "properties": {
+        "spec": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

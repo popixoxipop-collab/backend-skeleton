@@ -19,7 +19,7 @@ export const CAPABILITIES = Object.freeze({
 	},
 	'codegen.handles': {
 		summary: 'a handle codegen provider exists for this adapter\'s stack',
-		why: 'only the java-spring provider exists today -- see G4 in CATALOG.md',
+		why: 'two providers exist today (java-spring, python-fastapi) -- see D-handles-providers (G4) in DECISIONS.md; a stack without one still fails this capability honestly rather than pretending',
 	},
 });
 
@@ -28,10 +28,16 @@ export const CAPABILITY_NAMES = Object.freeze(Object.keys(CAPABILITIES));
 // Which capabilities a command needs before it's allowed to touch adapter-specific codegen, and
 // which gate (if any) a human can `bskel gate force` past once they've hand-supplied the missing
 // artifact themselves.
+//
+// G4: `resource.fetch` moved OFF this list and onto each handles provider's own
+// `requiresCapabilities` (bin/bskel.mjs's requireProviderCapabilitiesOrExit) -- it was never a
+// property of the COMMAND, it was a property of what a codegen PROVIDER needs to do its job, and
+// a future provider could plausibly need a different capability set than "resource.fetch". This
+// list is purely dispatch: does a provider exist at all for this adapter.
 export const COMMAND_CAPABILITIES = Object.freeze({
 	'contract emit': Object.freeze(['api.operations']),
-	'handles plan': Object.freeze(['resource.fetch', 'codegen.handles']),
-	'handles emit': Object.freeze(['resource.fetch', 'codegen.handles']),
+	'handles plan': Object.freeze(['codegen.handles']),
+	'handles emit': Object.freeze(['codegen.handles']),
 });
 
 export const COMMAND_GATE = Object.freeze({

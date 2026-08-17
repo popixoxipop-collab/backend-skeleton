@@ -195,7 +195,12 @@ test('generic-grep-scanned feature: `handles plan` is blocked by the capability 
 
 	const result = run(['handles', 'plan', '--feature', '001-widget-management'], root);
 	assert.equal(result.code, 17);
-	assert.match(result.stderr, /resource\.fetch|codegen\.handles/);
+	// G4: COMMAND_CAPABILITIES['handles plan'] is now JUST ['codegen.handles'] -- resource.fetch
+	// moved onto each provider's own requiresCapabilities, which is never even reached here since
+	// no provider exists for generic-grep at all (confirmed by the biconditional drift guard in
+	// test/handles-provider-registry.test.mjs). The message must name the REAL blocker.
+	assert.match(result.stderr, /codegen\.handles/);
+	assert.ok(!result.stderr.includes('resource.fetch'), 'resource.fetch is no longer checked at dispatch time -- must not misattribute to it');
 	assert.ok(!result.stderr.includes('is this a Spring Boot project?'), 'must not fall through to the misleading Java-specific message');
 });
 
@@ -231,6 +236,7 @@ test('generic-grep-scanned feature: `handles emit` is blocked by the capability 
 
 	const result = run(['handles', 'emit', '--feature', '001-widget-management'], root);
 	assert.equal(result.code, 17);
+	assert.match(result.stderr, /codegen\.handles/);
 	assert.ok(!result.stderr.includes('is this a Spring Boot project?'));
 	const gate = run(['gate', 'require', 'handles', '--feature', '001-widget-management'], root);
 	assert.equal(gate.code, 2, 'handles gate must still be not_run');
