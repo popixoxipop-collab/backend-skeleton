@@ -1912,3 +1912,158 @@ needs something `execFileSync(bin, ['--version'])` can't probe correctly (a bina
 entries (`{binary, versionFlag}` objects) without breaking existing YAML -- not built now, since
 `ngrok`/`curl` both probe cleanly with the current shape and there is no second real case to design
 against yet.
+
+## D-fastapi-adapter (G2): a second first-class adapter, and the capability a real OpenAPI document can satisfy
+
+**WHY** -- two findings, both reproduced by executing code against a real, official FastAPI
+reference repo (`fastapi/full-stack-fastapi-template`, cloned as the verification oracle per the
+user's explicit choice -- this project verifies every adapter against something real, and G2 is no
+exception), not inferred from reading:
+
+1. **The pre-G2 baseline was a false negative, not just shallow.** `bskel scan --terms item,items`
+   against the real oracle reported `adapter: generic-grep, verdict: greenfield` -- "nothing here"
+   -- for a repo with a complete, working Items resource (5 real endpoints) and a complete Users
+   resource (10 real endpoints). `generic-grep` found all the routes but collapsed them into one
+   `_generic` module with unresolved router-local paths, so `scoreModule()` scored it 0. This is
+   the exact failure class this tool exists to prevent -- portability was never the only motive
+   for a second adapter; correctness was the stronger one.
+2. **The capability gate alone was not enough to make `--openapi-file` actually work.**
+   `contracts/openapi.mjs::reconcileModule()`'s adoption path only fires when
+   `inferPathPrefix()` resolves a prefix, and `inferPathPrefix()` only builds anchors from
+   endpoints that ALREADY have a non-null `operationId` -- which a FastAPI module has zero of, by
+   construction. Reproduced directly, twice (a hand-built fixture and the real oracle): `--openapi-
+   file` alone left every endpoint `unresolved/prefix-inconclusive`, `adopted: 0`; `--openapi-file`
+   **plus** `--path-prefix /api/v1` adopted all 5 real Items operations, `completeness: complete`.
+   Both flags are load-bearing -- this is why §3 below exists, and it is a real, load-bearing
+   design point this item had to solve, not an afterthought.
+
+**The adapter** (`scanners/adapters/python-fastapi.mjs`, mirrors `java-spring.mjs`'s shape exactly
+-- `sbf.adapter/1`, zero registration, confirmed by loading it alongside the other two with no
+other file touched): `detect()` requires BOTH a `fastapi` dependency declaration
+(`pyproject.toml`/`requirements*.txt`, bounded regex, no TOML parser -- A2's "good-enough regex,
+not a real parser" precedent) AND source-level confirmation (`from fastapi import`/`FastAPI(` in
+at least one `.py` file) -- java-spring's own "build file AND src layout" combined bar, adapted.
+Returns the Python project root, which can differ from `repoRoot` (the real oracle is a monorepo
+with its FastAPI project under `backend/` -- verified to resolve correctly from the git root).
+**`specificity: 90`, deliberately below java-spring's 100** -- same class of combined signal, but
+100 would make a polyglot monorepo containing both a Spring build file and a FastAPI
+`pyproject.toml` hit `runScan()`'s "ambiguous adapter selection" hard error; at 90, java-spring
+(the stack with `codegen.handles: true`) wins that tie quietly instead. A real, documented
+trade-off, checkable via `bskel doctor`.
+
+**Extraction is pure Node regex, deliberately NOT a Python `ast`/interpreter shell-out** -- this
+overrides CATALOG.md's own "Python AST module" wording, on the same reasoning A2 already used to
+reject a JVM helper for Java parsing: this CLI's only external binary dependency is `rg`; a second
+(`python3`) would add version skew and a new degradation path for zero measured accuracy loss.
+Verified against the real oracle: 5/5 Items endpoints and 10/10 Users endpoints extracted with
+correct verb/path/function-name, `User`/`Item` entities with real `table`/`idField` cross-checked
+against the oracle's own Alembic migration (`op.create_table("user", ...)`, no `__tablename__`
+anywhere -- SQLModel's own default). A balanced-paren scan (not a single regex) handles a real
+complication found in the oracle: `dependencies=[Depends(get_current_active_superuser)]` nests
+parens inside a decorator's own kwargs, which a non-greedy `[\s\S]*?\)` would truncate at the
+wrong `)`. `module` is the **filename stem**, not the router's own `prefix=` kwarg -- the oracle's
+real `login.py` declares `APIRouter(tags=["login"])` with no prefix at all, which falsifies a
+prefix-derived name on a real file while the filename stem works for every router. Entity-to-
+module attachment is a narrow name-match (`Item`->`items`, singular or singular+`s` only, never
+general pluralization) with an unmatched table class landing in a `_models` bucket rather than
+being silently dropped. `pathPrefixSignals`/`apiSurfaceSource` (pre-existing hooks from A1 §7/O6
+that neither shipped adapter had used before) are this adapter's first real use: an
+`include_router(prefix=X)` two-step resolution (mirrors java-spring's
+`configurePathMatch`->`addPathPrefix`) recovered the real oracle's `/api/v1` prefix from
+`settings.API_V1_STR` exactly, and the surface-source override states plainly that operation ids
+are a runtime artifact here, not statically derivable.
+
+**Capabilities, each independently justified** (see the table and full reasoning in
+`scanners/adapters/python-fastapi.mjs`'s own comments): `api.operations: false` -- the real
+oracle's `main.py` registers a **custom** `generate_unique_id_function`
+(`f"{tag}-{route.name}"`), different from FastAPI's own built-in default, and zero
+`operation_id=` appears anywhere in source -- operation identity is a per-project runtime
+artifact, never honestly derivable statically. `api.request-shape: false` -- `contracts/
+emit.mjs::detectRequestBody()` is a Java-only regex; the cost is only `body:'unknown'`
+(WARN, waivable), and the real request schema still arrives via `--openapi-file`'s existing,
+already-adapter-agnostic A2 schema projection. `resource.fetch: true` -- table/idField ARE
+genuinely, verifiably extracted; this has no behavioral effect today (`codegen.handles` is also
+required) but makes the eventual `handles plan`/`emit` exit-17 message correctly blame
+`codegen.handles`, not misattribute the block to a capability that's actually satisfied.
+`codegen.handles: false`, non-negotiable -- no Python codegen provider exists (G4's job);
+`handles/plan.mjs`/`handles/emit.mjs` are completely unchanged, still 100% Java/Spring-specific.
+
+**The capability-gate / `--openapi-file` resolution (finding 2's fix)**: new
+`CAPABILITY_SATISFIERS` in `scanners/capabilities.mjs` -- a frozen map keyed by **capability**, not
+by adapter (`'api.operations': {flag: 'openapi-file', note: ...}`). `requireCapabilitiesOrExit()`
+(`bin/bskel.mjs`) gained a `satisfiedBy` Set; `cmdContractEmit` passes `{'openapi-file'}` when that
+flag was given. This is deliberately data on the *capability*, not a special case in the adapter
+descriptor or in `cmdContractEmit`'s body -- any current or future adapter with the same honest
+operation-identity weakness benefits automatically, with zero new branching. `explainMissingCapability()`
+now appends a satisfier-specific remediation line automatically whenever one exists for the missing
+capability -- the exit-17 message a FastAPI user actually sees now says to retry with
+`--openapi-file` (and warns about the prefix requirement), instead of only offering the three
+generic escape hatches that existed before this item.
+
+**Accepted, deliberately not special-cased**: because `CAPABILITY_SATISFIERS` is keyed by
+capability, `generic-grep` + `--openapi-file` also now bypasses the `api.operations` gate at
+`contract emit` -- tested and confirmed to still end up honestly `blocked` (its `_generic` lumping
+leaves nothing resolvable regardless). Special-casing this to exclude `generic-grep` would
+reintroduce exactly the adapter-name hardcoding G1 removed; the failure mode is self-limiting, so
+the widening was accepted rather than blocked.
+
+**Verification**: `npm test` 345 -> **356** (10 new tests in `test/python-fastapi-cli.test.mjs`
+covering adapter selection, the headline greenfield-vs-collision regression, extraction fidelity,
+the no-prefix `login.py` case, entity attachment/`_models` bucket, path-prefix-signal resolution,
+the honest exit-17 without `--openapi-file`, the prefix-inconclusive negative control, the full
+adoption path, and the handles-still-blocked-on-codegen.handles proof; 1 new test in
+`test/generic-grep-cli.test.mjs` for the accepted widening above; the existing adapter-registry
+roster test updated to 3 adapters). Real-world, against the cloned oracle: `bskel doctor` shows
+`python-fastapi` detecting and `java-spring` not; `bskel scan` recovers all 5 real Items and all 10
+real Users endpoints with correct verb/path/function-name and real `Item`/`User` entities; the
+`/api/v1` prefix signal resolves correctly from the real `settings.API_V1_STR`; a hand-assembled
+OpenAPI document (paths taken from the oracle's own **committed, machine-generated**
+`frontend/src/client/sdk.gen.ts`, operation ids computed from the oracle's own committed
+`custom_generate_unique_id` algorithm plus real function names -- never by importing or running
+the target app, satisfying CATALOG.md's own constraint; `uv run python -c "...app.main.app.openapi()..."`
+was attempted first and failed for an unrelated reason, a missing built frontend static directory in
+this shallow clone, not a dependency/network problem) reproduces Finding 2 exactly
+(`--openapi-file` alone: 0 adopted, blocked; `--openapi-file --path-prefix /api/v1`: 5 adopted,
+complete), and `handles plan` against the resulting feature exits 17 naming `codegen.handles`.
+
+**What was deliberately NOT done**: G4 (Python codegen provider) -- `handles/*.mjs` untouched.
+Pydantic/SQLModel schema truth extracted from source -- CATALOG.md's own text says OpenAPI is the
+schema oracle for this adapter, and A2/A3's document-based projection already provides it, reused
+unchanged. CRUD/service-layer/auth-pattern extraction -- verified unreliable in the real oracle
+itself (`read_item`/`read_users` bypass `crud.py` entirely, calling `session.get`/`select` inline)
+and has no consumer while `codegen.handles` is false. Enum extraction. Any Python interpreter or
+TOML-library dependency. Any change to `contracts/openapi.mjs`'s prefix-inference logic itself
+(relaxing it for the zero-anchor case would also affect java-spring modules whose endpoints all
+lack `@Operation`, real test churn out of scope for this slice).
+
+**COST**: a FastAPI feature without a generated OpenAPI document can never get a real contract --
+accepted, the honest consequence of runtime-generated operation ids (the improved exit-17 message
+is what keeps this from being a dead end). A FastAPI app with no global path prefix cannot adopt at
+all, because `contracts/openapi.mjs`'s `PATH_PREFIX_RE` rejects an empty string and zero anchors
+force `prefix-inconclusive` regardless -- invisible on the oracle (which has `/api/v1`), a real gap
+elsewhere, see EXIT. `--path-prefix` is required alongside `--openapi-file` and partly functions as
+an "unlock" rather than a pure prefix override -- named here rather than smoothed over. Static
+over-reporting of conditionally-mounted routers (the oracle's `private.py` is only mounted when
+`FASTAPI_ENV == "development"`, which this scan cannot see). Table names are inferred from class
+names, missing an explicit `__tablename__` if one exists. Entity-to-module attachment rests on a
+narrow exact/`+s` name match. `test/adapter-registry.test.mjs`'s hardcoded 2-adapter roster
+assertion had to become 3 -- the correct amount of coupling for a test whose entire job is
+asserting the real, current adapter list, not a registry leak.
+
+**EXIT**: switch extraction to `python3 -c "ast.parse(...)"` if a real repo is found where the
+regex approach mis-parses (decorators inside `if`/`try` blocks, dynamic `add_api_route()`
+registration, routers built in loops -- none observed in the oracle). Support explicit
+`__tablename__` if a real repo needs it. Relax `inferPathPrefix()`/`reconcileModule()` for the
+zero-anchor case (empty global prefix) if a real FastAPI app without one is encountered -- affects
+java-spring too, needs its own slice. Raise `python-fastapi`'s specificity toward 100, or add an
+explicit tie-break, if the java-spring-wins-in-a-polyglot-monorepo default proves wrong in
+practice. G4 (a Python codegen provider) needs this adapter plus a second real one to factor a
+provider boundary against without guessing -- unchanged reasoning from `D-adapter-registry`'s own
+EXIT.
+
+Cross-references: `D-adapter-registry` (G1, the registry this adapter is the first real proof-of-
+zero-registration for beyond the two shipped adapters), `D-generic-grep-reconnaissance` (G3, the
+`api.operations: false` precedent this item's declaration matches), `D-openapi-reconciliation` (A1,
+the reconciliation/adoption mechanism this item depends on entirely unchanged), and
+`D-contract-completeness` (A5, `CONTRACT_EMPTY`/`blocked` is what makes finding 2's negative
+control end honestly rather than silently).

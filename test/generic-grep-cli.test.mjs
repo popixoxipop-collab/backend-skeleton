@@ -199,6 +199,29 @@ test('generic-grep-scanned feature: `handles plan` is blocked by the capability 
 	assert.ok(!result.stderr.includes('is this a Spring Boot project?'), 'must not fall through to the misleading Java-specific message');
 });
 
+// G2: CAPABILITY_SATISFIERS (scanners/capabilities.mjs) is deliberately data keyed by capability,
+// not by adapter -- so this widening applies to ANY adapter honestly declaring api.operations:
+// false, generic-grep included, not just python-fastapi. Accepted rather than special-cased: doing
+// otherwise would reintroduce the adapter-name hardcoding G1 removed, and the failure mode is
+// self-limiting -- generic-grep's `_generic` lumping means nothing has a resolvable route either,
+// so this still ends up honestly `blocked`, never a false success. See D-fastapi-adapter in
+// DECISIONS.md.
+test('generic-grep + --openapi-file also bypasses the capability gate (by the same generic mechanism as python-fastapi), and still ends up honestly blocked', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--accept-low-confidence', '--json'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'extend', '--note', 'test'], root);
+
+	const docPath = path.join(root, 'openapi.json');
+	fs.writeFileSync(docPath, JSON.stringify({ openapi: '3.1.0', paths: { '/widgets': { get: { operationId: 'widgets-list', responses: {} } } } }));
+
+	const result = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docPath], root);
+	assert.notEqual(result.code, 17, 'the capability gate itself must be bypassed once --openapi-file is given, same as any other adapter');
+	const contract = JSON.parse(fs.readFileSync(path.join(root, 'specs', '001-widget-management', 'contracts', '001-widget-management.schema.json'), 'utf8'));
+	assert.equal(contract.completeness.status, 'blocked', 'generic-grep\'s _generic lumping leaves every endpoint unresolvable regardless -- honest blocked, never a false success');
+});
+
 test('generic-grep-scanned feature: `handles emit` is blocked by the capability check even after forcing past the contract gate, and touches no files or the handles gate', () => {
 	const root = buildFixtureRepo();
 	run(['preflight'], root);

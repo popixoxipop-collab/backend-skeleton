@@ -40,13 +40,33 @@ export const COMMAND_GATE = Object.freeze({
 	'handles emit': 'handles',
 });
 
+// G2: data, not a per-adapter special case -- a capability a weak adapter can't earn statically
+// can still be legitimately satisfied by an explicit CLI flag that supplies the missing ground
+// truth from elsewhere. Today's one instance: `api.operations` (a real OpenAPI document supplies
+// operation identity a static scan of e.g. python-fastapi honestly cannot -- see D-fastapi-adapter
+// in DECISIONS.md). Expressed here, once, as a frozen map keyed by capability -- so
+// `requireCapabilitiesOrExit()` and `explainMissingCapability()` never need to know which
+// ADAPTER this applies to. Any adapter (including a future one) with the same honest weakness
+// benefits automatically; this is deliberately NOT java-spring/python-fastapi-specific.
+export const CAPABILITY_SATISFIERS = Object.freeze({
+	'api.operations': {
+		flag: 'openapi-file',
+		note: 'a real OpenAPI document can supply operation identity a weak adapter cannot derive statically -- ' +
+			'retry with --openapi-file <path> (and --path-prefix <prefix>, if this repo applies a global prefix ' +
+			'the document\'s own paths already include but this adapter could not resolve on its own -- ' +
+			'otherwise every endpoint stays unresolved with reason "prefix-inconclusive", see ' +
+			'D-openapi-reconciliation in DECISIONS.md)',
+	},
+});
+
 // Pure and exported so a test can assert the message shape without shelling out. `scanReportPath`
 // is an absolute path, matching this codebase's existing "no scan report at <abs path>"-style
 // messages (bin/bskel.mjs's loadScanReportOrExit).
 export function explainMissingCapability({ adapterId, capability, command, featureId, scanReportPath }) {
 	const cap = CAPABILITIES[capability];
 	const gate = COMMAND_GATE[command];
-	return [
+	const satisfier = CAPABILITY_SATISFIERS[capability];
+	const lines = [
 		`blocked: \`bskel ${command}\` requires the \`${capability}\` capability, which the \`${adapterId}\` ` +
 			`adapter -- the adapter that produced ${scanReportPath} -- does not declare.`,
 		'',
@@ -55,8 +75,10 @@ export function explainMissingCapability({ adapterId, capability, command, featu
 		'Nothing was written.',
 		'',
 		'What you can do:',
-		'  - run `bskel doctor` -- it reports why each installed adapter did or did not detect this repo.',
-		`  - hand-write the required artifact against its schema yourself, then \`bskel gate force ${gate} --feature ${featureId} --reason "..."\` if you're confident it's correct.`,
-		'  - no adapter/codegen provider exists for this stack yet -- see G2/G4 in CATALOG.md.',
-	].join('\n');
+	];
+	if (satisfier) lines.push(`  - ${satisfier.note}.`);
+	lines.push('  - run `bskel doctor` -- it reports why each installed adapter did or did not detect this repo.');
+	lines.push(`  - hand-write the required artifact against its schema yourself, then \`bskel gate force ${gate} --feature ${featureId} --reason "..."\` if you're confident it's correct.`);
+	lines.push('  - no adapter/codegen provider exists for this stack yet -- see G2/G4 in CATALOG.md.');
+	return lines.join('\n');
 }

@@ -38,11 +38,12 @@ export const adapter = {
 `;
 }
 
-test('real registry: loads exactly java-spring and generic-grep, sorted by specificity descending', async () => {
+test('real registry: loads exactly java-spring, python-fastapi, and generic-grep, sorted by specificity descending', async () => {
 	assert.deepEqual(LOAD_ERRORS, []);
-	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'generic-grep']);
+	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'python-fastapi', 'generic-grep']);
 	assert.equal(ADAPTERS[0].specificity, 100);
-	assert.equal(ADAPTERS[1].specificity, 0);
+	assert.equal(ADAPTERS[1].specificity, 90);
+	assert.equal(ADAPTERS[2].specificity, 0);
 });
 
 test('real registry: every CAPABILITY_NAMES key is declared (true or false) by both shipped adapters', () => {

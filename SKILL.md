@@ -132,9 +132,16 @@ highest-specificity adapter whose `detect()` matches this repo is chosen; `bskel
 every installed adapter and whether it detects the current repo. Shipped today: `java-spring`
 (specificity 100 -- ripgrep + full-file regex, no real Java parser, see
 `scanners/adapters/java-spring.mjs`; detects `build.gradle`/`pom.xml` + `src/main/java`;
-declares every capability) and `generic-grep` (specificity 0, unconditional last-resort fallback
--- route-pattern grep for Express/Flask/FastAPI-shaped code, see
-`D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities).
+declares every capability), `python-fastapi` (specificity 90 -- same ripgrep + regex philosophy,
+see `scanners/adapters/python-fastapi.mjs`; detects a `fastapi` dependency declaration AND
+source-level confirmation together; declares `resource.fetch` only -- `api.operations`/
+`api.request-shape` are honestly `false` because FastAPI generates operation ids at runtime and
+this project's request-body detection is Java-only, and `codegen.handles` is `false` because no
+Python codegen provider exists yet (G4). A real OpenAPI document via `--openapi-file` (usually
+also needing `--path-prefix`, see `D-fastapi-adapter`) is the trustworthy path to a contract for
+this adapter -- see `D-fastapi-adapter` in DECISIONS.md), and `generic-grep` (specificity 0,
+unconditional last-resort fallback -- route-pattern grep for Express/Flask/FastAPI-shaped code,
+see `D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities).
 
 **`generic-grep` is reconnaissance only, never contract-grade** -- no real parser, no operationId
 (so `contract emit` can never build a usable operation from it, per `D-contract-completeness`),

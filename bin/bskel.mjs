@@ -14,7 +14,7 @@ import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, s
 import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
-import { COMMAND_CAPABILITIES, explainMissingCapability } from '../scanners/capabilities.mjs';
+import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, resolutionPath, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
@@ -390,7 +390,12 @@ function loadFeatureRecord(root, featureId) {
 // repo's ONLY visible error at `handles plan`/`handles emit` was detectBasePackageOrExit's "is
 // this a Spring Boot project?" -- which reads as a broken Spring detector, not "the adapter that
 // scanned this repo doesn't support handle codegen". See D-adapter-registry in DECISIONS.md.
-function requireCapabilitiesOrExit(scanReport, command, { featureId, scanReportPath }) {
+// G2: `satisfiedBy` is a Set of flag names the caller has already confirmed were passed (e.g.
+// `--openapi-file`) -- when a missing capability has a CAPABILITY_SATISFIERS entry and its flag is
+// in this set, the check is skipped for that capability specifically. See CAPABILITY_SATISFIERS in
+// scanners/capabilities.mjs for why this lives as data there, not as adapter- or command-specific
+// logic here.
+function requireCapabilitiesOrExit(scanReport, command, { featureId, scanReportPath, satisfiedBy = new Set() }) {
 	const adapter = adapterById(ADAPTERS, scanReport.adapter);
 	if (!adapter) {
 		const loadErr = LOAD_ERRORS.find((e) => path.basename(e.file, '.mjs') === scanReport.adapter);
@@ -402,10 +407,11 @@ function requireCapabilitiesOrExit(scanReport, command, { featureId, scanReportP
 		process.exit(2);
 	}
 	for (const capability of COMMAND_CAPABILITIES[command] ?? []) {
-		if (!adapter.capabilities[capability]) {
-			console.error(explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
-			process.exit(17);
-		}
+		if (adapter.capabilities[capability]) continue;
+		const satisfier = CAPABILITY_SATISFIERS[capability];
+		if (satisfier && satisfiedBy.has(satisfier.flag)) continue;
+		console.error(explainMissingCapability({ adapterId: adapter.id, capability, command, featureId, scanReportPath }));
+		process.exit(17);
 	}
 }
 
@@ -437,7 +443,11 @@ function cmdContractEmit(args) {
 		process.exit(2);
 	}
 	const scanReport = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
-	requireCapabilitiesOrExit(scanReport, 'contract emit', { featureId: flags.feature, scanReportPath });
+	requireCapabilitiesOrExit(scanReport, 'contract emit', {
+		featureId: flags.feature,
+		scanReportPath,
+		satisfiedBy: flags['openapi-file'] ? new Set(['openapi-file']) : undefined,
+	});
 	const featureRecord = loadFeatureRecord(root, flags.feature);
 
 	// A1: computed before anything is written -- a bad --openapi-file (missing/unreadable/
