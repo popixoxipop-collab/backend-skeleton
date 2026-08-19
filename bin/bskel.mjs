@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import { repoRoot } from '../lib/repo.mjs';
+import { repoRoot, localDefaultBranch } from '../lib/repo.mjs';
 import { forceGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState } from '../lib/state.mjs';
@@ -33,7 +33,7 @@ const SKILL_ROOT = path.resolve(__dirname, '..');
 function usage() {
 	console.error(`bskel -- backend-skeleton CLI
 
-  bskel preflight [--max-behind N] [--no-fetch] [--allow-dirty] [--json]
+  bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
   bskel feature init --slug <name>
@@ -119,23 +119,45 @@ function cmdPreflight(args) {
 	setContext('preflight', flags);
 	const root = requireRepoRoot();
 	const scriptPath = path.join(SKILL_ROOT, 'scripts', 'preflight-base-ref.sh');
-	const scriptArgs = ['--max-behind', flags['max-behind']];
-	if (flags['no-fetch']) scriptArgs.push('--no-fetch');
+	const fetchTimeoutSeconds = Number(flags['fetch-timeout-seconds']);
+	const scriptArgs = ['--max-behind', flags['max-behind'], '--fetch-timeout-seconds', flags['fetch-timeout-seconds']];
+	// D-preflight-freshness (S3): --no-fetch is kept as an exact alias for --offline (both flow
+	// through to the script's own --offline, which also accepts --no-fetch) -- see lib/cli.mjs's
+	// COMMANDS.preflight for why both flags are declared.
+	if (flags.offline || flags['no-fetch']) scriptArgs.push('--offline');
 	if (flags['allow-dirty']) scriptArgs.push('--allow-dirty');
 	scriptArgs.push('--json');
 
 	let stdout;
 	let exitCode = 0;
 	try {
-		stdout = execFileSync(scriptPath, scriptArgs, { cwd: root, encoding: 'utf8' });
+		// D-preflight-freshness (S3): a backstop for transports `http.lowSpeedLimit`/
+		// `http.lowSpeedTime` (set inside the script) don't cover -- a local-path or ssh remote
+		// that simply hangs. +10s over the script's own fetch timeout so the script's own
+		// REFRESH_FAILED message (which explains WHY) has a chance to win the race.
+		stdout = execFileSync(scriptPath, scriptArgs, { cwd: root, encoding: 'utf8', timeout: (fetchTimeoutSeconds + 10) * 1000 });
 	} catch (err) {
 		stdout = err.stdout ?? '';
 		exitCode = err.status ?? 1;
 	}
-	const result = JSON.parse(stdout);
+	let result;
+	try {
+		result = JSON.parse(stdout);
+	} catch {
+		// Only reachable if the Node-side timeout above fired before the script produced any
+		// output at all (or the script crashed outside its own fail()/JSON paths) -- the script
+		// itself always emits a JSON verdict on every path `bskel` cares about.
+		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `preflight check timed out or produced no output after ${fetchTimeoutSeconds}s -- fix connectivity, or re-run with --offline to accept a local-only verdict`);
+	}
 
 	if (result.verdict === 'PASS') {
-		passNamedGate(root, 'preflight', null, result.evidence);
+		const evidence = { ...result.evidence, freshness: { max_age_minutes: Number(flags['max-age-minutes']) } };
+		passNamedGate(root, 'preflight', null, evidence);
+		// detection only, never a silent fix -- see D-openapi-reconciliation's path_prefix_signals
+		// precedent for the same "point it out, don't touch the user's repo metadata" stance.
+		if (evidence.default_branch && !localDefaultBranch(root)) {
+			console.error(`note: origin/HEAD is not set locally, so the preflight gate cannot detect remote-tracking movement -- run \`git remote set-head origin ${evidence.default_branch}\` (local-only) to enable it.`);
+		}
 	}
 
 	if (flags.json) {

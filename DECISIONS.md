@@ -2457,3 +2457,190 @@ payload commands this item re-verifies rather than disturbs; `D-status-next` (D1
 rather than inventing a second remediation format; `D-doctor-workflow` (D5), the precedent for
 `--workflow`-style optional/required check separation this item's own `required`-field design in
 `lib/cli.mjs` follows.
+
+## D-preflight-freshness (S3): a passed preflight can no longer stay green just because nobody asked it again
+
+**WHY**: `scripts/preflight-base-ref.sh`'s `git fetch` was completely swallowed (`2>/dev/null ||
+true`) -- confirmed by direct execution, not assumed. Built a real fixture: a bare origin, a work
+clone, a second clone that genuinely pushes a new commit to origin (the remote really did move),
+then broke `work`'s origin URL to a nonexistent path and ran the pre-fix script (`git show
+2cb0db4:scripts/preflight-base-ref.sh`, the last commit before this item):
+```
+$ /tmp/s3-pre-fix.sh --json   # broken origin URL, remote genuinely 1 commit ahead
+exit=0
+{"verdict":"PASS","evidence":{...,"behind":0,...}}
+```
+Zero bytes of stderr. A fully offline/unreachable remote was computing `behind`/`ahead` against
+whatever stale local `origin/develop` ref already existed and reporting PASS regardless -- the
+same failure class as this project's own origin story (a worktree branched 658 commits behind the
+real default branch, silently). Separately, the stored gate token was only ever `{head_sha,
+default_branch}` -- a passed preflight had no expiry and no way to notice the remote moved,
+however long ago it was checked.
+
+**SCOPE**: two halves, approved together (user-selected "S3a+S3b together" over "S3a only", with
+real before/after evidence and Team-IZ-Backend's actual commit cadence presented first).
+- **S3a**: `git fetch` now fails closed. `--offline` (new canonical name; `--no-fetch` kept as an
+  exact, permanent alias -- see Mechanism) is required to skip it; otherwise a failed fetch exits
+  a new code, `18 REFRESH_FAILED`, immediately. `--fetch-timeout-seconds` (default 60) bounds the
+  fetch itself. Evidence gained `origin_tip_sha`, `checked_at`, `worktree_dirty` (now always
+  computed, not only under `--allow-dirty`), `fetch` (`ok`/`failed`/`skipped`), `policy`, and a
+  `cross_check` object making each of the three default-branch sources' outcome
+  (`ok`/`failed`/`empty`/`unavailable`) observable instead of collapsing failure and inapplicable
+  into the same empty string.
+- **S3b**: the preflight gate's `recompute()` gained `origin_tip_sha` (a purely local `git
+  rev-parse refs/remotes/origin/<branch>`, added alongside `head_sha`/`default_branch`, never
+  replacing them), so `require` can notice a local remote-tracking ref moved since the gate last
+  passed. And a TTL: `freshness: { defaultMaxAgeMinutes: 30 }` on the gate definition, checked in
+  `requireGate()` against the gate record's own `at` timestamp (not the token/`inputs`
+  comparison), so a preflight pass goes stale purely from age even when nothing else changed.
+  `--max-age-minutes` (default 30, `0` disables) is recorded into the pass's own evidence at
+  preflight time, so a later policy-default change never retroactively re-judges an
+  already-passed gate under a different rule than the one it passed under.
+
+**Re-estimated scope**: the catalog's own M-sized code estimate held, but the observable behavior
+radius is L -- this item can newly cause an **already-passed** preflight to block downstream
+commands purely because time passed, which the catalog's original framing (fetch-failure
+detection only) did not anticipate. Presented to the user as three explicit decisions before
+implementation (scope S3a-only vs. S3a+S3b, TTL default, whether to expose
+`--fetch-timeout-seconds`), each with real data, not a guess -- all three resolved to the
+recommended option.
+
+**Data behind the 30-minute default**: Team-IZ-Backend's actual `origin/develop` commit cadence
+(109 commits over 35.8 days): p10=3m, p25=25m, **median=100m**, p75=264m, p90=17h. Treating
+"P(the remote tip moves again before the TTL expires)" as an upper bound on "this pass could be
+silently wrong by the time it's used": 15m -> 2.7%, **30m -> 5.1%**, 45m -> 7.3%, 60m -> 9.4%, 24h
+-> 59.0% (proving a day-long TTL would be meaningless). 30 minutes is the largest round value
+still under 5%. Re-derive for any repo with:
+```
+git log --first-parent --format=%ct origin/<default> | awk 'NR==1{p=$1;next}
+{d=p-$1;if(d>=0)g[n++]=d;p=$1}END{s=0;for(i=0;i<n;i++)s+=g[i];ttl=1800;num=0;
+for(i=0;i<n;i++)num+=(g[i]<ttl?g[i]:ttl);printf "P(moved within %dmin)=%.3f\n",ttl/60,num/s}'
+```
+
+**EXCLUDED** (and why): cross-check "at least 2 of 3 sources must agree" as a hard failure --
+conflicts directly with `D-doctor-workflow` (D5)'s already-shipped precedent ("no `gh` binary
+degrades one source, never hard-fails") and would break every existing fixture, which all resolve
+the default branch from exactly one source. `forced` gates gaining a time-based expiry -- that is
+S4's "expiry by time, commit, or next input change" territory; a forced pass stays exempt from TTL
+here, unchanged. `bskel doctor` gaining an origin-reachability check -- conflicts with D5's own
+"preflight needs nothing but git+node" decision. Skipping the fetch when a *previous* fetch
+recently succeeded (a fetch-result cache) -- moves in the wrong direction for an item whose entire
+point is freshness. A new `.sbf/preflight.json` state file -- `origin_tip_sha`'s real-world value
+is already secondary (see Mechanism's honesty note below), not worth a second state file. A full
+`refs/remotes/origin/*` manifest -- noise overwhelms signal for one branch's staleness question.
+`core.sshCommand` timeout injection for ssh remotes -- risks clobbering a user's own ssh config.
+An environment-variable TTL override -- would create a silent, undocumented way to defeat the
+freshness check outside the auditable `--max-age-minutes` flag. A TTL exemption for `--offline`
+passes -- one rule ("age of the pass"), not two; an offline user who wants no expiry uses
+`--max-age-minutes 0` explicitly, the same escape hatch everyone else has.
+
+**Mechanism**:
+- `scripts/preflight-base-ref.sh`: `--offline`/`--no-fetch` (exact alias -- predates this item, is
+  already documented in SKILL.md, the script's own header calls it "reusable outside this skill"
+  so an external caller may depend on the old name, and it wasn't worth a breaking rename for a
+  flag whose meaning is unchanged). The fetch call itself:
+  `git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=$FETCH_TIMEOUT fetch origin
+  "$DEFAULT_BRANCH" --quiet` with its exit status and first stderr line captured explicitly (no
+  `|| true`); on failure, `fail 18 REFRESH_FAILED "... re-run with --offline ..."`.
+  `http.lowSpeedLimit`/`lowSpeedTime` only bounds http(s) transports -- a local path or ssh remote
+  ignores them, so `bin/bskel.mjs::cmdPreflight` also passes `execFileSync(...,
+  {timeout: (fetchTimeoutSeconds+10)*1000})` as a universal backstop (this script has no portable
+  `timeout(1)` to rely on -- not present on macOS by default).
+- `lib/repo.mjs::remoteTrackingTip(cwd, branch)`: `git rev-parse --verify --quiet
+  refs/remotes/origin/<branch>`, null-safe, same try/catch->null style as `localDefaultBranch()`.
+  **Honesty note**: this is purely local. `require` noticing this value moved only means something
+  ELSE already fetched into this repo since the gate last passed -- if nothing has, the value is
+  unchanged and this check is a complete no-op. This limitation is deliberately not overstated
+  anywhere in SKILL.md or this entry; it is the TTL (not this) that carries the real freshness
+  guarantee for a repo where nothing else happens to fetch in between.
+- `lib/gates.mjs::checkFreshness(def, record)`: runs in `requireGate()` **after** the existing
+  token comparison (an actual input change is always the more specific, more actionable answer)
+  and is skipped entirely for `record.forced` gates. Reads `record.evidence?.freshness
+  ?.max_age_minutes ?? def.freshness.defaultMaxAgeMinutes`; `0` (either source) disables the TTL.
+  `age_seconds` is `Date.now() - Date.parse(record.at)`, clamped to `>= 0` (a future `at` -- clock
+  rewind -- reads as "as fresh as possible", never as extra-stale). A missing/unparseable `at`
+  fails closed as `invalid_timestamp`, never a silent pass. Deliberately does **not** put the
+  timestamp inside `inputs` (the token-comparison object) -- confirmed by direct execution that
+  doing so would make every single `require()` call report a change, since "now" is never equal
+  to the recorded instant.
+- `lib/gate-definitions.mjs`: preflight's `recompute` returns `{head_sha, default_branch,
+  origin_tip_sha}` -- `head_sha` is kept, not replaced (`D-gate-precision`, S2, already committed
+  to this for 4 gates including preflight; removing it would break the "a commit stales preflight
+  too" assumption `test/contract-cli.test.mjs`/`test/handles-ownership-cli.test.mjs` depend on).
+  `freshness: { defaultMaxAgeMinutes: 30 }` is the one "freshness policy" slot S1's own catalog
+  entry asked for but never had a gate to fill; every other gate (scan/contract/handles/stack)
+  declares none, and `checkFreshness()` treats an absent declaration as "not applicable" --
+  pinned by `test/gate-definitions.test.mjs`.
+- `bin/bskel.mjs::cmdPreflight`: on a script timeout that fires before any stdout is produced,
+  `JSON.parse` would previously throw uncaught -- now wrapped, reporting `REFRESH_FAILED`
+  explicitly instead of an internal-error stack trace. On PASS, merges `evidence.freshness =
+  {max_age_minutes}` into the script's own evidence before `passNamedGate`. When
+  `localDefaultBranch(root)` is null (no local `origin/HEAD`) but the script still resolved a real
+  default branch (via `remote show`/`gh api`), prints a one-time stderr note suggesting `git
+  remote set-head origin <branch>` -- detection only, the established "never a silent fix"
+  convention this project already follows for `path_prefix_signals` (`D-openapi-reconciliation`).
+
+**Verification**: `npm test` 444 -> **466** (22 net new: 5 in `test/preflight.test.mjs` for the
+new evidence fields/REFRESH_FAILED/`--offline`↔`--no-fetch` equivalence/the pre-existing
+WRONG_DEFAULT-not-REFRESH_FAILED case/`worktree_dirty` accuracy; 8 in `test/gates.test.mjs` for
+TTL expiry, TTL-within-window, token-change-wins-over-TTL, `max_age_minutes:0`, gates with no
+freshness declaration, forced-gate exemption, invalid timestamp, clock-rewind clamping; 2 in
+`test/gate-definitions.test.mjs` confirming `origin_tip_sha` is present and only `preflight`
+declares `freshness`; 2 numeric-validation tests in `test/cli-contract.test.mjs`; 5 in a new
+`test/preflight-freshness.test.mjs` covering local remote-tracking movement detection, the
+honesty case (no local fetch = undetected), TTL blocking `scan --feature`, `--max-age-minutes 0`
+disabling it, and the origin/HEAD-unset case). **All 444 pre-existing tests pass unmodified** --
+the fail-closed transition does not break them because every fixture's origin is a local bare
+repo, where `git fetch` genuinely succeeds; only 5 tests hardcode `--no-fetch` and are unaffected
+by the rename.
+
+Real-world evidence (isolated scratch fixture -- bare origin + work clone + a second clone that
+genuinely pushes an advancing commit -- never touching Team-IZ-Backend itself), all three states
+side by side:
+```
+PRE-FIX   (broken URL, remote genuinely 1 commit ahead): exit=0  {"verdict":"PASS",...,"behind":0} -- 0 bytes stderr
+POST-FIX  (same state, no --offline):                    exit=18 {"verdict":"FAIL","reason":"REFRESH_FAILED",
+                                                                    "message":"could not refresh 'develop' from origin
+                                                                    (git fetch exited 128: fatal: '/definitely/not/a/repo'
+                                                                    does not appear to be a git repository) -- fix
+                                                                    connectivity, or re-run with --offline ..."}
+POST-FIX  (same state, --offline):                       exit=0  {"verdict":"PASS", "fetch":"skipped",
+                                                                    "cross_check":{"sources_ok":1,"remote_show":"failed",...}}
+POST-FIX  (origin URL fixed, re-run):                     exit=11 {"verdict":"FAIL","reason":"STALE_BASE","evidence":{
+                                                                    "behind":1,"fetch":"ok","origin_tip_sha":"<real tip>",
+                                                                    "cross_check":{"sources_ok":2,...}}}
+```
+TTL, against the same fixture: `.sbf/_repo.json`'s `gates.preflight.at` backdated 35 minutes ->
+`bskel gate require preflight --json` reports `code:4, status:"stale", stale_reason:"ttl_expired",
+age_seconds:2108, max_age_seconds:1800` (exactly the 30-minute default); `bskel status`/`next`/
+`scan --feature` all correctly block on it (`next` prints `# preflight gate is stale (ttl_expired,
+35m old > 30m limit)` on stderr; `scan` returns the `sbf.cli-diagnostic/1` envelope with
+`next_actions[0].command: "bskel preflight"`). `bskel preflight --max-age-minutes 0` followed by
+the same 35-minute backdate leaves `gate require` reporting `code:0, status:"pass"` -- TTL
+correctly disabled end-to-end.
+
+**COST**: an already-passed preflight can now go stale on its own, purely from elapsed time --
+previously a pass was permanent until an input actually changed. A fully offline workflow now
+requires an explicit `--offline` (or `--max-age-minutes 0` to also silence the TTL) rather than
+working by default. `origin_tip_sha`'s real-world detection power is honestly limited (see
+Mechanism) -- it only helps when something else already fetched into the repo between passes; the
+TTL, not this field, is what actually bounds staleness in the common case. `cross_check`'s
+`sources_ok` count is informational only, per `D-doctor-workflow`'s precedent -- a repo that has
+only ever resolved its default branch from one source stays fully functional, just visibly so now.
+
+**EXIT**: if a real caller needs the 3-way cross-check to hard-fail below 2 sources, that is a
+new, opt-in flag (e.g. `--require-cross-check`), not a change to the default -- the default must
+keep working for every existing single-source repo. If `origin_tip_sha`'s local-only limitation
+proves too weak in practice, the next step is `bskel doctor` gaining an explicit,
+separately-opted-in reachability probe -- not silently making `preflight` or `require` fetch
+where they don't today. If 30 minutes proves wrong for a specific repo, re-derive with the
+one-liner above and override via that repo's own `--max-age-minutes` usage (e.g. a wrapper script
+or CI job default) rather than changing the shipped default for every consumer.
+
+Cross-references: `D-gate-precision` (S2), whose "preflight keeps head_sha" decision this item
+extends rather than revisits; `D-doctor-workflow` (D5), whose optional-source-degrades-gracefully
+precedent this item's `cross_check` design and EXCLUDED list both follow directly; `D-cli-contract`
+(D2), whose "new failure class gets a new exit code, never a renumbering" rule `18
+REFRESH_FAILED` follows, and whose `fail()`/diagnostic-envelope mechanism this item reuses
+unchanged; `D-status-next` (D1), whose `next_actions` rendering this item's `ttl_expired` detail
+extends with age/limit wording rather than inventing a second format.

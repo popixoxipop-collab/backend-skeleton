@@ -113,3 +113,24 @@ test('the stack gate recompute no longer covers head_sha -- only the files it ac
 	const inputs = gateInputs(process.cwd(), 'stack', null);
 	assert.deepEqual(Object.keys(inputs), ['stack_record_hash']);
 });
+
+// D-preflight-freshness (S3): origin_tip_sha is ADDED alongside head_sha/default_branch, never
+// instead of -- D-gate-precision (S2) already committed to keeping head_sha on this gate, and
+// dropping it here would break the "a commit stales preflight too" assumption other tests depend
+// on (see test/preflight.test.mjs and the contract/handles integration suites).
+test('preflight gate recompute covers head_sha, default_branch, and origin_tip_sha', () => {
+	const inputs = gateInputs(process.cwd(), 'preflight', null);
+	assert.deepEqual(Object.keys(inputs).sort(), ['default_branch', 'head_sha', 'origin_tip_sha']);
+});
+
+// D-preflight-freshness (S3): the one gate with a `freshness` policy so far -- every other gate
+// must NOT declare one, since lib/gates.mjs's checkFreshness() treats an absent `def.freshness`
+// as "TTL not applicable to this gate" (see test/gates.test.mjs's "no freshness declaration"
+// case). A gate silently picking up a TTL it was never designed for would be a real regression.
+test('only preflight declares a freshness policy; every other gate has none', () => {
+	assert.deepEqual(GATE_DEFINITIONS.preflight.freshness, { defaultMaxAgeMinutes: 30 });
+	for (const name of GATE_NAMES) {
+		if (name === 'preflight') continue;
+		assert.equal(GATE_DEFINITIONS[name].freshness, undefined, `"${name}" must not declare a freshness policy`);
+	}
+});

@@ -75,6 +75,22 @@ test('numeric validation: --port enforces its 1..65535 range', () => {
 	assert.equal(ok.port, '9090');
 });
 
+// D-preflight-freshness (S3)
+test('numeric validation: --max-age-minutes rejects non-numeric, negative, and fractional values', () => {
+	for (const bad of ['abc', '-1', '1.5', '']) {
+		assert.throws(() => parseCommand('preflight', ['--max-age-minutes', bad]), CliUsageError, `expected --max-age-minutes ${JSON.stringify(bad)} to be rejected`);
+	}
+	assert.equal(parseCommand('preflight', ['--max-age-minutes', '0'])['max-age-minutes'], '0');
+	assert.equal(parseCommand('preflight', ['--max-age-minutes', '45'])['max-age-minutes'], '45');
+});
+
+test('numeric validation: --fetch-timeout-seconds rejects non-numeric, negative, and fractional values', () => {
+	for (const bad of ['abc', '-1', '1.5', '']) {
+		assert.throws(() => parseCommand('preflight', ['--fetch-timeout-seconds', bad]), CliUsageError, `expected --fetch-timeout-seconds ${JSON.stringify(bad)} to be rejected`);
+	}
+	assert.equal(parseCommand('preflight', ['--fetch-timeout-seconds', '120'])['fetch-timeout-seconds'], '120');
+});
+
 test('required field missing produces the command\'s own usage line', () => {
 	try {
 		parseCommand('verify', []);
@@ -95,7 +111,7 @@ test('--help short-circuits before required-field validation', () => {
 // parseFlags lost nothing. Commands with a `required` field throw on empty argv (expected, listed
 // separately) rather than returning defaults.
 const EXPECTED_DEFAULTS = {
-	preflight: { _: [], 'max-behind': '0', 'no-fetch': false, 'allow-dirty': false, json: false, quiet: false, help: false },
+	preflight: { _: [], 'max-behind': '0', offline: false, 'no-fetch': false, 'allow-dirty': false, 'max-age-minutes': '30', 'fetch-timeout-seconds': '60', json: false, quiet: false, help: false },
 	'gate require': { _: [], feature: '_repo', json: false, quiet: false, help: false },
 	'gate force': { _: [], feature: '_repo', reason: '', json: false, quiet: false, help: false },
 	'gate show': { _: [], feature: '_repo', json: false, quiet: false, help: false },

@@ -149,3 +149,106 @@ test('a passing (non-stale) require result carries no changed_inputs/stale_reaso
 	assert.equal('changed_inputs' in result, false);
 	assert.equal('stale_reason' in result, false);
 });
+
+// D-preflight-freshness (S3): checkFreshness() reads `record.at`, never a mocked clock -- these
+// tests rewrite `at` directly (same tamper technique the RECORDED_INPUTS_MISMATCH test above
+// uses) rather than mocking Date.now(), so they exercise the exact same code path `require` does
+// against a real, hours-old `.sbf/_repo.json`.
+function backdateGateAt(root, scopeId, gateName, isoString) {
+	const state = loadState(root, scopeId);
+	state.gates[gateName].at = isoString;
+	saveState(root, scopeId, state);
+}
+
+function minutesAgo(n) {
+	return new Date(Date.now() - n * 60_000).toISOString();
+}
+
+test('TTL expired: a token-matching pass older than its max age reports stale/ttl_expired with an empty changed_inputs', () => {
+	const root = tmpRepoRoot();
+	const inputs = { head_sha: 'a', default_branch: 'develop' };
+	passGate(root, '_repo', 'preflight', inputs, {}); // no explicit freshness -> falls back to the 30min default
+	backdateGateAt(root, '_repo', 'preflight', minutesAgo(35));
+
+	const result = requireGate(root, '_repo', 'preflight', inputs);
+	assert.equal(result.code, EXIT.STALE);
+	assert.equal(result.status, 'stale');
+	assert.equal(result.stale_reason, STALE_REASON.TTL_EXPIRED);
+	assert.deepEqual(result.changed_inputs, []);
+	assert.equal(result.max_age_seconds, 30 * 60);
+	assert.ok(result.age_seconds >= 35 * 60);
+});
+
+test('TTL within window: a token-matching pass younger than its max age is still PASS', () => {
+	const root = tmpRepoRoot();
+	const inputs = { head_sha: 'a' };
+	passGate(root, '_repo', 'preflight', inputs, {});
+	backdateGateAt(root, '_repo', 'preflight', minutesAgo(10));
+
+	const result = requireGate(root, '_repo', 'preflight', inputs);
+	assert.equal(result.code, EXIT.PASS);
+	assert.equal(result.status, 'pass');
+});
+
+test('token mismatch and TTL expiry at once: inputs_changed is reported, not ttl_expired', () => {
+	const root = tmpRepoRoot();
+	passGate(root, '_repo', 'preflight', { head_sha: 'a' }, {});
+	backdateGateAt(root, '_repo', 'preflight', minutesAgo(35));
+
+	const result = requireGate(root, '_repo', 'preflight', { head_sha: 'CHANGED' });
+	assert.equal(result.code, EXIT.STALE);
+	assert.equal(result.stale_reason, STALE_REASON.INPUTS_CHANGED);
+	assert.deepEqual(result.changed_inputs, ['head_sha']);
+});
+
+test('evidence.freshness.max_age_minutes: 0 disables the TTL entirely, however old the pass is', () => {
+	const root = tmpRepoRoot();
+	const inputs = { head_sha: 'a' };
+	passGate(root, '_repo', 'preflight', inputs, { freshness: { max_age_minutes: 0 } });
+	backdateGateAt(root, '_repo', 'preflight', minutesAgo(24 * 60));
+
+	const result = requireGate(root, '_repo', 'preflight', inputs);
+	assert.equal(result.code, EXIT.PASS);
+});
+
+test('a gate with no freshness declaration in its definition skips TTL entirely, however old the pass is', () => {
+	const root = tmpRepoRoot();
+	const inputs = { spec_hash: 'x', head_sha: 'a', scan_report_hash: null };
+	passGate(root, '_repo', 'scan', inputs, {}); // 'scan' has no `freshness` entry in GATE_DEFINITIONS
+	backdateGateAt(root, '_repo', 'scan', minutesAgo(24 * 60));
+
+	const result = requireGate(root, '_repo', 'scan', inputs);
+	assert.equal(result.code, EXIT.PASS);
+});
+
+test('a forced gate is exempt from TTL, however old the force is', () => {
+	const root = tmpRepoRoot();
+	forceGate(root, '_repo', 'preflight', 'testing TTL exemption');
+	backdateGateAt(root, '_repo', 'preflight', minutesAgo(24 * 60));
+
+	const result = requireGate(root, '_repo', 'preflight', { anything: 'goes' });
+	assert.equal(result.code, EXIT.PASS);
+	assert.equal(result.status, 'pass (forced)');
+});
+
+test('a missing or unparseable `at` timestamp fails closed as invalid_timestamp, not a silent pass', () => {
+	const root = tmpRepoRoot();
+	const inputs = { head_sha: 'a' };
+	passGate(root, '_repo', 'preflight', inputs, {});
+	backdateGateAt(root, '_repo', 'preflight', 'not-a-real-timestamp');
+
+	const result = requireGate(root, '_repo', 'preflight', inputs);
+	assert.equal(result.code, EXIT.STALE);
+	assert.equal(result.stale_reason, STALE_REASON.INVALID_TIMESTAMP);
+	assert.equal(result.age_seconds, null);
+});
+
+test('an `at` timestamp in the future (clock rewind) clamps age to 0 rather than going negative', () => {
+	const root = tmpRepoRoot();
+	const inputs = { head_sha: 'a' };
+	passGate(root, '_repo', 'preflight', inputs, {});
+	backdateGateAt(root, '_repo', 'preflight', new Date(Date.now() + 60 * 60_000).toISOString());
+
+	const result = requireGate(root, '_repo', 'preflight', inputs);
+	assert.equal(result.code, EXIT.PASS);
+});

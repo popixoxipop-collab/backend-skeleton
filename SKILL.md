@@ -46,9 +46,12 @@ computation `verify` uses (see `D-status-next` in `DECISIONS.md`). Neither auto-
 
 **You MUST run `bskel preflight` before anything else touches this repo.** Do not substitute
 your own `git status`/`git log` reasoning for it -- the gate token is computed from a specific,
-re-verifiable input set (current `HEAD` sha + locally-resolved default branch), and every
-downstream command that checks the `preflight` gate will refuse to proceed without it having
-actually run and passed.
+re-verifiable input set (current `HEAD` sha + locally-resolved default branch + the local
+remote-tracking tip of that branch), and every downstream command that checks the `preflight` gate
+will refuse to proceed without it having actually run and passed. A passed preflight also **expires
+on its own after 30 minutes** (`D-preflight-freshness`, S3) -- re-run it if enough time has passed
+since the last pass, even if nothing else changed; `--max-age-minutes 0` disables this for a
+deliberately offline/long-running session.
 
 **Handles (Phase 5) dispatch to a codegen provider chosen by the scan report's adapter** (G4, see
 `D-handles-providers` in DECISIONS.md) -- `java-spring` and `python-fastapi` both ship one today.
@@ -108,10 +111,20 @@ bskel doctor [--workflow scan|handles|stack] [--json]
                               #    specificity/capabilities and whether it detects THIS repo (scan/
                               #    handles/unscoped) -- see `bskel scan` below. See
                               #    `D-doctor-workflow` in DECISIONS.md.
-bskel preflight               # 3-way default-branch cross-check + behind/ahead + worktree provenance
-bskel preflight --json         # same, machine-readable
+bskel preflight               # fetches origin first (fails closed if that fails -- see --offline
+                              #    below), then does the 3-way default-branch cross-check +
+                              #    behind/ahead + worktree provenance
+bskel preflight --json         # same, machine-readable (evidence includes origin_tip_sha,
+                              #    checked_at, worktree_dirty, fetch, policy, cross_check -- see
+                              #    D-preflight-freshness)
 bskel preflight --allow-dirty  # skip the clean-working-tree requirement
 bskel preflight --max-behind N # tolerate up to N commits behind (default: 0)
+bskel preflight --offline       # skip the fetch entirely, accept a local-only verdict (recorded as
+                              #    such); --no-fetch is an exact, permanent alias for this flag
+bskel preflight --max-age-minutes N     # how long this pass stays fresh before `gate require`/
+                              #    downstream commands treat it as stale purely from age (default:
+                              #    30, data-derived -- see D-preflight-freshness). 0 disables it.
+bskel preflight --fetch-timeout-seconds N   # bound the fetch itself (default: 60)
 
 bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale (name must be one of: preflight|scan|contract|handles|stack -- an unknown name exits 14, it does not report not-run)
   #    S2: a `stale` result also carries `changed_inputs` (the exact input keys that moved, e.g.
@@ -195,8 +208,13 @@ already know that flag exists. See `D-openapi-reconciliation`'s §7 addendum in 
 default branch -- this is the exact bug class the tool exists to catch: a worktree silently
 based on a stale/abandoned branch), `12` WRONG_DEFAULT (the three independent sources for "what
 is the default branch" disagree, or none could be determined -- never guess `main`), `13` DIRTY
-(uncommitted changes present, pass `--allow-dirty` to override), `14` bad arguments. See "CLI
-contract" below for the complete, cross-command exit-code table and the global flags every
+(uncommitted changes present, pass `--allow-dirty` to override), `14` bad arguments, `18`
+REFRESH_FAILED (a fetch was attempted -- `--offline` not given -- and failed; fix connectivity or
+re-run with `--offline` to accept a local-only verdict, recorded as such in the evidence). If your
+CI runner has no network access to origin, use `--offline` explicitly rather than letting the
+fetch time out; a passed preflight also expires after 30 minutes by default (see
+`D-preflight-freshness`), so a long-idle CI job may need to re-run it or pass `--max-age-minutes 0`.
+See "CLI contract" below for the complete, cross-command exit-code table and the global flags every
 command accepts.
 
 ## CLI contract (D2)
@@ -243,9 +261,12 @@ from it unchanged): `0` OK, `1` CHECK_FAILED (a real payload -- `verify`/`contra
 pass/fail), `2` NOT_PASSED (a required gate hasn't passed, OR a referenced resource/adapter/
 provider doesn't exist -- disambiguated in a `--json` envelope's `reason` field:
 `GATE_NOT_PASSED`/`MISSING_ARTIFACT`/`ADAPTER_UNAVAILABLE`/`PROVIDER_UNAVAILABLE`/
-`UNKNOWN_OPERATION`/`SCAN_FAILED`/`PLAN_FAILED`), `3` AWAITING_DISPOSITION, `4` STALE, `10`
-NOT_A_REPO, `11` STALE_BASE, `12` WRONG_DEFAULT, `13` DIRTY (11-13 are `preflight`-only, defined in
-`scripts/preflight-base-ref.sh` itself), `14` BAD_ARGS, `15` HANDLES_CONFLICT (a real payload --
+`UNKNOWN_OPERATION`/`SCAN_FAILED`/`PLAN_FAILED`), `3` AWAITING_DISPOSITION, `4` STALE (either an
+input actually changed, `stale_reason: "inputs_changed"`, or -- for `preflight` only -- the pass is
+simply too old, `stale_reason: "ttl_expired"`; see `D-preflight-freshness`), `10`
+NOT_A_REPO, `11` STALE_BASE, `12` WRONG_DEFAULT, `13` DIRTY, `18` REFRESH_FAILED (10-13 and 18 are
+`preflight`-only, defined in `scripts/preflight-base-ref.sh` itself), `14` BAD_ARGS, `15`
+HANDLES_CONFLICT (a real payload --
 `handles emit`'s own conflict list), `16` LOW_CONFIDENCE_SCAN (a real payload -- the scan report
 itself), `17` MISSING_CAPABILITY. The number is the stable, primary contract (several of these are
 already asserted by exact value across the test suite); `reason` in a diagnostic envelope is

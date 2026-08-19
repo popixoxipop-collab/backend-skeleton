@@ -12,19 +12,28 @@
 # script is the regression check for exactly that failure mode.
 #
 # Exit codes: 0 PASS | 10 NOT_A_REPO | 11 STALE_BASE | 12 WRONG_DEFAULT | 13 DIRTY | 14 BAD_ARGS
+#           | 18 REFRESH_FAILED (D-preflight-freshness, S3)
 set -euo pipefail
 
 MAX_BEHIND=0
-NO_FETCH=0
+OFFLINE=0
 ALLOW_DIRTY=0
 JSON=0
+FETCH_TIMEOUT=60
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--max-behind) MAX_BEHIND="$2"; shift 2 ;;
-		--no-fetch) NO_FETCH=1; shift ;;
+		# D-preflight-freshness (S3): --offline is the real name -- it means "I explicitly accept
+		# a local-only verdict, even if that means not knowing whether the remote has moved."
+		# --no-fetch is kept as an exact alias: it predates this item, is already documented in
+		# SKILL.md, this script's own header says it's "reusable outside this skill" (so an
+		# external caller may already depend on the old name), and 5 existing tests use it --
+		# removing it would be a needless breaking rename for a flag whose meaning didn't change.
+		--offline|--no-fetch) OFFLINE=1; shift ;;
 		--allow-dirty) ALLOW_DIRTY=1; shift ;;
 		--json) JSON=1; shift ;;
+		--fetch-timeout-seconds) FETCH_TIMEOUT="$2"; shift 2 ;;
 		*) echo "unknown argument: $1" >&2; exit 14 ;;
 	esac
 done
@@ -38,6 +47,9 @@ done
 # "reusable outside this skill" (see the file header) and must not rely on that caller alone.
 case "$MAX_BEHIND" in
 	''|*[!0-9]*) echo "--max-behind must be a non-negative whole number, got: $MAX_BEHIND" >&2; exit 14 ;;
+esac
+case "$FETCH_TIMEOUT" in
+	''|*[!0-9]*) echo "--fetch-timeout-seconds must be a non-negative whole number, got: $FETCH_TIMEOUT" >&2; exit 14 ;;
 esac
 
 # Minimal JSON string escaper (backslash, double-quote, control chars) so this script has
@@ -65,11 +77,14 @@ fail() {
 TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null) || fail 10 NOT_A_REPO "not inside a git repository"
 cd "$TOPLEVEL"
 
-if [ "$ALLOW_DIRTY" -eq 0 ]; then
-	DIRTY=$(git status --porcelain)
-	if [ -n "$DIRTY" ]; then
-		fail 13 DIRTY "working tree is not clean (pass --allow-dirty to override)"
-	fi
+# D-preflight-freshness (S3): computed unconditionally now (previously skipped entirely under
+# --allow-dirty) so evidence can honestly distinguish "clean tree, passed" from "dirty tree,
+# --allow-dirty overrode it" -- both used to look identical in the recorded evidence.
+DIRTY_STATUS=$(git status --porcelain)
+WORKTREE_DIRTY="false"
+[ -n "$DIRTY_STATUS" ] && WORKTREE_DIRTY="true"
+if [ "$ALLOW_DIRTY" -eq 0 ] && [ "$WORKTREE_DIRTY" = "true" ]; then
+	fail 13 DIRTY "working tree is not clean (pass --allow-dirty to override)"
 fi
 
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
@@ -84,21 +99,46 @@ case "$REMOTE_URL" in
 esac
 
 # Three independent sources for "what is the real default branch" -- never assume `main`.
+# D-preflight-freshness (S3): each source's OUTCOME is now tracked explicitly (ok/failed/empty/
+# unavailable), not just its value -- a network failure silently produced the same empty string
+# as "this source doesn't apply here" before, so a repo whose only working source happened to be
+# the (possibly stale) local symbolic-ref cache could look identical to a repo that was properly
+# cross-checked. This does not turn a single-source resolution into a hard failure (see
+# D-preflight-freshness's EXIT in DECISIONS.md for why) -- it only makes that fact observable.
 SRC_SYMREF=""
-SRC_SYMREF=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##') || true
+SYMREF_STATUS="absent"
+if SRC_SYMREF=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##') && [ -n "$SRC_SYMREF" ]; then
+	SYMREF_STATUS="ok"
+else
+	SRC_SYMREF=""
+fi
 
 SRC_REMOTE_SHOW=""
-SRC_REMOTE_SHOW=$(git remote show origin 2>/dev/null | sed -n 's/^ *HEAD branch: //p') || true
+REMOTE_SHOW_STATUS="failed"
+if REMOTE_SHOW_OUT=$(git remote show origin 2>/dev/null); then
+	SRC_REMOTE_SHOW=$(printf '%s\n' "$REMOTE_SHOW_OUT" | sed -n 's/^ *HEAD branch: //p')
+	if [ -n "$SRC_REMOTE_SHOW" ]; then REMOTE_SHOW_STATUS="ok"; else REMOTE_SHOW_STATUS="empty"; fi
+fi
 
 SRC_GH_API=""
+GH_API_STATUS="unavailable"
 if command -v gh >/dev/null 2>&1 && [ -n "$OWNER_REPO" ]; then
 	# Explicit exit-code check, NOT `$(...) || true` -- on a non-2xx response gh can print the
 	# error body (e.g. a 404 JSON payload with raw CRLFs) to stdout while exiting non-zero, and
 	# `|| true` alone would still let that garbage flow into SRC_GH_API.
 	if GH_API_OUT=$(gh api "repos/$OWNER_REPO" --jq .default_branch 2>/dev/null); then
 		SRC_GH_API="$GH_API_OUT"
+		GH_API_STATUS="ok"
+	else
+		GH_API_STATUS="failed"
 	fi
 fi
+
+SOURCES_OK=0
+for s in "$SYMREF_STATUS" "$REMOTE_SHOW_STATUS" "$GH_API_STATUS"; do
+	[ "$s" = "ok" ] && SOURCES_OK=$((SOURCES_OK + 1))
+done
+CROSS_CHECK_JSON=$(printf '{"sources_ok":%d,"symbolic_ref":"%s","remote_show":"%s","gh_api":"%s"}' "$SOURCES_OK" "$SYMREF_STATUS" "$REMOTE_SHOW_STATUS" "$GH_API_STATUS")
 
 CANDIDATES=""
 for c in "$SRC_SYMREF" "$SRC_REMOTE_SHOW" "$SRC_GH_API"; do
@@ -114,12 +154,31 @@ elif [ "$UNIQUE_COUNT" -gt 1 ]; then
 fi
 DEFAULT_BRANCH="$UNIQUE"
 
-if [ "$NO_FETCH" -eq 0 ]; then
-	git fetch origin "$DEFAULT_BRANCH" --quiet 2>/dev/null || true
+# D-preflight-freshness (S3): fetch failure used to be swallowed entirely (`2>/dev/null || true`)
+# -- a genuinely offline/unreachable remote left this script computing `behind`/`ahead` against
+# whatever stale local `origin/<branch>` ref happened to already exist, and still reporting PASS.
+# Now: fetch is attempted unless --offline was given, and a failed attempt fails closed instead of
+# silently falling through to the (possibly very stale) cached ref. `http.lowSpeedLimit`/
+# `http.lowSpeedTime` bound a slow-but-connected transfer; a fully hung connection (or a non-http
+# transport that ignores those config keys, e.g. a local path or ssh remote) is bounded by the
+# Node-side `execFileSync` timeout in `bin/bskel.mjs::cmdPreflight` instead -- this script has no
+# portable `timeout(1)` to rely on (not present on macOS by default).
+FETCH_OUTCOME="skipped"
+FETCH_STATUS=""
+FETCH_STDERR=""
+if [ "$OFFLINE" -eq 0 ]; then
+	if FETCH_ERR=$(git -c "http.lowSpeedLimit=1000" -c "http.lowSpeedTime=$FETCH_TIMEOUT" fetch origin "$DEFAULT_BRANCH" --quiet 2>&1); then
+		FETCH_OUTCOME="ok"
+	else
+		FETCH_STATUS=$?
+		FETCH_STDERR=$(printf '%s\n' "$FETCH_ERR" | head -1)
+		fail 18 REFRESH_FAILED "could not refresh '$DEFAULT_BRANCH' from origin (git fetch exited $FETCH_STATUS: ${FETCH_STDERR:-no output}) -- fix connectivity, or re-run with --offline to accept a local-only verdict (it will be recorded as such)"
+	fi
 fi
 
 DEFAULT_REF="origin/$DEFAULT_BRANCH"
 git rev-parse --verify --quiet "$DEFAULT_REF" >/dev/null || fail 12 WRONG_DEFAULT "resolved default branch '$DEFAULT_BRANCH' has no ref '$DEFAULT_REF' locally (fetch failed or branch renamed)"
+ORIGIN_TIP_SHA=$(git rev-parse --verify --quiet "$DEFAULT_REF")
 
 HEAD_SHA=$(git rev-parse HEAD)
 BEHIND=$(git rev-list --count "HEAD..$DEFAULT_REF")
@@ -132,6 +191,9 @@ BASE_AGE_DAYS=$(( (DEFAULT_TIP_DATE - MERGE_BASE_DATE) / 86400 ))
 CURRENT_BRANCH=$(git branch --show-current)
 WORKTREE_PATH="$TOPLEVEL"
 CREATED_FROM=$(git reflog show "$CURRENT_BRANCH" 2>/dev/null | tail -1 || echo "")
+CHECKED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+POLICY_JSON=$(printf '{"max_behind":%d,"allow_dirty":%s,"offline":%s,"fetch_timeout_seconds":%d}' "$MAX_BEHIND" "$([ "$ALLOW_DIRTY" -eq 1 ] && echo true || echo false)" "$([ "$OFFLINE" -eq 1 ] && echo true || echo false)" "$FETCH_TIMEOUT")
 
 VERDICT="PASS"
 REASON=""
@@ -141,7 +203,7 @@ if [ "$BEHIND" -gt "$MAX_BEHIND" ]; then
 fi
 
 EVIDENCE_JSON=$(cat <<EOF
-{"default_branch":"$DEFAULT_BRANCH","source_of_truth":{"symbolic_ref":"$SRC_SYMREF","remote_show":"$SRC_REMOTE_SHOW","gh_api":"$SRC_GH_API"},"head_sha":"$HEAD_SHA","merge_base":"$MERGE_BASE","behind":$BEHIND,"ahead":$AHEAD,"base_age_days":$BASE_AGE_DAYS,"worktree_path":"$WORKTREE_PATH","current_branch":"$CURRENT_BRANCH","created_from":$(json_str "$CREATED_FROM")}
+{"default_branch":"$DEFAULT_BRANCH","source_of_truth":{"symbolic_ref":"$SRC_SYMREF","remote_show":"$SRC_REMOTE_SHOW","gh_api":"$SRC_GH_API"},"head_sha":"$HEAD_SHA","merge_base":"$MERGE_BASE","behind":$BEHIND,"ahead":$AHEAD,"base_age_days":$BASE_AGE_DAYS,"worktree_path":"$WORKTREE_PATH","current_branch":"$CURRENT_BRANCH","created_from":$(json_str "$CREATED_FROM"),"origin_tip_sha":$([ -n "$ORIGIN_TIP_SHA" ] && json_str "$ORIGIN_TIP_SHA" || echo null),"checked_at":"$CHECKED_AT","worktree_dirty":$WORKTREE_DIRTY,"fetch":"$FETCH_OUTCOME","policy":$POLICY_JSON,"cross_check":$CROSS_CHECK_JSON}
 EOF
 )
 

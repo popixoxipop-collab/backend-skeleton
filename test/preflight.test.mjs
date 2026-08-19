@@ -112,3 +112,95 @@ test('a non-numeric --max-behind is rejected outright (exit 14), not silently tr
 		assert.equal(result.json, null, 'a rejected argument must not produce a verdict JSON document at all');
 	}
 });
+
+// D-preflight-freshness (S3): a real `git clone` (not the hand-assembled init+remote-add+push
+// buildFixture() above) so `refs/remotes/origin/HEAD` gets set locally exactly the way it does
+// for every real-world checkout -- required for the exit-18 tests below, where the default
+// branch must resolve from the LOCAL symbolic-ref alone (the whole point is that origin is
+// unreachable when the freshness fetch runs).
+function buildClonedFixture() {
+	const { base, originDir } = buildFixture();
+	const cloneDir = path.join(base, 'clone');
+	sh('git', ['clone', '--quiet', originDir, cloneDir]);
+	sh('git', ['config', 'user.email', 'test@example.com'], cloneDir);
+	sh('git', ['config', 'user.name', 'Test'], cloneDir);
+	return { base, originDir, cloneDir };
+}
+
+function runPreflightNoAutoOffline(cwd, extraArgs = []) {
+	try {
+		const stdout = sh(SCRIPT, ['--json', ...extraArgs], cwd);
+		return { code: 0, json: JSON.parse(stdout) };
+	} catch (err) {
+		return { code: err.status ?? 1, json: err.stdout ? JSON.parse(err.stdout) : null };
+	}
+}
+
+test('PASS: evidence carries every S3 field with the outcomes a real fetch produces', () => {
+	const { cloneDir } = buildClonedFixture();
+	const result = runPreflightNoAutoOffline(cloneDir);
+	assert.equal(result.code, 0, JSON.stringify(result));
+	const { evidence } = result.json;
+	assert.equal(evidence.fetch, 'ok');
+	assert.match(evidence.origin_tip_sha, /^[0-9a-f]{40}$/);
+	assert.match(evidence.checked_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+	assert.equal(evidence.worktree_dirty, false);
+	assert.deepEqual(evidence.policy, { max_behind: 0, allow_dirty: false, offline: false, fetch_timeout_seconds: 60 });
+	assert.equal(evidence.cross_check.symbolic_ref, 'ok');
+	assert.ok(evidence.cross_check.sources_ok >= 1);
+});
+
+test('REFRESH_FAILED (exit 18): fetch attempted, origin unreachable, --offline not given', () => {
+	const { cloneDir } = buildClonedFixture();
+	sh('git', ['remote', 'set-url', 'origin', '/definitely/not/a/repo'], cloneDir);
+
+	const result = runPreflightNoAutoOffline(cloneDir);
+	assert.equal(result.code, 18, JSON.stringify(result));
+	assert.equal(result.json.verdict, 'FAIL');
+	assert.equal(result.json.reason, 'REFRESH_FAILED');
+	assert.match(result.json.message, /--offline/);
+	// D-preflight-freshness: a REFRESH_FAILED exit is payload-less by design (we could not even
+	// determine current evidence) -- there is no `evidence` object to check, unlike STALE_BASE.
+	assert.equal(result.json.evidence, undefined);
+});
+
+test('--offline (and its --no-fetch alias) skip the fetch and produce byte-identical evidence', () => {
+	const { cloneDir } = buildClonedFixture();
+	sh('git', ['remote', 'set-url', 'origin', '/definitely/not/a/repo'], cloneDir);
+
+	const offline = runPreflightNoAutoOffline(cloneDir, ['--offline']);
+	const noFetch = runPreflightNoAutoOffline(cloneDir, ['--no-fetch']);
+	assert.equal(offline.code, 0, JSON.stringify(offline));
+	assert.equal(noFetch.code, 0, JSON.stringify(noFetch));
+	assert.equal(offline.json.evidence.fetch, 'skipped');
+	// checked_at ticks between the two invocations -- compare everything else field-by-field.
+	const { checked_at: _a, ...offlineRest } = offline.json.evidence;
+	const { checked_at: _b, ...noFetchRest } = noFetch.json.evidence;
+	assert.deepEqual(offlineRest, noFetchRest);
+});
+
+// D-preflight-freshness: documents PRE-EXISTING behavior (unchanged by S3) -- when
+// `refs/remotes/origin/HEAD` was never set locally (buildFixture()'s init+remote-add+push never
+// sets it, unlike a real `git clone`) and the URL is also broken, `git remote show origin` fails
+// too, leaving zero of the three default-branch sources resolvable. That check runs BEFORE the
+// new freshness-fetch step, so this is WRONG_DEFAULT (12), never REFRESH_FAILED (18) -- the
+// script cannot fail to refresh a default branch it was never able to name in the first place.
+test('WRONG_DEFAULT (exit 12), not REFRESH_FAILED: origin unreachable AND origin/HEAD was never set locally', () => {
+	const { workDir } = buildFixture();
+	sh('git', ['remote', 'set-url', 'origin', '/definitely/not/a/repo'], workDir);
+
+	const result = runPreflightNoAutoOffline(workDir);
+	assert.equal(result.code, 12, JSON.stringify(result));
+	assert.equal(result.json.reason, 'WRONG_DEFAULT');
+});
+
+test('worktree_dirty is recorded accurately regardless of --allow-dirty', () => {
+	const { workDir } = buildFixture();
+	sh('git', ['fetch', '--quiet', 'origin'], workDir);
+	assert.equal(runPreflight(workDir).json.evidence.worktree_dirty, false);
+
+	fs.writeFileSync(path.join(workDir, 'uncommitted.txt'), 'oops\n');
+	const dirtyResult = runPreflight(workDir, ['--allow-dirty']);
+	assert.equal(dirtyResult.code, 0);
+	assert.equal(dirtyResult.json.evidence.worktree_dirty, true);
+});
