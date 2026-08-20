@@ -1,12 +1,14 @@
-// P3 (D-fixture-corpus): `npm pack --dry-run --json` is the exact command
-// scripts/pack-install-smoke.sh's real install is built on -- this test is the fast, offline half
-// (no tarball, no install, just the manifest npm itself would publish) and the safety net for
-// P1's eventual `files` allowlist: whenever that lands, this test is what proves it didn't
-// accidentally drop a runtime-required asset (a schema, a codegen template, the preflight script,
-// a stack catalog entry) while trimming the currently-unrestricted "ships the whole repo" default.
+// P1 (D-npm-packaging): `npm pack --dry-run --json` is the exact command a real `npm publish`
+// packs with. Before this item, package.json had no `files` field at all, so every push shipped
+// the whole repo -- test/ alone was 37% of the unpacked tarball and entirely unused by any
+// runtime code path. This test is the safety net for the `files` allowlist: every assertion below
+// is checked against the actual source's import/read graph (grep), not a hand-maintained expected
+// list, so a future new runtime dependency that forgets to update `files` fails loudly here
+// instead of shipping a broken install.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,21 +21,24 @@ function packManifest() {
 	return entry.files.map((f) => f.path);
 }
 
-test('npm pack includes bin/bskel.mjs and package.json', () => {
+test('package.json is no longer private, and declares a files allowlist', () => {
+	const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+	assert.equal('private' in pkg, false, 'private must be removed entirely, not just set to false, for `npm publish` to work without --access');
+	assert.ok(Array.isArray(pkg.files) && pkg.files.length > 0, 'expected a non-empty files allowlist');
+});
+
+test('npm pack includes bin/bskel.mjs, package.json, and LICENSE', () => {
 	const files = packManifest();
 	assert.ok(files.includes('bin/bskel.mjs'));
 	assert.ok(files.includes('package.json'));
+	assert.ok(files.includes('LICENSE'), 'npm always special-cases LICENSE/LICENCE regardless of the files field');
 });
 
-test('npm pack includes every JSON Schema this tool loads at runtime', () => {
+test('npm pack includes every JSON Schema, cross-checked against every schemas/*.schema.json reference in source', () => {
 	const files = packManifest();
 	const schemas = files.filter((f) => f.startsWith('schemas/') && f.endsWith('.schema.json'));
-	// Cross-checked against every distinct schemas/*.schema.json path referenced anywhere in
-	// lib/**, contracts/**, handles/** via a live grep, not a hand-maintained list here -- if a
-	// future schema is added and referenced but never shipped, this test must fail, not silently
-	// pass because its own expected-list forgot the new one too.
 	const referenced = execFileSync(
-		'grep', ['-rhoE', "schemas/[a-zA-Z0-9_-]+\\.schema\\.json", 'lib', 'contracts', 'handles', 'bin'],
+		'grep', ['-rhoE', 'schemas/[a-zA-Z0-9_-]+\\.schema\\.json', 'lib', 'contracts', 'handles', 'bin', 'scanners', 'stack'],
 		{ cwd: REPO_ROOT, encoding: 'utf8' },
 	).split('\n').filter(Boolean);
 	const referencedSet = [...new Set(referenced)];
@@ -43,17 +48,28 @@ test('npm pack includes every JSON Schema this tool loads at runtime', () => {
 	}
 });
 
-test('npm pack includes every codegen template for both handles providers', () => {
+test('npm pack includes every codegen template for both handles providers, and both scanner adapters (dynamically loaded, not statically imported)', () => {
 	const files = packManifest();
 	const javaSpringTemplates = files.filter((f) => f.startsWith('handles/providers/java-spring/templates/') && f.endsWith('.tmpl'));
 	const pythonFastapiTemplates = files.filter((f) => f.startsWith('handles/providers/python-fastapi/templates/') && f.endsWith('.tmpl'));
 	assert.ok(javaSpringTemplates.length >= 9, `expected at least 9 java-spring templates, found ${javaSpringTemplates.length}`);
 	assert.ok(pythonFastapiTemplates.length >= 6, `expected at least 6 python-fastapi templates, found ${pythonFastapiTemplates.length}`);
+	assert.ok(files.includes('scanners/adapters/java-spring.mjs'));
+	assert.ok(files.includes('scanners/adapters/python-fastapi.mjs'));
+	assert.ok(files.includes('scanners/adapters/generic-grep.mjs'));
 });
 
-test('npm pack includes scripts/preflight-base-ref.sh and the stack catalog', () => {
+test('npm pack includes scripts/preflight-base-ref.sh and the stack catalog + bootstrap templates', () => {
 	const files = packManifest();
 	assert.ok(files.includes('scripts/preflight-base-ref.sh'));
 	assert.ok(files.includes('stack/catalog/ngrok.yml'));
 	assert.ok(files.some((f) => f.startsWith('stack/bootstrap/')), 'expected at least one stack bootstrap template');
+});
+
+test('npm pack excludes test/, DECISIONS.md, CATALOG.md, and SKILL.md (dev-only or Claude-Code-skill-only, never read by bskel at runtime)', () => {
+	const files = packManifest();
+	assert.equal(files.filter((f) => f.startsWith('test/')).length, 0);
+	assert.ok(!files.includes('DECISIONS.md'));
+	assert.ok(!files.includes('CATALOG.md'));
+	assert.ok(!files.includes('SKILL.md'));
 });

@@ -11,11 +11,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { buildContract } from '../contracts/emit.mjs';
 import { validateEnvelope, validateEnvelopeStructure, operationPayloadSchema } from '../contracts/validate.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { indexOpenApiDocument, reconcileModule } from '../contracts/openapi.mjs';
+
+// P1 (D-npm-packaging): matches contracts/validate.mjs's own fix -- `import.meta.dirname` needs
+// Node >=20.11, portable `fileURLToPath` needs nothing newer than plain ESM.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEAM_IZ_BACKEND = `${process.env.HOME}/Desktop/Team-IZ-Backend`;
 const repoPresent = fs.existsSync(`${TEAM_IZ_BACKEND}/build.gradle`);
@@ -205,7 +210,7 @@ test('smoke (real Team-IZ-Backend, when present): organization module stays comp
 // Frozen-fixture-equivalent coverage lives in test/contract-fixture.test.mjs.
 test('smoke (real Team-IZ-Backend, when present): an emitted contract validates against schemas/feature-contract.schema.json', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
-	const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
 	const ajv = new Ajv2020({ allErrors: true, strict: false });
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
@@ -436,7 +441,7 @@ test('a contract with a projected requestBodySchema still validates against sche
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
-	const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
 	const ajv = new Ajv2020({ allErrors: true, strict: false });
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
@@ -570,7 +575,7 @@ test('a contract carrying all four projected fields (request+response+error) sti
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_RESPONSE_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
-	const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
 	const ajv = new Ajv2020({ allErrors: true, strict: false });
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);

@@ -71,13 +71,19 @@ test('every "npm run <script>" the workflow invokes has a matching entry in pack
 	}
 });
 
-test('scripts/pack-install-smoke.sh and scripts/java-compile-smoke.mjs exist and are executable', () => {
-	for (const rel of ['scripts/pack-install-smoke.sh', 'scripts/java-compile-smoke.mjs']) {
-		const abs = path.join(REPO_ROOT, rel);
-		assert.ok(fs.existsSync(abs), `${rel} does not exist`);
-		const mode = fs.statSync(abs).mode;
-		assert.ok(mode & 0o111, `${rel} is not executable (mode ${mode.toString(8)})`);
-	}
+test('scripts/java-compile-smoke.mjs exists and is executable', () => {
+	const abs = path.join(REPO_ROOT, 'scripts/java-compile-smoke.mjs');
+	assert.ok(fs.existsSync(abs), 'scripts/java-compile-smoke.mjs does not exist');
+	const mode = fs.statSync(abs).mode;
+	assert.ok(mode & 0o111, `scripts/java-compile-smoke.mjs is not executable (mode ${mode.toString(8)})`);
+});
+
+// P1 (D-npm-packaging): the package-install job's script -- once P1 merged, this superseded this
+// item's own original scripts/pack-install-smoke.sh (dropped rather than keeping two overlapping
+// implementations, see D-npm-packaging in DECISIONS.md). A plain node:test file, not a shell
+// script, so no executable-bit requirement -- `npm run test:pack` invokes it via `node`.
+test('test/package-install.test.mjs exists (the package-install job\'s npm run test:pack target)', () => {
+	assert.ok(fs.existsSync(path.join(REPO_ROOT, 'test/package-install.test.mjs')));
 });
 
 test('every job installs ripgrep or does not need it (this tool shells out to rg and throws, not degrades, without it)', () => {

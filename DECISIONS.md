@@ -2695,9 +2695,14 @@ macOS + a Python import-check upgrade", after direct-execution evidence was pres
   exercises `lib/verify.mjs::detectBuildCommand()`'s real `./gradlew` path end-to-end.
 - `.github/workflows/ci.yml`: three jobs (`test` matrix Node 22/24, `package-install`, `java-compile`),
   Linux only.
-- `scripts/pack-install-smoke.sh`: `npm pack` -> install the real tarball into a scratch project ->
-  run the *installed* `bskel` binary from `node_modules/.bin`, not `node bin/bskel.mjs` -- the only
-  place a missing `bin` entry or a runtime asset left out of the tarball would ever surface.
+- The `package-install` job runs `npm run test:pack`, which (once merged into `main` alongside
+  P1) resolves to `test/package-install.test.mjs` -- `npm pack` -> install the real tarball into a
+  scratch project -> run the *installed* `bskel` binary from `node_modules/.bin`, not `node
+  bin/bskel.mjs` -- the only place a missing `bin` entry or a runtime asset left out of the
+  tarball would ever surface. This item originally wrote its own standalone
+  `scripts/pack-install-smoke.sh` for the same purpose; once P1 landed with an equivalent
+  `node:test`-based version, the shell script was dropped rather than keeping two overlapping
+  implementations (see `D-npm-packaging` below).
 - `test/package-manifest.test.mjs`, `test/ci-workflow.test.mjs`: static safety nets for the two
   things `npm test` alone cannot verify (what actually ships in the tarball; whether the CI workflow
   itself stays coupled to the source it's testing).
@@ -2738,6 +2743,10 @@ C: B+macOS+a Python `ast.parse`->real-import upgrade) with real evidence for eac
   >=20.11.0 requirement, documented at `lib/doctor.mjs:14-18`'s own comment). The CI Node matrix
   reads `lib/doctor.mjs`'s `MIN_NODE` (now exported specifically so `test/ci-workflow.test.mjs` can
   assert this coupling) as its source of truth, never the declared-but-wrong `package.json` field.
+  **Update, once both items merged into `main` together**: P1 landed and fixed the underlying
+  `import.meta.dirname` outlier rather than raising the floor -- `engines: ">=18"` and
+  `MIN_NODE = {18, 0}` are both now genuinely accurate, not just consistent-with-each-other. See
+  `D-npm-packaging` below.
 - **Testing the literal documented floor (Node 20.11.0) in CI.** Downloaded and ran the full suite
   against it directly (official `nodejs.org` darwin-arm64 tarball, since neither this machine's
   Homebrew nor any local package manager offers that exact patch). Result: **461/466**, with 4
@@ -2830,7 +2839,13 @@ fixture (not just read -- every assertion in this section was checked by direct 
 `runScan()`/`buildContract()`/`planHandles()`, including catching and fixing the lazy-backtrack
 misattribution and the self-referential-comment bugs above before locking in the final fixture).
 `actionlint` (freshly installed via `brew install actionlint` for this verification, together with
-its `shellcheck` dependency) reports zero findings against `.github/workflows/ci.yml`.
+its `shellcheck` dependency) reports zero findings against `.github/workflows/ci.yml`. **Update,
+once both items merged into `main` together**: `npm test` 473 (P1's own count) -> **499** --
+`test/package-manifest.test.mjs` was NOT duplicated (P1's version, a strict superset, was kept;
+this item's original version of the same file was discarded during the merge) and
+`scripts/pack-install-smoke.sh` was dropped in favor of P1's equivalent
+`test/package-install.test.mjs`, so the net-new count from this item alone, post-merge, is smaller
+than the 29 cited above -- see `D-npm-packaging` below for the merge-time resolution.
 [EXIT: fill in the actual `gh run` URL here once the first real GitHub Actions execution on this
 repo goes green, per this item's own verification discipline -- no claim of "CI works" stands
 without it.]
@@ -2864,5 +2879,125 @@ item's fixture corpus exercises for the first time against real on-disk multi-pr
 rather than a hand-built `scanReport`; `D-preflight-freshness` (S3), whose `--offline`/TTL machinery
 `scripts/java-compile-smoke.mjs`'s scratch-repo `preflight` call runs through unmodified. CATALOG.md's
 **A2** ("a staged Java analyzer") is the item this one's `annotationstyles` fixture hands a concrete,
-committed before/after baseline to. CATALOG.md's **P1** ("npm packaging") is the item whose future
-`files` allowlist `test/package-manifest.test.mjs` exists to guard.
+committed before/after baseline to. CATALOG.md's **P1** ("npm packaging") landed first (see
+`D-npm-packaging` immediately below) and already implements the `files` allowlist this item
+anticipated -- its own `test/package-manifest.test.mjs` superseded (and is a strict superset of)
+this item's original version of the same file; this item's tests were merged to build on P1's
+version rather than duplicate it.
+
+## D-npm-packaging (P1): a publishable package, a fixed Node floor, and a real README
+
+**WHY**: `package.json` was `private: true` with no `files` allowlist (shipping the whole repo --
+`npm pack` produced 96 files/1.15MB, of which `test/` alone was 37% of the unpacked size and
+entirely unused by any runtime code path), no `README.md` existed anywhere in the tracked repo, and
+the declared `engines.node` (`>=18`) was inaccurate against `contracts/validate.mjs`'s
+`import.meta.dirname` (Node >=20.11.0). `lib/doctor.mjs` already knew and pointed the fix here (its
+own `MIN_NODE`/remediation-message comments explicitly cited "P1 in CATALOG.md").
+
+**Re-grounded before implementing, not assumed**: grepped the *actual* blast radius of the
+`import.meta.dirname` bug rather than trusting the catalog's framing -- it is exactly **one**
+runtime call site (`contracts/validate.mjs:26`), reached only via `loadEnvelopeSchema()` ->
+`validateEnvelopeStructure()`/`validateEnvelope()`, which are only ever invoked from `bskel
+contract validate` (`bin/bskel.mjs`'s `cmdContractValidate()`). Every other subcommand -- including
+every other `contracts/*.mjs` function -- was completely unaffected; this was never a "the whole
+CLI crashes on Node 18" bug, just a `Path must be a string. Received undefined` `TypeError` inside
+one subcommand. Also grepped the whole runtime tree (`lib/`, `bin/`, `contracts/`, `scanners/`,
+`handles/`, `stack/`) for every other commonly-cited recent-ES-addition (`structuredClone`,
+`Object.groupBy`/`Map.groupBy`, `.toSorted`/`.toReversed`/`.toSpliced`/`.with`, `Array.fromAsync`,
+`Promise.withResolvers`, global `fetch`, `node:sqlite`, `using`/`await using`,
+`import.meta.resolve`, `AbortSignal.timeout`/`.any`) -- zero hits. `Object.hasOwn` (used
+throughout, e.g. `lib/gates.mjs`, `lib/cli.mjs`, `contracts/openapi.mjs`) is ES2022/Node 16.9+; the
+top-level `await` in `scanners/registry.mjs`/`handles/registry.mjs` is ESM/Node 14.8+ -- both
+comfortably under the declared `>=18` floor.
+
+**SCOPE**:
+- Fixed the one outlier (`contracts/validate.mjs`, and the 3 equivalent test-only call sites in
+  `test/contract.test.mjs`) to use the same `path.dirname(fileURLToPath(import.meta.url))` pattern
+  every other file in this codebase already used -- **not** raising the engine floor, since the
+  catalog's own two alternatives ("replace `import.meta.dirname`... or raise the engine floor")
+  only need one, and fixing the one outlier is strictly better: it keeps compatibility wider for
+  free, requires touching one call site instead of every consumer's expectations, and makes the
+  already-declared `>=18` genuinely accurate instead of a second thing to keep in sync.
+- `lib/doctor.mjs`'s `MIN_NODE` dropped from `{20, 11}` to `{18, 0}`, matching `package.json`'s own
+  declared floor exactly -- restoring the doctor check's real purpose (catching Node <18, e.g. 16/14)
+  instead of asserting a number the fix above made obsolete.
+- `package.json`: `private` removed entirely (not set to `false` -- `npm publish` refuses a
+  `private: true` package outright, and the field's mere presence is noise once removed is correct);
+  `files` allowlist added (`bin/`, `lib/`, `contracts/`, `scanners/`, `handles/`, `stack/`,
+  `schemas/`, `scripts/preflight-base-ref.sh`); `repository`/`homepage`/`bugs` filled in against the
+  real, already-confirmed-owned GitHub remote (`popixoxipop-collab/backend-skeleton`, confirmed via
+  `git remote -v` before any commit); a `test:pack` script added.
+- `schemas/` is included as a whole directory rather than individually curated, even though 4 of
+  its 9 files (`feature-contract`, `scan-report`, `handles-plan`, `state`) are currently unreferenced
+  by any runtime code path (only by tests, or, per their own `description` fields / CATALOG.md's S5
+  entry, intentionally documentation-only) -- the whole directory is ~24KB, and per-file curation
+  here would be premature precision for negligible size savings.
+- `SKILL.md` explicitly **excluded** from `files` (user-confirmed decision, not a unilateral
+  default) -- it's pure Claude Code skill-integration metadata `bskel` never reads at runtime; a
+  plain `npm install` consumer gets a working CLI, and this repo's own README explains where the
+  fuller skill/workflow docs live for anyone who clones the repo directly.
+- Two new tests: `test/package-manifest.test.mjs` (the `files` allowlist's own safety net --
+  every assertion cross-checked against the actual source's import/read graph via grep, not a
+  hand-maintained expected list, so a future new runtime dependency that forgets to update `files`
+  fails loudly here) and `test/package-install.test.mjs` (`npm pack` -> install the real tarball
+  into a scratch project -> run the *installed* `node_modules/.bin/bskel` binary, not `node
+  bin/bskel.mjs` -- the only place a broken `bin` entry or a missing packaged asset would ever
+  actually surface). Deliberately plain `node:test` files, not a separate shell script -- this repo
+  has no CI yet (unlike a sibling, unmerged effort), so keeping this inside `npm test`'s normal
+  `test/*.test.mjs` glob (plus a `test:pack` script for a standalone re-run, since a real pack+install
+  round trip is slower than the rest of the suite) is the better fit for right now.
+- `README.md` (new, repo root): quickstart (npm-install framing, not the pre-existing symlinked-skill
+  framing `SKILL.md`'s own quickstart assumes), a compatibility table (sourced from `lib/doctor.mjs`'s
+  own check list), a generated-file policy section (summarizing `D-handles-ownership`, O2), a security
+  model section (summarizing the "Security hardening pass" findings above), a troubleshooting section
+  (the exit-code table from `SKILL.md`'s own CLI-contract section plus the most common failure
+  cases), and a "what ships in the package" section documenting the `files`/README-vs-SKILL.md split
+  above so the asymmetry is never a surprise.
+
+**EXCLUDED** (and why): actually running `npm publish` -- this item makes the package publishable
+and verifies the pack/install round trip locally; publishing itself is a distinct, higher-stakes,
+user-approval-gated action, not implied by "the package now CAN be published." Per-file curation
+of the 4 currently-unused `schemas/*.schema.json` files out of the npm tarball -- negligible size
+win, and a future item that starts loading one of them would otherwise need to remember to also
+update `files`. A `CHANGELOG.md` -- not asked for by the catalog item's own concrete-approach text,
+and this project's actual practice is decisions tracked in `DECISIONS.md`/commit history, not a
+separate user-facing changelog; revisit only if real external consumers ask for one.
+
+**Mechanism**: see SCOPE above -- this item's mechanism is almost entirely captured there (a
+one-file code fix, a `package.json` config change, two new tests, one new doc file).
+
+**Verification**: `npm test` unchanged in count from before this item except for the 2 new test
+files (`test/package-manifest.test.mjs`: 6 tests; `test/package-install.test.mjs`: 1 test) -- all
+pre-existing tests pass unmodified, confirming the `import.meta.dirname` fix is behavior-preserving
+(direct execution: `validateEnvelopeStructure()` loads the identical schema before and after,
+confirmed by running it against a real envelope both ways). `npm pack --dry-run --json`:
+**96 files/1.15MB -> 65 files/417KB**; `test/`, `DECISIONS.md`, `CATALOG.md`, `SKILL.md` all
+confirmed absent from the manifest; every schema/template/adapter/catalog file referenced by a live
+grep of the source confirmed present. A full `npm pack` -> scratch-project `npm install` -> run the
+installed `node_modules/.bin/bskel --version --json` and `bskel doctor --json` inside a real throwaway
+git repo, both producing valid, expected JSON -- run directly, not just asserted in the test (the
+test IS this same sequence, executed and passing).
+
+**COST**: `SKILL.md` living outside the npm package means an `npm install`-only consumer has no
+access to the fuller gated-workflow documentation unless they also clone the repository -- mitigated
+by README.md summarizing the essentials and explicitly pointing at the repo for the rest, but a real
+asymmetry, not a null cost. The `files` allowlist is now a second thing (alongside the actual
+import/read graph) that must be kept in sync when a new runtime-required file is added --
+`test/package-manifest.test.mjs` is the guard against silent drift, but it only catches drift that
+already happened, not the discipline itself.
+
+**EXIT**: if `SKILL.md`'s exclusion from the package proves to be a real usability problem for npm-
+only consumers, add it to `files` -- a pure addition, no other change needed. If any of the 4
+currently-unused `schemas/*.schema.json` files gains a real runtime consumer, no packaging change is
+needed at all (the whole `schemas/` directory already ships). If this package is ever actually
+published to the npm registry, that's a separate, explicit, user-approved action -- this item only
+made it possible, correctly scoped, and locally verified.
+
+Cross-references: `D-doctor-workflow` (D5), whose `MIN_NODE` this item corrects back to a
+meaningful check (previously asserting a number this item's own fix made obsolete); `D-fixture-corpus`
+(P3, above), which had already independently found and documented the exact same
+`import.meta.dirname`/`MIN_NODE` situation while scoping a CI Node-version matrix -- this item is
+the actual fix that item's own findings pointed at, and its own `test/package-manifest.test.mjs`
+was rewritten to build on this item's version rather than duplicate it once both merged into `main`
+together; `D-handles-ownership` (O2) and the "Security hardening pass" section, both summarized
+(not duplicated) in the new `README.md`.

@@ -1,0 +1,170 @@
+# backend-skeleton
+
+Spec-driven backend scaffolding for brownfield (and greenfield) Java/Spring Boot and Python/FastAPI
+repos: a brownfield-collision gate before any spec/plan step, feature_id-scoped machine-readable
+contracts, UUID-addressable field handles, and stack-choice (e.g. ngrok) wiring — all enforced by
+disk `content-hash` gates, not prompt instructions a future session could ignore.
+
+`bskel` exists because a previous ad-hoc agent-driven scaffolding attempt branched a worktree 658
+commits behind the real default branch and never noticed. Every gate in this tool is a regression
+check for a specific failure mode found the same way — see `DECISIONS.md` for the full record.
+
+## Quickstart
+
+```bash
+npm install -g backend-skeleton   # or: npx backend-skeleton <command>
+cd <target-repo>                  # must be a git repository
+
+bskel doctor                      # what's on PATH, which scanner adapter detects this repo, and why
+bskel preflight                   # confirms HEAD is actually based on the real default branch,
+                                   #   not a stale/abandoned one -- required before anything else
+
+bskel feature init --slug organization-management
+bskel scan --feature 001-organization-management --terms organization
+                                   # brownfield-collision scan; refuses to proceed silently if this
+                                   #   module already exists elsewhere in the codebase
+bskel scan disposition --feature 001-organization-management --mode reuse --note "..."
+                                   # required once scan finds a collision/adjacent match
+
+bskel contract emit --feature 001-organization-management
+                                   # feature_id-scoped JSON Schema contract, from real source annotations
+bskel handles plan --feature 001-organization-management
+bskel handles emit --feature 001-organization-management
+                                   # UUID-addressable field handles + generated resolver code
+
+bskel verify --feature 001-organization-management --build
+                                   # aggregates every gate's current status; --build also runs the
+                                   #   target repo's own build wrapper (gradlew/mvnw/npm), if present
+```
+
+Every command is read-only until you explicitly run one of the mutating steps above — `bskel
+status`/`bskel next` (no arguments needed) tell you which gate is next and print the exact
+copy-pasteable command for it, without touching anything.
+
+The full gated workflow, what each phase writes, and every flag is documented in `SKILL.md`
+(present in this repository, not in the installed npm package — see "What ships in the package"
+below).
+
+## Compatibility
+
+| Requirement | Constraint | Why |
+|---|---|---|
+| Node.js | `>=18` | ES2022 (`Object.hasOwn`) + ESM top-level `await` — nothing newer is used anywhere in the runtime code (verified by grep across every recent-ES-addition pattern; see `D-npm-packaging` in `DECISIONS.md`) |
+| git | required | every gate is git-state-derived |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | required for `scan`/`handles` | both scanner adapters shell out to it directly, and throw (not degrade) if it's missing |
+| `gh` (GitHub CLI) | optional | only used for `preflight`'s 3-way default-branch cross-check; already soft-guarded, never a hard requirement |
+| `python3` | optional | only needed to run this repository's own cross-language codec test — `bskel` itself never invokes `python3` |
+| a build wrapper (`gradlew`/`pom.xml`+`mvnw`/`package.json`) | optional | only `bskel verify --build` needs one; `handles emit` never compiles anything itself |
+
+Run `bskel doctor` in any target repo to see exactly which of these it found, with a remediation
+string for anything missing.
+
+**Supported scanner adapters** (auto-selected by specificity, never hardcoded — see
+`D-adapter-registry` in `DECISIONS.md`):
+- `java-spring` — Spring Boot (`build.gradle`/`pom.xml` + `src/main/java`). Full capability set:
+  operation extraction, request-body detection, and a real codegen provider for `handles emit`.
+- `python-fastapi` — FastAPI + SQLModel. Real codegen provider for `handles emit`; contract-grade
+  operation extraction is not supported (FastAPI generates operation ids at runtime) — pass a real
+  OpenAPI document via `--openapi-file` for a trustworthy contract.
+- `generic-grep` — unconditional last-resort fallback (Express/Flask/FastAPI-shaped route
+  detection). Reconnaissance only, never contract-grade — always `confidence: "low"`, requires
+  `--accept-low-confidence` to proceed past a feature-scoped scan.
+
+## Generated-file policy
+
+`bskel handles emit` writes real Java/Python source into your repository. Two things are always
+true about what it writes:
+
+- **`fetch()` is wired to a real, existing, already-tested read-only service method** — never
+  hand-written business logic. It's generated only when a matching `<Entity>Service` method exists
+  and takes exactly the one resource UUID argument a resolver always passes (a mismatch there means
+  "no resolver generated", not "generate one and hope", since silently calling the wrong overload
+  can drop a required scoping argument — see `D-security-8` in `DECISIONS.md`).
+- **`patchField()` is always a stub.** Real codebases mix at least three different partial-update
+  DTO conventions; guessing wrong would silently bypass real validation. A human finishes this by
+  hand, every time.
+
+Reruns are safe by construction, not by convention (`D-handles-ownership` in `DECISIONS.md`):
+safety is derived from the generated file's actual on-disk **content**, not from a manifest that
+might be absent (a fresh checkout, CI, or a repo that doesn't commit `.sbf/`). A file that diverged
+from what `bskel` generated (a hand-finished `patchField()`, someone else's edit) is never silently
+overwritten — it reports a conflict, and the escape hatch (`--force --reason "..."`) is always
+audited, never silent.
+
+## Security model
+
+`bskel` generates code that runs in production, so it was put through an adversarial security
+review (Codex, security-only lens, independent of the build process) — 8 findings, all fixed, each
+with an inline `D-security-N` comment at its exact location in the code. Highlights (full record,
+including 3 additional defensive-hardening items, in `DECISIONS.md`'s "Security hardening pass"
+section):
+
+- **Prototype-pollution guards** everywhere a user-controlled string indexes a plain object
+  (`operation_id` values like `"constructor"`/`"__proto__"` are rejected, not silently resolved via
+  the prototype chain).
+- **Path-traversal containment** on every stack-catalog-driven file write (`--choice`, and every
+  catalog entry's own declared template/path fields).
+- **No predictable temp files, no silent permission downgrades** in the generated bootstrap
+  scripts that touch `.env` (`mktemp` + an unconditional `chmod 600`).
+- **Authority derivation is per-method, not per-file** — a controller's first `@PreAuthorize` match
+  no longer silently applies to every resolver generated from that file; an unsupported annotation
+  shape (`hasAnyRole`, SpEL) fails closed to a `TODO_ROLE` placeholder rather than guessing.
+- **Handle recovery cross-checks type/kind/pointer against the registry row**, not just the raw
+  UUID — the most severe finding: an attacker who controls the handle's `type` field could
+  otherwise request a different, more sensitive resource's snapshot history that happens to share
+  the same UUID.
+
+## Troubleshooting
+
+Start with `bskel doctor` — it names exactly which required tool is missing and why, or run `bskel
+status`/`bskel next` to see which gate is currently blocking and the exact command to resolve it.
+
+Every command shares one exit-code table (`lib/exit-codes.mjs`) and, with `--json`, an additive
+diagnostic envelope on payload-less early exits — the number is the stable contract, `reason` in
+the envelope is supplementary precision:
+
+| Exit | Meaning |
+|---|---|
+| `0` | OK |
+| `2` | a required gate hasn't passed yet, or a referenced resource/adapter/provider doesn't exist (`--json`'s `reason` field disambiguates which) |
+| `3` | a gate is awaiting a disposition decision (`bskel scan disposition`/`bskel contract waive`) |
+| `4` | a gate is stale — either an input actually changed, or (`preflight` only) the pass is simply too old |
+| `10` | not inside a git repository |
+| `11` | `preflight`: HEAD is behind the real default branch |
+| `12` | `preflight`: the three independent sources for "what is the default branch" disagree, or none could be determined |
+| `13` | `preflight`: uncommitted changes present (`--allow-dirty` to override) |
+| `14` | bad arguments |
+| `16` | a low-confidence scan was blocked (`--accept-low-confidence` to proceed anyway) |
+| `17` | the selected adapter/provider doesn't support a capability the command needs |
+| `18` | `preflight`: a `git fetch` was attempted and failed (`--offline` to accept a local-only verdict instead) |
+
+Common cases:
+- **`preflight` fails with `STALE_BASE`**: your branch really is behind — `git worktree add
+  <path> -b <branch> origin/<default-branch>` (or rebase in place), then re-run.
+- **`scan` exits `16`**: the scanner fell back to `generic-grep` (low confidence, no real parser).
+  If this repo actually is Java/Spring or Python/FastAPI-shaped, run `bskel doctor` first — it
+  explains exactly why the real adapter didn't detect it, rather than reflexively passing
+  `--accept-low-confidence`.
+- **`handles emit`/`contract emit` exits `17`**: the adapter that scanned this repo doesn't
+  declare the capability that command needs (e.g. `generic-grep` never declares `codegen.handles`
+  — there's no codegen provider for a route-pattern-only stack). `bskel doctor` lists every
+  installed adapter's declared capabilities.
+- **A previously-passed `preflight` now reports stale with `ttl_expired`**: passes expire after 30
+  minutes by default (data-derived, see `D-preflight-freshness` in `DECISIONS.md`) — re-run
+  `bskel preflight`, or pass `--max-age-minutes 0` to disable the TTL for a deliberately
+  long-running or offline session.
+
+The full exit-code/`reason` taxonomy, global flags (`--help`/`--version`/`--json`/`--quiet`), and
+the complete gated-workflow reference live in `SKILL.md` and `DECISIONS.md` in this repository.
+
+## What ships in the package
+
+`npm install` ships only what `bskel` reads at runtime — `bin/`, `lib/`, `contracts/`,
+`scanners/`, `handles/` (including every codegen template), `stack/` (including the catalog and
+bootstrap templates), `schemas/`, and `scripts/preflight-base-ref.sh`. This repository's own test
+suite, `SKILL.md` (this project's Claude Code skill definition), `DECISIONS.md`, and `CATALOG.md`
+are not part of the published package — clone this repository directly if you want those.
+
+## License
+
+MIT — see `LICENSE`.
