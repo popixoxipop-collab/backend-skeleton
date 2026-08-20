@@ -3017,3 +3017,76 @@ the actual fix that item's own findings pointed at, and its own `test/package-ma
 was rewritten to build on this item's version rather than duplicate it once both merged into `main`
 together; `D-handles-ownership` (O2) and the "Security hardening pass" section, both summarized
 (not duplicated) in the new `README.md`.
+
+## D-macos-runner (P3b): self-hosted macOS Actions runner, and a same-PR security fix caught by automated review
+
+**WHY (deferral background):** P3's own `test` job comment (`.github/workflows/ci.yml`) argued a
+macOS Actions job would "mostly re-test the one platform already exercised daily" locally, and
+P3b's catalog text deferred it purely on GitHub-hosted macOS's cost (10x Linux's per-minute rate on
+this private repo). The user pointed out their own idle Mac mini (SSH alias `bob`) could serve as a
+self-hosted runner instead -- self-hosted runners are unmetered/free regardless of OS (confirmed via
+live web search: GitHub tried billing them in Dec 2025, reversed within 48h, still free as of
+2026-08-20). Grounding before implementing: confirmed `bob` reachable (Apple Silicon, macOS 26.5.2,
+10 CPU/16GB RAM/109GB free disk, Homebrew present), installed `node`/`ripgrep`/`openjdk@17`/`gradle`
+via brew, obtained a runner registration token via `gh api .../actions/runners/registration-token
+-X POST`, downloaded the latest runner release (`v2.336.0`), registered it as `bob-macmini`, and
+installed it as a persistent launchd service (`./svc.sh install && ./svc.sh start`) so it survives
+reboots/logouts.
+
+**Scope actually shipped, vs. catalog:** a `macos` job running the full `npm test` suite (parity
+with the Linux `test` job's scope, single Node version per P3b's own "single Node version" text) --
+NOT a java-compile equivalent (the brew-installed `openjdk@17` is keg-only/not on PATH by default,
+and `gradle`'s own dependency chain additionally pulled in a newer `openjdk` 26.x as ITS OWN
+dependency; resolving which JDK a future macOS java-compile job should use was deliberately left
+unscoped rather than guessed at). The Python codegen `ast.parse`-to-real-import upgrade (P3b's other
+half) was NOT touched in this pass -- still open.
+
+**SECURITY FINDING, caught by automated post-push commit review (not by me, not by the user) on
+this job's very first pushed commit:** the job as first written ran on every `push`/`pull_request`
+like the other jobs, matching the "self-hosted is free now, so no reason to restrict" reasoning that
+replaced P3b's cost-driven "main-push + weekly cron only" hedge. That reasoning was correct about
+cost and wrong about risk -- three real findings:
+
+1. **self-hosted-runner-pr-rce**: `pull_request` (unlike `pull_request_target`) checks out and runs
+   the PR HEAD's own workflow file and scripts. Running that on a self-hosted runner means anyone
+   able to open a PR (any future collaborator, or an attacker who compromises write access) can
+   execute arbitrary code directly on the user's personal, always-on Mac mini -- GitHub's own
+   self-hosted-runner hardening guide names this exact combination as unsafe. Confirmed as a live,
+   working path, not a theoretical one: the first commit's `pull_request`-triggered run on PR #2
+   actually completed (all 5 checks green) on `bob-macmini` before the fix was pushed.
+2. **persistent-workspace**: a self-hosted runner's `_work` directory is not wiped between jobs the
+   way a disposable GitHub-hosted VM is -- `actions/checkout`'s default `clean: true` only resets
+   the tracked repo directory, not arbitrary other state a job could leave on the host.
+3. **runner-label-hijack**: the job originally matched on the generic `[self-hosted, macOS]` labels
+   only -- ambiguous against any other self-hosted runner this repo/account might register later
+   with the same generic labels.
+
+**Fix, same PR, before merge:** `if: github.event_name != 'pull_request'` on the `macos` job --
+it still appears (skipped, non-blocking) on PR checks, but only executes on `push`(main)/
+`workflow_dispatch`, i.e. only someone who can already push to main (already fully trusted) can
+cause anything to run here. Re-registered `bob-macmini` with an added unique `bob-macmini` label
+and pinned `runs-on: [self-hosted, macOS, bob-macmini]` so this job can only ever be served by this
+one specific machine. `clean: true` made explicit on `actions/checkout` (was already the default;
+documented, not a behavior change) as a partial persistent-workspace mitigation.
+
+**Residual risk, accepted and flagged rather than silently decided away:** the `_work` directory
+still isn't wiped between trusted `push` runs -- full isolation would need `--ephemeral` runner mode
+(re-registers after every single job), a bigger operational change not taken here. Revisit if this
+repo ever gains a second committer, since the entire fix's trust model rests on "only someone who
+can already push to main can trigger this job."
+
+**Lesson for future cost-vs-security tradeoffs on this project:** the catalog's original
+cost-driven restriction ("main-push + weekly cron only") happened to already provide most of this
+security fix's benefit, for the wrong stated reason. Discarding a restriction because its ORIGINAL
+justification stopped applying (cost, once the runner became free) without separately checking
+whether a DIFFERENT justification (trust boundary) still applied is exactly the gap that let this
+ship vulnerable on the first attempt.
+
+**Verification, in order:** (1) first (vulnerable) commit's `pull_request` run on PR #2 completed
+green, including `macos` -- proved the exploit path was live, not theoretical
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32330777878). (2) fix pushed;
+re-ran PR #2 -- `macos` correctly shows `skipping` on `pull_request`, all 4 other checks still pass
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331105711). (3) triggered
+via `gh workflow run ci.yml --ref p3b-macos-runner` (workflow_dispatch) to prove the restricted
+path still works before merging -- all 5 jobs, including `macos` on `bob-macmini`, completed green
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331373012).
