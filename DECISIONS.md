@@ -3094,3 +3094,60 @@ as `fe15df1`; the resulting real `push`-to-`main` run (the actual trigger this j
 day-to-day, not workflow_dispatch) also completed all 5 jobs green
 (https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331926485) -- the first
 genuine, unprompted proof this job works the way it will actually be used going forward.
+
+## D-python-import-check (P3b): real `import`, not `ast.parse`, for generated Python
+
+**WHY:** `test/python-fastapi-handles.test.mjs`'s e2e suite used to assert every generated `.py`
+file was syntactically valid via `python3 -c "import ast; ast.parse(...)"`. `ast.parse` only proves
+a file PARSES -- it cannot catch a real name/API mismatch, e.g. a generated
+`from {{SESSION_DEP_MODULE}} import {{SESSION_DEP_NAME}}` pointing at a name that doesn't actually
+exist in the target module. Confirmed live during this item's own grounding, before writing any
+test assertion: deliberately breaking `test/fixtures/python-fastapi/`'s `SessionDep` alias left
+`ast.parse` green on `router.py` while a real `import app.handles.router` raised `ImportError` at
+exactly the line a real consuming app would hit it. `codec.py`/`registry.py` already had strong
+coverage via `test/handles-python-codec.test.mjs`'s real functional round-trip against the JS
+reference implementation -- this item is scoped narrowly to the two files that didn't:
+`router.py`/`resolver.py`.
+
+**Concrete approach, and how it diverges from the catalog's own text:** the catalog said "swap the
+`ast.parse` check for a real import in a CI-installed virtualenv" -- implemented as a full
+REPLACEMENT (the old `ast.parse` test was deleted, not kept alongside), matching this project's own
+established `java-compile-smoke.mjs` precedent exactly: a heavier, network-touching verification
+(here: `pip install fastapi sqlmodel` into a throwaway venv) does NOT belong in the fast default
+`npm test` path (which runs across every Node-version-matrix entry, multiplying any added cost) --
+it gets its own dedicated script (`scripts/python-import-smoke.mjs`) and its own CI job
+(`python-import`), run once, not once-per-matrix-entry. `test/fixtures/python-fastapi/` is a new,
+frozen, git-committed fixture (`backend/pyproject.toml`, `app/api/deps.py`'s `SessionDep`,
+`app/api/items.py`'s single-resource GET route, `app/models.py`'s `Item`/`ItemPublic`) --
+deliberately the SAME shape `test/python-fastapi-handles.test.mjs`'s own `buildE2eFixtureRepo()`
+already builds inline via `fs.writeFileSync`, just externalized to disk so it's reviewable/diffable
+the way P3's own fixture corpus already established for java-spring, rather than a second
+independent design. `scripts/python-import-smoke.mjs` runs the full gated workflow (preflight ->
+feature init -> scan -> disposition -> `gate force contract`, since this scanner's operationId is
+always null per D-fastapi-adapter -> handles emit) against a scratch copy, then `python3 -m venv
+.venv`, `pip install fastapi sqlmodel` (unpinned -- deliberately NOT matching the fixture's own
+`pyproject.toml` floor versions, since the point is catching drift against CURRENT real fastapi/
+sqlmodel APIs, not re-testing an old pin), then imports every generated module for real with
+`PYTHONPATH` set to the detected import root, asserting the `Item` resolver actually registered
+itself and the router actually wired its `/handles/{handle}` route -- not just "did the import not
+raise", which a resolver silently failing to call `register(...)` at the bottom of its own file
+would still pass.
+
+**Grounding, both directions, confirmed live before locking in any assertion:** (1) positive path
+-- ran the real script against the unmodified fixture, all generated modules imported successfully.
+(2) negative path -- broke `models.py` with a bogus top-level import
+(`import this_module_does_not_exist_anywhere`), confirmed the script fails loudly with the real
+Python traceback (a `ModuleNotFoundError` surfaced through `resolvers/__init__.py`'s own
+`importlib.import_module` auto-loader), not silently. A same-effort attempt to break the SessionDep
+NAME specifically turned out to be a non-bug: `findSessionDep()`'s regex captures whatever
+identifier is actually used, so renaming it consistently in the fixture doesn't break anything --
+the codegen is correctly name-agnostic there; the real gap `ast.parse` missed was always about
+runtime resolvability, not identifier naming, confirmed by breaking `models.py`'s own import graph
+instead.
+
+**Scope note:** the `macos` job introduced by this same catalog item (P3b) does NOT run
+`python-import` -- kept Linux-only like `java-compile`/`package-install`, no reason found to
+duplicate a pip-installable, platform-independent check on the self-hosted runner.
+
+Cross-reference: `D-macos-runner` (P3b, above) -- the other, independently-shipped half of this
+same catalog item.

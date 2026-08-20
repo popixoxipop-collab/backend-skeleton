@@ -1,6 +1,13 @@
 // D-handles-providers (G4): plan-unit tests (direct plan() calls against hand-built scanReport
 // fixtures, mirroring test/handles-plan.test.mjs's approach for java-spring) plus a full CLI e2e
 // pass for the python-fastapi handles provider. See DECISIONS.md.
+// P3b (D-python-import-check): the "every generated .py file is syntactically valid Python
+// (ast.parse)" e2e test that used to live here was replaced, not duplicated -- see
+// scripts/python-import-smoke.mjs (npm run test:python-import), which imports every generated
+// module for real against a pip-installed fastapi+sqlmodel, catching real API mismatches
+// ast.parse structurally cannot. Same precedent as java-compile-smoke.mjs: the fast default
+// `npm test` path doesn't duplicate what a dedicated, separately-invoked script already proves
+// more strongly.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -270,22 +277,6 @@ test('e2e: handles emit writes exactly the expected files, no .java, no migratio
 	].sort());
 	assert.ok(!fs.existsSync(path.join(root, 'specs', '001-item-management', 'handles', 'migration.sql')));
 	assert.ok(result.postEmitNotes.some((n) => n.includes('include_router')));
-});
-
-test('e2e: every generated .py file is syntactically valid Python (ast.parse), and app.models resolves Item/ItemPublic', () => {
-	const root = buildE2eFixtureRepo();
-	runToHandlesEmit(root);
-	const handlesDir = path.join(root, 'backend', 'app', 'handles');
-	const files = [
-		'__init__.py', 'codec.py', 'registry.py', 'router.py',
-		'resolvers/__init__.py', 'resolvers/item.py',
-	].map((f) => path.join(handlesDir, f));
-	for (const f of files) {
-		execFileSync('python3', ['-c', `import ast; ast.parse(open(${JSON.stringify(f)}).read())`]);
-	}
-	const modelsSrc = fs.readFileSync(path.join(root, 'backend', 'app', 'models.py'), 'utf8');
-	assert.match(modelsSrc, /class Item\(/);
-	assert.match(modelsSrc, /class ItemPublic\(/);
 });
 
 test('e2e: check_access always denies (403), patch_field always 501, hashed_password never referenced by the resolver', () => {
