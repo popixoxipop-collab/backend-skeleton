@@ -119,6 +119,7 @@ const EXPECTED_DEFAULTS = {
 	'gate show': { _: [], feature: '_repo', json: false, quiet: false, help: false },
 	scan: { _: [], feature: null, terms: '', db: false, json: false, 'accept-low-confidence': false, quiet: false, help: false },
 	'stack apply': { _: [], choice: null, apply: false, port: '8080', json: false, quiet: false, help: false },
+	'catalog lint': { _: [], json: false, quiet: false, help: false },
 	status: { _: [], feature: null, json: false, quiet: false, help: false },
 	next: { _: [], feature: null, json: false, quiet: false, help: false },
 	doctor: { _: [], workflow: null, json: false, quiet: false, help: false },

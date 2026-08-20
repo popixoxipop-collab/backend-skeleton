@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { listCatalogChoices } from '../stack/apply.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
@@ -128,18 +129,27 @@ test('editing an applied file, leaving stack.json byte-identical, still makes th
 // Regression for the applied_files-erasure bug found while designing the token change: a second,
 // idempotent --apply used to overwrite applied_files with [] (applyPlan() only returns files it
 // actually wrote THIS run), silently discarding the only record of what the choice owns.
+//
+// P4 (D-extension-conformance): genericized to loop over every catalog choice instead of
+// hardcoding --choice ngrok, and the assertion is a self-consistency check (first apply's
+// applied_files === second apply's) instead of a hardcoded literal file list -- the invariant
+// this test protects ("idempotent re-apply must not collapse to []") holds for any catalog
+// entry, and a future catalog addition gets this regression coverage for free, with no new test
+// code, the same way `bskel catalog lint` (no args) already covers it for free.
 test('a second, idempotent stack apply --apply still records the full applied file set', () => {
-	const root = buildFixtureRepo();
-	run(['preflight'], root);
-	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
-	const firstRecord = JSON.parse(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'));
-	assert.deepEqual(firstRecord.applied_files.sort(), ['.env.example', 'scripts/_bskel-lib.sh', 'scripts/dev-tunnel.sh']);
+	for (const choice of listCatalogChoices()) {
+		const root = buildFixtureRepo();
+		run(['preflight'], root);
+		run(['stack', 'apply', '--choice', choice, '--apply'], root);
+		const firstRecord = JSON.parse(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'));
+		assert.ok(firstRecord.applied_files.length > 0, `${choice}: first apply must record at least one applied file`);
 
-	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root); // idempotent: writes nothing new
-	const secondRecord = JSON.parse(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'));
-	assert.deepEqual(secondRecord.applied_files.sort(), ['.env.example', 'scripts/_bskel-lib.sh', 'scripts/dev-tunnel.sh'], 'applied_files must not collapse to [] on an idempotent re-apply');
+		run(['stack', 'apply', '--choice', choice, '--apply'], root); // idempotent: writes nothing new
+		const secondRecord = JSON.parse(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'));
+		assert.deepEqual(secondRecord.applied_files.sort(), firstRecord.applied_files.sort(), `${choice}: applied_files must not collapse to [] on an idempotent re-apply`);
 
-	assert.equal(run(['gate', 'require', 'stack'], root).code, 0, 'the gate must still be satisfiable after the idempotent re-apply');
+		assert.equal(run(['gate', 'require', 'stack'], root).code, 0, `${choice}: the gate must still be satisfiable after the idempotent re-apply`);
+	}
 });
 
 // S2 (b), the one gate this slice fully closes it for: an unrelated commit must NOT stale the
