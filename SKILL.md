@@ -536,11 +536,28 @@ All 6 phases are implemented (`scanners/`, `contracts/`, `stack/`, `handles/`, `
   independently avoided the exact stale-worktree-base bug that started this whole project. See
   `D-pressure-test` in `DECISIONS.md` -- this is the actual evidence the gates work, not a
   hypothetical.
-- Generated Java was verified with a real `./gradlew compileJava` run against Team-IZ-Backend
-  (BUILD SUCCESSFUL, all 9 generated files including a working `OrganizationResolver`) -- not
-  just eyeballed. A live DB-backed round trip (mint -> fetch -> patch -> recover against an
-  actual `sbf_handle` table) was NOT performed -- no test database, and migrations are
-  deliberately emit-only (see `D-migration-scope`).
+- Generated Java compiling was originally verified only by a one-time, manual `./gradlew
+  compileJava` run against Team-IZ-Backend on one machine (BUILD SUCCESSFUL, all 9 generated
+  files including a working `OrganizationResolver`). P3 automated this: `.github/workflows/
+  ci.yml`'s `java-compile` job now runs `scripts/java-compile-smoke.mjs` against a committed,
+  portable fixture (`test/fixtures/java-compile/`) on every push -- the same claim, now backed by
+  a reproducible CI run instead of a narrated one-off. A live DB-backed round trip (mint -> fetch
+  -> patch -> recover against an actual `sbf_handle` table) is still NOT performed -- no test
+  database, and migrations are deliberately emit-only (see `D-migration-scope`).
+- The Organization/Curriculum-module oracle tests that used to depend on
+  `~/Desktop/Team-IZ-Backend` being present on the machine now have a frozen, committed
+  equivalent (`test/fixtures/java-spring/` + `test/scan-fixture.test.mjs`/`test/contract-
+  fixture.test.mjs`/`test/handles-plan-fixture.test.mjs`) that runs in CI with no external
+  dependency. The original Team-IZ-Backend-gated tests still exist (`test/scan.test.mjs`/`test/
+  contract.test.mjs`) but were rewritten as drift-resistant invariants rather than exact counts --
+  see `D-fixture-corpus` in `DECISIONS.md` for why the exact-count version broke in the field
+  days after it was written.
+- `.github/workflows/ci.yml` (P3): the first tracked CI configuration in this repo -- `test`
+  (Linux, Node 22/24 -- deliberately not the documented 20.11.0 floor, see `D-fixture-corpus`),
+  `package-install` (`npm pack` -> install the real tarball -> run the installed binary),
+  `java-compile` (`scripts/java-compile-smoke.mjs`, described above). No macOS job yet (private-repo
+  10x billing multiplier) -- see CATALOG.md's **P3b** for that and a Python codegen import-check
+  upgrade, both deferred.
 - `stack/apply.mjs` is generic over any `stack/catalog/<id>.yml` -- adding a new stack choice
   (Supabase, Railway, ...) is a new catalog YAML + template pair, not new JS (see `D7`). Config
   files that need surgical, comment-preserving edits (rather than whole-file creation) are

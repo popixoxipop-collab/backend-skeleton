@@ -4,3 +4,12 @@ node_modules/
 # Ephemeral per-repo gate state this skill writes into a TARGET repo, not into this skill's own
 # repo -- listed here only in case a manual test run leaves one behind under examples/ or test/.
 .sbf/
+# P3 (D-fixture-corpus): test/fixtures/java-compile/ IS actually built (unlike
+# test/fixtures/java-spring/, which is scanned in place and never compiled) -- its Gradle wrapper
+# is generated at CI/local-run time (scripts/java-compile-smoke.mjs), never committed, so a local
+# run can't accidentally commit a wrapper jar or build output.
+test/fixtures/java-compile/.gradle/
+test/fixtures/java-compile/build/
+test/fixtures/java-compile/gradlew
+test/fixtures/java-compile/gradlew.bat
+test/fixtures/java-compile/gradle/wrapper/

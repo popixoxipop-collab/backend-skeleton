@@ -1,0 +1,93 @@
+name: CI
+
+# D-fixture-corpus (P3): `paths-ignore: **/*.md` -- found live, not anticipated: a docs-only
+# commit (DECISIONS.md) still triggered a full 4-job run on this repo's very first real CI usage.
+# WHY: doc-only changes touch nothing `npm test`/the java-compile fixture/the packaged tarball
+# could regress -- running the full matrix for them is pure cost with no verification value.
+# COST: a commit that mixes a .md change with real code still runs CI (paths-ignore only skips
+# when EVERY changed file matches), so this never hides a code change behind a docs commit.
+# EXIT: remove these two `paths-ignore` blocks if a doc file ever needs to be part of a
+# runtime-verified path (e.g. a lint step that checks README.md's own code samples).
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # D-fixture-corpus (P3): Linux only, Node 22 + 24 -- NOT the documented floor (lib/doctor.mjs's
+  # MIN_NODE, 20.11.0). That exact patch has a real, already-upstream-fixed Node core bug
+  # (execFileSync truncates a captured child stdout at exactly 8192 bytes on this specific
+  # release), confirmed by direct execution during this item's own grounding, unrelated to this
+  # codebase. Testing it here would make CI permanently red for a reason no one could fix from
+  # this repo. Real-world callers get whatever patch a version manager resolves "20.x" to, never
+  # the literal first-ever 20.11.0 build -- see DECISIONS.md's D-fixture-corpus for the full
+  # evidence and for why macOS is deliberately NOT in this matrix (private-repo Actions runners
+  # bill macOS at 10x Linux; this codebase has, so far, only ever been run on macOS locally, so a
+  # macOS CI job would mostly re-test the one platform already exercised daily -- Linux is the
+  # actually-unverified platform).
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm test
+
+  package-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      # D-fixture-corpus (P3): test/package-install.test.mjs runs `bskel doctor --json` inside a
+      # real git repo -- `rg` is a required check there (unscoped doctor, same as scan/handles),
+      # so this job needs it even though it never runs `bskel scan`/`bskel handles` itself. Found
+      # live: this step was missing on the first real CI run, and the job failed exactly here.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:pack
+
+  # D-fixture-corpus (P3): the first automated proof that `bskel handles emit`'s generated Java
+  # actually compiles -- previously a one-time manual run, narrated in DECISIONS.md, on this one
+  # machine, with a hand-symlinked JDK17 toolchain. See scripts/java-compile-smoke.mjs.
+  java-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      # D-fixture-corpus (P3): scripts/java-compile-smoke.mjs runs a real `bskel scan`, which
+      # shells out to `rg` directly (throws, not degrades, without it). Missing here on the first
+      # real CI run -- found live (`spawnSync rg ENOENT`).
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:java-compile
