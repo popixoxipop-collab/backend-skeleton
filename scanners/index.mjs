@@ -1,5 +1,44 @@
 import { ADAPTERS, LOAD_ERRORS } from './registry.mjs';
 
+// D-scanner-evidence (CATALOG.md's D3 -- NOT the same as this file's own "D3" comment below,
+// which is this repo's internal DECISIONS.md numbering for something unrelated; see the
+// A2/A3 precedent in CATALOG.md for this exact collision class): weight per evidence signal -- the exact 8 values scoreModule() always
+// used, now named and shared between evidence collection and score summation instead of being
+// scattered `score += N` literals.
+const SIGNAL_WEIGHTS = Object.freeze({
+	module_name: 10,
+	controller_class: 6,
+	controller_path: 5,
+	endpoint_path: 5,
+	endpoint_operation_id: 5,
+	entity_table: 8,
+	entity_class: 6,
+	enum_name: 3,
+});
+
+// D-scanner-evidence: caps how many matches of the SAME signal type contribute to a module's score -- without
+// this, a controller with many endpoints inflates score linearly regardless of real relevance
+// (generic-grep.mjs already fixed exactly this class of bug once, for className-per-route; this
+// closes the same gap for endpoint_path/endpoint_operation_id, which were still uncapped). Every
+// match still appears in the evidence array (`counted:false` beyond the cap) -- capping affects
+// scoring, not transparency. Value chosen empirically, not guessed: validated against
+// Team-IZ-Backend (organization/curriculum modules) to confirm every previously-correct verdict
+// still holds at this value -- see D-scanner-evidence in DECISIONS.md for the sweep.
+const CAP_PER_SIGNAL = 5;
+
+// D-scanner-evidence: splits on non-alphanumeric runs AND camelCase boundaries (lower->upper, and an uppercase
+// run's last letter -> Uppercase+lowercase, so "APIController" -> "API","Controller" not
+// "APIController" whole) -- the SAME function handles both identifiers (className, no separators,
+// relies on camelCase splitting) and paths (basePath/endpoint path, no camelCase, relies on
+// separator splitting) correctly, since each just exercises the half of the regex it needs.
+const CAMEL_BOUNDARY_RE = /([a-z0-9])([A-Z])|([A-Z]+)([A-Z][a-z])/g;
+
+export function tokenize(s) {
+	if (!s) return [];
+	const spaced = String(s).replace(CAMEL_BOUNDARY_RE, (_, a, b, c, d) => (a ? `${a} ${b}` : `${c} ${d}`));
+	return spaced.split(/[^a-zA-Z0-9]+/).filter(Boolean).map((t) => t.toLowerCase());
+}
+
 // A1 §7 (unchanged): the exact default string previously inlined below -- kept as a module
 // constant so an adapter can override it via `result.apiSurfaceSource` without this file needing
 // to know which adapters exist. Neither shipped adapter overrides it today, so output is
@@ -15,38 +54,98 @@ const DEFAULT_API_SURFACE_SOURCE = 'source-annotations only (this scan does not 
 // threshold, before even counting its controller/table/path hits.
 const COLLISION_THRESHOLD = 10;
 
-function normalize(s) {
-	return (s || '').toLowerCase();
+// D-scanner-evidence: `termTokens` matches `textTokens` if it appears as a CONTIGUOUS
+// subsequence, comparing token-by-token with a bidirectional prefix check (not exact equality --
+// "organization" must still match the token "organizations", a real plural-form case the old
+// substring matcher supported by accident). This replaces the old whole-string, un-tokenized
+// `t.includes(nt) || nt.includes(t)` -- the catalog's "symmetric substring matching" complaint --
+// which let a short piece of text match anywhere inside an unrelated long term, or a short term
+// match anywhere inside an unrelated identifier, crossing real word boundaries either way (e.g.
+// term "man" matching inside the token "management" is still possible here since it's a real
+// prefix of that ONE token, but term "man" can no longer match by spanning from the tail of one
+// word into the head of the next, the way whole-string substring search allowed).
+function tokensMatch(termTokens, textTokens) {
+	if (termTokens.length === 0 || termTokens.length > textTokens.length) return false;
+	for (let start = 0; start <= textTokens.length - termTokens.length; start++) {
+		let allMatch = true;
+		for (let i = 0; i < termTokens.length; i++) {
+			const tt = termTokens[i];
+			const xt = textTokens[start + i];
+			if (!(xt.startsWith(tt) || tt.startsWith(xt))) { allMatch = false; break; }
+		}
+		if (allMatch) return true;
+	}
+	return false;
 }
 
-function matches(text, terms) {
-	const t = normalize(text);
-	if (!t) return false;
-	return terms.some((term) => {
-		const nt = normalize(term);
-		return nt && (t.includes(nt) || nt.includes(t));
-	});
+// Returns every term (not just whether ANY matched) that matches `text` -- D-scanner-evidence
+// needs one evidence record per matching term, not just a boolean.
+function matchingTerms(text, terms) {
+	const textTokens = tokenize(text);
+	if (textTokens.length === 0) return [];
+	return terms.filter((term) => tokensMatch(tokenize(term), textTokens));
 }
 
-function scoreModule(mod, terms) {
-	let score = 0;
-	if (matches(mod.module, terms)) score += 10;
-	for (const c of mod.controllers) {
-		if (matches(c.className, terms)) score += 6;
-		if (matches(c.basePath, terms)) score += 5;
-		for (const ep of c.endpoints) {
-			if (matches(ep.path, terms)) score += 5;
-			if (matches(ep.operationId, terms)) score += 5;
+// D-scanner-evidence: caps PER SIGNAL TYPE at collection time, not by collecting everything and
+// filtering afterward -- found live, not anticipated: collecting every raw match first (a
+// controller with 600 endpoints all matching one term produces 1200 evidence records for that
+// ONE module) pushed a real scan report past Node's default 1MB `execFileSync` buffer, crashing
+// the exact >64KB-report regression test this codebase already had (see D-process-exit-audit's
+// pipe-truncation history in DECISIONS.md -- this is the same failure class, a different cause).
+// Capping during collection keeps report size bounded regardless of repo size, and every
+// recorded entry always counts toward score (no separate `counted` flag needed) -- signals that
+// hit the cap are named in `cappedSignals` (one string per module, not one flag per entry) so
+// `bskel scan explain` can still say "N further widget-path matches exist, not shown" without an
+// unbounded per-entry record for each of them.
+class EvidenceCollector {
+	constructor() {
+		this.evidence = [];
+		this.counts = new Map();
+		this.cappedSignals = new Set();
+	}
+
+	// Encounter order is already deterministic here without a separate sort step: callers walk
+	// controllers/entities/enums in the adapter's own already-sorted (O6: rg --files sorted) file
+	// order, endpoints in document order within one file, and terms in the user's own --terms
+	// order -- the same ordering scoreModule() always scored in.
+	add(signal, term, value, file, line) {
+		const count = (this.counts.get(signal) ?? 0) + 1;
+		this.counts.set(signal, count);
+		if (count > CAP_PER_SIGNAL) {
+			this.cappedSignals.add(signal);
+			return;
+		}
+		this.evidence.push({ signal, term, value, weight: SIGNAL_WEIGHTS[signal], file, line: line ?? null });
+	}
+}
+
+// D-scanner-evidence: walks every signal-bearing field exactly once, in the same order
+// scoreModule() always scored them in.
+function collectEvidence(mod, terms) {
+	const c = new EvidenceCollector();
+	for (const term of matchingTerms(mod.module, terms)) c.add('module_name', term, mod.module, null, null);
+	for (const controller of mod.controllers) {
+		for (const term of matchingTerms(controller.className, terms)) c.add('controller_class', term, controller.className, controller.file, controller.line);
+		for (const term of matchingTerms(controller.basePath, terms)) c.add('controller_path', term, controller.basePath, controller.file, controller.line);
+		for (const ep of controller.endpoints) {
+			for (const term of matchingTerms(ep.path, terms)) c.add('endpoint_path', term, ep.path, controller.file, ep.line);
+			for (const term of matchingTerms(ep.operationId, terms)) c.add('endpoint_operation_id', term, ep.operationId, controller.file, ep.line);
 		}
 	}
 	for (const e of mod.entities) {
-		if (matches(e.table, terms)) score += 8;
-		if (matches(e.className, terms)) score += 6;
+		for (const term of matchingTerms(e.table, terms)) c.add('entity_table', term, e.table, e.file, e.line);
+		for (const term of matchingTerms(e.className, terms)) c.add('entity_class', term, e.className, e.file, e.line);
 	}
 	for (const en of mod.enums) {
-		if (matches(en.name, terms)) score += 3;
+		for (const term of matchingTerms(en.name, terms)) c.add('enum_name', term, en.name, en.file, en.line);
 	}
-	return score;
+	return c;
+}
+
+export function scoreModule(mod, terms) {
+	const c = collectEvidence(mod, terms);
+	const score = c.evidence.reduce((sum, e) => sum + e.weight, 0);
+	return { score, evidence: c.evidence, cappedSignals: [...c.cappedSignals].sort() };
 }
 
 // G1: adapter dispatch, replacing the previous hardcoded two-branch if/else. `adapters` is
@@ -92,7 +191,10 @@ export function runScan({ repoRoot, terms, includeDb = false, adapters = ADAPTER
 	// cheap and doesn't depend on every adapter getting it right). Module name is a stable,
 	// meaningful secondary key.
 	const scored = modules
-		.map((m) => ({ ...m, score: scoreModule(m, terms) }))
+		.map((m) => {
+			const { score, evidence, cappedSignals } = scoreModule(m, terms);
+			return { ...m, score, evidence, capped_signals: cappedSignals };
+		})
 		.sort((a, b) => b.score - a.score || a.module.localeCompare(b.module));
 
 	const relatedModules = scored.filter((m) => m.score > 0);

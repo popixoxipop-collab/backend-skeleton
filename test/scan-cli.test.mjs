@@ -263,3 +263,45 @@ test('api_surface_source no longer makes the unverified "no committed openapi sp
 	assert.equal(report.api_surface_source.includes('no committed openapi spec found'), false);
 	assert.match(report.api_surface_source, /does not check for a committed OpenAPI document/);
 });
+
+// D-scanner-evidence (D3)
+test('scan explain <module>: human output groups evidence by signal, weight subtotals reconcile with the module score', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	assert.equal(run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root).code, 3);
+	const explain = run(['scan', 'explain', 'widget', '--feature', '001-widget-management'], root);
+	assert.equal(explain.code, 0);
+	assert.match(explain.stdout, /# scan explain: `widget` \(score: \d+\)/);
+	assert.match(explain.stdout, /## module_name/);
+});
+
+test('scan explain <module> --json: returns the exact related_modules entry, including evidence/capped_signals', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	assert.equal(run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root).code, 3);
+	const explain = run(['scan', 'explain', 'widget', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(explain.code, 0);
+	const mod = JSON.parse(explain.stdout);
+	assert.equal(mod.module, 'widget');
+	assert.ok(Array.isArray(mod.evidence) && mod.evidence.length > 0);
+	assert.ok(Array.isArray(mod.capped_signals));
+	assert.equal(mod.score, mod.evidence.reduce((sum, e) => sum + e.weight, 0), 'score must reconcile exactly with the sum of evidence weights');
+});
+
+test('scan explain <unknown-module>: fails cleanly naming the known modules, does not crash', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	assert.equal(run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root).code, 3);
+	const explain = run(['scan', 'explain', 'does-not-exist', '--feature', '001-widget-management'], root);
+	assert.equal(explain.code, 2);
+	assert.match(explain.stderr, /no module "does-not-exist"/);
+	assert.match(explain.stderr, /known modules: widget/);
+});
+
+test('scan explain with no positional module argument fails with BAD_ARGS, not a crash', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	assert.equal(run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root).code, 3);
+	const explain = run(['scan', 'explain', '--feature', '001-widget-management'], root);
+	assert.equal(explain.code, 14);
+});

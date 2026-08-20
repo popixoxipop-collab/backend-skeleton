@@ -14,7 +14,7 @@ import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import { runScan } from '../scanners/index.mjs';
-import { renderScanMarkdown, renderPlanConstraints } from '../scanners/render.mjs';
+import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '../scanners/render.mjs';
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule } from '../contracts/emit.mjs';
@@ -38,6 +38,7 @@ function usage() {
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
+  bskel scan explain <module> --feature <id> [--json]
   bskel feature init --slug <name>
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
   bskel contract validate --feature <id> --file <envelope.json>
@@ -388,6 +389,34 @@ function cmdScanDisposition(args) {
 	const gateState = passNamedGate(root, 'scan', flags.feature, { verdict: report.verdict, disposition_mode: flags.mode });
 	console.log(JSON.stringify(gateState.gates.scan));
 	process.exit(EXIT.PASS);
+}
+
+// D-scanner-evidence (D3): reads the ALREADY-PERSISTED scan report (loadScanReportOrExit, same
+// validated choke point every other scan-report reader uses) rather than recomputing evidence --
+// `bskel scan` is the only place evidence is ever calculated; this command only explains what
+// that run already found and wrote to disk.
+function cmdScanExplain(args) {
+	const flags = parseCommand('scan explain', args);
+	if (flags.help) { console.log(renderCommandHelp('scan explain')); process.exit(0); }
+	setContext('scan explain', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	const moduleName = flags._[0];
+	if (!moduleName) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel scan explain <module> --feature <id> [--json]');
+	}
+	const report = loadScanReportOrExit(root, flags.feature);
+	const mod = report.related_modules.find((m) => m.module === moduleName);
+	if (!mod) {
+		const known = report.related_modules.map((m) => m.module).join(', ') || '(none)';
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no module "${moduleName}" in this scan report's related_modules -- known modules: ${known}`);
+	}
+	if (flags.json) {
+		console.log(JSON.stringify(mod, null, 2));
+	} else {
+		console.log(renderScanExplain(mod));
+	}
+	process.exit(0);
 }
 
 function featureIndexPath(root) {
@@ -1325,6 +1354,7 @@ function dispatchCommand(cmd, rest) {
 			break;
 		case 'scan': {
 			if (rest[0] === 'disposition') return cmdScanDisposition(rest.slice(1));
+			if (rest[0] === 'explain') return cmdScanExplain(rest.slice(1));
 			cmdScan(rest);
 			break;
 		}

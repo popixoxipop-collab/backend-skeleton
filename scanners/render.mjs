@@ -1,3 +1,45 @@
+// D-scanner-evidence: fixed presentation order (matches scanners/index.mjs's own SIGNAL_WEIGHTS
+// declaration order) rather than whatever order evidence happens to appear in -- duplicated here
+// as literal strings rather than imported, keeping this file a pure presentation layer over a
+// plain report object (its existing convention; scanners/index.mjs never imports render.mjs
+// either, no dependency direction to preserve either way).
+const SIGNAL_ORDER = [
+	'module_name', 'controller_class', 'controller_path',
+	'endpoint_path', 'endpoint_operation_id',
+	'entity_table', 'entity_class', 'enum_name',
+];
+
+// `bskel scan explain <module>` -- one module's full evidence breakdown, grouped by signal type,
+// with a running weight subtotal per group so the sum visibly reconciles with `mod.score`.
+export function renderScanExplain(mod) {
+	const lines = [`# scan explain: \`${mod.module}\` (score: ${mod.score})`, ''];
+	const bySignal = new Map();
+	for (const e of mod.evidence ?? []) {
+		if (!bySignal.has(e.signal)) bySignal.set(e.signal, []);
+		bySignal.get(e.signal).push(e);
+	}
+	if (bySignal.size === 0) {
+		lines.push('No evidence recorded -- this module scored 0.');
+		lines.push('');
+	}
+	for (const signal of SIGNAL_ORDER) {
+		const entries = bySignal.get(signal);
+		if (!entries || entries.length === 0) continue;
+		const subtotal = entries.reduce((sum, e) => sum + e.weight, 0);
+		lines.push(`## ${signal} (weight ${entries[0].weight} each, subtotal ${subtotal})`);
+		for (const e of entries) {
+			const where = e.file ? ` (${e.file}${e.line ? `:${e.line}` : ''})` : '';
+			lines.push(`- term \`${e.term}\` matched \`${e.value}\`${where}`);
+		}
+		lines.push('');
+	}
+	if ((mod.capped_signals ?? []).length > 0) {
+		lines.push(`**Capped**: ${mod.capped_signals.join(', ')} had more raw matches than shown above -- score still reflects every entry listed, additional matches beyond the cap did not add further weight.`);
+		lines.push('');
+	}
+	return `${lines.join('\n')}\n`;
+}
+
 export function renderScanMarkdown(report) {
 	const lines = [];
 	lines.push(`# Brownfield scan${report.feature_id ? `: ${report.feature_id}` : ''}`);
@@ -14,7 +56,7 @@ export function renderScanMarkdown(report) {
 		lines.push('## Related modules');
 		lines.push('');
 		for (const mod of report.related_modules) {
-			lines.push(`### \`${mod.module}\` (score: ${mod.score})`);
+			lines.push(`### \`${mod.module}\` (score: ${mod.score} -- run \`bskel scan explain ${mod.module}\` for the evidence breakdown)`);
 			for (const c of mod.controllers) {
 				lines.push(`- Controller \`${c.className}\` (base path \`${c.basePath}\`), ${c.endpoints.length} endpoint(s):`);
 				for (const ep of c.endpoints) {

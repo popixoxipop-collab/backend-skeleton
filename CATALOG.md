@@ -163,10 +163,11 @@ remain open. #3, #4, #5 are entirely open.
 
 ### D3. Explainable scanner evidence
 
-- **What:** Make every relevance point traceable.
+- **What:** Make every relevance point traceable. **Do not confuse with this repo's own "D3" in DECISIONS.md (`## D3: verdict -> disposition state machine instead of an agent question`) — a completely different, already-implemented concern that happens to share the same bare-number label. Same collision class as this catalog's own A2/A3 entries.**
 - **Why:** `scoreModule()` returns only a scalar, uses symmetric substring matching, and allows repeated endpoint matches to inflate a module score. Reports contain file paths but no source spans or score breakdown.
 - **Scope/Effort:** **M**.
 - **Concrete approach:** Emit evidence records such as `{signal, term, value, weight, file, line}` and add `bskel scan explain <module>`. Tokenize identifiers and paths, cap repeated-signal contribution, and use deterministic tie-breaking.
+- **[IMPLEMENTED as D3, `<pending>` — followed the concrete approach as written, with two real deviations found during implementation, not planned in advance. (1) Capping had to move from "collect everything, filter at score time" to "cap DURING collection" after a real bug: an uncapped-collection first attempt made a 600-endpoint synthetic fixture's report balloon to 1.2MB, exceeding Node's default 1MB `execFileSync` buffer and crashing an existing regression test with a swallowed, invisible `ENOBUFS` (reproduced directly outside the test harness to confirm the exact cause). Capping at collection time keeps report size bounded regardless of repo size, and the `counted:boolean` per-entry field the original design planned became unnecessary — every recorded entry always counts. (2) Line-tracking was silently inconsistent across all 3 adapters before this item — `java-spring.mjs` (the primary adapter) had NONE at all; `python-fastapi.mjs`/`generic-grep.mjs` each had their own private, duplicated `lineNumberAt()`. Extracted to `scanners/text-util.mjs`, added missing line-tracking to controller/entity/enum extraction across adapters. `CAP_PER_SIGNAL=5` was determined empirically (swept 3/5/8 against the real Team-IZ-Backend oracle via `git stash` before/after comparison, confirmed every existing verdict — including `curriculum`'s score sitting exactly at `COLLISION_THRESHOLD` — survives unchanged at every value tested), not guessed. See D-scanner-evidence in DECISIONS.md.]**
 
 ### D4. Uniform plan/check/diff before writes
 

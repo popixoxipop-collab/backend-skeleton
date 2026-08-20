@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { lineNumberAt } from '../text-util.mjs';
 
 const MAPPING_VERBS = ['Get', 'Post', 'Put', 'Patch', 'Delete'];
 
@@ -54,6 +55,10 @@ function extractController(text, filePath) {
 	if (!/@RestController\b/.test(text)) return null;
 	const classMatch = text.match(/public\s+class\s+(\w+)/);
 	const className = classMatch ? classMatch[1] : path.basename(filePath, '.java');
+	// D3 (D-scanner-evidence): the class declaration's own line -- classLine is null only in the
+	// path.basename fallback above (no `public class` match at all, so there's no declaration to
+	// point at).
+	const classLine = classMatch ? lineNumberAt(text, classMatch.index) : null;
 
 	// Class-level @RequestMapping: match the one shortly before `class <Name>`, not any
 	// method-level mapping (this codebase's methods use @GetMapping/@PostMapping/etc., not
@@ -85,10 +90,15 @@ function extractController(text, filePath) {
 			const idMatch = between.match(/operationId\s*=\s*"([^"]+)"/);
 			if (idMatch) operationId = idMatch[1];
 		}
-		endpoints.push({ verb, path: joinPath(basePath, segment), operationId, method: methodName });
+		// D3: line of the mapping annotation itself (`m.index` is already the match's own start,
+		// no extra work beyond the lineNumberAt call -- this is the same position
+		// handles/providers/java-spring/plan.mjs's methodMappingBoundaries() re-derives with its
+		// own separate regex pass today; left as-is here, not consolidated, since that's a
+		// different catalog item's territory, not D3's.
+		endpoints.push({ verb, path: joinPath(basePath, segment), operationId, method: methodName, line: lineNumberAt(text, m.index) });
 	}
 
-	return { className, basePath, operationIds, endpoints, file: filePath };
+	return { className, basePath, operationIds, endpoints, file: filePath, line: classLine };
 }
 
 function extractEntity(text, filePath) {
@@ -101,6 +111,7 @@ function extractEntity(text, filePath) {
 		table: tableMatch ? tableMatch[1] : null,
 		idField: idFieldMatch ? idFieldMatch[1] : null,
 		file: filePath,
+		line: classMatch ? lineNumberAt(text, classMatch.index) : null,
 	};
 }
 
@@ -114,7 +125,7 @@ function extractDomainEnum(text, filePath) {
 		.split(/[,;]/)
 		.map((s) => s.trim().split('(')[0].trim())
 		.filter((s) => /^[A-Z][A-Z0-9_]*$/.test(s));
-	return { name, constants, file: filePath };
+	return { name, constants, file: filePath, line: lineNumberAt(text, match.index) };
 }
 
 const APPLICATION_CONFIG_GLOB = 'application*.{yml,yaml,properties}';
