@@ -3151,3 +3151,132 @@ duplicate a pip-installable, platform-independent check on the self-hosted runne
 
 Cross-reference: `D-macos-runner` (P3b, above) -- the other, independently-shipped half of this
 same catalog item.
+
+## D-persistence-integrity (S5): schema validation, migration, and concurrency
+
+**WHY:** `schemas/` has 9 declared schemas; none of the real persistence-boundary ones were ever
+actually validated against at read/write time -- a hand-edited or externally corrupted
+`.sbf/<feature>.json`/`brownfield-scan.json`/contract/resolution file would only surface as a
+confusing downstream error (or worse, silently misbehave), not a clear, immediate, actionable
+failure. Separately, `lib/state.mjs`'s `setGate()` -- the single funnel every gate write goes
+through -- does load -> modify -> save with no synchronization, a lost-update race under
+concurrent invocations.
+
+**Grounding found the catalog's own text was stale/imprecise in three ways, corrected before any
+code was written (not discovered after the fact):**
+
+1. The catalog's motivating claim ("current `_repo` state would itself violate
+   `state.schema.json`'s feature-ID pattern") is no longer true -- confirmed directly: ran `bskel
+   preflight` in a scratch repo, ajv-validated the resulting real `.sbf/_repo.json` against
+   `state.schema.json`, and it passed. S1 already fixed the underlying pattern; this item's own
+   text just hadn't caught up. The real value of this item is defense-in-depth going forward, plus
+   the concurrency fix below -- not "fixing something already broken today".
+2. "`stack-choice.schema.json`...never loaded" is true, but that schema validates
+   `stack/catalog/<id>.yml` CATALOG ENTRIES (an extension author's config -- P4's "catalog lint"
+   territory), not `.sbf/stack.json` (the runtime record of which choice was applied, `schema:
+   "sbf.stack/1"`). The runtime record had NO schema at all before this item -- confirmed by
+   `schema: {const: "sbf.stack/1"}` matching nothing among the 9 existing schema files. Added
+   `schemas/stack-record.schema.json` for it (user confirmed including this as bonus scope, since
+   it's a real, if differently-named, gap).
+3. "create a separate repo-state schema" is unnecessary -- `state.schema.json`'s `feature_id`
+   pattern already accepts `_repo` as a valid alternative (S1's fix), and `.sbf/_repo.json` is
+   structurally identical to any per-feature state file. Splitting into two schemas would be
+   duplication with no behavioral difference.
+4. "add version migrations" -- every schema is still at version 1. Building migration machinery
+   for versions that don't exist would be designing for a hypothetical (CLAUDE.md's own "don't
+   design for hypothetical future requirements" principle). Deliberately not built; the existing
+   hard version-const check in `loadState()` remains the one hook point a real migration would
+   need, whenever a v2 actually exists.
+
+**Scope actually shipped:** a new `lib/schema-validate.mjs` (Ajv2020+addFormats, same pattern as
+`contracts/validate.mjs`'s own singleton but deliberately separate -- `lib/` importing from
+`contracts/` would be a backwards dependency direction) wired into 5 real persistence boundaries:
+`state.schema.json` (`lib/state.mjs`'s `loadState`/`saveState`), `scan-report.schema.json`
+(`bin/bskel.mjs`'s `loadScanReportOrExit`/new `writeScanReportOrExit` -- consolidated from THREE
+separate inline `JSON.parse(readFileSync(...))` call sites down to one read choke point, in
+`cmdScan`/`cmdScanDisposition`/`cmdContractEmit`), `feature-contract.schema.json`
+(`loadContract`/its one write site), `contract-resolution.schema.json`
+(`contracts/completeness.mjs`'s `loadResolution`/new `saveResolution`), and the new
+`stack-record.schema.json` (the `.sbf/stack.json` write site only -- deliberately NO
+`loadStackRecord()` read helper, since grep confirmed nothing in this codebase reads that file
+back; adding an unused export would be dead code, not defense-in-depth).
+
+Failure handling follows two existing, DIFFERENT conventions already present in this codebase,
+kept deliberately distinct rather than forced into one shape: `lib/state.mjs`'s `loadState`
+(already threw a plain `Error` for its own narrower `schema`-const check) and
+`contracts/completeness.mjs`'s `loadResolution` throw plain `Error`s -- `main()`'s existing
+catch-all in `bin/bskel.mjs` already documents "a malformed-state read" as its own case, landing
+on exit 14 (`BAD_ARGS`), so this needed zero new plumbing. The CLI-layer helpers that already own
+a `fail()` call for their sibling "file missing" case (`loadScanReportOrExit`, `loadContract`, the
+scan/contract/stack write sites) use a new `INVALID_ARTIFACT` reason (added to
+`lib/exit-codes.mjs`'s `EXIT_REASONS`, sharing exit 2/`NOT_PASSED` with `MISSING_ARTIFACT` -- "the
+reason is what tells them apart", D2's own stated convention).
+
+**A real tension found and resolved, not papered over:** `state.schema.json`'s `at` field
+originally required `format: "date-time"`. `test/gates.test.mjs`'s "a missing or unparseable `at`
+timestamp fails closed as invalid_timestamp, not a silent pass" test (a deliberate, already-shipped
+S3 feature) writes a non-ISO string to `at` to prove `lib/gates.mjs`'s `checkFreshness()` degrades
+gracefully (`STALE_REASON.INVALID_TIMESTAMP`) instead of crashing. Strict read-side schema
+validation would have turned that already-tested, deliberate graceful-degradation path into a hard
+read-time crash instead -- the schema and the application's actual, intentional tolerance policy
+had diverged on purpose. Fixed by loosening `at` to plain `type: "string"` with a comment
+explaining why (gates.mjs already owns that field's real validity check, more leniently than the
+schema would). No other field had this tension (confirmed: grepped for any other test that
+deliberately tampers a persisted field to a schema-invalid value; only this one existed).
+`test/gates.test.mjs`'s `backdateGateAt()` helper was also changed to bypass `saveState()`'s
+validation entirely (writes the file directly) -- it simulates EXTERNAL corruption, which by
+definition doesn't go through this tool's own write path, so tampering through `saveState()` was
+never an accurate simulation of what it's testing, independent of the schema-loosening fix.
+
+**Concurrency -- `lib/lock.mjs`, deliberately SYNCHRONOUS:** the first design (an `async
+withLock()`, Promise-returning) was rejected after tracing the actual blast radius: making
+`setGate()` async would force `async`/`await` through `passGate`/`awaitDispositionGate`/
+`forceGate`/`passNamedGate` (`lib/gates.mjs`) and every one of their callers in `bin/bskel.mjs`,
+up through `dispatchCommand`/`main()` -- dozens of call sites, for a correctness property that
+doesn't need it (this is a short-lived CLI process, not a server; blocking the single event loop
+for up to a few seconds while polling for a lock is not a real cost). Switched to a genuinely
+synchronous design using `Atomics.wait` for a real blocking sleep on Node's main thread (confirmed
+directly, not assumed -- it is NOT restricted to worker threads). `fs.mkdirSync` under
+`.sbf/.locks/<name>.lock` is the actual mutual-exclusion primitive (atomic EEXIST-on-collision on
+both POSIX and Windows, no new dependency); a 5s default timeout throws with the exact stale-lock
+path to remove (this tool has no daemon/cleanup process, so "another bskel process is stuck or
+crashed" is the only realistic cause, and the fix is always the same manual step).
+`lib/state.mjs`'s `setGate()` wraps its own load-modify-save in this lock -- one change closes the
+race for every gate write in the codebase, since every gate-writing function funnels through it.
+`contracts/completeness.mjs`'s `saveResolution()` deliberately does NOT lock by itself (a caught
+mistake during implementation: locking only the final write does not close a load-modify-save race
+-- the window is between the READ and the write, not inside the write call). `bin/bskel.mjs`'s
+`cmdContractWaive` wraps its whole `loadResolution()`...`saveResolution()` cycle in one
+`withLockSync()` call instead, the same shape `setGate()` uses. (A second real bug caught during
+this same edit, before any test ran: a `newEntries` variable computed inside the lock callback was
+referenced outside it for the CLI's own success-message rendering -- a `ReferenceError`, caught
+immediately by running the full contract test suite, not left for a user to find.)
+
+**Verification, methodologically important -- direct execution both before AND after, not just
+"tests pass":**
+- Reproduced the pre-fix race live before writing any fix: two processes calling `setGate()`-shaped
+  load-modify-save with an artificial delay between load and save reliably dropped one write.
+- `test/lock.test.mjs` proves the LOCK PRIMITIVE itself with two real OS processes (not just
+  concurrent promises in one process -- JS is single-threaded, so two synchronous calls in one
+  process can never actually interleave regardless of locking, making a same-process test of
+  `withLockSync` meaningless for proving mutual exclusion; the suite explicitly documents why it
+  spawns real subprocesses instead).
+- Composing "the lock primitive is proven correct" with "`setGate()` is now wrapped by it" doesn't
+  by itself prove the INTEGRATION is race-free without deliberately adding a test-only delay hook
+  to production code (rejected -- see above). Instead: a real, unpermanent stress-test grounding
+  step (not a committed test) ran 20 concurrent real OS processes each calling the actual
+  production `passGate()` against the same `_repo` state, with NO artificial delay -- the real
+  usage shape. Against the pre-fix code (verified via `git stash`, same trial, 3 repeated runs):
+  consistently only 17-18/20 gates survived. Against the fixed code: 20/20, every single run.
+- Real end-to-end CLI checks (not just unit tests) confirm a corrupted `brownfield-scan.json` fails
+  `scan disposition`/`handles plan` cleanly (exit 2, `INVALID_ARTIFACT`, no crash), and a corrupted
+  `.sbf/_repo.json` fails `gate show` cleanly (exit 14, `BAD_ARGS`, no crash) -- both with the
+  offending field named in the error, not a raw stack trace (confirmed with `BSKEL_DEBUG=1` that
+  no crash path was hiding behind the clean message either).
+
+Cross-references: `D-doctor-workflow` (D5, `lib/verify.mjs`'s `detectBuildCommand()` reuse
+precedent for "one shared implementation, multiple call sites"); `D-fixture-corpus` (P3, the
+established "consolidate duplicated inline logic into one choke point" pattern, reapplied here to
+`loadScanReportOrExit`); `D-preflight-freshness` (S3, whose `checkFreshness()`/
+`STALE_REASON.INVALID_TIMESTAMP` design is exactly what motivated loosening `state.schema.json`'s
+`at` field above -- this item respects, not overrides, that earlier decision).

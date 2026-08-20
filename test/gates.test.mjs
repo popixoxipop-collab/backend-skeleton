@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { passGate, requireGate, forceGate, awaitDispositionGate, computeToken, diffInputs, STALE_REASON, EXIT } from '../lib/gates.mjs';
-import { getGate, loadState, setGate, saveState } from '../lib/state.mjs';
+import { getGate, loadState, setGate, saveState, statePath } from '../lib/state.mjs';
 
 function tmpRepoRoot() {
 	return fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-gates-test-'));
@@ -154,10 +154,15 @@ test('a passing (non-stale) require result carries no changed_inputs/stale_reaso
 // tests rewrite `at` directly (same tamper technique the RECORDED_INPUTS_MISMATCH test above
 // uses) rather than mocking Date.now(), so they exercise the exact same code path `require` does
 // against a real, hours-old `.sbf/_repo.json`.
+// S5: writes directly to disk, bypassing saveState()'s schema validation -- deliberately, since
+// this simulates EXTERNAL corruption/hand-editing of .sbf/<feature>.json (an `at` value bskel
+// itself would never produce), which is exactly the scenario requireGate()'s fail-closed
+// invalid_timestamp handling exists to defend against. Going through saveState() here would
+// (correctly) refuse to write it, since a real bskel write can never produce this shape.
 function backdateGateAt(root, scopeId, gateName, isoString) {
 	const state = loadState(root, scopeId);
 	state.gates[gateName].at = isoString;
-	saveState(root, scopeId, state);
+	fs.writeFileSync(statePath(root, scopeId), `${JSON.stringify(state, null, 2)}\n`);
 }
 
 function minutesAgo(n) {

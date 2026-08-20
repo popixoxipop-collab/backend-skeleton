@@ -9,6 +9,8 @@ import { forceGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, 
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState } from '../lib/state.mjs';
 import { writeFileAtomic, readJsonIfExists } from '../lib/fsutil.mjs';
+import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
+import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import { runScan } from '../scanners/index.mjs';
@@ -17,7 +19,7 @@ import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
-import { evaluateResolution, loadResolution, resolutionPath, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
+import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
@@ -332,7 +334,7 @@ function cmdScan(args) {
 
 	const dir = specDir(root, flags.feature);
 	fs.mkdirSync(dir, { recursive: true });
-	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.json'), `${JSON.stringify(report, null, 2)}\n`);
+	writeScanReportOrExit(specPath(root, flags.feature, 'brownfield-scan.json'), report);
 	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.md'), renderScanMarkdown(report));
 
 	let gateState;
@@ -373,14 +375,10 @@ function cmdScanDisposition(args) {
 	}
 
 	const reportPath = specPath(root, flags.feature, 'brownfield-scan.json');
-	if (!fs.existsSync(reportPath)) {
-		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${reportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
-	}
-	const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+	const report = loadScanReportOrExit(root, flags.feature);
 	report.feature_id = flags.feature;
 	report.disposition = { mode: flags.mode, note: flags.note, at: new Date().toISOString() };
-
-	writeFileAtomic(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+	writeScanReportOrExit(reportPath, report);
 	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.md'), renderScanMarkdown(report));
 	const planConstraints = renderPlanConstraints(report);
 	if (planConstraints) {
@@ -511,6 +509,14 @@ function cmdContractEmit(args) {
 
 	// Written unconditionally, even when blocked/partial -- what the scan actually found is a
 	// real artifact worth inspecting, not just a side effect of a fully-passing run.
+	// S5 (D-persistence-integrity): validated before it touches disk -- same "fail loud here, not
+	// later" reasoning as every other write site this item touched.
+	{
+		const { ok, errors } = validateAgainstSchema('feature-contract.schema.json', contract);
+		if (!ok) {
+			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `refusing to write an invalid contract:\n${formatSchemaErrors(errors).join('\n')}`);
+		}
+	}
 	writeFileAtomic(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`), `${JSON.stringify(contract, null, 2)}\n`);
 
 	// A1: written BEFORE the gate is passed/awaited below -- lib/gate-definitions.mjs's contract
@@ -618,7 +624,16 @@ function loadContract(root, featureId) {
 	if (!fs.existsSync(contractPath)) {
 		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no contract at ${contractPath} -- run \`bskel contract emit --feature ${featureId}\` first`);
 	}
-	return JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	const parsed = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	// S5 (D-persistence-integrity): validated against schemas/feature-contract.schema.json (the
+	// meta-schema for THIS file's own shape -- not the same as contracts/validate.mjs, which
+	// validates a runtime agent envelope's PAYLOAD against one operation inside an already-valid
+	// contract).
+	const { ok, errors } = validateAgainstSchema('feature-contract.schema.json', parsed);
+	if (!ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${contractPath}: does not match schemas/feature-contract.schema.json:\n${formatSchemaErrors(errors).join('\n')}`);
+	}
+	return parsed;
 }
 
 // A5: the `scan disposition` of contracts -- lets a human explicitly accept a `partial`
@@ -664,18 +679,27 @@ function cmdContractWaive(args) {
 		toWaive = [match];
 	}
 
-	const resolution = loadResolution(root, flags.feature);
-	const existingKeys = new Set((resolution.waivers ?? []).map(warningKey));
-	const at = new Date().toISOString();
-	const newEntries = toWaive
-		.filter((w) => !existingKeys.has(warningKey(w)))
-		.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at }));
-	const updatedResolution = {
-		schema: 'sbf.contract-resolution/1',
-		feature_id: flags.feature,
-		waivers: [...(resolution.waivers ?? []), ...newEntries],
-	};
-	writeFileAtomic(resolutionPath(root, flags.feature), `${JSON.stringify(updatedResolution, null, 2)}\n`);
+	// S5 (D-persistence-integrity): the whole load-modify-save cycle runs under one lock -- closes
+	// the same lost-update race confirmed live in lib/state.mjs's setGate() during this item's own
+	// grounding (two concurrent `contract waive` calls could otherwise silently drop one's
+	// entries). Locking only the final write (inside saveResolution()) would NOT close this race --
+	// the window is between this function's own loadResolution() read and its save, not inside the
+	// write call itself.
+	const { resolution: updatedResolution, newEntries } = withLockSync(root, 'state', () => {
+		const resolution = loadResolution(root, flags.feature);
+		const existingKeys = new Set((resolution.waivers ?? []).map(warningKey));
+		const at = new Date().toISOString();
+		const entries = toWaive
+			.filter((w) => !existingKeys.has(warningKey(w)))
+			.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at }));
+		const next = {
+			schema: 'sbf.contract-resolution/1',
+			feature_id: flags.feature,
+			waivers: [...(resolution.waivers ?? []), ...entries],
+		};
+		saveResolution(root, flags.feature, next);
+		return { resolution: next, newEntries: entries };
+	});
 
 	const evaluation = evaluateResolution(contract, updatedResolution);
 	const evidence = {
@@ -828,6 +852,19 @@ function cmdStackApply(args) {
 		schema: 'sbf.stack/1', choice: flags.choice, applied_files: appliedFiles,
 		env_example_keys: plan.envExampleActions.map((e) => e.key), at: new Date().toISOString(),
 	};
+	// S5 (D-persistence-integrity): schemas/stack-record.schema.json is new -- this record had NO
+	// schema at all before (not the same file as stack-choice.schema.json, which validates a
+	// stack/catalog/<id>.yml CATALOG ENTRY, a completely different persistence boundary). Validated
+	// before it touches disk, same "fail loud here" reasoning as every other write site this item
+	// touched. No corresponding read helper -- nothing in this codebase reads .sbf/stack.json back
+	// (confirmed by grep before adding this), so there's no read boundary to close yet; adding an
+	// unused loadStackRecord() export would just be dead code.
+	{
+		const { ok, errors } = validateAgainstSchema('stack-record.schema.json', stackRecord);
+		if (!ok) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `refusing to write an invalid stack record:\n${formatSchemaErrors(errors).join('\n')}`);
+		}
+	}
 	writeFileAtomic(path.join(root, '.sbf', 'stack.json'), `${JSON.stringify(stackRecord, null, 2)}\n`);
 
 	const gateState = passNamedGate(root, 'stack', null, { choice: flags.choice });
@@ -845,12 +882,33 @@ function cmdStackApply(args) {
 	process.exit(0);
 }
 
+// S5 (D-persistence-integrity): the ONE choke point for reading brownfield-scan.json --
+// cmdScanDisposition() and cmdContractEmit() used to each duplicate this exact "exists? parse it"
+// logic inline; consolidated here so schema validation has a single place to live instead of
+// three copies to keep in sync.
 function loadScanReportOrExit(root, featureId) {
 	const scanReportPath = specPath(root, featureId, 'brownfield-scan.json');
 	if (!fs.existsSync(scanReportPath)) {
 		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${scanReportPath} -- run \`bskel scan --feature ${featureId}\` first`);
 	}
-	return JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
+	const parsed = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
+	const { ok, errors } = validateAgainstSchema('scan-report.schema.json', parsed);
+	if (!ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${scanReportPath}: does not match schemas/scan-report.schema.json:\n${formatSchemaErrors(errors).join('\n')}`);
+	}
+	return parsed;
+}
+
+// S5 (D-persistence-integrity): the write-side sibling of loadScanReportOrExit() above -- validated
+// before it ever touches disk, same "fail loud here, not as a confusing error somewhere later"
+// reasoning as lib/state.mjs's saveState(). Used by both cmdScan()'s own write and
+// cmdScanDisposition()'s read-modify-write.
+function writeScanReportOrExit(reportPath, report) {
+	const { ok, errors } = validateAgainstSchema('scan-report.schema.json', report);
+	if (!ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `refusing to write an invalid scan report to ${reportPath}:\n${formatSchemaErrors(errors).join('\n')}`);
+	}
+	writeFileAtomic(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 }
 
 function renderHandlesPlan(plan) {
