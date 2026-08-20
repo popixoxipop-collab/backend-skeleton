@@ -3086,6 +3086,7 @@ ship vulnerable on the first attempt.
 green, including `macos` -- proved the exploit path was live, not theoretical
 (https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32330777878). (2) fix pushed;
 re-ran PR #2 -- `macos` correctly shows `skipping` on `pull_request`, all 4 other checks still pass
-(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331105711). (3) before
-merging, still needed: a real `push`/`workflow_dispatch`-triggered run proving `macos` actually
-executes and passes on the one path it's now restricted to.
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331105711). (3) triggered
+via `gh workflow run ci.yml --ref p3b-macos-runner` (workflow_dispatch) to prove the restricted
+path still works before merging -- all 5 jobs, including `macos` on `bob-macmini`, completed green
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331373012).
