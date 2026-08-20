@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { lineNumberAt } from '../text-util.mjs';
 
 const PROJECT_FILE_GLOBS = ['pyproject.toml', 'requirements*.txt'];
 const EXCLUDE_GLOBS = ['!**/.venv/**', '!**/site-packages/**', '!**/node_modules/**', '!**/__pycache__/**'];
@@ -98,11 +99,6 @@ function matchBalancedParens(text, openIndex) {
 	return -1;
 }
 
-function lineNumberAt(text, index) {
-	let line = 1;
-	for (let i = 0; i < index; i++) if (text[i] === '\n') line++;
-	return line;
-}
 
 function joinPath(base, segment) {
 	const b = (base || '').replace(/\/$/, '');
@@ -170,7 +166,7 @@ function extractTableEntities(text, file) {
 		const bodyEnd = i + 1 < classMatches.length ? classMatches[i + 1].index : text.length;
 		const body = text.slice(bodyStart, bodyEnd);
 		const idMatch = body.match(/(\w+)\s*:[^=\n]+=\s*Field\([^)]*primary_key\s*=\s*True/);
-		entities.push({ className: m[1], table: m[1].toLowerCase(), idField: idMatch ? idMatch[1] : null, file });
+		entities.push({ className: m[1], table: m[1].toLowerCase(), idField: idMatch ? idMatch[1] : null, file, line: lineNumberAt(text, m.index) });
 	}
 	return entities;
 }

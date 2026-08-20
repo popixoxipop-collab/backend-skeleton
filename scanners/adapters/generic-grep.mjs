@@ -5,6 +5,7 @@
 // data to calibrate it) rather than growing into a second real adapter.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { lineNumberAt } from '../text-util.mjs';
 
 // Verb capture group index: express/express-router/fastapi all capture the HTTP verb in m[1].
 // flask's `@app.route(...)` has no verb group (it defaults to GET unless a `methods=[...]`
@@ -33,12 +34,6 @@ function listCandidateFiles(repoRoot) {
 	} catch {
 		return [];
 	}
-}
-
-function lineNumberAt(text, index) {
-	let line = 1;
-	for (let i = 0; i < index; i++) if (text[i] === '\n') line++;
-	return line;
 }
 
 // Segment-aware longest common prefix -- '/users' and '/users/:id' share '/users', but '/us'

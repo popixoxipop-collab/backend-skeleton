@@ -25,7 +25,29 @@
           "controllers": { "type": "array" },
           "entities": { "type": "array" },
           "enums": { "type": "array" },
-          "dtos": { "type": "array", "items": { "type": "string" } }
+          "dtos": { "type": "array", "items": { "type": "string" } },
+          "evidence": {
+            "description": "D-scanner-evidence: every {signal, term, value, weight, file, line} match that contributed to `score` -- capped per signal type AT COLLECTION TIME (not filtered afterward), so this array's size stays bounded regardless of repo size. See `capped_signals` for which signal types actually hit that cap.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["signal", "term", "value", "weight", "file", "line"],
+              "properties": {
+                "signal": { "enum": ["module_name", "controller_class", "controller_path", "endpoint_path", "endpoint_operation_id", "entity_table", "entity_class", "enum_name"] },
+                "term": { "type": "string" },
+                "value": { "type": ["string", "null"] },
+                "weight": { "type": "number" },
+                "file": { "type": ["string", "null"] },
+                "line": { "type": ["integer", "null"] }
+              }
+            }
+          },
+          "capped_signals": {
+            "description": "D-scanner-evidence: which signal types (a subset of `evidence[].signal`'s enum) had MORE raw matches than the per-signal cap -- named here once per module rather than recording every excess match individually, which is what kept `evidence` unbounded before this field existed.",
+            "type": "array",
+            "items": { "type": "string" }
+          }
         }
       }
     },

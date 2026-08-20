@@ -3280,3 +3280,115 @@ established "consolidate duplicated inline logic into one choke point" pattern, 
 `loadScanReportOrExit`); `D-preflight-freshness` (S3, whose `checkFreshness()`/
 `STALE_REASON.INVALID_TIMESTAMP` design is exactly what motivated loosening `state.schema.json`'s
 `at` field above -- this item respects, not overrides, that earlier decision).
+
+## D-scanner-evidence (D3): explainable scanner evidence
+
+**Naming collision, flagged up front (same class as the existing A2/A3 caveats in CATALOG.md):**
+this repo's own internal DECISIONS.md numbering already has a `## D3: verdict -> disposition state
+machine instead of an agent question (implemented)` heading (a completely different concern,
+just above this section) -- do not confuse it with CATALOG.md's `D3. Explainable scanner
+evidence`, which is what this section documents. `scanners/index.mjs` has both comments two lines
+apart; every new comment this item added spells out `D-scanner-evidence` in full rather than the
+bare token `D3`, specifically to avoid the confusion. CATALOG.md's D3 entry gets the same
+"do not confuse with" caveat A2/A3 already carry.
+
+**WHY:** `scoreModule()` returned a bare scalar with no way to see WHY a module scored what it
+did, `matches()` did whole-string, un-tokenized, bidirectional substring matching (the catalog's
+"symmetric substring matching" complaint -- a short piece of text could match anywhere inside an
+unrelated long term, or vice versa, crossing real word boundaries either way), and endpoint
+matches were uncapped -- `generic-grep.mjs` had already fixed exactly this inflation class once
+(className-per-route -> className-per-file, see that file's own comment), but
+`endpoint.path`/`endpoint.operationId` matching in `scoreModule()` itself was still uncapped.
+
+**Line tracking was inconsistent across adapters before this item**: `python-fastapi.mjs`/
+`generic-grep.mjs` each had their own private `lineNumberAt()` (endpoints only);
+`java-spring.mjs` -- the primary adapter, backing every Team-IZ-Backend oracle test in this repo
+-- had NO line tracking anywhere (not controllers, not endpoints, not entities, not enums).
+Extracted the duplicated helper into `scanners/text-util.mjs`, added `line` to
+`java-spring.mjs`'s `extractController`/`extractEntity`/`extractDomainEnum` and to
+`python-fastapi.mjs`'s `extractTableEntities` (all purely additive -- the existing regex match
+positions were already computed, this just calls `lineNumberAt` on them). Deliberately NOT
+touched: `handles/providers/java-spring/plan.mjs`'s `methodMappingBoundaries()` independently
+re-derives an endpoint's line via its own separate regex pass, for a completely different reason
+(recovering `FETCH_ROUTE_LINE` for a resolver's docstring) -- now redundant with the scanner's own
+new `endpoint.line`, but consolidating it is D4/handles-provider territory, not D3's; noted here so
+it isn't mistaken for an oversight.
+
+**Evidence shape**: `{signal, term, value, weight, file, line}` -- the exact 6 fields the catalog
+named, across 8 signal types (`module_name`/`controller_class`/`controller_path`/`endpoint_path`/
+`endpoint_operation_id`/`entity_table`/`entity_class`/`enum_name`), each with its own fixed
+weight (unchanged from the original 8 `score += N` literals, just named and shared instead of
+scattered). `module_name` evidence always has `file:null`/`line:null` (no single file backs a
+module name); every other signal points at the file/line of the definition (controller class
+declaration, endpoint's mapping annotation, entity/enum class declaration) it came from.
+
+**Tokenization**: `tokenize(s)` splits on non-alphanumeric runs AND camelCase boundaries (the same
+function handles both identifiers, which rely on the camelCase half, and paths, which rely on the
+separator half). Matching is a token-by-token, bidirectional PREFIX check
+(`token.startsWith(term) || term.startsWith(token)`) over a contiguous token subsequence, not
+exact token equality -- deliberately, to preserve a real case the old substring matcher supported
+by accident: term `"organization"` must still match the token `"organizations"` (plural). This is
+meaningfully narrower than the old whole-string substring search (a term can no longer match by
+spanning from the tail of one word into the head of the next), while still allowing short
+abbreviation terms (`"org"`) to match a longer identifier token. Verified directly, not just
+argued: `test/scan-scoring.test.mjs` asserts a constructed case the old matcher would have found
+(`"nman"` spanning "Organization"+"Management"'s boundary) no longer matches, and that
+`"organization"` still matches the token `"organizations"`.
+
+**Real bug found during implementation, not anticipated by the plan**: the first version collected
+EVERY raw match as evidence (uncapped), applying the cap only when summing for `score` afterward.
+A 600-endpoint synthetic fixture (already an existing regression test, `test/scan-cli.test.mjs`'s
+">64KB scan report" test) produced a 1.2MB report -- past Node's default 1MB `execFileSync`
+buffer, throwing `ENOBUFS`/`status:null` in the PARENT test process, surfacing as exit code 1 with
+no visible error text (confirmed directly: reproducing via `execFileSync` outside the test harness
+showed the exact `ENOBUFS` error the harness's own `err.status ?? 1` fallback was silently
+swallowing). Fixed by moving the cap to COLLECTION time (`EvidenceCollector.add()` stops
+appending once a signal type hits `CAP_PER_SIGNAL`, tracking only a per-module `capped_signals`
+list of which signal types were truncated) rather than collect-then-filter -- report size now
+stays bounded regardless of repo size, and (as a side effect) the `counted:boolean` field the
+original design planned per-entry became unnecessary: every entry that exists in `evidence` always
+counted toward `score`, verified in `test/scan-scoring.test.mjs`.
+
+**`CAP_PER_SIGNAL = 5`, empirically derived, not guessed** (CLAUDE.md's data-first-numerics
+principle): swept 3/5/8 against the real Team-IZ-Backend oracle (`--terms organization`) and
+compared to the pre-D3 baseline (`git stash`):
+
+| module | pre-D3 | CAP=3 | CAP=5 | CAP=8 |
+|---|---|---|---|---|
+| organization | 175 | 90 | 110 | 140 |
+| usagemetering | 49 | 44 | 49 | 49 |
+| member | 40 | 25 | 35 | 40 |
+| platformgovernance | 14 | 14 | 14 | 14 |
+| curriculum | 10 | 10 | 10 | 10 |
+| verdict | collision | collision | collision | collision |
+
+`curriculum`'s score sits exactly at `COLLISION_THRESHOLD` (10) and is IDENTICAL across every cap
+value tested -- it has no repeated-signal inflation to begin with, so it's unaffected regardless
+of cap, confirming this isn't a narrow, cap-value-dependent coincidence. Verdict is `collision`
+for every cap value. `organization`/`member` (the modules that DID have real endpoint-count
+inflation) drop meaningfully with a tighter cap while staying far above the threshold either way.
+Chose 5 as a middle value with no evidence any of 3/5/8 was meaningfully more "correct" -- the
+important empirical finding is that the choice doesn't change any verdict, not that 5 specifically
+is optimal.
+
+**`bskel scan explain <module>`**: reads the ALREADY-PERSISTED scan report
+(`loadScanReportOrExit`, the same S5-validated choke point every other scan-report reader uses) --
+evidence is computed once, at `bskel scan` time, and never recomputed. Human output
+(`scanners/render.mjs`'s `renderScanExplain`) groups by signal in a fixed order, one subtotal per
+group, so the printed weights visibly reconcile with the module's total score; `--json` returns
+the `related_modules` entry verbatim. `renderScanMarkdown`'s per-module heading now points at this
+command (`run \`bskel scan explain <module>\` for the evidence breakdown`) rather than duplicating
+evidence detail in the summary view.
+
+**Verification**: `npm test` 534/534 (1 unrelated-to-this-item nothing else failing). Direct
+end-to-end run against a real scratch java-spring fixture confirmed evidence sums to exactly the
+reported score (45 = 10+6+5+5+5+8+6 across all 7 signals that fired) with correct file/line for
+every entry. Real Team-IZ-Backend run confirmed via `git stash` before/after that every existing
+verdict (collision for `--terms organization`) survives unchanged.
+
+Cross-references: `D-generic-grep-reconnaissance` (G3, the prior art for the exact repeated-signal
+inflation class this item closes the rest of); `D-persistence-integrity` (S5, whose
+`loadScanReportOrExit` choke point and schema-validation wiring this item reuses directly, and
+whose own `formatSchemaErrors`/`validateAgainstSchema` pattern this item's schema addition follows
+without needing new plumbing); `D-process-exit-audit` (the original >64KB pipe-truncation
+regression test this item's own bug was found through, and fixed without weakening).
