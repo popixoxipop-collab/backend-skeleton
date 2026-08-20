@@ -1,18 +1,36 @@
 {
   "name": "backend-skeleton",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "description": "Spec-driven backend scaffolding: brownfield-scan gate, feature_id-keyed contracts, UUID bidirectional handles, stack-choice wiring.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/popixoxipop-collab/backend-skeleton.git"
+  },
+  "homepage": "https://github.com/popixoxipop-collab/backend-skeleton#readme",
+  "bugs": {
+    "url": "https://github.com/popixoxipop-collab/backend-skeleton/issues"
+  },
   "bin": {
     "bskel": "./bin/bskel.mjs"
   },
   "engines": {
     "node": ">=18"
   },
+  "files": [
+    "bin/",
+    "lib/",
+    "contracts/",
+    "scanners/",
+    "handles/",
+    "stack/",
+    "schemas/",
+    "scripts/preflight-base-ref.sh"
+  ],
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:pack": "node test/package-install.test.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",

@@ -5,8 +5,15 @@
 // contract emit` runs for THAT feature, so there is nothing to standalone-compile in advance.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+
+// P1 (D-npm-packaging): `import.meta.dirname` (Node >=20.11) was this codebase's only call site
+// requiring a Node floor above what package.json declares (>=18) -- every other file already
+// uses this portable pattern. Fixing the one outlier, not raising the floor, since nothing else
+// in the runtime code needs anything newer than plain ES2022/Node 18.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let _ajv = null;
 function ajv() {
@@ -23,7 +30,7 @@ function ajv() {
 }
 
 function loadEnvelopeSchema() {
-	const schemaPath = path.join(import.meta.dirname, '..', 'schemas', 'agent-envelope.schema.json');
+	const schemaPath = path.join(__dirname, '..', 'schemas', 'agent-envelope.schema.json');
 	return JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 }
 
