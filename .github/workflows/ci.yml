@@ -1,9 +1,21 @@
 name: CI
 
+# D-fixture-corpus (P3): `paths-ignore: **/*.md` -- found live, not anticipated: a docs-only
+# commit (DECISIONS.md) still triggered a full 4-job run on this repo's very first real CI usage.
+# WHY: doc-only changes touch nothing `npm test`/the java-compile fixture/the packaged tarball
+# could regress -- running the full matrix for them is pure cost with no verification value.
+# COST: a commit that mixes a .md change with real code still runs CI (paths-ignore only skips
+# when EVERY changed file matches), so this never hides a code change behind a docs commit.
+# EXIT: remove these two `paths-ignore` blocks if a doc file ever needs to be part of a
+# runtime-verified path (e.g. a lint step that checks README.md's own code samples).
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
   workflow_dispatch:
 
 concurrency:
