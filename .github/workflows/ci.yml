@@ -92,6 +92,28 @@ jobs:
       - run: npm ci
       - run: npm run test:java-compile
 
+  # P3b (D-python-import-check): the other half of P3's own "macOS runner + Python codegen
+  # import-check" deferral. Same shape as java-compile above (dedicated job for a heavier,
+  # network-touching check kept out of the fast `test` job's default `npm test` path) -- installs
+  # fastapi+sqlmodel into a throwaway venv and imports every file `bskel handles emit` generates
+  # for real, not just `ast.parse`s them. See scripts/python-import-smoke.mjs.
+  python-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # scripts/python-import-smoke.mjs runs a real `bskel scan`, same rg requirement as the other
+      # jobs above.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:python-import
+
   # D-macos-runner (P3b): P3's own comment on the `test` job above said a macOS job "would mostly
   # re-test the one platform already exercised daily" locally -- true, but automated + repeatable
   # beats "exercised daily by whoever happens to be at their Mac" all the same, and P3 deferred it

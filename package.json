@@ -31,7 +31,8 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:pack": "node test/package-install.test.mjs",
-    "test:java-compile": "node scripts/java-compile-smoke.mjs"
+    "test:java-compile": "node scripts/java-compile-smoke.mjs",
+    "test:python-import": "node scripts/python-import-smoke.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",

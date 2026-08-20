@@ -92,3 +92,23 @@ test('every job installs ripgrep or does not need it (this tool shells out to rg
 	const commands = allRunCommands(doc.jobs.test ? { jobs: { test: testJob } } : doc);
 	assert.ok(commands.some((c) => c.includes('ripgrep')), 'the "test" job runs the full suite, including scanner tests that shell out to rg -- expected an explicit ripgrep install step');
 });
+
+// P3b (D-python-import-check): the python-import job's script -- imports every generated Python
+// module for real (fastapi+sqlmodel installed into a throwaway venv), replacing the ast.parse-only
+// check that used to live in test/python-fastapi-handles.test.mjs's own default `npm test` path.
+test('scripts/python-import-smoke.mjs exists and is executable', () => {
+	const abs = path.join(REPO_ROOT, 'scripts/python-import-smoke.mjs');
+	assert.ok(fs.existsSync(abs), 'scripts/python-import-smoke.mjs does not exist');
+	const mode = fs.statSync(abs).mode;
+	assert.ok(mode & 0o111, `scripts/python-import-smoke.mjs is not executable (mode ${mode.toString(8)})`);
+});
+
+test('the python-import job installs both ripgrep and a Python toolchain', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	const job = doc.jobs['python-import'];
+	assert.ok(job, 'expected a "python-import" job');
+	const usesSetupPython = (job.steps ?? []).some((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/setup-python@'));
+	assert.ok(usesSetupPython, 'expected actions/setup-python in the python-import job -- scripts/python-import-smoke.mjs needs python3 with a working venv module');
+	const commands = allRunCommands({ jobs: { 'python-import': job } });
+	assert.ok(commands.some((c) => c.includes('ripgrep')), 'scripts/python-import-smoke.mjs runs a real `bskel scan`, which shells out to rg directly');
+});
