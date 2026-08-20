@@ -5,9 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { repoRoot, localDefaultBranch } from '../lib/repo.mjs';
-import { forceGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
+import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
-import { getGate, loadState } from '../lib/state.mjs';
+import { getGate, loadState, historyPath } from '../lib/state.mjs';
 import { writeFileAtomic, readJsonIfExists } from '../lib/fsutil.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 import { withLockSync } from '../lib/lock.mjs';
@@ -51,7 +51,9 @@ function usage() {
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
   bskel gate require <name> [--feature <id>]      (name: ${GATE_NAMES.join('|')})
-  bskel gate force <name> --reason "..." [--feature <id>]
+  bskel gate force <name> --reason "..." [--feature <id>] [--max-age-minutes N]
+  bskel gate revoke <name> --reason "..." [--feature <id>]
+  bskel gate history <name> [--feature <id>] [--json]
   bskel gate show [<name>] [--feature <id>]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
 `);
@@ -209,17 +211,105 @@ function cmdGateRequire(args) {
 	process.exit(result.code);
 }
 
+// S4 (D-gate-history): `--max-age-minutes`, unlike preflight's own same-named flag, has no
+// default -- opt-in only, so an un-timed force never silently starts expiring (see
+// checkFreshness()'s own comment in lib/gates.mjs for why a forced record never inherits the
+// underlying gate's TTL policy).
+function parseForceMaxAge(raw) {
+	if (raw == null) return null;
+	const n = Number(raw);
+	if (!Number.isFinite(n) || n < 0) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--max-age-minutes must be a non-negative number, got "${raw}"`);
+	}
+	return n;
+}
+
 function cmdGateForce(args) {
 	const flags = parseCommand('gate force', args);
 	if (flags.help) { console.log(renderCommandHelp('gate force')); process.exit(0); }
 	setContext('gate force', flags);
 	const root = requireRepoRoot();
 	const gateName = flags._[0];
-	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate force <name> --reason "..." [--feature <id>]');
-	const { scopeId } = resolveGateArg(gateName, flags.feature);
-	const state = forceGate(root, scopeId, gateName, flags.reason);
+	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate force <name> --reason "..." [--feature <id>] [--max-age-minutes N]');
+	resolveGateArg(gateName, flags.feature);
+	const maxAgeMinutes = parseForceMaxAge(flags['max-age-minutes']);
+	let state;
+	try {
+		state = forceNamedGate(root, gateName, flags.feature, flags.reason, { maxAgeMinutes });
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
 	console.log(JSON.stringify(state.gates[gateName]));
 	process.exit(EXIT.PASS);
+}
+
+// S4 (D-gate-history): un-passes a gate. Distinct from `force` (which asserts a pass a check
+// couldn't earn) -- revoke retracts one that's already there, e.g. a human decides a prior force
+// or a stale-but-still-token-matching pass shouldn't be trusted after all.
+function cmdGateRevoke(args) {
+	const flags = parseCommand('gate revoke', args);
+	if (flags.help) { console.log(renderCommandHelp('gate revoke')); process.exit(0); }
+	setContext('gate revoke', flags);
+	const root = requireRepoRoot();
+	const gateName = flags._[0];
+	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate revoke <name> --reason "..." [--feature <id>]');
+	resolveGateArg(gateName, flags.feature);
+	let state;
+	try {
+		state = revokeNamedGate(root, gateName, flags.feature, flags.reason);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	console.log(JSON.stringify(state.gates[gateName]));
+	process.exit(EXIT_CODES.NOT_PASSED);
+}
+
+// S4 (D-gate-history): reads the append-only .sbf/<feature>.history.jsonl -- a corrupt/invalid
+// line is skipped with a warning, not a hard failure, matching JSONL's own resilience rationale
+// (see lib/state.mjs's appendGateEvent).
+function readGateHistory(root, featureId, gateName) {
+	const file = historyPath(root, featureId);
+	if (!fs.existsSync(file)) return [];
+	const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+	const events = [];
+	for (const [i, line] of lines.entries()) {
+		let parsed;
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			console.error(`warning: ${file}:${i + 1}: not valid JSON, skipped`);
+			continue;
+		}
+		const { ok, errors } = validateAgainstSchema('gate-event.schema.json', parsed);
+		if (!ok) {
+			console.error(`warning: ${file}:${i + 1}: does not match schemas/gate-event.schema.json, skipped:\n${formatSchemaErrors(errors).join('\n')}`);
+			continue;
+		}
+		if (parsed.gate === gateName) events.push(parsed);
+	}
+	return events;
+}
+
+function cmdGateHistory(args) {
+	const flags = parseCommand('gate history', args);
+	if (flags.help) { console.log(renderCommandHelp('gate history')); process.exit(0); }
+	setContext('gate history', flags);
+	const root = requireRepoRoot();
+	const gateName = flags._[0];
+	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate history <name> [--feature <id>] [--json]');
+	resolveGateArg(gateName, flags.feature);
+	const events = readGateHistory(root, flags.feature, gateName);
+	if (flags.json) {
+		console.log(JSON.stringify(events, null, 2));
+	} else if (events.length === 0) {
+		console.log(`no history recorded for gate "${gateName}" (feature ${flags.feature})`);
+	} else {
+		for (const e of events) {
+			const detail = e.event === 'force' || e.event === 'revoke' ? ` -- ${e.reason}` : '';
+			console.log(`${e.at}  ${e.event.padEnd(20)} status=${e.status}${detail}`);
+		}
+	}
+	process.exit(0);
 }
 
 function cmdGateShow(args) {
@@ -1126,7 +1216,10 @@ function renderVerifyReport({ featureId, gates, artifacts, build }) {
 		const completenessNote = g.gate === 'contract' && evidence?.completeness
 			? ` (${evidence.completeness}${evidence.waived_count ? `: ${evidence.waived_count} waived` : ''})`
 			: '';
-		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}${describeStale(g)}`);
+		// S4 (D-gate-history): a revoked gate's reason is exactly the kind of "why is this
+		// blocking" detail describeStale() already surfaces for stale gates -- same treatment here.
+		const revokedNote = g.status === 'revoked' && g.record?.reason ? ` (revoked: ${g.record.reason})` : '';
+		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}${describeStale(g)}${revokedNote}`);
 	}
 	lines.push('', '## Artifacts');
 	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
@@ -1402,6 +1495,8 @@ function dispatchCommand(cmd, rest) {
 			const subArgs = rest.slice(1);
 			if (sub === 'require') return cmdGateRequire(subArgs);
 			if (sub === 'force') return cmdGateForce(subArgs);
+			if (sub === 'revoke') return cmdGateRevoke(subArgs);
+			if (sub === 'history') return cmdGateHistory(subArgs);
 			if (sub === 'show') return cmdGateShow(subArgs);
 			usage();
 			process.exit(14);

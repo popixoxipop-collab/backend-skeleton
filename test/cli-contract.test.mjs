@@ -113,7 +113,9 @@ test('--help short-circuits before required-field validation', () => {
 const EXPECTED_DEFAULTS = {
 	preflight: { _: [], 'max-behind': '0', offline: false, 'no-fetch': false, 'allow-dirty': false, 'max-age-minutes': '30', 'fetch-timeout-seconds': '60', json: false, quiet: false, help: false },
 	'gate require': { _: [], feature: '_repo', json: false, quiet: false, help: false },
-	'gate force': { _: [], feature: '_repo', reason: '', json: false, quiet: false, help: false },
+	'gate force': { _: [], feature: '_repo', reason: '', 'max-age-minutes': null, json: false, quiet: false, help: false },
+	'gate revoke': { _: [], feature: '_repo', reason: '', json: false, quiet: false, help: false },
+	'gate history': { _: [], feature: '_repo', json: false, quiet: false, help: false },
 	'gate show': { _: [], feature: '_repo', json: false, quiet: false, help: false },
 	scan: { _: [], feature: null, terms: '', db: false, json: false, 'accept-low-confidence': false, quiet: false, help: false },
 	'stack apply': { _: [], choice: null, apply: false, port: '8080', json: false, quiet: false, help: false },

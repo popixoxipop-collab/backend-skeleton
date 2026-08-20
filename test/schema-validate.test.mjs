@@ -84,6 +84,20 @@ test('stack-record.schema.json: an applied_files entry that is not a string is r
 	assert.equal(ok, false);
 });
 
+test('gate-event.schema.json: a minimal valid event passes', () => {
+	const { ok } = validateAgainstSchema('gate-event.schema.json', {
+		schema: 'sbf.gate-event/1', event: 'pass', gate: 'preflight', at: '2026-01-01T00:00:00.000Z',
+	});
+	assert.equal(ok, true);
+});
+
+test('gate-event.schema.json: an unrecognized event type is rejected', () => {
+	const { ok } = validateAgainstSchema('gate-event.schema.json', {
+		schema: 'sbf.gate-event/1', event: 'stale', gate: 'preflight', at: '2026-01-01T00:00:00.000Z',
+	});
+	assert.equal(ok, false);
+});
+
 test('formatSchemaErrors: renders ajv errors as "path message" strings, "(root)" when instancePath is empty', () => {
 	const { errors } = validateAgainstSchema('state.schema.json', { schema: 'sbf.state/1' });
 	const formatted = formatSchemaErrors(errors);
