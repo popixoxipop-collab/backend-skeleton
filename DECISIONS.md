@@ -2846,9 +2846,20 @@ this item's original version of the same file was discarded during the merge) an
 `scripts/pack-install-smoke.sh` was dropped in favor of P1's equivalent
 `test/package-install.test.mjs`, so the net-new count from this item alone, post-merge, is smaller
 than the 29 cited above -- see `D-npm-packaging` below for the merge-time resolution.
-[EXIT: fill in the actual `gh run` URL here once the first real GitHub Actions execution on this
-repo goes green, per this item's own verification discipline -- no claim of "CI works" stands
-without it.]
+**First real green run**: https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32324501590
+(all 4 jobs passing: `java-compile` 2m0s, `test (22.x)` 3m52s, `test (24.x)` 3m50s,
+`package-install` 29s). Took 3 iterations to get here, exactly the "2-3 red iterations" this item's
+own plan anticipated -- neither failure was reachable locally (this machine has no `gradle` on
+PATH, so the java-compile job's actual execution only ever happened in CI): (1) `package-install`
+and `java-compile` both failed with `bskel doctor`/`bskel scan` unable to find `rg` -- ripgrep was
+never installed in either job, only in `test`; fixed by adding the same `apt-get install -y
+ripgrep` step to both. (2) `java-compile` then failed at `bskel preflight` with `DIRTY` --
+`gradle wrapper --gradle-version 8.8` runs AFTER the scratch repo's initial commit and writes
+`gradlew`/`gradlew.bat`/`gradle/wrapper/*` into it, none of which were gitignored in the scratch
+repo's own `.gitignore` (only `.gradle/`/`build/` were); fixed by adding those three patterns.
+Both are exactly the class of bug this item's own verification section already warned "cannot be
+tested by `npm test` alone" -- real, unpredicted, only surfaced by an actual GitHub Actions
+execution.
 
 **COST**: ~1300 LOC of hand-written, synthetic Java now needs to be kept in sync with
 `scanners/adapters/java-spring.mjs`'s regex behavior by hand whenever that regex changes (the same
