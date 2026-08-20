@@ -72,5 +72,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      # D-fixture-corpus (P3): scripts/java-compile-smoke.mjs runs a real `bskel scan`, which
+      # shells out to `rg` directly (throws, not degrades, without it). Missing here on the first
+      # real CI run -- found live (`spawnSync rg ENOENT`).
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:java-compile
