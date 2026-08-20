@@ -2848,7 +2848,12 @@ this item's original version of the same file was discarded during the merge) an
 than the 29 cited above -- see `D-npm-packaging` below for the merge-time resolution.
 **First real green run**: https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32324501590
 (all 4 jobs passing: `java-compile` 2m0s, `test (22.x)` 3m52s, `test (24.x)` 3m50s,
-`package-install` 29s). Took 3 iterations to get here, exactly the "2-3 red iterations" this item's
+`package-install` 29s). Confirmed green again at
+https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32325034232 after adding
+`paths-ignore: **/*.md` (found live: a docs-only commit right after the first green run still
+triggered a full 4-job run -- pure wasted minutes, since nothing a doc-only change touches is
+verified by any job). Took 3 iterations to get to the first green run, exactly the "2-3 red
+iterations" this item's
 own plan anticipated -- neither failure was reachable locally (this machine has no `gradle` on
 PATH, so the java-compile job's actual execution only ever happened in CI): (1) `package-install`
 and `java-compile` both failed with `bskel doctor`/`bskel scan` unable to find `rg` -- ripgrep was
