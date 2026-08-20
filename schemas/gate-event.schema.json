@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gate-event:1",
+  "title": "backend-skeleton gate history event",
+  "description": "One line of a .sbf/<feature>.history.jsonl file, appended by lib/state.mjs's setGate() every time a gate's current-state snapshot changes. Deliberately does NOT include a 'stale' event -- staleness is derived at READ time (lib/gates.mjs's requireGate()), never written to disk, so there is nothing to log an event for; only the 4 real write-time transitions (pass/awaiting_disposition/force/revoke) appear here. See D-gate-history (S4) in DECISIONS.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event", "gate", "at"],
+  "properties": {
+    "schema": { "const": "sbf.gate-event/1" },
+    "event": { "enum": ["pass", "awaiting_disposition", "force", "revoke"] },
+    "gate": { "type": "string" },
+    "at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string" },
+    "token": { "type": ["string", "null"] },
+    "forced": { "type": "boolean" },
+    "reason": { "type": ["string", "null"] }
+  }
+}

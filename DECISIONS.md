@@ -3392,3 +3392,89 @@ inflation class this item closes the rest of); `D-persistence-integrity` (S5, wh
 whose own `formatSchemaErrors`/`validateAgainstSchema` pattern this item's schema addition follows
 without needing new plumbing); `D-process-exit-audit` (the original >64KB pipe-truncation
 regression test this item's own bug was found through, and fixed without weakening).
+
+## D-gate-history (S4): append-only gate history and bounded overrides
+
+**WHY:** `setGate()` always overwrote the previous record, so there was no history of what
+happened to a gate over time. Worse, `requireGate()` treated ANY forced gate as permanently PASS
+-- `lib/gates.mjs`'s own pre-existing comment already flagged this as this item's own future fix
+("a forced pass's own expiry is S4's... territory, not this one"). A forced gate that unblocked a
+human for one specific reason kept silently covering every future state of the repo forever,
+including states the human never looked at.
+
+**Scope, user-approved in full** (the catalog's two halves -- (1) the force-expiry bug, a small
+fix reusing existing mechanisms, and (2) a genuinely new JSONL audit log + `bskel gate revoke` --
+were flagged as separable before starting; the user chose both).
+
+**Grounding found "expiry by commit" is mostly already implied by "expiry by next input change",
+not a third mechanism:** `preflight`/`scan`/`contract`/`handles` all include `head_sha` in their
+own `recompute()` (confirmed directly in `lib/gate-definitions.mjs`) -- binding a force's token to
+the gate's REAL current inputs makes a later commit move the token automatically, no separate
+commit-tracking needed. `stack` is the one exception, and deliberately so
+(`D-gate-precision`: repo-scoped gates other than `stack`'s own enumerable file set don't get a
+commit proxy) -- not a gap this item needed to fill. This left exactly two real axes to implement:
+token-binding (input change) and TTL (time).
+
+**Part 1 -- force expiry, unifies forced records with normal passes instead of special-casing
+them:** `forceGate()`'s signature changed from `(repoRoot, featureId, gateName, reason)` to
+`(repoRoot, featureId, gateName, reason, currentInputs, {maxAgeMinutes})` -- `token`/`inputs` are
+now the gate's REAL current inputs (the same shape `passGate()` binds to), not a synthetic
+`{forced,reason}` placeholder. `requireGate()`'s `if (record.forced) return early` special case
+was DELETED entirely -- forced records now flow through the exact same token-comparison +
+`checkFreshness()` pipeline a real pass does, with only the final status label
+(`'pass (forced)'` vs `'pass'`) staying different. This is simpler code, not just a bug fix --
+removing the special case was a net reduction, not an addition. `checkFreshness()` gained one
+new rule: a forced record NEVER inherits the underlying gate's own `def.freshness` policy (e.g.
+preflight's 30-minute default) -- that policy judges naturally-earned evidence, not an explicit
+human override. A forced record only gets a TTL when `bskel gate force <name>
+--max-age-minutes N` explicitly asks for one (new CLI flag, no default, opt-in only -- same
+"explicit, auditable" philosophy as `--max-age-minutes 0` disabling preflight's own TTL).
+`forceNamedGate()` added alongside `passNamedGate`/`awaitNamedGateDisposition`/`requireNamedGate`
+(S1's existing named-layer pattern) so `bin/bskel.mjs`'s `cmdGateForce` doesn't have to hand-roll
+`gateScopeId`/`gateInputs` itself.
+
+**Part 2 -- append-only history + revoke:** `.sbf/<featureId>.history.jsonl`, sibling to the
+existing `.sbf/<featureId>.json` snapshot (same naming convention, suffix swapped). New
+`schemas/gate-event.schema.json` (`{schema, event, gate, at, status, token, forced, reason}`),
+validated the same way every other persistence boundary is (S5's `lib/schema-validate.mjs`)
+before each line is appended. `setGate()` now appends inside its own existing `withLockSync`
+block (S5) right after the snapshot write -- both artifacts stay consistent for free, no new
+concurrency design needed. **Deliberately excludes "stale" as a loggable event, diverging from
+the catalog's literal wording**: `state.schema.json`'s own pre-S4 comment already established
+that staleness is derived at READ time, never written to disk -- logging it would mean appending
+on every `bskel gate require`/`verify` call (a read operation, called constantly), turning the
+log into read-path noise instead of a history of actual state CHANGES. Only the 4 real
+write-time transitions (`pass`/`awaiting_disposition`/`force`/`revoke`) are logged.
+
+New `revokeGate()`/`revokeNamedGate()` -- un-passes a gate with `status: 'revoked'` (a THIRD
+status now written to disk; `state.schema.json`'s enum and its own "the only two statuses" comment
+both updated) and a required `reason` (same auditability contract as force). `requireGate()`
+needed NO new branch for this -- its existing generic `if (record.status !== 'pass') return
+{code: NOT_PASSED, status: record.status, record}` fallback already reports `'revoked'` correctly
+by construction; a planned explicit branch turned out to be dead code once actually written, and
+was dropped. New `bskel gate history <name> [--feature <id>] [--json]` reads the log back --
+a corrupt or schema-invalid LINE is skipped with a stderr warning, not a hard failure (matching
+JSONL's own resilience rationale: one bad line shouldn't take down the rest of the log).
+`renderVerifyReport()` also gained a small addition beyond the original plan: a revoked gate's
+`reason` is now surfaced in `bskel verify`'s human report the same way a stale gate's
+`changed_inputs` already was (found while checking rendering did not silently omit useful
+context for the new status).
+
+**Verification, direct execution, not just tests:** reproduced the pre-fix bug shape and its fix
+live -- forced `preflight`, confirmed `pass (forced)`, landed a REAL new commit
+(`git commit --allow-empty`), confirmed `bskel gate require preflight` now reports
+`stale`/`inputs_changed`/`changed_inputs:["head_sha"]` (exit 4) instead of staying `pass (forced)`
+forever, the exact bug this item exists to close. Separately confirmed a forced record with no
+`--max-age-minutes` still survives with the same inputs even after 24 simulated hours (no
+regression -- forces still don't expire on time unless asked to), and one WITH
+`--max-age-minutes 10` does expire after a simulated hour even with matching inputs (the TTL axis
+working independently of the token-binding axis). Confirmed `bskel gate history` renders a real
+pass -> revoke -> force sequence in order, and that history is scoped correctly per gate name
+(forcing `stack` does not appear in `preflight`'s history).
+
+Cross-references: `D-preflight-freshness` (S3, whose `checkFreshness()`/TTL machinery this item
+reuses rather than reimplementing, and whose "explicit, auditable `--max-age-minutes`" philosophy
+this item's own opt-in force TTL follows); `D-gate-precision` (S2, whose `head_sha`-inclusion
+decisions across gate definitions are exactly what made "expiry by commit" already-covered rather
+than a separate mechanism to build); `D-persistence-integrity` (S5, whose lock/schema-validation
+infrastructure this item's history log is built directly on top of).

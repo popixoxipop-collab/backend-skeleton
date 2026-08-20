@@ -46,19 +46,38 @@ test('an awaiting_disposition gate is reported as such, not silently passed', ()
 	assert.equal(result.code, EXIT.AWAITING_DISPOSITION);
 });
 
-test('force records forced:true and an auditable reason, and always passes require regardless of inputs', () => {
+test('force records forced:true and an auditable reason, binds its token to the real current inputs', () => {
 	const root = tmpRepoRoot();
-	assert.throws(() => forceGate(root, '_repo', 'scan', ''), /reason/);
+	assert.throws(() => forceGate(root, '_repo', 'scan', '', { anything: 'goes' }), /reason/);
 
-	forceGate(root, '_repo', 'scan', 'testing the escape hatch');
+	const boundInputs = { head_sha: 'abc123', scan_report_hash: 'x', spec_hash: null };
+	forceGate(root, '_repo', 'scan', 'testing the escape hatch', boundInputs);
 	const record = getGate(root, '_repo', 'scan');
 	assert.equal(record.forced, true);
 	assert.equal(record.reason, 'testing the escape hatch');
+	assert.deepEqual(record.inputs, boundInputs);
 
-	// A forced gate stays passed even against wildly different "current" inputs -- it was an
-	// explicit human override of the check entirely, not a claim that specific inputs matched.
-	const result = requireGate(root, '_repo', 'scan', { anything: 'goes' });
-	assert.equal(result.code, EXIT.PASS);
+	// S4: a forced gate still requires the SAME inputs it was bound to at force time -- this is
+	// the whole point of this item (a forced gate used to pass forever regardless of changed
+	// inputs; that is now a real regression to guard, not the intended behavior).
+	assert.equal(requireGate(root, '_repo', 'scan', boundInputs).code, EXIT.PASS);
+});
+
+// S4 (D-gate-history): the actual bug this item exists to fix -- confirmed to REGRESS if
+// forceGate() ever goes back to a synthetic {forced,reason}-only token.
+test('a forced gate goes STALE once the real inputs it was bound to change, closing the "forced gate passes forever" bug', () => {
+	const root = tmpRepoRoot();
+	forceGate(root, '_repo', 'scan', 'unblocking local work', { head_sha: 'abc123', scan_report_hash: 'x', spec_hash: null });
+
+	const stillMatching = requireGate(root, '_repo', 'scan', { head_sha: 'abc123', scan_report_hash: 'x', spec_hash: null });
+	assert.equal(stillMatching.code, EXIT.PASS);
+	assert.equal(stillMatching.status, 'pass (forced)');
+
+	// A real commit landed (head_sha moved) since the force -- must go stale, not stay forced
+	// forever.
+	const afterCommit = requireGate(root, '_repo', 'scan', { head_sha: 'def456', scan_report_hash: 'x', spec_hash: null });
+	assert.equal(afterCommit.code, EXIT.STALE);
+	assert.deepEqual(afterCommit.changed_inputs, ['head_sha']);
 });
 
 test('saveState is atomic: a concurrent reader never observes a half-written file', () => {
@@ -81,7 +100,7 @@ test('a passed, awaiting-disposition, or forced gate always stores inputs that r
 	const awaitRecord = awaitDispositionGate(root, '001-x', 'scan', { spec_hash: 'x' }, {}).gates.scan;
 	assert.equal(computeToken(awaitRecord.inputs), awaitRecord.token);
 
-	const forceRecord = forceGate(root, '_repo', 'stack', 'testing').gates.stack;
+	const forceRecord = forceGate(root, '_repo', 'stack', 'testing', { stack_record_hash: 'x' }).gates.stack;
 	assert.equal(computeToken(forceRecord.inputs), forceRecord.token);
 });
 
@@ -226,14 +245,31 @@ test('a gate with no freshness declaration in its definition skips TTL entirely,
 	assert.equal(result.code, EXIT.PASS);
 });
 
-test('a forced gate is exempt from TTL, however old the force is', () => {
+// S4: a forced gate does NOT inherit the underlying gate's own freshness policy (preflight's own
+// 30-minute default here) -- that policy judges naturally-earned evidence, not an explicit human
+// override. Inputs must still match (this is not "exempt from staleness entirely" -- see the
+// force-inputs-change test above), but with no --max-age-minutes given, there is no time-based
+// expiry at all, however old the force is.
+test('a forced gate is exempt from the underlying gate\'s own TTL policy when no --max-age-minutes was given, however old the force is', () => {
 	const root = tmpRepoRoot();
-	forceGate(root, '_repo', 'preflight', 'testing TTL exemption');
+	const inputs = { head_sha: 'abc', default_branch: 'develop', origin_tip_sha: 'x' };
+	forceGate(root, '_repo', 'preflight', 'testing TTL exemption', inputs);
 	backdateGateAt(root, '_repo', 'preflight', minutesAgo(24 * 60));
 
-	const result = requireGate(root, '_repo', 'preflight', { anything: 'goes' });
+	const result = requireGate(root, '_repo', 'preflight', inputs);
 	assert.equal(result.code, EXIT.PASS);
 	assert.equal(result.status, 'pass (forced)');
+});
+
+test('a forced gate WITH an explicit --max-age-minutes does expire on time, even though inputs still match', () => {
+	const root = tmpRepoRoot();
+	const inputs = { head_sha: 'abc', default_branch: 'develop', origin_tip_sha: 'x' };
+	forceGate(root, '_repo', 'preflight', 'temporary unblock', inputs, { maxAgeMinutes: 10 });
+	backdateGateAt(root, '_repo', 'preflight', minutesAgo(60));
+
+	const result = requireGate(root, '_repo', 'preflight', inputs);
+	assert.equal(result.code, EXIT.STALE);
+	assert.equal(result.stale_reason, STALE_REASON.TTL_EXPIRED);
 });
 
 test('a missing or unparseable `at` timestamp fails closed as invalid_timestamp, not a silent pass', () => {
