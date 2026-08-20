@@ -41,7 +41,13 @@ function fail(message) {
 console.log('java-compile-smoke: copying fixture to a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-compile-smoke-'));
 fs.cpSync(FIXTURE, scratch, { recursive: true });
-fs.writeFileSync(path.join(scratch, '.gitignore'), 'specs/\n.sbf/\n.gradle/\nbuild/\n');
+// D-fixture-corpus (P3): `gradle wrapper` (below) runs AFTER this commit and writes gradlew/
+// gradlew.bat/gradle/wrapper/* into the scratch repo -- all of that must be gitignored here too
+// (matching this skill's own root .gitignore for test/fixtures/java-compile/), or `bskel
+// preflight`'s DIRTY check correctly (and unhelpfully, for this throwaway repo) fails on files
+// that were never meant to be tracked. Found by direct execution against a real GitHub Actions
+// run, not assumed -- confirmed live.
+fs.writeFileSync(path.join(scratch, '.gitignore'), 'specs/\n.sbf/\n.gradle/\nbuild/\ngradlew\ngradlew.bat\ngradle/wrapper/\n');
 
 sh('git', ['init', '--quiet', '--initial-branch=develop'], scratch, { quiet: true });
 sh('git', ['config', 'user.email', 'test@example.com'], scratch, { quiet: true });

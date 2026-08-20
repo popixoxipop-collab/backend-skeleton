@@ -48,6 +48,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # D-fixture-corpus (P3): test/package-install.test.mjs runs `bskel doctor --json` inside a
+      # real git repo -- `rg` is a required check there (unscoped doctor, same as scan/handles),
+      # so this job needs it even though it never runs `bskel scan`/`bskel handles` itself. Found
+      # live: this step was missing on the first real CI run, and the job failed exactly here.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:pack
 
