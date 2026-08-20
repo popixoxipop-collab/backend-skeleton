@@ -25,7 +25,10 @@
             "enum": ["pass", "awaiting_disposition"]
           },
           "token": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-          "at": { "type": "string", "format": "date-time" },
+          "at": {
+            "type": "string",
+            "description": "S5: deliberately NOT format:date-time. lib/gates.mjs's checkFreshness() already has its own dedicated, more lenient handling for an unparseable `at` (Date.parse + Number.isFinite -> STALE_REASON.INVALID_TIMESTAMP, a graceful fail-closed result, not a crash) -- see D-preflight-freshness (S3) and test/gates.test.mjs's \"missing or unparseable at timestamp\" test, which deliberately writes a non-ISO string to simulate hand-edited/corrupted state. Enforcing format:date-time here would turn that already-shipped, tested, deliberate behavior into a hard read-time crash instead."
+          },
           "forced": { "type": "boolean", "description": "a forced gate is always stored as status:\"pass\" with this set true -- there is no separate \"pass (forced)\" value on disk; requireGate() only reports that string back at read time." },
           "reason": { "type": "string", "description": "required when forced is true -- see lib/gates.mjs's forceGate (\"every bypass must be auditable\")." },
           "evidence": { "type": "object" },

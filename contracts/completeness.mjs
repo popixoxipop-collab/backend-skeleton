@@ -7,8 +7,9 @@
 // completeness verdict and evaluates that verdict against recorded waivers -- contracts/emit.mjs
 // stays a pure "what did the scan find" function and never looks at waivers itself, and
 // bin/bskel.mjs never re-derives severity/blocking logic inline.
-import { readJsonIfExists } from '../lib/fsutil.mjs';
+import { readJsonIfExists, writeFileAtomic } from '../lib/fsutil.mjs';
 import { specPath } from '../lib/paths.mjs';
+import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 
 export const SEVERITY = Object.freeze({ ERROR: 'error', WARN: 'warn' });
 export const COMPLETENESS = Object.freeze({ COMPLETE: 'complete', PARTIAL: 'partial', BLOCKED: 'blocked' });
@@ -119,8 +120,36 @@ export function resolutionPath(root, featureId) {
 }
 
 export function loadResolution(root, featureId) {
-	const parsed = readJsonIfExists(resolutionPath(root, featureId));
-	return parsed ?? { schema: RESOLUTION_SCHEMA, feature_id: featureId, waivers: [] };
+	const path = resolutionPath(root, featureId);
+	const parsed = readJsonIfExists(path);
+	if (parsed === null) {
+		return { schema: RESOLUTION_SCHEMA, feature_id: featureId, waivers: [] };
+	}
+	// S5 (D-persistence-integrity): lib-style read function -- throws a plain Error (same
+	// convention as lib/state.mjs's loadState), which bin/bskel.mjs's main() catch-all already
+	// treats as a documented case ("a malformed-state read", exit 14/BAD_ARGS).
+	const { ok, errors } = validateAgainstSchema('contract-resolution.schema.json', parsed);
+	if (!ok) {
+		throw new Error(`${path}: does not match schemas/contract-resolution.schema.json:\n${formatSchemaErrors(errors).join('\n')}`);
+	}
+	return parsed;
+}
+
+// S5 (D-persistence-integrity): the write-side sibling of loadResolution() above -- validated
+// before it touches disk, same "fail loud here, not later" reasoning as every other write site
+// this item touched. Deliberately does NOT lock by itself: the load-modify-save race this file
+// has (`bskel contract waive` reads the current resolution, appends new waiver entries, then
+// writes -- no synchronization) can only be closed by locking the WHOLE cycle, not just the final
+// write -- see bin/bskel.mjs's cmdContractWaive, which wraps loadResolution()...saveResolution()
+// in withLockSync(), the same shape lib/state.mjs's setGate() already uses for its own
+// load-modify-save.
+export function saveResolution(root, featureId, resolution) {
+	const { ok, errors } = validateAgainstSchema('contract-resolution.schema.json', resolution);
+	if (!ok) {
+		throw new Error(`refusing to write an invalid contract resolution for "${featureId}":\n${formatSchemaErrors(errors).join('\n')}`);
+	}
+	writeFileAtomic(resolutionPath(root, featureId), `${JSON.stringify(resolution, null, 2)}\n`);
+	return resolution;
 }
 
 // The waiver-aware verdict `bskel contract emit`/`bskel contract waive` act on. `blocked` is

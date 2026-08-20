@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:stack-record:1",
+  "title": "backend-skeleton applied-stack runtime record",
+  "description": "Validates .sbf/stack.json, written by `bskel stack apply --apply` (bin/bskel.mjs's cmdStackApply). NOT the same schema as stack-choice.schema.json, which validates a stack/catalog/<id>.yml CATALOG ENTRY (an extension author's config) -- this validates the RUNTIME RECORD of which choice was applied and what it wrote, a distinct persistence boundary. See D-persistence-integrity (S5) in DECISIONS.md for why this schema didn't exist before.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "choice", "applied_files", "env_example_keys", "at"],
+  "properties": {
+    "schema": { "const": "sbf.stack/1" },
+    "choice": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "applied_files": {
+      "description": "S2: this choice's FULL file set in this repo (its desired state), not just what the most recent --apply happened to write -- see the S2 comment at this record's write site in bin/bskel.mjs.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "env_example_keys": { "type": "array", "items": { "type": "string" } },
+    "at": { "type": "string", "format": "date-time" }
+  }
+}
