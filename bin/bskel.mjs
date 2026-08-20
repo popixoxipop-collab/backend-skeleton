@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import { repoRoot, localDefaultBranch } from '../lib/repo.mjs';
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
@@ -45,6 +46,7 @@ function usage() {
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
+  bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."]
   bskel verify --feature <id> [--build] [--json]
@@ -1001,6 +1003,75 @@ function cmdStackApply(args) {
 	process.exit(0);
 }
 
+// P4 (D-extension-conformance): a {{VAR}}-shaped token that survives a real render -- renderTemplate()
+// (stack/apply.mjs) only ever substitutes {PORT}, so anything else left in rendered output is a
+// variable no catalog author declared and nothing will ever fill in at apply time. Scanning the
+// RENDERED output (not the raw template source) catches this the same way a real `stack apply`
+// would produce it, without needing a separate variable-declaration+injection system for a single
+// current consumer (see D-extension-conformance in DECISIONS.md for why that was rejected).
+const RESIDUAL_TEMPLATE_VAR_RE = /\{\{[A-Z_][A-Z0-9_]*\}\}/g;
+
+// P4: reuses loadCatalogEntry()'s existing schema validation and planApply()'s existing
+// assertContained() path-containment checks (template path, target path, config_check target
+// path -- all three) unchanged -- lint is just "run planApply() against a throwaway directory
+// nothing ever gets written to" rather than a second, parallel validation implementation.
+function lintCatalogEntry(choiceId) {
+	let entry;
+	try {
+		entry = loadCatalogEntry(choiceId);
+	} catch (err) {
+		return { choice: choiceId, ok: false, errors: [err.message] };
+	}
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-catalog-lint-'));
+	const errors = [];
+	try {
+		let plan;
+		try {
+			plan = planApply(scratch, entry, { port: 8080 });
+		} catch (err) {
+			errors.push(err.message);
+			return { choice: choiceId, ok: false, errors };
+		}
+		for (const f of plan.files) {
+			const residual = [...new Set(f.content.match(RESIDUAL_TEMPLATE_VAR_RE) ?? [])];
+			for (const token of residual) {
+				errors.push(`template for ${f.path} references undeclared variable ${token} -- this will never be substituted`);
+			}
+		}
+	} finally {
+		fs.rmSync(scratch, { recursive: true, force: true });
+	}
+	return { choice: choiceId, ok: errors.length === 0, errors };
+}
+
+// P4: deliberately does NOT call requireRepoRoot() -- lint only ever touches this skill's own
+// stack/catalog/ (via listCatalogChoices/loadCatalogEntry) and a throwaway scratch directory, so
+// an extension author can lint a new catalog entry without even being inside a target repo.
+function cmdCatalogLint(args) {
+	const flags = parseCommand('catalog lint', args);
+	if (flags.help) { console.log(renderCommandHelp('catalog lint')); process.exit(0); }
+	setContext('catalog lint', flags);
+	const known = listCatalogChoices();
+	if (flags._[0] && !known.includes(flags._[0])) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `unknown stack choice "${flags._[0]}" -- known choices: ${known.join(', ') || '(none)'}`);
+	}
+	const choices = flags._[0] ? [flags._[0]] : known;
+	const results = choices.map(lintCatalogEntry);
+	const allOk = results.every((r) => r.ok);
+	if (flags.json) {
+		console.log(JSON.stringify(results, null, 2));
+	} else {
+		for (const r of results) {
+			console.log(`${r.ok ? '✔' : '✖'} ${r.choice}`);
+			for (const e of r.errors) console.log(`  - ${e}`);
+		}
+	}
+	// P4: CHECK_FAILED (not BAD_ARGS) -- this run itself was valid (a real command with valid
+	// flags), the LINTED CONTENT is what's wrong, same distinction bskel already draws elsewhere
+	// (e.g. contract emit's completeness verdict vs. a malformed CLI invocation).
+	process.exit(allOk ? EXIT_CODES.OK : EXIT_CODES.CHECK_FAILED);
+}
+
 // S5 (D-persistence-integrity): the ONE choke point for reading brownfield-scan.json --
 // cmdScanDisposition() and cmdContractEmit() used to each duplicate this exact "exists? parse it"
 // logic inline; consolidated here so schema validation has a single place to live instead of
@@ -1470,6 +1541,12 @@ function dispatchCommand(cmd, rest) {
 		}
 		case 'stack': {
 			if (rest[0] === 'apply') return cmdStackApply(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'catalog': {
+			if (rest[0] === 'lint') return cmdCatalogLint(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

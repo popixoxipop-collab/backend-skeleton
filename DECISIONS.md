@@ -3478,3 +3478,101 @@ this item's own opt-in force TTL follows); `D-gate-precision` (S2, whose `head_s
 decisions across gate definitions are exactly what made "expiry by commit" already-covered rather
 than a separate mechanism to build); `D-persistence-integrity` (S5, whose lock/schema-validation
 infrastructure this item's history log is built directly on top of).
+
+## D-extension-conformance (P4): catalog lint CLI, template-variable check, generalized
+idempotence coverage, adapter/provider conformance harness
+
+**WHY, and why the catalog's stated WHY was stale:** the catalog justified this item with
+"entries are not schema-validated and templates can currently name unchecked relative paths."
+Grounding (reading `stack/apply.mjs` directly before designing anything) found both already
+shipped: `loadCatalogEntry()` already validates every catalog YAML against
+`schemas/stack-choice.schema.json` on every load, and `assertContained()` (`D-security-4`) is
+already called from `planApply()` at all three path sites (template path, target path,
+`config_check` target path). The real remaining gaps were narrower: (A) neither check is
+independently invocable outside the side effect of a real `stack apply`; (B) a template
+`{{VAR}}` token that will never be substituted goes undetected; (C) the version/compatibility
+schema field the catalog also asked for -- excluded from this item's scope, user-approved, since
+no current catalog entry needs one and there is no real compatibility-break case to size it
+against; (D) the one idempotence regression test is hardcoded to `--choice ngrok`, so a future
+catalog entry gets no coverage for free; (E) there is no reusable conformance harness for
+third-party scanner adapters or handles-codegen providers, only ad-hoc fixture tests. User
+approved A+B+D+E, excluding C.
+
+**Part A -- `bskel catalog lint [<choice>] [--json]`:** no new validation logic. Reuses
+`loadCatalogEntry()`'s existing schema check, then calls `planApply()` against a throwaway
+`fs.mkdtempSync(os.tmpdir())` directory as `repoRoot` -- `planApply()` never writes files (only
+`applyPlan()` does), so this is a safe dry lint that, for free, re-exercises all three existing
+`assertContained()` call sites and proves every template file exists and renders without
+throwing. With no positional argument, lints every `listCatalogChoices()` entry. Exit code is
+`EXIT_CODES.CHECK_FAILED`, not `BAD_ARGS` -- a lint failure means the linted catalog entry has a
+problem, not that this CLI invocation itself was malformed (same distinction the project already
+draws elsewhere, e.g. `contract emit`'s completeness verdict vs. a bad flag).
+
+**Part B -- residual template-variable detection, no new declaration system:**
+`renderTemplate()` (`stack/apply.mjs`) only ever substitutes `{PORT: port}`. Rather than building
+a variable-declaration-and-injection system for a single real consumer (`ngrok.yml`'s one
+`{{PORT}}` token), `catalog lint` scans each rendered `plan.files[].content` for
+`/\{\{[A-Z_][A-Z0-9_]*\}\}/g`. Because `renderTemplate()` never substitutes anything else, any
+surviving match is provably a variable no catalog author declared and nothing will ever fill in.
+Confirmed directly (reading `stack/bootstrap/ngrok.sh`) that `{{PORT}}` is the only `{{VAR}}`
+token in any shipped template, so this produces zero false positives against the real catalog.
+
+**Verification, direct execution before locking in tests:** ran `bskel catalog lint` against the
+real `ngrok.yml` (passes, zero errors). Built three throwaway fixtures directly under
+`stack/catalog/`/`stack/bootstrap/` (a schema violation missing `runtime`, a template path
+pointing at a nonexistent file, and a template with a residual `{{FOO}}` token) and confirmed
+each is caught with a distinct, correct-looking message and `EXIT_CODES.CHECK_FAILED`, while the
+real `ngrok` entry kept passing in the same run -- then deleted all three fixtures before writing
+any permanent test, per this project's "observe the real behavior before writing the assertion"
+discipline.
+
+**Part D -- generalized idempotence coverage:** `test/stack-cli.test.mjs`'s `'a second,
+idempotent stack apply --apply still records the full applied file set'` test now loops
+`for (const choice of listCatalogChoices())` instead of hardcoding `--choice ngrok`, and asserts
+self-consistency (first apply's `applied_files` deep-equals the second, idempotent apply's)
+instead of a hardcoded literal file list -- the invariant this test protects holds for any
+catalog entry, so a future catalog addition is covered with no new test code, matching P3's
+"invariant over exact hardcoded value" convention. The other, more detailed ngrok-specific smoke
+test (mode `0o755`, `NGROK_AUTHTOKEN` content, etc.) is left untouched as a legitimate individual
+test.
+
+**Part E -- scanner adapter / handles provider conformance harness:** new
+`scanners/conformance.mjs::checkAdapterConformance(adapter, repoRoot)` -- `detect()` must not
+throw; a truthy `detect()` result must be followed by a `scan()` returning `{ modules: Array }`
+with every module carrying `module`/`controllers`/`entities`/`enums` (the exact shape
+`scanners/index.mjs::runScan()` reads); and `scan()` is called twice back-to-back and
+deep-compared (`node:assert/strict`'s `deepStrictEqual`) -- the first time this codebase has
+machine-verified the determinism every adapter's own `.sort()` calls (O6) exist to guarantee,
+previously only a code-review-level belief. New `handles/conformance.mjs::
+checkProviderConformance(provider, {repoRoot, scanReport, module, resourceFilter, featureId})` --
+`plan()`'s return is validated against `schemas/handles-plan.schema.json` (this schema's first
+real consumer anywhere in the codebase; it existed since G4 but `bin/bskel.mjs` has only ever
+rendered a provider's plan output directly, never validated it), and `emit()` is called twice to
+confirm idempotence, mirroring `stack/apply.mjs::applyPlan()`'s own re-apply guarantee.
+
+**Found live while grounding Part E, not assumed in advance:** running the harness against the
+real java-spring provider for the first time surfaced that its `emit()` is not fully idempotent
+by a naive "second call writes nothing" bar -- `handles/providers/java-spring/emit.mjs`'s own
+pre-existing comment documents `specs/<featureId>/handles/migration.sql` as deliberately
+regenerated on every call, un-tracked by the manifest, "matching the pre-G4 behavior exactly."
+This is not a bug; the harness's own bar was too strict. Fixed by excluding paths the provider
+itself declares via `provider.outputs.spec` (a required field of `schemas/handles-provider.
+schema.json`, already used to distinguish "spec-owned, always-regenerated" output from
+manifest-tracked generated code) from the idempotence check, rather than hardcoding
+java-spring-specific knowledge into a harness meant to work for a provider this project has never
+seen -- consistent with this project's standing preference for a schema field over a hardcoded
+special case.
+
+**Dog-fooding verification (`test/conformance-harness.test.mjs`):** ran both harness functions
+against all 3 real adapters (java-spring, python-fastapi, generic-grep -- against the
+java-spring and python-fastapi fixtures respectively; generic-grep, a framework-agnostic
+fallback, against the java-spring fixture) and both real providers (java-spring, python-fastapi),
+all passing after the `outputs.spec` fix above. A dedicated test also proves the harness actually
+discriminates -- a hand-built flaky adapter (non-deterministic `scan()`) and a hand-built
+non-idempotent provider are both caught -- since 5 green real results alone would be equally
+consistent with a harness that always returns `ok: true`.
+
+Cross-reference (this item only): `D-adapter-registry`/`D-handles-providers` (G1/G4, whose
+`sbf.adapter/1`/`sbf.handles-provider/1` schema-shaped fields this harness's JSON-Schema checks
+build directly on top of, checking exactly the two behavioral properties -- determinism,
+idempotence -- those schemas structurally cannot express).
