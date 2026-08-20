@@ -3089,4 +3089,8 @@ re-ran PR #2 -- `macos` correctly shows `skipping` on `pull_request`, all 4 othe
 (https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331105711). (3) triggered
 via `gh workflow run ci.yml --ref p3b-macos-runner` (workflow_dispatch) to prove the restricted
 path still works before merging -- all 5 jobs, including `macos` on `bob-macmini`, completed green
-(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331373012).
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331373012). (4) squash-merged
+as `fe15df1`; the resulting real `push`-to-`main` run (the actual trigger this job now depends on
+day-to-day, not workflow_dispatch) also completed all 5 jobs green
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331926485) -- the first
+genuine, unprompted proof this job works the way it will actually be used going forward.
