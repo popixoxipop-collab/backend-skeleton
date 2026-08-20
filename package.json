@@ -12,7 +12,9 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:pack": "bash scripts/pack-install-smoke.sh",
+    "test:java-compile": "node scripts/java-compile-smoke.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",

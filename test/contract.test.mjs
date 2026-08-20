@@ -1,7 +1,12 @@
-// Oracle for gap #2 from the trial report (feature_id-keyed machine-readable contract): a
-// payload can be provably right or wrong for a specific feature+operation, not just "valid
-// JSON". Verified two ways: (1) unit-level against the real Team-IZ-Backend scan data (skipped
-// if that repo isn't present), (2) full CLI flow against a synthetic fixture in contract-cli.test.mjs.
+// P3 (D-fixture-corpus): the exact-count/exact-shape oracles this file used to assert against
+// the real Team-IZ-Backend now live in test/contract-fixture.test.mjs (a frozen, committed
+// fixture). What's left here is smoke-tested against the REAL repo, when present, but only for
+// drift-resistant INVARIANTS -- not exact operation counts, which move as Team-IZ-Backend's own
+// development continues (the curriculum module's exact counts moved -- all three numbers -- just
+// 4 days after the oracle version of this test was written; see DECISIONS.md's
+// D-fixture-corpus). Full envelope-validation-logic coverage (structural rejection, duplicate
+// operationId, no-matching-module, and everything downstream of A1/A2/A3's OpenAPI
+// reconciliation) is already fully synthetic below this point and untouched by P3.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,7 +27,7 @@ function buildRealContract() {
 	return buildContract({ featureId: FEATURE_ID, featureUid: FEATURE_UID, scanReport, module: 'organization' });
 }
 
-test('buildContract seeds all 10 real OrganizationController operations with correct verb/path/body', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+test('smoke (real Team-IZ-Backend, when present): createOrganization/findOrganizations/deleteOrganization verb+body shapes still hold', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
 	assert.equal(contract.operations.createOrganization.verb, 'POST');
 	assert.equal(contract.operations.createOrganization.body, true, 'createOrganization takes @RequestBody CreateOrganizationRequest');
@@ -32,72 +37,31 @@ test('buildContract seeds all 10 real OrganizationController operations with cor
 	assert.match('e957347e-3794-4c71-92a8-cec75dec1c97', new RegExp(contract.operations.findOrganization.pathParams.properties.organizationId.pattern));
 });
 
-test('a correctly-shaped envelope for a real operation validates', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+test('smoke (real Team-IZ-Backend, when present): envelope validation invariants -- valid passes; wrong feature_id/feature_uid, unknown op, missing path param, and a body on a bodyless op all fail', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
-	const envelope = {
-		sbf: '1', feature_id: FEATURE_ID, feature_uid: FEATURE_UID,
-		operation_id: 'createOrganization', direction: 'request',
-		payload: { pathParams: {}, body: { name: 'Test Org', dataRetentionDays: 90 } },
-	};
-	const result = validateEnvelope(envelope, contract);
-	assert.equal(result.ok, true, JSON.stringify(result.errors));
-});
+	const base = { sbf: '1', feature_id: FEATURE_ID, feature_uid: FEATURE_UID, operation_id: 'createOrganization', direction: 'request' };
 
-test('wrong feature_id fails even with an otherwise-valid payload', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
-	const contract = buildRealContract();
-	const envelope = {
-		sbf: '1', feature_id: '999-not-this-feature', feature_uid: FEATURE_UID,
-		operation_id: 'createOrganization', direction: 'request',
-		payload: { pathParams: {}, body: { name: 'Test' } },
-	};
-	const result = validateEnvelope(envelope, contract);
-	assert.equal(result.ok, false);
-	assert.match(result.errors.join(' '), /feature_id mismatch/);
-});
+	const valid = validateEnvelope({ ...base, payload: { pathParams: {}, body: { name: 'Test Org' } } }, contract);
+	assert.equal(valid.ok, true, JSON.stringify(valid.errors));
 
-test('wrong feature_uid fails even when feature_id matches (stale renamed-feature payload)', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
-	const contract = buildRealContract();
-	const envelope = {
-		sbf: '1', feature_id: FEATURE_ID, feature_uid: '22222222-2222-4222-8222-222222222222',
-		operation_id: 'createOrganization', direction: 'request',
-		payload: { pathParams: {}, body: {} },
-	};
-	const result = validateEnvelope(envelope, contract);
-	assert.equal(result.ok, false);
-	assert.match(result.errors.join(' '), /feature_uid mismatch/);
-});
+	const wrongFeatureId = validateEnvelope({ ...base, feature_id: '999-not-this-feature', payload: { pathParams: {}, body: { name: 'Test' } } }, contract);
+	assert.equal(wrongFeatureId.ok, false);
+	assert.match(wrongFeatureId.errors.join(' '), /feature_id mismatch/);
 
-test('unknown operation_id fails with the list of valid ones', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
-	const contract = buildRealContract();
-	const envelope = {
-		sbf: '1', feature_id: FEATURE_ID, feature_uid: FEATURE_UID,
-		operation_id: 'thisOperationDoesNotExist', direction: 'request', payload: {},
-	};
-	const result = validateEnvelope(envelope, contract);
-	assert.equal(result.ok, false);
-	assert.match(result.errors.join(' '), /not defined in this feature's contract/);
-});
+	const wrongFeatureUid = validateEnvelope({ ...base, feature_uid: '22222222-2222-4222-8222-222222222222', payload: { pathParams: {}, body: {} } }, contract);
+	assert.equal(wrongFeatureUid.ok, false);
+	assert.match(wrongFeatureUid.errors.join(' '), /feature_uid mismatch/);
 
-test('missing a required path param fails', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
-	const contract = buildRealContract();
-	const envelope = {
-		sbf: '1', feature_id: FEATURE_ID, feature_uid: FEATURE_UID,
-		operation_id: 'findOrganization', direction: 'request', payload: { pathParams: {} },
-	};
-	const result = validateEnvelope(envelope, contract);
-	assert.equal(result.ok, false);
-	assert.match(result.errors.join(' '), /organizationId/);
-});
+	const unknownOp = validateEnvelope({ ...base, operation_id: 'thisOperationDoesNotExist', payload: {} }, contract);
+	assert.equal(unknownOp.ok, false);
+	assert.match(unknownOp.errors.join(' '), /not defined in this feature's contract/);
 
-test('a body on a known-bodyless operation fails (additionalProperties)', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
-	const contract = buildRealContract();
-	const envelope = {
-		sbf: '1', feature_id: FEATURE_ID, feature_uid: FEATURE_UID,
-		operation_id: 'findOrganizations', direction: 'request',
-		payload: { pathParams: {}, body: { sneaky: 'field' } },
-	};
-	const result = validateEnvelope(envelope, contract);
-	assert.equal(result.ok, false);
+	const missingParam = validateEnvelope({ ...base, operation_id: 'findOrganization', payload: { pathParams: {} } }, contract);
+	assert.equal(missingParam.ok, false);
+	assert.match(missingParam.errors.join(' '), /organizationId/);
+
+	const bodyOnBodyless = validateEnvelope({ ...base, operation_id: 'findOrganizations', payload: { pathParams: {}, body: { sneaky: 'field' } } }, contract);
+	assert.equal(bodyOnBodyless.ok, false);
 });
 
 test('envelope structural validation rejects an extra top-level field', () => {
@@ -108,11 +72,11 @@ test('envelope structural validation rejects an extra top-level field', () => {
 	assert.equal(result.ok, false);
 });
 
-// D-security-1 regression: `contract.operations` is a plain object -- operation_id values that
-// shadow Object.prototype members (constructor, toString, __proto__, hasOwnProperty, ...) must
-// never resolve to an inherited property and be treated as a defined operation. Reproduces the
-// exact bypass the Codex security review verified against this code before the fix.
-test('operation_id shadowing Object.prototype members is rejected, not silently resolved', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// D-security-1 regression, smoke-tested against the real repo when present -- the exhaustive
+// version of this matrix (every evil id x every direction) now runs unconditionally in CI via
+// test/contract-fixture.test.mjs; this is real-world confirmation the real contract's operations
+// object has no surprising own-property that would make one of these ids accidentally resolve.
+test('smoke (real Team-IZ-Backend, when present): operation_id shadowing Object.prototype members is rejected, not silently resolved', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
 	// "constructor", "toString", "hasOwnProperty", "valueOf" all match the envelope schema's
 	// own operation_id pattern (letters+digits only), so they reach the contract-lookup layer
@@ -138,10 +102,11 @@ test('operation_id shadowing Object.prototype members is rejected, not silently 
 	assert.equal(validateEnvelope(protoEnvelope, contract).ok, false);
 });
 
-// D-security-2 regression: a `urn:uuid:...`-prefixed value must not satisfy a UUID path param --
-// Spring's UUID path-variable converter expects the bare form, so a contract accepting the urn
-// form would certify a request the real endpoint rejects.
-test('a urn:uuid: prefixed path param value is rejected, not accepted as a bare UUID', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// D-security-2 regression, smoke-tested against the real repo when present (exhaustive coverage
+// now lives in test/contract-fixture.test.mjs): a `urn:uuid:...`-prefixed value must not satisfy
+// a UUID path param -- Spring's UUID path-variable converter expects the bare form, so a contract
+// accepting the urn form would certify a request the real endpoint rejects.
+test('smoke (real Team-IZ-Backend, when present): a urn:uuid: prefixed path param value is rejected, not accepted as a bare UUID', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
 	const envelope = {
 		sbf: '1', feature_id: FEATURE_ID, feature_uid: FEATURE_UID,
@@ -194,11 +159,13 @@ test('no matching module in the scan report produces CONTRACT_NO_MODULE + CONTRA
 	assert.ok(codes.includes('CONTRACT_EMPTY'));
 });
 
-// A5, real-oracle regression: Team-IZ-Backend's `codeanalysis` module (1 entity, 0 controllers)
-// is the exact case that motivated A5 -- pre-A5, this produced operations:0 AND warnings:0 (no
-// signal at all) and the contract gate passed silently. See D-contract-completeness in
-// DECISIONS.md for the full before/after captured against this same module.
-test('Team-IZ-Backend codeanalysis module: zero controllers -> blocked with CONTRACT_EMPTY, not a silent empty pass', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// A5, real-oracle regression, invariant version (P3/D-fixture-corpus): Team-IZ-Backend's
+// `codeanalysis` module (0 controllers) is the exact shape that motivated A5 -- pre-A5, this
+// produced operations:0 AND warnings:0 (no signal at all) and the contract gate passed silently.
+// "Zero controllers -> blocked+CONTRACT_EMPTY" has no exact-count component to begin with, so
+// this one didn't need loosening -- kept as a real-world smoke test alongside its frozen
+// equivalent in test/contract-fixture.test.mjs.
+test('smoke (real Team-IZ-Backend, when present): codeanalysis module -- zero controllers -> blocked with CONTRACT_EMPTY, not a silent empty pass', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const scanReport = runScan({ repoRoot: TEAM_IZ_BACKEND, terms: ['codeanalysis'] });
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'codeanalysis' });
 	assert.equal(contract.completeness.status, 'blocked');
@@ -207,31 +174,36 @@ test('Team-IZ-Backend codeanalysis module: zero controllers -> blocked with CONT
 	assert.equal(contract.warnings[0].code, 'CONTRACT_EMPTY');
 });
 
-// A5, real-oracle regression: Team-IZ-Backend's `curriculum` module -- 8 endpoints across two
-// controllers, only 2 carry an operationId. Locks in the exact counts D-pressure-test's fresh
-// agent encountered (and correctly refused to paper over) during Phase 6.
-test('Team-IZ-Backend curriculum module: 8 endpoints, 2 operations, 6 unmatched -> partial', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// A5, real-oracle regression, rewritten as a drift-resistant invariant (P3/D-fixture-corpus): the
+// exact counts here (endpoints 8/operations 2/unmatched 6) moved -- all three numbers -- 4 days
+// after this test was originally written, purely from unrelated Team-IZ-Backend development. The
+// frozen exact-count version now lives in test/contract-fixture.test.mjs; what's checked here is
+// the shape that must hold regardless of how many endpoints Team-IZ-Backend's owners add: a
+// genuinely partial module has strictly more endpoints than correlated operations, and every gap
+// is accounted for by exactly one CONTRACT_UNMATCHED_ENDPOINT warning.
+test('smoke (real Team-IZ-Backend, when present): curriculum module -- endpoint_count > operation_count, and every gap has exactly one CONTRACT_UNMATCHED_ENDPOINT warning', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const scanReport = runScan({ repoRoot: TEAM_IZ_BACKEND, terms: ['curriculum'] });
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'curriculum' });
 	assert.equal(contract.completeness.status, 'partial');
-	assert.equal(contract.completeness.endpoint_count, 8);
-	assert.equal(contract.completeness.operation_count, 2);
+	assert.ok(contract.completeness.endpoint_count > contract.completeness.operation_count, 'a partial module must have strictly more endpoints than operations');
 	const unmatched = contract.warnings.filter((w) => w.code === 'CONTRACT_UNMATCHED_ENDPOINT');
-	assert.equal(unmatched.length, 6);
+	assert.equal(unmatched.length, contract.completeness.endpoint_count - contract.completeness.operation_count);
 });
 
-// A5, real-oracle regression: organization (15/15, no unmatched anywhere) must stay `complete`
-// with zero warnings -- A5 must not turn an already-good contract into a false positive.
-test('Team-IZ-Backend organization module stays complete with zero warnings', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// A5, real-oracle regression: organization must stay `complete` with zero warnings -- A5 must not
+// turn an already-good contract into a false positive. No exact operation_count assertion (that
+// number is free to grow as the real API grows); "complete, zero warnings" is the invariant.
+test('smoke (real Team-IZ-Backend, when present): organization module stays complete with zero warnings', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
 	assert.equal(contract.completeness.status, 'complete');
-	assert.equal(contract.completeness.operation_count, 15);
+	assert.ok(contract.completeness.operation_count > 0);
 	assert.equal(contract.warnings.length, 0);
 });
 
 // A5: promotes schemas/feature-contract.schema.json from an unreferenced document into a live
 // regression guard -- confirmed via grep that nothing in the codebase loaded it before this test.
-test('an emitted contract validates against schemas/feature-contract.schema.json', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// Frozen-fixture-equivalent coverage lives in test/contract-fixture.test.mjs.
+test('smoke (real Team-IZ-Backend, when present): an emitted contract validates against schemas/feature-contract.schema.json', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
 	const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
 	const ajv = new Ajv2020({ allErrors: true, strict: false });

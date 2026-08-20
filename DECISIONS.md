@@ -2644,3 +2644,225 @@ precedent this item's `cross_check` design and EXCLUDED list both follow directl
 REFRESH_FAILED` follows, and whose `fail()`/diagnostic-envelope mechanism this item reuses
 unchanged; `D-status-next` (D1), whose `next_actions` rendering this item's `ttl_expired` detail
 extends with age/limit wording rather than inventing a second format.
+
+## D-fixture-corpus (P3): a frozen, committed fixture corpus + a real CI pipeline, replacing a live third-party repo as this suite's main oracle
+
+**WHY**: `test/scan.test.mjs`/`test/contract.test.mjs`'s strongest tests -- the Organization/
+Curriculum module oracles, D-security-1's full evil-`operation_id`x-direction matrix, D-security-2's
+urn:uuid rejection -- were all gated behind `fs.existsSync(~/Desktop/Team-IZ-Backend/build.gradle)`,
+and no CI configuration existed anywhere in this repo. Confirmed by direct execution: absent -> 450
+pass/16 skip/0 fail (clean); **present -> 465 pass/1 FAIL**. The failure is real: `contract.test.mjs`'s
+curriculum-module oracle asserted "8 endpoints, 2 operations, 6 unmatched" -- the real repo had
+already moved to 10/5/5 by the time this item started. Tracing exactly when: the assertion was
+written in `0205e3f` (2026-08-16 02:10); the real repo's curriculum controllers changed 7 times
+since, most recently `82cd769` -- **all three numbers moved in 4 days**, purely from unrelated
+Team-IZ-Backend development. This is not a one-off: it is the live demonstration of exactly what
+this item exists to fix -- a "strongest" oracle that is not just skip-prone when the dependency is
+absent, but actively fragile even when it's present, because it depends on someone else's
+continuously-developed private repository as ground truth.
+
+A second, independent finding during this item's own grounding: probing `scanners/adapters/
+java-spring.mjs`'s mapping-extraction regex directly (not reading it, executing it) surfaced a real
+scanner bug that had never been caught -- a multi-line `@Operation` **description** text block that
+merely *mentions* the literal string `operationId = "..."` as documentation prose injects a phantom
+entry into `controller.operationIds`, even though it was never inside a real annotation attribute.
+The real Team-IZ-Backend repo has 143 multi-line `@Operation` blocks (so multiline annotations ARE
+exercised there) but a probe across all 37 real controllers found **zero** mismatches -- the real
+repo's style is simultaneously too unstable an oracle for exact counts and too uniform a corpus to
+ever exercise this class of edge case. Building this item's own fixture surfaced five more,
+distinct scanner blind spots (an intervening annotation between the mapping and `public`, a comment
+in the same position, whitespace inside a generic return type, mapping-and-`public` on one line, and
+`@RequestMapping(method=...)` instead of a verb-specific `*Mapping` annotation) -- all now pinned as
+a committed, reproducible baseline for CATALOG.md's A2 ("a staged Java analyzer"), the item that
+would actually fix them; **P3's job is documenting these limitations, not fixing them**.
+
+**SCOPE** (Option B, user-selected over "CI + fixture corpus only" and over "everything including
+macOS + a Python import-check upgrade", after direct-execution evidence was presented for each):
+- A frozen, clean-room-synthetic Java fixture corpus (`test/fixtures/java-spring/`) reproducing:
+  the Organization/Operator two-controller module (10+5 operations, all multi-line `@Operation`
+  blocks, complete/zero-warnings), a genuinely partial Curriculum module (8 endpoints/2 operations/
+  6 unmatched, **frozen numbers this fixture now owns outright** -- they can never drift again), a
+  zero-controller `codeanalysis`-shaped module (`CONTRACT_EMPTY`), all three `@PreAuthorize`
+  branches `findRequiredAuthority()` must distinguish (class-level fallback, method-level -- and
+  specifically NOT the wrong method's role, the exact D-security-7 regression -- and an unsupported
+  `hasAnyRole(...)` shape failing closed to `TODO_ROLE`), all three service-arity cases
+  `countServiceMethodParams()` must distinguish (1-arg success, 2-arg D-security-8 rejection, no
+  service file at all), and the six scanner-blind-spot cases above.
+- A second, separately-built fixture (`test/fixtures/java-compile/`) that IS actually compiled --
+  `scripts/java-compile-smoke.mjs` runs the full gated workflow (`preflight` -> `feature init` ->
+  `scan` -> `scan disposition` -> `contract emit` -> `handles emit`) against it, then routes the
+  final check through `bskel verify --feature ... --build` (not a direct `gradle` call), so it also
+  exercises `lib/verify.mjs::detectBuildCommand()`'s real `./gradlew` path end-to-end.
+- `.github/workflows/ci.yml`: three jobs (`test` matrix Node 22/24, `package-install`, `java-compile`),
+  Linux only.
+- `scripts/pack-install-smoke.sh`: `npm pack` -> install the real tarball into a scratch project ->
+  run the *installed* `bskel` binary from `node_modules/.bin`, not `node bin/bskel.mjs` -- the only
+  place a missing `bin` entry or a runtime asset left out of the tarball would ever surface.
+- `test/package-manifest.test.mjs`, `test/ci-workflow.test.mjs`: static safety nets for the two
+  things `npm test` alone cannot verify (what actually ships in the tarball; whether the CI workflow
+  itself stays coupled to the source it's testing).
+- The 16 gated tests in `test/scan.test.mjs`/`test/contract.test.mjs` were **rewritten as
+  drift-resistant invariants** (status/relative-count checks, e.g. `endpoint_count > operation_count`
+  and `unmatched.length === endpoint_count - operation_count`, instead of hardcoded numbers), kept
+  as real-Team-IZ-Backend smoke tests rather than deleted outright -- the exact-count precision now
+  lives entirely in the frozen fixture tests, but the real-repo smoke tests have historically caught
+  genuine bugs the synthetic fixtures couldn't have (the OperatorController basePath-affinity bug
+  that motivated `findFetchOperation`'s name-affinity check, `test/handles-plan.test.mjs`'s own
+  regression comment) and are worth keeping as a live sanity check, now structurally incapable of
+  going red from someone else's unrelated feature work.
+
+**Re-estimated scope**: the catalog's own M estimate does not hold -- six separable deliverables
+(frozen fixture corpus, CI pipeline, package-install test, Java-compile fixture, the two prior items
+combined into one net-new capability this project has never had, plus the rewritten-as-invariant
+gated tests), roughly L, the same M->L pattern as S3 and G4 before it. Presented to the user as three
+options (A: CI+fixture corpus only; B: A+Java-compile fixture, **recommended and selected**;
+C: B+macOS+a Python `ast.parse`->real-import upgrade) with real evidence for each, not a guess.
+
+**EXCLUDED** (and why):
+- **Consolidating the 10 near-duplicate `buildFixtureRepo()` implementations** across existing
+  `test/*-cli.test.mjs` files. They share a name and an idiom, not semantics (each encodes
+  different fixture content); unifying them is a 10-file, 130+-call-site refactor that would mix a
+  behavior-preserving refactor into a coverage-adding change, and make this item's diff unreviewable.
+  P3 introduces no 11th variant of the pattern -- the new fixture corpora are scanned/compiled
+  in-place or copied by a single-purpose script, not a shared `buildFixtureRepo()`-shaped helper. A
+  future item can tackle the consolidation on its own.
+- **A macOS CI job** (deferred to **P3b**, a new catalog entry alongside the Python
+  `ast.parse`->real-import upgrade). This repo is Private -- confirmed via `gh api`, `visibility:
+  PRIVATE` -- and Actions on private repos bill macOS runners at GitHub's published 10x multiplier
+  versus Linux. This codebase has, to date, only ever been executed on macOS (every prior session's
+  verification work), so a macOS CI job's marginal value is mostly re-testing an already-exercised
+  platform, while Linux -- genuinely never run before this item -- is where CI's value is highest.
+  The catalog's own "Run Linux/macOS" framing is inverted here on purpose.
+- **Fixing `package.json`'s `engines: ">=18"`** -- already owned by CATALOG.md's P1, confirmed
+  unfixed as of this item (still `>=18`, still known-inaccurate against `import.meta.dirname`'s real
+  >=20.11.0 requirement, documented at `lib/doctor.mjs:14-18`'s own comment). The CI Node matrix
+  reads `lib/doctor.mjs`'s `MIN_NODE` (now exported specifically so `test/ci-workflow.test.mjs` can
+  assert this coupling) as its source of truth, never the declared-but-wrong `package.json` field.
+- **Testing the literal documented floor (Node 20.11.0) in CI.** Downloaded and ran the full suite
+  against it directly (official `nodejs.org` darwin-arm64 tarball, since neither this machine's
+  Homebrew nor any local package manager offers that exact patch). Result: **461/466**, with 4
+  failures beyond the (already-explained) curriculum drift, all sharing one root cause:
+  `execFileSync`-captured child-process stdout truncated at **exactly 8192 bytes**
+  (`generic-grep-cli.test.mjs:124`, `stack-cli.test.mjs:36,68,226`) -- `Expected double-quoted
+  property name in JSON at position 8192` / `Unterminated string in JSON at position 8192`. Ruled out
+  a test-methodology artifact first: re-ran with the target Node version prepended to `PATH` (so
+  both the parent test-runner process and every child `bskel` subprocess it spawns via
+  `execFileSync('node', ...)` use the identical binary, exactly matching how `actions/setup-node`
+  would resolve it in real CI) -- same failure, same four tests, confirming this is a genuine Node
+  20.11.0 core bug, not a mixed-version artifact. Node **20.20.2** (Homebrew's current 20.x, the
+  latest 20.x patch), **22.23.2**, **24.18.0**, and this machine's default **26.7.0** are all clean
+  (465/466, curriculum drift only). The bug is already fixed by a later 20.x patch release; pinning
+  CI to the literal earliest 20.11.0 build would make it permanently red for a reason unrelated to
+  this codebase and unfixable from this repo -- no real caller ever gets that exact patch either
+  (version managers and CI runners resolve "20"/"20.x" to the current patch, never the historical
+  first build). Secondary, corroborating context (not a technical constraint on this Node-only CLI
+  tool, which is never itself deployed anywhere): AWS App Runner's Node.js managed runtimes are, and
+  have only ever been, `nodejs12/14/16/18/22` (confirmed live against `docs.aws.amazon.com/apprunner`,
+  2026-08-20) -- **Node 20 was never offered at all**, jumping 18 straight to 22, and as of
+  2025-12-01 only 22 remains supported. `lib/doctor.mjs`'s documented floor claim itself is
+  unchanged (it is a real language-feature requirement, `import.meta.dirname`, unrelated to this
+  bug) -- only the CI matrix excludes the literal patch.
+- **A dedicated `test/helpers/fixtures.mjs` shared module.** Planned for "fixture-path resolution +
+  copy-to-scratch-git-repo", but turned out unnecessary in practice: `test/scan-fixture.test.mjs`/
+  `test/contract-fixture.test.mjs`/`test/handles-plan-fixture.test.mjs` all scan
+  `test/fixtures/java-spring/` **in place** (`runScan()` needs no git, confirmed at
+  `scanners/index.mjs:56` -- only `build.gradle`+`src/main/java`), and the one caller that genuinely
+  needs a scratch-git-repo copy (`scripts/java-compile-smoke.mjs`) is a standalone script, not a
+  second test file, with no second caller to share code with. Introducing the abstraction anyway
+  would have been premature -- one real caller does not need an extraction.
+- **A Python `ast.parse`->real-`import` upgrade** for `test/python-fastapi-handles.test.mjs`'s
+  syntax-only check on `router.py`/`resolver.py` (`codec.py`/`registry.py` already have genuinely
+  strong coverage via `test/handles-python-codec.test.mjs`'s real functional round-trip). A real
+  improvement, cheaper than the Java-compile fixture (no compiler toolchain, just `pip install
+  fastapi sqlmodel`), but deferred to **P3b** alongside the macOS job to keep this item's diff
+  scoped to what was actually decided.
+
+**Mechanism**:
+- `test/fixtures/java-spring/`: `com.example.app` package tree under `domain/{organization,
+  curriculum,codeanalysis,security,annotationstyles}/`. Every multiline `@Operation` uses a Java
+  text block (`"""..."""`) for its `description`, matching the real repo's own style (found by
+  direct grep of Team-IZ-Backend, not assumed). The `annotationstyles` package's six broken-shape
+  controllers are each isolated in their OWN file/class -- found by direct execution that
+  `extractController()`'s mapping regex's `(?:\(([\s\S]*?)\))?` lazy-backtrack capture group
+  searches the **entire rest of the file**, not just the immediately-following lines, for any later
+  `)` followed by `\n\s*public`; a broken shape placed before another valid method in the same file
+  doesn't just get dropped, it can get **misattributed** to that unrelated later method instead
+  (confirmed live while building this fixture -- an early single-file draft produced a
+  `"/annotation-styles/Dropped: an intervening annotation..."` path, the mapping's own args capture
+  having swallowed everything up to a much-later method). One-per-file removes that confound and
+  shows each case's true, unconfounded "no match at all" behavior. A second, subtler instance of the
+  same lazy-backtrack hazard: this fixture's OWN explanatory code comments must never spell a mapping
+  annotation's name immediately followed by `(` (e.g. writing `` `@GetMapping(...)` `` in prose) --
+  doing so once created a second, unintended match-start candidate for the very regex being
+  documented (also found live, and fixed by rephrasing the comment and using a bare, argument-less
+  `@GetMapping` in the fixture instead of one with a quoted path that could accidentally still
+  "work" for the wrong reason).
+- `test/fixtures/java-compile/`: Spring Boot 3.x (`spring-boot-starter-web`/`-data-jpa` -- confirmed
+  Hibernate 6/Jakarta from the generated `HandleSnapshot.java.tmpl`'s `org.hibernate.type.SqlTypes`
+  import, not javax/Boot 2.x -- `/-security`, `springdoc-openapi-starter-webmvc-ui`), Lombok
+  (`compileOnly`+`annotationProcessor`), Java 17 toolchain (confirmed sufficient: `HandleCodec.
+  java.tmpl` uses a `record` and an arrow-`switch`, nothing needs 21). No Gradle wrapper is
+  committed -- `gradle wrapper --gradle-version 8.8` runs at CI/local-run time
+  (`scripts/java-compile-smoke.mjs`), so a local run can never accidentally commit a wrapper jar.
+- `scripts/java-compile-smoke.mjs`: copies the fixture to a scratch dir, `git init`+bare
+  origin+push (required for `preflight`), generates the wrapper, then runs the identical CLI
+  sequence `test/handles-cli.test.mjs`'s `runWorkflowThroughContract()` already establishes
+  (`preflight` -> `feature init` -> `scan` -> `scan disposition --mode reuse` -> `contract emit` ->
+  `handles emit`), then `bskel verify --feature ... --build --json`, asserting `report.pass === true`.
+  Verified locally end-to-end through `handles emit` (9 files generated, including a correctly-typed
+  `WidgetResolver.java` with `requiredAuthority() -> "ADMIN"` matching the fixture's
+  `@PreAuthorize`) -- `gradle` itself is not on this machine's PATH, so the wrapper-generation and
+  actual `compileJava` steps get their first real execution in CI.
+- `.github/workflows/ci.yml`: `concurrency: {cancel-in-progress: true}` to stop burning minutes on
+  superseded pushes; `permissions: contents: read` (least privilege -- no job needs to write);
+  `ripgrep` installed explicitly on the `test` job rather than assumed present on the runner image;
+  `actions/*`/`gradle/actions/setup-gradle` pinned to major-version tags (not full SHAs -- this
+  repo's `sha_pinning_required` is `false`, confirmed via `gh api`, and there are zero secrets to
+  protect, confirmed `gh api .../actions/secrets` returns `total_count: 0`, so this is a deliberate,
+  low-stakes choice, not an oversight).
+
+**Verification**: `npm test` 466 -> **495** (29 net new: 9 in `test/scan-fixture.test.mjs`, 13 in
+`test/contract-fixture.test.mjs`, 5 in `test/handles-plan-fixture.test.mjs`, 4 in
+`test/package-manifest.test.mjs`, 5 in `test/ci-workflow.test.mjs` -- minus a net reduction inside
+`test/scan.test.mjs`/`test/contract.test.mjs` from consolidating 16 gated exact-count tests into 8
+invariant-based smoke tests). All new fixture-corpus tests pass against a live scan of the committed
+fixture (not just read -- every assertion in this section was checked by direct execution against
+`runScan()`/`buildContract()`/`planHandles()`, including catching and fixing the lazy-backtrack
+misattribution and the self-referential-comment bugs above before locking in the final fixture).
+`actionlint` (freshly installed via `brew install actionlint` for this verification, together with
+its `shellcheck` dependency) reports zero findings against `.github/workflows/ci.yml`.
+[EXIT: fill in the actual `gh run` URL here once the first real GitHub Actions execution on this
+repo goes green, per this item's own verification discipline -- no claim of "CI works" stands
+without it.]
+
+**COST**: ~1300 LOC of hand-written, synthetic Java now needs to be kept in sync with
+`scanners/adapters/java-spring.mjs`'s regex behavior by hand whenever that regex changes (the same
+maintenance burden every other fixture-heavy test file in this suite already carries, not a new
+class of cost). The 16 real-repo smoke tests are strictly weaker assertions than before (an
+invariant, not an exact count) -- a real regression that happens to preserve the invariant (e.g. a
+bug that changes `endpoint_count` and `operation_count` by the same amount) would no longer be
+caught by the real-repo smoke test alone, only by the frozen fixture test. CI adds a first
+network-dependent, JDK/Gradle-toolchain-dependent job (`java-compile`) with real (if currently
+zero-secret, low-risk) supply-chain surface -- Maven Central, Gradle Plugin Portal, the Gradle
+distribution download.
+
+**EXIT**: if the `buildFixtureRepo()` consolidation becomes worth doing on its own, it's a
+self-contained follow-up item, not a P3 dependency. If the macOS/Python-import work
+(**P3b**) gets picked up, it composes cleanly on top of this item's CI skeleton (new job / one
+line's worth of `python3 -c "import ..."` change) without touching anything here. If Node 20.11.0's
+`execFileSync` bug turns out to matter for a real user (unlikely, given no version manager resolves
+to that exact patch), the fix is narrowly scoped to CI matrix policy, not this item's design --
+add it back once a newer Node 20.x patch is confirmed to also regress, or drop it permanently once
+Node 20 goes fully EOL.
+
+Cross-references: `D-doctor-workflow` (D5), whose `MIN_NODE` this item reads as the CI matrix's
+single source of truth (now exported specifically for that coupling check) rather than
+`package.json`'s known-inaccurate floor; `D-cli-contract` (D2), whose `EXIT_CODES`/diagnostic-
+envelope mechanism this item's new scripts and tests reuse unchanged, introducing no new exit code
+or reason string; `D-adapter-registry` (G1) and `D-handles-providers` (G4), whose registries this
+item's fixture corpus exercises for the first time against real on-disk multi-provider-shaped Java
+rather than a hand-built `scanReport`; `D-preflight-freshness` (S3), whose `--offline`/TTL machinery
+`scripts/java-compile-smoke.mjs`'s scratch-repo `preflight` call runs through unmodified. CATALOG.md's
+**A2** ("a staged Java analyzer") is the item this one's `annotationstyles` fixture hands a concrete,
+committed before/after baseline to. CATALOG.md's **P1** ("npm packaging") is the item whose future
+`files` allowlist `test/package-manifest.test.mjs` exists to guard.

@@ -1,0 +1,13 @@
+// P3 (D-fixture-corpus): a marker only -- this fixture is never built, only scanned in place by
+// scanners/adapters/java-spring.mjs::detectJavaSpringRoot(), which just checks this file exists.
+plugins {
+	id 'org.springframework.boot' version '3.3.0'
+}
+group = 'com.example'
+version = '0.0.1'
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+}

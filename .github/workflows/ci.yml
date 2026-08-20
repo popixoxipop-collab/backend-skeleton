@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # D-fixture-corpus (P3): Linux only, Node 22 + 24 -- NOT the documented floor (lib/doctor.mjs's
+  # MIN_NODE, 20.11.0). That exact patch has a real, already-upstream-fixed Node core bug
+  # (execFileSync truncates a captured child stdout at exactly 8192 bytes on this specific
+  # release), confirmed by direct execution during this item's own grounding, unrelated to this
+  # codebase. Testing it here would make CI permanently red for a reason no one could fix from
+  # this repo. Real-world callers get whatever patch a version manager resolves "20.x" to, never
+  # the literal first-ever 20.11.0 build -- see DECISIONS.md's D-fixture-corpus for the full
+  # evidence and for why macOS is deliberately NOT in this matrix (private-repo Actions runners
+  # bill macOS at 10x Linux; this codebase has, so far, only ever been run on macOS locally, so a
+  # macOS CI job would mostly re-test the one platform already exercised daily -- Linux is the
+  # actually-unverified platform).
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm test
+
+  package-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci
+      - run: npm run test:pack
+
+  # D-fixture-corpus (P3): the first automated proof that `bskel handles emit`'s generated Java
+  # actually compiles -- previously a one-time manual run, narrated in DECISIONS.md, on this one
+  # machine, with a hand-symlinked JDK17 toolchain. See scripts/java-compile-smoke.mjs.
+  java-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npm run test:java-compile
