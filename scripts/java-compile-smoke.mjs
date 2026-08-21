@@ -84,6 +84,16 @@ if (r.code !== 0) fail(`scan disposition: ${r.stderr || r.stdout}`);
 r = bskel(['contract', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`contract emit: ${r.stderr || r.stdout}`);
 
+// A3 (D-patch-strategy): approves Widget's two codegen-eligible fields (see
+// test/fixtures/java-compile/.../dto/UpdateWidgetRequest.java) BEFORE handles emit, so this smoke
+// test proves the real generated switch-case (Validator + ObjectMapper.convertValue + the
+// service's real update method) compiles -- not just the "classified but not approved" stub path,
+// which every other resource in this corpus already exercises implicitly.
+r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'java-compile-smoke'], scratch);
+if (r.code !== 0) fail(`handles patch approve (label): ${r.stderr || r.stdout}`);
+r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'capacity', '--strategy', 'null-means-unchanged', '--reason', 'java-compile-smoke'], scratch);
+if (r.code !== 0) fail(`handles patch approve (capacity): ${r.stderr || r.stdout}`);
+
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 

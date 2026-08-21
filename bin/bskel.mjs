@@ -26,6 +26,7 @@ import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability }
 import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
+import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
@@ -59,6 +60,7 @@ function usage() {
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff]
+  bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel verify --feature <id> [--build] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
@@ -1542,6 +1544,67 @@ function cmdHandlesEmit(args) {
 	process.exit(0);
 }
 
+// A3 (D-patch-strategy): the explicit human gate that must exist BEFORE handles emit generates
+// any patchField() switch-case -- mirrors cmdContractWaive's exact shape (withLockSync, --reason
+// required, append-only-by-key record). Re-runs the provider's own plan() to read the CURRENT
+// classifier output for {resource, field}, rather than trusting whatever --strategy the caller
+// typed -- an approval whose strategy doesn't match what the classifier says RIGHT NOW is
+// rejected outright (BAD_ARGS), so a human can never approve a strategy the classifier disagrees
+// with, and a stale approval from before a DTO change can never be created in the first place.
+function cmdHandlesPatchApprove(args) {
+	const flags = parseCommand('handles patch approve', args);
+	if (flags.help) { console.log(renderCommandHelp('handles patch approve')); process.exit(0); }
+	setContext('handles patch approve', flags);
+	const root = requireRepoRoot();
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel handles patch approve requires --reason "..." -- every approval must be auditable');
+	}
+
+	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
+	requireCapabilitiesOrExit(scanReport, 'handles patch approve', { featureId: flags.feature, scanReportPath });
+	const provider = selectProviderOrExit(scanReport);
+	requireProviderCapabilitiesOrExit(scanReport, provider, 'handles patch approve', { featureId: flags.feature, scanReportPath });
+
+	let plan;
+	try {
+		plan = provider.plan({ repoRoot: root, scanReport, module: flags.module, resourceFilter: [flags.resource] });
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	}
+	const resource = plan.resources.find((r) => r.type === flags.resource);
+	if (!resource) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no resource "${flags.resource}" found in this plan -- known resources: ${plan.resources.map((r) => r.type).join(', ') || '(none)'}`);
+	}
+	if (resource.updateServiceBlockedReason) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.resource}" cannot have any field auto-generated: ${resource.updateServiceBlockedReason}`);
+	}
+	const field = (resource.patchable ?? []).find((f) => f.field === flags.field);
+	if (!field) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.resource}.${flags.field}" is not a classified patchable field -- known fields: ${(resource.patchable ?? []).map((f) => f.field).join(', ') || '(none -- see \`bskel handles plan\`\'s notes for why)'}`);
+	}
+	if (field.bucket !== flags.strategy) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.resource}.${flags.field}" is currently classified "${field.bucket}", not "${flags.strategy}" -- re-run \`bskel handles plan\` and approve the strategy it actually reports (the DTO may have changed)`);
+	}
+	if (field.bucket !== 'patch-wrapper' && field.bucket !== 'null-means-unchanged') {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.resource}.${flags.field}" is classified "${field.bucket}" -- this strategy is never auto-generated (see D-patch-strategy in DECISIONS.md), approving it would have no effect`);
+	}
+
+	const updated = withLockSync(root, 'state', () => {
+		const current = loadPatchApprovals(root, flags.feature);
+		const key = approvalKey(flags.resource, flags.field);
+		const at = new Date().toISOString();
+		const entry = { resource: flags.resource, field: flags.field, strategy: flags.strategy, reason: flags.reason, at };
+		const withoutExisting = (current.approvals ?? []).filter((a) => approvalKey(a.resource, a.field) !== key);
+		const next = { schema: 'sbf.patch-approvals/1', feature_id: flags.feature, approvals: [...withoutExisting, entry] };
+		savePatchApprovals(root, flags.feature, next);
+		return next;
+	});
+
+	console.log(flags.json ? JSON.stringify(updated, null, 2) : `approved: ${flags.resource}.${flags.field} -> ${flags.strategy}`);
+	process.exit(0);
+}
+
 // S2: "stale" alone sends a human/agent re-running steps until one happens to stick. Name the
 // input that actually moved, using the exact reason requireGate()'s explainStaleness() reports.
 function describeStale(g) {
@@ -1836,6 +1899,7 @@ function dispatchCommand(cmd, rest) {
 		case 'handles': {
 			if (rest[0] === 'plan') return cmdHandlesPlan(rest.slice(1));
 			if (rest[0] === 'emit') return cmdHandlesEmit(rest.slice(1));
+			if (rest[0] === 'patch' && rest[1] === 'approve') return cmdHandlesPatchApprove(rest.slice(2));
 			usage();
 			process.exit(14);
 			break;

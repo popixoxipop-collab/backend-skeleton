@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { findMappingAnnotations } from '../../../scanners/adapters/_java-spring-analyzer.mjs';
+import { findMappingAnnotations, findMethodParams, maskNonCode, skipAnnotationsAndWhitespace } from '../../../scanners/adapters/_java-spring-analyzer.mjs';
+import { classifyDtoFields, splitTopLevelParams, extractTypeAndName } from './patch-strategy.mjs';
 
 // The "canonical fetch" for an entity: a GET endpoint whose path is exactly
 // `${controller.basePath}/{id}` (one trailing path param, nothing after it) on a controller
@@ -29,6 +30,85 @@ function findFetchOperation(controllers, entityClassName) {
 		}
 	}
 	return null;
+}
+
+// A3 (D-patch-strategy): the update-endpoint counterpart to findFetchOperation() above -- same
+// name-affinity-gated controller search (a controller must contain the entity's name), same
+// single-path-param shape (`${controller.basePath}/{id}`, nothing after it) confirmed against
+// every real update endpoint in the oracle repo's grounding (all `@PatchMapping`, PUT accepted
+// too since nothing in this codebase's own conventions rules it out). Deliberately does not
+// require an operationId -- unlike fetch(), patch codegen never needs one, only the controller
+// file + Java method name to locate the @RequestBody DTO parameter.
+function findUpdateOperation(controllers, entityClassName) {
+	const needle = entityClassName.toLowerCase();
+	for (const controller of controllers) {
+		if (!controller.className.toLowerCase().includes(needle)) continue;
+		for (const ep of controller.endpoints) {
+			if (ep.verb !== 'PATCH' && ep.verb !== 'PUT') continue;
+			const suffix = ep.path.slice(controller.basePath.length);
+			if (/^\/\{[^/]+\}$/.test(suffix)) {
+				return { method: ep.method, path: ep.path, controllerFile: controller.file, controllerClassName: controller.className };
+			}
+		}
+	}
+	return null;
+}
+
+// From a controller method's own parameter-list text, finds the @RequestBody-annotated
+// parameter's declared type name (e.g. "UpdateOrganizationRequest") -- reuses the same
+// annotation-skipping/top-level-split primitives patch-strategy.mjs already exports for
+// classifying a DTO's own fields, so a request-body param with several annotations in any order
+// (`@Valid @RequestBody X x` or `@RequestBody @Valid X x`) is found the same way either way.
+// Returns null if no @RequestBody parameter is found (a GET-shaped or bodyless update method,
+// which for PATCH/PUT would be unusual but is not assumed impossible).
+function findRequestBodyTypeName(controllerFilePath, methodName) {
+	const params = findMethodParams(fs.readFileSync(controllerFilePath, 'utf8'), methodName);
+	if (params === null) return null;
+	const maskedParams = maskNonCode(params);
+	const segment = splitTopLevelParams(maskedParams).find((s) => /@RequestBody\b/.test(s));
+	if (!segment) return null;
+	const parsed = extractTypeAndName(segment);
+	return parsed ? parsed.baseType : null;
+}
+
+// Resolves the update DTO's own .java file the same way findServiceFile() resolves a service --
+// only trusted if the file actually exists at the convention this codebase's real DTOs all use
+// (domain/<module>/presentation/dto/<TypeName>.java, confirmed against all 17 real update DTOs
+// during this item's grounding). A DTO living somewhere else is a documented gap: patchable stays
+// empty for that resource, exactly like findServiceFile()'s own "resolver NOT generated" fallback
+// for a service that can't be found.
+function findUpdateDtoFile(javaSrcRoot, module, dtoTypeName) {
+	const guessedPath = path.join(javaSrcRoot, 'domain', module, 'presentation', 'dto', `${dtoTypeName}.java`);
+	return fs.existsSync(guessedPath) ? guessedPath : null;
+}
+
+// The full patchable-field pipeline for one entity: find its update endpoint -> find the
+// @RequestBody DTO type -> find that DTO's file -> classify its fields. Returns `{ patchable:
+// [...], updateOperation, updateDtoFile, notes: [...] }` -- notes explain exactly which step
+// failed when patchable ends up empty, mirroring willGenerateResolver's own note-per-reason
+// convention rather than a silent empty array.
+function planPatchable({ javaSrcRoot, module: moduleName, controllers, entityClassName }) {
+	const notes = [];
+	const updateOperation = findUpdateOperation(controllers, entityClassName);
+	if (!updateOperation) {
+		return { patchable: [], updateOperation: null, updateDtoFile: null, notes: [`${entityClassName}: no PATCH/PUT single-resource endpoint found -- patchField() stays a blanket stub`] };
+	}
+	const dtoTypeName = findRequestBodyTypeName(updateOperation.controllerFile, updateOperation.method);
+	if (!dtoTypeName) {
+		notes.push(`${entityClassName}: found ${updateOperation.controllerClassName}.${updateOperation.method} but couldn't determine its @RequestBody DTO type -- patchField() stays a blanket stub`);
+		return { patchable: [], updateOperation, updateDtoFile: null, notes };
+	}
+	const updateDtoFile = findUpdateDtoFile(javaSrcRoot, moduleName, dtoTypeName);
+	if (!updateDtoFile) {
+		notes.push(`${entityClassName}: request body type "${dtoTypeName}" not found under domain/${moduleName}/presentation/dto/ -- patchField() stays a blanket stub`);
+		return { patchable: [], updateOperation, updateDtoFile: null, notes };
+	}
+	const classified = classifyDtoFields(fs.readFileSync(updateDtoFile, 'utf8'));
+	if (!classified) {
+		notes.push(`${entityClassName}: ${dtoTypeName} is not a record (or has no canonical constructor) -- patchField() stays a blanket stub`);
+		return { patchable: [], updateOperation, updateDtoFile, notes };
+	}
+	return { patchable: classified.fields, updateOperation, updateDtoFile, dtoTypeName, notes };
 }
 
 // A2 Phase 1 (D-java-analyzer): this used to duplicate scanners/adapters/java-spring.mjs's own
@@ -175,11 +255,46 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			notes.push(`${entity.className}: ${reason} -- resolver NOT generated (would either fail to compile or silently call the wrong overload and drop a required scoping argument, e.g. an organization/cohort id). Wire it by hand.`);
 		}
 
+		// A3 (D-patch-strategy): only worth computing once fetch()/the resolver itself is actually
+		// going to be generated -- an entity with no resolver has nowhere for patchField() codegen
+		// to land anyway. Reuses countServiceMethodParams() (D-security-8) against the UPDATE
+		// method, expecting exactly 2 args (resource id + the DTO) -- the same IDOR-shaped-bug
+		// concern fetch()'s own param-count check exists for: a real update method scoped under an
+		// org/cohort (e.g. `update(UUID orgId, UUID cohortId, UpdateXRequest req)`) must never be
+		// silently called with the wrong overload or a missing scoping argument.
+		let patchResult = { patchable: [], updateOperation: null, updateDtoFile: null, updateServiceBlockedReason: null, notes: [] };
+		if (fetchOp && service && serviceParamCount === 1) {
+			patchResult = { ...planPatchable({ javaSrcRoot, module: targetModule.module, controllers: targetModule.controllers, entityClassName: entity.className }), updateServiceBlockedReason: null };
+			if (patchResult.updateOperation) {
+				const updateServiceParamCount = countServiceMethodParams(service.file, patchResult.updateOperation.method);
+				if (updateServiceParamCount !== 2) {
+					// Classification itself (patchable) stays intact and is still surfaced -- only
+					// CODEGEN is blocked. A field's bucket is a fact about the DTO, independent of
+					// whether the update service method happens to be safely callable with the (id,
+					// dto) shape generated code always assumes; losing that classification here would
+					// silently give up on this item's own "precise per-field reason" value the moment
+					// a real service signature doesn't match (found live: none of the 3 real update
+					// service methods checked during this item's grounding -- Organization/Classroom/
+					// Cohort -- actually have the plain 2-arg shape, every one carries an extra
+					// scoping/auditing argument -- so this is the COMMON case, not an edge case).
+					const reason = updateServiceParamCount === null
+						? `could not find a ${patchResult.updateOperation.method}(...) method on ${service.serviceType} to confirm its argument count`
+						: `${service.serviceType}.${patchResult.updateOperation.method} takes ${updateServiceParamCount} argument(s), not the (resource id, request DTO) pair generated patch code always passes`;
+					patchResult = { ...patchResult, updateServiceBlockedReason: reason, notes: [...patchResult.notes, `${entity.className}: ${reason} -- patchField() fields are classified but none are auto-generated`] };
+				}
+			}
+			notes.push(...patchResult.notes);
+		}
+
 		resources.push({
 			type: entity.className,
 			table: entity.table,
 			idField: entity.idField,
 			fetchOperation: fetchOp,
+			updateOperation: patchResult.updateOperation,
+			patchable: patchResult.patchable,
+			dtoTypeName: patchResult.dtoTypeName ?? null,
+			updateServiceBlockedReason: patchResult.updateServiceBlockedReason,
 			requiredAuthority: requiredAuthority ?? 'TODO_ROLE',
 			service,
 			willGenerateResolver: Boolean(fetchOp && service && serviceParamCount === 1),

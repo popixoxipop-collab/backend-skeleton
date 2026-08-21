@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:patch-approvals:1",
+  "title": "backend-skeleton patch-strategy approvals (specs/<feature_id>/handles/patch-approvals.json)",
+  "description": "A3 (D-patch-strategy): written by `bskel handles patch approve`. Each entry is a specific {resource, field} pair, never a wildcard -- mirrors contract-resolution.schema.json's own no-wildcard-waiver precedent (A5). Only patch-wrapper/null-means-unchanged strategies can be approved (fetch-merge-submit/unsupported are never auto-generated, approving them would have no effect) -- enforced by `bskel handles patch approve` itself, not by this schema, so a hand-edited file with an unexpected strategy string still fails validation loudly rather than silently doing nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "approvals"],
+  "properties": {
+    "schema": { "const": "sbf.patch-approvals/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["resource", "field", "strategy", "reason", "at"],
+        "properties": {
+          "resource": { "type": "string" },
+          "field": { "type": "string" },
+          "strategy": { "enum": ["patch-wrapper", "null-means-unchanged"] },
+          "reason": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

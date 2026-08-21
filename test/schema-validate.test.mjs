@@ -138,6 +138,22 @@ test('feature-index.schema.json: merged_into is validated too', () => {
 	assert.equal(ok, false);
 });
 
+test('patch-approvals.schema.json: a minimal valid approvals record passes', () => {
+	const { ok } = validateAgainstSchema('patch-approvals.schema.json', {
+		schema: 'sbf.patch-approvals/1', feature_id: '001-widget-management',
+		approvals: [{ resource: 'Widget', field: 'label', strategy: 'patch-wrapper', reason: 'because', at: '2026-01-01T00:00:00.000Z' }],
+	});
+	assert.equal(ok, true);
+});
+
+test('patch-approvals.schema.json: a strategy outside {patch-wrapper, null-means-unchanged} is rejected (fetch-merge-submit/unsupported are never auto-generated)', () => {
+	const { ok } = validateAgainstSchema('patch-approvals.schema.json', {
+		schema: 'sbf.patch-approvals/1', feature_id: '001-widget-management',
+		approvals: [{ resource: 'Widget', field: 'ownerName', strategy: 'fetch-merge-submit', reason: 'because', at: '2026-01-01T00:00:00.000Z' }],
+	});
+	assert.equal(ok, false);
+});
+
 test('formatSchemaErrors: renders ajv errors as "path message" strings, "(root)" when instancePath is empty', () => {
 	const { errors } = validateAgainstSchema('state.schema.json', { schema: 'sbf.state/1' });
 	const formatted = formatSchemaErrors(errors);
