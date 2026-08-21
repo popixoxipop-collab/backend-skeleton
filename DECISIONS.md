@@ -3576,3 +3576,103 @@ Cross-reference (this item only): `D-adapter-registry`/`D-handles-providers` (G1
 `sbf.adapter/1`/`sbf.handles-provider/1` schema-shaped fields this harness's JSON-Schema checks
 build directly on top of, checking exactly the two behavioral properties -- determinism,
 idempotence -- those schemas structurally cannot express).
+
+## D-handles-dryrun (D4): uniform plan/check/diff before writes
+
+**WHY, and why this one matched the catalog's own wording:** `bskel handles plan` only ever
+showed resource-level information (`willGenerateResolver`/`table`/`idField`/`readPath`/
+`requiredAuthority`) -- zero indication of what files would be created, updated, or conflict --
+while `bskel handles emit` wrote unconditionally. `stack apply` already had exactly this ergonomic
+(dry-run by default, `plan.files[].action` reporting `create`/`unchanged`/`update`); `handles` had
+no equivalent. Unlike P4/S4/S5's grounding, this catalog Why held up under direct reading.
+
+**The real gap was exposure, not computation:** `lib/handles-manifest.mjs::classifyFile()` (O2,
+`D-handles-ownership`) already classifies every file `handles emit` touches into exactly the 6
+states the catalog asked for (`create`/`unchanged`/`update`/`adopt-unchanged`/`adopt-update`/
+`conflict`) on every single call -- the classification just never survived past the moment it
+decided whether to write, and was never separated from actually writing. D4 is entirely "expose
+what already runs," not new decision logic.
+
+**`emitUnits()` (`handles/_engine.mjs`) gains `dryRun`/`computeDiff`, both defaulting to `false`
+(every existing call site, including P4's `checkProviderConformance()`, is unaffected):**
+`dryRun` guards the 4 real write sites (`writeUnit()` x2, the analogous resolver-loop pair) and
+`saveManifest()` behind `if (!dryRun)` -- `written`/`forced` still populate identically either
+way (their meaning shifts from "did write" to "would write", nothing downstream needs to know
+which). A new `actions` array records `{path, kind, action, resourceType?, diff?}` for literally
+every unit regardless of branch (even ones blocked by the infra all-or-nothing policy, even plain
+`unchanged` ones) -- this is the field that makes the preview real. `computeDiff` attaches a real
+unified diff, only for the 3 actions where content actually differs (`update`/`conflict`/
+`adopt-update`).
+
+**Diff implementation reuses `git`, adds no dependency:** `unifiedDiff()` shells out to `git diff
+--no-index` between two temp files -- `git` is already a hard dependency of this exact file
+(`isDirtyOrUntracked()` above it already calls `git status` on every emit). `cwd: tmpDir` plus
+relative `a/<relPath>`/`b/<relPath>` paths (not the temp files' real absolute paths) keep the diff
+header clean and reproducible; the random tmpdir name never leaks into output. `git diff
+--no-index` exits 1 when the sides differ (the expected case here, not a failure) -- only another
+exit code is treated as a genuine error.
+
+**java-spring's `migration.sql` needed its own handling, found via P4 continuity:** it's the exact
+`outputs.spec` file P4's conformance harness already had to exempt from a naive idempotence check
+-- always regenerated unconditionally, never manifest-tracked, `classifyFile()` never runs against
+it. `emitJavaSpring()` now classifies it locally (disk vs fresh render -> `create`/`unchanged`/
+`update`) and reports it in `actions` tagged `kind: 'spec'`, distinctly from the manifest-tracked
+`infra`/`resolver` kinds -- and gates its own write behind `dryRun` too. `written` still includes
+it unconditionally on a real run, same pre-existing behavior as before this item (not fixed here,
+out of scope) -- discovered live while grounding `--check`'s exit code (below).
+
+**`bskel handles plan --diff`**: after the existing `provider.plan()` call, now also calls
+`provider.emit({..., dryRun: true, computeDiff: flags.diff})` and merges `actions` into the
+output (`{...plan, actions}` for `--json` -- schema-legal since `handles-plan.schema.json` already
+declares `additionalProperties: true`; a new "## File actions" section for the human report). The
+action preview is **always** computed (cheap); only diff bodies are gated behind `--diff`
+(shells out to git per diffable file). Deliberately still skips the contract gate `handles plan`
+has always skipped -- dry-run never writes, so the existing "informational, pre-contract" safety
+profile is unchanged.
+
+**`bskel handles emit --check [--diff]`**: `--diff` alone implies `--check` (dryRun) -- no reading
+of "show me a diff" also means "and write it". Reuses the exact same `provider.emit({dryRun:true,
+computeDiff})` path `handles plan` calls, and **never calls `passNamedGate('handles', ...)`** --
+the single most important correctness rule here, since nothing real happened. A blocked (conflict)
+result reaches the identical `EXIT_CODES.HANDLES_CONFLICT` (15) a real blocked emit would -- no
+new exit code, `--check` is a preview of the true verdict, not a softer approximation.
+
+**Exit-code bug found live while grounding, not assumed correct in advance:** the first
+implementation used `written.length === 0` to decide `--check`'s OK/CHECK_FAILED split.
+Running it against a real, fully up-to-date java-spring fixture (a second `--check` right after a
+real `emit`) surfaced that `written` *always* includes `migration.sql` -- the same P4-era quirk
+above -- so `--check` would report "something changed" forever for java-spring, even when nothing
+actually had. Fixed by deriving the verdict from `actions` instead (`action !== 'unchanged' &&
+action !== 'adopt-unchanged'`), which correctly reflects real content -- `written`'s own semantics
+were deliberately left untouched (matches what a real run has always reported), only the exit-code
+DECISION was recomputed from the more precise field this item added. Confirmed against both
+providers directly: java-spring's second `--check` now exits 0 with `migration.sql` still present
+(unchanged) in `written`; python-fastapi (no `outputs.spec`, no `spec`-kind actions at all) needed
+no such correction and worked on the first attempt.
+
+**`--plan`/`--apply` flags from the catalog's literal wording were deliberately not added**:
+`handles` already has a `plan` subcommand -- a `--plan` flag would collide in name with something
+that now (via this item) actually shows the same file-action preview `--plan` was asking for.
+`handles emit` (no flag) is already "apply"; `stack apply`'s own default-dry-run-unless-`--apply`
+shape was NOT mirrored here, since flipping `handles emit`'s default from "writes" to "dry-run"
+would be a breaking change to an already-shipped, already-tested, already-documented command --
+same conservatism D2 already established for exit codes ("existing numbers are a public contract,
+don't renumber").
+
+**Verification, direct execution against both real providers before locking in tests:** built a
+throwaway java-spring fixture end to end -- fresh `--check` (9 creates, exit 1, nothing on disk),
+real `emit`, `--check` again (all unchanged including the `spec`-kind migration.sql, exit 0,
+manifest byte-identical), hand-edited resolver -> `--check` conflict (exit 15, edit untouched),
+`@PreAuthorize` role change -> `--check --diff` showing the exact old/new `requiredAuthority`
+diff text, and `handles plan --diff` reproducing the identical diff without ever calling emit.
+Repeated the up-to-date and fresh-feature cases against a real python-fastapi fixture to confirm
+the no-`outputs.spec` path needed no special-casing. `npm test` (568, +8 from this item) all green
+except the expected dangling-`D-handles-dryrun` failure until this section existed, same pattern
+as every prior item this session.
+
+Cross-references: `D-handles-ownership` (O2, whose `classifyFile()` this item's entire value rests
+on exposing rather than reimplementing); `D-handles-providers` (G4, whose provider-neutral
+`emitUnits()` this item's `dryRun`/`computeDiff` params thread through uniformly for both
+providers); `D-extension-conformance` (P4, whose `outputs.spec` exemption for java-spring's
+migration.sql this item reused twice -- once for the `spec`-kind action classification, once for
+the `--check` exit-code fix).
