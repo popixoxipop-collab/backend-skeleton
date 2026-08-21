@@ -36,6 +36,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 
+	// O4 (D-handle-lifecycle): baked in at `bskel handles emit` time -- CONTRACT_REF is the
+	// content hash of specs/{{FEATURE_ID}}/contracts/{{FEATURE_ID}}.schema.json as of this run,
+	// regenerated fresh every time (never read from disk at runtime, a deployed app has no
+	// access to specs/ at all).
+	private static final String CONTRACT_REF = "{{CONTRACT_REF}}";
+	private static final UUID FEATURE_UID = UUID.fromString("{{FEATURE_UID}}");
+
 	private final {{SERVICE_TYPE}} {{SERVICE_FIELD}};
 {{PATCH_FIELDS}}
 	@Override
@@ -56,5 +63,15 @@ public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 	@Override
 	public String requiredAuthority() {
 		return "{{REQUIRED_AUTHORITY}}";
+	}
+
+	@Override
+	public String contractRef() {
+		return CONTRACT_REF;
+	}
+
+	@Override
+	public UUID featureUid() {
+		return FEATURE_UID;
 	}
 }

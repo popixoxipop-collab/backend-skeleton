@@ -1,0 +1,18 @@
+# O4 (D-handle-lifecycle): drives HandleLifecycleIntegrationTest against a real, disposable
+# Postgres -- never H2, this item's whole point is proving the handle lifecycle against the same
+# database engine target repos actually use. Values match db-introspect-smoke.mjs/A4's own CI
+# convention exactly (POSTGRES_HOST_AUTH_METHOD: trust, user postgres, no password) so the same
+# `services: postgres` container works unmodified; overridable by env var for local runs against
+# whatever local Postgres role/db the developer already has.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${BSKEL_TEST_DB_NAME:bskel_o4_test}
+    username: ${BSKEL_TEST_DB_USER:postgres}
+    password: ${BSKEL_TEST_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      # Schema is applied for real beforehand (the actual emitted migration.sql + a small
+      # widgets-only DDL script), the same "bskel/tests never rely on Hibernate auto-DDL" boundary
+      # D-migration-scope already draws for bskel itself -- ddl-auto here must never create/alter
+      # anything on its own.
+      ddl-auto: none

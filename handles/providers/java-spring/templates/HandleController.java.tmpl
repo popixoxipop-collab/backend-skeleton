@@ -1,5 +1,7 @@
 package {{BASE_PACKAGE}}.global.handle;
 
+import {{JACKSON_PACKAGE}}.JsonNode;
+import {{JACKSON_PACKAGE}}.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
@@ -41,6 +43,7 @@ public class HandleController {
 	private final Map<String, ResourceResolver> resolversByBeanName;
 	private final HandleRegistryRepository handleRegistryRepository;
 	private final HandleSnapshotRepository handleSnapshotRepository;
+	private final ObjectMapper objectMapper;
 
 	@GetMapping("/{handle}")
 	public ResponseEntity<Object> fetch(@PathVariable String handle) {
@@ -52,14 +55,19 @@ public class HandleController {
 		if (decoded.pointer() == null) {
 			return ResponseEntity.ok(resource);
 		}
-		// kind=f: the resolver returns the whole resource; navigating to the specific field is
-		// the caller's concern in the reference JS implementation (handles/codec.mjs's
-		// resolveJsonPointer) -- here it's done via a generic Map/record accessor once the
-		// resource is serialized to a Map by the caller's own ObjectMapper, which this template
-		// deliberately leaves to the resolver rather than assuming a single serialization shape.
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
-				"field-level fetch (kind=f) requires the resolver to implement pointer resolution for "
-						+ decoded.type() + " -- see ResourceResolver's javadoc");
+		// O4 (D-handle-lifecycle): kind=f -- serialize the whole resource through the SAME
+		// ObjectMapper the rest of the app uses, then walk the RFC 6901 pointer via Jackson's own
+		// JsonNode#at (no hand-rolled walker needed here, unlike the JS reference implementation's
+		// resolveJsonPointer, which had no such built-in to reach for). A pointer that resolves to
+		// a genuinely missing node returns 404, not null/absent -- resolveJsonPointer's own JS
+		// behavior ("current == null -> return undefined") is preserved as "the field truly isn't
+		// there", not silently coerced to some other shape.
+		JsonNode root = objectMapper.valueToTree(resource);
+		JsonNode target = root.at(decoded.pointer());
+		if (target.isMissingNode()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "pointer \"" + decoded.pointer() + "\" does not resolve on " + decoded.type());
+		}
+		return ResponseEntity.ok(target);
 	}
 
 	@PatchMapping("/{handle}")
@@ -118,11 +126,27 @@ public class HandleController {
 		// Reuses the registry row already fetched (and validated) above instead of querying again.
 		boolean drift = !registry.getContractRef().equals(snapshot.getContractHash());
 
+		// O4 (D-handle-lifecycle): snapshot.getPayload() is the raw JSON TEXT HandleService
+		// recorded (a Java String) -- embedding it into this response Map as-is would make
+		// Jackson serialize it as an ESCAPED JSON STRING VALUE, double-encoding a caller's real
+		// payload into something like "payload":"{\"name\":...}" instead of a normal nested
+		// object. Confirmed live (not assumed) by inspecting a real recover() response before
+		// this fix -- readTree parses it back into a JsonNode so it serializes as genuine nested
+		// JSON. A parse failure here means the stored payload isn't valid JSON at all, which only
+		// this app's own recordSnapshot() ever writes -- an internal invariant violation, not a
+		// caller-facing input error.
+		JsonNode payload;
+		try {
+			payload = objectMapper.readTree(snapshot.getPayload());
+		} catch (Exception e) {
+			throw new IllegalStateException("stored handle snapshot payload is not valid JSON", e);
+		}
+
 		return ResponseEntity.ok(Map.of(
 				"handle", handle,
 				"recorded_at", snapshot.getRecordedAt(),
 				"operation_id", snapshot.getOperationId(),
-				"payload", snapshot.getPayload(),
+				"payload", payload,
 				"schema_drift", drift
 		));
 	}

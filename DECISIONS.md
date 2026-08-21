@@ -4272,3 +4272,175 @@ this session" constraint this item is the first to actually lift, safely); `D-ja
 `D-fastapi-adapter` (A2/G2, the "good-enough regex, not a real parser" restraint Plane A's SQL
 extraction follows); `D-cli-contract` (D2, why REFRESH_FAILED/BAD_ARGS were reused instead of new
 exit codes).
+
+
+## D-handle-lifecycle (O4): register/recordSnapshot upsert API + opt-in AOP auto-recording + a real running-app verification that found two genuine bugs no compile check ever could
+
+**WHY**: `HandleController.recover()` (D-security-9's own fix already lived there) was fully
+implemented but structurally unreachable -- nothing anywhere ever called `HandleRegistry.create()`/
+`HandleSnapshot.create()`, so a registry lookup could never find a row. Field-level `fetch`
+(`kind=f` GET) always 501'd. O4 (CATALOG.md, Scope L) closes both gaps. **User-approved scope
+(AskUserQuestion, overriding this item's own narrower recommendation)**: the FULL catalog scope,
+including the opt-in AOP auto-snapshot interceptor, not just the explicit `HandleService` API.
+
+**`ResourceResolver` gains `contractRef()`/`featureUid()`**: baked in as `private static final`
+constants at `bskel handles emit` time (same mechanism A5's `contract_hash` already established --
+`sha256File` on `specs/<feature>/contracts/<feature>.schema.json`), never read from disk at
+runtime (a deployed app has no access to `specs/` at all). Regenerated every emit run, so a
+contract change is picked up automatically. **A real correctness bug caught before it ever
+shipped**, while writing `emit.mjs`'s O2 adoption-safety re-render (`pristineRenderFor`): the
+CURRENT run's own precomputed `contractRef`/`featureUid` were about to be reused when checking a
+DIFFERENT owner feature's resolver file during cross-feature adoption safety checks, which would
+have manufactured a false conflict on every cross-feature resolver-regeneration scenario. Fixed
+with `contractRefFor(id)`/`featureUidFor(id)` helpers, recomputed fresh for `ownerId !== featureId`
+(`featureUidFor` falls back to the nil UUID if the other feature's `feature.json` no longer
+exists).
+
+**`HandleService` (new, explicit API, never auto-invoked)**: `register(kind, type, resourceUid,
+pointer, featureUid, operationId, contractRef)` derives `handle_uid` via the existing
+`HandleCodec.deriveHandleUid` and **upserts** -- the schema's own `unique (resource_type,
+resource_uid, pointer)` constraint means the SAME triple always derives the SAME `handle_uid`, so
+re-registering it is expected, not an error: `HandleRegistry#refresh` updates `featureUid`/
+`operationId`/`contractRef` but deliberately never touches `revokedAt`/`revokedReason` -- a
+re-registration must never silently un-revoke a handle. `recordSnapshot(...)` serializes `payload`
+via the injected `ObjectMapper`; `revoke(handleUid, reason)` sets `revokedAt`/`revokedReason` (a
+new column, self-initiated -- matches this codebase's established "every revocation-adjacent
+operation requires `--reason`" convention already used for feature rename/archive, contract waive,
+handles patch approve). `pruneSnapshotsOlderThan(Instant)` is exposed but never auto-scheduled
+(no `@Scheduled` wiring anywhere) -- same boundary `D-migration-scope` already draws around never
+applying the emitted `migration.sql` on its own; deciding retention and whether a background job
+is even appropriate is left to a human. Never touches/injects into any existing business logic
+class, matching `D-config-patch`/`D-resolver-scope`'s "never invasively edit real business logic"
+boundary.
+
+**Field-level fetch** (`HandleController.fetch`): the previous unconditional 501 for `kind=f`
+replaced with `objectMapper.valueToTree(resource)` -> `JsonNode#at(pointer)` (RFC 6901 -- Jackson's
+own built-in, no hand-rolled walker needed, unlike the JS reference `resolveJsonPointer` which had
+no such built-in to reach for) -> 404 via `ResponseStatusException` if the pointer resolves to a
+missing node.
+
+**Opt-in AOP auto-recording** (`@RecordHandleSnapshot` + `HandleAspect`): applied BY A HUMAN to an
+existing service method they choose (never auto-applied by codegen touching real files).
+`resourceUidParam` is an explicit parameter INDEX, never inferred -- the same "never guess, always
+explicit" boundary `D-resolver-scope`/`D-security-8` already draw; a wrong guess here would
+silently attribute a snapshot to the wrong resource. `redact` is an explicit JSON Pointer array,
+deliberately not a guessed heuristic ("field name contains password"). `HandleAspect`
+(`@Aspect @Around` on `@annotation(RecordHandleSnapshot)`) captures the request payload (method
+args minus the uid param) before invocation, the response/error payload after, applies `redact`
+via a hand-rolled `redact(ObjectNode, String)` navigator (Jackson's `JsonNode` has `.at()` for
+READING only, no built-in set/remove-at-pointer), and calls `HandleService.register`+
+`.recordSnapshot`. Every recording step is wrapped in a `safely()` helper that logs and swallows
+any exception -- snapshot recording must NEVER fail the real business call it wraps (best-effort
+observability, not a new failure path). Requires `spring-boot-starter-aop` on the target repo's own
+classpath, NEVER auto-added to a real target's `build.gradle` (`D-config-patch` boundary) --
+`handles emit`'s `postEmitNotes` gets a new line naming this explicitly, the same
+"review and apply yourself" precedent `migration.sql` already established. `@RecordHandleSnapshot`
+must be applied to the CONCRETE implementation class, not the interface method -- Spring AOP's
+`@annotation` pointcut resolves via `AopUtils#getMostSpecificMethod`, reliable for both JDK dynamic
+proxies (interface-based) and CGLIB, whereas an interface-only annotation is only guaranteed
+visible through a JDK proxy; this item's own integration-test fixture (`WidgetServiceImpl`)
+follows this.
+
+**Jackson 2/3 dual-compatibility**: `HandleService#recordSnapshot`'s `objectMapper.writeValueAsString()`
+throws checked `JsonProcessingException` under Jackson 2 but unchecked `JacksonException` under
+Jackson 3 -- since `{{JACKSON_PACKAGE}}` resolves to either package at codegen time, the same
+template source must compile against both. Fixed with a generic `catch (Exception e)`, not a
+version-specific import (same principle `detectJacksonPackage()`/A3 already established).
+
+**★ A real, previously-undiscovered functional bug found by this item's own real integration test
+(never caught by A3's compile-only verification)**: `WidgetResolver.patchField()`'s generated
+`/label`/`/capacity` cases reconstruct the FULL `UpdateWidgetRequest` record with every OTHER
+field left `null`, then originally called `validator.validate(patch)` -- Jakarta Bean Validation
+validates the WHOLE reconstructed object, not just the field being patched, so `ownerName`'s
+`@NotNull` (correctly classified `fetch-merge-submit`, deliberately left null in the
+reconstruction) ALWAYS produced a violation, making every generated `patch-wrapper`/
+`null-means-unchanged` field unusable (always 400s) whenever its DTO has ANY other `@NotNull`/
+primitive sibling field -- a broader, more severe case than D-patch-strategy's own already-known
+"fully-qualified `@NotNull` annotation not detected" limitation (that one degrades to "generates
+code that always 400s for one field until a human notices"; this one made EVERY approved field on
+an affected DTO permanently broken). Confirmed live with a standalone `jakarta.validation.Validator`
+probe against the real `UpdateWidgetRequest` reconstruction before touching any generated-code
+template (`validator.validate(...)` on `new UpdateWidgetRequest(PatchField.of("x"), null, null,
+null)` produced a real `ownerName` violation), then confirmed the fix
+(`validator.validateProperty(patch, "<field>")` -- scopes validation to only the property actually
+declared for that field, ignoring sibling constraints entirely) with the same probe methodology
+before changing `handles/providers/java-spring/patch-strategy.mjs`'s `caseCodegen()`. This is
+squarely `D-patch-strategy`/A3's own codegen, not O4's -- documented here because O4's real
+integration test is what found it; `patch-strategy.mjs`'s generated code and both JS-level tests
+asserting its exact output (`test/patch-approve-cli.test.mjs`, `test/patch-strategy.test.mjs`) were
+updated to match.
+
+**★ A second real bug found by the same integration test**: `HandleController.recover()` embedded
+`snapshot.getPayload()` (a Java `String` holding the raw JSON text `HandleService#recordSnapshot`
+wrote) directly into its response `Map` -- Jackson then serialized that `String` as an ESCAPED JSON
+STRING VALUE (`"payload":"{\"name\":...}"`), double-encoding every real caller's payload instead of
+returning genuine nested JSON. Confirmed live by inspecting the raw HTTP response body of a real
+`recover()` call before the fix. Fixed with `objectMapper.readTree(snapshot.getPayload())`,
+embedding a real `JsonNode` instead of the raw string; a parse failure here means the stored
+payload isn't valid JSON at all -- an internal invariant violation (this app's own
+`recordSnapshot()` is the only thing that ever writes this column), not a caller-facing input
+error, so it throws `IllegalStateException` rather than a 4xx.
+
+**Verification**: `npm test` (JS suite) 686/687 green throughout (the one expected failure is the
+dangling `D-handle-lifecycle` token check, resolved by this section existing). The deepest
+verification this project has attempted: a real, disposable Postgres (local Homebrew Postgres for
+manual verification, GitHub Actions' native `services:` container in CI, same
+`POSTGRES_HOST_AUTH_METHOD: trust` convention `db-introspect`/A4 already established, own DB name
+`bskel_o4_test`), the REAL emitted `migration.sql` applied via `psql`/a real `pg.Client` (never a
+hand-copied duplicate), a genuinely running `@SpringBootTest(webEnvironment=RANDOM_PORT)` Spring
+Boot app, and real HTTP calls (`java.net.http.HttpClient` for PATCH specifically -- `TestRestTemplate`'s
+default `HttpURLConnection`-backed request factory throws `ProtocolException` on PATCH, confirmed
+live). Four real integration tests, all passing against a real database: (1) the full lifecycle --
+a real HTTP field-level PATCH through `HandleController` -> `WidgetResolver#patchField` (the exact
+path that caught the `validateProperty` bug above) -> `WidgetServiceImpl#updateWidget` (annotated
+`@RecordHandleSnapshot`) -> `HandleAspect` fires for real -> a real HTTP GET `recover` returns the
+real recorded payload with `schema_drift:false`; (2) `recover`'s `schema_drift:true` branch, proven
+directly against real registry/snapshot rows by registering under contract A, recording a snapshot
+under A, then re-registering under contract B without a matching new snapshot -- a real contract
+EDIT + re-emit + recompile + app restart mid-JUnit-run was judged out of scope for a single test
+process (CONTRACT_REF being a baked constant recomputed from the contract file's real content hash
+is already proven separately, live, during this item's own manual `handles emit` verification);
+(3) field-level fetch resolving a real pointer and 404ing a missing one; (4) redaction proven at
+the PERSISTENCE layer -- a `redact`-listed pointer's value is genuinely absent from the persisted
+`payload` column (queried directly via `HandleSnapshotRepository`), not merely omitted from the
+HTTP response, matching this item's own plan text exactly.
+
+To run this locally: `./gradlew test --tests useJUnitPlatform()` requires two additions this item
+also made to `test/fixtures/java-compile/build.gradle` that were previously entirely missing --
+`test { useJUnitPlatform() }` and `testRuntimeOnly 'org.junit.platform:junit-platform-launcher'`
+(newer Gradle no longer bundles the launcher) -- both confirmed necessary by real failing runs
+("No tests found" / "Failed to load JUnit Platform"), not assumed. New
+`scripts/java-integration-smoke.mjs` mirrors `java-compile-smoke.mjs`'s full CLI-pipeline-against-
+a-scratch-copy shape plus `db-introspect-smoke.mjs`'s real-Postgres wiring (`BSKEL_TEST_DATABASE_URL`,
+never `.env`), applies the real emitted `migration.sql` plus a small `widgets` table matching
+`Widget.java`'s own JPA mapping exactly (`ddl-auto: none` in the new `application-test.yml` --
+Hibernate never creates/alters schema on its own, matching `D-migration-scope`'s boundary for
+`bskel` itself), then runs `./gradlew test` scoped to `HandleLifecycleIntegrationTest`. Wired into
+CI as a new `java-integration` job (own dedicated job, not folded into `java-compile`, since it
+needs both a JVM toolchain AND a database service container and runs a materially heavier
+`./gradlew test` rather than `compileJava`) -- the wrapper-bootstrap mechanism
+(`gradle wrapper --gradle-version 8.8`) is identical to `java-compile`'s own, already proven in CI;
+the rest of the pipeline (CLI workflow, migration application, `./gradlew test` itself) was proven
+correct by running the exact equivalent command sequence manually against a real local Postgres
+(4/4 tests green) before this job was wired in, since this machine has no `gradle` bootstrap binary
+installed to run the new script's own wrapper-generation step directly.
+
+**Test-only fixture additions** (`test/fixtures/java-compile/`): `WidgetServiceImpl` (the first
+real, non-stub service implementation this fixture has ever had -- `WidgetController`'s endpoints
+previously always returned `ResponseEntity.ok(null)`), `WidgetRepository`, `Widget` gained
+`@Getter`/`@Setter` (needed for both the new service impl and for Jackson's default
+PUBLIC_ONLY-getter visibility to serialize this entity as anything but `{}`), and a test-only
+`TestSecurityConfig` (`@EnableMethodSecurity` + a filter that unconditionally stamps a `ROLE_ADMIN`
+authentication onto every request -- this test verifies the handle lifecycle plumbing, not a real
+login flow).
+
+**EXIT**: if a real contract-edit-triggers-drift end-to-end scenario is ever needed, it requires a
+separate test harness that can re-emit + recompile + restart the app mid-test (out of scope for a
+single JUnit process) -- `recover`'s comparison logic itself is already fully proven.
+
+See also: `D-security-9` (the `recover()` cross-check this item's snapshot-recording finally makes
+reachable); `D-resolver-scope`/`D-security-8` (the "never guess, always explicit" precedent
+`resourceUidParam`/`redact` follow); `D-config-patch`/`D-migration-scope` (why `spring-boot-starter-aop`
+and `migration.sql` are both "review and apply yourself", never auto-applied); `D-patch-strategy`
+(A3, the `validateProperty` bug found and fixed here); `D-db-schema-plane` (A4, the real-Postgres
+CI service-container convention this item's own `java-integration` job reuses exactly).

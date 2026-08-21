@@ -154,6 +154,48 @@ jobs:
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
 
+  # O4 (D-handle-lifecycle): the deepest verification this project has attempted -- a genuinely
+  # running Spring Boot app, real HTTP calls (register -> PATCH -> HandleAspect fires -> GET
+  # recover), against a real disposable Postgres. Own dedicated job (not folded into
+  # java-compile above) because it needs BOTH a JVM toolchain AND a database service container,
+  # and actually runs `./gradlew test`, not just `compileJava` -- a materially heavier/slower
+  # check than either existing job alone. Same `POSTGRES_HOST_AUTH_METHOD: trust`, no-password
+  # convention as db-introspect above; own DB name (bskel_o4_test) so a future re-run of both
+  # jobs concurrently on self-hosted infra could never collide.
+  java-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: bskel_o4_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      # scripts/java-integration-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other smoke-test jobs above.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:java-integration
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_o4_test
+
   # D-macos-runner (P3b): P3's own comment on the `test` job above said a macOS job "would mostly
   # re-test the one platform already exercised daily" locally -- true, but automated + repeatable
   # beats "exercised daily by whoever happens to be at their Mac" all the same, and P3 deferred it

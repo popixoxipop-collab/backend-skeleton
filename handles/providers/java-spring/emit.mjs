@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { emitUnits, unifiedDiff } from '../../_engine.mjs';
 import { loadPatchApprovals, approvedStrategyFor } from '../../../lib/patch-approvals.mjs';
 import { computeCodegenNeeds, renderPatchFieldBody } from './patch-strategy.mjs';
+import { sha256File } from '../../../lib/fsutil.mjs';
+import { specPath } from '../../../lib/paths.mjs';
+import { loadFeatureFile } from '../../../lib/featurelifecycle.mjs';
 
 const PROVIDER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(PROVIDER_ROOT, 'templates');
@@ -18,6 +21,10 @@ const INFRA_FILES = [
 	{ template: 'HandleSnapshotRepository.java.tmpl', target: 'global/handle/HandleSnapshotRepository.java' },
 	{ template: 'ResourceResolver.java.tmpl', target: 'global/handle/ResourceResolver.java' },
 	{ template: 'HandleController.java.tmpl', target: 'global/handle/HandleController.java' },
+	// O4 (D-handle-lifecycle):
+	{ template: 'HandleService.java.tmpl', target: 'global/handle/HandleService.java' },
+	{ template: 'RecordHandleSnapshot.java.tmpl', target: 'global/handle/RecordHandleSnapshot.java' },
+	{ template: 'HandleAspect.java.tmpl', target: 'global/handle/HandleAspect.java' },
 ];
 
 function render(templatePath, vars) {
@@ -102,18 +109,36 @@ function writeUnit(target, content) {
 export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false }) {
 	const javaSrcRoot = path.join(repoRoot, 'src', 'main', 'java', ...basePackage.split('.'));
 
+	// A3 (D-patch-strategy): loaded/detected once per emit call -- approvals are feature-scoped
+	// (not per-resource) and the Jackson package is repo-wide, so one computation each covers
+	// every resource/infra file this call touches (O4/D-handle-lifecycle: HandleService.java.tmpl
+	// now needs jacksonPackage too, for the same reason patch codegen already did).
+	const patchApprovals = loadPatchApprovals(repoRoot, featureId);
+	const jacksonPackage = detectJacksonPackage(repoRoot);
+
 	const infraUnits = INFRA_FILES.map((f) => ({
 		id: f.template,
 		templatePath: path.join(TEMPLATES_DIR, f.template),
 		targetAbs: path.join(javaSrcRoot, f.target),
-		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage }),
+		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage }),
 	}));
 
-	// A3 (D-patch-strategy): both loaded/detected once per emit call, outside the resolver loop --
-	// approvals are feature-scoped (not per-resource) and the Jackson package is repo-wide, so one
-	// computation each covers every resource this call touches.
-	const patchApprovals = loadPatchApprovals(repoRoot, featureId);
-	const jacksonPackage = detectJacksonPackage(repoRoot);
+	// O4 (D-handle-lifecycle): every resource in THIS feature shares the same contract file and
+	// feature_uid, so the common case only computes this once. requireNamedGate(root, 'contract',
+	// ...) already ran before emitJavaSpring() is ever reached (cmdHandlesEmit's own
+	// precondition), so this feature's own contract file is guaranteed to exist here.
+	//
+	// Deliberately NOT reused verbatim inside pristineRenderFor() below for a DIFFERENT owner --
+	// O2's cross-feature adoption check re-renders using the ORIGINAL owner's feature_id
+	// specifically to compare against what THAT feature would have generated; baking in the
+	// CURRENT run's own contract_ref/feature_uid there would compare disk content against the
+	// wrong feature's values and manufacture a false conflict for an untouched file. Falls back to
+	// null/placeholder if the other feature's own contract/feature file no longer exists (e.g. it
+	// was deleted) -- an edge case, not the common path, but must not throw.
+	const contractRefFor = (id) => sha256File(specPath(repoRoot, id, 'contracts', `${id}.schema.json`));
+	const featureUidFor = (id) => loadFeatureFile(repoRoot, id)?.feature_uid ?? '00000000-0000-0000-0000-000000000000';
+	const contractRef = contractRefFor(featureId);
+	const featureUid = featureUidFor(featureId);
 
 	const resolverUnits = plan.resources
 		.filter((r) => r.willGenerateResolver) // see plan.mjs: no broken imports generated on purpose
@@ -136,6 +161,8 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 				FETCH_METHOD: resource.fetchOperation.method,
 				REQUIRED_AUTHORITY: resource.requiredAuthority,
 				FEATURE_ID: featureId,
+				CONTRACT_REF: contractRef,
+				FEATURE_UID: featureUid,
 				PATCH_IMPORTS: needsValidation ? buildPatchImports({ basePackage, module: plan.module, dtoTypeName: resource.dtoTypeName, needsPatchFieldImport, jacksonPackage }) : '',
 				PATCH_FIELDS: needsValidation ? buildPatchFields() : '',
 				PATCH_FIELD_BODY: renderPatchFieldBody({
@@ -155,7 +182,12 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 				templatePath: RESOLVER_TEMPLATE,
 				targetAbs: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure', `${resource.type}Resolver.java`),
 				rendered: render(RESOLVER_TEMPLATE, vars),
-				pristineRenderFor: (ownerId) => render(RESOLVER_TEMPLATE, { ...vars, FEATURE_ID: ownerId }),
+				pristineRenderFor: (ownerId) => render(RESOLVER_TEMPLATE, {
+				...vars,
+				FEATURE_ID: ownerId,
+				CONTRACT_REF: ownerId === featureId ? contractRef : contractRefFor(ownerId),
+				FEATURE_UID: ownerId === featureId ? featureUid : featureUidFor(ownerId),
+			}),
 			};
 		});
 
@@ -188,6 +220,13 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 
 	return {
 		...result,
-		postEmitNotes: ['NOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.'],
+		postEmitNotes: [
+			'NOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.',
+			// O4 (D-handle-lifecycle): HandleAspect.java only actually intercepts anything once a
+			// human applies @RecordHandleSnapshot to a real service method AND the target repo has
+			// this dependency -- never auto-added to build.gradle, same "review and apply yourself"
+			// boundary as the migration note above.
+			'NOT done automatically: HandleAspect.java requires spring-boot-starter-aop on your own build.gradle classpath (Spring AOP is not enabled by any other starter). Add it yourself before applying @RecordHandleSnapshot to any service method.',
+		],
 	};
 }

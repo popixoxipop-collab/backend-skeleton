@@ -30,8 +30,31 @@ dependencies {
 	// patchField() codegen explicitly injects a Validator bean, which spring-boot-starter-web
 	// alone does not provide.
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	// O4 (D-handle-lifecycle): HandleAspect.java uses @Aspect/@Around -- Spring AOP is not
+	// enabled by any other starter here. Matches the exact new build-time requirement
+	// `handles emit`'s own postEmitNotes now names for any REAL target repo.
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
 	compileOnly 'org.projectlombok:lombok:1.18.32'
 	annotationProcessor 'org.projectlombok:lombok:1.18.32'
 	runtimeOnly 'com.h2database:h2'
+	// O4 (D-handle-lifecycle): the real driver for this item's own @SpringBootTest integration
+	// test, which points at a real (disposable) Postgres -- H2 alone was never enough to exercise
+	// this, and the target repo's own real Postgres/Supabase usage is exactly what this proves
+	// against, not an in-memory stand-in.
+	runtimeOnly 'org.postgresql:postgresql'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	// O4 (D-handle-lifecycle): newer Gradle no longer bundles the JUnit Platform launcher itself
+	// -- without this, `./gradlew test` fails with "Failed to load JUnit Platform" before running
+	// a single test, even with useJUnitPlatform() set below. Confirmed missing by a real failing
+	// run, not assumed.
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// O4 (D-handle-lifecycle): required for Gradle to run JUnit 5 (Jupiter) tests at all -- without
+// this, `./gradlew test` silently reports "No tests found" for every test class, JUnit 4-style
+// runner assumptions notwithstanding. Confirmed missing (not assumed) by a real `./gradlew test`
+// run that failed with exactly that message before this was added.
+test {
+	useJUnitPlatform()
 }

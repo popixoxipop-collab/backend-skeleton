@@ -10,9 +10,9 @@ import java.util.UUID;
  *
  * <p>{@code fetch}/{@code patchField} return/accept plain {@code Object} (typically the
  * resource's existing response DTO) rather than a fixed type, since resolvers are registered
- * generically -- callers use {@link HandleCodec#decode} + {@link
- * backend-skeleton.handles.codec}'s {@code resolveJsonPointer}-equivalent to navigate into
- * whatever shape {@code fetch} returns.
+ * generically -- {@link HandleController#fetch} serializes whatever {@code fetch} returns
+ * through Jackson and walks a JSON Pointer with {@code JsonNode#at} for field-level (kind=f)
+ * addressing.
  */
 public interface ResourceResolver {
 
@@ -34,4 +34,17 @@ public interface ResourceResolver {
 
 	/** Spring Security role name (no "ROLE_" prefix) required to fetch/patch this resource type via a handle. */
 	String requiredAuthority();
+
+	/**
+	 * O4 (D-handle-lifecycle): the content hash of the feature contract this resolver was
+	 * generated from -- baked in at {@code bskel handles emit} time (regenerated every run, so a
+	 * contract change is picked up automatically), never read from disk at runtime (a deployed
+	 * app has no access to {@code specs/} at all). {@link HandleService#register} stores this as
+	 * a registry row's {@code contract_ref}; {@code recover}'s {@code schema_drift} check compares
+	 * a snapshot's own recorded hash against the CURRENT value of this method, not a stale one.
+	 */
+	String contractRef();
+
+	/** O4 (D-handle-lifecycle): the feature_uid this resolver was generated for, baked in the same way as {@link #contractRef()}. */
+	UUID featureUid();
 }
