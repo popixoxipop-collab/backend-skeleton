@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { findMappingAnnotations } from '../../../scanners/adapters/_java-spring-analyzer.mjs';
 
 // The "canonical fetch" for an entity: a GET endpoint whose path is exactly
 // `${controller.basePath}/{id}` (one trailing path param, nothing after it) on a controller
@@ -30,20 +31,20 @@ function findFetchOperation(controllers, entityClassName) {
 	return null;
 }
 
-// Same mapping-annotation shape scanners/adapters/java-spring.mjs uses to find endpoints --
-// duplicated here (not exported there) because this needs each match's source *position*, not
-// just the endpoint list plan.mjs already has, to locate the region immediately above one
-// specific method.
-const MAPPING_VERBS = ['Get', 'Post', 'Put', 'Patch', 'Delete'];
+// A2 Phase 1 (D-java-analyzer): this used to duplicate scanners/adapters/java-spring.mjs's own
+// (then-brittle) mapping regex, kept separate only because THIS function needs each match's
+// source *position* (to locate the region immediately above one specific method), not just the
+// endpoint list plan.mjs already has -- the earlier comment here explicitly earmarked "a
+// different catalog item's territory" for whoever eventually fixed the regex itself. That's this
+// item: findMappingAnnotations() (shared with the scanner) now owns the actual matching, this
+// file only maps its richer records down to the {index, methodName} shape findRequiredAuthority()
+// below already consumes -- findRequiredAuthority()/extractPreAuthorize()/classBodyStart() are
+// completely unchanged, D-security-7's own region-carving logic untouched.
 const HAS_ROLE_RE = /@PreAuthorize\(\s*"hasRole\('([^']+)'\)"\s*\)/;
 const PRE_AUTH_RE = /@PreAuthorize\(/;
 
 function methodMappingBoundaries(text) {
-	const mappingRe = new RegExp(
-		`@(${MAPPING_VERBS.join('|')})Mapping(?:\\(([\\s\\S]*?)\\))?\\s*\\n\\s*public\\s+\\S+\\s+(\\w+)\\s*\\(`,
-		'g',
-	);
-	return [...text.matchAll(mappingRe)].map((m) => ({ index: m.index, methodName: m[3] }));
+	return findMappingAnnotations(text).map((m) => ({ index: m.index, methodName: m.methodName }));
 }
 
 // Index just after the class body's opening brace -- the lower bound for a method-level search

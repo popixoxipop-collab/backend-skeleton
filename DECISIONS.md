@@ -3676,3 +3676,123 @@ on exposing rather than reimplementing); `D-handles-providers` (G4, whose provid
 providers); `D-extension-conformance` (P4, whose `outputs.spec` exemption for java-spring's
 migration.sql this item reused twice -- once for the `spec`-kind action classification, once for
 the `--check` exit-code fix).
+
+## D-java-analyzer (A2 Phase 1): a masking + balanced-delimiter Java analyzer
+
+**WHY, and why this catalog item's Why held up under grounding** (unlike several prior items this
+session): `extractController()` and `detectRequestBody()` really did depend on brittle patterns
+(`public\s+\S+`, a literal `\n` between a mapping annotation and `public`, non-greedy backtracking
+across parens). P3 had already pinned this as a known-limitation baseline for exactly this item:
+`test/fixtures/java-spring/.../annotationstyles/presentation/` has 6 synthetic one-class-per-file
+fixtures, each isolating one broken shape (a comment or an annotation like `@PreAuthorize` between
+the mapping annotation and `public`; a space inside a generic return type; mapping-and-`public` on
+the same line; `@RequestMapping(method=...)` instead of a verb-specific shorthand; and a `//`
+comment merely mentioning `operationId = "..."` as prose polluting `controller.operationIds`), plus
+6 `test/scan-fixture.test.mjs` tests asserting the broken behavior. Also confirmed genuinely
+unsupported anywhere, and undiscussed before this (searched the fixture corpus and DECISIONS.md):
+Java `record` classes and package-private methods (no access modifier at all).
+
+**The real work was exposing structure safely, not building a parser.** `scanners/adapters/
+_java-spring-analyzer.mjs` (new; leading underscore load-bearing -- `scanners/registry.mjs`'s
+`candidateFiles()` treats every non-`_`/`.`-prefixed `.mjs` under `scanners/adapters/` as a
+candidate scanner adapter to dynamically `import()`, and this file exports pure functions only, no
+`adapter`): `maskNonCode(text)` blanks every comment (markers included) and every string
+literal's/text-block's INTERIOR (delimiters kept) to spaces, same length and line breaks as the
+input, so a comment or a string's content can never masquerade as code during a structural scan.
+`matchBalanced(text, openIndex, openChar, closeChar)` is the same depth-counting algorithm
+`scanners/adapters/python-fastapi.mjs`'s own local `matchBalancedParens()` already uses,
+parameterized for both `(`/`)` and `<`/`>`. `skipAnnotationsAndWhitespace()` walks forward over any
+number of intervening annotations and whitespace (masked comments included, for free) -- the ONE
+general mechanism that makes same-line mappings, intervening annotations, and comments-in-between
+all "just work" instead of needing a special case per broken shape. `findMappingAnnotations(text)`
+is the shared orchestrator both the scanner and (via Tier 2 below) `handles plan`'s authority
+search consume.
+
+**Found live while wiring this up, not assumed correct in advance -- masking blanking a STRING's
+quote delimiters too broke every REAL annotation, not just phantom comment mentions.** The first
+`maskNonCode()` draft blanked a string literal's opening/closing `"` along with its content --
+`operationId\s*=\s*"` (the position-search pattern) then could never find a literal `"` anywhere in
+masked text, for a genuine `@Operation(operationId="findWidget")` exactly as much as a phantom
+comment mention. Caught immediately by the real-repo before/after diff (`organization`/`curriculum`/
+`security` modules all went from `operationIds: [...]` to `operationIds: []`) before this ever
+reached a test file. Fixed by keeping a string's own quote delimiters intact and blanking only the
+interior -- comments still vanish completely (markers included), since nothing needs a comment's
+presence detected post-masking.
+
+**Found live via the real-repo smoke test, not the fixture corpus -- a rigid class-level lookahead
+missed a real shape.** `test/scan.test.mjs`'s "smoke, when present" test (which runs against a real
+checkout of Team-IZ-Backend on this machine) failed with `basePath: ''` instead of `/organizations`
+after the fixture-only regression check had already gone fully green. Root cause: the real
+`OrganizationController`'s annotation stack is `@RequestMapping(value = "/organizations",
+produces = ...) @RequiredArgsConstructor public class OrganizationController` -- an intervening
+`@RequiredArgsConstructor` between the class-level mapping and `class` that the fixture corpus
+never happened to exercise. The first lookahead checked only a fixed window of characters for
+`class`/`record` immediately after the mapping's own args; fixed by reusing
+`skipAnnotationsAndWhitespace()` there too (a new `isClassOrRecordAhead()` helper), the same general
+mechanism already solving this exact problem for methods. This is the second class of bug this item
+found specifically BECAUSE of the "diff the real repo before/after" verification step, not the
+synthetic fixture corpus alone -- the fixture corpus is comprehensive for what it was built to
+pin, but a real repo's actual style still surfaces cases nobody thought to synthesize.
+
+**`findMappingAnnotations()`'s `@RequestMapping(method=...)` support is single-verb only, matching
+the catalog's own literal wording.** A `method = {RequestMethod.GET, RequestMethod.POST}` array is
+left unresolved and skipped -- a documented gap, not silently guessed at (verified live: the
+position-search pattern requires `method\s*=\s*RequestMethod\.` with no intervening `{`, so an
+array form correctly fails to match and the whole annotation occurrence is skipped, same as
+"nothing recognized here" today).
+
+**`contracts/emit.mjs`'s `detectRequestBody()`** -- named directly by the catalog's own Why
+alongside `extractController()` -- gets a new `findMethodParams(text, methodName)` (same analyzer
+file): a bounded-nesting return-type pattern (a pragmatic, Phase-1-appropriate trade-off -- real
+Spring controller return types in this codebase never nest generics past 2 levels, so this isn't
+`matchBalanced()`'s job here) finds the method's own `(`, then `matchBalanced()` finds its TRUE
+closing paren regardless of what a default-value expression's own nested parens contain. **Confirmed
+live against the OLD code before writing any new assertion**: a return type with a space inside a
+generic (`ResponseEntity<Map<String, Object>>`) failed to match at all -- the exact same root cause
+as `GenericWithSpaceController`'s scanner-level bug. Also confirmed (so as not to overstate the
+fix) that the OLD regex actually handled a default-value expression's own nested parens correctly
+already, by the accident of there being no earlier `)` immediately followed by `{` in that specific
+shape -- `findMethodParams()` makes this correct by construction instead of by luck, but it was not
+a second, independently-confirmed live bug the way the generic-with-space case was.
+
+**Tier 2 (user-approved): consolidates `handles/providers/java-spring/plan.mjs`'s
+`methodMappingBoundaries()`**, a literal duplicate of the scanner's own (old) mapping regex whose
+own comment already earmarked this exact moment ("a different catalog item's territory"). Now a
+thin wrapper mapping `findMappingAnnotations()`'s richer records down to the `{index, methodName}`
+shape `findRequiredAuthority()` already consumes. **`findRequiredAuthority()`,
+`extractPreAuthorize()`, `classBodyStart()`, `countServiceMethodParams()`, and
+`countTopLevelCommas()` are completely unchanged** -- D-security-7's region-carving logic and
+D-security-8's arity check are untouched by design; only the boundary list they're handed becomes
+more robust, confirmed by `test/handles-plan-fixture.test.mjs`'s existing D-security-7 tests passing
+byte-for-byte unmodified. This is a new import direction (`handles/` -> `scanners/`, one-way,
+confirmed via grep that nothing in `scanners/` imports from `handles/`) -- accepted as the
+mechanism Tier 2 requires, not introduced casually.
+
+**Verification, direct execution at every step, not assumed correct from design alone:** every
+one of the 6 known-broken fixture shapes resolves correctly (verified via a standalone script
+before ever touching `scanners/adapters/java-spring.mjs`); the real-repo `organization`/
+`curriculum`/`security`/`codeanalysis` fixture modules produce BYTE-IDENTICAL `scanJavaSpring()`
+output before/after (two real bugs -- the quote-masking regression and the class-level lookahead
+gap -- were caught and fixed by this exact check, not assumed clean); a real, isolated Team-IZ-
+Backend worktree (`origin/develop`, removed after) ran the full `feature init -> scan ->
+disposition -> contract emit -> handles emit` workflow for the `organization` module twice (once
+with `git stash` reverting to the pre-A2-Phase-1 code, once with it applied) -- all 9 generated
+Java files' sha256 hashes are IDENTICAL between the two runs, including `OrganizationResolver.java`'s
+`requiredAuthority() -> "SUPER_ADMIN"` (proving Tier 2's consolidation didn't disturb
+`findRequiredAuthority()`'s real output either). `npm test` 594 (26 net new: 23 in the new
+`test/java-spring-analyzer.test.mjs` unit-testing the pure helpers directly -- mirrors
+`classifyFile()`'s own precedent in `test/handles-manifest.test.mjs` -- 2 new fixtures + assertions
+in `test/scan-fixture.test.mjs`, 1 in `test/contract-fixture.test.mjs`, minus the 6 "known
+limitation" tests inverted in place rather than counted as new).
+
+**EXIT**: Phase 2 (an optional JavaParser/Symbol-Solver AST layer for DTO/service-signature/
+validation-expression analysis) stays explicitly out of scope -- CATALOG.md's A2 entry is marked
+partially implemented, not implemented, so this remains visible as real future work rather than
+silently closed.
+
+Cross-references: `D-scanner-evidence` (D3, whose per-endpoint `line` field this item's
+`findMappingAnnotations()` still populates identically, same document-order guarantee); `D-security-7`/
+`D-security-8` (the region-carving/arity logic this item deliberately left untouched, only its
+upstream boundary source upgraded); `D-fixture-corpus` (P3, whose `annotationstyles` fixture
+package was built as this item's own committed before/after baseline, used here exactly as
+intended).

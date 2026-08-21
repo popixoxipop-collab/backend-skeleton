@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { makeWarning, classifyContract } from './completeness.mjs';
+import { findMethodParams } from '../scanners/adapters/_java-spring-analyzer.mjs';
 
 // D-security-2: a plain UUID `pattern`, not `format: 'uuid'`. ajv-formats' uuid format accepts
 // an optional `urn:uuid:` prefix (per its RFC 4122 reading), but Spring's `UUID` path-variable
@@ -28,13 +29,17 @@ function pathParamsSchema(routePath) {
 // Re-reads the controller source (already located by the scan) to check whether this specific
 // method's parameter list has @RequestBody -- verb alone is not reliable in this codebase
 // (e.g. `deleteOrganization` is DELETE but still takes a @RequestBody confirm-name payload).
+// A2 Phase 1 (D-java-analyzer): confirmed live that the old non-greedy `([\s\S]*?)\)\s*\{` regex
+// (the exact pattern the catalog's own A2 Why names alongside extractController()) failed to
+// match at all against a return type with a space inside a generic (`ResponseEntity<Map<String,
+// Object>>`) -- findMethodParams() shares the same balanced-delimiter analyzer that fixes the
+// scanner's identical GenericWithSpaceController case.
 function detectRequestBody(filePath, methodName) {
 	if (!filePath || !fs.existsSync(filePath)) return null;
 	const text = fs.readFileSync(filePath, 'utf8');
-	const methodRe = new RegExp(`public\\s+\\S+\\s+${methodName}\\s*\\(([\\s\\S]*?)\\)\\s*\\{`);
-	const match = text.match(methodRe);
-	if (!match) return null;
-	return /@RequestBody/.test(match[1]);
+	const params = findMethodParams(text, methodName);
+	if (params === null) return null;
+	return /@RequestBody/.test(params);
 }
 
 // A1: shared with contracts/openapi.mjs so "which module" and "which endpoint is which" are

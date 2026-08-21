@@ -1,12 +1,12 @@
-// Ripgrep-for-discovery + full-file regex-for-structure. Deliberately no real Java parser (see
-// DECISIONS.md / the plan's Component 2) -- good enough to find "does a related module already
-// exist" without a compiler dependency, not a general-purpose Java analyzer.
+// Ripgrep-for-discovery + a masking/balanced-delimiter structural scan (A2 Phase 1,
+// D-java-analyzer -- see scanners/adapters/_java-spring-analyzer.mjs) for structure. Deliberately
+// still no real Java parser/AST (Phase 2, out of scope) -- good enough to find "does a related
+// module already exist" without a compiler dependency, not a general-purpose Java analyzer.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { lineNumberAt } from '../text-util.mjs';
-
-const MAPPING_VERBS = ['Get', 'Post', 'Put', 'Patch', 'Delete'];
+import { maskNonCode, findClassOrRecordDeclaration, findClassLevelMappingArgs, findMappingAnnotations } from './_java-spring-analyzer.mjs';
 
 export function detectJavaSpringRoot(repoRoot) {
 	const buildFiles = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
@@ -22,13 +22,6 @@ export function detectJavaSpringRoot(repoRoot) {
 function listJavaFiles(srcRoot) {
 	const out = execFileSync('rg', ['--files', '-g', '*.java', srcRoot], { encoding: 'utf8' });
 	return out.split('\n').filter(Boolean).sort();
-}
-
-function stripComments(text) {
-	// Block comments (incl. javadoc) then line comments. Not full lexing -- a "//" inside a
-	// string literal would confuse this, but none of the target files put that inside an enum
-	// body, which is the only place this is used.
-	return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 }
 
 function moduleOf(filePath, srcRoot) {
@@ -51,51 +44,68 @@ function joinPath(base, segment) {
 	return s ? `${b}/${s}` : (b || '/');
 }
 
+// A2 Phase 1 (D-java-analyzer): finds every `operationId = "..."` occurrence's REAL value within
+// `text[searchStart:searchEnd]`, safe from a comment/string phantom match (D-java-analyzer's
+// headline example: a `//` comment mentioning `operationId = "..."` as prose used to appear in
+// controller.operationIds). The POSITION is found on `masked` text (comments/strings blanked to
+// spaces, so a phantom mention can never be found there at all); the VALUE is always re-read from
+// the ORIGINAL text at that same offset, since a masked string body only ever contains spaces.
+function findOperationIdValue(text, masked, searchStart, searchEnd) {
+	const posMatch = masked.slice(searchStart, searchEnd).match(/operationId\s*=\s*"/);
+	if (!posMatch) return null;
+	const real = text.slice(searchStart + posMatch.index).match(/operationId\s*=\s*"([^"]+)"/);
+	return real ? real[1] : null;
+}
+
+function findAllOperationIdValues(text, masked) {
+	const ids = [];
+	const re = /operationId\s*=\s*"/g;
+	let m;
+	while ((m = re.exec(masked))) {
+		const real = text.slice(m.index).match(/operationId\s*=\s*"([^"]+)"/);
+		if (real) ids.push(real[1]);
+	}
+	return ids;
+}
+
 function extractController(text, filePath) {
 	if (!/@RestController\b/.test(text)) return null;
-	const classMatch = text.match(/public\s+class\s+(\w+)/);
-	const className = classMatch ? classMatch[1] : path.basename(filePath, '.java');
-	// D3 (D-scanner-evidence): the class declaration's own line -- classLine is null only in the
-	// path.basename fallback above (no `public class` match at all, so there's no declaration to
-	// point at).
-	const classLine = classMatch ? lineNumberAt(text, classMatch.index) : null;
+	const masked = maskNonCode(text);
 
-	// Class-level @RequestMapping: match the one shortly before `class <Name>`, not any
-	// method-level mapping (this codebase's methods use @GetMapping/@PostMapping/etc., not
-	// @RequestMapping, so in practice there is exactly one -- but anchor to `class` anyway).
-	const classMappingMatch = text.match(/@RequestMapping\(([\s\S]*?)\)\s*\n[\s\S]{0,200}?class\s+\w+/);
-	const basePath = classMappingMatch ? (extractQuotedOrValue(classMappingMatch[1]) ?? '') : '';
+	// D3 (D-scanner-evidence): the class declaration's own line -- classLine is null only when
+	// there's no class/record declaration at all to point at.
+	const classDecl = findClassOrRecordDeclaration(masked);
+	const className = classDecl ? classDecl.name : path.basename(filePath, '.java');
+	const classLine = classDecl ? lineNumberAt(text, classDecl.index) : null;
+
+	// A2 Phase 1: class-level @RequestMapping detection now goes through the shared analyzer
+	// (balanced-paren args, masked-text lookahead for `class`/`record`) instead of a lazy-backtrack
+	// regex -- see D-java-analyzer for the lazy-backtrack misattribution bug this class of pattern
+	// used to cause.
+	const classMappingArgs = findClassLevelMappingArgs(text);
+	const basePath = classMappingArgs != null ? (extractQuotedOrValue(classMappingArgs) ?? '') : '';
 
 	// Document-order list of every operationId in the file -- this is what the acceptance
 	// oracle (10 operationIds for Team-IZ-Backend's OrganizationController) checks directly.
-	const operationIds = [...text.matchAll(/operationId\s*=\s*"([^"]+)"/g)].map((m) => m[1]);
-	const operationStarts = [...text.matchAll(/@Operation\(/g)].map((m) => m.index);
+	const operationIds = findAllOperationIdValues(text, masked);
+	const operationStarts = [...masked.matchAll(/@Operation\(/g)].map((m) => m.index);
 
-	const mappingRe = new RegExp(
-		`@(${MAPPING_VERBS.join('|')})Mapping(?:\\(([\\s\\S]*?)\\))?\\s*\\n\\s*public\\s+\\S+\\s+(\\w+)\\s*\\(`,
-		'g',
-	);
 	const endpoints = [];
-	for (const m of text.matchAll(mappingRe)) {
-		const verb = m[1].toUpperCase();
-		const segment = extractQuotedOrValue(m[2] ?? null) ?? '';
-		const methodName = m[3];
+	for (const mapping of findMappingAnnotations(text)) {
+		const segment = extractQuotedOrValue(mapping.argsText) ?? '';
 
 		// Correlate with the nearest PRECEDING @Operation( block, even when an @ApiResponses
 		// (or similar) annotation sits between it and this mapping -- heuristic, not a parser.
 		let operationId = null;
-		const preceding = operationStarts.filter((idx) => idx < m.index);
+		const preceding = operationStarts.filter((idx) => idx < mapping.index);
 		if (preceding.length > 0) {
-			const between = text.slice(preceding[preceding.length - 1], m.index);
-			const idMatch = between.match(/operationId\s*=\s*"([^"]+)"/);
-			if (idMatch) operationId = idMatch[1];
+			operationId = findOperationIdValue(text, masked, preceding[preceding.length - 1], mapping.index);
 		}
-		// D3: line of the mapping annotation itself (`m.index` is already the match's own start,
-		// no extra work beyond the lineNumberAt call -- this is the same position
-		// handles/providers/java-spring/plan.mjs's methodMappingBoundaries() re-derives with its
-		// own separate regex pass today; left as-is here, not consolidated, since that's a
-		// different catalog item's territory, not D3's.
-		endpoints.push({ verb, path: joinPath(basePath, segment), operationId, method: methodName, line: lineNumberAt(text, m.index) });
+		// D3: line of the mapping annotation itself. A2 Phase 1: this is now the SAME position
+		// handles/providers/java-spring/plan.mjs derives too -- both consume
+		// findMappingAnnotations() from scanners/adapters/_java-spring-analyzer.mjs, the duplicate
+		// regex pass this comment used to point at is gone.
+		endpoints.push({ verb: mapping.verb, path: joinPath(basePath, segment), operationId, method: mapping.methodName, line: mapping.methodLine });
 	}
 
 	return { className, basePath, operationIds, endpoints, file: filePath, line: classLine };
@@ -103,15 +113,16 @@ function extractController(text, filePath) {
 
 function extractEntity(text, filePath) {
 	if (!/@Entity\b/.test(text)) return null;
-	const classMatch = text.match(/public\s+class\s+(\w+)/);
+	const masked = maskNonCode(text);
+	const classDecl = findClassOrRecordDeclaration(masked);
 	const tableMatch = text.match(/@Table\(\s*name\s*=\s*"([^"]+)"/);
 	const idFieldMatch = text.match(/@Id\b[\s\S]{0,200}?private\s+\S+\s+(\w+)\s*;/);
 	return {
-		className: classMatch ? classMatch[1] : path.basename(filePath, '.java'),
+		className: classDecl ? classDecl.name : path.basename(filePath, '.java'),
 		table: tableMatch ? tableMatch[1] : null,
 		idField: idFieldMatch ? idFieldMatch[1] : null,
 		file: filePath,
-		line: classMatch ? lineNumberAt(text, classMatch.index) : null,
+		line: classDecl ? lineNumberAt(text, classDecl.index) : null,
 	};
 }
 
@@ -119,7 +130,7 @@ function extractDomainEnum(text, filePath) {
 	const match = text.match(/public\s+enum\s+(\w+)\s*\{([\s\S]*?)\n\}/);
 	if (!match) return null;
 	const [, name, rawBody] = match;
-	const body = stripComments(rawBody);
+	const body = maskNonCode(rawBody);
 	// Each constant ends at the first `,` `;` (or the start of a constructor-arg `(` if present).
 	const constants = body
 		.split(/[,;]/)
