@@ -47,8 +47,8 @@ function usage() {
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel catalog lint [<choice>] [--json]
-  bskel handles plan --feature <id> [--module <name>] [--resource type1,type2]
-  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."]
+  bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff]
+  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff]
   bskel verify --feature <id> [--build] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
@@ -1101,7 +1101,33 @@ function writeScanReportOrExit(reportPath, report) {
 	writeFileAtomic(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 }
 
-function renderHandlesPlan(plan) {
+// D4 (D-handles-dryrun): the marker vocabulary a human report uses for classifyFile()'s 6
+// possible actions (+ the java-spring-only 'spec' kind, which reuses the same 3 labels since it's
+// classified the same 3-way create/unchanged/update, just outside classifyFile() itself).
+const ACTION_MARKERS = { create: '+', unchanged: '=', update: '~', 'adopt-unchanged': '=', 'adopt-update': '~', conflict: '!' };
+
+// D4: shared between `handles plan`'s preview and `handles emit --check`'s report -- both show
+// the exact same per-file action list, since they're both now backed by the same
+// emitUnits({dryRun:true}) computation. Diff bodies print only when computeDiff was actually
+// requested (an action only carries a.diff when it was).
+function renderFileActions(actions) {
+	const lines = ['## File actions'];
+	if (actions.length === 0) {
+		lines.push('(no infra/resolver units in scope)');
+		return lines.join('\n');
+	}
+	for (const a of actions) {
+		const marker = ACTION_MARKERS[a.action] ?? '?';
+		const specNote = a.kind === 'spec' ? ' [spec-owned: always regenerated on a real run, not conflict-tracked]' : '';
+		lines.push(`  [${marker}] ${a.action}\t${a.path}${a.resourceType ? ` (${a.resourceType})` : ''}${specNote}`);
+		if (a.diff) {
+			for (const dl of a.diff.split('\n')) if (dl) lines.push(`      ${dl}`);
+		}
+	}
+	return lines.join('\n');
+}
+
+function renderHandlesPlan(plan, actions) {
 	const lines = [`# Handles plan: module "${plan.module ?? '(none)'}"`, ''];
 	if (plan.resources.length === 0) {
 		lines.push('No candidate resources.');
@@ -1116,7 +1142,9 @@ function renderHandlesPlan(plan) {
 	if (plan.notes.length > 0) {
 		lines.push('## Notes');
 		for (const n of plan.notes) lines.push(`- ${n}`);
+		lines.push('');
 	}
+	if (actions) lines.push(renderFileActions(actions));
 	return `${lines.join('\n')}\n`;
 }
 
@@ -1168,7 +1196,19 @@ function cmdHandlesPlan(args) {
 	} catch (err) {
 		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 	}
-	console.log(flags.json ? JSON.stringify(plan, null, 2) : renderHandlesPlan(plan));
+	// D4 (D-handles-dryrun): a dry, never-writing preview of exactly what `handles emit` would do
+	// to disk -- reuses the identical classifyFile()-backed engine `handles emit` itself calls,
+	// just with dryRun:true. Always computed (cheap: no diff bodies unless --diff asks for them),
+	// so `handles plan` becomes a true pre-write plan, not just an abstract resource list. Does NOT
+	// require the contract gate -- same as the rest of this command, unaffected by this addition
+	// since dryRun never writes.
+	let actions;
+	try {
+		({ actions } = provider.emit({ repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: false, reason: '', dryRun: true, computeDiff: flags.diff }));
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	}
+	console.log(flags.json ? JSON.stringify({ ...plan, actions }, null, 2) : renderHandlesPlan(plan, actions));
 	process.exit(0);
 }
 
@@ -1212,9 +1252,21 @@ function cmdHandlesEmit(args) {
 	} catch (err) {
 		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 	}
-	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, postEmitNotes = [] } = provider.emit({
-		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason,
+	// D4 (D-handles-dryrun): --diff alone implies --check -- there is no sane reading of "show me
+	// a diff" that also means "and actually write it", so --diff forces dryRun the same as --check
+	// does, without requiring both flags together.
+	const dryRun = flags.check || flags.diff;
+	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = provider.emit({
+		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff,
 	});
+	// D4: found live while grounding this against a real fixture -- `written` (pre-existing field,
+	// unchanged semantics) unconditionally includes a java-spring `outputs.spec` file like
+	// migration.sql even when its content is byte-identical (P4 already found this: it's never
+	// manifest-tracked, always regenerated). Using `written.length` here would make --check report
+	// "something changed" forever for java-spring, even on a truly up-to-date repo. `actions`
+	// (this item's own new field) carries the real per-file classification, so it's the correct
+	// source for "did anything actually change" -- 'unchanged'/'adopt-unchanged' both mean no.
+	const wouldChange = actions.some((a) => a.action !== 'unchanged' && a.action !== 'adopt-unchanged');
 	const allNotes = [...plan.notes, ...notes];
 	if (flags.force && forced.length === 0 && conflicts.length === 0) allNotes.push('--force had no effect: 0 conflicts found in this run\'s scope');
 	else if (flags.force && forced.length > 0) allNotes.push(`--force overwrote ${forced.length} diverged file(s): ${forced.join(', ')}`);
@@ -1222,34 +1274,42 @@ function cmdHandlesEmit(args) {
 	// O2: a conflict means SOME generated file diverged from what backend-skeleton last wrote --
 	// files that were safe to (re)write still were, but the `handles` gate does not pass this run
 	// (partial writes are intentional, see D-handles-ownership; blocking the gate on any conflict
-	// is not).
+	// is not). D4: --check reports the exact same verdict a real run WOULD reach (same exit 15),
+	// without ever writing -- `written`/`forced` above already say "would" under dryRun since
+	// emitUnits() populates them identically whether or not it actually touched disk.
 	if (blocked) {
 		if (flags.json) {
-			console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: true, gate: null }, null, 2));
+			console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, blocked: true, gate: null, check: dryRun }, null, 2));
 		} else {
-			console.error(`blocked: ${conflicts.length} generated file(s) diverged from what backend-skeleton last wrote -- refusing to overwrite without --force:`);
+			const verb = dryRun ? 'would be blocked' : 'blocked';
+			console.error(`${verb}: ${conflicts.length} generated file(s) diverged from what backend-skeleton last wrote -- ${dryRun ? 'a real run would refuse to overwrite them' : 'refusing to overwrite'} without --force:`);
 			for (const c of conflicts) console.error(`  ${c.path} (${c.kind}${c.resourceType ? `: ${c.resourceType}` : ''})\n    ${c.reason}`);
 			if (written.length > 0) {
-				console.error(`\n${written.length} other file(s) were still written this run:`);
+				console.error(`\n${written.length} other file(s) ${dryRun ? 'would still be written' : 'were still written this run'}:`);
 				for (const w of written) console.error(`  ${w}`);
 			}
-			console.error(`\nre-run with: bskel handles emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''}${flags.resource ? ` --resource ${flags.resource}` : ''} --force --reason "..."`);
+			if (!dryRun) console.error(`\nre-run with: bskel handles emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''}${flags.resource ? ` --resource ${flags.resource}` : ''} --force --reason "..."`);
 			if (orphans.length > 0) {
 				console.error('\norphaned (previously generated, no longer in the current plan -- left untouched):');
 				for (const o of orphans) console.error(`  ${o.path} (${o.resourceType})`);
 			}
+			if (dryRun) console.error(`\n${renderFileActions(actions)}`);
 		}
 		// D-process-exit-audit: bounded by 7 + plan.resources.length units, no pipe-truncation risk.
 		// Carries a real payload (already printed above in --json mode) -- no diagnostic envelope.
-		process.exit(15);
+		// P4 precedent (catalog lint): reused, not a new exit code -- --check reaching the exact
+		// same verdict a real run would (exit 15) is the point, not a distinct "check found a
+		// conflict" code.
+		process.exit(EXIT_CODES.HANDLES_CONFLICT);
 	}
 
-	const gateState = passNamedGate(root, 'handles', flags.feature, { resolverStubs });
+	// D4: dryRun never marks the gate passed -- nothing real happened this run.
+	const gateState = dryRun ? null : passNamedGate(root, 'handles', flags.feature, { resolverStubs });
 
 	if (flags.json) {
-		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, blocked: false, gate: gateState.gates.handles, postEmitNotes }, null, 2));
+		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, blocked: false, gate: gateState?.gates.handles ?? null, check: dryRun, postEmitNotes }, null, 2));
 	} else if (!flags.quiet) {
-		console.log(`wrote ${written.length} file(s):`);
+		console.log(`${dryRun ? 'would write' : 'wrote'} ${written.length} file(s):`);
 		for (const w of written) console.log(`  ${w}`);
 		if (allNotes.length > 0) {
 			console.log('\nnotes:');
@@ -1259,9 +1319,18 @@ function cmdHandlesEmit(args) {
 			console.log('\norphaned (previously generated, no longer in the current plan -- left untouched):');
 			for (const o of orphans) console.log(`  ${o.path} (${o.resourceType})`);
 		}
-		console.log(`\ngate: handles -> ${gateState.gates.handles.status}`);
-		for (const n of postEmitNotes) console.log(`\n${n}`);
+		if (dryRun) {
+			console.log(`\n${renderFileActions(actions)}`);
+		} else {
+			console.log(`\ngate: handles -> ${gateState.gates.handles.status}`);
+			for (const n of postEmitNotes) console.log(`\n${n}`);
+		}
 	}
+	// D4: --check is CI-friendly by the catalog's own explicit ask -- 0 means fully up to date
+	// (every action is 'unchanged'/'adopt-unchanged'), CHECK_FAILED (the same code P4's `catalog
+	// lint` established for "this run was valid, the checked content is not") means a real run
+	// would actually change something.
+	if (dryRun) process.exit(wouldChange ? EXIT_CODES.CHECK_FAILED : EXIT_CODES.OK);
 	process.exit(0);
 }
 

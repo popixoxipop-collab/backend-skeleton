@@ -5,6 +5,7 @@
 // D-handles-providers (G4) in DECISIONS.md. `handles/providers/java-spring/emit.mjs` is the
 // reference caller to compare against if this file's behavior is ever in question.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { sha256File, sha256String } from '../lib/fsutil.mjs';
@@ -18,6 +19,35 @@ function writeUnit(target, content) {
 	fs.mkdirSync(path.dirname(target), { recursive: true });
 	fs.writeFileSync(target, content);
 }
+
+// D4 (D-handles-dryrun): a real unified diff via `git diff --no-index`, not a hand-rolled diff
+// algorithm -- `git` is already a hard dependency (isDirtyOrUntracked below already shells out to
+// it on every emit), so this adds zero new dependencies. `cwd: tmpDir` + relative `a/<relPath>`/
+// `b/<relPath>` paths (rather than absolute temp paths) keep the diff header clean and
+// reproducible -- the random tmpdir name never leaks into the output. `git diff --no-index` exits
+// 1 when the two sides differ (the expected, common case here, not a failure) -- only a status
+// other than 0/1 is a genuine error worth throwing.
+export function unifiedDiff(relPath, before, after) {
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-diff-'));
+	try {
+		const beforeAbs = path.join(tmpDir, 'a', relPath);
+		const afterAbs = path.join(tmpDir, 'b', relPath);
+		fs.mkdirSync(path.dirname(beforeAbs), { recursive: true });
+		fs.mkdirSync(path.dirname(afterAbs), { recursive: true });
+		fs.writeFileSync(beforeAbs, before ?? '');
+		fs.writeFileSync(afterAbs, after ?? '');
+		try {
+			return execFileSync('git', ['diff', '--no-index', '--no-color', '--', `a/${relPath}`, `b/${relPath}`], { cwd: tmpDir, encoding: 'utf8' });
+		} catch (err) {
+			if (err.status === 1 && typeof err.stdout === 'string') return err.stdout;
+			throw err;
+		}
+	} finally {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	}
+}
+
+const DIFFABLE_ACTIONS = new Set(['update', 'conflict', 'adopt-update']);
 
 // O2: refuses --force on a target that isn't safely recoverable from git history -- a --force
 // overwrite is only ever reversible if the content it destroys is already committed. Fails
@@ -43,7 +73,13 @@ function isDirtyOrUntracked(repoRoot, absPath) {
 //                     resourceTypeOf(filename, content) => string|null } | null
 //                  -- null disables orphan detection entirely (mirrors --resource narrowing)
 //   provider:      string, written into every manifest entry this call creates/updates
-export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan }) {
+//   dryRun:        D4 (D-handles-dryrun) -- when true, every actual write (writeUnit/saveManifest)
+//                  is skipped, but the exact same classification runs and `written`/`forced`
+//                  still record what WOULD have been written. Nothing on disk changes.
+//   computeDiff:   D4 -- when true, attaches a real unified diff (git diff --no-index) to every
+//                  'update'/'conflict'/'adopt-update' action -- the only 3 where content actually
+//                  differs. Off by default since it shells out to git per diffable file.
+export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan, dryRun = false, computeDiff = false }) {
 	const manifest = loadManifest(repoRoot);
 	const nowIso = new Date().toISOString();
 
@@ -53,7 +89,15 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 	const notes = [];
 	const resolverStubs = [];
 	const forced = [];
+	const actions = [];
 	let manifestChanged = false;
+
+	function recordAction({ relPath, kind, action, resourceType, diskContent, rendered }) {
+		const entry = { path: relPath, kind, action };
+		if (resourceType) entry.resourceType = resourceType;
+		if (computeDiff && DIFFABLE_ACTIONS.has(action)) entry.diff = unifiedDiff(relPath, diskContent, rendered);
+		actions.push(entry);
+	}
 
 	// ---- infra: repo-owned, all-or-nothing (a half-upgraded infra set is worse than either
 	// extreme, so one conflict blocks the whole set unless --force). ----
@@ -68,45 +112,58 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 		// step needed, unlike a resolver's baked-in FEATURE_ID).
 		const matchesPristineRender = exists && diskContent === u.rendered;
 		const action = classifyFile({ exists, diskHash, manifestEntryHash: entry?.generated_hash ?? null, freshRenderHash, matchesPristineRender });
-		return { ...u, relPath, freshRenderHash, action };
+		return { ...u, relPath, diskContent, freshRenderHash, action };
 	});
 
 	const infraHasConflict = infraPlans.some((u) => u.action === 'conflict');
 	if (infraHasConflict && !force) {
-		for (const u of infraPlans) conflicts.push({ path: u.relPath, kind: 'infra', reason: 'diverged from the last content backend-skeleton generated -- see notes for remediation' });
+		for (const u of infraPlans) {
+			conflicts.push({ path: u.relPath, kind: 'infra', reason: 'diverged from the last content backend-skeleton generated -- see notes for remediation' });
+			recordAction({ relPath: u.relPath, kind: 'infra', action: u.action, diskContent: u.diskContent, rendered: u.rendered });
+		}
 	} else {
 		for (const u of infraPlans) {
 			if (u.action === 'conflict') {
 				if (isDirtyOrUntracked(repoRoot, u.targetAbs)) {
 					conflicts.push({ path: u.relPath, kind: 'infra', reason: 'refusing --force: this file has uncommitted/untracked changes -- commit or stash it first so the overwrite is recoverable' });
+					recordAction({ relPath: u.relPath, kind: 'infra', action: u.action, diskContent: u.diskContent, rendered: u.rendered });
 					continue;
 				}
-				manifest.files[u.relPath] = {
-					kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
-					template_hash: sha256File(u.templatePath), generated_hash: u.freshRenderHash,
-					updated_at: nowIso, last_force: { reason, at: nowIso },
-				};
-				manifestChanged = true;
-				writeUnit(u.targetAbs, u.rendered);
+				if (!dryRun) {
+					manifest.files[u.relPath] = {
+						kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
+						template_hash: sha256File(u.templatePath), generated_hash: u.freshRenderHash,
+						updated_at: nowIso, last_force: { reason, at: nowIso },
+					};
+					manifestChanged = true;
+					writeUnit(u.targetAbs, u.rendered);
+				}
 				written.push(u.relPath);
 				forced.push(u.relPath);
+				recordAction({ relPath: u.relPath, kind: 'infra', action: u.action, diskContent: u.diskContent, rendered: u.rendered });
 				continue;
 			}
-			if (u.action === 'unchanged') continue;
+			if (u.action === 'unchanged') {
+				recordAction({ relPath: u.relPath, kind: 'infra', action: u.action });
+				continue;
+			}
 			// 'adopt-unchanged' means disk content already IS the correct bytes (a pristine,
 			// no-manifest-entry file) -- record the manifest entry so future runs see it as
 			// 'unchanged', but don't rewrite bytes that are already correct, and don't claim we
 			// "wrote" a file whose content didn't actually change.
 			if (u.action !== 'adopt-unchanged') {
-				writeUnit(u.targetAbs, u.rendered);
+				if (!dryRun) writeUnit(u.targetAbs, u.rendered);
 				written.push(u.relPath);
 			}
-			manifest.files[u.relPath] = {
-				kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
-				template_hash: sha256File(u.templatePath), generated_hash: u.freshRenderHash,
-				updated_at: nowIso,
-			};
-			manifestChanged = true;
+			if (!dryRun) {
+				manifest.files[u.relPath] = {
+					kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
+					template_hash: sha256File(u.templatePath), generated_hash: u.freshRenderHash,
+					updated_at: nowIso,
+				};
+				manifestChanged = true;
+			}
+			recordAction({ relPath: u.relPath, kind: 'infra', action: u.action, diskContent: u.diskContent, rendered: u.rendered });
 		}
 	}
 
@@ -141,23 +198,28 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 			if (force) {
 				if (isDirtyOrUntracked(repoRoot, u.targetAbs)) {
 					conflicts.push({ path: relPath, kind: 'resolver', resourceType: u.resourceType, reason: 'refusing --force: this file has uncommitted/untracked changes -- commit or stash it first so the overwrite is recoverable' });
+					recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
 					continue;
 				}
-				writeUnit(u.targetAbs, u.rendered);
+				if (!dryRun) {
+					writeUnit(u.targetAbs, u.rendered);
+					manifest.files[relPath] = {
+						kind: 'resolver', ownership: 'feature', owner: featureId, resource_type: u.resourceType, module: u.module, provider,
+						template: u.id, template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
+						updated_at: nowIso, last_force: { reason, at: nowIso, overwritten_hash: diskHash },
+					};
+					manifestChanged = true;
+				}
 				written.push(relPath);
 				forced.push(relPath);
-				manifest.files[relPath] = {
-					kind: 'resolver', ownership: 'feature', owner: featureId, resource_type: u.resourceType, module: u.module, provider,
-					template: u.id, template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
-					updated_at: nowIso, last_force: { reason, at: nowIso, overwritten_hash: diskHash },
-				};
-				manifestChanged = true;
+				recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
 				continue;
 			}
 			conflicts.push({
 				path: relPath, kind: 'resolver', resourceType: u.resourceType,
 				reason: 'diverged from the last content backend-skeleton generated -- if you have not edited this file, this may be expected after a template upgrade or a security-relevant source change. If you HAVE edited it (e.g. finished a stubbed-out method), leave it -- nothing else in this run depends on it.',
 			});
+			recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
 			continue;
 		}
 
@@ -168,16 +230,19 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 
 		if (action !== 'unchanged') {
 			if (action !== 'adopt-unchanged') {
-				writeUnit(u.targetAbs, u.rendered);
+				if (!dryRun) writeUnit(u.targetAbs, u.rendered);
 				written.push(relPath);
 			}
-			manifest.files[relPath] = {
-				kind: 'resolver', ownership: 'feature', owner: featureId, resource_type: u.resourceType, module: u.module, provider,
-				template: u.id, template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
-				updated_at: nowIso,
-			};
-			manifestChanged = true;
+			if (!dryRun) {
+				manifest.files[relPath] = {
+					kind: 'resolver', ownership: 'feature', owner: featureId, resource_type: u.resourceType, module: u.module, provider,
+					template: u.id, template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
+					updated_at: nowIso,
+				};
+				manifestChanged = true;
+			}
 		}
+		recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
 	}
 
 	// ---- orphan detection: a resolver this feature's CURRENT plan no longer generates, left
@@ -210,7 +275,7 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 		}
 	}
 
-	if (manifestChanged) saveManifest(repoRoot, manifest);
+	if (!dryRun && manifestChanged) saveManifest(repoRoot, manifest);
 
-	return { written, resolverStubs, conflicts, orphans, notes, forced, blocked: conflicts.length > 0 };
+	return { written, resolverStubs, conflicts, orphans, notes, forced, blocked: conflicts.length > 0, actions };
 }

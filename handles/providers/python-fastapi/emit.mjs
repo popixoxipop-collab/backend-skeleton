@@ -32,7 +32,7 @@ function dottedModulePath(file, importRoot) {
 // this for every resolver, but the router itself is infra -- generated once, independent of which
 // resolvers exist -- so it needs its own guard for the "found zero resolvers, and specifically
 // because no SessionDep exists" case).
-export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = null, force = false, reason = '' }) {
+export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false }) {
 	const handlesDir = path.join(plan.importRoot, plan.topPackage, 'handles');
 	const resolversDir = path.join(handlesDir, 'resolvers');
 
@@ -97,7 +97,7 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 		},
 	} : null;
 
-	const result = emitUnits({ repoRoot, featureId, provider: 'python-fastapi', force, reason, infraUnits, resolverUnits, orphanScan });
+	const result = emitUnits({ repoRoot, featureId, provider: 'python-fastapi', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff });
 
 	const postEmitNotes = [];
 	if (!sessionDep) {
