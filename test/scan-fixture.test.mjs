@@ -2,9 +2,11 @@
 // live only in test/scan.test.mjs gated behind `~/Desktop/Team-IZ-Backend` being present on this
 // machine. Runs in CI (test/fixtures/java-spring/ needs no git, no build -- runScan() only needs
 // build.gradle + src/main/java, scanned in place). Also covers a defect class the real oracle
-// repo never happened to exercise (see AnnotationStyleController's file comment): CATALOG.md's A2
-// ("a staged Java analyzer") is the item that would actually fix these; this file pins today's
-// regex-scanner behavior as a known-limitation baseline for that future work, not a bug to fix here.
+// repo never happened to exercise (see AnnotationStyleController's file comment): P3 pinned the
+// then-current regex-scanner's known-limitation baseline against CATALOG.md's A2 ("a staged Java
+// analyzer") -- A2 Phase 1 (D-java-analyzer) is that future work, now landed; the "FIXED (A2 Phase
+// 1)" tests below are the same fixture files, same assertions inverted, proving the fix against
+// the exact corpus that documented the original bugs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -90,49 +92,83 @@ test('individual endpoint verb+path+operationId correlation is correct, includin
 	assert.equal(byOperatorOpId.findOperator.path, '/organizations/{organizationId}/operators/{operatorId}');
 });
 
-// ===== known scanner limitations (A2's future before/after baseline), synthetic-only =====
+// ===== FIXED (A2 Phase 1, D-java-analyzer): every case below used to be a documented, pinned
+// scanner limitation -- the masking/balanced-delimiter analyzer in scanners/adapters/
+// _java-spring-analyzer.mjs fixes all of them. Kept in this file, not deleted, since the
+// fixture files themselves are still the exact regression corpus this item's own before/after
+// baseline was built from. =====
 
-test('a multi-line @Operation description that merely MENTIONS operationId = "..." as prose pollutes controller.operationIds, but does not corrupt real endpoint correlation', () => {
+test('FIXED (A2 Phase 1): a comment mentioning operationId = "..." as prose no longer pollutes controller.operationIds', () => {
 	const result = scanJavaSpring(FIXTURE_ROOT);
 	const mod = result.modules.find((m) => m.module === 'annotationstyles');
 	const controller = mod.controllers.find((c) => c.className === 'AnnotationStyleController');
 
-	assert.ok(controller.operationIds.includes('notARealOperationId'), 'the phantom string from prose must appear in the whole-file operationIds grep');
-	assert.equal(controller.endpoints.length, 1, 'only the one real, correctly-shaped endpoint in this file is detected');
-	assert.equal(controller.endpoints[0].operationId, 'normalEndpoint', 'the real endpoint\'s own correlation must be unaffected by the phantom mention');
+	assert.ok(!controller.operationIds.includes('notARealOperationId'), 'masking blanks a comment\'s content entirely -- the phantom string can no longer appear here');
+	assert.deepEqual(controller.operationIds, ['normalEndpoint']);
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'normalEndpoint');
 });
 
-test('known limitation (A2): an annotation between the mapping annotation and "public" makes the whole endpoint invisible, not just its operationId', () => {
+test('FIXED (A2 Phase 1): an annotation between the mapping annotation and "public" no longer hides the endpoint', () => {
 	const result = scanJavaSpring(FIXTURE_ROOT);
 	const mod = result.modules.find((m) => m.module === 'annotationstyles');
 	const controller = mod.controllers.find((c) => c.className === 'InterveningAnnotationController');
-	assert.equal(controller.endpoints.length, 0);
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'interveningAnnotation');
+	assert.equal(controller.endpoints[0].verb, 'GET');
 });
 
-test('known limitation (A2): a comment between the mapping annotation and "public" makes the whole endpoint invisible', () => {
+test('FIXED (A2 Phase 1): a comment between the mapping annotation and "public" no longer hides the endpoint', () => {
 	const result = scanJavaSpring(FIXTURE_ROOT);
 	const mod = result.modules.find((m) => m.module === 'annotationstyles');
 	const controller = mod.controllers.find((c) => c.className === 'CommentBeforeMethodController');
-	assert.equal(controller.endpoints.length, 0);
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'commentBeforeMethod');
 });
 
-test('known limitation (A2): a space inside a generic return type (Map<String, Object>) makes the whole endpoint invisible', () => {
+test('FIXED (A2 Phase 1): a space inside a generic return type (Map<String, Object>) no longer hides the endpoint', () => {
 	const result = scanJavaSpring(FIXTURE_ROOT);
 	const mod = result.modules.find((m) => m.module === 'annotationstyles');
 	const controller = mod.controllers.find((c) => c.className === 'GenericWithSpaceController');
-	assert.equal(controller.endpoints.length, 0);
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'genericWithSpace');
 });
 
-test('known limitation (A2): the mapping annotation and "public" on the same line makes the whole endpoint invisible', () => {
+test('FIXED (A2 Phase 1): the mapping annotation and "public" on the same line no longer hides the endpoint', () => {
 	const result = scanJavaSpring(FIXTURE_ROOT);
 	const mod = result.modules.find((m) => m.module === 'annotationstyles');
 	const controller = mod.controllers.find((c) => c.className === 'SameLineMappingController');
-	assert.equal(controller.endpoints.length, 0);
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'sameLineMapping');
 });
 
-test('known limitation (A2): @RequestMapping(method = RequestMethod.GET) is not supported at all (only the 5 verb-specific *Mapping annotations are)', () => {
+test('FIXED (A2 Phase 1): @RequestMapping(method = RequestMethod.GET) is now supported (single-verb form)', () => {
 	const result = scanJavaSpring(FIXTURE_ROOT);
 	const mod = result.modules.find((m) => m.module === 'annotationstyles');
 	const controller = mod.controllers.find((c) => c.className === 'RequestMappingStyleController');
-	assert.equal(controller.endpoints.length, 0);
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].verb, 'GET');
+	assert.equal(controller.endpoints[0].operationId, 'requestMappingStyle');
+});
+
+// ===== NEW in A2 Phase 1: previously unsupported anywhere, genuinely undiscussed before this
+// item (confirmed by searching the fixture corpus and DECISIONS.md). =====
+
+test('NEW (A2 Phase 1): a method with no access modifier at all (package-private) is now detected', () => {
+	const result = scanJavaSpring(FIXTURE_ROOT);
+	const mod = result.modules.find((m) => m.module === 'annotationstyles');
+	const controller = mod.controllers.find((c) => c.className === 'PackagePrivateMethodController');
+	assert.ok(controller, 'expected PackagePrivateMethodController to be found');
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'packagePrivateMethod');
+});
+
+test('NEW (A2 Phase 1): a `record`-declared controller (not `class`) is now detected', () => {
+	const result = scanJavaSpring(FIXTURE_ROOT);
+	const mod = result.modules.find((m) => m.module === 'annotationstyles');
+	const controller = mod.controllers.find((c) => c.className === 'RecordController');
+	assert.ok(controller, 'expected RecordController to be found even though it is a record, not a class');
+	assert.equal(controller.basePath, '/record-style');
+	assert.equal(controller.endpoints.length, 1);
+	assert.equal(controller.endpoints[0].operationId, 'recordStyle');
 });

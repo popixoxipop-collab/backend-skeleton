@@ -21,6 +21,18 @@ function buildOrgContract() {
 	return buildContract({ featureId: FEATURE_ID, featureUid: FEATURE_UID, scanReport, module: 'organization' });
 }
 
+// A2 Phase 1 (D-java-analyzer): confirmed live against the OLD detectRequestBody() before fixing
+// it -- its non-greedy `([\s\S]*?)\)\s*\{` regex failed to match this method at ALL (the return
+// type's `Map<String, Object>` generic has an internal space, the exact same root cause
+// scanners/adapters/java-spring.mjs's GenericWithSpaceController fixture already pins for
+// extractController()), which would have left `body` unresolved rather than correctly `false`.
+test('detectRequestBody() no longer fails on a generic return type with an internal space (Map<String, Object>)', () => {
+	const scanReport = runScan({ repoRoot: FIXTURE_ROOT, terms: ['annotationstyles'] });
+	const contract = buildContract({ featureId: FEATURE_ID, featureUid: FEATURE_UID, scanReport, module: 'annotationstyles' });
+	assert.equal(contract.operations.genericWithSpace.body, false);
+	assert.ok(!contract.warnings.some((w) => w.code === 'CONTRACT_BODY_UNKNOWN' && w.subject === 'GET /generic-space'));
+});
+
 test('buildContract seeds all 15 organization+operator operations with correct verb/path/body', () => {
 	const contract = buildOrgContract();
 	assert.equal(contract.operations.createOrganization.verb, 'POST');
