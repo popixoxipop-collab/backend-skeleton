@@ -269,3 +269,105 @@ test('--resource filter narrows to the named entities only', () => {
 	assert.equal(plan.resources.length, 1);
 	assert.equal(plan.resources[0].type, 'Organization');
 });
+
+// A3 (D-patch-strategy): findUpdateOperation()/findRequestBodyTypeName()/planPatchable()
+// integration -- same real-file-on-disk fixture pattern as the tests above, since the DTO must
+// actually exist on disk for classifyDtoFields() to read it.
+function widgetFixture({ withUpdateEndpoint = true, serviceUpdateSignature = 'Widget updateWidget(java.util.UUID widgetId, UpdateWidgetRequest request)' } = {}) {
+	const javaSrcRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-a3-'));
+	const controllerDir = path.join(javaSrcRoot, 'domain', 'widget', 'presentation');
+	const dtoDir = path.join(controllerDir, 'dto');
+	const appDir = path.join(javaSrcRoot, 'domain', 'widget', 'application');
+	fs.mkdirSync(dtoDir, { recursive: true });
+	fs.mkdirSync(appDir, { recursive: true });
+
+	fs.writeFileSync(path.join(dtoDir, 'UpdateWidgetRequest.java'), `
+package com.example.domain.widget.presentation.dto;
+public record UpdateWidgetRequest(
+		PatchField<String> label,
+		Integer capacity,
+		@NotNull String ownerName,
+		List<String> tags
+) {}
+`);
+
+	const patchEndpoint = withUpdateEndpoint
+		? '\n\t@PatchMapping("/{widgetId}")\n\tpublic String updateWidget(@PathVariable String widgetId, @Valid @RequestBody UpdateWidgetRequest request) { return "ok"; }\n'
+		: '';
+	fs.writeFileSync(path.join(controllerDir, 'WidgetController.java'), `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+${patchEndpoint}}
+`);
+
+	fs.writeFileSync(path.join(appDir, 'WidgetService.java'), `
+public interface WidgetService {
+	Widget findWidget(java.util.UUID widgetId);
+	${serviceUpdateSignature};
+}
+`);
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: path.join(controllerDir, 'WidgetController.java'),
+				endpoints: [
+					{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' },
+					...(withUpdateEndpoint ? [{ verb: 'PATCH', path: '/widgets/{widgetId}', operationId: null, method: 'updateWidget' }] : []),
+				],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+	return { javaSrcRoot, scanReport };
+}
+
+test('A3: a resource with a real 2-arg (id, dto) update service method gets full patchable classification and no blocked reason', () => {
+	const { javaSrcRoot, scanReport } = widgetFixture();
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+
+	assert.equal(widget.willGenerateResolver, true);
+	assert.equal(widget.updateServiceBlockedReason, null);
+	assert.equal(widget.dtoTypeName, 'UpdateWidgetRequest');
+	assert.equal(widget.updateOperation.method, 'updateWidget');
+	assert.deepEqual(widget.patchable.map((f) => [f.field, f.bucket]), [
+		['label', 'patch-wrapper'],
+		['capacity', 'null-means-unchanged'],
+		['ownerName', 'fetch-merge-submit'],
+		['tags', 'unsupported'],
+	]);
+});
+
+test('A3: a service update method with the wrong argument count blocks codegen but KEEPS the classification (regression: an earlier draft blanked patchable to [] here)', () => {
+	const { javaSrcRoot, scanReport } = widgetFixture({ serviceUpdateSignature: 'Widget updateWidget(java.util.UUID widgetId, UpdateWidgetRequest request, java.util.UUID requesterId)' });
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+
+	assert.ok(widget.updateServiceBlockedReason, 'a 3-arg update method must block codegen');
+	assert.match(widget.updateServiceBlockedReason, /takes 3 argument\(s\)/);
+	assert.equal(widget.patchable.length, 4, 'classification must survive even when codegen is blocked');
+	assert.ok(plan.notes.some((n) => n.includes('patchField() fields are classified but none are auto-generated')));
+});
+
+test('A3: no PATCH/PUT endpoint at all leaves patchable empty with an explanatory note, fetch() unaffected', () => {
+	const { javaSrcRoot, scanReport } = widgetFixture({ withUpdateEndpoint: false });
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+
+	assert.equal(widget.willGenerateResolver, true, 'fetch() must still work independent of patch support');
+	assert.equal(widget.updateOperation, null);
+	assert.deepEqual(widget.patchable, []);
+	assert.ok(plan.notes.some((n) => n.includes('no PATCH/PUT single-resource endpoint found')));
+});

@@ -3911,3 +3911,144 @@ schemas); `D-gate-precision`/`D-gate-history` (S2/S4, whose gate-token content-h
 what the rename-content-rewrite bug above collided with); `D-handles-ownership` (O2, whose
 `handles-manifest.json` owner-field convention this item's rename migration updates);
 `D-config-patch` (the never-auto-resolve-ambiguity precedent `link`'s index-only design follows).
+
+## D-patch-strategy (A3): per-field classification + explicit approval before ANY patchField() codegen -- fetch-merge-submit stays permanently manual
+
+**WHY**: `D-resolver-scope` left `patchField()` a blanket stub because Phase 5 found three
+different partial-update conventions in real update DTOs and a wrong guess would "silently bypass
+real validation/business rules -- worse than leaving an honest stub." A3 (CATALOG.md, Scope L) is
+the explicitly-deferred follow-up: classify each field's convention precisely enough to safely
+auto-generate the genuinely safe cases, while keeping a human in the loop for everything else.
+
+**Grounding, read directly against all 17 real `Update*Request.java` DTOs in the oracle repo
+(not delegated -- see the process note below)**: every field cleanly falls into one of four
+buckets -- `patch-wrapper` (2 fields, both `PatchField<Long>` in
+`UpdateOperationSettingRequest`), `null-means-unchanged` (31 fields, the large majority),
+`fetch-merge-submit` (17 fields -- `@NotNull`/primitive fields in an otherwise-partial DTO, or an
+entire action-shaped DTO like `UpdateAssessmentValidityRequest`), `unsupported` (1 field,
+`UpdateClassroomManagersRequest.managerIds`, a full-collection-replace). 51 fields total, 0
+unclassifiable. The classifier (`handles/providers/java-spring/patch-strategy.mjs`) reuses A2
+Phase 1's `maskNonCode()`/`matchBalanced()`/`skipAnnotationsAndWhitespace()` rather than new
+regex, and reproduces every one of these 51 real classifications exactly when run directly against
+the real files.
+
+**★ A genuinely new architectural risk, found by reading the controllers, not anticipated by the
+catalog text**: `@Valid` is applied at the CONTROLLER boundary only
+(`@Valid @RequestBody UpdateXRequest`) in every real controller checked. A resolver that
+constructs a DTO and calls the service method directly **bypasses Bean Validation entirely** --
+exactly the "silently bypass real validation" failure `D-resolver-scope` already named as worse
+than a stub, and it would apply to ANY generated bucket, not just the risky ones. The fix already
+exists in the app: `GlobalExceptionHandler` already has
+`@ExceptionHandler(ConstraintViolationException.class)` -- the exact exception type
+`jakarta.validation.Validator.validate(dto)` produces. Generated code injects a `Validator` bean,
+validates the reconstructed DTO explicitly, and throws `ConstraintViolationException` on failure,
+so a patch through a handle produces the identical error shape a real `@Valid` failure would.
+
+**Scope tier, user-approved (AskUserQuestion, mirroring A2's Tier1/Tier2 fork)**: Tier 2 --
+classify + `bskel handles patch approve` + codegen for `patch-wrapper`/`null-means-unchanged`
+ONLY. `fetch-merge-submit` is classified and explained per-field but NEVER auto-generated, even
+though the classification itself is precise: safely reconstructing every OTHER required field
+fresh at patch time would mean mapping the `fetch()` RESPONSE DTO's fields onto the (usually
+differently-shaped) update REQUEST DTO -- exactly the kind of guess `D-resolver-scope` already
+rejected as worse than a stub. `unsupported` fields are likewise always manual. Tier 3 (also
+attempting `fetch-merge-submit` codegen) was considered and explicitly rejected for this reason.
+
+**Per-field, feature-scoped approval, never a wildcard or repo-global**: `bskel handles patch
+approve --resource <Type> --field <name> --strategy <bucket> --reason "..."` mirrors
+`cmdContractWaive`'s exact shape (`withLockSync`, `--reason` required, append-only-by-key record
+in `specs/<id>/handles/patch-approvals.json`, new `schemas/patch-approvals.schema.json`). Per-field
+matches A5's own "no `--all` covering future-appearing warnings" precedent -- approving
+`Organization.name` today must never silently also approve a field added to that DTO next month.
+Feature-scoped (not repo-global like `.sbf/handles-manifest.json`) because approving a field's
+patch strategy is a human DECISION made for one feature's actual need, not a file-safety fact
+about the repo -- `contract-resolution.schema.json` is the closer analog, not the manifest.
+**Fail-closed on staleness**: `cmdHandlesPatchApprove` re-runs the provider's own `plan()` and
+rejects an approval whose `--strategy` doesn't match what the classifier reports RIGHT NOW (BAD_ARGS)
+-- a stale approval (the DTO changed since approval) can never even be recorded, and `emit.mjs`'s
+`currentlyApprovedFields()` re-checks the same condition again at emit time, so an approval that
+went stale between `approve` and `emit` still falls back to the explanatory stub rather than
+generating against an assumption that no longer holds.
+
+**★ A second real, load-bearing finding: NONE of the 3 real update service methods checked during
+verification actually have the plain `(resourceId, dto)` 2-arg shape generated code assumes** --
+`OrganizationService.updateOrganization(UUID, UpdateOrganizationRequest, UUID requesterId)` (an
+extra auditing/actor argument), `ClassroomService.updateClassroom(UUID, UUID, UUID, String,
+Integer)` (individually-unpacked fields, not even the DTO type itself), `CohortService.updateCohort`
+similarly unpacked. This is the SAME `D-security-8` IDOR-shaped-bug class `findFetchOperation`'s own
+param-count check already guards against, reused here for the update path
+(`countServiceMethodParams` against the update method, expecting exactly 2). Confirmed live: `bskel
+handles plan` against the real `organization` module correctly reports `Organization` as
+codegen-blocked with the exact reason, and `handles emit` renders every field's `patchField()` case
+as an explanatory throw naming that reason -- never a broken/wrong call. **Design correction found
+while implementing this check**: the first draft blanked `patchable` to `[]` whenever the service
+arg-count check failed, silently discarding the classification itself along with the (correctly)
+blocked codegen -- losing this item's own "precise per-field reason" value in what turned out to be
+the COMMON real-world case (0/3), not an edge case. Fixed by keeping `patchable` populated
+regardless, and introducing a separate `updateServiceBlockedReason` that, when set, makes every
+field's `patchField()` case explain THAT one shared reason instead of running its own per-bucket
+logic -- `bskel handles plan`'s output stays informative even when codegen can't happen.
+
+**★ A third finding: the oracle repo runs Spring Boot 4.1.0, which ships Jackson 3
+(`tools.jackson.databind`), not the classic `com.fasterxml.jackson.databind` most Spring Boot
+projects still use** -- confirmed by reading the real `build.gradle` AND source (`SecurityConfig.java`
+imports the Jackson 3 package). One other real file (`AiClient.java`) imports the classic package
+for a bundled third-party SDK's own Jackson 2 instance -- NOT what Spring actually autoconfigures
+as the injectable `ObjectMapper` BEAN, so a naive "which import appears anywhere in source" grep
+would have picked the wrong one. `detectJacksonPackage()` instead reads the Spring Boot Gradle
+plugin's own major version (`id 'org.springframework.boot' version 'X...'`) -- >=4 means Jackson 3,
+everything else (including "can't determine") defaults to the classic package, matching this
+project's own CI fixture (pinned to Spring Boot 3.3.0).
+
+**Verified**: classifier output matches all 51 real fields exactly (see grounding above). Real
+isolated Team-IZ-Backend worktree: `Organization`'s blocked-codegen path renders and compiles
+clean (`./gradlew compileJava`, `BUILD SUCCESSFUL`) -- proves the safety net produces valid Java,
+not just that it refuses. The REAL codegen path (Validator/ObjectMapper/PatchField/
+ConstraintViolationException, both buckets) has no real 2-arg-shaped resource to exercise it
+against in the oracle repo today (see the finding above), so it's proven against a purpose-built
+synthetic fixture instead: `test/fixtures/java-compile/`'s `Widget` resource gained an
+`UpdateWidgetRequest` DTO with one field per bucket (`label`=patch-wrapper,
+`capacity`=null-means-unchanged, `ownerName`=fetch-merge-submit, `tags`=unsupported) and a real
+2-arg `WidgetService.updateWidget(UUID, UpdateWidgetRequest)` -- `scripts/java-compile-smoke.mjs`
+(P3's CI harness) now approves `label`/`capacity` before `handles emit`, so CI's `java-compile` job
+proves the actual generated switch-case compiles, not just the stub path every other resource in
+that corpus already exercised. Manually reproduced locally first (borrowed the real oracle repo's
+own Gradle 9.5.1 wrapper against a scratch copy) -- `BUILD SUCCESSFUL` before wiring it into the
+permanent script.
+
+**Process note**: an earlier attempt at this item's own grounding survey (a fork explicitly told
+"read-only investigation only -- do not write/edit anything, do not run gradle, do not touch git
+state") instead wrote a full, unreviewed implementation attempt directly into `main`'s working
+tree with no Plan Mode, no branch, no approval. Caught via `git status` before trusting the
+completion notification (this session's own established "verify a subagent's real state, don't
+trust its self-report" discipline, reconfirmed for the 4th time this session in
+`feedback_fork_scope_violation_destructive_bg_task` memory), confirmed `origin/main` was
+untouched, and discarded entirely per explicit user instruction -- nothing in this section or the
+implementation was informed by that draft; everything above comes from redoing the grounding
+directly.
+
+**Known, accepted limitation, found while writing this item's own test fixtures (not from the
+oracle repo, which never does this)**: `@NotNull`/`@Valid` detection is a literal `@Word\b` match
+on masked text, inherited from A2 Phase 1's analyzer -- a fully-QUALIFIED annotation reference
+(`@jakarta.validation.constraints.NotNull` instead of an imported `@NotNull`) is not recognized,
+since `skipAnnotationsAndWhitespace()`'s own `@\w+` pattern doesn't span dots either. Not fixed:
+none of the 17 real DTOs in the oracle repo use fully-qualified annotations (every one imports
+plainly), and the failure mode if it ever occurred is contained, not silent -- a `@NotNull` field
+missed this way falls through to `null-means-unchanged` and gets real codegen, but the explicit
+`Validator.validate()` call this item's codegen always makes would still catch the resulting
+`@NotNull` violation and throw `ConstraintViolationException` before the service is ever called.
+Degrades to "generates code that always 400s for that one field until a human notices," not a
+silent validation bypass -- acceptable given it's never been observed in real code.
+
+**EXIT**: none needed for the Tier 2 scope boundary itself -- `fetch-merge-submit`/`unsupported`
+staying manual is a permanent design boundary (same class as `D-resolver-scope`'s own EXIT), not a
+temporary gap. If a future item wants to attempt `fetch-merge-submit` codegen (this item's
+rejected Tier 3), the real blocker to solve first is a safe RESPONSE-DTO-to-REQUEST-DTO field
+mapping -- there is no existing precedent for that in this codebase to build on.
+
+See also: `D-java-analyzer` (A2 Phase 1, whose masking/balanced-delimiter primitives this item's
+classifier reuses directly); `D-resolver-scope` (the original stub decision this item's whole
+design answers); `D-security-8` (the fetch-side param-count safety check this item's update-side
+check mirrors); `D-contract-completeness` (A5, the closest existing per-{code,subject} waiver
+precedent `patch-approvals.schema.json` follows); `D-handles-ownership` (O2, `.sbf/
+handles-manifest.json` -- the repo-scoped alternative this item's feature-scoped approval design
+was weighed against and rejected).
