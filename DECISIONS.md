@@ -3796,3 +3796,118 @@ Cross-references: `D-scanner-evidence` (D3, whose per-endpoint `line` field this
 upstream boundary source upgraded); `D-fixture-corpus` (P3, whose `annotationstyles` fixture
 package was built as this item's own committed before/after baseline, used here exactly as
 intended).
+
+## D-feature-lifecycle (D6): feature list/show/rename/link/archive + the feature init race fix
+
+**WHY**: `feature init` was the only supported operation over `.sbf/feature-index.json`; manual
+JSON editing was the documented recovery path for merges/re-keying. Grounding confirmed both
+halves of the catalog's Why directly: no `list`/`show`/`rename`/`link`/`archive` existed, and
+`nextFeatureNumber()` had a real TOCTOU race between reading `specs/` and writing the new
+feature -- confirmed live with a real 20-concurrent-process stress test (mirroring S5's own
+technique for `setGate()`): pre-fix, 20 concurrent `feature init --slug race-test` calls
+collapsed to 14 distinct feature_ids (6 silently lost to `feature.json` overwrites); post-fix
+(the whole read-`specs/`->compute-NNN->write-`feature.json`->load-modify-save-`feature-index.json`
+sequence wrapped in one `withLockSync(root, 'feature-index', ...)`, reusing `lib/lock.mjs`
+exactly as `lib/state.mjs::setGate()` already does under lock name `'state'` -- a distinct lock
+name here so `feature init` doesn't unnecessarily serialize against unrelated `gate`/
+`contract waive` calls), 20/20 every time.
+
+**The load-bearing precedent for rename/link, found by reading `D4`'s own EXIT clause before
+designing anything**: *"a rename should count as a different feature unless a human explicitly
+re-points `.sbf/feature-index.json`"* and *"`by_uid`'s map is the reassignment point ... e.g.
+two features merged."* `by_uid[uid]` was already an array (`[featureId]`, single-element only,
+write-only, never consumed as history) -- confirmed via direct exploration this was deliberately
+shaped for exactly this future work. D6 is its first real consumer: `feature rename` appends
+rather than replaces (the array IS the rename history, last entry is current); `feature link`
+adds a separate `merged_into` map for the genuinely different "two independently-created
+features, different uids, now cross-referenced" case.
+
+**Full rename blast radius, traced by direct exploration before writing any migration code**:
+`specs/<id>/` (directory + 3 featureId-prefixed filenames under `contracts/`; `brownfield-scan.
+{json,md}` use a fixed name, not prefixed, so they move for free with the directory rename),
+`.sbf/<id>.json` (filename AND an in-file `feature_id` field), `.sbf/<id>.history.jsonl`
+(filename only -- gate-event lines never carry `feature_id`), `.sbf/handles-manifest.json`
+(resolver-entry `owner` fields; `owner:'_repo'` infra entries are untouched, not a feature id at
+all).
+
+**A genuine, live-found design correction: gate-token-hashed artifacts must NOT have their
+content rewritten, only renamed.** The first `renameFeatureArtifacts()` draft rewrote every
+`.json` under the new `specs/<id>/` tree's own `feature_id` field, including `contracts/
+<id>.schema.json`, `contracts/<id>.resolution.json`, and `brownfield-scan.json`. A real
+`handles emit --check` against a just-renamed feature immediately reported the contract gate as
+stale -- `lib/gate-definitions.mjs`'s `contract`/`handles`/`scan` gates each hash the FULL
+CONTENT of one or more of these files for their token (`contract_hash`/`resolution_hash`/
+`openapi_snapshot_hash`/`scan_report_hash`), so rewriting even one field inside them silently
+invalidated an already-passed gate's stored token, forcing a phantom re-verification of content
+that never actually changed. Fixed by leaving these files' content byte-identical (filename
+prefix swap only) -- the same "cosmetic staleness accepted, historical record" principle already
+established for a resolver's own doc-comment and `migration.sql` (P4/D4), now extended to every
+gate-token-hashed artifact, not just already-generated application code. Only `feature.json`
+(never hashed as a gate-token input anywhere) and `.sbf/<id>.json` (also never hashed as an
+input to any OTHER gate's token) have their `feature_id` field actually rewritten.
+
+**A second, independently live-found bug: `fail()` (which calls `process.exit()`) must never be
+called from inside a `withLockSync()` callback.** An early draft did the collision/missing-
+feature checks for `rename`/`link` inside the lock, calling `fail()` on failure for a clean CLI
+error. `process.exit()` terminates the process immediately without unwinding through pending
+`finally` blocks the way a thrown exception does -- so `lib/lock.mjs`'s own `finally {
+fs.rmSync(lockPath) }` never ran, leaving the lock directory behind and hanging every subsequent
+`feature init`/`rename`/`link` call in that repo. Caught live by the very next command in the
+same grounding session failing with "could not acquire lock ... within 5000ms." Fixed with a new
+`LockedCommandFailure` error class + `runLockedOrFail()` wrapper (`bin/bskel.mjs`): the locked
+callback throws (a real exception, which DOES unwind through `finally` correctly) carrying the
+intended exit code/reason, caught and reported via `fail()` only AFTER `withLockSync()` has
+returned and the lock is already released. `cmdFeatureInit`'s own lock callback was already safe
+(its only failure paths are `lib/featurelifecycle.mjs`'s plain-`Error`-throwing schema
+validators, never `fail()`) -- confirmed by inspection, not assumed, before concluding this bug
+was unique to the two new commands.
+
+**`link` is index-only, deliberately not an automatic state merge.** `linkFeature()` records
+`merged_into[aliasId] = keepId` and touches nothing else -- neither feature's `specs/`/`.sbf/`
+artifacts are read or written. Automatically merging scan/contract/handles state was rejected:
+which side's contract should win, whether resolvers conflict, whether gate history should be
+concatenated -- all genuinely ambiguous, the same never-auto-resolve-ambiguity discipline
+`D-config-patch` already established for application config patching. A human decides what to do
+with the two features' actual content; `link` only records that they're now considered the same
+identity going forward.
+
+**`archive` is a soft-delete, not a physical move.** `archiveFeature()` sets `archived_at`/
+`archived_reason` on `feature.json` in place. Every other command still works unmodified against
+an archived feature if a human explicitly targets it (confirmed live: `scan`/`scan disposition`/
+`contract emit` all still pass normally); only `listFeatures()`'s default view hides it.
+
+**New schemas** (`schemas/feature.schema.json`, `schemas/feature-index.schema.json`) -- neither
+file had a schema before this item, confirmed by direct search. Wired into `lib/schema-
+validate.mjs`'s existing `validateAgainstSchema()` at both read and write, matching S5's
+established "every persistence boundary gets schema validation" precedent -- making both files
+richer (archive/rename/link fields) was exactly the moment to close that gap, not a separate item.
+
+**Known, accepted limitation, documented not silently swallowed**: a resolver `.java`/`.py` file
+already generated by a pre-rename `handles emit` keeps the OLD feature id baked into its own
+doc-comment, and `specs/<id>/handles/migration.sql` keeps the old id in its rendered SQL --
+cosmetic staleness, not a safety issue (the manifest's `owner` field, the real ownership-safety
+check, IS updated). Confirmed live this self-heals naturally: a real `handles emit --check`
+against the renamed id correctly reports the resolver as `update` (its OWN existing "regenerate
+when provably untouched" logic, unrelated to rename, would refresh the doc-comment's feature id
+on the next real emit) -- not a new mechanism, a natural consequence of leaving the file
+otherwise untouched.
+
+**No new exit codes**: collision -> `EXIT_CODES.BAD_ARGS` (14); unknown id -> the existing
+`MISSING_ARTIFACT` pattern `loadFeatureRecord()`/`loadFeatureFile()` already use (`EXIT_CODES.
+NOT_PASSED`, 2); a lock-acquisition timeout is left as an uncaught `Error`, matching the existing
+`contract waive` call site's own precedent (no special handling there either).
+
+**Verification**: `npm test` 594 -> **612** (18 net new: 8 in `test/feature-lifecycle-cli.test.mjs`
+including the real 20-process stress test, 5 in `test/schema-validate.test.mjs` for the 2 new
+schemas, 5 from extending `test/cli-contract.test.mjs`'s command-coverage snapshot). Real Team-
+IZ-Backend isolated worktree: full `feature init -> scan -> disposition -> contract emit ->
+handles emit` for the organization module, then `feature rename` it, confirmed `bskel status
+--feature <newId>` and a real `handles emit --check` against the new id both pass cleanly
+(gate NOT falsely stale), and the old id cleanly fails every command.
+
+Cross-references: `D-persistence-integrity` (S5, whose `lib/lock.mjs::withLockSync` and
+`lib/schema-validate.mjs` this item reuses directly, both for the race fix and the two new
+schemas); `D-gate-precision`/`D-gate-history` (S2/S4, whose gate-token content-hashing is exactly
+what the rename-content-rewrite bug above collided with); `D-handles-ownership` (O2, whose
+`handles-manifest.json` owner-field convention this item's rename migration updates);
+`D-config-patch` (the never-auto-resolve-ambiguity precedent `link`'s index-only design follows).

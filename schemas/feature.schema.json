@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:feature:1",
+  "title": "backend-skeleton feature record (specs/<feature_id>/feature.json)",
+  "description": "D6 (D-feature-lifecycle): first real schema for this file -- previously unvalidated. archived_at/archived_reason are new, added alongside `bskel feature archive`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "feature_uid", "created_at"],
+  "properties": {
+    "schema": { "const": "sbf.feature/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "created_at": { "type": "string" },
+    "archived_at": { "type": "string", "description": "set by `bskel feature archive` -- a soft-delete marker, not a filesystem move. Present iff archived_reason is." },
+    "archived_reason": { "type": "string", "description": "required alongside archived_at -- every archive is auditable, matching this project's --force/--reason convention elsewhere (O2, S4)." }
+  }
+}
