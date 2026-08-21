@@ -1830,7 +1830,24 @@ async function cmdNew(args) {
 
 	execFileSync('git', ['init', '--quiet'], { cwd: dir });
 	execFileSync('git', ['add', '-A'], { cwd: dir });
-	execFileSync('git', ['commit', '--quiet', '-m', `chore: scaffold ${flags.stack} project via bskel new`], { cwd: dir });
+	// A genuinely fresh environment (a container, a CI runner, an agent-driven bootstrap) may have
+	// no git identity configured anywhere -- `git commit` would otherwise fail outright. Only
+	// supplies a placeholder identity when NEITHER user.email NOR user.name is already resolvable
+	// (any config scope) -- a real user's own already-configured identity is never overridden.
+	// Found live: this exact gap broke CI (a fresh runner, no global git config) even though it
+	// worked locally throughout development (a real identity was already configured there).
+	const hasGitIdentity = (key) => {
+		try {
+			return execFileSync('git', ['config', key], { cwd: dir, encoding: 'utf8' }).trim() !== '';
+		} catch {
+			return false;
+		}
+	};
+	const commitArgs = ['commit', '--quiet', '-m', `chore: scaffold ${flags.stack} project via bskel new`];
+	if (!hasGitIdentity('user.email') || !hasGitIdentity('user.name')) {
+		commitArgs.unshift('-c', 'user.email=bskel@localhost', '-c', 'user.name=bskel');
+	}
+	execFileSync('git', commitArgs, { cwd: dir });
 
 	if (flags.json) {
 		console.log(JSON.stringify({ stack: flags.stack, dir, ...result }, null, 2));

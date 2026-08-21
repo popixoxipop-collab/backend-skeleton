@@ -4130,6 +4130,21 @@ sequence (create/push to a remote you own → `git remote set-head origin --auto
 `bskel preflight`) -- verified end-to-end: a real bare remote + push + set-head made
 `bskel preflight` pass cleanly against a freshly `bskel new`-scaffolded repo.
 
+**★ A real bug found live, by CI, not by local testing**: the first version of `cmdNew`'s `git
+init` + `git commit` sequence assumed a git identity (`user.name`/`user.email`) was already
+resolvable from SOME config scope -- true on every machine used during this item's own
+development, so local `npm test` runs (and the manual by-hand verification) never caught it. A
+genuinely fresh CI runner has no git identity configured anywhere, so `git commit` failed outright
+-- surfaced as a generic exit-14 (`BAD_ARGS`) failure in `test/new-cli.test.mjs`'s own full-CLI-path
+test, on both Node 22.x and 24.x, the FIRST real PR CI run for this item. Fixed by checking
+`git config user.email`/`user.name` first and supplying a placeholder identity
+(`bskel <bskel@localhost>`) via `git -c user.email=... -c user.name=... commit` ONLY when neither
+is already resolvable -- a real user's own configured identity is never overridden. Two dedicated
+regression tests reproduce both sides exactly (a fake `HOME` with no `.gitconfig` at all vs. one
+with an explicit identity), rather than trusting the CI failure was a fluke -- this is exactly the
+"local pass doesn't prove environment-independence" class of bug this whole session has run into
+before with different symptoms (e.g. Node version quirks, missing CI binaries).
+
 **Test strategy**: `new/spring.mjs`'s network call is never exercised in the automated test
 suite -- no existing test in this project hits a live external service, and CI must not start
 now. `buildInitializrUrl()` (pure) and the zip-extraction path (mocked `fetch`, but the REAL

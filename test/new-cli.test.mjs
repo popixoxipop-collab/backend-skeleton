@@ -156,6 +156,40 @@ test('bskel new --stack fastapi: full CLI path -- scaffolds, git-inits with a re
 	assert.equal(preflight.code, 12, 'WRONG_DEFAULT -- a fresh repo with no remote must fail cleanly, not crash');
 });
 
+// Regression: the first version of `cmdNew`'s git init+commit relied entirely on an
+// already-configured global git identity -- worked throughout local development (a real identity
+// was already configured), then broke CI outright (a fresh runner has none, `git commit` fails,
+// surfaces as a generic BAD_ARGS exit). `HOME` is overridden to an empty temp dir (no
+// ~/.gitconfig reachable) and the process environment is otherwise cleared, reproducing exactly
+// the "no git identity resolvable from any scope" condition CI hit.
+test('bskel new: the initial commit succeeds even with NO git identity configured anywhere (reproduces the exact condition that broke CI)', () => {
+	const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-new-cli-fakehome-'));
+	const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-new-cli-'));
+	const dir = path.join(parent, 'demo-app');
+	const stdout = execFileSync('node', [CLI, 'new', '--stack', 'fastapi', '--slug', 'demo-app', '--dir', dir], {
+		cwd: parent, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: fakeHome },
+	});
+	assert.match(stdout, /scaffolded a new fastapi project/);
+	const log = execFileSync('git', ['log', '--format=%an <%ae>'], { cwd: dir, encoding: 'utf8' });
+	assert.equal(log.trim(), 'bskel <bskel@localhost>');
+});
+
+test('bskel new: a pre-existing real git identity is used for the initial commit, never overridden by the fallback', () => {
+	// Explicit, controlled identity via a fake HOME's own ~/.gitconfig -- NOT the ambient
+	// environment's identity, which (as the regression test right above proves) can't be assumed
+	// present in every environment this test suite runs in (it wasn't, on CI, before this fix).
+	const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-new-cli-fakehome-'));
+	fs.writeFileSync(path.join(fakeHome, '.gitconfig'), '[user]\n\temail = real-user@example.com\n\tname = Real User\n');
+	const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-new-cli-'));
+	const dir = path.join(parent, 'demo-app');
+	const stdout = execFileSync('node', [CLI, 'new', '--stack', 'fastapi', '--slug', 'demo-app', '--dir', dir], {
+		cwd: parent, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: fakeHome },
+	});
+	assert.match(stdout, /scaffolded a new fastapi project/);
+	const log = execFileSync('git', ['log', '--format=%an <%ae>'], { cwd: dir, encoding: 'utf8' });
+	assert.equal(log.trim(), 'Real User <real-user@example.com>');
+});
+
 test('bskel new: refuses to scaffold twice into the same non-empty directory', () => {
 	const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-new-cli-'));
 	const dir = path.join(parent, 'demo-app');
