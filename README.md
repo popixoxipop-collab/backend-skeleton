@@ -55,6 +55,14 @@ bskel preflight                               # now resolvable -- picks up from 
 `preflight` requires a real `origin` remote with a resolvable default branch, which a brand-new
 local-only repo doesn't have yet. See `D-greenfield-bootstrap` in `DECISIONS.md`.
 
+### Database schema (optional)
+
+`bskel scan --db` additionally scans Flyway/Liquibase migration files (local only, no network).
+Add `--database-url-env <NAME>` (naming an environment variable you've already exported, never
+read from `.env`) for live, read-only Postgres introspection (`information_schema`/`pg_catalog`,
+inside a `BEGIN TRANSACTION READ ONLY`) and a source-vs-live drift report. Both are informational
+additions to the scan report — neither blocks any gate. See `D-db-schema-plane` in `DECISIONS.md`.
+
 Every command is read-only until you explicitly run one of the mutating steps above — `bskel
 status`/`bskel next` (no arguments needed) tell you which gate is next and print the exact
 copy-pasteable command for it, without touching anything.

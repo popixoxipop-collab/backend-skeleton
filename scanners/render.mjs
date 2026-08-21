@@ -76,6 +76,22 @@ export function renderScanMarkdown(report) {
 		}
 	}
 
+	// A4 (D-db-schema-plane): only present when --db was passed -- drift findings already land in
+	// `unknowns` (rendered above/below depending on source order), this section is just the raw
+	// table/column inventory for a human skimming the markdown without --json.
+	if (report.db_schema) {
+		lines.push('## Database schema (Plane A/C)');
+		const { migrations, live } = report.db_schema;
+		lines.push(`- Migrations: ${migrations.tool === 'none' ? 'none found' : `${migrations.tool}, ${migrations.files.length} file(s), ${migrations.tables.length} table reference(s)`}`);
+		if (live) {
+			lines.push(`- Live schema \`${live.schema}\`: ${live.tables.length} table(s), hash \`${live.schema_hash.slice(0, 12)}\``);
+			for (const t of live.tables) lines.push(`  - \`${t.name}\` (${t.columns.length} column(s))`);
+		} else {
+			lines.push('- Live schema: not introspected (pass --database-url-env for Plane C)');
+		}
+		lines.push('');
+	}
+
 	if (report.unknowns.length > 0) {
 		lines.push('## Unknowns');
 		for (const u of report.unknowns) lines.push(`- ${u}`);

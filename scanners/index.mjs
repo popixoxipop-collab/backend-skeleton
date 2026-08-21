@@ -148,11 +148,41 @@ export function scoreModule(mod, terms) {
 	return { score, evidence: c.evidence, cappedSignals: [...c.cappedSignals].sort() };
 }
 
+// A4 (D-db-schema-plane): case-insensitive comparison against every already-scanned entity's own
+// `.table` field -- tables the live DB has but no source entity declares, and entities whose
+// declared table isn't found live, both become plain-string `unknowns` entries (same shape every
+// other unknown in this report already uses), never a blocking verdict change. This is the
+// concrete "reveal live drift" value CATALOG.md's A4 Why names.
+export function computeDbDrift(liveTables, relatedModules) {
+	const liveNames = new Set(liveTables.map((t) => t.name.toLowerCase()));
+	const declaredTables = new Map(); // lowercased table name -> {module, entity}
+	for (const m of relatedModules) {
+		for (const e of m.entities ?? []) {
+			if (e.table) declaredTables.set(e.table.toLowerCase(), { module: m.module, entity: e.className });
+		}
+	}
+
+	const findings = [];
+	for (const name of liveNames) {
+		if (!declaredTables.has(name)) findings.push(`live DB table "${name}" has no matching source entity in any scanned module (Plane C drift)`);
+	}
+	for (const [table, { module, entity }] of declaredTables) {
+		if (!liveNames.has(table)) findings.push(`entity ${entity} (module "${module}") declares table "${table}", but it was not found in the live DB (Plane C drift)`);
+	}
+	return findings;
+}
+
 // G1: adapter dispatch, replacing the previous hardcoded two-branch if/else. `adapters` is
 // injectable (defaults to the real zero-registration registry) purely as a test seam for
 // arbitration/ambiguity tests -- every real caller gets the default. See D-adapter-registry in
 // DECISIONS.md.
-export function runScan({ repoRoot, terms, includeDb = false, adapters = ADAPTERS }) {
+//
+// A4: `dbSchema` (`{migrations, live}` or null) is computed by the CALLER, not fetched here --
+// env var resolution and the live DB connection itself are CLI-boundary concerns (matching how
+// every other env-var-driven input in this codebase is resolved at the bin/bskel.mjs layer, never
+// inside a "pure" lib/scanner function), and keeps this function synchronous (Plane C's real I/O
+// is `await`ed by the caller before ever calling this).
+export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, adapters = ADAPTERS }) {
 	const detections = adapters
 		.map((a) => ({ a, d: a.detect(repoRoot) }))
 		.filter(({ d }) => d != null)
@@ -206,7 +236,12 @@ export function runScan({ repoRoot, terms, includeDb = false, adapters = ADAPTER
 
 	const unknowns = [];
 	if (!includeDb) {
-		unknowns.push('DB not scanned (Plane C is opt-in via --db, off by default and not yet implemented -- see A4 in CATALOG.md)');
+		unknowns.push('DB not scanned (Plane C is opt-in via --db --database-url-env <NAME>) -- pass --db to scan migration files, add --database-url-env for live introspection too. See A4 in CATALOG.md.');
+	} else if (!dbSchema?.live) {
+		unknowns.push('DB not live-introspected (Plane C needs --database-url-env <NAME> in addition to --db) -- migration files only, no live drift check performed.');
+	}
+	if (dbSchema?.live) {
+		unknowns.push(...computeDbDrift(dbSchema.live.tables, relatedModules));
 	}
 	// A1 §7: this scan can't correct a global path prefix (only --openapi-file's real-document
 	// reconciliation can, see D-openapi-reconciliation) -- but it CAN tell a user who doesn't know
@@ -234,5 +269,6 @@ export function runScan({ repoRoot, terms, includeDb = false, adapters = ADAPTER
 		related_modules: relatedModules,
 		collisions,
 		unknowns,
+		...(dbSchema ? { db_schema: dbSchema } : {}),
 	};
 }

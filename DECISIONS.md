@@ -4162,3 +4162,113 @@ config-file rejection is consistent with); `D-doctor-workflow` (D5, why `bskel d
 covers the "detect/select adapters" half of the original `init` ask); `D-java-analyzer`/
 `D-patch-strategy` (A2/A3, `detectJacksonPackage()` is why an exact Initializr `bootVersion` pin
 isn't needed for compatibility).
+
+## D-db-schema-plane (A4): migration-file scan (Plane A) + live introspection (Plane C), report-only, no new gate
+
+**WHY**: CATALOG.md's A4 asks for a "Read-only database schema plane" -- `runScan({includeDb})`
+already had the parameter and `bskel scan --db` already existed as a hidden, inert placeholder
+(`lib/cli.mjs`'s own prior comment called it exactly that); neither was ever wired to anything.
+"Plane C" is this codebase's own pre-existing name for live introspection (not invented here).
+
+**Grounding, directly verified**: the real oracle repo (Team-IZ-Backend) has ZERO Flyway/
+Liquibase migration files anywhere, no `flyway`/`liquibase` config, and `ddl-auto: validate`
+(Hibernate never generates DDL) -- its actual schema is managed entirely in an external Supabase
+project, outside this repo. This session had never opened a live DB connection before this item
+(`D-migration-scope`'s own documented reason). This machine has both Docker and a local Homebrew
+Postgres available, making genuine end-to-end verification possible without ever touching real
+credentials or shared infrastructure.
+
+**User-approved scope (AskUserQuestion)**: build both planes, but do NOT add a new pass/fail gate
+on a schema hash (the catalog's own literal "gate on a normalized schema hash" wording). Every
+other gate in this system is git/fs-derived with zero external-network dependency; a gate that can
+only ever be satisfied with a live DB connection would be unavailable in CI by default and
+unavailable whenever the DB is unreachable -- a fundamentally different risk/availability class
+than anything else this gate system tracks. Both planes surface purely as `bskel scan --db`
+REPORT content (drift findings land in `unknowns`, the same plain-string array every other unknown
+already uses), matching A1 §7's "detect and warn, never gate" precedent for the path-prefix-signal
+case exactly.
+
+**CLI surface**: `bskel scan --db [--database-url-env <NAME>] [--schema public]` -- both new flags
+on the EXISTING `scan` command. `--db` alone runs Plane A only (migration files, always local,
+zero network). Adding `--database-url-env <NAME>` on top of `--db` also runs Plane C: the
+connection string is read from `process.env[NAME]` ONLY, at call time -- never from `.env`
+directly (this project's own convention throughout, and Team-IZ-Backend's own CLAUDE.md `.env`
+caution). Env-var-resolution and the live connection itself are resolved at the CLI boundary
+(`bin/bskel.mjs`'s new `resolveDbSchemaOrExit`), never inside `scanners/index.mjs::runScan()`
+itself -- keeps `runScan()` synchronous and DB-I/O-free, matching how every other env-driven input
+in this codebase is resolved at the CLI layer, never inside a "pure" scanner/lib function. Missing
+env var -> `BAD_ARGS`; a real connection failure -> `REFRESH_FAILED` (reused, not a new exit code,
+matching D2's conservatism -- the same code `preflight`'s own "reached externally and failed" case
+already uses).
+
+**Plane A** (`scanners/db/migrations.mjs`): detects Flyway (`**/db/migration/**/*.sql`) and
+Liquibase (`**/db/changelog/**/*.{xml,yaml,yml,sql}`) via `rg --files`, same tool every other
+scanner already shells out to. `.sql` files get a bounded regex extraction (`CREATE TABLE`/`ALTER
+TABLE ADD COLUMN`, balanced-paren column-list splitting) -- same "good-enough regex, not a real
+SQL parser" restraint as A2's Java analyzer and G2's Python analyzer, a third independent copy of
+the balanced-paren algorithm (matching python-fastapi.mjs's own established precedent of not
+reaching across an unrelated module for a five-line algorithm). Liquibase changelogs are detected
+(filenames recorded) but not deep-parsed -- XML/YAML changeSet parsing is a materially larger,
+separate job; an honestly documented gap, not a silent guess. Deliberately does NOT attempt to
+reconstruct a "final" merged schema across multiple migration files (each `CREATE TABLE`/`ALTER
+TABLE` occurrence stays its own entry, traceable to its source file) -- a real migration history
+can DROP/RENAME columns, which this module doesn't parse at all; pretending to merge into one
+coherent final view would silently corrupt exactly the cases it can't handle. **Unverifiable
+against the real oracle repo** (zero migration files exist there) -- built and tested entirely
+against synthetic fixtures instead.
+
+**Plane C** (`scanners/db/introspect.mjs`): uses `pg` (new dependency, this project's first-ever
+SQL driver -- pure JS, no native compile step). Issues `BEGIN TRANSACTION READ ONLY` immediately
+after connecting -- structural defense-in-depth (every query is already a SELECT, but the
+transaction mode means the database itself refuses any write attempt, not just "we didn't write
+one"); confirmed live: a `CREATE TABLE` issued inside the same read-only transaction is rejected
+by Postgres itself with `cannot execute CREATE TABLE in a read-only transaction`, not merely
+absent from this code. Queries `information_schema.tables`/`.columns`/`.table_constraints`+
+`.key_column_usage` (PKs/FKs) and `pg_catalog.pg_indexes`/`pg_policies` (Postgres-specific, no
+information_schema equivalent), scoped to `--schema` (default `public`) so this never dumps
+unrelated system schemas. All parameterized (`$1`), never string-interpolated, even though
+`schema` only ever comes from a CLI flag the process's own owner typed -- correct SQL hygiene
+regardless (CLAUDE.md §6). **A real bug found live, not assumed**: the first draft issued all six
+queries via `Promise.all()` on a single `pg.Client` -- works today (pg queues them internally) but
+is deprecated and warns loudly (`Calling client.query() when the client is already executing a
+query is deprecated`); fixed to sequential `await`s (a single client processes one query at a time
+over one connection regardless -- a `Pool` would allow real concurrency, but this is a one-shot CLI
+invocation, not a long-lived server, so the added complexity buys nothing real here).
+**A second real Node/pg quirk found live**: a refused TCP connection surfaces as an
+`AggregateError` (dual-stack IPv4+IPv6 connection attempts, both failing) whose own top-level
+`.message` is an EMPTY STRING -- `.code`/`.errors[]` carry the actual information. A plain
+`err.message` would have surfaced nothing useful to the user; `describeConnectionError()` checks
+`.message`, then `.errors[]`, then `.code` in that order.
+
+**Drift cross-check** (`scanners/index.mjs::computeDbDrift`): case-insensitive comparison between
+Plane C's real table names and every already-scanned entity's own `.table` field (Postgres
+lowercases unquoted identifiers; JPA `@Table` names are frequently mixed-case, so case-sensitive
+comparison would false-positive constantly). Both directions are reported -- a live table with no
+matching entity, and an entity whose declared table isn't found live -- as plain strings appended
+to `unknowns`, never affecting `verdict`.
+
+**Verification**: `npm test` (default suite) covers Plane A's extraction, `computeDbDrift()`, and
+`runScan()`'s wiring entirely with local/synthetic inputs -- zero network dependency, matches this
+project's CI-must-not-depend-on-live-external-services convention. Plane C is proven for real by
+`scripts/db-introspect-smoke.mjs` (new, mirrors `java-compile-smoke.mjs`/`python-import-smoke.mjs`
+exactly) against a REAL Postgres -- verified twice: once locally (a disposable local Homebrew
+Postgres instance, torn down after), and wired permanently into CI as a new `db-introspect` job
+using GitHub Actions' native `services:` Postgres container (`POSTGRES_HOST_AUTH_METHOD: trust`,
+deliberately no password literal anywhere in the committed workflow file -- a real secrets-scanning
+hook flagged an earlier draft that used a hardcoded throwaway password, confirming even a
+low-stakes credential-shaped string in a committed file is worth avoiding entirely, not just
+judged "safe enough this once"). The smoke script creates two real tables (one matching the
+fixture's own `Widget` entity, one deliberately orphaned) and asserts the live drift finding is
+real, not fabricated.
+
+**EXIT**: the no-gate scope cut is permanent, not temporary -- same class as
+`D-greenfield-bootstrap`'s `.bskel/config.yml` cut. If a future need for a real schema-hash GATE
+appears, the CI-availability problem (no live DB in the default matrix) needs solving first, not
+assumed away.
+
+See also: `D-generic-grep-reconnaissance`/A1 §7 (the "detect and warn, never gate" precedent this
+item's whole no-gate design follows); `D-migration-scope` (the pre-existing "no live DB opened
+this session" constraint this item is the first to actually lift, safely); `D-java-analyzer`/
+`D-fastapi-adapter` (A2/G2, the "good-enough regex, not a real parser" restraint Plane A's SQL
+extraction follows); `D-cli-contract` (D2, why REFRESH_FAILED/BAD_ARGS were reused instead of new
+exit codes).

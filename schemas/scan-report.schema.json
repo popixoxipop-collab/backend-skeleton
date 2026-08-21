@@ -53,6 +53,34 @@
     },
     "collisions": { "type": "array" },
     "unknowns": { "type": "array", "items": { "type": "string" } },
+    "db_schema": {
+      "description": "A4 (D-db-schema-plane): present only when `--db` was passed. `migrations` (Plane A, always local) and `live` (Plane C, present only with --database-url-env) are independent -- a repo can have one, the other, both, or (most repos, including the real oracle repo) neither.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["migrations", "live"],
+      "properties": {
+        "migrations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tool", "files", "tables"],
+          "properties": {
+            "tool": { "enum": ["flyway", "liquibase", "none"] },
+            "files": { "type": "array", "items": { "type": "string" } },
+            "tables": { "type": "array" }
+          }
+        },
+        "live": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["schema", "tables", "schema_hash"],
+          "properties": {
+            "schema": { "type": "string" },
+            "tables": { "type": "array" },
+            "schema_hash": { "type": "string" }
+          }
+        }
+      }
+    },
     "disposition": {
       "type": "object",
       "properties": {
