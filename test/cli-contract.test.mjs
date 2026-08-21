@@ -137,14 +137,14 @@ for (const [name, expected] of Object.entries(EXPECTED_DEFAULTS)) {
 
 // Commands with `required` fields: empty argv must throw (this itself proves the migration was
 // lossless for the "missing required flag" behavior class too).
-for (const name of ['scan disposition', 'scan explain', 'feature init', 'feature rename', 'contract emit', 'contract waive', 'contract validate', 'contract tool-schema', 'handles plan', 'handles emit', 'handles patch approve', 'verify']) {
+for (const name of ['scan disposition', 'scan explain', 'feature init', 'feature rename', 'contract emit', 'contract waive', 'contract validate', 'contract tool-schema', 'handles plan', 'handles emit', 'handles patch approve', 'new', 'verify']) {
 	test(`parseCommand("${name}", []) throws CliUsageError (required field missing)`, () => {
 		assert.throws(() => parseCommand(name, []), CliUsageError);
 	});
 }
 
 test('every command in COMMANDS is exercised by the default-value snapshot or the required-field test above', () => {
-	const covered = new Set([...Object.keys(EXPECTED_DEFAULTS), 'scan disposition', 'scan explain', 'feature init', 'feature rename', 'contract emit', 'contract waive', 'contract validate', 'contract tool-schema', 'handles plan', 'handles emit', 'handles patch approve', 'verify']);
+	const covered = new Set([...Object.keys(EXPECTED_DEFAULTS), 'scan disposition', 'scan explain', 'feature init', 'feature rename', 'contract emit', 'contract waive', 'contract validate', 'contract tool-schema', 'handles plan', 'handles emit', 'handles patch approve', 'new', 'verify']);
 	assert.deepEqual([...covered].sort(), Object.keys(COMMANDS).sort());
 });
 

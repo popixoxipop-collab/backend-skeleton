@@ -27,6 +27,7 @@ import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
+import { STACKS as NEW_STACKS } from '../new/index.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
@@ -42,6 +43,7 @@ const SKILL_ROOT = path.resolve(__dirname, '..');
 function usage() {
 	console.error(`bskel -- backend-skeleton CLI
 
+  bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
@@ -1799,6 +1801,69 @@ function cmdDoctor(args) {
 	process.exit(allOk ? 0 : 1);
 }
 
+// P2 (D-greenfield-bootstrap): the one path into this tool that doesn't require an existing git
+// repo (contrast requireRepoRoot(), used by nearly everything else) -- `bskel new` is what CREATES
+// one. `--stack`'s two choices come from new/index.mjs's plain dispatch map, not a dynamic
+// registry (no third-party-extensibility need for exactly two first-party stacks). Deliberately
+// never creates a remote or auto-chains into `preflight` -- see this function's own printed
+// guidance for why `bskel preflight` cannot simply be "the next command" here (it requires a real
+// origin remote with a resolvable default branch, which a brand-new local-only repo doesn't have).
+async function cmdNew(args) {
+	const flags = parseCommand('new', args);
+	if (flags.help) { console.log(renderCommandHelp('new')); process.exit(0); }
+	setContext('new', flags);
+
+	const stack = NEW_STACKS[flags.stack];
+	if (!stack) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `bskel new --stack must be one of: ${Object.keys(NEW_STACKS).join(', ')} (got ${JSON.stringify(flags.stack)})`);
+	}
+	requireValidSlug(flags.slug);
+
+	const dir = flags.dir ? path.resolve(flags.dir) : path.resolve(process.cwd(), flags.slug);
+
+	let result;
+	try {
+		result = await stack.scaffold({ dir, slug: flags.slug, offline: flags.offline });
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'SCAFFOLD_FAILED', err.message);
+	}
+
+	execFileSync('git', ['init', '--quiet'], { cwd: dir });
+	execFileSync('git', ['add', '-A'], { cwd: dir });
+	// A genuinely fresh environment (a container, a CI runner, an agent-driven bootstrap) may have
+	// no git identity configured anywhere -- `git commit` would otherwise fail outright. Only
+	// supplies a placeholder identity when NEITHER user.email NOR user.name is already resolvable
+	// (any config scope) -- a real user's own already-configured identity is never overridden.
+	// Found live: this exact gap broke CI (a fresh runner, no global git config) even though it
+	// worked locally throughout development (a real identity was already configured there).
+	const hasGitIdentity = (key) => {
+		try {
+			return execFileSync('git', ['config', key], { cwd: dir, encoding: 'utf8' }).trim() !== '';
+		} catch {
+			return false;
+		}
+	};
+	const commitArgs = ['commit', '--quiet', '-m', `chore: scaffold ${flags.stack} project via bskel new`];
+	if (!hasGitIdentity('user.email') || !hasGitIdentity('user.name')) {
+		commitArgs.unshift('-c', 'user.email=bskel@localhost', '-c', 'user.name=bskel');
+	}
+	execFileSync('git', commitArgs, { cwd: dir });
+
+	if (flags.json) {
+		console.log(JSON.stringify({ stack: flags.stack, dir, ...result }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`scaffolded a new ${flags.stack} project at ${dir}`);
+		console.log('');
+		console.log('git init + an initial commit were made locally -- bskel preflight needs a REAL remote');
+		console.log('with a resolvable default branch, which this command deliberately does not create:');
+		console.log(`  1. cd ${dir}`);
+		console.log('  2. create a remote repo yourself (e.g. `gh repo create <name> --private --source=. --push`), or push to one you already own');
+		console.log('  3. git remote set-head origin --auto   (or: git remote set-head origin <branch>)');
+		console.log('  4. bskel preflight');
+	}
+	process.exit(0);
+}
+
 function printVersion(json) {
 	const pkg = JSON.parse(fs.readFileSync(path.join(SKILL_ROOT, 'package.json'), 'utf8'));
 	if (json) console.log(JSON.stringify({ name: 'bskel', version: pkg.version }));
@@ -1813,7 +1878,11 @@ function printVersion(json) {
 // requireValidSlug that used to propagate as an uncaught exception) is caught here and turned
 // into a clean, single-line diagnosis -- see D-cli-contract in DECISIONS.md for the crash this
 // fixes (`bskel verify --feature --json` used to print a full Node stack trace).
-function main() {
+// `new` (P2/D-greenfield-bootstrap) is the one command needing a real `await` (its network call
+// to start.spring.io) -- main()/dispatchCommand() are `async` for that one case only; every other
+// command stays a plain synchronous function returning immediately (awaiting a non-Promise value
+// is a harmless no-op), so this is a minimal-diff change, not a rewrite of the dispatch shape.
+async function main() {
 	const argv = process.argv.slice(2);
 	const [cmd, ...rest] = argv;
 
@@ -1827,7 +1896,7 @@ function main() {
 	}
 
 	try {
-		dispatchCommand(cmd, rest);
+		await dispatchCommand(cmd, rest);
 	} catch (err) {
 		// A JS-native error class (TypeError/ReferenceError/RangeError) signals something this
 		// codebase itself got wrong, not a bad user input -- everything else reaching here is
@@ -1851,7 +1920,7 @@ function main() {
 	}
 }
 
-function dispatchCommand(cmd, rest) {
+async function dispatchCommand(cmd, rest) {
 	switch (cmd) {
 		case 'preflight':
 			cmdPreflight(rest);
@@ -1928,6 +1997,8 @@ function dispatchCommand(cmd, rest) {
 		case 'doctor':
 			cmdDoctor(rest);
 			break;
+		case 'new':
+			return cmdNew(rest);
 		default:
 			usage();
 			process.exit(cmd ? 14 : 0);

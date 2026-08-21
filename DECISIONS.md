@@ -4052,3 +4052,113 @@ check mirrors); `D-contract-completeness` (A5, the closest existing per-{code,su
 precedent `patch-approvals.schema.json` follows); `D-handles-ownership` (O2, `.sbf/
 handles-manifest.json` -- the repo-scoped alternative this item's feature-scoped approval design
 was weighed against and rejected).
+
+## D-greenfield-bootstrap (P2): `bskel new` only -- no persisted `.bskel/config.yml`, re-scoped from the catalog's literal text
+
+**WHY**: CATALOG.md's P2 original text asked for both a repo-level `bskel init` (detect/select
+adapters, write `.bskel/config.yml`, establish state/spec directories, validate the default
+branch) and a separate `bskel new --stack spring|fastapi`. Re-verified against current reality
+first (the same "catalog Why can be stale" check S4/S5/P4 already established as this project's
+own habit) and found most of `init`'s ask already solved elsewhere: `bskel doctor` already reports
+adapter detection/specificity/capabilities (`lib/doctor.mjs`'s adapter-diagnostics block);
+`bskel preflight` already validates the default branch (3-way cross-check, already step 2 of the
+documented Quickstart); state/spec directories already get created organically wherever each
+command writes (`specDir`/`sbfPath` + `fs.mkdirSync(recursive:true)`), with no evidence this is
+actually broken. **A persisted `.bskel/config.yml` was deliberately NOT built** -- it would be the
+only piece of state in this entire tool trusted after being written once, rather than re-derived
+fresh every run, directly opposite this project's own repeatedly-reinforced philosophy (gate
+tokens over trusted flags; `D-resolver-scope`'s "regenerate when provably untouched" over "create
+once"; `runScan()` re-detecting the adapter fresh on every single `scan`, never caching it). A
+config file that can silently drift from the repo's real current shape is exactly the failure
+class every OTHER piece of this tool exists to prevent.
+
+**The one genuine, still-real gap**: despite the README's own "brownfield (and greenfield)"
+framing, there was no path from an empty git repo to a `bskel`-scaffolded one -- `runScan()`'s
+adapter `.detect(repoRoot)` requires an EXISTING `build.gradle`/`pom.xml`+`src/main/java`
+(java-spring) or an existing FastAPI/SQLModel layout (python-fastapi); on a truly empty repo every
+adapter returns no detection and `runScan()` throws. "Greenfield" everywhere else in this codebase
+only ever means "a new module inside an ALREADY-detected repo" (the `scan` verdict), never "a repo
+with nothing in it at all." `bskel new` closes exactly this gap, nothing more.
+
+**Process note**: the exact scope split above was meant to be confirmed with the user via
+AskUserQuestion before implementation, but a hook belonging to an unrelated research project (a
+"measure before asking" guard written for a different, weight-compression project) incorrectly
+fired and blocked the question. This is not an empirically-measurable claim -- no script resolves
+"should this tool make network calls to scaffold new projects," it's a genuine scope preference --
+so the recommendation and full reasoning were written directly into the plan file for the user to
+confirm or redirect via the plan's own ExitPlanMode approval step instead (which they did).
+
+**`bskel new --stack spring`: the only command in this tool that talks to a network service**
+(Spring Initializr's public `start.spring.io/starter.zip`, the same endpoint behind `spring init`/
+the start.spring.io web UI). Every other command here is pure local git/fs -- a real, new risk
+category, handled the same way this tool handles its other genuinely-external dependencies
+(`rg`/`git`/a build wrapper): `--offline` refuses cleanly with an actionable message before ever
+calling `fetch()` (mirrors `bskel preflight --offline`'s own precedent), never auto-triggered by
+any other command, and the requested dependency SET (`web, data-jpa, security, validation,
+lombok` -- matching both the real oracle repo and `test/fixtures/java-compile/build.gradle`) is a
+named, reviewable constant in `new/spring.mjs`, not a live query against Initializr's own current
+defaults. Deliberately does NOT pin an exact `bootVersion` -- Initializr only serves actively-
+supported Spring Boot versions and ages old ones out on its own schedule (a fast-moving target,
+unlike a gate token where rigidity IS the safety property), and this tool's own Jackson-package
+detection (`handles/providers/java-spring/emit.mjs`'s `detectJacksonPackage`, from A3) already
+adapts to whichever major version Initializr hands back -- confirmed live: a real, by-hand
+`bskel new --stack spring` call returned Spring Boot 4.1.1 (Initializr's own current default,
+Jackson 3-era) and the generated project compiled clean via `./gradlew compileJava` before this
+item was considered done. The zip is extracted via the real `unzip` binary (same "shell out to a
+well-known CLI tool, throw if missing" precedent as `rg`/`git` elsewhere), not a new npm
+dependency.
+
+**`bskel new --stack fastapi`: no network call at all** -- researched and confirmed FastAPI has no
+first-party scaffolding CLI/service with comparable official standing to Spring Initializr, so
+"pinned starter" here means a minimal, LOCAL, hand-written template (`new/templates/fastapi/`)
+matching the exact layout `scanners/adapters/python-fastapi.mjs`'s own `detectPythonFastApiRoot()`
+already requires (a `pyproject.toml` declaring a `fastapi` dependency + a `.py` file that
+imports/instantiates it) -- verified directly: `detectPythonFastApiRoot()` recognizes the
+generated output, and `bskel doctor` correctly reports `python-fastapi` as the detected adapter.
+
+**A real, load-bearing finding from testing the full flow end-to-end, not assumed**: `bskel
+preflight` REQUIRES a real `origin` remote with a resolvable default branch (symbolic-ref /
+`git remote show origin` / `gh api`, all three) -- a brand-new local-only `git init` has none of
+these, so `bskel preflight` immediately fails `WRONG_DEFAULT` (exit 12) against a freshly
+scaffolded repo. The original plan draft assumed `bskel new` could print "next: `cd <dir> &&
+bskel preflight`" as the immediate next step -- confirmed WRONG by actually running it. `bskel
+new` deliberately does NOT auto-create a remote itself (creating a real GitHub repo on the user's
+account/org is a materially different, far more consequential action than writing local files --
+matches this project's own CLAUDE.md §18 caution around GitHub write actions, and no other command
+in this tool creates external resources on a user's behalf). Instead it prints the full accurate
+sequence (create/push to a remote you own → `git remote set-head origin --auto` → THEN
+`bskel preflight`) -- verified end-to-end: a real bare remote + push + set-head made
+`bskel preflight` pass cleanly against a freshly `bskel new`-scaffolded repo.
+
+**★ A real bug found live, by CI, not by local testing**: the first version of `cmdNew`'s `git
+init` + `git commit` sequence assumed a git identity (`user.name`/`user.email`) was already
+resolvable from SOME config scope -- true on every machine used during this item's own
+development, so local `npm test` runs (and the manual by-hand verification) never caught it. A
+genuinely fresh CI runner has no git identity configured anywhere, so `git commit` failed outright
+-- surfaced as a generic exit-14 (`BAD_ARGS`) failure in `test/new-cli.test.mjs`'s own full-CLI-path
+test, on both Node 22.x and 24.x, the FIRST real PR CI run for this item. Fixed by checking
+`git config user.email`/`user.name` first and supplying a placeholder identity
+(`bskel <bskel@localhost>`) via `git -c user.email=... -c user.name=... commit` ONLY when neither
+is already resolvable -- a real user's own configured identity is never overridden. Two dedicated
+regression tests reproduce both sides exactly (a fake `HOME` with no `.gitconfig` at all vs. one
+with an explicit identity), rather than trusting the CI failure was a fluke -- this is exactly the
+"local pass doesn't prove environment-independence" class of bug this whole session has run into
+before with different symptoms (e.g. Node version quirks, missing CI binaries).
+
+**Test strategy**: `new/spring.mjs`'s network call is never exercised in the automated test
+suite -- no existing test in this project hits a live external service, and CI must not start
+now. `buildInitializrUrl()` (pure) and the zip-extraction path (mocked `fetch`, but the REAL
+`unzip` binary against a committed fixture zip, `test/fixtures/spring-initializr-fixture.zip`)
+are both tested directly; the live Initializr call itself was verified once, by hand (see above).
+`new/fastapi.mjs` has no network dependency, so it gets a full real end-to-end test including the
+real scanner adapter's own `detect()`.
+
+**EXIT**: the `.bskel/config.yml` scope cut is permanent, not temporary -- if a future need for
+persisted project config actually appears (not hypothesized here), it should be re-justified
+against this same anti-stale-state principle, not assumed away by this entry.
+
+See also: `D-adapter-registry` (G1, `runScan()`'s own fresh-every-time detection this item's
+config-file rejection is consistent with); `D-doctor-workflow` (D5, why `bskel doctor` already
+covers the "detect/select adapters" half of the original `init` ask); `D-java-analyzer`/
+`D-patch-strategy` (A2/A3, `detectJacksonPackage()` is why an exact Initializr `bootVersion` pin
+isn't needed for compatibility).
