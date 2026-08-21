@@ -20,6 +20,8 @@ import {
 	renameFeatureArtifacts, archiveFeature, linkFeature,
 } from '../lib/featurelifecycle.mjs';
 import { runScan } from '../scanners/index.mjs';
+import { scanMigrations } from '../scanners/db/migrations.mjs';
+import { introspectSchema, describeConnectionError } from '../scanners/db/introspect.mjs';
 import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '../scanners/render.mjs';
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
@@ -45,7 +47,7 @@ function usage() {
 
   bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
-  bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence]
+  bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
   bskel feature init --slug <name>
@@ -369,14 +371,37 @@ function deriveTerms(flags) {
 	return [...new Set([...fromFlag, ...fromFeature])];
 }
 
-function cmdScan(args) {
+// A4 (D-db-schema-plane): resolves --db/--database-url-env into an already-computed `dbSchema`
+// object BEFORE runScan() is ever called -- env var resolution and the live DB connection itself
+// are CLI-boundary concerns (this function owns fail()/exit codes; scanners/index.mjs stays a
+// synchronous, DB-I/O-free function). Returns null when --db wasn't passed at all (today's exact
+// prior behavior, byte-identical). `--database-url-env` naming an unset variable is BAD_ARGS (a
+// usage mistake); a real connection failure is REFRESH_FAILED (reused, not a new exit code --
+// matches D2's conservatism, and is the same code `preflight`'s own "reached out to something
+// external and failed" case already uses).
+async function resolveDbSchemaOrExit(root, flags) {
+	if (!flags.db) return null;
+	const migrations = scanMigrations(root);
+	if (!flags['database-url-env']) return { migrations, live: null };
+
+	const connectionString = process.env[flags['database-url-env']];
+	if (!connectionString) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--database-url-env ${flags['database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
+	}
+	let live;
+	try {
+		live = await introspectSchema({ connectionString, schema: flags.schema });
+	} catch (err) {
+		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `could not introspect the live database: ${describeConnectionError(err)}`);
+	}
+	return { migrations, live };
+}
+
+async function cmdScan(args) {
 	const flags = parseCommand('scan', args);
 	if (flags.help) { console.log(renderCommandHelp('scan')); process.exit(0); }
 	setContext('scan', flags);
 	const root = requireRepoRoot();
-	if (flags.db) {
-		console.error('note: --db (Plane C) is not implemented yet -- scanning without it. See DECISIONS.md.');
-	}
 	const terms = deriveTerms(flags);
 	if (terms.length === 0) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel scan [--feature <id>] --terms a,b,c   (need at least one search term, from --terms or a --feature slug)');
@@ -386,6 +411,8 @@ function cmdScan(args) {
 		requirePreflightPassed(root);
 	}
 
+	const dbSchema = await resolveDbSchemaOrExit(root, flags);
+
 	// G1: a broken adapter file doesn't stop the adapters that DID load, but every `scan` run
 	// says so loudly (also see `bskel doctor`, which exits 1 while any of these remain).
 	for (const e of LOAD_ERRORS) {
@@ -393,7 +420,7 @@ function cmdScan(args) {
 	}
 	let report;
 	try {
-		report = runScan({ repoRoot: root, terms });
+		report = runScan({ repoRoot: root, terms, includeDb: flags.db, dbSchema });
 	} catch (err) {
 		// Unreachable with the two shipped adapters (generic-grep's specificity-0 detect() is
 		// unconditional) -- becomes reachable the moment a future adapter's detect() is
@@ -1928,7 +1955,7 @@ async function dispatchCommand(cmd, rest) {
 		case 'scan': {
 			if (rest[0] === 'disposition') return cmdScanDisposition(rest.slice(1));
 			if (rest[0] === 'explain') return cmdScanExplain(rest.slice(1));
-			cmdScan(rest);
+			await cmdScan(rest);
 			break;
 		}
 		case 'feature': {

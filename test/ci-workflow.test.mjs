@@ -112,3 +112,26 @@ test('the python-import job installs both ripgrep and a Python toolchain', () =>
 	const commands = allRunCommands({ jobs: { 'python-import': job } });
 	assert.ok(commands.some((c) => c.includes('ripgrep')), 'scripts/python-import-smoke.mjs runs a real `bskel scan`, which shells out to rg directly');
 });
+
+// A4 (D-db-schema-plane): the db-introspect job's script -- proves Plane C actually works against
+// a real (disposable, service-container) Postgres, not mocked.
+test('scripts/db-introspect-smoke.mjs exists and is executable', () => {
+	const abs = path.join(REPO_ROOT, 'scripts/db-introspect-smoke.mjs');
+	assert.ok(fs.existsSync(abs), 'scripts/db-introspect-smoke.mjs does not exist');
+	const mode = fs.statSync(abs).mode;
+	assert.ok(mode & 0o111, `scripts/db-introspect-smoke.mjs is not executable (mode ${mode.toString(8)})`);
+});
+
+test('the db-introspect job provides a real postgres service container with no hardcoded credential, installs ripgrep, and passes a connection string through as an env var (never a literal in the workflow file)', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	const job = doc.jobs['db-introspect'];
+	assert.ok(job, 'expected a "db-introspect" job');
+	const pg = job.services?.postgres;
+	assert.ok(pg, 'expected a postgres service container');
+	assert.equal(pg.env?.POSTGRES_HOST_AUTH_METHOD, 'trust', 'the disposable CI-only container should use trust auth, not a hardcoded password literal');
+	assert.equal(pg.env?.POSTGRES_PASSWORD, undefined, 'no password literal should be committed, even a throwaway one -- trust auth needs none at all');
+	const commands = allRunCommands({ jobs: { 'db-introspect': job } });
+	assert.ok(commands.some((c) => c.includes('ripgrep')), 'scripts/db-introspect-smoke.mjs runs a real `bskel scan`, which shells out to rg directly');
+	const dbUrlStep = (job.steps ?? []).find((s) => s.env?.BSKEL_TEST_DATABASE_URL);
+	assert.ok(dbUrlStep, 'expected a step passing BSKEL_TEST_DATABASE_URL as an env var');
+});

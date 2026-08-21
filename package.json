@@ -33,11 +33,13 @@
     "test": "node --test test/*.test.mjs",
     "test:pack": "node test/package-install.test.mjs",
     "test:java-compile": "node scripts/java-compile-smoke.mjs",
-    "test:python-import": "node scripts/python-import-smoke.mjs"
+    "test:python-import": "node scripts/python-import-smoke.mjs",
+    "test:db-introspect": "node scripts/db-introspect-smoke.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "pg": "^8.23.0"
   }
 }
