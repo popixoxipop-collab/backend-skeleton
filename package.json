@@ -24,6 +24,7 @@
     "contracts/",
     "scanners/",
     "handles/",
+    "new/",
     "stack/",
     "schemas/",
     "scripts/preflight-base-ref.sh"

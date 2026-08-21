@@ -37,6 +37,24 @@ bskel verify --feature 001-organization-management --build
                                    #   target repo's own build wrapper (gradlew/mvnw/npm), if present
 ```
 
+### Starting from nothing (greenfield)
+
+Every command above assumes an existing Spring Boot or FastAPI repo. If you don't have one yet:
+
+```bash
+bskel new --stack spring --slug my-service    # calls start.spring.io (network required), or:
+bskel new --stack fastapi --slug my-service   # a local starter template, no network call
+
+cd my-service
+# create a remote you own and push to it (e.g. `gh repo create --private --source=. --push`),
+# then: git remote set-head origin --auto
+bskel preflight                               # now resolvable -- picks up from the Quickstart above
+```
+
+`bskel new` deliberately never creates a remote itself and never auto-chains into `preflight` --
+`preflight` requires a real `origin` remote with a resolvable default branch, which a brand-new
+local-only repo doesn't have yet. See `D-greenfield-bootstrap` in `DECISIONS.md`.
+
 Every command is read-only until you explicitly run one of the mutating steps above — `bskel
 status`/`bskel next` (no arguments needed) tell you which gate is next and print the exact
 copy-pasteable command for it, without touching anything.
