@@ -9,11 +9,16 @@ import { repoRoot, localDefaultBranch } from '../lib/repo.mjs';
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
-import { writeFileAtomic, readJsonIfExists } from '../lib/fsutil.mjs';
+import { writeFileAtomic } from '../lib/fsutil.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
+import {
+	loadFeatureFile, saveFeatureFile, loadFeatureIndex, saveFeatureIndex,
+	listFeatures, currentFeatureIdForUid, uidForFeatureId, featureIdInUse,
+	renameFeatureArtifacts, archiveFeature, linkFeature,
+} from '../lib/featurelifecycle.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '../scanners/render.mjs';
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
@@ -41,6 +46,11 @@ function usage() {
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
   bskel feature init --slug <name>
+  bskel feature list [--all] [--json]
+  bskel feature show <id> [--json]
+  bskel feature rename <id> --to <new-slug> --reason "..." [--json]
+  bskel feature link <keepId> <aliasId> --reason "..." [--json]
+  bskel feature archive <id> --reason "..." [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
@@ -511,10 +521,13 @@ function cmdScanExplain(args) {
 	process.exit(0);
 }
 
-function featureIndexPath(root) {
-	return path.join(root, '.sbf', 'feature-index.json');
-}
-
+// D6 (D-feature-lifecycle): the whole read-specs/->compute-NNN->write-feature.json->
+// load-modify-save-feature-index.json sequence runs under one exclusive lock -- confirmed live
+// during this item's own grounding, the same lost-update shape S5 already fixed for setGate():
+// two concurrent `feature init` calls (same slug) could silently overwrite feature.json, and
+// feature-index.json's own load->modify->save raced independently of that. `'feature-index'` is
+// a distinct lock name from `'state'` (gate/waiver writes) so this doesn't unnecessarily
+// serialize against unrelated `gate`/`contract waive` calls.
 function cmdFeatureInit(args) {
 	const flags = parseCommand('feature init', args);
 	if (flags.help) { console.log(renderCommandHelp('feature init')); process.exit(0); }
@@ -523,25 +536,220 @@ function cmdFeatureInit(args) {
 	requirePreflightPassed(root);
 	requireValidSlug(flags.slug);
 
-	const featureId = `${nextFeatureNumber(path.join(root, 'specs'))}-${flags.slug}`;
-	const featureUid = randomUUID();
-	const record = { schema: 'sbf.feature/1', feature_id: featureId, feature_uid: featureUid, created_at: new Date().toISOString() };
-	writeFileAtomic(specPath(root, featureId, 'feature.json'), `${JSON.stringify(record, null, 2)}\n`);
+	const record = withLockSync(root, 'feature-index', () => {
+		const featureId = `${nextFeatureNumber(path.join(root, 'specs'))}-${flags.slug}`;
+		const featureUid = randomUUID();
+		const rec = { schema: 'sbf.feature/1', feature_id: featureId, feature_uid: featureUid, created_at: new Date().toISOString() };
+		saveFeatureFile(root, featureId, rec);
 
-	const index = readJsonIfExists(featureIndexPath(root)) ?? { schema: 'sbf.feature-index/1', by_uid: {} };
-	index.by_uid[featureUid] = [featureId];
-	writeFileAtomic(featureIndexPath(root), `${JSON.stringify(index, null, 2)}\n`);
+		const index = loadFeatureIndex(root);
+		index.by_uid[featureUid] = [featureId];
+		saveFeatureIndex(root, index);
+
+		return rec;
+	});
 
 	console.log(JSON.stringify(record));
 	process.exit(0);
 }
 
 function loadFeatureRecord(root, featureId) {
-	const record = readJsonIfExists(specPath(root, featureId, 'feature.json'));
+	const record = loadFeatureFile(root, featureId);
 	if (!record) {
 		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no feature.json at specs/${featureId}/ -- run \`bskel feature init --slug ${slugWords(featureId).join('-')}\` first (or hand-write specs/${featureId}/feature.json with a minted feature_uid)`);
 	}
 	return record;
+}
+
+// D6: scans specs/*/feature.json directly (lib/featurelifecycle.mjs::listFeatures) -- archived
+// features are hidden by default, --all shows everything.
+function cmdFeatureList(args) {
+	const flags = parseCommand('feature list', args);
+	if (flags.help) { console.log(renderCommandHelp('feature list')); process.exit(0); }
+	setContext('feature list', flags);
+	const root = requireRepoRoot();
+	const records = listFeatures(root, { includeArchived: flags.all });
+
+	if (flags.json) {
+		console.log(JSON.stringify(records, null, 2));
+	} else if (records.length === 0) {
+		console.log('no features found -- run `bskel feature init --slug <name>` to create one.');
+	} else {
+		for (const r of records) {
+			const archivedNote = r.archived_at ? ` [archived: ${r.archived_reason}]` : '';
+			console.log(`${r.feature_id}  ${r.feature_uid}  ${r.created_at}${archivedNote}`);
+		}
+	}
+	process.exit(0);
+}
+
+// D6: feature-IDENTITY metadata (id/uid/created_at/archived/rename history/merge cross-
+// reference/artifact-existence summary) -- deliberately NOT gate/workflow status, which
+// `bskel status --feature <id>` (D1) already owns. Confirmed non-overlapping by reading
+// cmdStatus's own output shape before designing this.
+function cmdFeatureShow(args) {
+	const flags = parseCommand('feature show', args);
+	if (flags.help) { console.log(renderCommandHelp('feature show')); process.exit(0); }
+	setContext('feature show', flags);
+	const root = requireRepoRoot();
+	const featureId = flags._[0];
+	if (!featureId) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel feature show <id> [--json]');
+	requireValidFeatureId(featureId);
+	const record = loadFeatureRecord(root, featureId);
+
+	const index = loadFeatureIndex(root);
+	const uid = uidForFeatureId(index, featureId);
+	const renameHistory = uid ? index.by_uid[uid] : [featureId];
+	const mergedInto = index.merged_into?.[featureId] ?? null;
+	const artifacts = {
+		contract_emitted: fs.existsSync(specPath(root, featureId, 'contracts', `${featureId}.schema.json`)),
+		handles_migration_present: fs.existsSync(specPath(root, featureId, 'handles', 'migration.sql')),
+	};
+
+	if (flags.json) {
+		console.log(JSON.stringify({ ...record, rename_history: renameHistory, merged_into: mergedInto, artifacts }, null, 2));
+	} else {
+		console.log(`# ${record.feature_id}`);
+		console.log(`- feature_uid: ${record.feature_uid}`);
+		console.log(`- created_at: ${record.created_at}`);
+		if (record.archived_at) console.log(`- archived: ${record.archived_at} (${record.archived_reason})`);
+		if (renameHistory.length > 1) console.log(`- previously known as: ${renameHistory.slice(0, -1).join(', ')}`);
+		if (mergedInto) console.log(`- merged into: ${mergedInto} (specs/handles/gate state were NOT moved -- see \`bskel feature link\`)`);
+		console.log(`- contract emitted: ${artifacts.contract_emitted}`);
+		console.log(`- handles migration present: ${artifacts.handles_migration_present}`);
+	}
+	process.exit(0);
+}
+
+function requireLifecycleReason(commandName, reason) {
+	if (!reason || !reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `${commandName} requires --reason "..." -- every identity change must be auditable`);
+	}
+}
+
+// D6: a bskel-internal control-flow error carrying a real exit code/reason -- thrown from INSIDE
+// a withLockSync() callback and caught OUTSIDE it, after the lock has actually been released.
+// Found live, not designed in from the start: an early draft called fail() (which calls
+// process.exit() directly) from inside the locked callback for a collision/missing-feature
+// check -- process.exit() does NOT run pending `finally` blocks the way a thrown exception does,
+// so lib/lock.mjs's own `finally { fs.rmSync(lockPath) }` never ran, leaving the lock directory
+// behind forever and hanging every subsequent `feature init`/`rename`/`link` call in that repo.
+// A real `throw` (unlike process.exit()) DOES unwind through withLockSync's finally correctly --
+// this class exists so the CLI-facing exit code/reason survive that unwind to be reported once
+// safely outside the lock.
+class LockedCommandFailure extends Error {
+	constructor(code, reason, message) {
+		super(message);
+		this.code = code;
+		this.reason = reason;
+	}
+}
+
+function runLockedOrFail(root, lockName, fn) {
+	try {
+		return withLockSync(root, lockName, fn);
+	} catch (err) {
+		if (err instanceof LockedCommandFailure) fail(err.code, err.reason, err.message);
+		throw err;
+	}
+}
+
+// D6: the whole validate-then-migrate-then-index-update sequence runs under the SAME
+// 'feature-index' lock `feature init` uses -- a rename racing another rename (or an init) must
+// not interleave. Collision is checked INSIDE the lock, right before any mutation, to avoid a
+// TOCTOU on the check itself; slug/reason validation happens outside the lock (fails fast, no
+// need to hold it for a purely local validation). See lib/featurelifecycle.mjs::
+// renameFeatureArtifacts() for the full migration this performs.
+function cmdFeatureRename(args) {
+	const flags = parseCommand('feature rename', args);
+	if (flags.help) { console.log(renderCommandHelp('feature rename')); process.exit(0); }
+	setContext('feature rename', flags);
+	const root = requireRepoRoot();
+	const oldId = flags._[0];
+	if (!oldId) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel feature rename <id> --to <new-slug> --reason "..." [--json]');
+	requireValidFeatureId(oldId);
+	requireValidSlug(flags.to);
+	requireLifecycleReason('bskel feature rename', flags.reason);
+
+	const record = runLockedOrFail(root, 'feature-index', () => {
+		const existing = loadFeatureFile(root, oldId);
+		if (!existing) {
+			throw new LockedCommandFailure(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no feature.json at specs/${oldId}/`);
+		}
+		const nnn = oldId.match(/^[0-9]{3}/)[0];
+		const newId = `${nnn}-${flags.to}`;
+		if (newId === oldId) {
+			throw new LockedCommandFailure(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--to "${flags.to}" produces the same feature_id ("${newId}") -- nothing to rename`);
+		}
+		const index = loadFeatureIndex(root);
+		if (featureIdInUse(root, index, newId)) {
+			throw new LockedCommandFailure(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${newId}" is already in use (an existing specs/ directory or a retired id already in the feature index) -- choose a different --to`);
+		}
+
+		renameFeatureArtifacts(root, oldId, newId);
+
+		index.by_uid[existing.feature_uid] = [...(index.by_uid[existing.feature_uid] ?? [oldId]), newId];
+		saveFeatureIndex(root, index);
+
+		return loadFeatureFile(root, newId);
+	});
+
+	console.log(flags.json ? JSON.stringify(record, null, 2) : `renamed ${oldId} -> ${record.feature_id}`);
+	process.exit(0);
+}
+
+// D6: index-only (lib/featurelifecycle.mjs::linkFeature) -- deliberately does NOT touch either
+// feature's specs/.sbf/ artifacts or attempt to merge scan/contract/handles state. See
+// DECISIONS.md D-feature-lifecycle for why an automatic merge was rejected.
+function cmdFeatureLink(args) {
+	const flags = parseCommand('feature link', args);
+	if (flags.help) { console.log(renderCommandHelp('feature link')); process.exit(0); }
+	setContext('feature link', flags);
+	const root = requireRepoRoot();
+	const keepId = flags._[0];
+	const aliasId = flags._[1];
+	if (!keepId || !aliasId) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel feature link <keepId> <aliasId> --reason "..." [--json]');
+	requireValidFeatureId(keepId);
+	requireValidFeatureId(aliasId);
+	if (keepId === aliasId) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel feature link requires two DIFFERENT feature ids');
+	requireLifecycleReason('bskel feature link', flags.reason);
+
+	const index = runLockedOrFail(root, 'feature-index', () => {
+		for (const id of [keepId, aliasId]) {
+			if (!loadFeatureFile(root, id)) {
+				throw new LockedCommandFailure(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no feature.json at specs/${id}/`);
+			}
+		}
+		const idx = loadFeatureIndex(root);
+		linkFeature(idx, keepId, aliasId);
+		saveFeatureIndex(root, idx);
+		return idx;
+	});
+
+	if (flags.json) {
+		console.log(JSON.stringify({ merged_into: index.merged_into }, null, 2));
+	} else {
+		console.log(`${aliasId} is now linked to ${keepId} -- specs/ and .sbf/ state for BOTH features are unchanged, this only records the cross-reference (reason: ${flags.reason})`);
+	}
+	process.exit(0);
+}
+
+// D6: soft-delete only (lib/featurelifecycle.mjs::archiveFeature) -- sets archived_at in place,
+// no filesystem move, no lock needed (a single feature.json write, no cross-file coordination).
+function cmdFeatureArchive(args) {
+	const flags = parseCommand('feature archive', args);
+	if (flags.help) { console.log(renderCommandHelp('feature archive')); process.exit(0); }
+	setContext('feature archive', flags);
+	const root = requireRepoRoot();
+	const featureId = flags._[0];
+	if (!featureId) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel feature archive <id> --reason "..." [--json]');
+	requireValidFeatureId(featureId);
+	requireLifecycleReason('bskel feature archive', flags.reason);
+	loadFeatureRecord(root, featureId); // exits cleanly if the feature doesn't exist
+	const updated = archiveFeature(root, featureId, flags.reason);
+
+	console.log(flags.json ? JSON.stringify(updated, null, 2) : `archived ${featureId} (${flags.reason})`);
+	process.exit(0);
 }
 
 // G1: intercepts BEFORE any adapter-specific codegen runs (in particular, before
@@ -1593,6 +1801,11 @@ function dispatchCommand(cmd, rest) {
 		}
 		case 'feature': {
 			if (rest[0] === 'init') return cmdFeatureInit(rest.slice(1));
+			if (rest[0] === 'list') return cmdFeatureList(rest.slice(1));
+			if (rest[0] === 'show') return cmdFeatureShow(rest.slice(1));
+			if (rest[0] === 'rename') return cmdFeatureRename(rest.slice(1));
+			if (rest[0] === 'link') return cmdFeatureLink(rest.slice(1));
+			if (rest[0] === 'archive') return cmdFeatureArchive(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

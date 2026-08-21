@@ -98,6 +98,46 @@ test('gate-event.schema.json: an unrecognized event type is rejected', () => {
 	assert.equal(ok, false);
 });
 
+test('feature.schema.json: a minimal valid feature record passes', () => {
+	const { ok } = validateAgainstSchema('feature.schema.json', {
+		schema: 'sbf.feature/1', feature_id: '001-widget-management', feature_uid: '11111111-1111-4111-8111-111111111111', created_at: '2026-01-01T00:00:00.000Z',
+	});
+	assert.equal(ok, true);
+});
+
+test('feature.schema.json: archived_at with a non-UUID feature_uid is rejected', () => {
+	const { ok } = validateAgainstSchema('feature.schema.json', {
+		schema: 'sbf.feature/1', feature_id: '001-widget-management', feature_uid: 'not-a-uuid', created_at: '2026-01-01T00:00:00.000Z',
+		archived_at: '2026-01-02T00:00:00.000Z', archived_reason: 'superseded',
+	});
+	assert.equal(ok, false);
+});
+
+test('feature-index.schema.json: by_uid with a multi-entry array (rename history) passes', () => {
+	const { ok } = validateAgainstSchema('feature-index.schema.json', {
+		schema: 'sbf.feature-index/1',
+		by_uid: { '11111111-1111-4111-8111-111111111111': ['001-old-slug', '001-new-slug'] },
+	});
+	assert.equal(ok, true);
+});
+
+test('feature-index.schema.json: by_uid with an empty array is rejected (minItems: 1)', () => {
+	const { ok } = validateAgainstSchema('feature-index.schema.json', {
+		schema: 'sbf.feature-index/1',
+		by_uid: { '11111111-1111-4111-8111-111111111111': [] },
+	});
+	assert.equal(ok, false);
+});
+
+test('feature-index.schema.json: merged_into is validated too', () => {
+	const { ok } = validateAgainstSchema('feature-index.schema.json', {
+		schema: 'sbf.feature-index/1',
+		by_uid: {},
+		merged_into: { '002-alias': 'not a valid feature id' },
+	});
+	assert.equal(ok, false);
+});
+
 test('formatSchemaErrors: renders ajv errors as "path message" strings, "(root)" when instancePath is empty', () => {
 	const { errors } = validateAgainstSchema('state.schema.json', { schema: 'sbf.state/1' });
 	const formatted = formatSchemaErrors(errors);

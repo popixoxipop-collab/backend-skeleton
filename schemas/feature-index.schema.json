@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:feature-index:1",
+  "title": "backend-skeleton feature index (.sbf/feature-index.json)",
+  "description": "D6 (D-feature-lifecycle): first real schema for this file -- previously unvalidated. `by_uid[uid]` was already an array (single-element only, written by `feature init`) -- D6 is its first real consumer: `bskel feature rename` appends rather than replaces, so the array IS the rename history (last entry is the current feature_id). `merged_into` is new, written by `bskel feature link` -- index-only, never implies the aliased feature_id's own specs/.sbf/ artifacts were touched or merged.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "by_uid"],
+  "properties": {
+    "schema": { "const": "sbf.feature-index/1" },
+    "by_uid": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+        "minItems": 1
+      }
+    },
+    "merged_into": {
+      "type": "object",
+      "description": "written by `bskel feature link <keepId> <aliasId>` -- maps aliasId -> keepId. Deliberately does not imply aliasId's own specs/.sbf/ files were touched; a human decides what to do with the two features' actual content.",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" }
+    }
+  }
+}
