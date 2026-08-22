@@ -4444,3 +4444,94 @@ reachable); `D-resolver-scope`/`D-security-8` (the "never guess, always explicit
 and `migration.sql` are both "review and apply yourself", never auto-applied); `D-patch-strategy`
 (A3, the `validateProperty` bug found and fixed here); `D-db-schema-plane` (A4, the real-Postgres
 CI service-container convention this item's own `java-integration` job reuses exactly).
+
+
+## D-verify-integrity (S6, continued): --build fail-closed, stdout+stderr capture, executable-mode drift, resolver conflict surfacing
+
+**WHY**: CATALOG.md's S6 was marked partially implemented (`18d0838` -- only the `migration.sql`
+disappearance case). Its full concrete-approach text names five things; grounding (real execution,
+not assumed) confirmed four were still live gaps and re-scoped the fifth.
+
+**1. `--build` fail-closed + `--allow-skip-build`.** Reproduced live before touching any code: with
+every other gate passing, `bskel verify --feature <id> --build` on a repo with no recognized build
+tool reported `VERIFY: PASS` / exit 0 -- `cmdVerify`'s old `buildOk = !build || !build.ran ||
+build.ok` treated "didn't run" as "doesn't block" unconditionally, silently no-opping an explicit
+user request for build assurance. Fixed: `buildOk = !build || build.ok || (!build.ran &&
+allowSkipBuild)` -- a new `--allow-skip-build` flag (exact catalog wording) is the one explicit
+opt-out, matching `--force`/`--offline`'s own "explicit request needs an explicit escape hatch"
+shape elsewhere in this CLI. Verified live, isolated (all other gates forced to pass): without the
+flag, exit 1; with it, exit 0.
+
+**2. stdout+stderr capture.** Reproduced live: a failing `npm run build` whose only diagnostic text
+is on stderr (`FATAL: ...`) was completely invisible in the reported failure message --
+`runBuildCheck`'s catch block only ever read `err.stdout`. Real repro: npm's own generic `> pkg
+build\n> cmd` banner lands on stdout, the actual fatal error entirely on stderr. Fixed: both streams
+captured, each with its OWN last-30-lines window (not one combined window) -- a long stdout must not
+crowd out a short-but-critical stderr message, which is exactly what the live repro showed.
+
+**3. Executable-mode drift.** `stack/apply.mjs`'s `applyPlan()` sets a file's mode via
+`fs.chmodSync` at apply time, but nothing ever re-checked it afterward -- the `stack` gate's
+staleness token (`D-gate-precision`, S2) hashes each applied file's CONTENT only, which is blind to
+a `chmod -x scripts/dev-tunnel.sh` (bytes unchanged, token unchanged, gate stays `pass` forever even
+though the script no longer runs). Fixed with a sibling fingerprint: new `fileMode()` in
+`lib/fsutil.mjs` (mirrors `sha256File`'s exact null-means-missing shape), tracked as a SEPARATE
+`applied_file_mode:<relpath>` key alongside the existing `applied_file:<relpath>` content hash in
+`stack.recompute()` -- deliberately a distinct key, not merged into the content hash, so
+`diffInputs()` names "the mode drifted" specifically rather than a generic "stale". Tracks the
+CURRENT mode unconditionally for every applied file (no "expected value" lookup against the catalog
+entry) -- mirrors how content hashing already works, and avoids re-loading/re-validating YAML inside
+a hot, frequently-called path. Verified live: stripping the executable bit while leaving both the
+file's content and `.sbf/stack.json` itself byte-identical still makes the gate stale, naming the
+`applied_file_mode:` key precisely; restoring it un-stales the gate.
+
+**4. Resolver conflict surfacing -- and a real false-positive caught by the existing test suite
+before it ever shipped.** O2's content-derived conflict detection (`classifyFile()`, `lib/
+handles-manifest.mjs`) already runs on every `handles emit`/`handles plan --diff`, but `bskel
+verify` never invoked it -- `checkArtifacts()`'s `handlesManifestChecks()` loads the same manifest
+and iterates the same entries but only ever checks `fs.existsSync`. New `checkResolverConflicts()`
+(`lib/verify.mjs`) reuses the EXACT dry-run call `handles plan`'s own D4 preview already makes
+(`provider.plan()` -> `provider.emit({dryRun:true})`), wrapped in try/catch with every precondition
+mirroring `handlesManifestChecks()`'s own graceful-skip philosophy (not handles-ran, missing scan
+report, missing capability/provider, or a plan/emit throw -> `[]`) -- verify must never crash or
+false-block just because handle codegen doesn't apply to this feature.
+
+**The first draft made `conflicts.length === 0` part of the blocking `overallPass` computation --
+wrong, caught immediately by `test/handles-cli.test.mjs`'s own pre-existing regression test**
+("hand-finishing patchField() in a generated resolver does NOT stale the handles gate or fail
+verify"), whose own comment already named the exact trap: `classifyFile()`'s `conflict` state
+cannot distinguish "genuinely corrupted" from "intentionally hand-finished patchField()" -- the
+latter is the NORMAL, PERMANENT end state for those files (see `D-resolver-scope`), and O2's own
+`_engine.mjs` conflict message says so explicitly ("If you HAVE edited it ... leave it -- nothing
+else in this run depends on it"). Blocking `verify` on this would have failed every feature that
+ever hand-finished a resolver, forever -- reintroducing, via a different code path, precisely the
+false-positive `D-gate-precision` (S2) already reasoned through and rejected for the `handles` gate's
+own token. Fixed: `conflicts` is surfaced in the report (a new `## Conflicts` section, only printed
+when non-empty; a new top-level `conflicts` array in `--json`) but does NOT affect `overallPass` --
+same "detect and warn, never gate" precedent as A1 §7's path-prefix signals and A4's DB drift
+reporting. `bskel status`/`bskel next` (`lib/workflow.mjs`) are deliberately untouched by this item
+-- surfacing a conflict as a blocking `next` action is a real design question (what command would
+`next` even suggest?) outside this item's own scope.
+
+**5. Catalog artifacts -- re-scoped, not a gap.** `stack/apply.mjs`'s `STACK_ROOT =
+path.dirname(fileURLToPath(import.meta.url))` -- `bskel catalog lint` (P4) only ever validates
+`stack/catalog/*.yml` files bundled INSIDE the installed bskel package itself. There is no
+mechanism today for a target repo to register its own catalog entries (P4's own DECISIONS.md text
+explicitly deferred that: "keep extensions local/configured initially before designing a remote
+registry"). A consumer's `bskel verify` run has no repo-specific catalog state to check --
+folding `catalog lint` into it would just re-validate bskel's own bundled YAML on every consumer's
+run, already covered by bskel's own `npm test`/CI before it ever ships. This is written down here so
+it isn't silently re-litigated as an unclosed gap next time S6 is revisited.
+
+**Verified**: `npm test` 688/688 (686 baseline + 2 net new: one new `--build` opt-out test replacing
+the old bug-asserting one, one new stderr-capture test, one new chmod-drift test, plus assertions
+folded into 2 existing tests rather than new files). Manual, live, isolated end-to-end for the two
+highest-risk pieces: a real `--build` run against a repo with no build tool (both with and without
+`--allow-skip-build`), and a real `stack apply` + chmod-strip + `verify` cycle.
+
+See also: `D-gate-precision` (S2, whose `diffInputs`/`stack` token this item extends, and whose
+own "never hash generated content into the handles token" reasoning is exactly what the
+conflicts-blocking false-positive above reproduced and then had to un-reproduce);
+`D-handles-ownership` (O2, `classifyFile()`'s own conflict semantics, unchanged by this item --
+only reused, not reimplemented); `D-handles-dryrun` (D4, the exact `provider.emit({dryRun:true})`
+call this item's conflict surfacing reuses); the original S1/S6 hardening entry (the `stack`-missing-
+from-verify and `migration.sql`-existence-only-check bugs this item's own predecessor fixed).

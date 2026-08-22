@@ -106,9 +106,45 @@ test('verify PASSes once preflight, scan, and contract gates are satisfied; hand
 	assert.equal(handlesGate.code, 2); // not_run, but doesn't block overall pass since it's optional
 });
 
-test('verify --build: a skipped build check (no recognized tool) does not fail verify', () => {
+// S6 (D-verify-integrity): reproduces a real, live-confirmed bug -- `bskel verify --build` on a
+// repo with no recognized build tool used to report an overall PASS even though the build
+// assurance the user explicitly asked for never actually ran. An explicit --build now fails
+// closed unless --allow-skip-build is also passed.
+test('verify --build: an explicit --build with no recognized tool now FAILS verify unless --allow-skip-build is passed', () => {
 	const root = buildFixtureRepo();
-	// No gradlew/pom.xml/package.json in this fixture -> build check is skipped, not "failed".
+	// No gradlew/pom.xml/package.json in this fixture -> build check has nothing to run.
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+
+	const withoutOptOut = run(['verify', '--feature', '001-widget-management', '--build', '--json'], root);
+	const reportWithoutOptOut = JSON.parse(withoutOptOut.stdout);
+	assert.equal(reportWithoutOptOut.build.ran, false);
+	assert.equal(reportWithoutOptOut.pass, false, 'an explicit --build request that never actually ran must not silently pass');
+	assert.equal(withoutOptOut.code, 1);
+
+	const withOptOut = run(['verify', '--feature', '001-widget-management', '--build', '--allow-skip-build', '--json'], root);
+	const reportWithOptOut = JSON.parse(withOptOut.stdout);
+	assert.equal(reportWithOptOut.build.ran, false);
+	assert.equal(reportWithOptOut.pass, true, '--allow-skip-build is the explicit opt-out, and must actually work');
+	assert.equal(withOptOut.code, 0);
+});
+
+// S6 (D-verify-integrity): reproduces a real, live-confirmed bug -- a failing build's most useful
+// diagnostic text sometimes lands entirely on stderr (npm's own generic banner goes to stdout,
+// the real fatal error to stderr); the old capture (`err.stdout` only) silently dropped it.
+test('verify --build: a build failure whose real error is on stderr is captured, not silently dropped', () => {
+	const root = buildFixtureRepo();
+	fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+		name: 'stderr-repro',
+		version: '1.0.0',
+		scripts: { build: 'node -e "console.error(\'FATAL_STDERR_ONLY_MESSAGE\'); process.exit(1)"' },
+	}));
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'chore: add stderr-only build script'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
 	run(['preflight'], root);
 	run(['feature', 'init', '--slug', 'widget-management'], root);
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
@@ -117,8 +153,10 @@ test('verify --build: a skipped build check (no recognized tool) does not fail v
 
 	const result = run(['verify', '--feature', '001-widget-management', '--build', '--json'], root);
 	const report = JSON.parse(result.stdout);
-	assert.equal(report.build.ran, false);
-	assert.equal(report.pass, true, 'a skipped build check (no recognized tool) must not fail verify overall');
+	assert.equal(report.build.ran, true);
+	assert.equal(report.build.ok, false);
+	assert.match(report.build.message, /FATAL_STDERR_ONLY_MESSAGE/, 'the stderr-only diagnostic must actually be captured');
+	assert.equal(report.pass, false);
 });
 
 // S6 regression: `stack` used to be entirely absent from lib/verify.mjs's local GATE_SPECS, so
@@ -346,6 +384,9 @@ test('a feature that never ran handles emit gets no handles-manifest artifact it
 	const report = JSON.parse(result.stdout);
 	const handlesArtifacts = report.artifacts.filter((a) => a.artifact === 'handles infra' || a.artifact === 'handles resolver');
 	assert.deepEqual(handlesArtifacts, [], 'this feature never ran handles emit -- another feature\'s entries (and repo infra) must not appear in its report');
+	// S6 (D-verify-integrity): checkResolverConflicts short-circuits on the same !handlesRan guard
+	// -- must not crash or false-positive just because handle codegen was never run for this feature.
+	assert.deepEqual(report.conflicts, []);
 });
 
 test('an unreadable handles manifest is reported as a finding, not thrown', () => {

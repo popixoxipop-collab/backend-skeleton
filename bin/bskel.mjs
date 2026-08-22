@@ -33,7 +33,7 @@ import { STACKS as NEW_STACKS } from '../new/index.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
-import { collectGateStatuses, runBuildCheck, checkArtifacts } from '../lib/verify.mjs';
+import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
 import { parseCommand, renderCommandHelp, diagnostic } from '../lib/cli.mjs';
@@ -65,7 +65,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
-  bskel verify --feature <id> [--build] [--json]
+  bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
   bskel gate require <name> [--feature <id>]      (name: ${GATE_NAMES.join('|')})
@@ -1644,7 +1644,7 @@ function describeStale(g) {
 	return ' (stale)';
 }
 
-function renderVerifyReport({ featureId, gates, artifacts, build }) {
+function renderVerifyReport({ featureId, gates, artifacts, conflicts, build, allowSkipBuild }) {
 	const lines = [`# Verify: ${featureId}`, '', '## Gates'];
 	for (const g of gates) {
 		const marker = g.code === EXIT.PASS ? 'PASS' : g.blocking ? 'FAIL' : `SKIP (${g.status})`;
@@ -1663,10 +1663,21 @@ function renderVerifyReport({ featureId, gates, artifacts, build }) {
 	}
 	lines.push('', '## Artifacts');
 	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);
+	// S6 (D-verify-integrity): only printed when non-empty -- most repos/features have zero
+	// resolver conflicts, and this section existing-but-empty would read as "checked and found
+	// nothing to report" noise on every single verify run.
+	if (conflicts && conflicts.length > 0) {
+		lines.push('', '## Conflicts');
+		for (const c of conflicts) lines.push(`- [CONFLICT] ${c.path}: ${c.reason}`);
+	}
 	if (build) {
 		lines.push('', '## Build');
 		if (!build.ran) {
-			lines.push(`- SKIPPED: ${build.message}`);
+			// S6 (D-verify-integrity): an explicit --build request that found no recognized build
+			// tool now BLOCKS the overall verdict unless --allow-skip-build was also passed -- this
+			// note says which case applies, not just "SKIPPED" (which used to read as harmless).
+			const note = allowSkipBuild ? ' (allowed via --allow-skip-build)' : ' (blocking -- pass --allow-skip-build to allow this)';
+			lines.push(`- SKIPPED${note}: ${build.message}`);
 		} else {
 			lines.push(`- [${build.ok ? 'PASS' : 'FAIL'}] ${build.tool}`);
 			if (!build.ok) lines.push('', '```', build.message, '```');
@@ -1682,17 +1693,33 @@ function cmdVerify(args) {
 	const root = requireRepoRoot();
 	const gates = collectGateStatuses(root, flags.feature, { getGate, requireNamedGate });
 	const artifacts = checkArtifacts(root, flags.feature, gates);
+	const handlesRan = gates.find((g) => g.gate === 'handles')?.ran ?? false;
+	const conflicts = checkResolverConflicts(root, flags.feature, handlesRan);
 	const build = flags.build ? runBuildCheck(root) : null;
+	const allowSkipBuild = flags['allow-skip-build'];
 
 	const gatesOk = gates.every((g) => !g.blocking);
 	const artifactsPresent = artifacts.every((a) => a.exists);
-	const buildOk = !build || !build.ran || build.ok;
+	// S6 (D-verify-integrity): `conflicts` is deliberately NON-BLOCKING, same "detect and warn,
+	// never gate" precedent as A1 §7's path-prefix signals and A4's DB drift reporting -- and the
+	// SAME reasoning D-gate-precision (S2) already used to keep generated content OUT of the
+	// handles gate's own token: classifyFile()'s `conflict` state cannot distinguish "genuinely
+	// corrupted" from "intentionally hand-finished patchField()", which is the normal, PERMANENT
+	// end state for those files. Confirmed live: an early draft that blocked verify on this made
+	// every hand-finished resolver fail forever, exactly the trap D-gate-precision already warned
+	// against -- caught by test/handles-cli.test.mjs's own existing regression test for it.
+	// `conflicts` still surfaces in the report so a genuinely-unwanted divergence stays visible.
+	// S6 (D-verify-integrity): an explicit --build request that found no recognized build tool
+	// used to be silently treated as "doesn't block" -- confirmed live that this let `bskel verify
+	// --build` report an overall PASS even though the build assurance the user explicitly asked
+	// for never actually ran. Now only acceptable with the explicit --allow-skip-build opt-out.
+	const buildOk = !build || build.ok || (!build.ran && allowSkipBuild);
 	const overallPass = gatesOk && artifactsPresent && buildOk;
 
 	if (flags.json) {
-		console.log(JSON.stringify({ feature: flags.feature, pass: overallPass, gates, artifacts, build }, null, 2));
+		console.log(JSON.stringify({ feature: flags.feature, pass: overallPass, gates, artifacts, conflicts, build }, null, 2));
 	} else if (!flags.quiet) {
-		console.log(renderVerifyReport({ featureId: flags.feature, gates, artifacts, build }));
+		console.log(renderVerifyReport({ featureId: flags.feature, gates, artifacts, conflicts, build, allowSkipBuild }));
 		console.log(overallPass ? 'VERIFY: PASS' : 'VERIFY: FAIL');
 	}
 	// This exit code (0/1) carries a real payload (the report just printed) -- never a diagnostic

@@ -463,7 +463,7 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--
   #    resolver a feature no longer generates (e.g. after a service-signature change) is reported
   #    as an orphan and left untouched, never deleted -- suppressed entirely under --resource.
 
-bskel verify --feature <id> [--build] [--json]
+bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   # -> aggregates all 5 gates (lib/gate-definitions.mjs is the single source both this and every
   #    gate-writing command consume) via the same machinery every other command uses, plus
   #    artifact existence checks: the contract file, the handles migration if applicable, and
@@ -477,10 +477,17 @@ bskel verify --feature <id> [--build] [--json]
   #    JSON entry reports `scope`/`policy`/`blocking`/`ran` alongside its status, and (S2) when
   #    stale, `changed_inputs`/`stale_reason` -- the non-JSON report shows this inline too, e.g.
   #    `[FAIL] contract (stale: resolution_hash)`. --build actually runs the detected build tool
-  #    (gradlew/mvnw/npm) and reports real pass/fail, not just gate status -- exits 0 only if
-  #    everything blocking passed. The `contract` gate's evidence additionally carries
-  #    `completeness` (complete/partial/blocked) and `waived_count` -- the non-JSON report shows
-  #    this inline, e.g. `[PASS] contract (partial: 6 waived)`.
+  #    (gradlew/mvnw/npm) and reports real pass/fail, not just gate status -- an explicit --build
+  #    with NO recognized build tool now FAILS overall (S6, D-verify-integrity) unless
+  #    --allow-skip-build is also passed; the failure message captures both stdout and stderr
+  #    (each its own last-30-lines window). (S6) `conflicts`: a resolver in a genuine O2 conflict
+  #    state (reusing the exact dry-run `handles plan` itself uses) blocks overall PASS -- shown
+  #    as a `## Conflicts` section, only when non-empty. (S6) the `stack` gate's staleness token
+  #    also tracks each applied file's permission bits, not just content -- a stripped executable
+  #    bit (e.g. `chmod -x scripts/dev-tunnel.sh`) now goes stale instead of passing forever. The
+  #    `contract` gate's evidence additionally carries `completeness` (complete/partial/blocked)
+  #    and `waived_count` -- the non-JSON report shows this inline, e.g.
+  #    `[PASS] contract (partial: 6 waived)`.
 
 bskel status [--feature <id>] [--json]
   # -> D1: same gate/artifact data `verify` computes (lib/verify.mjs's collectGateStatuses/
