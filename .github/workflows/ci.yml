@@ -37,6 +37,12 @@ jobs:
   # bill macOS at 10x Linux; this codebase has, so far, only ever been run on macOS locally, so a
   # macOS CI job would mostly re-test the one platform already exercised daily -- Linux is the
   # actually-unverified platform).
+  # D-handles-providers (G4) follow-up: test/handles-java-codec.test.mjs needs a real javac/java
+  # to close the JS<->Java "byte-identical" codec verification gap this repo's own DECISIONS.md
+  # flagged as still open. Unlike java-compile/java-integration/java-ast below, this needs no
+  # Gradle and no network -- pure java.* stdlib, a two-file `javac` + one `java -cp` invocation,
+  # sub-second -- cheap enough to run in the fast job on every push/PR, the same bar python3
+  # already clears for the sibling Python codec test in this same job.
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -48,6 +54,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
@@ -263,5 +273,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # Same reasoning as the `test` job above -- this job also runs bare `npm test`, and
+      # test/handles-java-codec.test.mjs is mandatory there too. Added explicitly rather than
+      # assumed present: a self-hosted runner's launchd/service PATH can differ from an
+      # interactive login shell's PATH even when a JDK is installed on the machine (a known
+      # macOS/Homebrew/SDKMAN gotcha) -- setup-java is idempotent and removes that ambiguity
+      # outright instead of hoping the daemon's PATH happens to include javac.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: npm ci
       - run: npm test

@@ -1,8 +1,11 @@
 // D5/D6 (DECISIONS.md): the "handle" is a composite address -- kind:type:uuid[:pointer],
 // base64url-encoded with an `sbf1_` prefix -- extending Relay's `base64(Type:id)` global-ID
 // pattern with an RFC 6901 JSON Pointer for field-level addressing. This is the JS reference
-// implementation; handles/providers/java-spring/templates/HandleCodec.java.tmpl must stay byte-identical
-// in behavior (see test/handles-codec.test.mjs's cross-check against fixed vectors).
+// implementation; handles/providers/java-spring/templates/HandleCodec.java.tmpl and
+// handles/providers/python-fastapi/templates/codec.py.tmpl must stay byte-identical in behavior --
+// executed, both directions, cross-checked against test/handles-java-codec.test.mjs and
+// test/handles-python-codec.test.mjs respectively (test/handles-codec.test.mjs only self-tests
+// this file's own JS-side behavior, it does not cross-check either other language).
 import { createHash } from 'node:crypto';
 
 // Fixed namespace UUID for this skill's field-handle derivation (arbitrary but permanent --

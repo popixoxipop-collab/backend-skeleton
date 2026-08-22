@@ -2387,16 +2387,35 @@ Depends(...)]` -- an app using a different session-dependency shape (no `Annotat
 type name than `Session`) gets no router/resolvers generated at all, silently narrowed rather than
 guessed at.
 
-**Honest verification gap, left open on purpose**: this item closes the "byte-identical" claim for
-JS<->Python (executed, both directions, positive AND negative parity, see Verification). The
-matching JS<->Java claim (`handles/codec.mjs`'s own header comment, and
-`HandleCodec.java.tmpl`'s) has **never once been executed in this repository** -- no `.java` file
-from that template has ever actually been compiled or run here; the claim rests entirely on
-javadoc-level assertion. This item does not close that gap (closing Python's was the explicit,
-scoped goal) -- it is recorded here, honestly, as still open. Two options for whoever picks it up:
-gate a `test/handles-codec.test.mjs`-analogous Java test behind a real JDK/`javac` check (mirroring
-this item's `python3`-required pattern exactly), or commit the JS reference vectors as a JSON
-fixture a target repo's own JVM test suite can consume without this project needing a JDK at all.
+**Honest verification gap, left open on purpose -- since closed, see below**: this item closed the
+"byte-identical" claim for JS<->Python (executed, both directions, positive AND negative parity,
+see Verification). The matching JS<->Java claim (`handles/codec.mjs`'s own header comment, and
+`HandleCodec.java.tmpl`'s) had **never once been executed in this repository** at the time this
+item shipped -- the claim rested entirely on javadoc-level assertion. This item did not close that
+gap (closing Python's was the explicit, scoped goal) -- recorded here, honestly, as still open.
+
+**Closed as a follow-up slice, `test/handles-java-codec.test.mjs`**: mirrors
+`test/handles-python-codec.test.mjs`'s own "mandatory, not skippable" design exactly, but a line
+protocol (`OP|field|field|...` in, `OK|result...`/`ERR|message` out) instead of JSON, since Java
+ships no stdlib JSON parser and this repo's own A2/G2/G3 "no dependency when a simpler mechanism
+suffices" ethos applies to test-only code too. **Correction found live while scoping this**: the
+"never compiled" half of the original claim above was already stale by the time this slice
+started -- `HandleCodec.java.tmpl` is unconditionally in `emit.mjs`'s `INFRA_FILES`, so the
+`java-compile` CI job's real `./gradlew compileJava` was already compiling a rendered copy; what
+was actually still open was narrower -- compilation was closed, behavioral execution-and-comparison
+against the JS reference was not. That narrower scope needs zero Gradle/network (`HandleCodec.
+java.tmpl` is pure `java.*` stdlib), so unlike the AST helper (A2 Phase 2) or `java-compile`/
+`java-integration`, this test is cheap enough to run inside plain `npm test` on every invocation
+(the same bar `python3` already cleared for the Python codec test) -- `actions/setup-java` added
+to both jobs that run bare `npm test` (`test`, `macos`) to guarantee that. **A real, load-bearing
+gotcha found and fixed before it could silently corrupt every no-pointer test vector**: Java's
+`String.split("\\|")` silently drops TRAILING empty fields (`"a|b|".split("\\|")` has length 2, not
+3) -- confirmed by direct execution -- while `split("\\|", -1)` preserves them; the driver's "empty
+trailing field = no pointer" protocol design depends on the latter. Also newly confirmed by direct
+execution, not assumed: `Base64.getUrlDecoder().decode()` really does throw on invalid-charset
+input (`Illegal base64 character 21` for `"QU!JD"`) -- the mirror image of the Python codec test's
+own confirmation that Python's `base64.urlsafe_b64decode` does NOT throw, together proving the
+JS/Java-vs-Python asymmetry `D-security-10`'s own comment claims rather than assuming either half.
 
 **EXIT**: add a `--provider` override flag if a real N:1 (one adapter, multiple viable providers)
 case is ever observed -- none has been, so it was not spec'd speculatively. Implement `recover()` +

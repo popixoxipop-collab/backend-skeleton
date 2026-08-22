@@ -93,6 +93,18 @@ test('every job installs ripgrep or does not need it (this tool shells out to rg
 	assert.ok(commands.some((c) => c.includes('ripgrep')), 'the "test" job runs the full suite, including scanner tests that shell out to rg -- expected an explicit ripgrep install step');
 });
 
+// D-handles-providers (G4) follow-up: test/handles-java-codec.test.mjs is mandatory inside plain
+// `npm test` (unlike java-compile/java-integration/java-ast, which are separate scripts kept out
+// of this job specifically because they need Gradle/network) -- the "test" job's own ubuntu-latest
+// runner is not guaranteed to have a JDK on PATH without this step, so its absence would silently
+// break every push/PR the moment that test file existed. Guards against that regressing quietly.
+test('the "test" job installs a JDK (test/handles-java-codec.test.mjs needs javac/java, mandatory, unlike the Gradle-dependent java-* jobs)', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	const testJob = doc.jobs.test;
+	const usesSetupJava = (testJob.steps ?? []).some((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/setup-java@'));
+	assert.ok(usesSetupJava, 'expected actions/setup-java in the "test" job -- test/handles-java-codec.test.mjs needs a real javac/java');
+});
+
 // P3b (D-python-import-check): the python-import job's script -- imports every generated Python
 // module for real (fastapi+sqlmodel installed into a throwaway venv), replacing the ast.parse-only
 // check that used to live in test/python-fastapi-handles.test.mjs's own default `npm test` path.
