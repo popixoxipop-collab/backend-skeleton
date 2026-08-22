@@ -62,6 +62,9 @@ public class HandleRegistry {
 	@Column(name = "revoked_at")
 	private Instant revokedAt;
 
+	@Column(name = "revoked_reason")
+	private String revokedReason;
+
 	public static HandleRegistry create(
 			UUID handleUid, String kind, String resourceType, UUID resourceUid,
 			String pointer, UUID featureUid, String operationId, String contractRef
@@ -80,5 +83,25 @@ public class HandleRegistry {
 
 	public boolean isRevoked() {
 		return revokedAt != null;
+	}
+
+	/**
+	 * O4 (D-handle-lifecycle): {@code handle_uid} is DERIVED from {@code kind}/{@code
+	 * resourceType}/{@code resourceUid}/{@code pointer} (see {@link HandleCodec#deriveHandleUid})
+	 * -- those four fields can never legitimately differ for an existing row with this same id,
+	 * so {@link HandleService#register} only ever needs to refresh the three fields that CAN
+	 * change across separate registrations of the same resource/pointer: which feature most
+	 * recently touched it, which operation, and its current contract hash. Deliberately does NOT
+	 * touch {@code revokedAt} -- re-registering a revoked handle must never silently un-revoke it.
+	 */
+	void refresh(UUID featureUid, String operationId, String contractRef) {
+		this.featureUid = featureUid;
+		this.operationId = operationId;
+		this.contractRef = contractRef;
+	}
+
+	void revoke(String reason) {
+		this.revokedAt = Instant.now();
+		this.revokedReason = reason;
 	}
 }

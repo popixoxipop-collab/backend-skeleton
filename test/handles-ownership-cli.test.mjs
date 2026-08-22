@@ -110,7 +110,7 @@ test('(a) first emit creates files and records a manifest entry per infra file +
 	const manifest = readManifest(root);
 	assert.equal(manifest.schema, 'sbf.handles-manifest/1');
 	const infraPaths = Object.keys(manifest.files).filter((p) => p.includes('global/handle/'));
-	assert.equal(infraPaths.length, 7);
+	assert.equal(infraPaths.length, 10);
 	for (const p of infraPaths) {
 		assert.equal(manifest.files[p].kind, 'infra');
 		assert.equal(manifest.files[p].owner, '_repo');

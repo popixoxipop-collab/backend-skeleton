@@ -139,7 +139,7 @@ test('renderPatchFieldBody: an approved patch-wrapper field gets real codegen (P
 	assert.match(body, /case "\/label" -> \{/);
 	assert.match(body, /String convertedValue = objectMapper\.convertValue\(value, String\.class\);/);
 	assert.match(body, /new UpdateWidgetRequest\(PatchField\.of\(convertedValue\), null, null, null\)/);
-	assert.match(body, /validator\.validate\(patch\)/);
+	assert.match(body, /validator\.validateProperty\(patch, "label"\)/);
 	assert.match(body, /throw new ConstraintViolationException\(violations\)/);
 	assert.match(body, /widgetService\.updateWidget\(resourceUid, patch\)/);
 });

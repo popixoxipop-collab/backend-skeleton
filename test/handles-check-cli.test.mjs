@@ -92,7 +92,7 @@ const RESOLVER_REL = 'src/main/java/com/example/domain/widget/infrastructure/Wid
 const MANIFEST_REL = '.sbf/handles-manifest.json';
 const CONTROLLER_REL = 'src/main/java/com/example/domain/widget/presentation/WidgetController.java';
 
-test('handles emit --check on a fresh feature reports all 9 create actions, exits CHECK_FAILED, and writes nothing', () => {
+test('handles emit --check on a fresh feature reports all 12 create actions, exits CHECK_FAILED, and writes nothing', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);
 
@@ -102,7 +102,7 @@ test('handles emit --check on a fresh feature reports all 9 create actions, exit
 	assert.equal(body.check, true);
 	assert.equal(body.blocked, false);
 	assert.equal(body.gate, null, 'a dry run must never mark the handles gate passed');
-	assert.equal(body.actions.length, 9);
+	assert.equal(body.actions.length, 12);
 	assert.ok(body.actions.every((a) => a.action === 'create'));
 
 	assert.ok(!fs.existsSync(path.join(root, RESOLVER_REL)), '--check must not write the resolver');
@@ -121,7 +121,7 @@ test('handles plan --diff shows the same file-action preview as --check, without
 	const result = run(['handles', 'plan', '--feature', '001-widget-management', '--diff', '--json'], root);
 	assert.equal(result.code, 0, 'handles plan itself is purely informational, never a CI gate');
 	const body = JSON.parse(result.stdout);
-	assert.equal(body.actions.length, 9);
+	assert.equal(body.actions.length, 12);
 	assert.ok(body.actions.every((a) => a.action === 'create'));
 	assert.ok(!fs.existsSync(path.join(root, MANIFEST_REL)), 'handles plan --diff must not write anything either');
 });
@@ -140,7 +140,7 @@ test('handles emit --check after a real emit reports everything unchanged and ex
 	const specAction = body.actions.find((a) => a.kind === 'spec');
 	assert.ok(specAction, 'migration.sql must be reported with kind "spec"');
 	assert.equal(specAction.path, 'specs/001-widget-management/handles/migration.sql');
-	assert.deepEqual(body.actions.filter((a) => a.kind === 'infra').length, 7);
+	assert.deepEqual(body.actions.filter((a) => a.kind === 'infra').length, 10);
 	assert.equal(body.actions.find((a) => a.kind === 'resolver')?.resourceType, 'Widget');
 
 	assert.equal(fs.readFileSync(path.join(root, MANIFEST_REL), 'utf8'), manifestBefore, '--check must not touch the manifest even when nothing changed');
@@ -220,8 +220,8 @@ test('a real handles emit is completely unaffected by D4 -- writes exactly as be
 	assert.equal(result.code, 0);
 	const body = JSON.parse(result.stdout);
 	assert.equal(body.gate.status, 'pass');
-	assert.equal(body.written.length, 9);
-	assert.ok(Array.isArray(body.actions) && body.actions.length === 9, 'a real (non---check) emit also gets the actions field for free, purely additive');
+	assert.equal(body.written.length, 12);
+	assert.ok(Array.isArray(body.actions) && body.actions.length === 12, 'a real (non---check) emit also gets the actions field for free, purely additive');
 	assert.ok(fs.existsSync(path.join(root, RESOLVER_REL)));
 });
 

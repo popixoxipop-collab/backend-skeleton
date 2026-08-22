@@ -15,6 +15,7 @@ create table if not exists sbf_handle (
 	contract_ref text not null,
 	created_at timestamptz not null default now(),
 	revoked_at timestamptz,
+	revoked_reason text,
 	unique (resource_type, resource_uid, pointer)
 );
 

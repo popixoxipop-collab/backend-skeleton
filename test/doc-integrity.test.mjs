@@ -210,14 +210,15 @@ test('usage() and lib/cli.mjs\'s COMMANDS table document the same command-specif
 	assert.deepEqual([...seenKeys].sort(), Object.keys(COMMANDS).sort(), 'every COMMANDS entry must have exactly one corresponding usage() line, and vice versa');
 });
 
-// O6 (c): the HandleAspect fix specifically -- if it's ever reintroduced, it must carry an
-// explicit "not yet implemented" caveat, not silently claim a class that doesn't exist.
-test('any HandleAspect reference in a generated template is explicitly caveated as not yet implemented', () => {
+// O6 (c) originally guarded against HandleAspect being MENTIONED without ever being implemented
+// (a genuine stale forward-reference at the time). O4 (D-handle-lifecycle) closes that gap for
+// real -- handles/providers/java-spring/templates/HandleAspect.java.tmpl now exists and IS the
+// implementation, so a bare mention (in ResourceResolver's javadoc, emit.mjs's postEmitNotes,
+// etc.) is correct, not a stale claim -- the old "must carry a not-yet-implemented caveat nearby"
+// assertion would now fail on the very file that fixes what it used to guard against. Retargeted:
+// asserts the class that was once the stale reference now genuinely exists, rather than asserting
+// every mention of its name is still caveated as absent.
+test('HandleAspect.java.tmpl exists (O6 (c)\'s originally-guarded-against stale reference is now a real implementation, not a dangling mention)', () => {
 	const templatesDir = path.join(REPO_ROOT, 'handles', 'providers', 'java-spring', 'templates');
-	for (const file of fs.readdirSync(templatesDir)) {
-		if (!file.endsWith('.tmpl')) continue;
-		const text = fs.readFileSync(path.join(templatesDir, file), 'utf8');
-		if (!text.includes('HandleAspect')) continue;
-		assert.match(text, /HandleAspect[\s\S]{0,80}NOT YET IMPLEMENTED/i, `${file} references HandleAspect without an explicit not-yet-implemented caveat nearby`);
-	}
+	assert.ok(fs.existsSync(path.join(templatesDir, 'HandleAspect.java.tmpl')), 'expected handles/providers/java-spring/templates/HandleAspect.java.tmpl to exist');
 });

@@ -169,7 +169,7 @@ test('handles patch approve then handles emit: the approved field gets real code
 	assert.match(content, /case "\/label" -> \{/);
 	assert.match(content, /String convertedValue = objectMapper\.convertValue\(value, String\.class\);/);
 	assert.match(content, /new UpdateWidgetRequest\(PatchField\.of\(convertedValue\), null, null\)/);
-	assert.match(content, /Set<ConstraintViolation<UpdateWidgetRequest>> violations = validator\.validate\(patch\);/);
+	assert.match(content, /Set<ConstraintViolation<UpdateWidgetRequest>> violations = validator\.validateProperty\(patch, "label"\);/);
 	assert.match(content, /throw new ConstraintViolationException\(violations\);/);
 	assert.match(content, /widgetService\.updateWidget\(resourceUid, patch\);/);
 	assert.match(content, /import com\.fasterxml\.jackson\.databind\.ObjectMapper;/);

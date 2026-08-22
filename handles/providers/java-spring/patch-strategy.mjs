@@ -145,7 +145,15 @@ function caseCodegen(field, { resourceType, dtoTypeName, updateOperation, servic
 		`\t\t\tcase "/${field.field}" -> {`,
 		`\t\t\t\t${field.convertType} convertedValue = objectMapper.convertValue(value, ${field.convertType}.class);`,
 		`\t\t\t\t${dtoTypeName} patch = new ${dtoTypeName}(${args});`,
-		`\t\t\t\tSet<ConstraintViolation<${dtoTypeName}>> violations = validator.validate(patch);`,
+		// O4 (D-handle-lifecycle): validateProperty, NOT validate(patch) -- a plain validate()
+		// checks every OTHER field on the reconstructed DTO too, so any @NotNull/primitive
+		// sibling (correctly classified as fetch-merge-submit, left null here on purpose) would
+		// ALWAYS fail validation for this field's own genuinely valid patch. Confirmed live: a
+		// real jakarta.validation.Validator run against this exact reconstruction threw on
+		// "ownerName" even when only "label" was being patched; validateProperty(patch, "${field.field}")
+		// scopes validation to just the field actually being changed, matching what a real
+		// single-field patch is supposed to validate.
+		`\t\t\t\tSet<ConstraintViolation<${dtoTypeName}>> violations = validator.validateProperty(patch, "${field.field}");`,
 		'\t\t\t\tif (!violations.isEmpty()) {',
 		'\t\t\t\t\tthrow new ConstraintViolationException(violations);',
 		'\t\t\t\t}',
