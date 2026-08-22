@@ -154,6 +154,33 @@ jobs:
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
 
+  # A2 Phase 2 (D-java-ast-helper): the first automated, clean-checkout proof that the bundled
+  # JavaParser + Symbol Solver helper (handles/providers/java-spring/ast-helper/) actually builds
+  # and runs -- previously verified only by hand, on the development machine's own already-warm
+  # Gradle cache. Same dedicated-job shape as java-compile/java-integration above (a real,
+  # network-touching check kept out of the fast `test` job's default `npm test` path). Unlike
+  # java-compile, this job's Gradle wrapper is already COMMITTED (it ships inside the npm package
+  # for real consumers) -- no `gradle/actions/setup-gradle` needed for correctness, only kept for
+  # its dependency-cache speedup between runs. See scripts/java-ast-smoke.mjs.
+  java-ast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      # scripts/java-ast-smoke.mjs runs a real `bskel scan`, same rg requirement as the other
+      # smoke-test jobs above.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:java-ast
+
   # O4 (D-handle-lifecycle): the deepest verification this project has attempted -- a genuinely
   # running Spring Boot app, real HTTP calls (register -> PATCH -> HandleAspect fires -> GET
   # recover), against a real disposable Postgres. Own dedicated job (not folded into

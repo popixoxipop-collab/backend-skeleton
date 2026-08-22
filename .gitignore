@@ -13,3 +13,8 @@ test/fixtures/java-compile/build/
 test/fixtures/java-compile/gradlew
 test/fixtures/java-compile/gradlew.bat
 test/fixtures/java-compile/gradle/wrapper/
+# A2 Phase 2 (D-java-ast-helper): the OPPOSITE of the fixture above -- this Gradle project's own
+# wrapper (gradlew/gradle-wrapper.jar) IS committed (it ships inside the npm package, invoked at
+# runtime by handles/providers/java-spring/ast-bridge.mjs), only its ephemeral build output isn't.
+handles/providers/java-spring/ast-helper/.gradle/
+handles/providers/java-spring/ast-helper/build/

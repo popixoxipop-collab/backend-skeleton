@@ -33,6 +33,7 @@ import { STACKS as NEW_STACKS } from '../new/index.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
+import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
@@ -62,7 +63,7 @@ function usage() {
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel catalog lint [<choice>] [--json]
-  bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff]
+  bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
@@ -1427,7 +1428,34 @@ function requireProviderCapabilitiesOrExit(scanReport, provider, command, { feat
 	}
 }
 
-function cmdHandlesPlan(args) {
+// A2 Phase 2 (D-java-ast-helper): compares the AST helper's real, symbol-resolved annotation
+// names against what the always-on regex classifier (patch-strategy.mjs) actually saw. The one
+// disagreement worth surfacing: a field whose annotation was written FULLY QUALIFIED (contains a
+// dot) and resolves to NotNull/Valid -- regex's own literal `/@NotNull\b/`/`/@Valid\b/` check can
+// never match that form (it only matches the bare simple name immediately after `@`), so this is
+// exactly the gap this item exists to close. Never auto-changes a bucket or an approval --
+// informational only, same "detect and warn, never silently override a human decision" precedent
+// this whole codebase already follows elsewhere.
+function computeAstDisagreements(resource, astResult) {
+	const disagreements = [];
+	for (const astField of astResult.fields ?? []) {
+		const regexField = (resource.patchable ?? []).find((f) => f.field === astField.name);
+		for (const annotation of astField.annotations ?? []) {
+			const isQualifiedAsWritten = annotation.asWritten.includes('.');
+			const resolvesToNotNullOrValid = /(^|\.)(NotNull|Valid)$/.test(annotation.resolvedFqn);
+			if (!isQualifiedAsWritten || !resolvesToNotNullOrValid) continue;
+			disagreements.push({
+				field: astField.name,
+				annotation: annotation.resolvedFqn,
+				regexBucket: regexField?.bucket ?? null,
+				reason: `written as "@${annotation.asWritten}" -- regex's own literal @NotNull/@Valid check can never match a fully-qualified annotation name, only the bare simple name`,
+			});
+		}
+	}
+	return disagreements;
+}
+
+async function cmdHandlesPlan(args) {
 	const flags = parseCommand('handles plan', args);
 	if (flags.help) { console.log(renderCommandHelp('handles plan')); process.exit(0); }
 	setContext('handles plan', flags);
@@ -1457,7 +1485,53 @@ function cmdHandlesPlan(args) {
 	} catch (err) {
 		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 	}
-	console.log(flags.json ? JSON.stringify({ ...plan, actions }, null, 2) : renderHandlesPlan(plan, actions));
+
+	// A2 Phase 2 (D-java-ast-helper): explicit opt-in only -- classifyDtoFields() itself
+	// (patch-strategy.mjs) is completely untouched, this runs the real AST helper ALONGSIDE it
+	// and reports disagreements, never automatically. java-spring-only: updateDtoFile is a
+	// java-spring plan() field, and no other provider has an AST helper.
+	let astDisagreements = null;
+	if (flags.ast) {
+		if (scanReport.adapter !== 'java-spring') {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--ast is only supported for the java-spring adapter (this feature's scan used "${scanReport.adapter}")`);
+		}
+		const detection = detectAstHelperAvailable();
+		if (!detection.available) {
+			fail(EXIT_CODES.NOT_PASSED, 'AST_HELPER_UNAVAILABLE', `--ast requires the bundled AST helper: ${detection.reason}`);
+		}
+		const srcRoot = path.join(root, 'src', 'main', 'java');
+		astDisagreements = [];
+		for (const resource of plan.resources) {
+			if (!resource.updateDtoFile) continue;
+			let astResult;
+			try {
+				astResult = await runAstClassify(resource.updateDtoFile, srcRoot);
+			} catch (err) {
+				fail(EXIT_CODES.NOT_PASSED, 'AST_HELPER_FAILED', `--ast: ${err.message}`);
+			}
+			for (const d of computeAstDisagreements(resource, astResult)) {
+				astDisagreements.push({ resourceType: resource.type, ...d });
+			}
+		}
+	}
+
+	const output = { ...plan, actions, ...(astDisagreements !== null ? { ast_disagreements: astDisagreements } : {}) };
+	if (flags.json) {
+		console.log(JSON.stringify(output, null, 2));
+	} else {
+		console.log(renderHandlesPlan(plan, actions));
+		if (astDisagreements !== null) {
+			if (astDisagreements.length === 0) {
+				console.log('\n## AST cross-check\nNo disagreements -- the regex classifier already agrees with the real, symbol-resolved AST analysis.');
+			} else {
+				const lines = ['', '## AST cross-check', `${astDisagreements.length} disagreement(s) found:`];
+				for (const d of astDisagreements) {
+					lines.push(`- ${d.resourceType}.${d.field}: ${d.annotation} -- ${d.reason} (regex classified this field as: ${d.regexBucket ?? '(not classified/not approved)'})`);
+				}
+				console.log(lines.join('\n'));
+			}
+		}
+	}
 	process.exit(0);
 }
 

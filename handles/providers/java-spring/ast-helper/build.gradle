@@ -1,0 +1,34 @@
+// A2 Phase 2 (D-java-ast-helper): the real JVM helper CATALOG.md's own A2 entry names --
+// JavaParser + Symbol Solver, invoked only when installed via handles/providers/java-spring/
+// ast-bridge.mjs, never a hard dependency of the base `bskel` install. See DECISIONS.md.
+plugins {
+	id 'application'
+}
+
+group = 'com.backendskeleton'
+version = '1.0.0'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// Verified live against Maven Central before pinning this version -- see D-java-ast-helper.
+	implementation 'com.github.javaparser:javaparser-symbol-solver-core:3.28.2'
+}
+
+application {
+	mainClass = 'com.backendskeleton.asthelper.Main'
+}
+
+// Real args (DTO file path, source root) are passed via `--args` at invocation time
+// (handles/providers/java-spring/ast-bridge.mjs) -- nothing hardcoded here.
+run {
+	standardInput = System.in
+}

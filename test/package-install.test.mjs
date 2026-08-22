@@ -54,6 +54,20 @@ test('npm pack -> install the real tarball -> the installed bskel binary runs an
 		const nodeCheck = doctorJson.checks.find((c) => c.name === 'Node version');
 		assert.ok(nodeCheck, 'expected a "Node version" check');
 		assert.equal(nodeCheck.ok, true, 'the Node version running this test must satisfy the installed package\'s own floor');
+
+		// D-java-ast-helper (A2 Phase 2): the ast-helper's committed Gradle wrapper is a real
+		// runtime asset (invoked by ast-bridge.mjs at `handles plan --ast` time), not test-only --
+		// this is the one place a missing `files` entry would ever actually surface. And a
+		// regression guard for a real bug this item's own DECISIONS.md entry found live: npm's
+		// `files`-directory walk did not apply the root .gitignore's ignore rules to paths nested
+		// inside `handles/`, so the FIRST fix attempt (a root-level .npmignore) still shipped
+		// 11+MB of local `.gradle/`/`build/` output -- only a SECOND, local .npmignore placed
+		// directly inside ast-helper/ itself (directory-relative patterns) actually worked.
+		const astHelperDir = path.join(installDir, 'node_modules', 'backend-skeleton', 'handles', 'providers', 'java-spring', 'ast-helper');
+		assert.ok(fs.existsSync(path.join(astHelperDir, 'gradlew')), 'the installed package is missing the ast-helper Gradle wrapper (gradlew)');
+		assert.ok(fs.existsSync(path.join(astHelperDir, 'gradle', 'wrapper', 'gradle-wrapper.jar')), 'the installed package is missing gradle-wrapper.jar');
+		assert.ok(!fs.existsSync(path.join(astHelperDir, '.gradle')), 'the installed package must NOT ship the local .gradle/ build cache');
+		assert.ok(!fs.existsSync(path.join(astHelperDir, 'build')), 'the installed package must NOT ship the local build/ output directory');
 	} finally {
 		fs.rmSync(scratch, { recursive: true, force: true });
 	}
