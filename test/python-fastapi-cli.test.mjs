@@ -363,7 +363,9 @@ test('handles plan/emit against a python-fastapi-scanned feature dispatches to t
 
 	const resolverPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item.py');
 	assert.ok(fs.existsSync(resolverPath), 'expected backend/app/handles/resolvers/item.py to be written');
-	assert.ok(!fs.existsSync(path.join(root, 'specs', '001-item-management', 'handles', 'migration.sql')), 'python-fastapi generates no migration.sql');
+	// G4 follow-up (D-handles-providers): python-fastapi now generates a real migration.sql,
+	// mirroring java-spring's own O4 work.
+	assert.ok(fs.existsSync(path.join(root, 'specs', '001-item-management', 'handles', 'migration.sql')), 'python-fastapi now generates migration.sql (G4 follow-up)');
 
 	const gate = run(['gate', 'require', 'handles', '--feature', '001-item-management'], root);
 	assert.equal(gate.code, 0);

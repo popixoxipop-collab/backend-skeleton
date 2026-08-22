@@ -7,10 +7,15 @@ readable global security context the way Spring's SecurityContextHolder is, and 
 real authorization logic lives inside route function bodies, not decorators -- a static source
 scan cannot safely extract it).
 """
-from fastapi import APIRouter, HTTPException
+import uuid
+from datetime import datetime
 
-from {{PKG}}.handles.codec import decode_handle
+from fastapi import APIRouter, HTTPException, Query
+from sqlmodel import select
+
+from {{PKG}}.handles.codec import decode_handle, derive_handle_uid, resolve_json_pointer, MISSING
 from {{PKG}}.handles.registry import resolver_for
+from {{PKG}}.handles.tables import HandleRegistry, HandleSnapshot
 from {{SESSION_DEP_MODULE}} import {{SESSION_DEP_NAME}}
 
 router = APIRouter(prefix="/handles", tags=["handles"])
@@ -26,14 +31,28 @@ def fetch_handle(handle: str, session: {{SESSION_DEP_NAME}}):
     resolver = resolver_for(decoded.type)
     if resolver is None:
         raise HTTPException(status_code=404, detail=f'no resolver registered for handle type "{decoded.type}"')
-    if decoded.pointer is not None:
-        raise HTTPException(status_code=501, detail="field-level fetch (kind=f) is not implemented for this provider")
 
     obj = resolver.fetch(session, decoded.uuid)
     if obj is None:
         raise HTTPException(status_code=404, detail="resource not found")
     resolver.check_access(session, obj)
-    return resolver.to_public(obj)
+    public = resolver.to_public(obj)
+    if decoded.pointer is None:
+        return public
+
+    # G4 follow-up (D-handles-providers): walks the PUBLIC projection, not the raw `fetch()`
+    # row -- a deliberate, security-preserving departure from Java's own literal code shape, not
+    # a weakening. Java's fetch() safely returns a walkable object because it already delegates
+    # to the resource's real response DTO; this provider's own fetch() returns the raw ORM row by
+    # original G4 design (to_public() is a SEPARATE, required projection specifically because a
+    # table can carry columns -- e.g. a password hash -- with no protection besides each route's
+    # own response_model=). Walking the raw row here would silently reopen exactly the column-leak
+    # vector to_public() exists to close (a crafted field handle with pointer "/hashed_password").
+    root = public.model_dump(mode="json") if hasattr(public, "model_dump") else public
+    target = resolve_json_pointer(root, decoded.pointer)
+    if target is MISSING:
+        raise HTTPException(status_code=404, detail=f'pointer "{decoded.pointer}" does not resolve on {decoded.type}')
+    return target
 
 
 @router.patch("/{handle}", status_code=204)
@@ -57,3 +76,65 @@ def patch_handle(handle: str, session: {{SESSION_DEP_NAME}}, value: dict):
         raise HTTPException(status_code=404, detail="resource not found")
     resolver.check_access(session, obj)
     resolver.patch_field(session, obj, decoded.pointer, value)
+
+
+# G4 follow-up (D-handles-providers): mirrors HandleController.recover() including its full
+# D-security-9 cross-check -- never weakened. handle_uid alone does not prove WHAT is being
+# recovered (kind="r"'s derivation returns the resource UUID verbatim, no type binding baked into
+# the hash), so an attacker who controls `type` in the token (as long as it names a real,
+# registered resolver whose check_access() they can pass) could otherwise request the snapshot
+# history of a DIFFERENT, more sensitive resource type sharing the same UUID. Fix: cross-check the
+# decoded type/kind/pointer against the registry row this handle_uid was actually registered
+# under, and 404 on ANY disagreement -- without saying which field mismatched, so the error can't
+# be used to probe which part was wrong. A revoked handle is rejected the same way.
+#
+# Ecosystem-honest gap, not silently resolved: Java's role check is resource-existence-independent
+# (recovering history of a since-deleted resource is legitimate), so it never calls fetch() at
+# all before the registry check. This provider's own check_access(session, obj) is deliberately
+# ROW-level (every shipped resolver's check_access already denies unconditionally regardless of
+# obj, so calling fetch() first and passing obj=None through for a deleted resource is safe
+# today) -- but a human wiring a real check_access() must handle obj=None explicitly, or recover()
+# can never recall history for a resource that no longer exists.
+@router.get("/{handle}/recover")
+def recover_handle(handle: str, session: {{SESSION_DEP_NAME}}, at: datetime | None = Query(default=None)):
+    try:
+        decoded = decode_handle(handle)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    resolver = resolver_for(decoded.type)
+    if resolver is None:
+        raise HTTPException(status_code=404, detail=f'no resolver registered for handle type "{decoded.type}"')
+
+    obj = resolver.fetch(session, decoded.uuid)
+    resolver.check_access(session, obj)
+
+    handle_uid = uuid.UUID(derive_handle_uid(decoded.kind, decoded.type, decoded.uuid, decoded.pointer))
+    registry = session.get(HandleRegistry, handle_uid)
+    if (
+        registry is None
+        or registry.resource_type != decoded.type
+        or registry.kind != decoded.kind
+        or registry.pointer != decoded.pointer
+        or registry.is_revoked
+    ):
+        raise HTTPException(status_code=404, detail="no snapshot recorded for this handle")
+
+    query = select(HandleSnapshot).where(HandleSnapshot.handle_uid == handle_uid)
+    if at is not None:
+        query = query.where(HandleSnapshot.recorded_at <= at)
+    snapshot = session.exec(query.order_by(HandleSnapshot.recorded_at.desc())).first()
+    if snapshot is None:
+        detail = "no snapshot recorded for this handle" + (f" at or before {at}" if at is not None else "")
+        raise HTTPException(status_code=404, detail=detail)
+
+    return {
+        "handle": handle,
+        "recorded_at": snapshot.recorded_at,
+        "operation_id": snapshot.operation_id,
+        # snapshot.payload is already a native dict/list/scalar (a real JSONB column) -- no
+        # manual re-parse step exists here for the double-encoding bug Java once had to be
+        # possible in the first place. See tables.py's own docstring.
+        "payload": snapshot.payload,
+        "schema_drift": registry.contract_ref != snapshot.contract_hash,
+    }

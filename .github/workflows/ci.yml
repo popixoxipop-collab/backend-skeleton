@@ -164,6 +164,45 @@ jobs:
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
 
+  # G4 follow-up (D-handles-providers): the first automated proof that python-fastapi's own
+  # handle read/snapshot lifecycle (register -> a decorated service function -> a real HTTP GET
+  # recover) actually works against a real, disposable Postgres -- the Python-ecosystem
+  # equivalent of java-integration below, using FastAPI's own TestClient (real in-process ASGI
+  # request/response cycles, no bound port) instead of a live server + real HTTP client, since
+  # nothing here needs what only a live-bound-port test proves (unlike Java's own TestRestTemplate
+  # PATCH limitation). Same db-introspect-style disposable Postgres service container, own DB name.
+  python-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: bskel_g4_python_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # scripts/python-integration-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other smoke-test jobs above.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:python-integration
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_g4_python_test
+
   # A2 Phase 2 (D-java-ast-helper): the first automated, clean-checkout proof that the bundled
   # JavaParser + Symbol Solver helper (handles/providers/java-spring/ast-helper/) actually builds
   # and runs -- previously verified only by hand, on the development machine's own already-warm

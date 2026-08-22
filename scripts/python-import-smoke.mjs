@@ -88,6 +88,11 @@ try {
 if (!emitResult.written.includes('backend/app/handles/resolvers/item.py')) {
 	fail(`expected backend/app/handles/resolvers/item.py to be written -- got ${JSON.stringify(emitResult.written)}`);
 }
+// G4 follow-up (D-handles-providers): migration.sql is now a real spec output, mirroring
+// java-spring's own O4 work.
+if (!emitResult.written.includes('specs/001-item-management/handles/migration.sql')) {
+	fail(`expected specs/001-item-management/handles/migration.sql to be written -- got ${JSON.stringify(emitResult.written)}`);
+}
 
 console.log('python-import-smoke: creating a throwaway venv and installing fastapi + sqlmodel...');
 const backendDir = path.join(scratch, 'backend');
@@ -112,10 +117,18 @@ import app.handles.codec
 import app.handles.registry
 import app.handles.router
 import app.handles.resolvers.item
+import app.handles.tables
+import app.handles.handle_service
+import app.handles.record_snapshot
 from app.models import Item, ItemPublic
 
 assert app.handles.registry.resolver_for("Item") is not None, "Item resolver did not register itself on import"
 assert any(rt.path == "/handles/{handle}" for rt in app.handles.router.router.routes), "router.py did not wire the expected /handles/{handle} route"
+# G4 follow-up (D-handles-providers): real recover() lifecycle, mirroring java-spring's own O4.
+assert any(rt.path == "/handles/{handle}/recover" for rt in app.handles.router.router.routes), "router.py did not wire the expected /handles/{handle}/recover route"
+assert app.handles.tables.HandleRegistry.__tablename__ == "sbf_handle"
+assert app.handles.tables.HandleSnapshot.__tablename__ == "sbf_handle_snapshot"
+assert callable(app.handles.record_snapshot.record_snapshot)
 print("python-import-smoke: all generated modules imported successfully")
 `;
 

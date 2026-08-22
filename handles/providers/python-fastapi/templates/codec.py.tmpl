@@ -86,3 +86,37 @@ def derive_handle_uid(kind: str, type_: str, resource_uuid: str, pointer: str | 
     if kind == "o":
         return str(uuid.uuid5(NS_SBF_FIELD, f"{type_}:{resource_uuid}:o"))
     raise ValueError(f'invalid handle kind "{kind}"')
+
+
+# G4 follow-up (D-handles-providers): a sentinel, not `None`, for "path does not resolve" -- a
+# literal port of handles/codec.mjs's resolveJsonPointer (which relies on JS's `undefined` being
+# distinct from `null` at every step) would conflate "field is genuinely JSON null" with "field
+# doesn't exist" under Python's plain `dict.get()`/`None`, turning a present-but-null field into a
+# 404 instead of a 200 with `null` -- a real correctness regression, not a stylistic difference.
+MISSING = object()
+
+
+def resolve_json_pointer(obj, pointer: str | None):
+    if pointer is None or pointer == "":
+        return obj
+    if not pointer.startswith("/"):
+        raise ValueError(f'invalid JSON Pointer "{pointer}" -- must start with "/"')
+    parts = [p.replace("~1", "/").replace("~0", "~") for p in pointer.split("/")[1:]]
+    current = obj
+    for part in parts:
+        if current is None:
+            return MISSING
+        if isinstance(current, list):
+            if not re.fullmatch(r"-?\d+", part):
+                return MISSING
+            idx = int(part)
+            if idx < 0 or idx >= len(current):
+                return MISSING
+            current = current[idx]
+        elif isinstance(current, dict):
+            if part not in current:
+                return MISSING
+            current = current[part]
+        else:
+            return MISSING
+    return current

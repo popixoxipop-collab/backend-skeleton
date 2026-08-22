@@ -11,10 +11,10 @@ export const provider = {
 	id: 'python-fastapi',
 	title: 'Python / FastAPI / SQLModel',
 	requiresCapabilities: ['resource.fetch'],
-	// No migration.sql -- this provider generates no schema-owning artifact (no recover(), no
-	// sbf_handle table -- see D-handles-providers EXCLUDED). lib/verify.mjs falls back to
-	// ['handles/migration.sql'] only when it can't resolve a provider at all, never for this one.
-	outputs: { spec: [] },
+	// G4 follow-up (D-handles-providers): this provider now generates a real recover()
+	// lifecycle + sbf_handle/sbf_handle_snapshot migration, mirroring java-spring's own O4 work --
+	// the EXCLUDED reasoning that used to justify an empty outputs.spec here is stale.
+	outputs: { spec: ['handles/migration.sql'] },
 	plan,
 	emit(args) {
 		return emitPythonFastApi(args);
