@@ -384,9 +384,11 @@ test('waiving all current unmatched endpoints does not cover a new one added lat
 	}));
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'add another unannotated endpoint'], { cwd: root });
-	// The new commit moved HEAD, which stales BOTH the preflight gate and the scan gate (their
-	// tokens cover head_sha too) -- contract emit's upstream gate checks would otherwise block on
-	// THOSE, not on completeness. Re-run the full upstream chain, same as the initial setup.
+	// The new commit moved HEAD (stales preflight) AND edited the widget module's own controller
+	// (stales scan -- S2, D-gate-precision continued: scan's token now hashes its own real
+	// per-file read-set, not head_sha, but this edit is squarely inside that read-set) --
+	// contract emit's upstream gate checks would otherwise block on THOSE, not on completeness.
+	// Re-run the full upstream chain, same as the initial setup.
 	assert.equal(run(['preflight'], root).code, 0);
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);

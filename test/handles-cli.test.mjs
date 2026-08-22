@@ -262,6 +262,22 @@ test('hand-finishing patchField() in a generated resolver does NOT stale the han
 	assert.ok(report.conflicts.some((c) => c.path.endsWith('WidgetResolver.java')));
 });
 
+// S2 (D-gate-precision, continued): the exact interaction that broke first when this item was
+// implemented -- a generated resolver lives INSIDE the same src/main/java tree the java-spring
+// adapter globs for the `scan` gate's own read-set, so without excluding O2's generated-file
+// registry, `handles emit` writing its own output would look identical to a human adding a real
+// new controller, staling `scan` on every single `handles emit` run. This is what caught that bug
+// live (this test, plus the hand-finishing one above, both failed before the fix).
+test('running handles emit does not stale the scan gate (generated files are excluded from its read-set)', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	assert.equal(run(['gate', 'require', 'scan', '--feature', '001-widget-management'], root).code, 0);
+
+	assert.equal(run(['handles', 'emit', '--feature', '001-widget-management'], root).code, 0);
+
+	assert.equal(run(['gate', 'require', 'scan', '--feature', '001-widget-management'], root).code, 0, 'handles emit writing generated Java under src/main/java must not stale scan');
+});
+
 // O6: detectBasePackage() used to silently pick files[0] on ANY multi-*Application.java repo --
 // unverified by any test until now (this exact gap Explore found). Two genuinely different
 // packages must fail loudly and name every candidate; two files sharing the SAME package (a real
