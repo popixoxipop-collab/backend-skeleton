@@ -101,7 +101,9 @@ test('deleting an applied file makes the stack gate stale and names the file', (
 	assert.equal(stale.code, 4);
 	const record = JSON.parse(stale.stdout);
 	assert.equal(record.stale_reason, 'inputs_changed');
-	assert.deepEqual(record.changed_inputs, ['applied_file:scripts/dev-tunnel.sh']);
+	// S6 (D-verify-integrity): a deleted file goes null on BOTH tracked inputs -- content hash
+	// and (new) permission mode -- so both are named, not just the content key.
+	assert.deepEqual(record.changed_inputs.sort(), ['applied_file:scripts/dev-tunnel.sh', 'applied_file_mode:scripts/dev-tunnel.sh']);
 
 	fs.writeFileSync(devTunnelPath, backup, { mode: 0o755 });
 	assert.equal(run(['gate', 'require', 'stack'], root).code, 0, 'restoring the file must un-stale the gate');
@@ -124,6 +126,33 @@ test('editing an applied file, leaving stack.json byte-identical, still makes th
 	assert.equal(result.code, 4);
 	const record = JSON.parse(result.stdout);
 	assert.deepEqual(record.changed_inputs, ['applied_file:scripts/dev-tunnel.sh']);
+});
+
+// S6 (D-verify-integrity): content hashing alone is blind to a chmod-only change -- confirmed
+// live before this fix that stripping the executable bit off an applied script left the stack
+// gate `pass` forever, even though the script no longer runs. Same byte-identical-stack.json
+// sanity check as the content-edit test above, proving this is caught at the applied-FILE level,
+// not by anything stack.json's own bytes would ever reveal.
+test('stripping the executable bit off an applied file, leaving its content and stack.json untouched, still makes the stack gate stale', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['stack', 'apply', '--choice', 'ngrok', '--apply'], root);
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0);
+
+	const devTunnelPath = path.join(root, 'scripts', 'dev-tunnel.sh');
+	const contentBefore = fs.readFileSync(devTunnelPath, 'utf8');
+	const stackJsonBefore = fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8');
+	fs.chmodSync(devTunnelPath, 0o644);
+	assert.equal(fs.readFileSync(devTunnelPath, 'utf8'), contentBefore, 'sanity: chmod does not touch content');
+	assert.equal(fs.readFileSync(path.join(root, '.sbf', 'stack.json'), 'utf8'), stackJsonBefore, 'sanity: chmod does not touch stack.json');
+
+	const result = run(['gate', 'require', 'stack'], root);
+	assert.equal(result.code, 4);
+	const record = JSON.parse(result.stdout);
+	assert.deepEqual(record.changed_inputs, ['applied_file_mode:scripts/dev-tunnel.sh']);
+
+	fs.chmodSync(devTunnelPath, 0o755);
+	assert.equal(run(['gate', 'require', 'stack'], root).code, 0, 'restoring the executable bit must un-stale the gate');
 });
 
 // Regression for the applied_files-erasure bug found while designing the token change: a second,

@@ -253,6 +253,13 @@ test('hand-finishing patchField() in a generated resolver does NOT stale the han
 	assert.equal(report.gates.find((g) => g.gate === 'handles').status, 'pass');
 	const resolverArtifact = report.artifacts.find((a) => a.artifact === 'handles resolver' && a.path.endsWith('WidgetResolver.java'));
 	assert.equal(resolverArtifact.exists, true, 'existence-only check: the file is still there, its content is not re-examined');
+	// S6 (D-verify-integrity): the SAME edit is exactly what classifyFile() reports as a
+	// `conflict` action (it cannot distinguish "hand-finished" from "corrupted" -- only that disk
+	// content matches neither the manifest's recorded hash nor a fresh re-render) -- surfaced in
+	// the report for visibility, but deliberately non-blocking, which `report.pass === true` above
+	// already proves.
+	assert.ok(report.conflicts.length > 0, 'the hand-finished resolver should surface as a conflict finding');
+	assert.ok(report.conflicts.some((c) => c.path.endsWith('WidgetResolver.java')));
 });
 
 // O6: detectBasePackage() used to silently pick files[0] on ANY multi-*Application.java repo --
