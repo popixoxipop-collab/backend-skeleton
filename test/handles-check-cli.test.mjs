@@ -312,7 +312,10 @@ class ItemPublic(ItemBase):
 	return root;
 }
 
-test('handles emit --check for python-fastapi (no outputs.spec) exits OK once up to date, with zero "spec"-kind actions', () => {
+// G4 follow-up (D-handles-providers): python-fastapi now declares outputs.spec (migration.sql,
+// mirroring java-spring's own O4 work) -- this test's own name/premise used to be "no
+// outputs.spec, must never produce a spec-kind action"; both halves are now the opposite.
+test('handles emit --check for python-fastapi (real outputs.spec, G4 follow-up) exits OK once up to date, with a real "spec"-kind migration.sql action', () => {
 	const root = buildPythonFixtureRepo();
 	run(['preflight'], root);
 	run(['feature', 'init', '--slug', 'item-management'], root);
@@ -325,10 +328,15 @@ test('handles emit --check for python-fastapi (no outputs.spec) exits OK once up
 	const fresh = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--check', '--json'], root);
 	assert.equal(fresh.code, 1);
 	const freshBody = JSON.parse(fresh.stdout);
-	assert.ok(freshBody.actions.every((a) => a.kind !== 'spec'), 'python-fastapi must never produce a spec-kind action');
+	const specActions = freshBody.actions.filter((a) => a.kind === 'spec');
+	assert.deepEqual(specActions.map((a) => a.path), ['specs/001-item-management/handles/migration.sql']);
+	assert.equal(specActions[0].action, 'create');
 
 	assert.equal(run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items'], root).code, 0);
 
+	// migration.sql is regenerated fresh every run, unconditionally (same as java-spring, never
+	// manifest-tracked) -- its action is always present, but reports 'unchanged' once its own
+	// rendered content stops differing from what's on disk, same as every other action kind.
 	const upToDate = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--check', '--json'], root);
 	assert.equal(upToDate.code, 0);
 	assert.ok(JSON.parse(upToDate.stdout).actions.every((a) => a.action === 'unchanged'));

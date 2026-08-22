@@ -1,9 +1,7 @@
 // D-handles-providers (G4): executed cross-language verification of handles/providers/python-
 // fastapi/templates/codec.py.tmpl against handles/codec.mjs, the JS reference implementation.
-// Mandatory, not skippable if python3 is missing -- unlike the Java codec (whose "byte-identical"
-// claim has never once been executed against a real .java file in this repo, see the EXIT this
-// item files in DECISIONS.md for that gap), closing this same gap for Python is a first-class
-// goal of this item, not an optional nicety.
+// Mandatory, not skippable if python3 is missing. The equivalent JS<->Java gap (this file's
+// Python-side twin) is closed the same way in test/handles-java-codec.test.mjs.
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { encodeHandle, decodeHandle, deriveHandleUid } from '../handles/codec.mjs';
+import { encodeHandle, decodeHandle, deriveHandleUid, resolveJsonPointer } from '../handles/codec.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CODEC_TEMPLATE = path.join(__dirname, '..', 'handles', 'providers', 'python-fastapi', 'templates', 'codec.py.tmpl');
@@ -43,6 +41,12 @@ for op in ops:
         elif kind == "uuid5":
             uid = str(uuid.uuid5(uuid.UUID(op["namespace"]), op["name"]))
             results.append({"ok": True, "result": uid})
+        elif kind == "pointer":
+            target = codec.resolve_json_pointer(op["obj"], op.get("pointer"))
+            if target is codec.MISSING:
+                results.append({"ok": True, "missing": True})
+            else:
+                results.append({"ok": True, "result": target})
         else:
             results.append({"ok": False, "error": f"unknown op {kind}"})
     except Exception as e:
@@ -128,6 +132,44 @@ test('derive_handle_uid matches handles/codec.mjs\'s deriveHandleUid exactly for
 		assert.equal(results[i].ok, true, results[i].error);
 		assert.equal(results[i].result, deriveHandleUid(c));
 	});
+});
+
+// G4 follow-up (D-handles-providers): resolve_json_pointer parity, including the exact case a
+// literal JS port would have gotten wrong -- a present-but-null field must resolve to `null`
+// (200), not be conflated with "path doesn't exist" (404). See resolve_json_pointer's own
+// docstring in codec.py.tmpl for why a naive `None`-as-missing sentinel would regress this.
+test('resolve_json_pointer matches handles/codec.mjs\'s resolveJsonPointer exactly, including the null-vs-missing distinction', () => {
+	const obj = { a: { b: [1, 2, { c: null }] }, 'a/b': 'slash-key', 'c~d': 'tilde-key' };
+	const vectors = [
+		{ pointer: null },
+		{ pointer: '' },
+		{ pointer: '/a/b/0' },
+		{ pointer: '/a/b/2/c' }, // resolves to a genuine JSON null -- must NOT be reported missing
+		{ pointer: '/a/b/99' }, // out of range -- missing
+		{ pointer: '/nope' }, // absent key -- missing
+		{ pointer: '/a/x/y' }, // walks through a non-container -- missing
+		{ pointer: '/a~1b' }, // ~1 -> "/" escape
+		{ pointer: '/c~0d' }, // ~0 -> "~" escape
+	];
+	const results = runPython(vectors.map((v) => ({ op: 'pointer', obj, pointer: v.pointer })));
+	vectors.forEach((v, i) => {
+		const jsResult = resolveJsonPointer(obj, v.pointer);
+		const pyResult = results[i];
+		assert.equal(pyResult.ok, true, pyResult.error);
+		if (jsResult === undefined) {
+			assert.equal(pyResult.missing, true, `pointer "${v.pointer}": JS says missing, Python did not`);
+		} else {
+			assert.equal(pyResult.missing, undefined, `pointer "${v.pointer}": Python says missing, JS did not`);
+			assert.deepEqual(pyResult.result, jsResult);
+		}
+	});
+});
+
+test('resolve_json_pointer: a non-"/"-prefixed pointer raises the same shaped error in both languages', () => {
+	const [result] = runPython([{ op: 'pointer', obj: { a: 1 }, pointer: 'no-leading-slash' }]);
+	assert.equal(result.ok, false);
+	assert.match(result.error, /must start with "\/"/);
+	assert.throws(() => resolveJsonPointer({ a: 1 }, 'no-leading-slash'), /must start with "\/"/);
 });
 
 test('negative parity: Python rejects the exact same malformed input JS rejects (charset, missing prefix, over-length, kind/pointer mismatch)', () => {

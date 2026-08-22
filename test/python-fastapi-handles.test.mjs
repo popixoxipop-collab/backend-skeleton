@@ -261,22 +261,32 @@ function runToHandlesEmit(root) {
 	return run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json'], root);
 }
 
-test('e2e: handles emit writes exactly the expected files, no .java, no migration.sql', () => {
+test('e2e: handles emit writes exactly the expected files, no .java, including a real migration.sql', () => {
 	const root = buildE2eFixtureRepo();
 	const emit = runToHandlesEmit(root);
 	assert.equal(emit.code, 0, emit.stderr);
 	const result = JSON.parse(emit.stdout);
 	const written = result.written.sort();
+	// G4 follow-up (D-handles-providers): tables.py/handle_service.py/record_snapshot.py (new
+	// infra) + migration.sql (new spec output) join the pre-existing file set.
 	assert.deepEqual(written, [
 		'backend/app/handles/__init__.py',
 		'backend/app/handles/codec.py',
+		'backend/app/handles/handle_service.py',
+		'backend/app/handles/record_snapshot.py',
 		'backend/app/handles/registry.py',
 		'backend/app/handles/resolvers/__init__.py',
 		'backend/app/handles/resolvers/item.py',
 		'backend/app/handles/router.py',
+		'backend/app/handles/tables.py',
+		'specs/001-item-management/handles/migration.sql',
 	].sort());
-	assert.ok(!fs.existsSync(path.join(root, 'specs', '001-item-management', 'handles', 'migration.sql')));
+	const migrationContent = fs.readFileSync(path.join(root, 'specs', '001-item-management', 'handles', 'migration.sql'), 'utf8');
+	assert.match(migrationContent, /create table if not exists sbf_handle\b/);
+	assert.match(migrationContent, /create table if not exists sbf_handle_snapshot\b/);
 	assert.ok(result.postEmitNotes.some((n) => n.includes('include_router')));
+	assert.ok(result.postEmitNotes.some((n) => n.includes('migration.sql')));
+	assert.ok(result.postEmitNotes.some((n) => n.includes('record_snapshot')));
 });
 
 test('e2e: check_access always denies (403), patch_field always 501, hashed_password never referenced by the resolver', () => {
@@ -296,17 +306,18 @@ test('e2e: the router checks PATCH kind explicitly (kind=="f" AND pointer presen
 	assert.match(routerSrc, /decoded\.kind != "f" or decoded\.pointer is None/);
 });
 
-test('e2e: bskel verify passes with no migration.sql at all (python-fastapi has none)', () => {
+test('e2e: bskel verify tracks a real migration.sql artifact for python-fastapi (G4 follow-up -- previously no artifact check existed at all)', () => {
 	const root = buildE2eFixtureRepo();
 	const emit = runToHandlesEmit(root);
 	assert.equal(emit.code, 0, emit.stderr);
 	const verify = run(['verify', '--feature', '001-item-management', '--json'], root);
 	const report = JSON.parse(verify.stdout);
 	const migrationArtifact = report.artifacts.find((a) => a.artifact.includes('migration'));
-	assert.equal(migrationArtifact, undefined, 'no migration artifact check should even be created for a provider with zero spec outputs');
+	assert.ok(migrationArtifact, 'expected a migration artifact check now that python-fastapi declares outputs.spec');
+	assert.equal(migrationArtifact.exists, true);
 });
 
-test('e2e: re-emit is idempotent -- nothing rewritten, resolver stays byte-identical', () => {
+test('e2e: re-emit is idempotent -- nothing rewritten except migration.sql (regenerated fresh every run, unconditionally, same as java-spring), resolver stays byte-identical', () => {
 	const root = buildE2eFixtureRepo();
 	runToHandlesEmit(root);
 	const resolverPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item.py');
@@ -314,7 +325,7 @@ test('e2e: re-emit is idempotent -- nothing rewritten, resolver stays byte-ident
 	const second = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json'], root);
 	assert.equal(second.code, 0, second.stderr);
 	const result = JSON.parse(second.stdout);
-	assert.deepEqual(result.written, []);
+	assert.deepEqual(result.written, ['specs/001-item-management/handles/migration.sql']);
 	assert.equal(fs.readFileSync(resolverPath, 'utf8'), before);
 });
 

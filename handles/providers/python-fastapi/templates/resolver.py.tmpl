@@ -19,14 +19,24 @@ patchField() is: this stack's own update conventions must be checked by a human 
 them (see D-resolver-scope in DECISIONS.md) -- do not write directly against the ORM, that
 bypasses this app's existing validation and business rules.
 """
+import uuid
+
 from fastapi import HTTPException
 
 from {{MODEL_IMPORT}} import {{MODEL}}, {{PUBLIC_MODEL}}
 from {{PKG}}.handles.registry import register
 
+# G4 follow-up (D-handles-providers): baked in at `bskel handles emit` time, mirroring Java's
+# ResourceResolverStub.java.tmpl exactly -- see registry.py's own ResourceResolver.contract_ref/
+# feature_uid docstring for what these back.
+CONTRACT_REF = "{{CONTRACT_REF}}"
+FEATURE_UID = uuid.UUID("{{FEATURE_UID}}")
+
 
 class {{RESOURCE_TYPE}}Resolver:
     type = "{{RESOURCE_TYPE}}"
+    contract_ref = CONTRACT_REF
+    feature_uid = FEATURE_UID
 
     def fetch(self, session, resource_uid):
         return session.get({{MODEL}}, resource_uid)

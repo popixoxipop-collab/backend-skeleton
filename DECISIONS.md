@@ -2417,15 +2417,91 @@ input (`Illegal base64 character 21` for `"QU!JD"`) -- the mirror image of the P
 own confirmation that Python's `base64.urlsafe_b64decode` does NOT throw, together proving the
 JS/Java-vs-Python asymmetry `D-security-10`'s own comment claims rather than assuming either half.
 
+**Closed as a follow-up slice, `recover()` + `sbf_handle`/`sbf_handle_snapshot`**: this EXIT's own
+precondition ("if O4, the Java side, ever actually gets implemented and used") held -- O4 shipped
+this session (`a816312`) -- so this slice mirrors it into python-fastapi: new `tables.py.tmpl`
+(SQLModel `HandleRegistry`/`HandleSnapshot`, same table names/columns/`unique(resource_type,
+resource_uid, pointer)` constraint as Java's own migration.sql, so both providers' schemas agree
+byte-for-byte at the DDL level), `handle_service.py.tmpl` (plain module-level functions taking
+`session` explicitly -- matches this provider's own established convention, not Java's DI-injected
+`@Service` class), `record_snapshot.py.tmpl` (the opt-in auto-recording decorator, deliberately
+ONE file combining what Java splits into `@RecordHandleSnapshot` + `HandleAspect` -- Python
+decorators natively ARE the interception mechanism, so preserving Java's two-file split would be
+cargo-culting its file count, not an invariant), a real `GET /handles/{handle}/recover` route with
+the FULL D-security-9 cross-check preserved (never weakened), and real field-level fetch
+(`resolve_json_pointer`, new in `codec.py.tmpl`) walking the resolver's `to_public()` projection,
+never the raw `fetch()` row -- a deliberate, security-preserving departure from Java's own literal
+code shape (Java's `fetch()` already delegates to a response DTO; this provider's own `fetch()`
+returns the raw ORM row by original G4 design, so walking it directly would reopen exactly the
+column-leak vector `to_public()` exists to close).
+
+Two genuinely ecosystem-specific design points, not mechanical ports: (1) `HandleSnapshot.payload`
+is a native `JSONB` column holding a plain dict/list, never a manually (de)serialized string --
+this makes Java's own double-encoding bug CLASS structurally impossible here, not merely avoided by
+a matching fix (no `json.dumps`/`json.loads` round-trip exists anywhere in this design for
+`recover()` to get wrong). (2) `resolve_json_pointer` needed a `_MISSING` sentinel, not `None`, for
+"path absent" -- a literal JS port using `None` would have conflated "field is genuinely JSON null"
+with "field doesn't exist," turning a present-but-null field into a 404 instead of 200-with-null; a
+real correctness regression the JS/Java pair doesn't have, found while designing the port (JS's
+`undefined` has no Python equivalent under a plain `dict.get()`), confirmed live with a real
+present-null-field test vector before trusting it.
+
+**A real design bug found and fixed by a live functional test, not just reasoning about it**: the
+decorator's first draft wrapped a wrapped function's remaining (non-uid/non-session) arguments in
+`{param_name: value}` unconditionally. For the common case (a single request DTO), this silently
+broke every `redact` pointer -- `redact=["/internal_note"]` resolved against `{"request": {...}}`,
+not the DTO's own top-level fields, so redaction looked like it worked (no error) but never
+actually redacted anything. Caught live by a real functional test (a fake resolver + a decorated
+function, asserting the recorded payload), not by review -- fixed to unwrap the sole remaining
+argument (matching Java's `HandleAspect#requestPayload`'s own "sole survivor unwrapped" behavior
+exactly), falling back to a name-keyed dict only when more than one non-uid/session parameter
+remains (Python's bound arguments already carry names, unlike Java's positional-args array).
+`resource_uid_param`/`session_param` are resolved via `inspect.signature(fn).bind(...)`, not a bare
+positional index -- confirmed live that the SAME decorated function produces identical recordings
+whether called positionally or by keyword, the exact class of bug a bare `args[index]` would
+silently break for any keyword call (Java's AspectJ interception always hands positional args, so
+this class of bug has no Java analog to port a fix from).
+
+**Verified against a real, disposable Postgres** (new `scripts/python-integration-smoke.mjs` + CI
+job `python-integration`, same `POSTGRES_HOST_AUTH_METHOD: trust`/own-DB-name convention
+`db-introspect`/`java-integration` already established -- deliberately never SQLite, which could
+hide a real Postgres-only bug in the emitted `jsonb`/`unique` constraints this whole exercise
+exists to prove work), using FastAPI's own `TestClient` (real in-process ASGI request/response
+cycles -- real routing, real Pydantic validation, real DI, real PATCH -- with no bound port at all)
+rather than a literal `java-integration` mirror: Java needed a live bound port + `java.net.http.
+HttpClient` specifically because `TestRestTemplate` can't do PATCH; no such forcing function exists
+for Python, so `TestClient` proves the same real invariants at meaningfully lower cost. The REAL
+emitted `migration.sql` is applied (never a hand-copied duplicate, matching `java-integration-
+smoke.mjs`'s own precedent). The generated resolver's `check_access()` is a PERMANENT fail-closed
+stub by design (this provider can never auto-generate a working one) -- every real HTTP call this
+script makes would otherwise 403 before reaching the lifecycle logic under test, so the script
+patches the SCRATCH COPY's generated `check_access()` to a no-op after a real `handles emit` already
+generated the real stub, mirroring `test/fixtures/java-compile`'s own `TestSecurityConfig`
+(unconditionally stamps a `ROLE_ADMIN` authentication onto every request -- "this test cares
+whether the HANDLE LIFECYCLE plumbing works, not whether a real login flow does"); a real consumer
+still gets the fail-closed stub, only this script's own scratch fixture is patched. Four scenarios,
+1:1 with Java's own: full lifecycle, `schema_drift`, field-level fetch, persistence-layer
+redaction (queries `HandleSnapshot` directly, not the HTTP response). One honestly-named scope
+difference: since `patch_field()` is a **permanent** 501 stub (no generated PATCH path exists to
+ever trigger the decorator through), "full lifecycle" calls a pre-decorated fixture service
+function (`test/fixtures/python-fastapi/backend/app/services/item_service.py`, mirroring Java's
+own `WidgetServiceImpl` fixture precedent) directly rather than through a synthetic HTTP PATCH.
+
+**Three more real bugs found live while wiring the verification script itself, none in the
+generated code**: SQLAlchemy's dialect registry only recognizes the `postgresql://` URL scheme,
+not `postgres://` (which Node's `pg` accepts as an alias) -- a real `NoSuchModuleError`, not
+assumed, fixed with a scheme normalization before the connection string reaches Python. SQLModel's
+default table name for a class named `Item` is `item` (singular), not `items` -- a real
+`UndefinedTable` error from a script that had assumed the plural form. Accessing an ORM object's
+attribute after its owning `Session` has closed raises `DetachedInstanceError` -- fixed by reading
+the needed value while still inside the `with Session(...) as session:` block, not after.
+
 **EXIT**: add a `--provider` override flag if a real N:1 (one adapter, multiple viable providers)
-case is ever observed -- none has been, so it was not spec'd speculatively. Implement `recover()` +
-its tables for Python if `O4` (the Java side) ever actually gets implemented and used -- until then,
-both stay unwired by design, not oversight. Relax the `SessionDep`-shaped-alias requirement (or add
-a second detection pattern) if a real FastAPI app using a different session-dependency convention
-needs this provider. Generalize `RESOLVER_OWNER_MARKER_RE`/`BSKEL_GENERATED_MARKER` further if a
-third provider's own doc-comment convention doesn't fit the two `(...)`/`({@code ...})` forms this
-item's regex already handles. Close the Java codec's own never-executed verification gap (see
-above) using either of the two named approaches.
+case is ever observed -- none has been, so it was not spec'd speculatively. Relax the
+`SessionDep`-shaped-alias requirement (or add a second detection pattern) if a real FastAPI app
+using a different session-dependency convention needs this provider. Generalize
+`RESOLVER_OWNER_MARKER_RE`/`BSKEL_GENERATED_MARKER` further if a third provider's own doc-comment
+convention doesn't fit the two `(...)`/`({@code ...})` forms this item's regex already handles.
 
 Cross-references: `D-adapter-registry` (G1, the registry design this item's `handles/registry.mjs`
 mirrors, and the EXIT that held this item back until a real second provider existed),

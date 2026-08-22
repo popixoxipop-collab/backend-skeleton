@@ -4,8 +4,12 @@ import uuid
 
 class Item(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = ""
+    internal_note: str = ""
     hashed_password: str = ""
 
 
 class ItemPublic(SQLModel):
     id: uuid.UUID
+    title: str
+    internal_note: str
