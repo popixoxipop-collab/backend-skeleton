@@ -48,7 +48,7 @@ function usage() {
   bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
-  bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--note "..."] [--breaking-approved]
+  bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
   bskel feature init --slug <name>
   bskel feature list [--all] [--json]
@@ -510,8 +510,18 @@ function cmdScanDisposition(args) {
 
 	const reportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	const report = loadScanReportOrExit(root, flags.feature);
+	// S2 (D-gate-precision, part 2): if named explicitly, must be real -- same "fail loud, name
+	// the real choices" shape cmdScanExplain's unknown-module error already uses. If omitted,
+	// reuses selectModule()'s own default (the top-scored module) so a --module-less disposition
+	// never silently disagrees with what `contract emit`/`handles plan` would ALSO pick by
+	// default.
+	if (flags.module && !report.related_modules.some((m) => m.module === flags.module)) {
+		const known = report.related_modules.map((m) => m.module).join(', ') || '(none)';
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--module "${flags.module}" is not one of this scan report's related_modules -- known modules: ${known}`);
+	}
+	const dispositionModule = flags.module ?? selectModule(report, null)?.module ?? null;
 	report.feature_id = flags.feature;
-	report.disposition = { mode: flags.mode, note: flags.note, at: new Date().toISOString() };
+	report.disposition = { mode: flags.mode, note: flags.note, module: dispositionModule, at: new Date().toISOString() };
 	writeScanReportOrExit(reportPath, report);
 	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.md'), renderScanMarkdown(report));
 	const planConstraints = renderPlanConstraints(report);
