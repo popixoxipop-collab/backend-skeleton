@@ -125,6 +125,27 @@ test('the python-import job installs both ripgrep and a Python toolchain', () =>
 	assert.ok(commands.some((c) => c.includes('ripgrep')), 'scripts/python-import-smoke.mjs runs a real `bskel scan`, which shells out to rg directly');
 });
 
+// D-typescript-express-provider (G5): the typescript-compile job's script -- runs a real `npx tsc
+// --noEmit` against every file `bskel handles emit` generates, catching a real type mismatch
+// (e.g. a generated import pointing at a name that doesn't exist) that codec-level runtime parity
+// alone cannot. Genuinely cheaper to set up than java-compile/python-import -- no extra setup-*
+// action needed beyond Node itself.
+test('scripts/typescript-typecheck-smoke.mjs exists and is executable', () => {
+	const abs = path.join(REPO_ROOT, 'scripts/typescript-typecheck-smoke.mjs');
+	assert.ok(fs.existsSync(abs), 'scripts/typescript-typecheck-smoke.mjs does not exist');
+	const mode = fs.statSync(abs).mode;
+	assert.ok(mode & 0o111, `scripts/typescript-typecheck-smoke.mjs is not executable (mode ${mode.toString(8)})`);
+});
+
+test('the typescript-compile job installs ripgrep (scripts/typescript-typecheck-smoke.mjs runs a real `bskel scan`)', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	const job = doc.jobs['typescript-compile'];
+	assert.ok(job, 'expected a "typescript-compile" job');
+	const commands = allRunCommands({ jobs: { 'typescript-compile': job } });
+	assert.ok(commands.some((c) => c.includes('ripgrep')), 'scripts/typescript-typecheck-smoke.mjs runs a real `bskel scan`, which shells out to rg directly');
+	assert.ok(commands.some((c) => c.includes('npm run test:typescript-compile')), 'expected the job to actually invoke npm run test:typescript-compile');
+});
+
 // A4 (D-db-schema-plane): the db-introspect job's script -- proves Plane C actually works against
 // a real (disposable, service-container) Postgres, not mocked.
 test('scripts/db-introspect-smoke.mjs exists and is executable', () => {

@@ -2514,6 +2514,264 @@ precedent both `detectBasePackage` and this item's own `detectImportRoot` follow
 `D-resolver-scope` (the reason `patch_field()` is always a stub, carried over identically),
 `D-config-patch` (the "a human adds two lines" precedent this item's router-wiring note follows).
 
+## D-typescript-express-provider (G5): a third scanner adapter + handles provider, and the ecosystem with no framework-maintained reference to verify against
+
+**WHY**: slice 3 of 4 the user picked from G4's own "Explicitly NOT built" list, after slices 1-2
+(the JS<->Java codec parity gap, and Python's `recover()`/snapshot lifecycle) closed as follow-up
+paragraphs on G4 itself. This is different: G4-as-shipped never actually named `typescript-express`
+in its own "Explicitly NOT built" list, only in pre-implementation prose -- confirmed by reading
+the real shipped text before starting -- so this is new work, gets a new catalog letter (G5), not
+another "Update" appended to G4. CATALOG.md's own G4 "Concrete approach" text names
+`providers/typescript-express` as a hypothetical third provider; this item builds it for real.
+
+**A real, permanent asymmetry with G2, stated honestly up front, not discovered partway through**:
+G2 (python-fastapi) was verified against `fastapi/full-stack-fastapi-template`, the official
+FastAPI-author-maintained reference stack. No Express equivalent exists -- Express is deliberately
+unopinionated, and confirmed by real research (WebSearch + `gh api` star/fork/maintenance
+comparison across 5 community boilerplates, not guessed) before writing a line of adapter code: no
+framework-maintained reference stack exists for this ecosystem. Told to the user explicitly, who
+chose to proceed with the best-validated real option: `mkosir/typeorm-express-typescript` (461
+stars, 149 forks, not a fork itself -- by far the most-validated of the real candidates checked).
+This item's own verification confidence is **permanently** weaker than G2's or G4's -- named as a
+standing EXIT below, not a to-do a future slice is expected to close.
+
+A Plan agent cloned the oracle fresh and read its real code (routes, entities, controllers,
+middleware), not from memory of the general ecosystem -- 7 concrete facts from that reading drove
+every non-mechanical design decision:
+1. **TypeORM's API is stale in the oracle** (pinned `^0.2.45`, `getRepository()`, last pushed
+   2022-10-14) -- TypeORM 0.3.x (current since ~Feb 2022) replaced this with an app-owned
+   `DataSource` instance. Deliberately targets `DataSource`, not the oracle's own literal pattern
+   -- named cost, stated plainly: running this against the oracle *as it exists today* generates
+   **zero** resolvers, an accurate reflection the oracle is stale, not a bug in this provider.
+2. **No `<Entity>Public`-equivalent convention exists** in this ecosystem's own real code -- the
+   oracle's `password` column has no `{ select: false }` (TypeORM's real mechanism for this exists,
+   the oracle simply doesn't use it); the only real protection is a hand-written `select: [...]`
+   array literal per query, in each controller file. The precondition for generating a resolver is
+   finding that literal in the fetch handler's own defining file -- reusing a convention this
+   ecosystem's real code actually demonstrates, not inventing a Java/Python-shaped one it doesn't.
+3. **Middleware arrays nest parens/brackets**: `checkRole(['ADMINISTRATOR'], true)` sits inside
+   `router.get(path, [middlewares], handler)`'s own argument list -- needs balanced-paren scanning
+   (`matchBalancedParens`/`splitTopLevelArgs`, the same technique `python-fastapi.mjs` already
+   uses), not a naive regex.
+4. **Route registration and read logic live in separate files**, connected by an `import`, often
+   through one level of barrel re-export (`controllers/users/index.ts`: `export * from './show'`)
+   -- resolving "what does this route actually do" needs following that one hop, no deeper, the
+   same "narrow, not general" discipline every other cross-file resolution in this codebase follows.
+5. **No local base path exists anywhere** -- unlike `@RequestMapping`/`APIRouter(prefix=...)`, a
+   route's real absolute path only exists as the concatenation of `router.use('/literal',
+   subRouter)` mount edges from a graph root down to the leaf file (2 hops in the oracle: `/` ->
+   `/v1` -> `/users`). The single most novel piece of the new adapter (see Mechanism).
+6. **`checkRole(...)` is a project-specific convention, not a framework mechanism** (unlike
+   Spring's `@PreAuthorize`) -- deliberately NOT mined as an authority signal. A different real
+   Express app could name this anything, or check inline in the handler body. `checkAccess`/
+   `patchField` stay permanent fail-closed stubs, identical reasoning to both existing providers.
+7. **Express 4 (the oracle's pinned version) does not auto-catch a rejected Promise** inside an
+   async route handler (Express 5 does; can't be assumed of an arbitrary target app). Generated
+   router handlers wrap every async body in an explicit `try`/`catch`.
+
+Also independently re-verified, not assumed: Node's native TypeScript type-stripping. Confirmed
+live on this machine (Node 26.7.0) that `node file.ts` runs directly with zero flags; Node 22.x
+(this repo's CI floor) needs `--experimental-strip-types` explicitly, 23.6+/24.x/26.x have it
+unflagged by default. Design consequence: `--experimental-strip-types` is always passed explicitly
+in the codec test's `node` invocation -- safe across the whole 22-26 range (redundant-but-harmless
+where already default), removing any version-conditional branching.
+
+**SCOPE**: `scanners/adapters/typescript-express.mjs` (specificity 85, zero-registration, mirrors
+G1's registry exactly); `handles/providers/typescript-express.mjs` + `typescript-express/{plan.mjs,
+emit.mjs,templates/*}` (self-contained codec port, in-process registry, `fetch`/`toPublic` really
+wired to TypeORM's `DataSource.getRepository(...).findOne(...)`, `checkAccess`/`patchField` always
+stubs, GET+PATCH router, no migration/no `recover()` -- matches java-spring/python-fastapi's own
+pre-follow-up 1st-slice state, not a gap specific to this provider); a synthetic, hand-built fixture
+corpus (`test/fixtures/typescript-express/backend/`, real `package.json`/`tsconfig.json`, not a
+vendored oracle copy, same P3 precedent as `test/fixtures/python-fastapi`); three new test files
+(`test/typescript-express-cli.test.mjs`, `test/typescript-express-handles.test.mjs`,
+`test/handles-typescript-codec.test.mjs`); a new `scripts/typescript-typecheck-smoke.mjs` + CI job
+`typescript-compile`; two roster-test one-line additions (`test/adapter-registry.test.mjs`,
+`test/handles-provider-registry.test.mjs`); a new `checkProviderConformance`/
+`checkAdapterConformance` wiring in `test/conformance-harness.test.mjs` (P4).
+
+**EXCLUDED** (named, not silently dropped): `recover()`/`sbf_handle`/`sbf_handle_snapshot` and their
+migration (matches java-spring/python-fastapi's own pre-follow-up state, not a gap unique to this
+provider -- a future slice could mirror G4's own Python follow-up here if a real need appears).
+Field/object-level handle fetch (`kind=f`/`kind=o`), matching both existing providers' current
+limit. A `--provider` override flag (no real N:1 case observed). `src/`-layout is actually the
+DEFAULT this provider assumes (opposite of python-fastapi, where it was excluded) -- see Mechanism.
+Route-decorator authorization-signal extraction (finding #6 above -- `checkRole(...)` is
+project-specific, unreliable as a framework-level signal). Auto-wiring the generated router into
+the app's own router composition (two lines a human adds by hand, same reasoning as
+`D-config-patch`).
+
+**Mechanism**:
+- `detectTypeScriptExpressRoot()`: two independent signals required (package.json declares
+  `express` via real `JSON.parse`, not a regex -- genuinely simpler than java-spring's build.gradle
+  or python-fastapi's pyproject.toml, neither of which is real JSON -- AND at least one `.ts` file
+  source-confirms `Router` imported from `'express'` plus `Router()` called), walking the whole
+  repo tree for candidate `package.json` files the same monorepo-aware way python-fastapi does.
+- **Mount-tree resolution** (finding #5): `buildMountEdges()` finds every `router.use('/literal',
+  identifier)` edge and resolves `identifier` via THAT FILE'S OWN relative `import` only (bare/
+  baseUrl-relative specifiers are deliberately not resolved here -- the oracle confirms mount edges
+  are always relative). `prefixChainFor()` recursively walks from a mount-tree root (a file with no
+  incoming edge) down to a leaf, joining prefixes. A computed/dynamic mount
+  (`router.use(prefix, buildRouter())`) is skipped, never guessed at -- bounded, not general, the
+  same discipline every other cross-file resolution in this codebase already follows.
+- Entity extraction (`extractTableEntities()`): `@Entity('table')` or bare `@Entity()` (table =
+  lowercased class name, mirroring SQLModel's own default-naming precedent), idField search scoped
+  to just that class's own body (`{` to matching `}`) so a file with more than one entity class
+  never finds the wrong class's primary key. Also captures `idFieldIsUuid`
+  (`/['"]uuid['"]/.test(...)`) -- see the structural UUID constraint below.
+- **A real, structural (not TypeScript-specific) constraint found live, not assumed**: this whole
+  handle system's own token format (`kind:type:UUID[:pointer]`, `handles/codec.mjs`'s `HANDLE_RE`)
+  can only ever address a UUID-shaped resource identifier. TypeORM's bare `@PrimaryGeneratedColumn()`
+  (no argument) defaults to an auto-incrementing integer, not a UUID -- and the real oracle's own
+  `User` entity uses exactly that bare form. Found via a genuine `tsc --noEmit` type error
+  (`fetch(resourceUid: string)` vs. an entity `id: number`), not discovered by reading the codec
+  spec first. Fixed by adding `idFieldIsUuid` detection to the scanner and gating
+  `willGenerateResolver` on it in `plan.mjs`, with an honest refusal note naming the constraint --
+  the correct, permanent behavior, not a temporary gap.
+- `plan.mjs`'s `detectProjectRoot()`: nearest ancestor with BOTH `package.json` AND
+  `tsconfig.json` among this module's own files (O6-style ambiguity refusal, mirrors
+  `detectBasePackage`/`detectImportRoot` exactly); source root is `<root>/src` if it exists (the
+  real oracle's own layout, and this provider's own default, unlike python-fastapi which excluded
+  `src/`-layout support), else the project root itself.
+- `resolveHandlerFile()`: follows the router file's own `import { handler } from specifier`, then
+  ONE barrel hop (`export * from './x'`) if the resolved file doesn't define the handler itself --
+  no deeper, matching finding #4.
+- `findDataSource()`: `export const X = new DataSource({...})` -- or whatever name the app gives
+  it -- via `DATA_SOURCE_RE`, same shallowest-then-name deterministic tie-break as python-fastapi's
+  own `findSessionDep`.
+- `willGenerateResolver` requires ALL of: a fetch route found, its handler file resolved, a literal
+  `select: [...]` allow-list found in that file, an idField detected AND UUID-typed, and a
+  `DataSource` found anywhere under `srcRoot`. Any single missing precondition blocks codegen with
+  a note naming exactly which one and why (the leak risk for a missing select list, the structural
+  UUID constraint for a non-UUID key, the stale-oracle-API gap for a missing `DataSource`).
+- **`ResourceResolver` deliberately carries NO dataSource/session parameter** -- a genuine
+  architectural difference from python-fastapi's own per-request `session`-threaded interface, not
+  an arbitrary deviation from its shape. TypeORM's `DataSource` is an app-wide singleton
+  instantiated once at startup, not a per-request-injected object the way SQLAlchemy's `Session`
+  is; each generated resolver imports its own `DataSource` reference directly instead.
+- **`codec.ts.tmpl` is a self-contained port, not an `import` of this CLI's own `handles/codec.mjs`**
+  -- rejected concretely, not hand-waved, even though the target ecosystem is JS/TS-adjacent to this
+  CLI's own runtime: importing this whole scaffolding tool into a generated file would make the
+  entire `backend-skeleton` package a runtime dependency of the target app, architecturally wrong
+  regardless of same-ecosystem convenience. Zero imports beyond `node:crypto`. The port's own
+  `encodeHandle`/`deriveHandleUid` use positional arguments, not the JS reference's object-
+  destructured `{kind, type, uuid, pointer}` form -- a deliberate call-site divergence (behavior-
+  identical, not signature-identical; "port" here means byte-identical encode/decode output,
+  verified by execution, not a literal function-signature transcription). Same
+  `BASE64URL_CHARSET_RE` D-security-10 guard both existing ports needed -- Node's own
+  `Buffer.from(str, 'base64')` (this file's own runtime) has the identical silent-discard behavior,
+  confirmed live, not assumed to carry over from the JS reference by proximity alone.
+  `resolveJsonPointer` needed **no** `_MISSING`-sentinel workaround (unlike the Python port) --
+  TypeScript/JavaScript already distinguishes `undefined` (absent) from a genuine `null`, so this
+  is a direct, unmodified port of the JS reference's own logic, confirmed live.
+- `router.ts` is emitted as **unconditional infra**, unlike python-fastapi's own `SessionDep`-gated
+  router -- no equivalent precondition exists here (TypeORM's `DataSource` is imported directly by
+  each resolver, never injected per-request the way FastAPI's `Depends()`/SQLAlchemy `Session` is).
+- `emit.mjs` regenerates `resolvers_index.ts`'s barrel import list from the resolvers directory's
+  REAL current contents on every run (not just this run's own `resolverUnits`) -- an orphaned
+  resolver from a different feature/module (O2's "never delete, only report" policy leaves it on
+  disk) still needs its own `register(...)` call imported, or that resource type silently stops
+  being servable. Unconditional, like `migration.sql` is for java-spring -- never manifest-tracked.
+
+**Real bugs found and fixed while building this, none hypothetical**:
+- `npm install typescript` with no version pin installs TS 7.0.2 (a preview/rewrite with real
+  breaking config changes -- removed `moduleResolution: "node"`/`baseUrl` support), not mainstream
+  TS 5.x -- fixed by pinning `typescript@^5` explicitly in the fixture's own devDependency.
+- Sequential separate `npm install --no-save <pkg>` calls in the same scratch directory silently
+  pruned previously-installed packages -- fixed by combining every package into ONE `npm install`
+  call (both in ad-hoc scratch verification and in `scripts/typescript-typecheck-smoke.mjs`).
+- `req.params.handle` is really typed `string | string[]` by `@types/express-serve-static-core`'s
+  own `ParamsDictionary` -- fixed with explicit `typeof ... !== 'string'` guards in `router.ts.tmpl`
+  (both routes) and in the fixture's own handler.
+- `strictPropertyInitialization` rejects a decorator-initialized entity field with no constructor
+  assignment -- fixed using TypeScript's definite-assignment assertion (`id!: string;`), matching
+  real-world TypeORM+strict convention; this then broke the idField-extraction regex (`(\w+)\s*:`
+  doesn't match `id!:`), fixed to `(\w+)\s*!?\s*:`.
+- `bskel handles plan` showed a stale `idField: null` after the scanner regex was already fixed --
+  root cause: `bskel scan`'s own cached report (`specs/<feature>/brownfield-scan.json`) isn't
+  regenerated automatically when scanner code changes; `handles plan` reads that cache, not live
+  source. Not a provider bug -- a real, reusable debugging trap for this whole tool's own
+  scan-then-plan pipeline, worth naming here for future sessions.
+
+**Verification**: 33 net new tests (`test/handles-typescript-codec.test.mjs` x9 -- mandatory, not
+skippable, inside plain `npm test`, needing no external toolchain beyond Node itself, unlike the
+Java/Python codec tests -- the `NAMESPACE_DNS`+`"example.com"` reference vector, encode-in-JS/
+decode-in-TypeScript and encode-in-TypeScript/decode-in-JS round trips including a JSON Pointer
+with `~0`/`~1` escapes and a non-ASCII type name, all 3 base64 padding-remainder classes,
+`deriveHandleUid` parity, the null-vs-missing `resolveJsonPointer` distinction, D-security-10
+negative parity; `test/typescript-express-cli.test.mjs` x6 -- adapter selection/specificity,
+real 2-hop mount-tree resolution with no local base path anywhere, balanced-paren middleware
+extraction, entity/idField/idFieldIsUuid extraction, honest capability declaration via `doctor
+--json`, full CLI e2e dispatch; `test/typescript-express-handles.test.mjs` x13 -- plan-unit tests
+isolating each `willGenerateResolver` gating condition independently (missing select list, non-UUID
+PK, no fetch route at all, project-root ambiguity/absence), e2e exact-file-set/no-migration-
+artifact/never-references-the-excluded-column/idempotent-re-emit/hand-edit-blocks-at-exit-15).
+Two roster-test additions (`test/adapter-registry.test.mjs`, `test/handles-provider-registry.
+test.mjs`) proving the zero-registration claim against the real 4-adapter/3-provider roster, not a
+hand-picked pair; the pre-existing "biconditional" test (`codegen.handles === true` iff a provider
+is loaded) required zero code changes -- it already generalizes over every real shipped adapter.
+`test/conformance-harness.test.mjs` gained a real fixture wiring (`checkAdapterConformance`/
+`checkProviderConformance` against `test/fixtures/typescript-express/`), passing on first run.
+**A real fixture-authoring bug found and fixed during this item's own test-writing, not in
+production code**: a plan-unit fixture's own explanatory comment, `// deliberately no select:
+[...] allow-list here`, accidentally satisfied the `select\s*:\s*\[([^\]]*)\]` regex it was meant
+to demonstrate the ABSENCE of -- caught live by the test actually failing, not assumed correct;
+fixed by rewording the comment, not by weakening the regex (the regex was correct all along).
+`npm run test:typescript-compile` (new `scripts/typescript-typecheck-smoke.mjs`, real `npm install`
++ real `npx tsc --noEmit` against the emitted tree, zero errors) -- proves generated code actually
+TYPE-CHECKS against real TypeORM/Express types, which the codec test alone cannot (TypeScript's
+whole value proposition is its compiler; a runtime-parity test alone would be answering the wrong
+question for this language). New CI job `typescript-compile` (mirrors `java-compile`/
+`python-import`'s dedicated-job shape, genuinely cheaper to set up -- no JVM/Gradle, no Python
+venv, just `npm install`, something this whole CLI already depends on). `npm test`: 709 -> **742**.
+
+Against the real oracle (`mkosir/typeorm-express-typescript`, read-only, no throwaway branch or
+push -- this item's own oracle-check is a one-time hand-verified reading pass, not a live CI
+dependency, matching P3's own rejection of a live third-party-repo oracle): `bskel doctor` detects
+it as `typescript-express`; `bskel scan --terms user` correctly extracts routes and entities;
+`handles plan` correctly reports **zero** resolvers generated, exactly the predicted, honest
+consequence of finding #1 (the oracle's own stale `getRepository()` API) -- not a false negative,
+an accurate reflection that this provider targets the ecosystem's *current* canonical API, not this
+one oracle's dated snapshot of it.
+
+**COST**: no `recover()` path (EXCLUDED above). `checkAccess()` always denies until hand-wired --
+every resolver ships non-functional for reads until a human completes it, by design. `patchField()`
+always 501s. Field/object-level handle fetch stays unimplemented, matching both existing providers'
+current limit. An entity with a non-UUID primary key can NEVER get a working resolver through this
+provider (a structural fact about this whole project's handle scheme, not a bug to fix later). The
+generated router needs two lines of manual wiring into the app's own router composition. A mount
+edge that isn't a plain relative `router.use('/literal', identifier)` (a computed prefix, a
+non-relative import) is silently skipped, not guessed at. **This item's own real-world verification
+confidence is permanently lower than G2's or G4's** -- grounded in one real, hand-read (not
+continuously CI-checked) community oracle rather than a framework-maintained reference stack; the
+committed synthetic fixture carries the suite's ongoing regression weight going forward, resting on
+a single grounding pass rather than a canonical source of truth. This is a standing property of
+building for an unopinionated ecosystem, not a temporary gap this item left for later.
+
+**EXIT**: the confidence gap named above is permanent, not a to-do -- re-verify against a fresher or
+different real Express/TypeORM app if one becomes available, but do not expect it to ever match
+G2's own footing. Add `recover()`/snapshot support if a real need appears (mirroring G4's own Python
+follow-up) -- not built speculatively, matching this project's own Data-First Numerics discipline.
+Add a `--provider` override flag if a real N:1 case is ever observed (still none, across three
+providers now). Relax the `DataSource`-shaped-detection requirement (or add a second pattern) if a
+real TypeORM app using a different app-owned-instance naming convention needs this provider.
+Generalize mount-edge resolution beyond single-relative-import `router.use()` calls if a real target
+app's own mount pattern doesn't fit (e.g. a computed prefix built from a config value).
+
+Cross-references: `D-adapter-registry` (G1, the registry design `scanners/registry.mjs` and
+`handles/registry.mjs` both mirror unchanged), `D-fastapi-adapter` (G2, the "second first-class
+adapter" precedent this item follows a third time, and the reference-oracle bar this item explicitly
+cannot meet), `D-handles-providers` (G4, the provider-split + fail-closed-stub + zero-registration
+mechanism this item is the third real consumer of, and the "EXCLUDED, named not dropped" discipline
+this item's own EXCLUDED section follows), `D-artifact-determinism` (O6, the ambiguity-over-
+silent-pick precedent `detectProjectRoot()` follows), `D-security-10` (the charset-validation
+guard this item's codec port needed and confirmed live for Node's own `Buffer.from`),
+`D-resolver-scope` (the reason `patchField()` is always a stub, carried over identically),
+`D-config-patch` (the "a human adds two lines" precedent this item's router-wiring note follows),
+`D-fixture-corpus` (P3, the synthetic-not-vendored fixture precedent this item's own corpus
+follows, and the "no live third-party-repo oracle in CI" reasoning this item's own oracle-check
+explicitly matches).
+
 ## D-cli-contract (D2): strict argument parsing, one exit-code table, and a JSON error channel that is added to the existing output rather than replacing it
 
 **WHY**: three real bugs, all reproduced live, not hypothetical. (1) `bskel verify --feature

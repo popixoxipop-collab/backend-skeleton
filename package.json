@@ -37,7 +37,8 @@
     "test:db-introspect": "node scripts/db-introspect-smoke.mjs",
     "test:java-integration": "node scripts/java-integration-smoke.mjs",
     "test:java-ast": "node scripts/java-ast-smoke.mjs",
-    "test:python-integration": "node scripts/python-integration-smoke.mjs"
+    "test:python-integration": "node scripts/python-integration-smoke.mjs",
+    "test:typescript-compile": "node scripts/typescript-typecheck-smoke.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",

@@ -20,6 +20,7 @@ import { checkProviderConformance } from '../handles/conformance.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JAVA_FIXTURE = path.join(__dirname, 'fixtures', 'java-spring');
 const PYTHON_FIXTURE = path.join(__dirname, 'fixtures', 'python-fastapi');
+const TYPESCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-express');
 
 function scratchCopyOf(fixtureDir) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-conformance-'));
@@ -33,11 +34,12 @@ function scratchCopyOf(fixtureDir) {
 const ADAPTER_FIXTURES = {
 	'java-spring': JAVA_FIXTURE,
 	'python-fastapi': PYTHON_FIXTURE,
+	'typescript-express': TYPESCRIPT_FIXTURE,
 	'generic-grep': JAVA_FIXTURE,
 };
 
 test('checkAdapterConformance passes for every shipped scanner adapter', () => {
-	assert.ok(ADAPTERS.length >= 3, 'sanity: expected java-spring, python-fastapi, generic-grep to be loaded');
+	assert.ok(ADAPTERS.length >= 4, 'sanity: expected java-spring, python-fastapi, typescript-express, generic-grep to be loaded');
 	for (const adapter of ADAPTERS) {
 		const repoRoot = ADAPTER_FIXTURES[adapter.id];
 		assert.ok(repoRoot, `no fixture wired for adapter "${adapter.id}" -- add one to ADAPTER_FIXTURES`);
@@ -77,7 +79,22 @@ test('checkProviderConformance passes for the real python-fastapi handles provid
 	}
 });
 
-// Proves the harness actually discriminates -- a fixed-point summary that all 5 real
+test('checkProviderConformance passes for the real typescript-express handles provider', () => {
+	const root = scratchCopyOf(TYPESCRIPT_FIXTURE);
+	try {
+		const scanReport = runScan({ repoRoot: root, terms: ['user'] });
+		const provider = providerById(PROVIDERS, 'typescript-express');
+		assert.ok(provider, 'typescript-express provider must be loaded');
+		const result = checkProviderConformance(provider, { repoRoot: root, scanReport });
+		assert.deepEqual(result.errors, [], result.errors.join('; '));
+		assert.equal(result.ok, true);
+		assert.ok(result.firstEmitWritten.length > 0, 'sanity: emit() must actually generate something against this fixture');
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
+// Proves the harness actually discriminates -- a fixed-point summary that every real
 // adapters/providers pass would be equally true of a harness that always returns ok:true.
 test('checkAdapterConformance and checkProviderConformance both catch a genuinely broken implementation', () => {
 	const flakyAdapter = {

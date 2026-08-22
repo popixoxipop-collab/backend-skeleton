@@ -124,6 +124,27 @@ jobs:
       - run: npm ci
       - run: npm run test:python-import
 
+  # D-typescript-express-provider (G5): the third dedicated codegen-verification job, alongside
+  # java-compile/python-import above. Genuinely cheaper to set up than either -- no JVM/Gradle, no
+  # Python venv, just `npm install` into the SCRATCH repo's own node_modules (Node is already this
+  # whole CLI's own runtime, so no extra setup-* action is even needed beyond checkout). Runs a real
+  # `npx tsc --noEmit` against generated code -- unlike Python (dynamically typed, where a real
+  # import already proves the meaningful thing), TypeScript's whole value proposition IS its
+  # compiler. See scripts/typescript-typecheck-smoke.mjs.
+  typescript-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      # scripts/typescript-typecheck-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other jobs above.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:typescript-compile
+
   # A4 (D-db-schema-plane): the first automated proof that Plane C (live Postgres introspection)
   # actually works against a real database -- previously verified only once, by hand, against a
   # local Homebrew Postgres. Same dedicated-job shape as java-compile/python-import above (a
