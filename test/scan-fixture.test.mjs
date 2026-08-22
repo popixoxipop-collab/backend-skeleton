@@ -17,6 +17,19 @@ import { scanJavaSpring } from '../scanners/adapters/java-spring.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_ROOT = path.join(__dirname, 'fixtures', 'java-spring');
 
+// S2 (D-gate-precision, continued): the field lib/gate-definitions.mjs's `scan` gate hashes for
+// a precise staleness token -- must be present, sorted (matches listJavaFiles()'s own O6
+// determinism guarantee), repo-relative, and cover every real .java file in the fixture, not a
+// filtered/matched-only subset (a file that matched zero terms is still part of the read-set).
+test('scanJavaSpring reports its own real read-set: sorted, repo-relative, every fixture .java file present', () => {
+	const result = scanJavaSpring(FIXTURE_ROOT);
+	assert.ok(Array.isArray(result.filesRead) && result.filesRead.length > 0);
+	assert.deepEqual(result.filesRead, [...result.filesRead].sort(), 'must already be sorted');
+	assert.ok(result.filesRead.every((f) => !path.isAbsolute(f)), 'must be repo-relative, not absolute');
+	assert.ok(result.filesRead.some((f) => f.endsWith('OrganizationController.java')));
+	assert.ok(result.filesRead.some((f) => f.endsWith('AnnotationStyleController.java')), 'covers a file outside the organization module too -- not filtered to any one term/module');
+});
+
 test('scanning the fixture for "organization" finds OrganizationController (10 ops) + OperatorController (5 ops)', () => {
 	const report = runScan({ repoRoot: FIXTURE_ROOT, terms: ['organization'] });
 

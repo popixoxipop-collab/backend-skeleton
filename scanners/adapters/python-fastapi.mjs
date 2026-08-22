@@ -270,6 +270,9 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 		modules: [...modules.values()],
 		pathPrefixSignals: extractIncludeRouterPrefixSignals(repoRoot, files),
 		apiSurfaceSource: API_SURFACE_SOURCE,
+		// S2 (D-gate-precision, continued): repo-relative, matching every other manifest-shaped
+		// gate input in this codebase.
+		filesRead: files.map((f) => path.relative(repoRoot, f)),
 	};
 }
 
@@ -313,6 +316,13 @@ export const adapter = {
 	detect: detectPythonFastApiRoot,
 	scan(repoRoot, detection) {
 		return scanPythonFastApi(repoRoot, detection);
+	},
+	// S2 (D-gate-precision, continued): same listPythonFiles() call scan() itself makes, via the
+	// same detectPythonFastApiRoot() this adapter's own detect() already uses.
+	listReadSet(repoRoot) {
+		const projectRoot = detectPythonFastApiRoot(repoRoot);
+		if (!projectRoot) return [];
+		return listPythonFiles(projectRoot).map((f) => path.relative(repoRoot, f));
 	},
 	diagnostics(repoRoot) {
 		const messages = [];

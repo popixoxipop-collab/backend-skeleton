@@ -1494,6 +1494,75 @@ later without checking this first:
   is what lets `diffInputs()` name an exact file, and any future manifest-shaped input (a `scan`
   read-set, say) should follow it rather than nesting an object under one key.
 
+### Continued: the `scan` gate drops `head_sha` for a real, content-based read-set
+
+**WHY**: this slice's own EXIT above named the real next step -- "the scanners themselves report
+which files they actually read" -- and grounding confirmed both complaints this closes were still
+live: reproduced directly, editing a real controller's content WITHOUT committing left `scan`
+reporting `pass` (complaint (a)); an unrelated commit (e.g. a doc file) staled every feature's
+`scan` gate simultaneously (complaint (b)). `contract`/`handles` are deliberately NOT touched here
+-- narrowing THEM to just a feature's own matched module needs a genuinely new piece of data
+(`scan disposition` never records which module was chosen today) and is a separate, larger slice;
+see EXIT below.
+
+Each adapter's `scan()` already computed a complete, sorted, `rg --files`-derived read-set as a
+local variable before this item (`listJavaFiles(srcRoot)`, `listCandidateFiles(repoRoot)`, `files =
+listPythonFiles(projectRoot)`) and simply discarded it on return -- exposing it as a new
+`filesRead`/`files_read` field (adapter return value -> `scanners/index.mjs::runScan()` -> the
+persisted report, new required property on `schemas/scan-report.schema.json`) was pure plumbing,
+not new file-walking.
+
+**The harder design question, and the trap D-gate-precision's own rejected alternative (ii) already
+named**: staleness detection must catch a brand-NEW file too, not just an edit to a known one -- but
+`scan.recompute()` runs independently of `runScan()`, long after the fact, so it cannot simply
+re-hash the STALE `files_read` list the last scan run happened to persist (that list, by
+definition, never contains a file that didn't exist yet when it was written -- the exact blindness
+(ii) already flagged for a matched-files-only manifest, which applies just as much to a full-but-
+stale read-set list). Fixed by giving each adapter an optional `listReadSet(repoRoot)` on its
+`sbf.adapter/1` descriptor (`scanners/registry.mjs`'s validator now destructures it out alongside
+`detect`/`scan`/`diagnostics` before JSON-Schema-validating the rest, same "functions checked
+separately" mechanism those three already use) -- a thin wrapper around the exact same
+`listJavaFiles`/`listCandidateFiles`/`listPythonFiles` helper `scan()` itself calls, so
+`scan.recompute()` re-derives the CURRENT read-set fresh on every check, genuinely re-globbing, not
+replaying history. Optional, not required by `schemas/adapter.schema.json` -- a hypothetical future
+adapter without it just gets the coarser `scan_report_hash`/`spec_hash`-only fallback, never a
+crash (same graceful-degradation shape `lib/verify.mjs`'s `checkResolverConflicts` already
+established for S6). Hashed per-file into `source_file:<relpath>` keys, the same flattened-manifest
+convention `stack`'s `applied_file:`/`applied_file_mode:` already established -- `diffInputs()`
+needed zero changes, it was already fully generic over key names.
+
+**A real, live-caught false-positive this item's own design introduced, then fixed before
+shipping**: the first working version made `test/handles-cli.test.mjs`'s pre-existing
+hand-finished-`patchField()` regression test fail -- a GENERATED resolver file (O2) lives INSIDE
+the same `src/main/java` tree the java-spring adapter globs, so `handles emit` writing its own
+output looked, from `scan`'s new read-set's perspective, indistinguishable from a human adding a
+real new controller -- staling `scan` on every single `handles emit` run, a serious regression to
+the normal happy-path workflow, not a hypothetical edge case. Fixed by filtering `listReadSet()`'s
+output against O2's own generated-file registry (`lib/handles-manifest.mjs::loadManifest()`,
+wrapped in try/catch mirroring `handlesManifestChecks()`'s own defensive shape) before hashing --
+the authoritative answer to "did backend-skeleton itself write this," reused rather than guessed at
+via a directory-name/filename pattern. A new dedicated regression test
+(`test/handles-cli.test.mjs`: "running handles emit does not stale the scan gate") pins this
+directly.
+
+**Verified**: `npm test` 694/694 (688 baseline + 6 net new -- 4 CLI-level staleness tests in
+`test/scan-cli.test.mjs` covering the uncommitted-edit case, the brand-new-file case, the
+unrelated-commit-no-longer-stales case, and 1 unit-level read-set-shape test in
+`test/scan-fixture.test.mjs`, plus the handles-emit-doesn't-stale-scan regression above). Every new
+test runs against a real git repo and the real CLI (`execFileSync`), not mocked.
+
+**EXIT** -- the deliberately deferred next slice, unchanged from this section's own earlier EXIT:
+`contract`/`handles` still hash `head_sha` (complaints (a)/(b) remain open for them), and
+`upstream_token` is still not built. Both need `scan disposition --module <name>` (a genuinely new
+field -- today nothing persists which module a feature disposed onto; `contracts/emit.mjs`'s
+`selectModule()` only ever resolves it transiently, from an ephemeral `--module` CLI flag or the
+top-scored module) before per-feature narrowing to just that module's own
+`controllers`/`entities`/`enums` files is reachable (that file-level data itself is already sitting
+in the persisted report today, zero new adapter tracking needed for those three -- confirmed by
+direct tracing of `related_modules[].{controllers,entities,enums}[].file`). DTO file paths are a
+separate, smaller gap (`scanJavaSpring()` currently pushes a bare class-name-stem string, no
+`file` field) -- real but not blocking the slice above.
+
 ## D-status-next (D1): `bskel status`/`bskel next` are presentation logic on top of gate state that already existed
 
 **WHY**: `bskel verify` already computes everything a human/agent needs to know where a feature

@@ -214,6 +214,12 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	const modules = result.modules;
 	const pathPrefixSignals = result.pathPrefixSignals ?? [];
 	const apiSurfaceSource = result.apiSurfaceSource ?? DEFAULT_API_SURFACE_SOURCE;
+	// S2 (D-gate-precision, continued): the adapter's own real read-set, persisted so
+	// lib/gate-definitions.mjs's `scan` gate can hash it for a precise staleness token instead of
+	// a repo-wide head_sha proxy. Optional (`?? []`) so an adapter that doesn't populate it (a
+	// third-party adapter written before this existed) degrades to "no source-file inputs" rather
+	// than crashing -- the gate token still falls back to hashing the report itself.
+	const filesRead = result.filesRead ?? [];
 
 	// O6: score alone isn't a deterministic sort key -- two modules tying on score fall back to
 	// whatever order they were already in, which traces back to non-deterministic rg discovery
@@ -269,6 +275,7 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 		related_modules: relatedModules,
 		collisions,
 		unknowns,
+		files_read: filesRead,
 		...(dbSchema ? { db_schema: dbSchema } : {}),
 	};
 }

@@ -139,6 +139,72 @@ test('scan -> blocked -> disposition -> unblocked, full CLI flow', () => {
 	assert.match(constraints, /MUST NOT create new entities\/controllers\/endpoints/);
 });
 
+// S2 (D-gate-precision, continued): reproduces the exact live bug this item closes -- the scan
+// gate's OLD token (head_sha only) was blind to an uncommitted content edit. Its NEW token hashes
+// the adapter's own real read-set, so this must now go stale WITHOUT a commit.
+test('scan gate goes stale from an uncommitted content edit to a real read-set file', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'scan', '--feature', '001-widget-management'], root).code, 0);
+
+	const controllerPath = path.join(root, 'src/main/java/com/example/domain/widget/presentation/WidgetController.java');
+	fs.appendFileSync(controllerPath, '\n// uncommitted hand edit\n');
+
+	const stale = run(['gate', 'require', 'scan', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.equal(record.stale_reason, 'inputs_changed');
+	assert.ok(record.changed_inputs.some((k) => k.startsWith('source_file:') && k.includes('WidgetController.java')));
+});
+
+// S2 (D-gate-precision, continued): the specific trap D-gate-precision's own rejected
+// alternative (ii) already named -- a manifest re-hashed from the last scan's OWN persisted
+// files_read list would never even LOOK at a brand-new file, since it wasn't in that list. The
+// fix re-derives the read-set fresh via adapter.listReadSet() every time, which this proves.
+test('scan gate goes stale when a brand-new java file appears, not just an edited one', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'scan', '--feature', '001-widget-management'], root).code, 0);
+
+	const newControllerPath = path.join(root, 'src/main/java/com/example/domain/other/presentation/OtherController.java');
+	fs.mkdirSync(path.dirname(newControllerPath), { recursive: true });
+	fs.writeFileSync(newControllerPath, `
+package com.example.domain.other.presentation;
+import org.springframework.web.bind.annotation.*;
+@RestController
+@RequestMapping(value = "/others")
+public class OtherController {
+	@GetMapping
+	public String findOthers() { return "ok"; }
+}
+`);
+
+	const stale = run(['gate', 'require', 'scan', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.ok(record.changed_inputs.some((k) => k.startsWith('source_file:') && k.includes('OtherController.java')));
+});
+
+// S2 (D-gate-precision, continued): the other half of the same fix -- dropping head_sha means an
+// UNRELATED commit (nothing the java-spring adapter's read-set even covers) no longer stales scan.
+test('an unrelated commit (a non-Java file) no longer stales the scan gate', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'scan', '--feature', '001-widget-management'], root).code, 0);
+
+	fs.writeFileSync(path.join(root, 'README.md'), '# unrelated doc change\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'docs: unrelated'], { cwd: root });
+
+	assert.equal(run(['gate', 'require', 'scan', '--feature', '001-widget-management'], root).code, 0, 'an unrelated non-Java commit must not stale scan');
+});
+
 test('scan without --feature is ad-hoc: no files written, no gate touched', () => {
 	const root = buildFixtureRepo();
 	const scan = run(['scan', '--terms', 'widget'], root);

@@ -174,10 +174,14 @@ test('(d) --force requires --reason, then overwrites a diverged resolver and rec
 	fs.writeFileSync(resolverPath, `${fs.readFileSync(resolverPath, 'utf8')}\n// hand edit\n`);
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'hand edit resolver'], { cwd: root });
-	// The commit above advances HEAD, which stales every gate in the preflight -> scan -> contract
-	// chain `cmdHandlesEmit` requires (all their tokens cover head_sha) -- re-run the whole chain
-	// (feature already exists, so skip `feature init`) so the --force/--reason checks below are
-	// actually reached, not masked by an unrelated exit 4 (stale).
+	// The commit above advances HEAD, which stales preflight (still head_sha-based). scan itself
+	// does NOT go stale from this specific edit (S2, D-gate-precision continued: scan's token now
+	// hashes its own real read-set, which deliberately excludes generated files like this resolver
+	// via O2's handles-manifest -- otherwise `handles emit` writing its own output would
+	// perpetually re-stale scan). Re-running the chain here is still needed because preflight
+	// blocks it, and is harmless/idempotent regardless (feature already exists, so skip
+	// `feature init`) -- this is what lets the --force/--reason checks below actually be reached,
+	// not masked by an unrelated exit 4 (stale).
 	assert.equal(run(['preflight'], root).code, 0);
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);

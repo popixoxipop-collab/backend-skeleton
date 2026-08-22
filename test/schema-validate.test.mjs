@@ -24,7 +24,7 @@ test('state.schema.json: a gate record with an unrecognized status ("not_run") i
 test('scan-report.schema.json: a minimal valid report passes', () => {
 	const { ok } = validateAgainstSchema('scan-report.schema.json', {
 		schema: 'sbf.scan-report/1', terms: ['item'], adapter: 'java-spring', verdict: 'greenfield',
-		related_modules: [], collisions: [], unknowns: [],
+		related_modules: [], collisions: [], unknowns: [], files_read: [],
 	});
 	assert.equal(ok, true);
 });
@@ -32,7 +32,7 @@ test('scan-report.schema.json: a minimal valid report passes', () => {
 test('scan-report.schema.json: an unrecognized verdict is rejected', () => {
 	const { ok } = validateAgainstSchema('scan-report.schema.json', {
 		schema: 'sbf.scan-report/1', terms: [], adapter: 'java-spring', verdict: 'definitely-fine',
-		related_modules: [], collisions: [], unknowns: [],
+		related_modules: [], collisions: [], unknowns: [], files_read: [],
 	});
 	assert.equal(ok, false);
 });

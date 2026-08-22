@@ -4,7 +4,7 @@
   "title": "backend-skeleton brownfield scan report",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "terms", "adapter", "verdict", "related_modules", "collisions", "unknowns"],
+  "required": ["schema", "terms", "adapter", "verdict", "related_modules", "collisions", "unknowns", "files_read"],
   "properties": {
     "schema": { "const": "sbf.scan-report/1" },
     "feature_id": { "type": "string" },
@@ -53,6 +53,11 @@
     },
     "collisions": { "type": "array" },
     "unknowns": { "type": "array", "items": { "type": "string" } },
+    "files_read": {
+      "description": "S2 (D-gate-precision, continued): the adapter's own real read-set, repo-relative -- what lib/gate-definitions.mjs's `scan` gate re-derives and hashes for a precise staleness token instead of a repo-wide head_sha proxy. Always present (an adapter with nothing to scan yet, or one that predates this field, reports an empty array), never inferred from `related_modules` (which is filtered to score>0 and blind to a newly-added file that hasn't been re-scanned yet).",
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "db_schema": {
       "description": "A4 (D-db-schema-plane): present only when `--db` was passed. `migrations` (Plane A, always local) and `live` (Plane C, present only with --database-url-env) are independent -- a repo can have one, the other, both, or (most repos, including the real oracle repo) neither.",
       "type": "object",

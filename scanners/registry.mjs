@@ -76,9 +76,9 @@ async function loadOneAdapter(file, schema) {
 		return { error: { file, message: `adapter.id "${descriptor.id}" must equal its filename "${id}"` } };
 	}
 
-	// Validate only the JSON-shaped fields -- detect/scan/diagnostics are functions, which JSON
-	// Schema has no vocabulary for; checked separately below.
-	const { detect, scan, diagnostics, ...data } = descriptor;
+	// Validate only the JSON-shaped fields -- detect/scan/diagnostics/listReadSet are functions,
+	// which JSON Schema has no vocabulary for; checked separately below.
+	const { detect, scan, diagnostics, listReadSet, ...data } = descriptor;
 	const validateFn = ajv().getSchema(schema.$id) ?? ajv().compile(schema);
 	if (!validateFn(data)) {
 		const details = (validateFn.errors ?? []).map((e) => `${e.instancePath || '(root)'} ${e.message}`).join('; ');
@@ -91,6 +91,12 @@ async function loadOneAdapter(file, schema) {
 	}
 	if (descriptor.diagnostics !== undefined && typeof descriptor.diagnostics !== 'function') {
 		return { error: { file, message: 'adapter.diagnostics, if present, must be a function' } };
+	}
+	// S2 (D-gate-precision, continued): optional -- an adapter that doesn't implement this just
+	// means lib/gate-definitions.mjs's `scan` gate falls back to a coarser staleness token for
+	// that adapter, never a crash. Every first-party adapter implements it.
+	if (descriptor.listReadSet !== undefined && typeof descriptor.listReadSet !== 'function') {
+		return { error: { file, message: 'adapter.listReadSet, if present, must be a function' } };
 	}
 	return { adapter: descriptor };
 }

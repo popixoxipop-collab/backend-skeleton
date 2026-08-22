@@ -4,6 +4,7 @@
 // stays deliberately shallow (no module inference, no confidence scoring without real corpus
 // data to calibrate it) rather than growing into a second real adapter.
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { lineNumberAt } from '../text-util.mjs';
 
@@ -53,8 +54,14 @@ function commonPathPrefix(paths) {
 }
 
 export function scanGenericGrep(repoRoot) {
+	const candidateFiles = listCandidateFiles(repoRoot);
+	// S2 (D-gate-precision, continued): repo-relative, matching every other manifest-shaped gate
+	// input in this codebase. Included in BOTH return paths below -- a file with zero route
+	// matches was still genuinely read, and the `scan` gate's staleness token needs to notice a
+	// change to it (e.g. a route pattern added later) just as much as a file that already matched.
+	const filesRead = candidateFiles.map((f) => path.relative(repoRoot, f));
 	const routes = [];
-	for (const file of listCandidateFiles(repoRoot)) {
+	for (const file of candidateFiles) {
 		const text = fs.readFileSync(file, 'utf8');
 		for (const { re, framework, hasVerb } of ROUTE_PATTERNS) {
 			for (const m of text.matchAll(re)) {
@@ -64,7 +71,7 @@ export function scanGenericGrep(repoRoot) {
 			}
 		}
 	}
-	if (routes.length === 0) return { modules: [] };
+	if (routes.length === 0) return { modules: [], filesRead };
 
 	// Group by source file -- the natural code-module boundary for this adapter, the same role a
 	// controller class plays for java-spring. Before this, every matched route became its own
@@ -84,7 +91,7 @@ export function scanGenericGrep(repoRoot) {
 		file,
 	}));
 
-	return { modules: [{ module: '_generic', controllers, entities: [], enums: [], dtos: [] }] };
+	return { modules: [{ module: '_generic', controllers, entities: [], enums: [], dtos: [] }], filesRead };
 }
 
 // G1: adapter descriptor consumed by scanners/registry.mjs -- see D-adapter-registry in
@@ -110,6 +117,10 @@ export const adapter = {
 	},
 	scan(repoRoot, _detection) {
 		return scanGenericGrep(repoRoot);
+	},
+	// S2 (D-gate-precision, continued): same listCandidateFiles() call scan() itself makes.
+	listReadSet(repoRoot) {
+		return listCandidateFiles(repoRoot).map((f) => path.relative(repoRoot, f));
 	},
 	diagnostics() {
 		return [{ level: 'info', code: 'always-detects', message: 'this is the unconditional last-resort fallback adapter (specificity 0) -- it always "detects"' }];

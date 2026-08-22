@@ -236,7 +236,12 @@ export function scanJavaSpring(repoRoot) {
 		}
 	}
 
-	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot) };
+	// S2 (D-gate-precision, continued): repo-relative (not srcRoot-relative like moduleOf's own
+	// paths) -- this is what lib/gate-definitions.mjs's `scan` gate hashes to detect real content
+	// drift, and every other manifest-shaped gate input in this codebase (stack's `applied_file:`)
+	// is repo-relative too.
+	const filesRead = listJavaFiles(srcRoot).map((f) => path.relative(repoRoot, f));
+	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot), filesRead };
 }
 
 // G1: adapter descriptor consumed by scanners/registry.mjs -- see D-adapter-registry in
@@ -259,7 +264,17 @@ export const adapter = {
 	detect: detectJavaSpringRoot,
 	scan(repoRoot, _detection) {
 		const result = scanJavaSpring(repoRoot);
-		return { modules: result.modules, pathPrefixSignals: result.pathPrefixSignals };
+		return { modules: result.modules, pathPrefixSignals: result.pathPrefixSignals, filesRead: result.filesRead };
+	},
+	// S2 (D-gate-precision, continued): reuses the EXACT same listJavaFiles() call scan() itself
+	// makes -- no separate file-walking logic -- so the `scan` gate's staleness token can re-derive
+	// the CURRENT read-set fresh every time it's checked (not just re-hash whatever the last scan
+	// run happened to record), which is what lets it notice a brand-new file too, not just an edit
+	// to a previously-known one.
+	listReadSet(repoRoot) {
+		const srcRoot = detectJavaSpringRoot(repoRoot);
+		if (!srcRoot) return [];
+		return listJavaFiles(srcRoot).map((f) => path.relative(repoRoot, f));
 	},
 	diagnostics(repoRoot) {
 		const messages = [];
