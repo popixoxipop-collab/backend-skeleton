@@ -1563,6 +1563,84 @@ direct tracing of `related_modules[].{controllers,entities,enums}[].file`). DTO 
 separate, smaller gap (`scanJavaSpring()` currently pushes a bare class-name-stem string, no
 `file` field) -- real but not blocking the slice above.
 
+### Continued (part 2): per-feature narrowing for `contract`/`handles`, and why `upstream_token` was replaced
+
+**WHY**: this section's own EXIT above named the next step. Direct grounding (re-reading
+`cmdScanDisposition`, `selectModule()`, and the `contract`/`handles` recompute()s themselves)
+found the originally-sketched `upstream_token` design (an opaque input equal to `scan`'s own
+current token) does not actually narrow anything: `scan`'s token is deliberately whole-Java-tree
+sensitive (Part 1's own correct design for collision detection), so inheriting it wholesale would
+just relocate that same "any Java file anywhere stales this" behavior one level down, reintroducing
+complaint (b) for `contract` -- the exact thing this slice exists to fix. **Replaced with two
+concrete, precise signals instead**: `scan_report_hash` (the same hash `scan`'s own token already
+computes -- catches an explicit re-scan/re-disposition, including this module's membership
+changing) and `module_file:<relpath>` per-file content hashes, scoped to ONLY the disposed
+module's own `controllers`/`entities`/`enums` files (not the whole adapter read-set) -- the same
+"uncommitted change must be visible" property Part 1 established for `scan`, applied one level
+down. DTOs stay excluded (Part 1's own named gap: no `.file` field yet).
+
+**A genuine simplification found for `handles`, not originally anticipated**: `handles`'s existing
+token already carries `contract_hash` (the emitted contract file's own content hash). Once
+`contract`'s own token is precise (this slice), `contract_hash` alone is already sufficient --
+`handles` is derived from the *contract*, not directly from source, and `contract` is a `REQUIRED`
+verify policy, so `bskel verify`'s overall verdict is already blocked whenever `contract` itself is
+stale. `handles` reporting `pass` (its emitted Java still matches the currently-emitted contract)
+stays accurate and useful even then -- each gate is responsible for its own direct dependency's
+integrity, and the required-gate chain carries the rest. `handles.recompute()` simply drops
+`head_sha`, with nothing added in its place.
+
+**`scan disposition --module <name>`** (new, optional): if named explicitly, must be a real entry
+in `report.related_modules` (`BAD_ARGS`, naming the real choices, otherwise -- same shape
+`cmdScanExplain`'s unknown-module error already uses). If omitted, defaults to
+`related_modules[0]?.module` -- **deliberately identical to `contracts/emit.mjs::selectModule()`'s
+own existing default** -- so a `--module`-less disposition can never silently disagree with what
+`contract emit`/`handles plan` would ALSO pick by default. Persisted as `report.disposition.module`
+(new schema property). `contract emit --module`/`handles plan --module`/`handles emit --module`
+themselves are UNCHANGED -- this slice only wires the recorded module into gate *tokens*, not into
+those commands' own selection logic (a real, separate ergonomics question, deliberately left
+alone).
+
+**Found live while writing the new tests, not assumed**: `related_modules[].{controllers,
+entities,enums}[].file` are stored as ABSOLUTE paths (unlike Part 1's own `files_read`, which this
+item's earlier design deliberately made repo-relative) -- confirmed by inspecting a real scan
+report before writing `path.relative(root, item.file)` in the new recompute().
+
+**A second real interaction found live, this time triggered by the new tests themselves rather
+than an existing regression test**: two pre-existing `handles emit --check --diff` tests
+(`test/handles-check-cli.test.mjs`) edit a controller's `@PreAuthorize` role WITHOUT committing,
+then call `handles emit --check` directly. That edit is now inside BOTH `scan`'s (Part 1) and
+`contract`'s (this part) own tracked file sets, so it correctly stales both -- which blocks
+`handles emit` at its existing `requireNamedGate('contract', ...)` check before ever reaching the
+live-diff logic these tests exist to exercise. This is a genuine correctness IMPROVEMENT, not a
+regression: previously, editing a controller's authorization annotation without re-running
+`contract emit` had ZERO effect on any gate (`head_sha` only moves on commit), silently letting
+`handles emit` proceed against a contract that no longer reflects the controller's real content.
+Fixed the tests by re-running the scan -> disposition -> contract chain after the edit (the same
+"re-run the upstream chain" pattern `test/contract-cli.test.mjs`'s own pre-existing tests already
+established) -- confirmed this doesn't undermine what those tests actually prove, since
+authorization/role is not part of `contract`'s own schema, so re-emitting produces byte-identical
+contract output, just with a token that matches the controller's current state.
+
+**Known, accepted limitation, unchanged from this section's own earlier note**: a brand-new file
+added to the SAME already-disposed module, before the next explicit `bskel scan` re-run, is caught
+only by `scan_report_hash` at the next re-scan, not immediately -- closing that precisely would
+mean re-running full module-assignment logic (`moduleOf()`) on every `verify`/`gate require` call,
+real added cost for an edge case. DTO file paths remain a separate, smaller, still-open gap.
+
+**Verified**: `npm test` 699/699 (694 baseline + 5 net new -- `scan disposition --module`
+persistence/validation/default-matching, and the two-module narrowing proof itself: editing the
+disposed module's own file stales `contract` naming the `module_file:` key; editing a DIFFERENT,
+ALSO-matched-but-not-disposed module's file does not; an unrelated commit does not). All against a
+real two-module fixture (not a synthetic single-module stand-in), so the narrowing proof is
+against a genuine disposition CHOICE between two real candidates, not a trivially-excluded
+unmatched file.
+
+**EXIT**: with this, S2's original catalog text ("uncommitted Java changes do not stale scan;
+unrelated commits stale every feature") is closed for `scan`, `contract`, and `handles` alike.
+What remains open, named explicitly rather than silently: DTO file paths (no `.file` tracking in
+`scanJavaSpring()`'s DTO extraction), and the new-file-in-an-already-disposed-module latency
+tradeoff above.
+
 ## D-status-next (D1): `bskel status`/`bskel next` are presentation logic on top of gate state that already existed
 
 **WHY**: `bskel verify` already computes everything a human/agent needs to know where a feature

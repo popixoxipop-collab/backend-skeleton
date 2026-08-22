@@ -91,6 +91,10 @@
       "properties": {
         "mode": { "enum": ["reuse", "extend", "replace", "parallel"] },
         "note": { "type": "string" },
+        "module": {
+          "description": "S2 (D-gate-precision, part 2): which related_modules[].module this feature disposed onto -- null for a greenfield verdict (no modules to choose from). Defaults to the top-scored module (matching contracts/emit.mjs's selectModule() default) when `scan disposition --module` wasn't passed explicitly. The `contract` gate's staleness token narrows to just this module's own files using this field.",
+          "type": ["string", "null"]
+        },
         "at": { "type": "string", "format": "date-time" }
       }
     }

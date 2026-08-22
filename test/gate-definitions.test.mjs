@@ -100,9 +100,12 @@ test('recompute is deterministic for the same root/featureId', () => {
 // A5+A1: the contract gate's token must cover the resolution (waiver) file and the OpenAPI
 // reconciliation snapshot too, not just the contract artifact itself -- otherwise
 // deleting/editing either would leave the gate green.
-test('contract gate recompute covers head_sha, contract_hash, resolution_hash, and openapi_snapshot_hash', () => {
+// S2 (D-gate-precision, part 2): head_sha is gone -- replaced by scan_report_hash plus one
+// module_file: key per file belonging to the disposed module. No real scan report exists for
+// this made-up feature id in this repo's own checkout, so there's no module to narrow to.
+test('contract gate recompute covers scan_report_hash, contract_hash, resolution_hash, and openapi_snapshot_hash', () => {
 	const inputs = gateInputs(process.cwd(), 'contract', '001-widget-management');
-	assert.deepEqual(Object.keys(inputs).sort(), ['contract_hash', 'head_sha', 'openapi_snapshot_hash', 'resolution_hash']);
+	assert.deepEqual(Object.keys(inputs).sort(), ['contract_hash', 'openapi_snapshot_hash', 'resolution_hash', 'scan_report_hash']);
 });
 
 // S2 (d): the stack gate's inputs are now precisely enumerated (one hash per applied file), so

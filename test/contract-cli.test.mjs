@@ -871,3 +871,133 @@ test('regression: a >64KB contract-validate error output is not truncated when c
 	assert.equal(result.ok, false);
 	assert.equal(result.errors.length, 5000);
 });
+
+// S2 (D-gate-precision, part 2): a two-module fixture, self-contained (not buildFixtureRepo(),
+// which only ever has one controller) -- `--terms widget,other` makes BOTH modules score > 0 so
+// both land in related_modules, a real disposition choice between two real candidates, not a
+// synthetic one.
+function otherControllerSource() {
+	return `
+package com.example.domain.other.presentation;
+
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+
+@RestController
+@RequestMapping(value = "/others")
+public class OtherController {
+
+	@Operation(operationId = "findOthers")
+	@GetMapping
+	public String findOthers() { return "ok"; }
+}
+`;
+}
+
+function buildTwoModuleFixtureRepo() {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-contract-cli-two-module-'));
+	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
+	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
+	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture\n');
+
+	fs.mkdirSync(path.dirname(widgetControllerPath(root)), { recursive: true });
+	fs.writeFileSync(widgetControllerPath(root), widgetControllerSource());
+	const otherControllerPath = path.join(root, 'src/main/java/com/example/domain/other/presentation/OtherController.java');
+	fs.mkdirSync(path.dirname(otherControllerPath), { recursive: true });
+	fs.writeFileSync(otherControllerPath, otherControllerSource());
+
+	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'chore: two-module fixture'], { cwd: root });
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-contract-cli-two-module-origin-'));
+	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
+	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+	return { root, otherControllerPath };
+}
+
+test('scan disposition --module <name> persists the choice, and rejects an unknown module naming the real ones', () => {
+	const { root } = buildTwoModuleFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget,other'], root);
+
+	const unknown = run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--module', 'does-not-exist', '--note', 'x'], root);
+	assert.equal(unknown.code, 14);
+	assert.match(unknown.stderr, /is not one of this scan report's related_modules.*known modules:.*widget/);
+
+	const ok = run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--module', 'other', '--note', 'x'], root);
+	assert.equal(ok.code, 0);
+	const report = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/brownfield-scan.json'), 'utf8'));
+	assert.equal(report.disposition.module, 'other');
+});
+
+test('scan disposition with no --module defaults to the same module selectModule() would also pick', () => {
+	const { root } = buildTwoModuleFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget,other'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+
+	const report = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/brownfield-scan.json'), 'utf8'));
+	assert.equal(report.disposition.module, report.related_modules[0].module, 'must match selectModule()\'s own default: the top-scored module');
+});
+
+// S2 (D-gate-precision, part 2): the actual narrowing proof -- editing a file belonging to a
+// DIFFERENT module that was ALSO scanned and ALSO scored (a real disposition candidate, not
+// merely unmatched-and-therefore-trivially-excluded) must not stale `contract` for the feature
+// disposed onto the OTHER module. Confirmed against the OLD (head_sha) design this would have
+// failed: any commit anywhere staled every feature's contract gate.
+test('editing a different (non-disposed) module\'s controller does not stale the contract gate', () => {
+	const { root, otherControllerPath } = buildTwoModuleFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget,other'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--module', 'widget', '--note', 'x'], root);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	fs.appendFileSync(otherControllerPath, '\n// uncommitted edit to a DIFFERENT module\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'edit other module'], { cwd: root });
+
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0, 'a committed edit to a module this feature did NOT dispose onto must not stale contract');
+});
+
+// The flip side: editing the DISPOSED module's own controller (uncommitted) DOES stale contract,
+// naming the module_file: key -- proves the narrowing is real tracking, not just "never stales".
+test('editing the disposed module\'s own controller stales the contract gate, naming the module_file key', () => {
+	const { root } = buildTwoModuleFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget,other'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--module', 'widget', '--note', 'x'], root);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	fs.appendFileSync(widgetControllerPath(root), '\n// uncommitted edit to the DISPOSED module\n');
+
+	const stale = run(['gate', 'require', 'contract', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.ok(record.changed_inputs.some((k) => k.startsWith('module_file:') && k.includes('WidgetController.java')));
+});
+
+// An unrelated commit (nothing in either module) must not stale contract either -- the other
+// half of the same narrowing.
+test('an unrelated commit does not stale the contract gate', () => {
+	const { root } = buildTwoModuleFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget,other'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--module', 'widget', '--note', 'x'], root);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	fs.writeFileSync(path.join(root, 'README.md'), '# unrelated\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'docs: unrelated'], { cwd: root });
+
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+});

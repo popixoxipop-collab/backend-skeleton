@@ -179,6 +179,15 @@ test('handles emit --check --diff shows a real unified diff for a live-derived v
 	const controllerPath = path.join(root, CONTROLLER_REL);
 	const controllerSrc = fs.readFileSync(controllerPath, 'utf8');
 	fs.writeFileSync(controllerPath, controllerSrc.replace("hasRole('SUPER_ADMIN')", "hasRole('WIDGET_ADMIN')"));
+	// S2 (D-gate-precision, parts 1+2): the controller is now one of the tracked files for BOTH
+	// `scan` (Part 1, whole-adapter read-set) and `contract` (Part 2, the disposed module's own
+	// files) -- editing it, even uncommitted, correctly stales both. Re-running the chain re-syncs
+	// every token to the controller's current content without changing scan/contract's own OUTPUT
+	// (authority/role isn't part of either's schema), which is exactly what lets `handles emit`
+	// proceed to the live-diff logic this test actually wants to exercise.
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
 
 	const result = run(['handles', 'emit', '--feature', '001-widget-management', '--check', '--diff', '--json'], root);
 	assert.equal(result.code, 1, 'a real, live-derived content change must fail --check');
@@ -203,6 +212,10 @@ test('handles emit --check without --diff never computes diff text (actions carr
 
 	const controllerPath = path.join(root, CONTROLLER_REL);
 	fs.writeFileSync(controllerPath, fs.readFileSync(controllerPath, 'utf8').replace("hasRole('SUPER_ADMIN')", "hasRole('WIDGET_ADMIN')"));
+	// S2 (D-gate-precision, parts 1+2): see the sibling --diff test above for why this is needed now.
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
 
 	const result = run(['handles', 'emit', '--feature', '001-widget-management', '--check', '--json'], root);
 	assert.equal(result.code, 1);
