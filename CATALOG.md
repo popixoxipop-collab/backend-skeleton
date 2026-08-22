@@ -58,12 +58,23 @@ from what this repo's history calls "A2"/"A3"), all of S2-S5, and everything in 
 
    The repository has no README, `package.json` is `"private": true`, there is no repo-level `bskel init`, and the hand-written flag parser produces inconsistent human/JSON errors. A packaged CLI with `init`, `status`, `next`, strict argument handling, installation smoke tests, and a minimal getting-started path is the shortest route from a personal skill to repeatable adoption.
 
-**Status note (2026-08-16)**: #2 (OpenAPI typed contract plane) has since been substantially
-delivered by A1+A2+A3 as actually implemented (request/response/error schema projection +
-reconciliation) -- even though those don't map to this catalog's own A2/A3 labels, they cover the
-same underlying gap Codex flagged here. #1 (Gate Engine v2) is partially delivered by S1+S6; S2-S5
-(manifest-based partial invalidation, preflight freshness, append-only history, schema validation)
-remain open. #3, #4, #5 are entirely open.
+**Status note (2026-08-16, corrected 2026-08-23)**: the original 2026-08-16 note below was itself
+left stale for a week while #1/#3/#4/#5 were actually finished -- the same "boilerplate claim never
+revisited after the code that closes it lands" class of bug this catalog's own G4/G5 entries had
+(see D-typescript-express-provider's slice-4 correction in DECISIONS.md). As of `339e9eb`, **all
+five priorities are closed**: #1 (Gate Engine v2) -- S1-S6 all `[IMPLEMENTED...]` below (declarative
+dependency graph, content-manifest partial invalidation, preflight freshness, append-only history,
+schema validation, and verification that cannot silently skip). #2 (OpenAPI typed contract plane)
+-- delivered by A1-A3 (request/response/error schema projection + reconciliation), as this note
+already said. #3 (productionize handles before automating `patchField()`) -- O1/O2/O4 all
+`[IMPLEMENTED...]`; **O3 and O5 remain deliberately, conditionally deferred**, not "open" in the
+TODO sense -- their own status notes below explain why (no evidence handles have ever been deployed
+to production, re-confirmed as still true as of the G-track slices' own work). #4 (capability-based
+adapter IR, proven with FastAPI) -- delivered and then generalized further than originally scoped:
+G1 (the IR itself), G2 (FastAPI), G3 (generic-grep reconnaissance-only), G4 (framework-specific
+codegen providers, java-spring + python-fastapi), and **G5** (a third stack, TypeScript/Express/
+TypeORM, added after this catalog's own original scope -- see G5 below) are all `[IMPLEMENTED...]`.
+#5 (installable onboarding product) -- D1-D6 and P1-P4/P3b all `[IMPLEMENTED...]`.
 
 ## Full Idea Catalog
 
