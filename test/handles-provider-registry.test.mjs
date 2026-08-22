@@ -44,9 +44,9 @@ export const provider = {
 `;
 }
 
-test('real registry: loads exactly java-spring and python-fastapi, no load errors', async () => {
+test('real registry: loads exactly java-spring, python-fastapi, and typescript-express, no load errors', async () => {
 	assert.deepEqual(PROVIDER_LOAD_ERRORS, []);
-	assert.deepEqual([...PROVIDERS.map((p) => p.id)].sort(), ['java-spring', 'python-fastapi']);
+	assert.deepEqual([...PROVIDERS.map((p) => p.id)].sort(), ['java-spring', 'python-fastapi', 'typescript-express']);
 });
 
 test('zero-registration: a well-formed provider file dropped into a directory is discovered with no other edit', async () => {
