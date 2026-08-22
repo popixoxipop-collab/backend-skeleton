@@ -294,6 +294,9 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			updateOperation: patchResult.updateOperation,
 			patchable: patchResult.patchable,
 			dtoTypeName: patchResult.dtoTypeName ?? null,
+			// A2 Phase 2 (D-java-ast-helper): the one piece of data `bskel handles plan --ast`
+			// needs that wasn't previously surfaced past this function's own internal patchResult.
+			updateDtoFile: patchResult.updateDtoFile ?? null,
 			updateServiceBlockedReason: patchResult.updateServiceBlockedReason,
 			requiredAuthority: requiredAuthority ?? 'TODO_ROLE',
 			service,

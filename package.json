@@ -35,7 +35,8 @@
     "test:java-compile": "node scripts/java-compile-smoke.mjs",
     "test:python-import": "node scripts/python-import-smoke.mjs",
     "test:db-introspect": "node scripts/db-introspect-smoke.mjs",
-    "test:java-integration": "node scripts/java-integration-smoke.mjs"
+    "test:java-integration": "node scripts/java-integration-smoke.mjs",
+    "test:java-ast": "node scripts/java-ast-smoke.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",

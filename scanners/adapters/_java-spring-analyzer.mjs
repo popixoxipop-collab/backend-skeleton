@@ -65,7 +65,18 @@ export function findClassOrRecordDeclaration(maskedText) {
 }
 
 const WHITESPACE_RE = /^\s*/;
-const ANNOTATION_START_RE = /^@\w+/;
+// A2 Phase 2 (D-java-ast-helper): `[\w.]+`, not `\w+` -- found live while building the real
+// JavaParser/Symbol-Solver AST cross-check. A fully-qualified annotation
+// (`@jakarta.validation.constraints.NotNull`) is legal, ordinary Java; the old `\w+`-only pattern
+// matched just `@jakarta`, so skipAnnotationsAndWhitespace() stopped mid-annotation and left
+// `.validation.constraints.NotNull String description` as "the rest" -- which extractTypeAndName()
+// (patch-strategy.mjs) then misparsed as `baseType=".validation.constraints.NotNull"`,
+// `fieldName="String"`, silently corrupting an unrelated field's own name and type, not merely
+// failing to recognize the annotation's meaning. This is a structural parse fix, not a semantic
+// one -- a fully-qualified `@NotNull` still isn't recognized as meaning NotNull by
+// `/@NotNull\b/`-style literal checks (patch-strategy.mjs's classifyParam, plan.mjs's authority
+// search); that gap is exactly what `--ast`'s cross-check exists to surface, not paper over here.
+const ANNOTATION_START_RE = /^@[\w.]+/;
 const MODIFIER_RE = /^(?:public|protected)?\s*(?:static\s+)?/;
 const IDENTIFIER_RE = /^[\w.]+/;
 const METHOD_NAME_RE = /^(\w+)\s*\(/;
