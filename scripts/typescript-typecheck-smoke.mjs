@@ -104,6 +104,97 @@ try {
 	fail(`tsc --noEmit found real type errors in generated code:\n${err.stdout || err.stderr || err.message}`);
 }
 
-console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types.');
+// D-typescript-express-provider slice-4 correction: the emitted router.ts/codec.ts/registry.ts
+// (unconditional infra, zero {{VAR}} substitutions -- rendered byte-identical to their own
+// templates) already implement a generic, kind-agnostic GET pointer-walk, same as java-spring's
+// HandleController.java.tmpl (verified live by java-integration-smoke.mjs) and python-fastapi's
+// router.py.tmpl (verified live by python-integration-smoke.mjs) -- but until this correction,
+// typescript-express shipped with NO runtime test proving it. A real TypeORM-backed resolver needs
+// a live Postgres this provider deliberately has no db-introspect-equivalent scope for, so this
+// registers a hand-built fake resolver directly against the REAL emitted registry.ts/router.ts
+// (not a stand-in copy) -- the router/codec logic under test doesn't know or care where fetch()'s
+// data came from, only whether it walks a JSON Pointer correctly and projects through toPublic().
+// `express` is already in this scratch repo's own node_modules from the npm install above -- no
+// new dependency, no new network cost. Runs via a REAL `tsc` compile (not `--experimental-strip-
+// types`) -- found live, not assumed: this project's own generated relative imports are
+// deliberately extensionless (`from './codec'`, matching moduleResolution:"node" convention every
+// other file in this provider already uses), which `tsc`'s own resolver accepts but Node's native
+// ESM loader under type-stripping does NOT (it requires an explicit extension on every relative
+// specifier) -- confirmed by a real `MODULE_NOT_FOUND` when first tried. This isn't a bug to fix in
+// the templates: TypeORM's own `@Entity()`/`@PrimaryGeneratedColumn()` decorators require
+// `emitDecoratorMetadata`, a real compile-time transform type-stripping alone can never perform, so
+// no realistic deployment of a TypeORM app runs via bare type-stripping anyway -- a real `tsc`
+// compile is the correct, realistic thing to test against.
+const HTTP_DRIVER_SOURCE = `
+import express from 'express';
+import http from 'node:http';
+import { register } from './registry';
+import { router } from './router';
+import { encodeHandle } from './codec';
+
+async function main() {
+  const FAKE_UUID = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+  register({
+    type: 'Thing',
+    async fetch(uid: string) { return { id: uid, name: 'Ann', secret: 'hidden' }; },
+    checkAccess(_obj: unknown) {},
+    patchField(_obj: unknown, _pointer: string, _value: unknown) {},
+    toPublic(obj: unknown) { const o = obj as any; return { id: o.id, name: o.name }; },
+  });
+
+  const app = express();
+  app.use(router);
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+  const base = \`http://127.0.0.1:\${port}\`;
+
+  async function check(label: string, url: string, expectedStatus: number, assertBody?: (body: any) => void) {
+    const res = await fetch(url);
+    if (res.status !== expectedStatus) {
+      throw new Error(\`\${label}: expected status \${expectedStatus}, got \${res.status}\`);
+    }
+    if (assertBody) assertBody(await res.json());
+  }
+
+  const resourceHandle = encodeHandle('r', 'Thing', FAKE_UUID, null);
+  const fieldHandle = encodeHandle('f', 'Thing', FAKE_UUID, '/name');
+  const missingFieldHandle = encodeHandle('f', 'Thing', FAKE_UUID, '/nope');
+
+  await check('resource-level GET (kind=r)', \`\${base}/handles/\${resourceHandle}\`, 200, (body) => {
+    if (body.name !== 'Ann') throw new Error(\`expected name "Ann", got \${JSON.stringify(body)}\`);
+    if ('secret' in body) throw new Error('toPublic() leaked the secret field -- resolver should only ever project through toPublic()');
+  });
+
+  await check('field-level GET (kind=f, real pointer /name)', \`\${base}/handles/\${fieldHandle}\`, 200, (body) => {
+    if (body !== 'Ann') throw new Error(\`expected field value "Ann", got \${JSON.stringify(body)}\`);
+  });
+
+  await check('field-level GET (kind=f, missing pointer /nope)', \`\${base}/handles/\${missingFieldHandle}\`, 404);
+
+  server.close();
+  console.log('typescript-typecheck-smoke: real HTTP pointer-walk round trip PASSED (resource GET, field GET, missing-pointer 404)');
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
+`;
+
+console.log('typescript-typecheck-smoke: real HTTP round trip -- compiling the emitted tree with a real `tsc` (noEmit overridden) and running the compiled output (kind=r whole-resource, kind=f real pointer, kind=f missing pointer -> 404)...');
+const httpDriverPath = path.join(backendDir, 'src', 'handles', 'http-test-driver.ts');
+fs.writeFileSync(httpDriverPath, HTTP_DRIVER_SOURCE);
+const distDir = path.join(backendDir, 'dist-smoke-test');
+try {
+	sh('npx', ['tsc', '--outDir', distDir, '--noEmit', 'false'], backendDir, { quiet: true });
+} catch (err) {
+	fail(`real tsc compile (for the HTTP round trip) failed:\n${err.stdout || err.stderr || err.message}`);
+}
+try {
+	sh('node', [path.join(distDir, 'handles', 'http-test-driver.js')], backendDir, { quiet: true });
+} catch (err) {
+	fail(`real HTTP pointer-walk round trip failed:\n${err.stdout || err.stderr || err.message}`);
+}
+
+console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, and the emitted router\'s GET pointer-walk works against a real HTTP round trip.');
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });

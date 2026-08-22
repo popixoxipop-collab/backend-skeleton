@@ -168,13 +168,75 @@ test('plan: --resource filter narrows to the named entity only', () => {
 	assert.deepEqual(result.resources.map((r) => r.type), ['Item']);
 });
 
-test('plan: no __init__.py anywhere above the scanned files -> throws naming the src-layout limitation, not a silent guess', () => {
+test('plan: no __init__.py anywhere above the scanned files (PEP 420 implicit namespace package) -> throws naming that limitation, not a silent guess', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-handles-plan-nopkg-'));
 	const modelsPath = path.join(root, 'app', 'models.py');
 	fs.mkdirSync(path.dirname(modelsPath), { recursive: true });
 	fs.writeFileSync(modelsPath, 'from sqlmodel import SQLModel\nclass Item(SQLModel, table=True):\n    pass\n');
 	const scanReport = { related_modules: [{ module: 'items', controllers: [], entities: [{ className: 'Item', table: 'item', idField: null, file: modelsPath }] }] };
 	assert.throws(() => planPythonFastApi({ repoRoot: root, scanReport, module: 'items', resourceFilter: null }), /could not detect a Python package root/);
+});
+
+// D-typescript-express-provider slice-4 correction: this project's own DECISIONS.md/CATALOG.md
+// used to describe python-fastapi as refusing "src/-layout" broadly -- imprecise. `packageRootFor`
+// walks up while `__init__.py` exists regardless of what any directory is named, so a STANDARD
+// PyPA src-layout (`src/<package>/__init__.py`, a REAL `__init__.py`, just nested under a `src/`
+// directory) already plans correctly today. Only the negative test above (zero `__init__.py`
+// anywhere -- a genuine PEP 420 implicit namespace package) was ever covered; this is the missing
+// positive case, proving the realistic layout works, not just that the unrealistic one is refused.
+test('plan: a standard src-layout (src/<package>/__init__.py, real __init__.py files, no bare `src` package marker) already plans correctly -- this was never a real gap, just an untested one', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-handles-plan-srclayout-'));
+	const pkgDir = path.join(root, 'src', 'app');
+	const apiDir = path.join(pkgDir, 'api');
+	fs.mkdirSync(apiDir, { recursive: true });
+	// `src/` itself deliberately has NO __init__.py (it isn't a package, matching the real PyPA
+	// convention) -- only `src/app/` and `src/app/api/` do.
+	fs.writeFileSync(path.join(pkgDir, '__init__.py'), '');
+	fs.writeFileSync(path.join(apiDir, '__init__.py'), '');
+	fs.writeFileSync(path.join(apiDir, 'deps.py'), `
+from typing import Annotated
+from fastapi import Depends
+from sqlmodel import Session
+
+def get_db(): pass
+
+SessionDep = Annotated[Session, Depends(get_db)]
+`);
+	const itemsPath = path.join(apiDir, 'items.py');
+	fs.writeFileSync(itemsPath, `
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/items", tags=["items"])
+
+@router.get("/{id}", response_model=ItemPublic)
+def read_item(session: SessionDep, id: str):
+    pass
+`);
+	const modelsPath = path.join(pkgDir, 'models.py');
+	fs.writeFileSync(modelsPath, `
+from sqlmodel import Field, SQLModel
+import uuid
+
+class Item(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+
+class ItemPublic(SQLModel):
+    id: uuid.UUID
+`);
+	const scanReport = {
+		related_modules: [{
+			module: 'items',
+			controllers: [{ className: 'ItemsRouter', basePath: '/items', endpoints: [
+				{ verb: 'GET', path: '/items/{id}', operationId: null, method: 'read_item', line: 6 },
+			], file: itemsPath }],
+			entities: [{ className: 'Item', table: 'item', idField: 'id', file: modelsPath }],
+		}],
+	};
+	const result = planPythonFastApi({ repoRoot: root, scanReport, module: 'items', resourceFilter: ['Item'] });
+	assert.equal(result.importRoot, path.join(root, 'src'), 'expected importRoot to resolve to the src/ directory itself, not app/ or repoRoot');
+	assert.equal(result.topPackage, 'app');
+	const item = result.resources.find((r) => r.type === 'Item');
+	assert.equal(item.willGenerateResolver, true, `expected Item to generate under a real src-layout -- notes: ${JSON.stringify(result.notes)}`);
 });
 
 test('plan: two genuinely different package roots among this module\'s own files -> throws naming both candidates', () => {

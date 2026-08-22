@@ -2378,7 +2378,9 @@ not a new gap). `check_access()` always denies until hand-wired -- every Python 
 non-functional for reads until a human completes it, by design (the alternative, a false-negative
 "looks secure" default, is strictly worse). `patch_field()` always 501s, same as Java. Field/object-
 level handle fetch (`kind=f`/`kind=o`) stays unimplemented for Python, matching Java's own current
-limit. `src/`-layout and PEP 420 namespace packages are refused outright. The generated router
+limit -- **true when this item shipped, false since; see the slice-4 correction at the end of this
+section.** `src/`-layout and PEP 420 namespace packages are refused outright -- **also corrected
+below: this overstates the real limit.** The generated router
 needs two lines of manual wiring into the app's own router composition -- never automatic. `npm
 test` now requires `python3` on PATH as a hard dependency (`lib/doctor.mjs`'s new check is
 `required: false` for `bskel` itself, but the test suite's own codec cross-check is not skippable).
@@ -2496,12 +2498,40 @@ default table name for a class named `Item` is `item` (singular), not `items` --
 attribute after its owning `Session` has closed raises `DetachedInstanceError` -- fixed by reading
 the needed value while still inside the `with Session(...) as session:` block, not after.
 
+**Correction (slice 4, docs-only, no code change)**: this section's own COST bullet claimed "Field/
+object-level handle fetch (`kind=f`/`kind=o`) stays unimplemented for Python, matching Java's own
+current limit" -- true when this 1st-slice commit (`627c214`) shipped, but the "Closed as a
+follow-up slice, `recover()`..." paragraph above already added real field-level fetch for Python
+(`resolve_json_pointer` in `codec.py.tmpl`) without ever coming back to correct the earlier COST
+claim -- and Java's own O4 (`a816312`) closed its half of "Java's own current limit" the same way,
+also without a correcting note here. Both are now real, working, GET-only (`kind=f` + a pointer;
+`patch_field()`/PATCH stays 501-only for `kind=f`) -- confirmed by reading `HandleController.
+java.tmpl` (Java) and `router.py.tmpl` (Python) directly, not assumed. `kind='o'` (object) remains
+the one genuinely open item: `handles/codec.mjs`'s own `encodeHandle` forbids `kind='o'` from ever
+carrying a pointer, so it is byte-identical to `kind='r'` at runtime in every provider -- making it
+distinct is an unscoped codec-level design question, not a fetch-support gap, and stays explicitly
+deferred. Separately, this section's COST bullet also said "`src/`-layout and PEP 420 namespace
+packages are refused outright" -- imprecise, conflating two different things: `detectImportRoot()`
+(`handles/providers/python-fastapi/plan.mjs`) walks up through directories with a real `__init__.py`
+regardless of what they're named, so a standard PyPA `src/<package>/__init__.py` layout already
+plans and emits correctly today (see the new positive regression test in
+`test/python-fastapi-handles.test.mjs`, added in this same slice). The only case genuinely refused
+is PEP 420 *implicit namespace packages* -- omitting `__init__.py` entirely -- confirmed via real
+research (WebSearch) to be a mechanism for splitting one Python namespace across multiple
+separately-installable distributions (`google.cloud.*` is the canonical real-world example), not a
+layout pattern a single self-contained backend service (this tool's actual target population) would
+realistically use. Left refused, now correctly scoped rather than overstated.
+
 **EXIT**: add a `--provider` override flag if a real N:1 (one adapter, multiple viable providers)
-case is ever observed -- none has been, so it was not spec'd speculatively. Relax the
-`SessionDep`-shaped-alias requirement (or add a second detection pattern) if a real FastAPI app
-using a different session-dependency convention needs this provider. Generalize
-`RESOLVER_OWNER_MARKER_RE`/`BSKEL_GENERATED_MARKER` further if a third provider's own doc-comment
-convention doesn't fit the two `(...)`/`({@code ...})` forms this item's regex already handles.
+case is ever observed -- none has been, so it was not spec'd speculatively; see G5's own EXCLUDED
+section for why this would also need real structural registry/plan() changes, not just a flag, if
+that day ever comes. Relax the `SessionDep`-shaped-alias requirement (or add a second detection
+pattern) if a real FastAPI app using a different session-dependency convention needs this provider.
+Generalize `RESOLVER_OWNER_MARKER_RE`/`BSKEL_GENERATED_MARKER` further if a third provider's own
+doc-comment convention doesn't fit the two `(...)`/`({@code ...})` forms this item's regex already
+handles. Revisit `kind='o'` if a real use case for a genuinely distinct object-level address ever
+appears -- would need a codec-level change (allowing `kind='o'` to carry a pointer with different
+semantics than `kind=f`), not just router/resolver wiring.
 
 Cross-references: `D-adapter-registry` (G1, the registry design this item's `handles/registry.mjs`
 mirrors, and the EXIT that held this item back until a real second provider existed),
@@ -2593,13 +2623,39 @@ vendored oracle copy, same P3 precedent as `test/fixtures/python-fastapi`); thre
 **EXCLUDED** (named, not silently dropped): `recover()`/`sbf_handle`/`sbf_handle_snapshot` and their
 migration (matches java-spring/python-fastapi's own pre-follow-up state, not a gap unique to this
 provider -- a future slice could mirror G4's own Python follow-up here if a real need appears).
-Field/object-level handle fetch (`kind=f`/`kind=o`), matching both existing providers' current
-limit. A `--provider` override flag (no real N:1 case observed). `src/`-layout is actually the
-DEFAULT this provider assumes (opposite of python-fastapi, where it was excluded) -- see Mechanism.
-Route-decorator authorization-signal extraction (finding #6 above -- `checkRole(...)` is
-project-specific, unreliable as a framework-level signal). Auto-wiring the generated router into
-the app's own router composition (two lines a human adds by hand, same reasoning as
-`D-config-patch`).
+A `--provider` override flag -- not merely "no real N:1 case observed" (the original G4/G5-planning
+reasoning), but genuinely **structural**: `handles/registry.mjs` requires a provider's `id` to equal
+its own filename (one file = one id), and `providerById()` is an exact-id lookup with no
+arbitration path at all -- there is no mechanism today to register two providers under the same id
+to choose between. Beyond that, each provider's `plan()` is tightly coupled to its own adapter's
+scan-report shape (java-spring needs `ep.operationId` truthy; python-fastapi keys on `ep.method`
+because its own `operationId` is always `null`; this provider adds `idFieldIsUuid`/`DataSource`
+checks neither other provider has) -- forcing e.g. `--provider python-fastapi` against a
+typescript-express scan report would not produce a useful comparison, it would silently produce
+`willGenerateResolver: false` everywhere or worse. Route-decorator authorization-signal extraction
+(finding #6 above -- `checkRole(...)` is project-specific, unreliable as a framework-level signal).
+Auto-wiring the generated router into the app's own router composition (two lines a human adds by
+hand, same reasoning as `D-config-patch`). **`src/`-layout is actually the DEFAULT this provider
+assumes** (opposite of python-fastapi, where an earlier, over-broad "`src/`-layout" exclusion was
+itself later found to be misdescribed -- see the slice-4 correction below).
+
+**Correction (slice 4, docs-only, no code change)**: this EXCLUDED list originally also named
+"Field/object-level handle fetch (`kind=f`/`kind=o`), matching both existing providers' current
+limit" -- **false the moment this was written**. `router.ts.tmpl`'s GET handler (see Mechanism,
+`router.ts.tmpl`) already walks `resolveJsonPointer(publicObj, decoded.pointer)` whenever
+`decoded.pointer` is non-null, regardless of `kind` -- the exact same generic, resolver-agnostic
+logic java-spring's `HandleController.java.tmpl` (since `a816312`) and python-fastapi's
+`router.py.tmpl` (since `2386368`) already ship. Field-level fetch (`kind=f` + a pointer) works via
+GET in **all three** providers today. What genuinely has no distinct behavior is `kind='o'`
+(object) -- `handles/codec.mjs`'s own `encodeHandle` (`if (kind !== 'f' && pointer) throw ...`)
+means `kind='o'` can never carry a pointer under the current codec, so it is byte-identical to
+`kind='r'` at runtime everywhere in this codebase; a repo-wide grep confirms no resolver, router
+branch, or `plan.mjs` ever creates or branches on `kind='o'` distinctly. Making `kind='o'`
+genuinely distinct from `kind='r'` (e.g. letting it carry a pointer with different semantics than
+`kind=f`) is an unscoped **codec-level design question**, not a fetch-support gap -- explicitly
+deferred, not attempted here. The one real, narrow gap this correction found: unlike java-spring
+and python-fastapi, this provider shipped with **no test** exercising `router.ts.tmpl`'s GET
+pointer-walk at runtime -- closed in the same slice-4 pass, see Verification below.
 
 **Mechanism**:
 - `detectTypeScriptExpressRoot()`: two independent signals required (package.json declares
@@ -2736,8 +2792,10 @@ one oracle's dated snapshot of it.
 
 **COST**: no `recover()` path (EXCLUDED above). `checkAccess()` always denies until hand-wired --
 every resolver ships non-functional for reads until a human completes it, by design. `patchField()`
-always 501s. Field/object-level handle fetch stays unimplemented, matching both existing providers'
-current limit. An entity with a non-UUID primary key can NEVER get a working resolver through this
+always 501s. `kind='o'` (object) handles have no distinct behavior from `kind='r'` -- see the
+slice-4 correction under EXCLUDED above (field-level fetch via `kind=f` + a pointer already works
+on GET, shipped in this same commit). An entity with a non-UUID primary key can NEVER get a working
+resolver through this
 provider (a structural fact about this whole project's handle scheme, not a bug to fix later). The
 generated router needs two lines of manual wiring into the app's own router composition. A mount
 edge that isn't a plain relative `router.use('/literal', identifier)` (a computed prefix, a
