@@ -2,8 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Walks up from a file's own directory while `__init__.py` exists, returning the topmost such
-// directory (the "top package" dir), or null if the file's own directory has none at all
-// (src-layout / PEP 420 namespace packages -- unsupported, see COST in DECISIONS.md, exit 2).
+// directory (the "top package" dir), or null if the file's own directory has none at all. Not
+// named-conditioned on any particular directory name -- a standard PyPA src-layout
+// (`src/<package>/__init__.py`, a real `__init__.py`, just under a `src/` dir) walks up correctly
+// like any other layout (see D-typescript-express-provider's slice-4 correction in DECISIONS.md,
+// and the positive regression test in test/python-fastapi-handles.test.mjs). Only PEP 420
+// *implicit namespace packages* (omitting `__init__.py` entirely) hit the null case below --
+// unsupported, see COST in DECISIONS.md, exit 2.
 function packageRootFor(file) {
 	let dir = path.dirname(file);
 	if (!fs.existsSync(path.join(dir, '__init__.py'))) return null;
@@ -26,7 +31,7 @@ function detectImportRoot(moduleFiles, repoRoot) {
 		if (r) roots.add(r);
 	}
 	if (roots.size === 0) {
-		throw new Error('could not detect a Python package root (no __init__.py found above any scanned file for this module) -- this provider does not support src-layout or PEP 420 namespace packages yet.');
+		throw new Error('could not detect a Python package root (no __init__.py found above any scanned file for this module) -- this provider does not support PEP 420 implicit namespace packages (omitting __init__.py entirely) yet. A standard src-layout WITH real __init__.py files works fine.');
 	}
 	if (roots.size > 1) {
 		throw new Error(`ambiguous Python package root -- found ${roots.size} different candidates among this module's own files: ${[...roots].map((r) => path.relative(repoRoot, r)).join(', ')}. This provider doesn't support multi-package-root repos yet.`);
