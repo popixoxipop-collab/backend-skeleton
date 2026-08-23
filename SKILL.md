@@ -429,6 +429,53 @@ bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <p
   #    (CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED / CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED,
   #    never blocks) and that direction alone falls back to unconstrained. See
   #    `D-openapi-response-schema` in DECISIONS.md.
+  #
+  #    A6: status keys are read the way OpenAPI actually writes them -- the range forms `2XX`
+  #    (success) and `4XX`/`5XX` (error) are accepted alongside concrete codes, and a `default`
+  #    response contributes to the ERROR side only (never success: `default` means "every status not
+  #    otherwise listed", so folding it into success would let an error shape satisfy success
+  #    validation, while folding it into error only ever widens a union `anyOf` already tolerates).
+  #    Before A6 a document written with range keys or `default` lost every response/error schema
+  #    SILENTLY -- "no status matched" is correctly not a failure, so nothing warned. See
+  #    `D-openapi-export`.
+
+bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
+  # -> A6: the inverse of `--openapi-file`. Renders an already-emitted contract as a standalone
+  #    OpenAPI 3.1 document (stdout by default; --out writes a file). Requires the `contract` gate
+  #    to have PASSED -- the same posture `handles emit` takes, not the ungated posture `contract
+  #    validate`/`tool-schema` take. A `blocked` (zero-operation) contract is refused even if its
+  #    gate was force-passed (a `paths: {}` document is a positive false claim that this API has no
+  #    operations); a WAIVED `partial` contract IS exportable, the same bar `handles emit` already
+  #    accepts, and the export discloses `completeness: "partial"` in its own metadata.
+  #
+  #    IT IS A LOSSY, NARROW PROJECTION OF ONE FEATURE, AND IT SAYS SO. The contract carries no
+  #    query parameters, no header parameters, no security requirements, no summaries/tags, no
+  #    per-status responses (2xx bodies are one union, 4xx/5xx another), and nothing at all for a
+  #    non-JSON request body -- every one of those is disclosed in `info.description` AND in a
+  #    machine-readable `info.x-bskel-omitted` array. Nothing is ever synthesized to fill a gap:
+  #    `security` is OMITTED rather than emitted as `[]` (an empty array positively claims no auth
+  #    is required), summaries/tags are never invented from operationIds or module names, and an
+  #    operation whose body shape the contract doesn't know gets `content: {application/json: {}}`
+  #    -- a media-type entry with no schema -- rather than a fabricated `{type: "object"}`.
+  #
+  #    OpenAPI 3.1 ONLY, and deliberately not 3.0 even behind a flag: 3.0 requires `responses` on
+  #    every operation (forcing a synthesized response), types exclusiveMinimum/exclusiveMaximum as
+  #    booleans where a projected 3.1 schema carries numbers (silently inverting their meaning), and
+  #    has no `const`/`type: "null"`. `--status-codes range` (default) uses the spec-legal `2XX`/
+  #    `default` range keys and invents nothing; `literal` uses `200`/`default` for tooling that
+  #    can't read range keys, and says plainly (once, on stderr) that `200` is a bskel-chosen
+  #    stand-in, not a claim about the real status.
+  #
+  #    Refuses by default when the scan found a global path-prefix signal (`path_prefix_signals`,
+  #    see A1 §7) that the contract's own paths don't reflect -- e.g. a contract emitted WITHOUT
+  #    --openapi-file against a repo whose ApiPathConfig applies `/api/v0`. Handing those paths to a
+  #    client generator is a wrong-URL-at-runtime bug with no compile step to catch it. Re-emit with
+  #    --openapi-file to correct them, or pass --allow-unprefixed to override.
+  #
+  #    Feeding an export back into `contract emit --openapi-file` is REFUSED (exit 14): every
+  #    exported document carries an `x-bskel-generated` marker on `info`, and reconciling a contract
+  #    against its own export would make it confirm itself -- silently reclassifying a recorded
+  #    CONTRACT_OPENAPI_DRIFT/MISSING_OPERATION ERROR as `matched`. See `D-openapi-export`.
 
 bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
   # -> the `scan disposition` of contracts: explicitly accepts specific `partial` warnings so the
