@@ -8,50 +8,29 @@
 // verification confidence is honestly, permanently weaker than G2's own.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { lineNumberAt } from '../text-util.mjs';
+// G6: these were this file's own private helpers until `javascript-express.mjs` needed the exact
+// same ones -- moved verbatim to `_express-shared.mjs` (a `_`-prefixed shared helper, the same
+// convention `_java-spring-analyzer.mjs` uses) rather than copy-pasted. No behavior change; see
+// D-javascript-express-adapter in DECISIONS.md for why only these primitives are shared and the
+// mount-tree/endpoint logic deliberately is not.
+import {
+	VERBS,
+	STRING_LITERAL_RE,
+	listRgFiles,
+	rgFilesMatching,
+	listCandidatePackageFiles,
+	declaresExpress,
+	matchBalancedParens,
+	splitTopLevelArgs,
+	joinPath,
+	maskJsComments,
+	expressDiagnostics,
+} from './_express-shared.mjs';
 
-const EXCLUDE_GLOBS = ['!**/node_modules/**', '!**/dist/**', '!**/build/**'];
-const VERBS = ['get', 'post', 'put', 'patch', 'delete'];
 const VERB_CALL_RE = new RegExp(`\\brouter\\.(${VERBS.join('|')})\\s*\\(`, 'gi');
-// A string literal in any of the three forms real Express/TS route registration actually uses --
-// found live in the real oracle: `router.use(\`/v1\`, v1)` uses a backtick TEMPLATE literal for a
-// plain path with no interpolation, not a regular string -- a regex that only accepted '/"' would
-// have silently missed a real mount edge.
-const STRING_LITERAL_RE = /^\s*["'`]([^"'`]*)["'`]/;
 const ROUTER_USE_RE = /\brouter\.use\s*\(/g;
 const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*export\s+class\s+(\w+)/g;
-
-function listRgFiles(dir, globs) {
-	try {
-		const out = execFileSync('rg', ['--files', ...globs.flatMap((g) => ['-g', g]), ...EXCLUDE_GLOBS.flatMap((g) => ['-g', g]), dir], { encoding: 'utf8' });
-		return out.split('\n').filter(Boolean).sort(); // O6: rg --files order isn't guaranteed.
-	} catch {
-		return []; // rg exits 1 on "no files matched" -- not an error, just nothing to report
-	}
-}
-
-function byShallowestThenName(a, b) {
-	const depthA = a.split(path.sep).length;
-	const depthB = b.split(path.sep).length;
-	return depthA !== depthB ? depthA - depthB : a.localeCompare(b);
-}
-
-function listCandidatePackageFiles(repoRoot) {
-	return listRgFiles(repoRoot, ['package.json']).sort(byShallowestThenName);
-}
-
-// Real JSON.parse, not a bounded regex -- package.json is always valid JSON, so unlike java-spring's
-// build.gradle or python-fastapi's pyproject.toml (both need a "good-enough regex, not a real
-// parser" compromise), there is no regex-vs-parser trade-off to make here at all.
-function declaresExpress(packageJsonPath) {
-	try {
-		const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-		return Boolean(pkg.dependencies?.express || pkg.devDependencies?.express);
-	} catch {
-		return false;
-	}
-}
 
 // Two independent signals required, mirroring java-spring's "build file AND src layout" /
 // python-fastapi's "dependency declared AND source-confirmed" combined bar: (a) package.json
@@ -63,21 +42,11 @@ export function detectTypeScriptExpressRoot(repoRoot) {
 	if (!pkgFile) return null;
 
 	const projectRoot = path.dirname(pkgFile);
-	const sourceFiles = (() => {
-		try {
-			return execFileSync('rg', [
-				'-l', '-e', "import\\s*\\{[^}]*\\bRouter\\b[^}]*\\}\\s*from\\s*['\"]express['\"]",
-				'-g', '*.ts', ...EXCLUDE_GLOBS.flatMap((g) => ['-g', g]),
-				projectRoot,
-			], { encoding: 'utf8' }).split('\n').filter(Boolean);
-		} catch {
-			return [];
-		}
-	})();
+	const sourceFiles = rgFilesMatching("import\\s*\\{[^}]*\\bRouter\\b[^}]*\\}\\s*from\\s*['\"]express['\"]", ['*.ts'], projectRoot);
 	if (sourceFiles.length === 0) return null;
 	const callsRouter = sourceFiles.some((f) => {
 		try {
-			return /\bRouter\s*\(\s*\)/.test(fs.readFileSync(f, 'utf8'));
+			return /\bRouter\s*\(\s*\)/.test(maskJsComments(fs.readFileSync(f, 'utf8')));
 		} catch {
 			return false;
 		}
@@ -87,49 +56,6 @@ export function detectTypeScriptExpressRoot(repoRoot) {
 
 function listTypeScriptFiles(projectRoot) {
 	return listRgFiles(projectRoot, ['*.ts']);
-}
-
-// Walks forward from `openIndex` (text[openIndex] must be '(') tracking paren depth -- needed
-// because a middleware array routinely nests its own parens/brackets, confirmed in the real
-// oracle: `router.get('/:id([0-9]+)', [checkJwt, checkRole(['ADMINISTRATOR'], true)], show)`.
-// Same technique python-fastapi.mjs's own matchBalancedParens already uses.
-function matchBalancedParens(text, openIndex) {
-	let depth = 0;
-	for (let i = openIndex; i < text.length; i++) {
-		if (text[i] === '(') depth++;
-		else if (text[i] === ')') {
-			depth--;
-			if (depth === 0) return i;
-		}
-	}
-	return -1;
-}
-
-function joinPath(base, segment) {
-	const b = (base || '').replace(/\/$/, '');
-	const s = (segment || '').replace(/^\//, '');
-	return s ? `${b}/${s}` : (b || '/');
-}
-
-// Splits a balanced top-level argument list on commas, respecting nested (), [], {} -- needed to
-// pull the LAST positional argument (the handler) out of `path, [middlewares], handler` without
-// a naive split(',') breaking on the commas inside `[checkJwt, checkRole(...)]`.
-function splitTopLevelArgs(argsText) {
-	const parts = [];
-	let depth = 0;
-	let start = 0;
-	for (let i = 0; i < argsText.length; i++) {
-		const ch = argsText[i];
-		if ('([{'.includes(ch)) depth++;
-		else if (')]}'.includes(ch)) depth--;
-		else if (ch === ',' && depth === 0) {
-			parts.push(argsText.slice(start, i));
-			start = i + 1;
-		}
-	}
-	const last = argsText.slice(start);
-	if (last.trim() !== '') parts.push(last);
-	return parts.map((p) => p.trim());
 }
 
 // No path prefix is ever visible at a route-registration call site in this idiom (unlike
@@ -273,7 +199,13 @@ const API_SURFACE_SOURCE = 'route paths are resolved by walking the router mount
 
 export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	const files = listTypeScriptFiles(projectRoot);
-	const fileTexts = new Map(files.map((f) => [f, fs.readFileSync(f, 'utf8')]));
+	// G6: masked, the same way javascript-express.mjs masks its own sources. Without this a
+	// commented-out `// router.get('/old', oldHandler)` -- or prose quoting a route registration --
+	// is extracted and reported as a LIVE endpoint. Same defect class A2 Phase 1's `maskNonCode()`
+	// fixed for Java (D-java-analyzer's phantom-operationId bug); found while building G6's
+	// adapter, where a fixture's own header comment collapsed the entire mount graph. String
+	// literals are left intact, so every path/table VALUE this adapter reports is unchanged.
+	const fileTexts = new Map(files.map((f) => [f, maskJsComments(fs.readFileSync(f, 'utf8'))]));
 	const edges = buildMountEdges(files, fileTexts);
 
 	const modules = new Map();
@@ -354,22 +286,6 @@ export const adapter = {
 		return listTypeScriptFiles(projectRoot).map((f) => path.relative(repoRoot, f));
 	},
 	diagnostics(repoRoot) {
-		const messages = [];
-		const pkgFiles = listCandidatePackageFiles(repoRoot);
-		if (pkgFiles.length === 0) {
-			messages.push({ level: 'info', code: 'no-package-json', message: 'no package.json found' });
-		} else if (!pkgFiles.some((f) => declaresExpress(f))) {
-			messages.push({ level: 'info', code: 'express-not-a-dependency', message: `found ${pkgFiles.length} package.json file(s), but none declare an express dependency` });
-		}
-		let rgOk = true;
-		try {
-			execFileSync('rg', ['--version'], { stdio: 'pipe' });
-		} catch {
-			rgOk = false;
-		}
-		if (!rgOk) {
-			messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
-		}
-		return messages;
+		return expressDiagnostics(repoRoot);
 	},
 };

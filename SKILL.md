@@ -54,7 +54,10 @@ since the last pass, even if nothing else changed; `--max-age-minutes 0` disable
 deliberately offline/long-running session.
 
 **Handles (Phase 5) dispatch to a codegen provider chosen by the scan report's adapter** (G4, see
-`D-handles-providers` in DECISIONS.md) -- `java-spring` and `python-fastapi` both ship one today.
+`D-handles-providers` in DECISIONS.md) -- `java-spring`, `python-fastapi` and `typescript-express`
+each ship one today. `javascript-express` deliberately does not (see
+`D-javascript-express-adapter`), and honestly declares `codegen.handles: false` rather than
+pretending.
 The rest of this section describes the **`java-spring` provider's** specific generated shape
 (`@PreAuthorize`-derived `requiredAuthority()`, service-method argument counting, etc.); the
 `python-fastapi` provider (`handles/providers/python-fastapi/`) generates a structurally different
@@ -166,7 +169,20 @@ DECISIONS.md). `api.operations`/`api.request-shape` stay honestly `false` becaus
 generates operation ids at runtime and this project's request-body detection is Java-only. A real
 OpenAPI document via `--openapi-file` (usually also needing `--path-prefix`, see
 `D-fastapi-adapter`) is still the trustworthy path to a *contract* for this adapter -- see
-`D-fastapi-adapter` in DECISIONS.md), and `generic-grep` (specificity 0,
+`D-fastapi-adapter` in DECISIONS.md), `typescript-express` (specificity 85 --
+TypeScript/Express/TypeORM, see `scanners/adapters/typescript-express.mjs`; detects an `express`
+dependency AND a `.ts` file importing and calling `Router()`; declares `resource.fetch` AND
+`codegen.handles` true -- a real codegen provider exists -- with `api.operations`/
+`api.request-shape` honestly `false`, since plain Express has no operationId concept at all; see
+`D-typescript-express-provider` in DECISIONS.md), `javascript-express` (specificity 80 -- plain
+JavaScript ESM Express with **no ORM**, calling `mysql2`/`mariadb` directly, commonly deployed to
+Lambda behind `serverless-http`; see `scanners/adapters/javascript-express.mjs`. Route paths are
+resolved through a full mount-graph walk over (file, router-variable) nodes, so an intra-file
+`app.use('/api', route)` prefix is recovered, but **every capability is honestly `false`**: this
+stack has no ORM metadata to read, and raw SQL string literals cannot safely supply a table,
+primary key or column allow-list -- see `D-javascript-express-adapter` in DECISIONS.md for the
+measured reasoning, and note it is nonetheless `confidence: "high"`, since what it *does* report is
+trustworthy), and `generic-grep` (specificity 0,
 unconditional last-resort fallback -- route-pattern grep for Express/Flask/FastAPI-shaped code,
 see `D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities).
 
@@ -189,7 +205,7 @@ this adapter's stack at all" -- for both `handles` commands) and refuse cleanly 
 missing capability, the adapter, and what you can do about it, writing nothing -- rather than
 falling through into codegen that was never going to work. Once a provider is selected (G4, see
 `D-handles-providers` in DECISIONS.md), that PROVIDER checks its own further requirements
-(`resource.fetch`, for both shipped providers) as a second pass -- so a `generic-grep`-scanned
+(`resource.fetch`, for all three shipped providers) as a second pass -- so a `generic-grep`-scanned
 feature always hits `contract emit`'s `api.operations` check first (always false for that adapter,
 see `D-generic-grep-reconnaissance`), and, if forced past that, `handles plan`/`handles emit`'s
 `codegen.handles` check next (also false -- no codegen provider exists for a route-pattern-only

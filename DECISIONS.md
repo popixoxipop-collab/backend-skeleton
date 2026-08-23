@@ -5219,3 +5219,285 @@ left completely unchanged); `D-patch-strategy` (A3, `classifyDtoFields()` itself
 item deliberately does NOT thread async through); `D-npm-packaging` (P1, the `files` allowlist this
 item's committed wrapper needs to actually ship); `D-verify-integrity` (S6, the "detect and warn,
 never gate" precedent `ast_disagreements` follows).
+
+## D-javascript-express-adapter (G6): a fourth scanner adapter, and the codegen half that measurement said not to build
+
+**WHY**: a real production backend was completely invisible to this tool, for two independent
+reasons that were confirmed by reading its actually-shipped code, not inferred. The app is an
+ordinary `express.Router()` service on AWS Lambda (`nodejs20.x`), reached through a one-line
+`serverless-http` wrapper -- the exact routing idiom G5's adapter already understands. It was
+nevertheless scanned by `generic-grep` (specificity 0, `confidence: "low"`, one lumped `_generic`
+module, no prefix resolution, and a feature-scoped scan that refuses to write its report at all
+without `--accept-low-confidence`), because:
+1. `detectTypeScriptExpressRoot()` restricts its ripgrep source search to `-g '*.ts'`. The app is
+   plain JavaScript (`"type": "module"` ESM, `.js` files, no `typescript` devDependency anywhere),
+   so `detect()` returns `null` unconditionally.
+2. Even a hypothetical TypeScript port would still fail the handles-codegen precondition:
+   `handles/providers/typescript-express/plan.mjs`'s `findDataSource()` requires a TypeORM
+   `DataSource`. This app has no ORM at all -- `mysql2`/`mariadb` are called directly from
+   controller code.
+
+Reason 1 is a scanner gap with a mechanical fix. Reason 2 is not, and the two were shipped
+separately: **Phase 1 (the scanner) is built; Phase 2 (handles codegen) is deliberately not, on
+measured evidence** -- see EXCLUDED. This follows `D-fastapi-adapter`'s own precedent exactly:
+G2 shipped a real, first-class adapter with `codegen.handles: false` and zero codegen, and codegen
+only arrived in G4 once a second real provider existed to factor a boundary against. A real
+scanner adapter with no codegen provider is a legitimate shipped state, not a half-finished one.
+
+**A fork, not a generalization -- decided from real code, not preemptively.** The obvious move was
+to widen `typescript-express`'s glob from `*.ts` to `*.{ts,js}` and be done. Three findings, each
+from writing the adapter against a real-shaped fixture, made that wrong:
+1. **Capabilities are per-adapter booleans.** A merged adapter would have to declare ONE value for
+   `codegen.handles` and `resource.fetch`. `true` is a lie for a plain-JS repo (the provider's own
+   `detectProjectRoot()` requires a `tsconfig.json` and would throw, not refuse cleanly, on a repo
+   that has none); `false` is a regression that would silently disable G5's shipped, working
+   codegen. The honest declaration is per-stack, so the adapter has to be per-stack.
+2. **`import express from 'express'; const r = express.Router()` is the dominant plain-JS idiom.**
+   G5's `detect()` requires a NAMED `import { Router } from 'express'` and never sees it.
+3. **The router variable is frequently not called `router`.** G5 hardcodes the identifier
+   (`/\brouter\.use\s*\(/`, `/\brouter\.(get|post|...)\(/`); the real target app's own entry file
+   declares `const route = express.Router()`.
+
+**SCOPE**: `scanners/adapters/javascript-express.mjs` (specificity 80, zero-registration, mirrors
+G1's registry exactly); `scanners/adapters/_express-shared.mjs` (the primitives both Express
+adapters genuinely share, extracted from `typescript-express.mjs` verbatim rather than copied --
+same `_`-prefixed convention `_java-spring-analyzer.mjs` uses, same reasoning that produced
+`scanners/text-util.mjs` under `D-scanner-evidence`); a synthetic, hand-built fixture corpus
+(`test/fixtures/javascript-express/backend/`, same P3 precedent as the other three, NOT a vendored
+copy of any real repo); two new test files (`test/javascript-express-cli.test.mjs`,
+`test/express-shared.test.mjs`); a `test/conformance-harness.test.mjs` `ADAPTER_FIXTURES` wiring;
+a one-line roster update in `test/adapter-registry.test.mjs`; the adapter lists in `README.md` and
+`SKILL.md`. Also, unavoidably, two changes to `typescript-express.mjs` itself -- the
+shared-primitive extraction (no behavior change, proved by its 19 tests passing unmodified) and the
+comment-masking bug fix (a real behavior change, see Mechanism).
+
+`test/handles-provider-registry.test.mjs` needed **no** change: its biconditional test
+(`codegen.handles === true` iff a same-id provider is loaded) already generalizes over every real
+shipped adapter, and passing it with `codegen.handles: false` and no provider is exactly the proof
+that this item's honest scoping is machine-checked rather than asserted.
+
+**EXCLUDED -- Phase 2 (handles codegen over raw SQL), and why measurement, not schedule, killed it**
+
+CATALOG.md's G6 text proposed a second phase: generate handle resolvers for this stack by reading
+the table name, primary key, and a safe column allow-list out of the raw `mysql2`/`mariadb` SQL
+string literals at the fetch call site. That phase was investigated with a real fixture and real
+executed probes before any of it was designed, and it is **deliberately not built**. Three
+independent blockers, in increasing order of how fatal they are:
+
+*Blocker A -- the extraction itself does not work on ordinary code.* A probe implementing the most
+generous plausible heuristic (find every `SELECT ... FROM <table>` literal reachable from an
+exported handler, take the projection list as the allow-list, take a `<col> = ?` predicate as the
+key) was run against the committed fixture's controllers, which are modelled on what raw-SQL
+Express code actually looks like. Result: **0 of 5 SELECT literals extract cleanly.** The specific
+failures are not exotic:
+- `getOrder` -- the single-resource GET for the `order` resource -- is a two-table `JOIN`, so
+  `FROM <first table>` is not reliably the resource's table; it projects `o.*`, so there is no
+  column allow-list at all; and its key predicate is alias-qualified (`o.order_id = ?`).
+- `searchOrders` builds its statement by concatenation at runtime (`sql += ' AND status = ?'`), so
+  no literal anywhere in the file ever contains the finished query.
+- `countOrders`'s statement lives in a separate constants module, not at the call site.
+- `listUsers` and `getUser` project DIFFERENT column sets from the same table -- "which columns is
+  this resource safe to expose" is not one answer per table, it is one answer per call site.
+
+*Blocker B -- even the one near-miss silently changes behavior.* `getUser` is the friendliest
+possible shape (single table, explicit column list, one placeholder) and still carries a second
+WHERE predicate: `... WHERE user_uid = ? AND deleted_at IS NULL`. A generated resolver can only
+bind the ONE value a handle carries (the resource UUID), so the soft-delete predicate is dropped by
+construction. Executed against a real SQL engine (`node:sqlite`), not reasoned about: for the same
+UUID, the app's own query returns **0 rows** and the reconstructed query returns **1 row** -- the
+handle resolver would serve a deleted account the application itself refuses to serve. Generalize
+that predicate to a tenancy or ownership scope and it is precisely the IDOR-shaped defect
+`D-security-8`'s service-arity check already exists to prevent -- except here there is no compiler
+to catch the arity mismatch, because the target language is untyped. `mysql2` binds a missing
+parameter as `NULL` and returns a wrong answer rather than failing.
+
+*Blocker C -- generating SQL is outside what a resolver is allowed to be.* `D-resolver-scope` fixed
+this boundary at the start of the project: `fetch()` is a read-only call into an EXISTING,
+already-tested method, never hand-written business logic. All three shipped providers honor it --
+java-spring calls a real `<Entity>Service` method, python-fastapi goes through the app's own
+session, typescript-express goes through TypeORM's typed repository with the app's own
+`select: [...]` allow-list. A raw-SQL provider has nothing to delegate to: it would have to AUTHOR
+a new query. That is a category change, not a harder version of the same job.
+
+Two rescue attempts were considered and both fail:
+- **A schema/migration file** (the fixture ships a realistic `database.sql`) can answer the
+  UUID-versus-integer primary-key question that SQL text alone cannot -- the fixture's own
+  `user.user_uid` is `CHAR(36)` while `order.order_id` is `BIGINT AUTO_INCREMENT`, and nothing in
+  `WHERE order_id = ?` reveals which one you are looking at. But a hand-maintained dump is a
+  per-app habit, not a framework convention: `mysql2` has no Alembic version table and no TypeORM
+  entity metadata, so nothing at runtime enforces that the file still matches the live database.
+  It also enumerates what EXISTS (including `password_hash` and `phone_e164`), never what is safe
+  to expose. It does not touch Blocker B or C.
+- **Requiring a hand-written marker** in the target app (some `/* bskel:table=user, pk=user_uid */`
+  convention) would be inventing a requirement this ecosystem's real code does not demonstrate --
+  the exact opposite of how G5 chose its own `select: [...]` precondition, which was adopted
+  because the ecosystem already used it.
+
+`bskel scan --db` (A4, `D-db-schema-plane`) already scans migration files adapter-independently and
+report-only, which is the right home for whatever a `database.sql` can honestly contribute. It
+needed no change for this item.
+
+**Also EXCLUDED, named rather than dropped**: CommonJS Express apps (`require('express')`) -- out of
+scope BY CONSTRUCTION rather than by a special case, since a CJS file has no `import ... from
+'express'` statement for `detect()` to match; a `Router as R` import alias (the local name is not
+resolved, and the declaration is skipped rather than guessed at); a router returned from a factory
+(`const r = buildRouter()`); a computed mount prefix; a non-relative mount specifier; and monorepo
+shapes where two package.json files both declare express (the shallowest declaring one wins, as it
+already does for `typescript-express`).
+
+**Mechanism**:
+- `detectJavaScriptExpressRoot()`: the same two-independent-signal bar every other first-class
+  adapter uses -- (a) a package.json declares `express`, (b) at least one ESM source file under it
+  both imports express and calls `Router()` / `<name>.Router()`. Returns `{projectRoot, globs}`
+  rather than a bare path, because which extensions are ESM is part of the detection result.
+- **Which files are ESM is Node's own rule, applied as written, not a heuristic**: `.mjs` is
+  unconditionally ESM; `.js` is ESM only when the nearest package.json says `"type": "module"`.
+  This is why CommonJS falls out of scope without an exclusion check, and it is tested in both
+  directions (an `.mjs` file in a package with no `"type"` IS scanned; a `.js` file in the same
+  package is NOT).
+- **Mount graph over (file, router-variable) nodes**, the single most novel piece. G5 models one
+  node per FILE and one hardcoded `router` identifier per node, which cannot represent the shape
+  the real target app actually uses: the global `/api` prefix lives on an INTRA-FILE edge from the
+  `express()` application to a locally-declared Router (`app.use('/api', route)`), with no import
+  involved at all. Nodes here are `(file, variable)` pairs, so intra-file and cross-file edges are
+  the same mechanism. `app.use(...)` and `router.use(...)` are treated identically because they ARE
+  identical in Express -- a framework fact, not an assumption. `declaredMountables()` binds whatever
+  name each file actually declares.
+- `prefixChainFor()` carries a `seen` set. That is not defensive boilerplate: intra-file edges make
+  a genuine cycle representable (`a.use('/x', b); b.use('/y', a)` in one file), which G5's
+  file-to-file model cannot express, and without the guard that shape is infinite recursion rather
+  than a wrong answer. Covered by its own test.
+- `resolveEsmImport()` probes the exact specifier first (real ESM requires the extension:
+  `'./routes/user.route.js'`), then the extensionless `.js`/`.mjs`/`index.*` forms people write
+  anyway. Uses `statSync().isFile()`, not `existsSync()` -- `'./v1'` names a DIRECTORY that exists,
+  and treating it as a resolved module would silently create a mount edge to nothing.
+- Module name strips a trailing `.route`/`.routes`/`.router` segment (`user.route.js` -> `user`), a
+  near-universal Express file-naming convention that carries no information. This is a
+  display/scoring LABEL only -- nothing downstream generates code from it (`codegen.handles` is
+  false), so the cost of the convention being wrong somewhere is a slightly odd module name, never
+  wrong output.
+- One controller per (file, router-variable), not per file: a file declaring two routers mounted at
+  two different prefixes has two genuinely different base paths, and collapsing them onto the file
+  would attribute the wrong absolute path to half its endpoints.
+- **`specificity: 80`, deliberately below `typescript-express`'s 85.** A repo containing both a
+  `.ts` Express app and `.mjs` ESM sources can be detected by both; the TypeScript one carries
+  strictly more (real entity metadata, a working codegen provider), so it should win that overlap
+  quietly rather than tripping `runScan()`'s same-specificity ambiguity error. Same documented
+  trade-off `D-fastapi-adapter` made at 90.
+- **`confidence: 'high'`, with `codegen.handles: false`** -- these are orthogonal, and G2 shipped
+  exactly this combination. Confidence describes trust in what the scan REPORTS: this adapter does
+  real module inference and real mount-graph prefix resolution, which `generic-grep` (`low`) does
+  not. The practical consequence is load-bearing and tested: a feature-scoped scan of the fixture
+  exits `AWAITING_DISPOSITION(3)` and writes its report, instead of `LOW_CONFIDENCE_SCAN(16)` and
+  writing nothing.
+
+**Real bugs found and fixed while building this, all reproduced live, none hypothetical**:
+- **A comment-masking bug that silently collapsed the entire mount graph.** The fixture's own
+  header comment contains the words `import { Router } from 'express'` (as prose describing what
+  the TS adapter looks for), and the unmasked `import\s+([^;]*?)\s*from\s*['"]express['"]` pattern
+  matched starting at the word "import" INSIDE that comment and ran across the newline into the
+  real statement below it. Every route was still reported, with a plausible-looking path -- just
+  with the prefix silently missing. This is the same defect class A2 Phase 1's `maskNonCode()`
+  already fixed for Java (`D-java-analyzer`'s phantom-`operationId`-in-a-comment bug), so the fix
+  is the same technique: a new `maskJsComments()` in `_express-shared.mjs` that blanks line and
+  block comments in place (length, newline positions and every other character index preserved, so
+  no offset-based consumer shifts) while leaving string and template literals fully INTACT -- unlike
+  the Java masker, which blanks string interiors, because every path this adapter reports is read
+  straight out of a string literal.
+  **Applied to `typescript-express.mjs` as well, deliberately.** The same exposure means a
+  commented-out `// router.get('/old', oldHandler)` was being extracted and reported as a LIVE
+  endpoint by the G5 adapter. That is a correctness bug in a directly-adjacent file discovered by
+  this work, with a test that was confirmed to FAIL against the pre-fix code before being kept --
+  not an incidental refactor. G5's own 19 tests pass unmodified.
+- **A regex anchored to the wrong end**, which classified every `express.Router()` as a bare
+  `Router()` call. The member-call test was `/\.\s*Router\s*\($/`, but the matched declaration text
+  ends at the closing `)` of `Router()`, so the `$` anchor never held. With no named `Router` import
+  in the file, the declaration was dropped entirely and the whole mount graph came back empty.
+  Found by running the real fixture, not by review.
+- **A path-normalization mismatch between `rg --files` output and `path.resolve()`.** `rg` echoes
+  paths in whatever style its `dir` argument used, while `resolveEsmImport()` always builds absolute
+  candidates, so with a relative `repoRoot` the two never compare equal, every cross-file mount edge
+  is dropped, and every route loses its prefix while still looking successfully scanned. Latent
+  rather than user-visible today (real callers pass an absolute `repoRoot` from `git rev-parse
+  --show-toplevel`), fixed by normalizing the file list up front. The same latent fragility exists
+  in `typescript-express.mjs`'s `buildMountEdges()`; left untouched there, named here, see EXIT.
+
+**Verification**: 22 net new tests, `npm test` 743 -> **765**, every pre-existing test passing
+unmodified.
+- `test/javascript-express-cli.test.mjs` (x15) -- everything goes through the real `bin/bskel.mjs`
+  CLI against a real git repo, never through the adapter's exported functions, because the claim
+  under test is "a plain-JS Express app is visible to bskel" and only a real registry dispatch
+  establishes that. Covers: adapter selection at specificity 80; the headline regression (the same
+  repo is no longer handled by `generic-grep`, no `_generic` lumping); the 2-hop mount graph
+  resolving `/api/user/:userUid` through an intra-file `app.use()` edge and a Router named `route`,
+  asserted alongside a direct check that the leaf file does not contain `/api` anywhere; both import
+  idioms; balanced-paren middleware extraction with a line-number cross-check against the real
+  source; commented-out routes absent; all four capabilities false via `doctor --json`; zero
+  entities reported; `AWAITING_DISPOSITION(3)`-not-`LOW_CONFIDENCE_SCAN(16)` on a feature-scoped
+  scan followed by a passing `scan` gate; `contract emit` exiting 17 naming `api.operations` and
+  pointing at `--openapi-file`; `handles plan` exiting 17 naming `codegen.handles` with nothing
+  written to disk; CommonJS falling back to `generic-grep`; `.mjs`-without-`"type"` detected and
+  `.js`-without-`"type"` not; and an intra-file mount cycle terminating.
+- `test/express-shared.test.mjs` (x7) -- `maskJsComments()` directly, because the two properties
+  that matter are invisible end-to-end: that offsets never shift (asserted character by character
+  against the original) and that a `//` inside a URL string, a template literal, or after an escaped
+  quote is never treated as a comment. Plus the phantom-route regression for BOTH adapters.
+- `test/conformance-harness.test.mjs` gained the real fixture wiring and passes
+  `checkAdapterConformance` (including its back-to-back determinism check) on first run. It has
+  deliberately NO `checkProviderConformance` entry for this adapter, with a comment saying so and
+  pointing at the biconditional test that actually enforces the absence.
+- Phase 2's rejection is measured, not asserted: a SQL-extraction probe (0/5 clean) and an executed
+  `node:sqlite` divergence check (app 0 rows vs. reconstructed 1 row for the same UUID), both run
+  against the committed fixture. The probes were throwaway investigation scripts and are not
+  shipped; the fixture they ran against IS committed, so the finding is reproducible.
+- `npm run test:typescript-compile` re-run because this item edits G5's adapter; `npm pack
+  --dry-run` re-run to confirm the two new `scanners/adapters/` files ship (the `files` allowlist
+  already names the whole directory, so this needed no packaging change).
+
+There is **no real-world oracle for this item at all** -- weaker footing than even G5's, which at
+least had one hand-read community boilerplate. The target app was described from its shipped code
+by the session that found it, and this implementation was built against a synthetic fixture written
+to match that description. Nothing here was verified against the real repository, by deliberate
+choice: it is not ours to touch. That is a standing property of this item, named as an EXIT below,
+not a gap a later slice is expected to quietly close.
+
+**COST**: this stack can never reach `contract emit` without a real OpenAPI document
+(`api.operations` is false and plain Express generates no operation identity) or `handles
+plan`/`emit` at all (`codegen.handles` is false, permanently for the reasons in EXCLUDED). Zero
+entities are reported for a raw-SQL app, so `resource.fetch` is false and the exit-17 message
+correctly blames `codegen.handles` rather than misattributing the block. A CommonJS Express app,
+a `Router as R` alias, a factory-built router, a computed mount prefix, and a non-relative mount
+specifier are each silently skipped rather than guessed at. Module names rest on a filename
+convention. `typescript-express.mjs` now behaves differently for commented-out routes than it did
+before this item -- an intended correctness fix, but a change to already-shipped behavior, recorded
+here rather than smoothed over. `test/adapter-registry.test.mjs`'s hardcoded roster went from 4
+adapters to 5 -- the correct amount of coupling for a test whose entire job is asserting the real,
+current adapter list.
+
+**EXIT**: build Phase 2 only if the ecosystem itself grows something to delegate to -- a real query
+layer, a repository module convention, or an app-authored allow-list the way TypeORM's
+`select: [...]` gave G5 one. Generating SQL from scanned literals should not be revisited on a
+better regex alone; Blockers B and C survive any parser. Extend to CommonJS if a real target needs
+it (it needs its own `require()`/`module.exports` edge resolution, not a widened glob). Resolve
+`Router as R` aliases, factory-built routers, or computed mount prefixes if a real app's shape
+demands it. Normalize `typescript-express.mjs`'s own file paths the way this adapter now does, if
+a caller ever passes a relative `repoRoot` (no such caller exists today). Re-ground this item
+against a real plain-JS Express repository if one becomes available to read -- its verification
+confidence is the weakest of the four first-class adapters and will stay that way until then.
+
+Cross-references: `D-fastapi-adapter` (G2, the scanner-first/codegen-later precedent this item
+follows, and the `high`-confidence-plus-false-`codegen.handles` combination it reuses);
+`D-typescript-express-provider` (G5, the sibling adapter this one forks from, shares primitives
+with, and fixes a comment-masking bug in); `D-adapter-registry` (G1, the zero-registration registry
+and capability vocabulary this item adds one file to and edits nothing else for);
+`D-handles-providers` (G4, whose biconditional invariant is what makes a false `codegen.handles`
+machine-checked rather than a promise); `D-resolver-scope` (Blocker C -- the reason a resolver
+delegates and never authors query logic); `D-security-8` (Blocker B -- the same silently-dropped
+scoping-argument defect class, here with no compiler to catch it); `D-java-analyzer` (A2 Phase 1,
+the masking technique `maskJsComments()` reproduces for JavaScript, against the same defect);
+`D-scanner-evidence` (D3, the "three adapters privately duplicated this helper" extraction
+precedent `_express-shared.mjs` follows); `D-db-schema-plane` (A4, the adapter-independent,
+report-only home for whatever a hand-maintained schema dump can honestly contribute);
+`D-generic-grep-reconnaissance` (G3, the low-confidence fallback this item's target repo was
+landing on before); `D-fixture-corpus` (P3, the synthetic-not-vendored fixture precedent this
+item's own corpus follows).
