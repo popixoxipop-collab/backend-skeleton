@@ -98,6 +98,71 @@ conflict go away and read the diff first -- a conflict on a resolver usually mea
 
 ## What's actually usable today
 
+### Starting from nothing (greenfield)
+
+Every command below assumes an existing repo. `bskel new` is the ONE command that doesn't -- it is
+what creates one (P2/P2b, see `D-greenfield-bootstrap` and `D-greenfield-parameters` in
+DECISIONS.md). It never creates a remote and never auto-chains into `preflight` (which needs a real
+`origin` with a resolvable default branch that a fresh `git init` doesn't have); it prints the exact
+sequence instead.
+
+```bash
+bskel new --stack spring --slug my-service     # calls start.spring.io -- the ONLY network call in
+                              #    this whole tool. `--offline` refuses cleanly instead of hanging.
+bskel new --stack fastapi --slug my-service    # a local template, no network call at all
+
+# Both stacks: --name, --description, --project-version   (the GENERATED project's version --
+#    `--version` is a global flag that prints bskel's own, so this one is deliberately named
+#    --project-version rather than silently shadowing it).
+#
+# --stack spring only:
+#    --group-id / --package-name / --artifact-id   validated LOCALLY (Java package grammar + the
+#       full JLS 3.9 reserved-word list). Not belt-and-braces: start.spring.io answers
+#       groupId=com.new and groupId="has space" with HTTP 200 and hands back a project that cannot
+#       compile. --group-id also moves --package-name's default (<group-id>.<slug minus hyphens>).
+#    --java-version   checked against start.spring.io's OWN live metadata
+#       (start.spring.io/metadata/client), fetched on demand ONLY when a non-default value is
+#       passed, never cached or persisted -- javaVersion=99 likewise returns HTTP 200 and writes
+#       JavaLanguageVersion.of(99) into build.gradle. Rejected locally, before any starter.zip
+#       request. A network failure here reports cleanly; it never falls back to guessing.
+#    --packaging jar|war   pass-through: Initializr answers a bad value with a clean HTTP 400 whose
+#       own `message` bskel now surfaces verbatim.
+#    --add-dependencies a,b,c   EXTENDS the baseline set (web, data-jpa, security, validation,
+#       lombok). Cannot drop anything, so it never warns.
+#    --dependencies a,b,c   REPLACES that baseline entirely. If the result is missing `web`,
+#       `data-jpa` or `validation` you get one SPECIFIC stderr warning per missing id, naming what
+#       stops working (no @RestController for `scan` to find / no @Entity for resource.fetch /
+#       patchField()'s jakarta.validation imports won't compile) -- and it scaffolds anyway. This is
+#       "warn loudly, then trust the user", by explicit design decision. Do NOT reflexively reach
+#       for --dependencies when you meant --add-dependencies; passing both is exit 14.
+#
+# --stack fastapi only:
+#    --python-version   a bare version (3.12) or a single-operator FLOOR (>=3.12, ~=3.12, ==3.12);
+#       a bare upper bound or a compound specifier is rejected. Below 3.9 warns (the generated
+#       app/main.py's `-> dict[str, str]` is a PEP 585 builtin generic) but still scaffolds.
+#    --port N   1-65535, same validation shape as `stack apply --port`. Honest about its reach: it
+#       changes the generated README's run command, nothing else.
+#    --license <SPDX>   writes pyproject.toml's `license` field ONLY. No LICENSE file is ever
+#       generated -- shipping real legal text is not this tool's business. Shape-validated, not
+#       checked against the real SPDX list (no local copy of external truth).
+#    --database postgres|sqlite|none   pins the driver dependency and NOTHING else. No engine, no
+#       session, no db.py, no models. That boundary is permanent, not a "not yet" -- same register
+#       as patchField()'s stub. A postScaffoldNote says so explicitly after every non-`none` run.
+#    NOTE: --name here must be a valid Python project name (PEP 508) because it lands in
+#       pyproject.toml's [project] name, which pip validates. A prose title with spaces is rejected
+#       (found live: it produced a project that scaffolded fine and could not be installed).
+#
+# DELIBERATELY REFUSED, each with its own cited reason on stderr (exit 14) -- not "unsupported":
+#    --type          Maven/Kotlin-DSL: detectJacksonPackage() reads build.gradle ONLY, so a later
+#                    `handles emit` would import a Jackson 2 class absent under Boot 4.
+#    --language      Kotlin/Groovy: the java-spring adapter globs *.java only and every codegen
+#                    template emits .java -- the repo would fall through to generic-grep.
+#    --boot-version  HTTP 500 with an unusable internal error on a bad value, plus the standing
+#                    maintenance argument in D-greenfield-bootstrap.
+#    baseDir         never a flag AND never sent: the flat archive is exactly what the extraction
+#                    and every adapter's detect() require.
+```
+
 ```bash
 cd <target-repo>            # must be a git repo
 bskel doctor [--workflow scan|handles|stack] [--json]

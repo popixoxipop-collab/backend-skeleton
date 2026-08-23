@@ -55,6 +55,38 @@ bskel preflight                               # now resolvable -- picks up from 
 `preflight` requires a real `origin` remote with a resolvable default branch, which a brand-new
 local-only repo doesn't have yet. See `D-greenfield-bootstrap` in `DECISIONS.md`.
 
+Both stacks accept `--name`, `--description` and `--project-version` (the *generated project's* own
+version -- `--version` is a global flag that prints `bskel`'s). Beyond that the parameters differ,
+because the two ecosystems do:
+
+```bash
+bskel new --stack spring --slug my-service \
+  --group-id com.acme --artifact-id billing --package-name com.acme.billing \
+  --java-version 21 --packaging war --add-dependencies actuator,postgresql
+
+bskel new --stack fastapi --slug my-service \
+  --python-version 3.12 --port 9000 --license MIT --database postgres
+```
+
+- **`--add-dependencies` extends** the baseline (`web, data-jpa, security, validation, lombok`).
+  **`--dependencies` REPLACES it** -- and if the result drops `web`, `data-jpa` or `validation`, you
+  get a specific stderr warning naming what stops working downstream, then it scaffolds anyway.
+- **`--group-id`/`--package-name`/`--artifact-id` are validated locally** against the Java package
+  grammar. That isn't belt-and-braces: `start.spring.io` accepts `groupId=com.new` (a reserved word)
+  and `groupId=has space` with HTTP 200 and hands back a project that cannot compile.
+- **`--java-version` is checked against `start.spring.io`'s own live metadata**, fetched on demand
+  only when you pass a non-default value, never cached to disk -- for the same reason: `javaVersion=99`
+  returns HTTP 200 and writes `JavaLanguageVersion.of(99)` straight into `build.gradle`.
+- **`--database` pins a driver and nothing else** -- no engine, session or connection code is
+  generated, because that would be `bskel` inventing your domain.
+- `--type`, `--language` and `--boot-version` are deliberately **refused** with a specific reason
+  each (Maven/Kotlin scaffolds break this tool's own scanner and codegen assumptions; a bad
+  `bootVersion` gets an unusable HTTP 500). Run `bskel new --stack spring --type maven-project` to
+  see the actual explanation.
+
+The full parameter list, the measured API-validation matrix behind that split, and the warning
+behaviour are in `D-greenfield-parameters` in `DECISIONS.md`.
+
 ### Database schema (optional)
 
 `bskel scan --db` additionally scans Flyway/Liquibase migration files (local only, no network).

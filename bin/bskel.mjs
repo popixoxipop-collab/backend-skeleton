@@ -29,7 +29,13 @@ import { buildContract, selectModule } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
-import { STACKS as NEW_STACKS } from '../new/index.mjs';
+import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
+import {
+	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
+	requireValidPythonVersion, requireValidLicense, requireValidDatabase, requireSupportedJavaVersion,
+	requireValidPythonProjectName,
+} from '../new/params.mjs';
+import { DEFAULT_GROUP_ID, DEFAULT_JAVA_VERSION, resolveSpringDependencies } from '../new/spring.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
@@ -39,6 +45,7 @@ import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
 import { parseCommand, renderCommandHelp, diagnostic } from '../lib/cli.mjs';
 import { EXIT_CODES } from '../lib/exit-codes.mjs';
+import { RESIDUAL_TEMPLATE_VAR_RE } from '../lib/template.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -46,7 +53,7 @@ const SKILL_ROOT = path.resolve(__dirname, '..');
 function usage() {
 	console.error(`bskel -- backend-skeleton CLI
 
-  bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json]
+  bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json] [--name <text>] [--description <text>] [--project-version <v>] [--group-id <pkg>] [--artifact-id <id>] [--package-name <pkg>] [--java-version <n>] [--packaging jar|war] [--dependencies a,b,c] [--add-dependencies a,b,c] [--python-version <spec>] [--port N] [--license <spdx>] [--database postgres|sqlite|none]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
@@ -1253,13 +1260,14 @@ function cmdStackApply(args) {
 	process.exit(0);
 }
 
-// P4 (D-extension-conformance): a {{VAR}}-shaped token that survives a real render -- renderTemplate()
-// (stack/apply.mjs) only ever substitutes {PORT}, so anything else left in rendered output is a
-// variable no catalog author declared and nothing will ever fill in at apply time. Scanning the
-// RENDERED output (not the raw template source) catches this the same way a real `stack apply`
-// would produce it, without needing a separate variable-declaration+injection system for a single
-// current consumer (see D-extension-conformance in DECISIONS.md for why that was rejected).
-const RESIDUAL_TEMPLATE_VAR_RE = /\{\{[A-Z_][A-Z0-9_]*\}\}/g;
+// P4 (D-extension-conformance): a {{VAR}}-shaped token that survives a real render -- the shared
+// renderer (lib/template.mjs) only ever substitutes {{PORT}} for a stack catalog entry, so anything
+// else left in rendered output is a variable no catalog author declared and nothing will ever fill
+// in at apply time. Scanning the RENDERED output (not the raw template source) catches this the
+// same way a real `stack apply` would produce it, without needing a separate variable-declaration+
+// injection system for a single current consumer (see D-extension-conformance in DECISIONS.md for
+// why that was rejected). P2b (D-greenfield-parameters) moved the regex itself into
+// lib/template.mjs, where `new/fastapi.mjs` became its second consumer -- imported above.
 
 // P4: reuses loadCatalogEntry()'s existing schema validation and planApply()'s existing
 // assertContained() path-containment checks (template path, target path, config_check target
@@ -1946,6 +1954,79 @@ function cmdDoctor(args) {
 // never creates a remote or auto-chains into `preflight` -- see this function's own printed
 // guidance for why `bskel preflight` cannot simply be "the next command" here (it requires a real
 // origin remote with a resolvable default branch, which a brand-new local-only repo doesn't have).
+// P2b (D-greenfield-parameters): every parameter check below runs BEFORE `stack.scaffold(...)` --
+// before any network call and before any filesystem write -- so a rejected invocation leaves
+// nothing behind at all. Order matters: an explicitly-refused flag gets its own cited reason first,
+// then a wrong-stack flag names the stack that actually takes it, then the local validators, and
+// only then the one check that costs a network round-trip (--java-version).
+function requireStackParams(stack, flags) {
+	for (const param of ALL_STACK_PARAMS) {
+		if (flags[param] == null) continue;
+		const refusal = stack.refusedParams[param];
+		if (refusal) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', refusal);
+		if (stack.acceptedParams.includes(param)) continue;
+		const owners = stacksAccepting(param);
+		const owned = owners.length > 0 ? ` -- it applies to ${owners.map((id) => `--stack ${id}`).join(' / ')}` : '';
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--${param} is not a \`--stack ${stack.id}\` parameter${owned}. Nothing was written.`);
+	}
+}
+
+// Returns the stack-specific half of the scaffold() call, with every value already validated.
+// Throws (never exits) so cmdNew's own single catch turns a validator message into one clean
+// BAD_ARGS line the same way every other domain validator in this CLI already does.
+async function resolveNewParams(stack, flags) {
+	const common = {
+		name: flags.name == null ? null : requireSingleLineText(flags.name, 'name'),
+		description: flags.description == null ? null : requireSingleLineText(flags.description, 'description'),
+		projectVersion: flags['project-version'] == null ? null : requireSingleLineText(flags['project-version'], 'project-version'),
+	};
+
+	if (stack.id === 'fastapi') {
+		const python = flags['python-version'] == null ? null : requireValidPythonVersion(flags['python-version']);
+		return {
+			params: {
+				...common,
+				// Narrower than the shared single-line check: this one lands in pyproject.toml's
+				// [project] name, which pip itself validates (see new/params.mjs -- found live).
+				name: flags.name == null ? null : requireValidPythonProjectName(flags.name),
+				requiresPython: python?.requiresPython ?? null,
+				port: flags.port,
+				license: flags.license == null ? null : requireValidLicense(flags.license),
+				database: flags.database == null ? null : requireValidDatabase(flags.database),
+			},
+			warnings: python?.warnings ?? [],
+		};
+	}
+
+	const groupId = flags['group-id'] == null ? DEFAULT_GROUP_ID : requireValidJavaPackageName(flags['group-id'], 'group-id');
+	const { dependencies, warnings } = resolveSpringDependencies({
+		dependencies: flags.dependencies,
+		addDependencies: flags['add-dependencies'],
+	});
+	// The one check that costs a network round-trip, so it runs last and only when a value that is
+	// not already the default was actually passed. Never cached, never persisted -- start.spring.io's
+	// own metadata document is the authority, consulted on demand (see new/params.mjs).
+	if (flags['java-version'] != null && flags['java-version'] !== DEFAULT_JAVA_VERSION) {
+		await requireSupportedJavaVersion(flags['java-version']);
+	}
+	return {
+		params: {
+			...common,
+			groupId,
+			artifactId: flags['artifact-id'] == null ? null : requireValidArtifactId(flags['artifact-id']),
+			packageName: flags['package-name'] == null ? null : requireValidJavaPackageName(flags['package-name'], 'package-name'),
+			javaVersion: flags['java-version'] ?? DEFAULT_JAVA_VERSION,
+			// Pass-through: start.spring.io answers an unknown packaging with a clean HTTP 400 whose
+			// own `message` scaffoldSpring() now surfaces verbatim (measured -- see
+			// D-greenfield-parameters' validation matrix). A local list would go stale; Initializr's
+			// own answer cannot.
+			packaging: flags.packaging,
+			dependencies,
+		},
+		warnings,
+	};
+}
+
 async function cmdNew(args) {
 	const flags = parseCommand('new', args);
 	if (flags.help) { console.log(renderCommandHelp('new')); process.exit(0); }
@@ -1956,12 +2037,25 @@ async function cmdNew(args) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `bskel new --stack must be one of: ${Object.keys(NEW_STACKS).join(', ')} (got ${JSON.stringify(flags.stack)})`);
 	}
 	requireValidSlug(flags.slug);
+	requireStackParams(stack, flags);
+
+	let stackParams;
+	let warnings;
+	try {
+		({ params: stackParams, warnings } = await resolveNewParams(stack, flags));
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	// Printed BEFORE the scaffold, so the danger is visible even if the download then fails -- and on
+	// stderr, which this CLI's contract says is never suppressed by --quiet and never mixed into a
+	// --json payload's stdout.
+	for (const w of warnings) console.error(w);
 
 	const dir = flags.dir ? path.resolve(flags.dir) : path.resolve(process.cwd(), flags.slug);
 
 	let result;
 	try {
-		result = await stack.scaffold({ dir, slug: flags.slug, offline: flags.offline });
+		result = await stack.scaffold({ dir, slug: flags.slug, offline: flags.offline, ...stackParams });
 	} catch (err) {
 		fail(EXIT_CODES.NOT_PASSED, 'SCAFFOLD_FAILED', err.message);
 	}
@@ -1987,10 +2081,17 @@ async function cmdNew(args) {
 	}
 	execFileSync('git', commitArgs, { cwd: dir });
 
+	const { postScaffoldNotes = [], ...resultRest } = result;
 	if (flags.json) {
-		console.log(JSON.stringify({ stack: flags.stack, dir, ...result }, null, 2));
+		console.log(JSON.stringify({ stack: flags.stack, dir, ...resultRest, warnings, postScaffoldNotes }, null, 2));
 	} else if (!flags.quiet) {
 		console.log(`scaffolded a new ${flags.stack} project at ${dir}`);
+		// Same shape as `handles emit`'s postEmitNotes: "this really happened, and here is the part
+		// that deliberately did NOT happen", on stdout as narration rather than stderr as a warning.
+		for (const n of postScaffoldNotes) {
+			console.log('');
+			console.log(n);
+		}
 		console.log('');
 		console.log('git init + an initial commit were made locally -- bskel preflight needs a REAL remote');
 		console.log('with a resolvable default branch, which this command deliberately does not create:');

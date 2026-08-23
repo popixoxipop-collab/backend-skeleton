@@ -3,6 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import Ajv2020 from 'ajv/dist/2020.js';
+// P2b (D-greenfield-parameters): was a private `renderTemplate(templatePath, vars)` here, moved to
+// lib/template.mjs unchanged once `new/fastapi.mjs` became its second real consumer.
+import { renderTemplateFile } from '../lib/template.mjs';
 
 const STACK_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_ROOT = path.join(STACK_ROOT, '..', 'schemas');
@@ -63,14 +66,6 @@ export function loadCatalogEntry(choiceId) {
 	return entry;
 }
 
-function renderTemplate(templatePath, vars) {
-	let content = fs.readFileSync(templatePath, 'utf8');
-	for (const [key, value] of Object.entries(vars)) {
-		content = content.replaceAll(`{{${key}}}`, String(value));
-	}
-	return content;
-}
-
 // D7 (DECISIONS.md): a stack choice's static half is entirely data-driven (this catalog entry)
 // -- planApply/applyPlan are generic across any catalog entry shaped like schemas/stack-choice.
 // schema.json, so "add a stack" is a YAML edit (+ optionally a template), not new glue code.
@@ -91,7 +86,7 @@ export function planApply(repoRoot, entry, { port = 8080 } = {}) {
 		assertContained(STACK_ROOT, templatePath, 'catalog template path');
 		const targetPath = path.join(repoRoot, f.path);
 		assertContained(repoRoot, targetPath, 'catalog target path');
-		const rendered = renderTemplate(templatePath, { PORT: port });
+		const rendered = renderTemplateFile(templatePath, { PORT: port });
 		const exists = fs.existsSync(targetPath);
 		const unchanged = exists && fs.readFileSync(targetPath, 'utf8') === rendered;
 		plan.files.push({
