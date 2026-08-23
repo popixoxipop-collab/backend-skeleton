@@ -37,6 +37,7 @@ import {
 } from '../new/params.mjs';
 import { DEFAULT_GROUP_ID, DEFAULT_JAVA_VERSION, resolveSpringDependencies } from '../new/spring.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
+import { buildOpenApiDocument, pathPrefixCandidates, unreflectedPathPrefixes, STATUS_CODE_MODES } from '../contracts/export.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
@@ -65,6 +66,7 @@ function usage() {
   bskel feature link <keepId> <aliasId> --reason "..." [--json]
   bskel feature archive <id> --reason "..." [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
+  bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
@@ -1012,6 +1014,140 @@ function loadContract(root, featureId) {
 		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${contractPath}: does not match schemas/feature-contract.schema.json:\n${formatSchemaErrors(errors).join('\n')}`);
 	}
 	return parsed;
+}
+
+// A6 (D-openapi-export): the export direction A1 never built -- renders an already-emitted,
+// gate-passing contract as a standalone OpenAPI 3.1 document. Gated on the `contract` gate having
+// PASSED, the same posture `handles emit` takes and deliberately not the ungated posture
+// `contract validate`/`contract tool-schema` take: those read a contract to answer a question about
+// one payload, this one hands a whole API description to a client generator or a mock server, where
+// a contract nobody has accepted yet is a materially different risk.
+//
+// Deliberately does NOT also require `preflight`, unlike `contract emit`/`handles emit`/`stack
+// apply`. Those either write into the target repo's own source tree or establish new state, so
+// "is this worktree even based on the real default branch" is a live question for them. This
+// command derives a read-only artifact from a contract that has ALREADY passed its gate -- and that
+// gate's own token transitively covers the scan report and the disposed module's files (S2), which
+// is the integrity property that actually matters here. Requiring preflight would mostly mean
+// failing an export because a 30-minute TTL expired (D-preflight-freshness), which says nothing
+// about whether the contract is trustworthy.
+//
+// The A5 completeness policy lands as three different behaviors, not one: a `blocked` (zero-
+// operation) contract is refused outright even when the gate was force-passed (see below); an
+// unwaived `partial` one never reaches here at all, because the gate itself has not passed; and a
+// `partial` one whose ERROR warnings were explicitly waived IS exportable -- this project already
+// decided a waived-partial contract is good enough to feed `handles emit`, and exporting it is not
+// a weaker bar. No completeness logic is re-derived here; the gate check above is the whole
+// mechanism.
+function cmdContractExport(args) {
+	const flags = parseCommand('contract export', args);
+	if (flags.help) { console.log(renderCommandHelp('contract export')); process.exit(0); }
+	setContext('contract export', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	const statusCodes = flags['status-codes'];
+	if (!STATUS_CODE_MODES.includes(statusCodes)) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--status-codes must be one of: ${STATUS_CODE_MODES.join('|')} (got "${statusCodes}")`);
+	}
+
+	const contractResult = requireNamedGate(root, 'contract', flags.feature);
+	if (contractResult.code !== EXIT.PASS) {
+		// Same reasoning as cmdHandlesEmit's own hint: `awaiting_disposition` almost always means a
+		// contract WAS emitted but is partial/blocked, so "run contract emit first" would be wrong.
+		const hint = contractResult.status === 'awaiting_disposition'
+			? `resolve it first -- \`bskel contract waive --feature ${flags.feature} --code <CODE> (--subject "..."|--all) --reason "..."\`, or \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if intentional.`
+			: `run \`bskel contract emit --feature ${flags.feature}\` first.`;
+		fail(contractResult.code, gateReasonForCode(contractResult.code), `blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- ${hint}`, {
+			next_actions: [{ command: `bskel contract emit --feature ${flags.feature}`, reason: 'the contract gate has not passed yet', mutating: true }],
+		});
+	}
+
+	const contract = loadContract(root, flags.feature);
+	// A `paths: {}` document is a POSITIVE false claim that this API has no operations -- a
+	// different and worse thing than an incomplete one. Refused even here, past a passing gate,
+	// because `bskel gate force contract` can legitimately pass a blocked contract's gate (that
+	// escape hatch exists so a module with genuinely no HTTP surface doesn't wedge the workflow)
+	// and forcing a gate must not become a way to publish an empty API description. Exit 14 mirrors
+	// cmdContractWaive's own blocked refusal exactly -- no new exit code for the same situation.
+	if (Object.keys(contract.operations).length === 0) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `\`${flags.feature}\`'s contract has zero operations (completeness: ${contract.completeness.status}) -- exporting it would produce a document positively claiming this API has no operations. Fix --module/--terms and re-run \`bskel contract emit --feature ${flags.feature}\`.`);
+	}
+
+	// A1 §7's `path_prefix_signals` exist precisely because a source-annotation scan cannot see a
+	// framework-level global prefix; a contract emitted without --openapi-file in that situation has
+	// paths that are silently missing it. Publishing THOSE to a client generator is a
+	// wrong-URL-at-runtime bug with no compile step to catch it, so it is refused by default rather
+	// than warned about. Skipped entirely (not merely ignored) under --allow-unprefixed, so the
+	// scan report is not even read when the user has already accepted the risk.
+	if (!flags['allow-unprefixed']) {
+		const scanReport = loadScanReportOrExit(root, flags.feature);
+		const candidates = pathPrefixCandidates(scanReport.path_prefix_signals);
+		const unreflected = unreflectedPathPrefixes(contract, candidates);
+		if (unreflected.length > 0) {
+			const signals = (scanReport.path_prefix_signals ?? []).map((s) => `  ${s.kind}: ${s.file} (${s.prefix ?? s.pattern})`).join('\n');
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `blocked: this repo's scan found a global path-prefix signal (${unreflected.join(', ')}) that ${flags.feature}'s contract paths do not reflect:\n${signals}\nExporting these paths would hand a client generator URLs the real application does not serve. Re-run \`bskel contract emit --feature ${flags.feature} --openapi-file <real-generated-doc>\` to correct them (see D-openapi-reconciliation), or pass --allow-unprefixed if the signal genuinely does not apply to this feature.`);
+		}
+	}
+
+	// Provenance decoration only -- which real document this feature's paths were reconciled
+	// against. A snapshot that fails to parse is reported and treated as absent rather than taking
+	// the export down: it is not load-bearing for a single byte of the emitted document.
+	const snapshotPath = specPath(root, flags.feature, 'contracts', `${flags.feature}.openapi.snapshot.json`);
+	let snapshot = null;
+	if (fs.existsSync(snapshotPath)) {
+		try {
+			snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+		} catch (err) {
+			console.error(`note: could not read the OpenAPI reconciliation snapshot (${err.message}) -- exporting without its provenance details`);
+		}
+	}
+
+	const version = JSON.parse(fs.readFileSync(path.join(SKILL_ROOT, 'package.json'), 'utf8')).version;
+	const built = buildOpenApiDocument({ contract, snapshot, options: { statusCodes, exportedBy: `bskel ${version}` } });
+	if (!built.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `cannot export ${flags.feature}'s contract: ${built.error}`);
+	}
+
+	// Once, not per operation -- the contract records no status codes at all, so under `literal`
+	// EVERY operation gets the same stand-in and N copies of this note would say nothing more.
+	// stderr and unconditional (not gated on !--json), the same side-channel treatment
+	// cmdContractEmit gives its own snapshot/dialect notes.
+	if (built.literalStatusStandIn) {
+		console.error('note: --status-codes literal writes `200` for every documented success body. The source contract records no status codes whatsoever, so `200` is a bskel-chosen stand-in, NOT a claim that any of these operations actually returns 200 -- `--status-codes range` (the default) emits the spec-legal `2XX` range key and invents nothing.');
+	}
+
+	const rendered = `${JSON.stringify(built.document, null, 2)}\n`;
+	if (flags.out) {
+		const outPath = path.resolve(process.cwd(), flags.out);
+		writeFileAtomic(outPath, rendered);
+		if (flags.json) {
+			console.log(JSON.stringify({
+				schema: 'sbf.contract-export/1',
+				feature_id: contract.feature_id,
+				out: flags.out,
+				openapi: built.document.openapi,
+				operation_count: Object.keys(contract.operations).length,
+				completeness: contract.completeness.status,
+				status_codes: built.statusCodes,
+				contract_sha256: built.contractSha256,
+				omitted: built.omissions,
+			}, null, 2));
+		} else if (!flags.quiet) {
+			console.log(`wrote ${flags.out} -- OpenAPI ${built.document.openapi}, ${Object.keys(contract.operations).length} operation(s), status codes: ${built.statusCodes}`);
+			console.log(`omitted (see info.x-bskel-omitted): ${built.omissions.join(', ')}`);
+		}
+	} else {
+		// The document IS this command's payload here, so --quiet never touches it and --json is a
+		// documented no-op (stdout is already exactly one JSON document either way) -- the same
+		// treatment `scan disposition` and the always-JSON gate commands already get.
+		console.log(JSON.stringify(built.document, null, 2));
+	}
+	// D-process-exit-audit: NOT process.exit(). An exported document for a schema-rich module is
+	// routinely well past the 64KB pipe buffer that truncated cmdContractEmit's own --json output,
+	// and this is the same shape of bug -- a large console.log immediately followed by a forced
+	// exit. Last statement in the function; nothing else is pending on this path.
+	process.exitCode = EXIT.PASS;
 }
 
 // A5: the `scan disposition` of contracts -- lets a human explicitly accept a `partial`
@@ -2185,6 +2321,7 @@ async function dispatchCommand(cmd, rest) {
 			const sub = rest[0];
 			const subArgs = rest.slice(1);
 			if (sub === 'emit') return cmdContractEmit(subArgs);
+			if (sub === 'export') return cmdContractExport(subArgs);
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
 			if (sub === 'waive') return cmdContractWaive(subArgs);

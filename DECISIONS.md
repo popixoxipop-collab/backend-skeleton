@@ -5938,3 +5938,346 @@ through to); `D-adapter-registry` (G1, the fresh-every-run detection this item's
 stance is consistent with); `D-fastapi-adapter` (G2, `detectPythonFastApiRoot()`, the invariant every
 template edit here is tested against); `D-npm-packaging` (P1, the `files` allowlist this item needed
 no change to).
+## D-openapi-export (A6): the export direction, and the four ways a lossy projection can lie
+
+**WHY**: A1 built the OpenAPI IMPORT direction and A2/A3 made it load-bearing -- `python-fastapi`,
+`typescript-express` and `javascript-express` all declare `api.operations: false` and depend on
+`--openapi-file` for any usable contract at all. Nothing could get back OUT. That asymmetry is not
+merely aesthetic: the internal contract is feature-scoped, single-module, and fully `$ref`-inlined
+(`inlineSchema()` guarantees zero `$ref` by construction, a promise `cmdContractToolSchema` already
+depends on), which makes it MORE useful than the source repo's own whole-repo document for three
+concrete consumers -- a Swagger UI page scoped to one feature instead of 148 operations, a client
+generator that chokes on `$ref`, and a mock-server or gateway config for one feature's operations.
+Confirmed new work before claiming a new letter: grep across DECISIONS.md/CATALOG.md/SKILL.md/
+README.md for export-direction language returns zero hits, and `D-openapi-reconciliation`'s own EXIT
+clause names only import-direction future work (live drift detection). So this is A6, architecture's
+next letter after A5, not another update appended to A1.
+
+**The central constraint: this is a LOSSY, NARROW projection, and it must never synthesize.**
+Measured against the real 148-operation Team-IZ-Backend oracle document, the internal contract
+carries:
+- **no query parameters** -- `indexOpenApiDocument()` never reads `operation.parameters`. 33/148
+  real operations (22.3%) have them, 99 in total.
+- **no header parameters** -- 23/148 (15.5%) real operations have them.
+- **no security requirements** -- auth is mined by the *handles* provider from `@PreAuthorize`,
+  never by the contract. 148/148 real operations require bearer auth.
+- **no summary/description/tags** -- `DROPPED_KEYWORDS` strips `description` even inside a schema.
+- **no per-status responses** -- collapsed to `responseSchema` (union of all 2xx) and `errorSchema`
+  (union of all 4xx/5xx). 22% of real operations do not return 200.
+- **nothing for a non-JSON request body** -- `applyRequestBodySchema` skips non-JSON media types;
+  5 real operations have multipart bodies the contract has nothing at all for.
+
+Every one of those is disclosed twice -- in prose on `info.description`, and machine-readably as
+`info.x-bskel-omitted` -- and the disclosure is phrased as "this projection cannot represent X",
+never as "the real API has X that we dropped", because this tool has no way to know the latter.
+That is the same "describe the method, not an unchecked fact about the repo" discipline
+`D-openapi-reconciliation`'s §7 addendum applied when it rewrote `api_surface_source`'s unverified
+"no committed openapi spec found" claim.
+
+**`security` is the sharpest case, and it decided the general rule.** Emitting `security: []` would
+be the easy thing to do, and -- confirmed by executing the real 3.1 meta-schema against a document
+containing it -- it is perfectly VALID. It is also a positive false claim that no authentication is
+required, on an API where 148/148 real operations need a bearer token. Schema validity therefore
+cannot be the thing that decides what to emit; truthfulness has to. `security` is OMITTED, which in
+OpenAPI means "unspecified", which is the truth. The same rule kills every other tempting synthesis:
+no `summary`/`description` invented from an operationId or a module name, no `{type: 'object'}`
+invented for a body whose shape the contract does not know (see Mechanism), no status code invented
+for a response whose status the contract never recorded.
+
+**SCOPE**: `bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed]
+[--status-codes range|literal]`, stdout by default. New `contracts/export.mjs` (pure -- no I/O, no
+gate awareness, mirroring `buildContract()`/`reconcileModule()`); `cmdContractExport` in
+`bin/bskel.mjs` (all the I/O and gate work); one `COMMANDS` entry; the two importer fixes below;
+the self-import guard; `test/contract-export.test.mjs` plus the vendored official 3.1 meta-schema
+under `test/fixtures/`. The contract-flow test harness moved from inline in
+`test/contract-cli.test.mjs` to `test/_contract-fixture.mjs` so both files drive one fixture --
+same `_`-prefixed shared-internal-module convention `_express-shared.mjs`/
+`_java-spring-analyzer.mjs` already use, and the same "three adapters privately duplicated this
+helper" extraction precedent `D-scanner-evidence` set. All 43 of `contract-cli.test.mjs`'s tests
+pass completely unmodified across that move, which is what makes it a move rather than a rewrite.
+
+**EXCLUDED, named rather than silently dropped:**
+
+*OpenAPI 3.0 output, not even behind a flag.* This is a cited exclusion, verified by executing the
+official `2021-09-28` 3.0 meta-schema, not a scheduling decision. Three independent blockers: (1)
+3.0's `Operation` has `required: ["responses"]`, so every operation the contract knows nothing about
+would force synthesizing a response object out of thin air -- 3.1's `$defs.operation` has no
+`required` array at all, so omitting is legal there and honest; (2) 3.0 types
+`exclusiveMinimum`/`exclusiveMaximum` as BOOLEANS (`{"type": "boolean", "default": false}`) while
+`COPIED_KEYWORDS` copies them as the NUMBERS a 3.1 source document used -- emitting one into a 3.0
+document silently INVERTS its meaning, the worst possible failure mode for a constraint; (3) 3.0's
+Schema Object has no `const` and restricts `type` to a string enum with no `"null"` member, both of
+which a projected contract schema can legitimately contain (springdoc's own nullable idiom produces
+`{"type": "null"}` inside a `oneOf`). A 3.0 mode would be a schema-silently-means-something-else
+generator.
+
+*The naive round trip.* "Export then re-import produces byte-identical results for ANY contract" was
+traced through the real code and found to be actively dangerous, so it is deliberately NOT the
+invariant this item claims. A `drift` operation (ERROR-severity `CONTRACT_OPENAPI_DRIFT`) still
+lands in `contract.operations` at the scan's own UNCORRECTED verb/path -- so an export puts it in
+the document at exactly that verb/path, `computeDelta()` then agrees, and the ERROR silently
+reclassifies as `matched`. Same for `missing` (`CONTRACT_OPENAPI_MISSING_OPERATION`). An `ambiguous`
+endpoint is worse: it is never in the contract at all, so re-importing an export makes it read as a
+plain `CONTRACT_UNMATCHED_ENDPOINT` -- a DIFFERENT code, which breaks any waiver already recorded
+against it, since `{code, subject}` is the waiver key (`D-contract-completeness`). What IS claimed,
+and tested, is the narrow version: for a contract whose completeness is `complete` (zero ERROR
+warnings, so by construction no drift/missing/ambiguous/unmatched entry exists to launder), export →
+`contract emit --openapi-file <the export>` against the SAME scan report reproduces the `operations`
+object exactly. Stated precisely: this is convergence after one step, not identity with some
+hypothetical upstream document -- `format: 'uuid'` is rewritten to a bare-UUID `pattern` on import
+(`D-security-2`), and a multi-shape `anyOf` union re-imports as one raw node rather than N. Both are
+stable from the first emitted contract onward, which is exactly what the test asserts.
+
+*A `--path-prefix`-style escape for the prefix refusal.* `--allow-unprefixed` is a yes/no override,
+not a way to inject a prefix at export time. Correcting paths is `contract emit --openapi-file`'s
+job against a real oracle (A1); doing it here, from a scan SIGNAL rather than a real document, would
+be exactly the guessing A1's anchor-based inference already refuses when anchors disagree.
+
+**Mechanism**:
+- **Gated on the `contract` gate having PASSED**, the same posture `handles emit` takes, and
+  deliberately not the ungated posture `contract validate`/`contract tool-schema` take: those read a
+  contract to answer a question about one payload, this one hands a whole API description to a
+  client generator or a mock server, where a contract nobody has accepted yet is a materially
+  different risk. Implemented by calling the same `requireNamedGate(root, 'contract', ...)`
+  machinery `cmdHandlesEmit` already uses, including its "an `awaiting_disposition` contract almost
+  always means partial/blocked, so point at `contract waive`/`gate force`, not at re-emitting" hint.
+- **Deliberately does NOT also require `preflight`**, unlike `contract emit`/`handles emit`/`stack
+  apply`. Those write into the target repo's own source tree or establish new state, so "is this
+  worktree even based on the real default branch" is live for them. This command derives a read-only
+  artifact from a contract that has already passed its gate -- and that gate's own token
+  transitively covers the scan report and the disposed module's files (S2, `D-gate-precision` part
+  2), which is the integrity property that actually matters here. Requiring preflight would mostly
+  mean failing an export because a 30-minute TTL expired (`D-preflight-freshness`), which says
+  nothing about whether the contract is trustworthy.
+- **A5's completeness policy lands as three different behaviors, not one.** A `blocked`
+  (zero-operation) contract is REFUSED outright -- a `paths: {}` document is a positive false claim
+  that this API has no operations, which is a different and worse thing than an incomplete one. It
+  is refused even past a passing gate, because `bskel gate force contract` can legitimately pass a
+  blocked contract's gate (that escape hatch exists so a module with genuinely no HTTP surface does
+  not wedge the workflow) and forcing a gate must not become a way to publish an empty API
+  description; exit 14 mirrors `cmdContractWaive`'s own blocked refusal exactly, no new exit code
+  for the same situation. An unwaived `partial` contract never reaches the check at all, because the
+  gate itself has not passed. A `partial` contract whose ERROR warnings were explicitly waived IS
+  exportable -- this project already decided a waived-partial contract is good enough to feed
+  `handles emit`, and exporting it is not a weaker bar; the export discloses
+  `completeness: "partial"` in `x-bskel-generated` so a consumer can see it. No completeness logic
+  is re-derived anywhere in this item; the gate check is the whole mechanism.
+- **Refuses by default on an unreflected global path prefix.** A1 §7's `path_prefix_signals` exist
+  precisely because a source-annotation scan cannot see a framework-level global prefix -- a
+  contract emitted without `--openapi-file` in that situation has paths silently missing it
+  (Team-IZ-Backend's own `ApiPathConfig.java` sets `/api/v0`). Publishing THOSE to a client
+  generator is a wrong-URL-at-runtime bug with no compile step to catch it, so it is refused rather
+  than warned about, naming the exact evidence file, with `--allow-unprefixed` as the explicit
+  override. The check is "does ANY operation path fail to sit under the signalled prefix", not
+  "all" -- a partially-reconciled contract (matched operations corrected, a drifted one left at its
+  scan path) is exactly the dangerous mixed case, and half-right paths are no safer than wholly
+  wrong ones. Segment-boundary safe, reusing `PATH_PREFIX_RE` rather than re-deriving it, so
+  `/api/v0` never counts `/api/v0abc` as prefixed.
+- **Status codes.** `responseSchema` → `responses["2XX"]`, `errorSchema` → `responses["default"]`,
+  and an operation with neither gets no `responses` key at all. All three facts were verified by
+  executing the official 3.1 meta-schema rather than assumed: `$defs.responses` accepts exactly
+  `^[1-5](?:[0-9]{2}|XX)$` plus an explicit `default` property, `$defs.operation` does not require
+  `responses`, and `responses: {}` is illegal anyway (`minProperties: 1`) -- so omitting is both
+  legal and honest, where guessing a status would be neither. `--status-codes literal` swaps `2XX`
+  for `200` for tooling that cannot read range keys, and prints a stderr note ONCE per document (not
+  per operation) saying plainly that `200` is a bskel-chosen stand-in: the contract records no status
+  codes whatsoever, so under `literal` EVERY operation gets the same stand-in and N copies of the
+  note would say nothing more.
+- **`content: {'application/json': {}}` -- a media-type entry with no schema -- is load-bearing, not
+  an oversight.** It is the only way to say "this operation takes a JSON body whose shape the
+  contract does not know" without inventing one. Emitting `{type: 'object'}` there (the shape
+  `operationPayloadSchema` itself falls back to) would be a fabricated schema AND would break the
+  round-trip invariant, since re-importing would produce a `requestBodySchema` the original contract
+  never had. A known-bodyless operation (`body: false`) gets no `requestBody` at all; a `body:
+  'unknown'` one gets the media-type entry without `required`, matching exactly what
+  `operationPayloadSchema` already enforces for that case.
+- **`x-bskel-omitted` is derived from the contract, not a fixed disclaimer.** The structural entries
+  (query/header parameters, security, summaries, tags, non-JSON media types, per-status responses,
+  descriptions) are always present because the contract format carries none of them for any
+  contract; `request-body-schemas`, `response-schemas` and `error-schemas` are added only when at
+  least one operation in THIS contract actually lacks them. Tested in both directions, including a
+  fixture where every operation documents a response and an error and neither entry appears -- the
+  case that would be impossible if the list were hardcoded.
+- **`info.version` is a 12-char prefix of the contract hash**, not an invented semver. OpenAPI
+  requires `info.version` to be a string and the contract carries no API version; a content
+  identifier (stable across re-exports of the same contract, different the moment it changes) says
+  something true, where `"1.0.0"` would read as a claim about the API's own versioning. Explained in
+  `info.description` so nobody mistakes it for one.
+- **`x-bskel-generated.contract_sha256` is the self-import guard's key material AND the same number
+  the gate hashes.** `contractSha256()` hashes `JSON.stringify(contract, null, 2) + '\n'` -- byte-
+  identical to what `cmdContractEmit` writes to disk -- so it equals `lib/gate-definitions.mjs`'s
+  own `contract_hash` (`sha256File`) rather than being a second, parallel notion of identity. Proven
+  by a test against a real emitted file, not left as a claim.
+- **Output shape.** With no `--out`, stdout is the document itself, so `--json` is a documented
+  no-op there (stdout is already exactly one JSON document either way) -- the same treatment `scan
+  disposition` and the always-JSON gate commands already get, and `--quiet` never touches it because
+  the document IS the payload. With `--out`, the document goes to the file and stdout carries a
+  human summary, or an `sbf.contract-export/1` envelope under `--json`. Every path leaves stdout
+  holding exactly one JSON document when `--json` is given, preserving `D-cli-contract`'s invariant.
+- **`process.exitCode`, never `process.exit()`, after printing.** An exported document is routinely
+  LARGER than the contract it came from (every projected schema reproduced verbatim, plus the prose
+  disclosure), so this exit path was in the exact bug class `D-process-exit-audit` swept -- built
+  correctly from the start rather than fixed later, with the same >64KB pipe-capture regression test
+  the other two call sites already have.
+
+**Two importer fixes this item forced -- real, general capability gains, not round-trip plumbing.**
+Verified by executing the actual regexes: `SUCCESS_STATUS_RE = /^2[0-9]{2}$/` does NOT match `2XX`,
+and `ERROR_STATUS_RE = /^[45][0-9]{2}$/` matches neither `4XX`/`5XX` nor `default`. Range keys and
+`default` are ordinary in real hand-written OpenAPI documents, so before this widening `bskel` could
+not read one at all -- and did so SILENTLY, because "no matching status" is (correctly) not a failure
+anywhere in `projectResponseSchemas`, so a document written that way lost every response and error
+schema with no warning emitted anywhere.
+1. Widened to `/^2(?:[0-9]{2}|XX)$/` and `/^[45](?:[0-9]{2}|XX)$/`, matching the official 3.1
+   meta-schema's own `^[1-5](?:[0-9]{2}|XX)$` exactly.
+2. `default` folded into the ERROR side only, via an explicit `includeDefault` parameter. The
+   asymmetry is the whole point: `default` means "every status not otherwise listed", so folding it
+   into SUCCESS would let an error shape satisfy success validation -- a real false negative.
+   Folding it into ERROR can only ever WIDEN the error union, which A3's `anyOf` design already
+   tolerates by construction ("matches at least one documented shape"), and never narrows what a
+   real response is permitted to be.
+
+Both were confirmed to FAIL against the pre-fix code before the tests were kept, the same discipline
+`D-javascript-express-adapter`'s comment-masking fix used. Reverting all three edits and re-running
+the real CLI: `2XX` + `4XX` projects NEITHER schema, `2XX` + `5XX` neither, `200` + `default` loses
+the error one, `default` alone yields nothing -- and the round-trip test fails on `createWidget`
+losing both its `responseSchema` and its `errorSchema`. Restored: all four project correctly, and
+`default` alone still produces NO success schema, which is the asymmetry stated as an executable
+assertion rather than only as a comment.
+
+**The self-import guard -- a real, structural hazard this design creates, closed structurally.**
+Once export exists, piping its output straight back into `contract emit --openapi-file` would make
+the contract "confirm" itself: `stats.matched` reads N/N and A1's entire point (an INDEPENDENT
+oracle) evaporates silently. Worse than a no-op, per the drift/missing/ambiguous laundering traced
+under EXCLUDED above. Closed by checking for the `x-bskel-generated` extension on `info` immediately
+after a successful `loadOpenApiDocument()` inside `buildReconciliation()`, and returning the same
+`{ok:false, error}` shape a malformed `--openapi-file` already returns -- so it surfaces through the
+EXISTING exit-14/`BAD_ARGS` path with no new exit code and no new machinery. The constant lives on
+the READING side (`contracts/openapi.mjs`) and `contracts/export.mjs` imports it, so writer and
+reader cannot drift apart and silently disarm the guard. The error message names the exact escape
+hatch (remove the extension) rather than leaving a user stuck.
+
+The guard is proven LOAD-BEARING, not decorative, by a pair of tests: a contract carrying a real
+`drift` operation is exported and re-imported, and the re-import is refused; then the SAME document
+with only `x-bskel-generated` stripped is re-imported, and the drifted operation genuinely does
+reclassify to `matched` with `provenance: "scan+openapi"`, the `CONTRACT_OPENAPI_DRIFT` ERROR
+vanishes entirely, and a contract that was `partial` now reads `complete`. Nothing else in the
+system catches it.
+
+**Real findings during implementation, all reproduced by execution, none hypothetical**:
+- **OpenAPI 3.1 REQUIRES `description` on a Response Object** (`$defs.response.required:
+  ["description"]`), which the plan for this item did not anticipate. There is no way to emit a
+  response at all without one. Resolved by making the two description strings describe the
+  PROJECTION rather than the API ("The source contract records the union of every documented 2xx
+  JSON body for this operation, with no per-status detail -- see info.x-bskel-omitted"), so a string
+  the format forces on us still makes no claim we cannot back up.
+- **Ajv 8.20.0 mis-resolves the official 3.1 meta-schema's own `{"$dynamicRef": "#meta"}` nodes.**
+  Instead of resolving to `$defs.schema` (which carries the matching `$dynamicAnchor: "meta"`), it
+  applies the ENCLOSING subschema to the referenced value -- so a path parameter's `schema` gets
+  validated against the Parameter Object and fails with "must have required property 'name'" and
+  "must NOT have unevaluated properties", and a response schema of `{type: 'object'}` fails
+  `unevaluatedProperties` while a bare `{}` passes. Reproduced against a 6-line synthetic schema of
+  the same shape to confirm it is Ajv's behavior and not a usage error here. Handled by rewriting
+  those 4 nodes to a plain `$ref: '#/$defs/schema'` before compiling -- which is exactly what the
+  2020-12 spec says a `$dynamicRef` degrades to when nothing in the dynamic scope overrides the
+  anchor, and that is the case for a standalone 3.1 document (only the separate `schema-base`
+  dialect variants override it). The adaptation lives in the TEST, in one commented place, with an
+  assertion that it actually found nodes to rewrite; the vendored file itself stays byte-identical
+  to the published one.
+- **`security: []` validates cleanly** against the real meta-schema, confirmed by running it. That
+  is the finding that decided the omit-never-fabricate rule above, and it is pinned as an explicit
+  test assertion (`the reason it is never emitted is truthfulness, not validity`) so a future reader
+  does not "fix" the missing key.
+- **A pre-existing test had explicitly PINNED the old `default` behavior**, which is the only test
+  in the whole suite this item had to modify: `test/contract-openapi.test.mjs`'s "a response
+  documented only under `default` contributes to neither success nor error bucket". That is worth
+  recording rather than quietly rewriting, because it means the old behavior was deliberate at the
+  time, not an oversight -- A3 simply had no reason to read `default` (Team-IZ-Backend's own
+  document does not use it) and pinned what it did. Retargeted to assert the new asymmetry, with
+  the SUCCESS half of the original assertion kept verbatim and now carrying the real weight
+  (`default` must never become a success schema). Confirms the COST note above is a genuine change
+  to shipped behavior, not a theoretical one.
+
+**Deliberately unchanged, confirmed rather than skipped**:
+- `contracts/completeness.mjs` -- no new warning codes. Export READS A5's existing verdict (through
+  the gate) and adds nothing to it; a warning code is for something `contract emit` found in the
+  contract, and export finds nothing new about the contract.
+- `lib/gate-definitions.mjs` -- no new gate, no new gate-token input. Export is an OUTPUT derived
+  from the contract, not an input to it; hashing an exported file into the `contract` gate's token
+  would make the gate go stale the moment anyone re-exports, backwards for a derived artifact. Same
+  reasoning `D-handles-ownership` used for keeping generated handle files out of the `handles`
+  token. `test/gate-definitions.test.mjs`'s exact 4-key assertion is untouched, and would fail
+  loudly if a 5th key were added by mistake.
+- `lib/verify.mjs` -- unchanged, same reasoning A1 and A5 both already used for not extending
+  `checkArtifacts()`: an exported document is not an artifact any gate declares, and re-deriving
+  anything about it at verify time would be pure duplication.
+- `.github/workflows/ci.yml` -- no new job. Pure Node, no external toolchain, runs inside plain
+  `npm test`. Contrast with `java-compile`/`python-import`/`typescript-compile`/`db-introspect`,
+  each of which needed a job precisely because it needs a toolchain `npm test` does not have.
+
+**Verification**: `npm test` 771 → 792 (21 net new -- 20 in `test/contract-export.test.mjs` plus one
+`cli-contract` required-field case the new command's own COMMANDS-coverage guard demanded). Exactly
+ONE pre-existing test was modified, the `default`-bucket one described above; every other test in the
+suite passes completely unmodified, including all 43 in `test/contract-cli.test.mjs` across the
+harness extraction.
+`test/contract-export.test.mjs` drives everything through the REAL CLI against real git repos, never
+through `contracts/export.mjs`'s exported functions -- the claim under test is "a contract can be
+published as an OpenAPI document", and only a real CLI dispatch establishes that. Every exported
+document is validated against the vendored official 3.1 meta-schema, and the checker itself is
+self-verified against nine real defects (an empty `responses`, a response with no `description`, a
+path parameter with no `required`/with `required: false`/with no `schema`, a bogus status key, a
+paths key not starting with `/`, a `requestBody` with no `content`, an `info` missing `version`) --
+a meta-schema test that can only ever pass is worth nothing. The round trip runs as two real
+subprocess CLI invocations, not direct function calls. `npm pack --dry-run` re-run to confirm the
+vendored meta-schema ships nowhere (`test/` is excluded by `package.json`'s `files` allowlist, so
+this needed no packaging change -- confirmed, not assumed).
+
+**COST**: an exported document is a genuinely partial description of one feature, and a consumer who
+does not read `info.x-bskel-omitted` can mistake it for a complete one -- the disclosure is
+prominent but not enforceable. A client generated from one will have no query/header parameters and
+no auth wiring, and a mock server built from one will accept unauthenticated requests; both are
+correct reflections of what the contract knows and neither is discoverable from the generated code
+itself. The `--status-codes literal` mode ships a stand-in status code by design, mitigated only by
+a stderr note nobody is forced to read. The prefix refusal is conservative and will occasionally
+block an export whose feature genuinely lives outside a repo-wide prefix, costing one
+`--allow-unprefixed`. The self-import guard makes an exported document permanently unusable as an
+`--openapi-file` input without a manual edit, which is the intent but is also friction for anyone
+who wanted an export as a starting point for a hand-maintained document. The two importer regex
+widenings change how an already-shipped command reads an already-existing document shape: a document
+using `4XX`/`5XX`/`default` that previously projected NO error schema now projects one, so an
+`error` envelope that used to pass unconstrained can now legitimately fail -- an intended
+correctness fix, but a real behavior change to shipped behavior, recorded here rather than smoothed
+over.
+
+**EXIT**: `contracts/export.mjs`'s `STRUCTURAL_OMISSIONS`/`OMISSION_PROSE` are the single place to
+add a disclosure the day the contract format grows (or keeps failing to carry) another field;
+`buildRequestBody`/`buildResponses` are the single place the projection's shape lives. Add a 3.0
+output mode ONLY by first resolving the three dialect blockers named under EXCLUDED -- a better
+renderer does not make `exclusiveMinimum` mean the same thing in both dialects. If query/header
+parameters or security ever become real contract fields (they would have to come from a
+scanner/adapter that can see them, not from this module), they drop out of `STRUCTURAL_OMISSIONS`
+and into real emitted content with no other change. The `$dynamicRef` adaptation in the test can be
+deleted outright the day Ajv resolves `$dynamicAnchor` correctly -- the assertion that it found
+nodes to rewrite is what will fail first and point at it. Live drift detection against a running
+server remains open and is still A1's EXIT, untouched by this item.
+
+Cross-references: `D-openapi-reconciliation` (A1, the import direction this is the inverse of, the
+`path_prefix_signals` this item's own refusal consumes, and the "describe the method, not an
+unchecked fact" discipline the omission prose follows); `D-openapi-request-schema` (A2, the
+`inlineSchema()` no-`$ref` guarantee that makes an exported document self-contained, and the
+`format: 'uuid'` → `pattern` rewrite that makes the round trip "convergence after one step");
+`D-openapi-response-schema` (A3, the `responseSchema`/`errorSchema` union this item projects back
+out, and the `anyOf`-never-`oneOf` reasoning that makes folding `default` into the error side safe);
+`D-contract-completeness` (A5, the three-way completeness verdict this item's three different
+behaviors read, and the `{code, subject}` waiver key an ambiguous-endpoint laundering would break);
+`D-gate-precision` (S2, the `contract` gate token that transitively covers scan report + disposed
+module files, which is why preflight is not additionally required here); `D-handles-ownership` (O2,
+the "a derived artifact does not belong in the gate token" precedent `lib/gate-definitions.mjs`
+staying unchanged follows); `D-process-exit-audit` (the >64KB pipe-truncation class this command's
+own exit path was built against from the start); `D-cli-contract` (D2, the `--json` invariant and
+the existing BAD_ARGS/exit-14 path the self-import guard reuses rather than extending);
+`D-security-1`/`D-security-2` (the prototype-pollution and bare-UUID-pattern classes this item
+inherits unchanged); `D-scanner-evidence` (D3, the "privately duplicated helper" extraction
+precedent `test/_contract-fixture.mjs` follows); `D-artifact-determinism` (O6, the no-timestamps,
+byte-identical-re-run property an export inherits and is tested for);
+`D-javascript-express-adapter` (G6, the "confirm the test fails against the pre-fix code before
+keeping it" discipline both importer fixes followed).

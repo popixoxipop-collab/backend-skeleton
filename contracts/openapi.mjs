@@ -42,8 +42,18 @@ const SCHEMA_REF_PREFIX = '#/components/schemas/';
 // response/error side can have many documented statuses -- MAX_RESPONSES_PER_OPERATION bounds
 // that (real max observed: 9). See D-openapi-response-schema in DECISIONS.md.
 const MAX_RESPONSES_PER_OPERATION = 64;
-const SUCCESS_STATUS_RE = /^2[0-9]{2}$/;
-const ERROR_STATUS_RE = /^[45][0-9]{2}$/;
+// A6 (D-openapi-export): widened from `/^2[0-9]{2}$/` and `/^[45][0-9]{2}$/` to also accept
+// OpenAPI's own RANGE keys. These are ordinary in real hand-written documents and legal per the
+// official 3.1 meta-schema, whose `responses` object accepts exactly `^[1-5](?:[0-9]{2}|XX)$` plus
+// `default` -- confirmed by executing the real 2022-10-07 schema, not by reading prose about it.
+// Before this widening a document written with `2XX`/`4XX` silently lost every response and error
+// schema: `projectResponseSchemas` simply never matched the status key, and "no matching status"
+// is (correctly) not a failure, so the loss produced no warning anywhere. This is a general
+// importer capability gain, not round-trip plumbing -- it is what makes such a document readable
+// by `contract emit --openapi-file` at all.
+const SUCCESS_STATUS_RE = /^2(?:[0-9]{2}|XX)$/;
+const ERROR_STATUS_RE = /^[45](?:[0-9]{2}|XX)$/;
+const DEFAULT_STATUS_KEY = 'default';
 
 // Same shape convention as the rest of contracts/ -- operationId becomes an object key
 // downstream (contracts/emit.mjs's `operations[operationId]`), so it's whitelisted before it's
@@ -105,6 +115,18 @@ class InlineFailure extends Error {
 		super(reason);
 		this.reason = reason;
 	}
+}
+
+// A6 (D-openapi-export): the `info` extension `bskel contract export` stamps on every document it
+// writes. Declared HERE, on the reading side, because the guard below is the load-bearing consumer
+// -- contracts/export.mjs imports this constant rather than spelling the key a second time, so the
+// writer and the reader cannot drift apart and silently disarm the guard.
+export const BSKEL_GENERATED_EXTENSION = 'x-bskel-generated';
+
+export function hasBskelExportMarker(doc) {
+	const info = doc?.info;
+	if (typeof info !== 'object' || info === null || Array.isArray(info)) return false;
+	return Object.hasOwn(info, BSKEL_GENERATED_EXTENSION);
 }
 
 export function normalizeRoute(routePath) {
@@ -515,7 +537,18 @@ function canonicalJson(value) {
 // reality" rule A2 applied in the opposite direction (never emit a schema weaker than the real
 // DTO) -- here the risk runs the other way, so the fix runs the other way too, but the underlying
 // principle (don't guess, don't approximate) is identical.
-function projectResponseSchemas(responses, statusRe, componentSchemas) {
+//
+// A6 (D-openapi-export): `includeDefault` folds OpenAPI's `default` response into this direction.
+// It is passed ONLY for the error side, and that asymmetry is the whole point: `default` means
+// "every status not otherwise listed", so its body may well be an error shape. Folding it into
+// SUCCESS would let an error shape satisfy success validation -- a real false negative. Folding it
+// into ERROR can only ever WIDEN the error union, which A3's `anyOf` design already tolerates by
+// construction ("matches at least one documented shape"), and never narrows what a real response is
+// permitted to be. A document whose `default` genuinely describes a success body therefore loses
+// nothing it had before (nothing read `default` at all until now); one whose `default` describes an
+// error -- the overwhelmingly common case, and the only case `bskel contract export` itself emits --
+// gains a real error schema it previously dropped silently.
+function projectResponseSchemas(responses, statusRe, componentSchemas, { includeDefault = false } = {}) {
 	if (!responses) return { outcome: 'none' };
 	const statusKeys = Object.keys(responses);
 	if (statusKeys.length > MAX_RESPONSES_PER_OPERATION) {
@@ -525,7 +558,7 @@ function projectResponseSchemas(responses, statusRe, componentSchemas) {
 	const rawNodesByKey = new Map();
 	let sawContentWithoutJson = false;
 	for (const status of statusKeys) {
-		if (!statusRe.test(status)) continue;
+		if (!statusRe.test(status) && !(includeDefault && status === DEFAULT_STATUS_KEY)) continue;
 		const resp = responses[status];
 		if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) continue;
 		const content = resp.content;
@@ -570,7 +603,8 @@ function projectResponseSchemas(responses, statusRe, componentSchemas) {
 // as A2's requestBodySchema).
 function applyResponseSchemas(result, docEntry, componentSchemas, stats) {
 	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, SUCCESS_STATUS_RE, componentSchemas), stats, 'response');
-	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, ERROR_STATUS_RE, componentSchemas), stats, 'error');
+	// A6: `default` contributes to the ERROR side only -- see projectResponseSchemas' own comment.
+	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, ERROR_STATUS_RE, componentSchemas, { includeDefault: true }), stats, 'error');
 }
 
 function applyProjectionOutcome(result, projected, stats, kind) {
@@ -726,6 +760,22 @@ export function buildReconciliation({ filePath, module, pathPrefix = null }) {
 	}
 	const loaded = loadOpenApiDocument(filePath);
 	if (!loaded.ok) return loaded;
+	// A6 (D-openapi-export): the structural half of the hazard `bskel contract export` creates.
+	// Piping an export straight back into `contract emit --openapi-file` would make the contract
+	// "confirm" itself -- stats.matched would read N/N and A1's entire point (an INDEPENDENT
+	// oracle) would evaporate silently. Worse than a no-op: a `drift` operation still sits in
+	// `contract.operations` at the scan's own uncorrected verb/path, so an export puts it in the
+	// document at exactly that verb/path, computeDelta() then agrees, and a recorded
+	// CONTRACT_OPENAPI_DRIFT (ERROR) reclassifies as `matched` and disappears. Same for `missing`;
+	// an `ambiguous` endpoint is worse still, since it is never in the contract at all and would
+	// come back as a plain CONTRACT_UNMATCHED_ENDPOINT -- a DIFFERENT code, which breaks any
+	// waiver already recorded against it ({code, subject} is the waiver key, see
+	// D-contract-completeness). Refused here rather than defended against downstream, and through
+	// the existing BAD_ARGS/exit-14 path cmdContractEmit already uses for a malformed
+	// --openapi-file -- no new exit code, no new machinery.
+	if (hasBskelExportMarker(loaded.doc)) {
+		return { ok: false, error: `"${filePath}" was generated by \`bskel contract export\` -- reconciling a contract against its own export defeats the point of an independent oracle (every operation would confirm itself, and an already-recorded drift/missing ERROR would silently reclassify as matched). Point --openapi-file at a document the application itself produces. If you genuinely mean to reconcile against a hand-edited copy, remove the "${BSKEL_GENERATED_EXTENSION}" extension from its \`info\` object first.` };
+	}
 	const indexed = indexOpenApiDocument(loaded.doc);
 	if (!indexed.ok) return indexed;
 	const recon = reconcileModule({ index: indexed, module, pathPrefix });

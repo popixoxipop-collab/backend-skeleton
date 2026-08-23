@@ -758,14 +758,24 @@ test('a 204 with no content at all -> response_schema_none, not a failure', () =
 	assert.equal('responseSchema' in result, false);
 });
 
-test('a response documented only under "default" contributes to neither success nor error bucket', () => {
+// A6 (D-openapi-export): this test previously asserted the OPPOSITE for the error half -- that a
+// `default` response contributed to NEITHER bucket. That was the real shipped behavior through A3,
+// and it silently dropped a genuine error schema for any document written the (entirely ordinary)
+// `default` way, with no warning anywhere, since "no status matched" is correctly not a failure.
+// A6 folds `default` into the ERROR side only. The SUCCESS half of the original assertion is
+// unchanged and is the load-bearing one: `default` means "every status not otherwise listed", so
+// letting it become a success schema would let an error shape satisfy success validation, while
+// widening the error union is something A3's own `anyOf` design already tolerates by construction.
+test('a response documented only under "default" contributes to the error bucket, and never to the success one', () => {
 	const doc = docWithResponses(
 		{ default: { content: { 'application/json': { schema: { '$ref': '#/components/schemas/X' } } } } },
 		{ components: { X: { type: 'object' } } },
 	);
-	const { recon } = reconcileCreateWidget(doc);
+	const { recon, result } = reconcileCreateWidget(doc);
 	assert.equal(recon.stats.response_schema_none, 1);
-	assert.equal(recon.stats.error_schema_none, 1);
+	assert.equal('responseSchema' in result, false, '`default` must never become a success schema');
+	assert.equal(recon.stats.error_schema_resolved, 1);
+	assert.deepEqual(result.errorSchema, { type: 'object' });
 });
 
 test('one 2xx resolves, another has an unsupported keyword -> the WHOLE responseSchema fails closed, no partial union', () => {

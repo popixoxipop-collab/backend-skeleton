@@ -87,6 +87,31 @@ bskel new --stack fastapi --slug my-service \
 The full parameter list, the measured API-validation matrix behind that split, and the warning
 behaviour are in `D-greenfield-parameters` in `DECISIONS.md`.
 
+### Publishing a feature's contract as OpenAPI (optional)
+
+```bash
+bskel contract export --feature 001-organization-management --out openapi/organization.json
+```
+
+Renders an already-emitted, gate-passing contract as a standalone **OpenAPI 3.1** document — the
+inverse of `contract emit --openapi-file`. Useful for a Swagger UI page scoped to one feature
+instead of the whole repo, a client generator that can't follow `$ref` (an exported document has
+none), or a mock server for one feature's operations.
+
+It is a **deliberately lossy, narrow projection, and it says so**: the contract carries no query or
+header parameters, no security requirements, no summaries or tags, and no per-status responses, so
+none of those appear — every omission is disclosed both in prose (`info.description`) and
+machine-readably (`info.x-bskel-omitted`). Nothing is invented to fill a gap: `security` is omitted
+rather than emitted as `[]` (an empty array would positively claim no authentication is required),
+and an operation whose body shape the contract doesn't know gets a JSON media-type entry with no
+schema rather than a fabricated one.
+
+Export refuses a zero-operation contract, refuses when the scan found a global path prefix the
+contract's paths don't reflect (`--allow-unprefixed` overrides), and stamps every document with an
+`x-bskel-generated` marker that `contract emit --openapi-file` then refuses to read back in —
+reconciling a contract against its own export would make it confirm itself. See `D-openapi-export`
+in `DECISIONS.md`.
+
 ### Database schema (optional)
 
 `bskel scan --db` additionally scans Flyway/Liquibase migration files (local only, no network).
