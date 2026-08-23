@@ -21,6 +21,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JAVA_FIXTURE = path.join(__dirname, 'fixtures', 'java-spring');
 const PYTHON_FIXTURE = path.join(__dirname, 'fixtures', 'python-fastapi');
 const TYPESCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-express');
+const JAVASCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'javascript-express');
 
 function scratchCopyOf(fixtureDir) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-conformance-'));
@@ -35,11 +36,12 @@ const ADAPTER_FIXTURES = {
 	'java-spring': JAVA_FIXTURE,
 	'python-fastapi': PYTHON_FIXTURE,
 	'typescript-express': TYPESCRIPT_FIXTURE,
+	'javascript-express': JAVASCRIPT_FIXTURE,
 	'generic-grep': JAVA_FIXTURE,
 };
 
 test('checkAdapterConformance passes for every shipped scanner adapter', () => {
-	assert.ok(ADAPTERS.length >= 4, 'sanity: expected java-spring, python-fastapi, typescript-express, generic-grep to be loaded');
+	assert.ok(ADAPTERS.length >= 5, 'sanity: expected java-spring, python-fastapi, typescript-express, javascript-express, generic-grep to be loaded');
 	for (const adapter of ADAPTERS) {
 		const repoRoot = ADAPTER_FIXTURES[adapter.id];
 		assert.ok(repoRoot, `no fixture wired for adapter "${adapter.id}" -- add one to ADAPTER_FIXTURES`);
@@ -93,6 +95,12 @@ test('checkProviderConformance passes for the real typescript-express handles pr
 		fs.rmSync(root, { recursive: true, force: true });
 	}
 });
+
+// There is deliberately NO `checkProviderConformance` test for `javascript-express`: that adapter
+// ships with `codegen.handles: false` and no handles provider at all (G6 Phase 1 only -- see
+// D-javascript-express-adapter in DECISIONS.md for the measured reason). That absence is not
+// untested: test/handles-provider-registry.test.mjs's biconditional test fails the suite if any
+// adapter's `codegen.handles` and the existence of a same-id provider ever disagree.
 
 // Proves the harness actually discriminates -- a fixed-point summary that every real
 // adapters/providers pass would be equally true of a harness that always returns ok:true.

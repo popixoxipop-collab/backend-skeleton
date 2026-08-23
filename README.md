@@ -77,7 +77,7 @@ below).
 |---|---|---|
 | Node.js | `>=18` | ES2022 (`Object.hasOwn`) + ESM top-level `await` — nothing newer is used anywhere in the runtime code (verified by grep across every recent-ES-addition pattern; see `D-npm-packaging` in `DECISIONS.md`) |
 | git | required | every gate is git-state-derived |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | required for `scan`/`handles` | both scanner adapters shell out to it directly, and throw (not degrade) if it's missing |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | required for `scan`/`handles` | every scanner adapter shells out to it directly, and throws (not degrades) if it's missing |
 | `gh` (GitHub CLI) | optional | only used for `preflight`'s 3-way default-branch cross-check; already soft-guarded, never a hard requirement |
 | `python3` | optional | only needed to run this repository's own cross-language codec test — `bskel` itself never invokes `python3` |
 | a build wrapper (`gradlew`/`pom.xml`+`mvnw`/`package.json`) | optional | only `bskel verify --build` needs one; `handles emit` never compiles anything itself |
@@ -92,6 +92,16 @@ string for anything missing.
 - `python-fastapi` — FastAPI + SQLModel. Real codegen provider for `handles emit`; contract-grade
   operation extraction is not supported (FastAPI generates operation ids at runtime) — pass a real
   OpenAPI document via `--openapi-file` for a trustworthy contract.
+- `typescript-express` — TypeScript + Express + TypeORM. Real codegen provider for `handles emit`
+  (entities come from `@Entity`/`@PrimaryGeneratedColumn`); no operation extraction — plain Express
+  has no operationId concept, so pass `--openapi-file` for a contract. See
+  `D-typescript-express-provider` in `DECISIONS.md`.
+- `javascript-express` — plain-JavaScript ESM Express with **no ORM** (raw `mysql2`/`mariadb`),
+  including `serverless-http`/Lambda deployments. **Scanner only** — routes and their real absolute
+  paths are resolved through a full mount-graph walk, but every capability is honestly `false`:
+  there is no codegen provider, because raw SQL string literals carry no trustworthy
+  table/primary-key/column-allow-list metadata. See `D-javascript-express-adapter` in `DECISIONS.md`
+  for the measured reasoning.
 - `generic-grep` — unconditional last-resort fallback (Express/Flask/FastAPI-shaped route
   detection). Reconnaissance only, never contract-grade — always `confidence: "low"`, requires
   `--accept-low-confidence` to proceed past a feature-scoped scan.
