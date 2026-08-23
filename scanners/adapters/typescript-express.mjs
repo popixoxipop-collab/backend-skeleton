@@ -44,9 +44,14 @@ export function detectTypeScriptExpressRoot(repoRoot) {
 	const projectRoot = path.dirname(pkgFile);
 	const sourceFiles = rgFilesMatching("import\\s*\\{[^}]*\\bRouter\\b[^}]*\\}\\s*from\\s*['\"]express['\"]", ['*.ts'], projectRoot);
 	if (sourceFiles.length === 0) return null;
+	// G6: `\bRouter\s*\(`, not `\bRouter\s*\(\s*\)` -- `Router({ mergeParams: true })` is ordinary
+	// Express, and requiring empty parens made this whole adapter fail to detect a repo whose
+	// routers all pass options. A strict widening of the SECOND half of an already-conjunctive
+	// signal (the first half still requires a named `Router` import from 'express'), and there is
+	// no word boundary inside `makeRouter(`, so this cannot match an unrelated factory.
 	const callsRouter = sourceFiles.some((f) => {
 		try {
-			return /\bRouter\s*\(\s*\)/.test(maskJsComments(fs.readFileSync(f, 'utf8')));
+			return /\bRouter\s*\(/.test(maskJsComments(fs.readFileSync(f, 'utf8')));
 		} catch {
 			return false;
 		}
@@ -217,7 +222,10 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	const allEntities = [];
 	for (const file of files) {
 		const text = fileTexts.get(file);
-		if (/\bRouter\s*\(\s*\)/.test(text) && /\brouter\.\w+\s*\(/.test(text)) {
+		// G6: `\bRouter\s*\(` -- see detectTypeScriptExpressRoot above. Same widening for the same
+		// reason: a router declared as `Router({ mergeParams: true })` is ordinary Express, and
+		// this per-file gate previously skipped its whole file.
+		if (/\bRouter\s*\(/.test(text) && /\brouter\.\w+\s*\(/.test(text)) {
 			const localEndpoints = extractEndpoints(text);
 			if (localEndpoints.length > 0) {
 				const prefix = prefixChainFor(file, edges);

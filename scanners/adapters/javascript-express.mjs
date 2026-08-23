@@ -78,12 +78,13 @@ export function detectJavaScriptExpressRoot(repoRoot) {
 		// gate is the masked re-read below, which is why detection needs both the import AND a
 		// Router() call to be genuine code.
 		const sourceFiles = rgFilesMatching(IMPORT_EXPRESS_SRC, globs, projectRoot);
-		// `\bRouter\s*\(\s*\)` matches BOTH `Router()` and `express.Router()` -- there is a word
-		// boundary between `.` and `R`.
+		// `\bRouter\s*\(` matches BOTH `Router(...)` and `express.Router(...)` -- there is a word
+		// boundary between `.` and `R`, and none inside `makeRouter(`. Not `\(\s*\)`: an options
+		// object (`Router({ mergeParams: true })`) is ordinary Express and must still detect.
 		const callsRouter = sourceFiles.some((f) => {
 			try {
 				const masked = maskJsComments(fs.readFileSync(f, 'utf8'));
-				return expressBindings(masked) !== null && /\bRouter\s*\(\s*\)/.test(masked);
+				return expressBindings(masked) !== null && /\bRouter\s*\(/.test(masked);
 			} catch {
 				return false;
 			}
@@ -130,7 +131,11 @@ function expressBindings(text) {
 // same "bounded, not general" discipline every other cross-file resolution in this codebase uses.
 function declaredMountables(text, bindings) {
 	const mountables = new Map(); // varName -> 'router' | 'app'
-	const routerDeclRe = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:[\w$]+\s*\.\s*)?Router\s*\(\s*\)/g;
+	// `Router\s*\(` deliberately does NOT require empty parens: `Router({ mergeParams: true })` is
+	// completely ordinary Express, and requiring `()` dropped the declaration entirely -- which,
+	// here, means the file yields no routes at all rather than merely losing an option. Matching
+	// the opening paren is sufficient to identify the variable; the argument list is never read.
+	const routerDeclRe = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:[\w$]+\s*\.\s*)?Router\s*\(/g;
 	for (const m of text.matchAll(routerDeclRe)) {
 		// A bare `Router()` only counts when Router is genuinely imported from express; a
 		// `<name>.Router()` member call always counts (that IS the default-import idiom).

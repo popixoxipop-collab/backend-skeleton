@@ -5421,8 +5421,19 @@ already does for `typescript-express`).
   rather than user-visible today (real callers pass an absolute `repoRoot` from `git rev-parse
   --show-toplevel`), fixed by normalizing the file list up front. The same latent fragility exists
   in `typescript-express.mjs`'s `buildMountEdges()`; left untouched there, named here, see EXIT.
+- **`Router({ mergeParams: true })` was invisible to BOTH adapters.** Every `Router()` check in
+  this codebase required literally empty parens (`/\bRouter\s*\(\s*\)/`) -- G5's detect signal, G5's
+  per-file extraction gate, and G6's own mountable-declaration regex. An options object is
+  completely ordinary Express, and the consequence is not "an option is ignored": for G5 the whole
+  FILE is skipped, and for G6 the variable is never recognized as a router at all, so the file
+  yields no routes. Fixed to `/\bRouter\s*\(/` in all three places -- a strict widening of the
+  second half of an already-conjunctive signal (a named `Router` import from `'express'`, or a
+  `<name>.Router` member call, is still required), and `\b` cannot match inside `makeRouter(`, so
+  it can never claim an unrelated factory. Found by probing the regex directly against real Express
+  idioms, not by an end-to-end failure -- nothing in either adapter's existing fixtures used the
+  options form.
 
-**Verification**: 22 net new tests, `npm test` 743 -> **765**, every pre-existing test passing
+**Verification**: 24 net new tests, `npm test` 743 -> **767**, every pre-existing test passing
 unmodified.
 - `test/javascript-express-cli.test.mjs` (x15) -- everything goes through the real `bin/bskel.mjs`
   CLI against a real git repo, never through the adapter's exported functions, because the claim
@@ -5438,10 +5449,11 @@ unmodified.
   pointing at `--openapi-file`; `handles plan` exiting 17 naming `codegen.handles` with nothing
   written to disk; CommonJS falling back to `generic-grep`; `.mjs`-without-`"type"` detected and
   `.js`-without-`"type"` not; and an intra-file mount cycle terminating.
-- `test/express-shared.test.mjs` (x7) -- `maskJsComments()` directly, because the two properties
+- `test/express-shared.test.mjs` (x9) -- `maskJsComments()` directly, because the two properties
   that matter are invisible end-to-end: that offsets never shift (asserted character by character
   against the original) and that a `//` inside a URL string, a template literal, or after an escaped
-  quote is never treated as a comment. Plus the phantom-route regression for BOTH adapters.
+  quote is never treated as a comment. Plus the phantom-route regression and the
+  `Router({ mergeParams: true })` regression, each for BOTH adapters.
 - `test/conformance-harness.test.mjs` gained the real fixture wiring and passes
   `checkAdapterConformance` (including its back-to-back determinism check) on first run. It has
   deliberately NO `checkProviderConformance` entry for this adapter, with a comment saying so and

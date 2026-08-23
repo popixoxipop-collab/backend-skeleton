@@ -108,6 +108,45 @@ test('javascript-express: a commented-out router.get is NOT reported as a live e
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
 });
 
+// `Router({ mergeParams: true })` is ordinary Express. Both adapters previously required LITERALLY
+// empty parens (`/\bRouter\s*\(\s*\)/`) in their detect signal, and typescript-express in its
+// per-file gate as well -- so a repo whose routers all pass options was skipped entirely. Found by
+// probing the regex directly against real Express idioms, not by an end-to-end failure.
+test('typescript-express: a router declared as Router({ mergeParams: true }) is still detected and scanned', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/things.ts': [
+			"import { Router } from 'express';",
+			'const router = Router({ mergeParams: true });',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot, 'a Router({...}) declaration must still satisfy detect()');
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
+});
+
+test('javascript-express: a router declared as express.Router({ mergeParams: true }) is still detected and scanned', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'src/routes/things.route.js': [
+			"import express from 'express';",
+			'const router = express.Router({ mergeParams: true });',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const detection = detectJavaScriptExpressRoot(root);
+	assert.ok(detection, 'a Router({...}) declaration must still satisfy detect()');
+	const result = scanJavaScriptExpress(root, detection);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
+});
+
 // The exact shape that broke the G6 adapter's whole mount graph while it was being written: prose
 // in a header comment quoting an import statement, which an unmasked
 // `import\s+([^;]*?)\s*from\s*['"]express['"]` matched across a newline into the real statement.
