@@ -5542,3 +5542,399 @@ report-only home for whatever a hand-maintained schema dump can honestly contrib
 `D-generic-grep-reconnaissance` (G3, the low-confidence fallback this item's target repo was
 landing on before); `D-fixture-corpus` (P3, the synthetic-not-vendored fixture precedent this
 item's own corpus follows).
+
+## D-greenfield-parameters (P2b): every value `bskel new` writes is either the user's or the upstream service's -- and which of the two is decided by measurement, not by taste
+
+**WHY**: P2 (`D-greenfield-bootstrap`) shipped `bskel new --stack spring|fastapi --slug <name>` and
+nothing else. Every other value in a scaffolded project was a constant: `groupId` was
+`com.example`, `javaVersion` was `17`, the dependency set was the same five ids, and the entire
+FastAPI template had exactly ONE substitutable token (`{{SLUG}}`) -- `requires-python`, the version,
+the description, the license and the dependency list were all frozen text. That is a defensible
+place to stop for a first slice, and an indefensible place to stay: `bskel new` is the one command
+whose whole job is producing a project someone then owns, and "you may name it, and nothing else"
+makes the command a demo rather than a tool. P2b parameterizes it.
+
+The design question is not "which flags would be nice". It is **which values can `bskel` afford to
+pass through to an upstream authority, and which must it check itself** -- and that was answered by
+probing the real service, not by reasoning about it.
+
+### The measured validation matrix (start.spring.io, 2026-08-23)
+
+Every row below is a real request executed against the live API, not an inference from its docs:
+
+| Parameter | Probe | Result |
+|---|---|---|
+| `dependencies` (unknown id) | `not-a-real-dep` | HTTP 400, clean message `"Unknown dependency 'not-a-real-dep' check project metadata"` |
+| `type` (unknown) | `nope` | HTTP 400, clean message |
+| `packaging` (unknown) | `nope` | HTTP 400, clean message |
+| `language` (unknown) | `cobol` | HTTP 400, clean message |
+| `javaVersion` | `99` | **HTTP 200** -- returns a real project whose `build.gradle` literally says `JavaLanguageVersion.of(99)`. Fails OPEN. |
+| `bootVersion` | `9.9.9` | HTTP 500, an internal Spring config-class error message -- useless to surface to a user |
+| `groupId` | `com.new` (a Java reserved word as a package segment) | **HTTP 200** -- produces `com.new.probe`, which never compiles. Fails OPEN. |
+| `groupId` | `has space` | **HTTP 200**. Fails OPEN. |
+
+Read as a rule: **pass-through validation is safe for exactly `dependencies` and `packaging`**
+(clean 400s, and their valid sets are Initializr's own moving catalog, which no local copy could
+track). It is **unsafe for `groupId`/`packageName`/`artifactId`** (fail open into an uncompilable
+project -- these need a local validator) and **unsafe for `javaVersion`** (fails open, but its valid
+set moves, so a local list would be wrong too -- see the live-metadata mechanism below).
+`bootVersion` is excluded outright.
+
+**Point-in-time caveat, stated as loudly as the table itself**: this is a measurement of one
+external service on one day, not a property of it. Initializr can tighten `javaVersion` validation,
+change a status code, or reword a message at any time without telling anyone. The same caveat this
+project attaches to every external-service fact it records (`D-openapi-reconciliation`'s "regenerate
+the document after any real source change", `D-greenfield-bootstrap`'s refusal to pin a
+`bootVersion`) applies here: if a future session finds this table wrong, the table is what is stale,
+not the code that was built from it. `bootVersion.default` on the same day was `4.1.1.RELEASE`.
+
+### SCOPE
+
+**New**: `lib/template.mjs` (the `{{VAR}}` renderer + `RESIDUAL_TEMPLATE_VAR_RE`, extracted from two
+places that already had it); `new/params.mjs` (local validators + the on-demand Initializr metadata
+check); `test/new-params.test.mjs`.
+
+**`--stack spring`** gains: `--group-id`, `--artifact-id`, `--package-name`, `--java-version`,
+`--packaging`, `--dependencies`, `--add-dependencies`.
+
+**`--stack fastapi`** gains: `--python-version`, `--port`, `--license`, `--database`.
+
+**Both** gain: `--name`, `--description`, `--project-version`.
+
+`--project-version`, not `--version`: `--version` is already a GLOBAL flag intercepted in `main()`
+before any command-specific parsing (it prints `bskel <version>`), so a command-level `--version`
+would be unreachable, and naming it that would silently shadow the global for anyone who typed it.
+Both stacks use the same name for the same concept -- "the generated project's own version field".
+
+**Defaults are unchanged, byte-for-byte.** `buildInitializrUrl({ slug })` with no new parameters
+produces a URL identical to the pre-P2b one *including query-parameter order* (which is why the four
+optional keys are `set()` after the original eight rather than interleaved), pinned by a test that
+holds the literal string rather than reconstructing it. The FastAPI template's `requires-python`
+still defaults to `>=3.11` and its version to `0.1.0`.
+
+### The safe/unsafe line this item works from
+
+`bskel new` writes into a directory it refuses to touch if non-empty -- it can never overwrite
+anything, unlike `handles emit`, which needed the whole ownership system of `D-handles-ownership`
+because it writes into a LIVE repo. So the operative question is not "does this run in production"
+(nothing here does). It is: **does the generated file encode a claim about the user's domain that
+the user did not state?**
+
+A group id, a Java version, a dependency id, a port, a database driver pin, a `requires-python`
+floor -- each is either something the user typed or a value from the upstream service's own defined
+vocabulary. Safe. An initial entity, a starter controller with plausible fields, a `db.py` with a
+guessed connection URL -- that is `bskel` inventing a domain. Never built, in this slice or a future
+one; the same register as `D-resolver-scope`'s permanently-stubbed `patchField()` and
+`D-javascript-express-adapter`'s refusal to generate SQL.
+
+### EXCLUDED -- refused loudly, not omitted quietly
+
+Three real Spring Initializr controls are declared in `COMMANDS.new.options` as `hidden` and then
+REFUSED with exit 14 and a specific, cited reason. They are declared rather than left unknown on
+purpose: all three exist on start.spring.io's own web UI, so a user who reaches for one deserves the
+reason instead of `Unknown option '--type'`. `hidden` (the mechanism `scan --db` used while it was a
+documented-but-inert placeholder) keeps them out of `--help` and out of
+`test/doc-integrity.test.mjs`'s usage()-vs-COMMANDS flag-set equality check.
+
+- **`--type`** (no Maven, no Kotlin-DSL Gradle). Cited blocker, not a shrug:
+  `handles/providers/java-spring/emit.mjs`'s `detectJacksonPackage()` reads `build.gradle` ONLY and
+  falls back to the Jackson 2 package name when the file is absent. A Maven scaffold has `pom.xml`
+  and no `build.gradle`, so a later `bskel handles emit` would generate code importing
+  `com.fasterxml.jackson.databind.ObjectMapper` -- not on the classpath under Initializr's current
+  default Spring Boot 4 (Jackson 3, measured above). A project that scaffolds fine and then fails to
+  compile is strictly worse than a refusal.
+- **`--language kotlin|groovy`**. `scanners/adapters/java-spring.mjs`'s `listJavaFiles()` globs
+  `*.java` only, `detectJavaSpringRoot()` requires `src/main/java`, and every java-spring codegen
+  template emits `.java`. A Kotlin scaffold falls straight through to `generic-grep` (specificity 0,
+  `confidence: "low"`, no codegen provider at all) -- see `D-generic-grep-reconnaissance`.
+- **`--boot-version`**. HTTP 500 with an internal Spring error on a bad value (measured), plus
+  `D-greenfield-bootstrap`'s own standing maintenance argument against pinning it.
+
+**`baseDir` is excluded harder than the three above: it is never a flag AND never sent.** Verified
+by downloading a real archive: with no `baseDir` the zip is FLAT (`build.gradle`, `settings.gradle`,
+`src/`, `gradlew` at the root), which is exactly what `scaffoldSpring`'s `unzip -d dir` and every
+downstream adapter's `detect()` require. Setting it would nest the project one level down and
+silently break detection everywhere. Pinned by a regression test that greps both `new/spring.mjs`
+and `lib/cli.mjs` for it and re-asserts the committed fixture archive really is flat.
+
+Also excluded, named rather than dropped: a `LICENSE` file. `--license` writes only
+`pyproject.toml`'s `license` metadata field. Generating real legal text -- which varies in required
+wording and attribution per license -- is not something this tool has any business copying into
+someone's repository.
+
+### `--dependencies` REPLACES, and the warning that is the price of that
+
+The original recommendation from this item's own research was additive-only. **The user explicitly
+chose replacement**, and that decision is recorded here rather than smoothed over, because it is the
+one place in P2b where the more dangerous semantics won:
+
+- `--add-dependencies a,b,c` extends the baseline five. It cannot drop anything, so it never warns.
+- `--dependencies a,b,c` REPLACES the baseline five entirely.
+- Passing both is `BAD_ARGS` (exit 14). They are not merged: "did I replace or extend?" has to stay
+  answerable from the command line alone.
+
+Replacement is made safe by making the danger **visible**, not by preventing it. If the resolved set
+is missing any of three specific ids, one warning per missing id goes to stderr -- naming the id and
+the concrete downstream consequence -- and the scaffold then proceeds:
+
+- `web` -- no `@RestController`/`@RequestMapping` endpoints exist at all, so `bskel scan`'s
+  java-spring adapter finds no controllers and `contract emit` has nothing to build operations from.
+- `data-jpa` -- no `@Entity` classes exist, so the adapter reports zero resources and `handles plan`
+  approves nothing (`resource.fetch` has nothing to fetch).
+- `validation` -- the resolver `handles emit` generates will not compile: its `patchField()` imports
+  `jakarta.validation.Validator`/`ConstraintViolation` (`D-patch-strategy`).
+
+`security` and `lombok` are in the baseline but nothing in `bskel` itself requires them, so dropping
+either warns about nothing. Warnings go to **stderr**, which this CLI's own contract
+(`D-cli-contract`) says is never suppressed by `--quiet` and never mixed into a `--json` payload's
+stdout -- and they are printed BEFORE the network call, so the danger is visible even if the
+download then fails. They also appear in the `--json` payload's `warnings` array.
+
+This is "warn loudly, then trust the user", not a refusal. It is the same register the FastAPI half
+uses for a `--python-version` floor below what the shipped template itself needs.
+
+### Mechanism
+
+**`--java-version`: a live metadata fetch, on demand, never cached, never persisted.**
+`javaVersion` fails open (measured: `99` returns HTTP 200 and writes `JavaLanguageVersion.of(99)`
+into `build.gradle`), so it cannot be left to Initializr. But its valid set MOVES -- so a local list
+would be the very thing `D-greenfield-bootstrap` refused when it rejected a persisted
+`.bskel/config.yml`: a local copy of external truth that silently drifts. Instead
+`new/params.mjs` fetches `https://start.spring.io/metadata/client` -- the same document the
+start.spring.io web UI populates its own dropdowns from -- **only when a non-default
+`--java-version` is actually passed**, and nothing is written to disk. A user who does not ask pays
+no extra round-trip; the check happens before any `starter.zip` request and before any filesystem
+write.
+
+The response shape was fetched once and read directly rather than assumed:
+`javaVersion` is `{type: "single-select", default: "17", values: [{id, name}, ...]}`, with ids
+`["26","25","21","17"]` on 2026-08-23. The parser is defensive about all of it anyway -- a non-ok
+response, unreadable JSON, and a missing `javaVersion.values` list each produce their own clean,
+actionable message rather than a `TypeError`.
+
+**Local Java validation, and why it does NOT go stale the way a dependency list would.** The Java
+package-name grammar (JLS 3.8) and reserved-keyword list (JLS 3.9) are language-specification
+constants. Adding a keyword to Java is a language-version event; adding a starter to Initializr
+happens continuously. `requireValidJavaPackageName()` (shared by `--group-id` and `--package-name` --
+same grammar, one implementation) rejects an empty segment, a non-identifier segment, and all 54
+reserved tokens (JLS 3.9's 51 keywords -- the 50 classic ones plus `_` -- plus the reserved literals
+`true`/`false`/`null`). Contextual keywords (`var`, `record`, `yield`, `sealed`, `permits`,
+`module`) are deliberately NOT rejected: they remain legal identifiers, and rejecting them would be
+over-validation. Deliberately narrower than the language in one respect: ASCII identifiers only.
+Java itself accepts any `Character.isJavaIdentifierStart` codepoint, but this is a scaffolder writing
+a directory tree that has to survive whatever filesystem and CI runner the project later lands on --
+and nothing upstream is checking it either way.
+
+`--artifact-id` reuses `lib/featureid.mjs`'s existing `SLUG_RE` (exported for this; it was
+module-private) rather than declaring a second, subtly different grammar for the value it defaults
+to. `--group-id` alone also moves the DEFAULT package name, preserving P2's own
+`<groupId>.<slug minus hyphens>` derivation instead of stranding it at `com.example`.
+
+**One shared `{{VAR}}` renderer, and a fail-closed check for the tree that never had one.**
+`stack/apply.mjs`'s private `renderTemplate(templatePath, vars)` and `new/fastapi.mjs`'s
+`text.replaceAll('{{SLUG}}', slug)` were two implementations of the same idea; `lib/template.mjs`
+is now the one, following the extraction precedent `scanners/text-util.mjs` and
+`scanners/adapters/_express-shared.mjs` already set. Pure code motion, and proved so the way
+`D-handles-providers`' own extraction proved it: `test/stack-cli.test.mjs` passes 12/12 **completely
+unmodified** (`git diff --stat -- test/` was empty at that commit).
+
+`RESIDUAL_TEMPLATE_VAR_RE` moved with it, and gained a second consumer. P4
+(`D-extension-conformance`) has run that regex over `stack/catalog/` templates since `catalog lint`
+shipped; `new/templates/**` never had the check at all. `scaffoldFastapi()` now renders the whole
+tree **into memory**, scans every rendered file, and refuses to write anything if a `{{VAR}}`
+survived. Deliberately not "write, then verify, then delete what was written": `dir` comes from user
+input (`--dir`), and an `rm -rf` of a user-supplied path to clean up after our own bug is a worse
+failure mode than the bug. Nothing partial ever exists on disk.
+
+**Per-stack parameter acceptance, checked before anything happens.** `new/index.mjs`'s `STACKS` map
+stays a plain object -- the reason two first-party stacks do not justify `scanners/registry.mjs`'s
+dynamic-load machinery has not changed just because each record grew three fields -- but each entry
+now declares `acceptedParams` and `refusedParams`. `cmdNew` checks a refused flag first (cited
+reason), then a wrong-stack flag (naming the stack that DOES take it), then the local validators,
+and only then the one check that costs a network round-trip. A rejected invocation exits 14 having
+written nothing and called nothing.
+
+### Judgment calls, made explicitly
+
+- **`--python-version`'s accepted shape.** There is no live authority here: python.org publishes no
+  machine-readable "currently supported" document equivalent to Initializr's metadata, and the value
+  is only ever substituted into `pyproject.toml` as a string. So this validates that it is
+  SYNTACTICALLY sane, never that the version exists. Accepted, deliberately narrow: a bare `3.12` /
+  `3.12.1` (normalized to `>=3.12`), or a single-operator floor (`>=`, `>`, `~=`, `==`). A bare
+  upper bound (`<3.13`) and a compound specifier (`>=3.11,<4.0`) are both rejected -- the flag is
+  documented as a FLOOR, and silently accepting a specifier that says the opposite would be exactly
+  the "encodes a claim the user did not state" failure this item's own safe/unsafe line rules out.
+  A project needing a compound specifier edits one line of a file it now owns outright.
+  A floor below `3.9` WARNS rather than refuses, because `new/templates/fastapi/app/main.py`
+  annotates `-> dict[str, str]`, a PEP 585 builtin generic that raises `TypeError` at runtime on
+  older interpreters, and FastAPI evaluates route return annotations. That is a measured property of
+  the shipped template, not a claim about Python in general -- and a caller who intends to rewrite
+  `main.py` is making a legitimate choice this tool should not veto.
+- **`--license` is shape-validated only.** No bundled copy of the SPDX list: that list is external
+  truth that changes, and unlike `--java-version` there is no cheap on-demand authority to consult.
+  The error message says so, rather than implying a check that is not happening.
+- **`--database` gets an explicit "this is all it did" note.** Yes, the clarification was worth
+  printing. It uses `handles emit`'s own `postEmitNotes` shape (`postScaffoldNotes` on stdout, and in
+  the `--json` payload) rather than stderr, because it is narration about what deliberately did NOT
+  happen, not a warning about a risk the user took. The note is accurate per choice: `postgres`
+  really did add a dependency line, `sqlite` deliberately added nothing (CPython ships `sqlite3`).
+  Saying "pinned the driver" for sqlite would be a small lie in exactly the place the note exists to
+  prevent one. The same explanation is written into the generated `README.md`, where it stays with
+  the project instead of scrolling out of a terminal.
+- **`--port`'s default is 8000, not `stack apply --port`'s 8080.** The VALIDATION shape is mirrored
+  exactly (`numeric: {min: 1, max: 65535}`); the default is uvicorn's, because 8080 is a Spring
+  convention that means nothing to a FastAPI project. `--port` is honest about its reach: it changes
+  the generated `README.md`'s run command and nothing else, because a uvicorn port is a run-time
+  argument, not a source-level constant.
+
+### Real bugs found live, not reasoned about
+
+**★ `--name "Demo Service"` produced a FastAPI project that could not be installed.** The first
+working run of the new FastAPI path wrote `name = "Demo Service"` into `pyproject.toml` -- valid
+TOML, and an invalid project name. Reproduced directly against pip rather than assumed:
+
+```
+error: subprocess-exited-with-error
+    configuration error: `project.name` must be pep508-identifier
+```
+
+Unlike Spring, where Initializr sanitizes `name` into a main-class identifier on its own, NOTHING
+downstream of this tool checks a FastAPI project name -- the same fail-open shape as `groupId`, in
+the half of the command that has no upstream at all. Fixed with `requireValidPythonProjectName()`
+(the PEP 508 grammar, reproduced verbatim). Documented consequence rather than a worked-around one:
+`--name` sets both `pyproject.toml`'s `name` and FastAPI's `title=`, so a prose title with spaces is
+rejected; editing `app/main.py`'s one `FastAPI(title=...)` line is the escape hatch, and splitting
+this into two flags would be inventing a distinction the user did not ask for.
+
+**A miscount caught by its own test.** `new/params.mjs`'s comment claimed "the 51 reserved keywords,
+plus `_`", which double-counts -- JLS 3.9's list is 51 INCLUDING `_` (50 classic keywords plus `_`).
+Caught by the size assertion in `test/new-params.test.mjs`, which existed precisely because a
+hand-transcribed keyword list is the kind of thing that is quietly wrong. Both the comment and the
+assertion now say 54 (51 keywords + 3 reserved literals).
+
+### Verification
+
+`npm test`: **771 -> 819** (48 net new), every pre-existing test passing unmodified.
+
+- `test/new-params.test.mjs` (20 new) -- the pure validators. Every fail-OPEN case from the matrix
+  above (`com.new`, `has space`, `com.1abc`, a trailing/leading/doubled dot, a non-ASCII segment) is
+  asserted rejected AND asserted to have cost **zero** `fetch()` calls, via a spy installed on
+  `globalThis.fetch` -- "rejected locally" is the actual claim, not just "rejected". Plus the whole
+  `--java-version` metadata path against a mocked `fetchImpl`: an in-list id passes, an out-of-list
+  id is rejected with a message explaining WHY this cannot be left upstream, and a network failure,
+  a non-ok response, unreadable JSON and an upstream shape change each produce their own clean
+  message rather than a `TypeError`.
+- `test/new-cli.test.mjs` (28 new) -- the default-URL byte-identity regression first (a literal
+  string, not a reconstruction); every new Spring parameter landing on its own query key;
+  `--group-id` moving the default `packageName` without disturbing `artifactId`; an omitted optional
+  parameter being absent from the query rather than sent empty; the `baseDir` double regression;
+  replace-vs-add semantics with each warning asserted to name its actual consequence
+  (`@RestController`, `@Entity`, `jakarta.validation.Validator`) rather than merely saying
+  "missing"; the Initializr 400 `message` surfaced verbatim; cross-stack rejection in both
+  directions with nothing written; all three refusals with their cited reasons; and
+  `detectPythonFastApiRoot()` re-asserted across **seven** different parameter combinations, because
+  that invariant is P2's own and is the thing most at risk from editing the template.
+- **The fail-closed check was written to fail first.** With `if (offenders.length > 0)` temporarily
+  neutered to `if (false)`, the broken-template test reports
+  `AssertionError [ERR_ASSERTION]: Missing expected rejection.` -- confirmed, then the check
+  restored and the test re-run green. Same `maskJsComments()` discipline as
+  `D-javascript-express-adapter`: a guard that can only ever pass proves nothing.
+- **`test/stack-cli.test.mjs`: 12/12 pass, file completely unmodified**, which is the whole proof
+  that the `lib/template.mjs` extraction was behavior-preserving rather than a refactor with side
+  effects.
+- **Real end-to-end Spring run, by hand, not in CI** (2026-08-23), re-run because this item changes
+  what gets requested from Initializr:
+  `bskel new --stack spring --slug p2b-manual --group-id com.acme --add-dependencies actuator
+  --packaging war --description 'P2b manual verification' --project-version 0.9.0`.
+  Every non-default parameter landed in the generated `build.gradle`: `group = 'com.acme'`,
+  `version = '0.9.0'`, `description = 'P2b manual verification'`, `id 'war'`,
+  `spring-boot-starter-actuator`, `JavaLanguageVersion.of(17)`. Then, for real:
+
+  ```
+  $ ./gradlew compileJava --no-daemon
+  > Task :compileJava
+  BUILD SUCCESSFUL in 6s
+  ```
+
+  **Spring Boot version Initializr returned that day: `4.1.1`** (Gradle 9.5.1). The scaffolded
+  project is still detected as `java-spring` by `bskel doctor` -- `--packaging war` adds a
+  `ServletInitializer.java` but leaves the layout `detect()` needs intact.
+- **Real end-to-end FastAPI run, by hand**: the fully-parameterized project really installs.
+  `pip install -e .` in a fresh venv yields
+  `name: billing-svc | version: 0.9.0 | requires-python: >=3.12 | license: MIT`, and the generated
+  `pyproject.toml` parses under `tomllib` with the `psycopg[binary]` pin present.
+- `npm pack --dry-run` re-run: `lib/template.mjs`, `new/params.mjs` and the new
+  `new/templates/fastapi/README.md` all ship, with no `package.json` change needed (the `files`
+  allowlist already names `lib/` and `new/` wholesale -- confirmed, not assumed).
+
+**Deliberately unchanged, confirmed rather than overlooked**:
+`test/fixtures/spring-initializr-fixture.zip` (the mocked-fetch extraction test does not depend on
+any query parameter, so it stays valid as-is -- and the `baseDir` regression test now reads it to
+assert it is still flat); `package.json`'s `files` allowlist (already covers both new directories);
+and `.github/workflows/ci.yml` -- **no new job, deliberately**. `D-greenfield-bootstrap`'s test
+strategy states that no test in this project hits a live external service and that CI must not start
+now. The `--java-version` metadata path is therefore covered entirely against a mocked `fetchImpl`,
+and no `BSKEL_TEST_FETCH`-style hook was added to production code to drive it from the CLI either --
+a test seam in shipped code would be worse than the coverage it buys. The one CLI-level assertion
+that IS possible without either is made: the DEFAULT `--java-version` never triggers a fetch at all.
+
+### COST
+
+`bskel new`'s usage line is now very long -- one line, unavoidably, because
+`test/doc-integrity.test.mjs` parses `usage()` line-by-line and a wrapped continuation would read as
+a different command. `--help` is the readable view.
+
+Three flags exist that can only ever fail (`--type`, `--language`, `--boot-version`). That is the
+deliberate price of answering with a reason instead of "unknown option", and it means
+`COMMANDS.new.options` no longer describes only things that work.
+
+`--dependencies` can produce a project that no later `bskel` command can do anything useful with.
+Warned about, three times over, and still permitted -- by explicit decision.
+
+`--name` means two different things per stack: free text for Spring (Initializr sanitizes it), a
+PEP 508 identifier for FastAPI (nothing else validates it). Same flag, genuinely different
+constraint, because the two ecosystems genuinely differ.
+
+`--port` only edits the generated README's run command. `--license` only writes a metadata field.
+Both are honest about their reach in the docs, but neither does as much as its name might suggest.
+
+`lib/featureid.mjs`'s `SLUG_RE` is now exported -- a slightly wider public surface for that module
+than it had, in exchange for not having a second artifact-id grammar drift away from the slug one.
+
+The FastAPI template grew a `README.md`, so a scaffolded project now has one more file than before.
+
+### EXIT
+
+Extend `acceptedParams` when a real target needs a parameter, not preemptively -- the same rule
+`D-javascript-express-adapter`'s EXIT applies to widening its own scanner. Specifically:
+
+- Revisit `--type`/`--language` only if the java-spring adapter and provider grow real Maven or
+  Kotlin support; the refusal is a consequence of that gap, not an independent policy, and the cited
+  reasons name exactly what would have to change (`detectJacksonPackage()`, `listJavaFiles()`,
+  `detectJavaSpringRoot()`, the `.java` templates).
+- Re-run the validation matrix above before trusting it again. If Initializr starts rejecting an
+  unknown `javaVersion` with a 400, the live-metadata fetch becomes redundant and should be dropped
+  rather than kept "just in case" -- an unnecessary network call in a scaffolder is a cost, not a
+  safety margin.
+- `--database` must not grow into code generation. If a future slice wants engine/session wiring, it
+  needs its own decision entry arguing why that is not `bskel` inventing a domain, against this
+  entry's safe/unsafe line -- not an incremental widening of a flag that currently only edits a
+  dependency list.
+- A `.bskel/config.yml` remembering these parameters between runs is still refused, for
+  `D-greenfield-bootstrap`'s original reason. `bskel new` runs once per project; there is nothing to
+  remember.
+
+Cross-references: `D-greenfield-bootstrap` (P2, the command this item parameterizes, the
+`bootVersion` argument it inherits, and the anti-persisted-state principle the live-metadata fetch
+follows); `D-extension-conformance` (P4, the residual-`{{VAR}}` check whose regex this item moves
+and gives a second consumer); `D-handles-providers` (G4, the "prove an extraction by leaving the old
+tests untouched" bar `lib/template.mjs` had to meet); `D-resolver-scope` (the permanent-stub line
+`--database`'s no-codegen scope reuses); `D-patch-strategy` (A3, why a missing `validation`
+dependency breaks generated code, not just a lint); `D-javascript-express-adapter` (G6, the
+measured-refusal register the three excluded flags follow, and the fail-first test discipline);
+`D-cli-contract` (D2, the strict parser, the `hidden` flag mechanism, and the stdout/stderr split the
+warnings rely on); `D-generic-grep-reconnaissance` (G3, what a Kotlin scaffold would actually fall
+through to); `D-adapter-registry` (G1, the fresh-every-run detection this item's no-persisted-config
+stance is consistent with); `D-fastapi-adapter` (G2, `detectPythonFastApiRoot()`, the invariant every
+template edit here is tested against); `D-npm-packaging` (P1, the `files` allowlist this item needed
+no change to).
