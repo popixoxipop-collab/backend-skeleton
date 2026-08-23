@@ -46,11 +46,16 @@ import {
 	expressDiagnostics,
 } from './_express-shared.mjs';
 
-// Any `import ... from 'express'` line, in either the default (`import express from`), named
-// (`import { Router } from`), or combined (`import express, { Router } from`) form. Used as
-// detect()'s ripgrep pattern AND, per file, to learn what this file actually named its bindings.
-const IMPORT_EXPRESS_SRC = "import\\s+[^;]*from\\s*['\"]express['\"]";
-const IMPORT_EXPRESS_RE = /import\s+([^;]*?)\s*from\s*['"]express['"]/g;
+// detect()'s ripgrep candidate filter -- deliberately just the `from 'express'` tail, not a whole
+// import statement: rg matches line by line, so a clause spread over several lines would be missed
+// by a fuller pattern. This is only a cheap pre-filter; the masked re-read in detect() is the real
+// gate, so a false positive here costs nothing.
+const FROM_EXPRESS_SRC = "from\\s*['\"]express['\"]";
+const FROM_EXPRESS_RE = /\bfrom\s*['"]express['"]/g;
+
+// The exact shapes an express import clause may legally take: `express`, `{ Router }`,
+// `express, { Router }`. Anything else is REFUSED rather than parsed optimistically.
+const IMPORT_CLAUSE_RE = /^(?:([\w$]+))?(?:\s*,\s*)?(?:\{([^}]*)\})?$/;
 
 // Node's OWN module-resolution rule, not a heuristic: `.mjs` is unconditionally ESM; `.js` is ESM
 // only when the nearest package.json says `"type": "module"`. A CommonJS app
@@ -77,7 +82,7 @@ export function detectJavaScriptExpressRoot(repoRoot) {
 		// rg is a cheap candidate filter over raw bytes and can match inside a comment; the real
 		// gate is the masked re-read below, which is why detection needs both the import AND a
 		// Router() call to be genuine code.
-		const sourceFiles = rgFilesMatching(IMPORT_EXPRESS_SRC, globs, projectRoot);
+		const sourceFiles = rgFilesMatching(FROM_EXPRESS_SRC, globs, projectRoot);
 		// `\bRouter\s*\(` matches BOTH `Router(...)` and `express.Router(...)` -- there is a word
 		// boundary between `.` and `R`, and none inside `makeRouter(`. Not `\(\s*\)`: an options
 		// object (`Router({ mergeParams: true })`) is ordinary Express and must still detect.
@@ -101,22 +106,32 @@ function listSourceFiles(projectRoot, globs) {
 // What THIS file named its express bindings. `import express, { Router } from 'express'` yields
 // {defaultName: 'express', hasNamedRouter: true}. Returns null when the file doesn't import
 // express at all, which is how non-routing files are skipped without reading them twice.
+//
+// Anchors on `from 'express'` and scans BACKWARD to the nearest `import` keyword, rather than
+// matching a whole `import ... from 'express'` statement forward. A forward
+// `import\s+([^;]*?)\s*from\s*['"]express['"]` looks right and is wrong on two shapes that are
+// both entirely ordinary: semicolon-less ESM (standard.js style), where `[^;]` runs straight
+// through the PREVIOUS import statement and yields a clause like `cors from 'cors'\nimport
+// express`; and a clause spread over several lines. The backward scan handles both, and the
+// strict IMPORT_CLAUSE_RE shape check means an unparseable clause is REFUSED (skipped), never
+// parsed optimistically into a wrong binding name.
 function expressBindings(text) {
 	let defaultName = null;
 	let hasNamedRouter = false;
 	let found = false;
-	for (const m of text.matchAll(IMPORT_EXPRESS_RE)) {
+	for (const m of text.matchAll(FROM_EXPRESS_RE)) {
+		const before = text.slice(0, m.index);
+		const importIdx = before.lastIndexOf('import');
+		if (importIdx === -1) continue; // e.g. `export * from 'express'` -- not an import binding
+		const clause = before.slice(importIdx + 'import'.length).replace(/\s+/g, ' ').trim();
+		const parsed = clause.match(IMPORT_CLAUSE_RE);
+		if (!parsed) continue;
 		found = true;
-		const clause = m[1].trim();
-		const braced = clause.match(/\{([^}]*)\}/);
-		if (braced) {
-			// `Router as R` aliasing is deliberately NOT resolved -- a documented, narrow limitation
-			// (see D-javascript-express-adapter COST), not a silent guess at which local name means
-			// Router.
-			if (braced[1].split(',').some((s) => s.trim() === 'Router')) hasNamedRouter = true;
-		}
-		const beforeBrace = clause.split('{')[0].replace(/,\s*$/, '').trim();
-		if (/^[\w$]+$/.test(beforeBrace)) defaultName = beforeBrace;
+		if (parsed[1]) defaultName = parsed[1];
+		// `Router as R` aliasing is deliberately NOT resolved -- a documented, narrow limitation
+		// (see D-javascript-express-adapter COST), not a silent guess at which local name means
+		// Router.
+		if (parsed[2] && parsed[2].split(',').some((s) => s.trim() === 'Router')) hasNamedRouter = true;
 	}
 	return found ? { defaultName, hasNamedRouter } : null;
 }
@@ -139,11 +154,10 @@ function declaredMountables(text, bindings) {
 	for (const m of text.matchAll(routerDeclRe)) {
 		// A bare `Router()` only counts when Router is genuinely imported from express; a
 		// `<name>.Router()` member call always counts (that IS the default-import idiom).
-		// NOT `$`-anchored: the matched text ends at the closing `)` of `Router()`, so anchoring
-		// the member-call test to end-of-match silently classified EVERY `express.Router()` as a
-		// bare call -- which, with no named `Router` import in the file, dropped the declaration
-		// entirely and collapsed the whole mount graph. Found by running the real fixture, not by
-		// review.
+		// NOT `$`-anchored: an earlier draft tested `/\.\s*Router\s*\($/` against a match that ends
+		// past the member call, so it classified EVERY `express.Router()` as a bare call -- which,
+		// with no named `Router` import in the file, dropped the declaration entirely and collapsed
+		// the whole mount graph. Found by running the real fixture, not by review.
 		const isMemberCall = /[\w$]\s*\.\s*Router\s*\(/.test(m[0]);
 		if (isMemberCall || bindings.hasNamedRouter) mountables.set(m[1], 'router');
 	}

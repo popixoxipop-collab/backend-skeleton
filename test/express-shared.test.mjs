@@ -147,6 +147,43 @@ test('javascript-express: a router declared as express.Router({ mergeParams: tru
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
 });
 
+// Semicolon-less ESM (standard.js style) is entirely ordinary, and a forward
+// `import\s+([^;]*?)\s*from\s*['"]express['"]` runs straight through the PREVIOUS import statement
+// on it, yielding a clause like `cors from 'cors'\nimport express` and silently losing the default
+// binding name -- which loses every `express()` application, and with it any global prefix mounted
+// on one. Also covers a clause spread over several lines.
+test('javascript-express: semicolon-less and multi-line express imports still bind correctly', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'src/app.js': [
+			"import cors from 'cors'",
+			"import express, {",
+			'  Router',
+			"} from 'express'",
+			"import thingRoute from './routes/thing.route.js'",
+			'const app = express()',
+			'const route = Router()',
+			'app.use(cors())',
+			"route.use('/thing', thingRoute)",
+			"app.use('/api', route)",
+			'export default app',
+		].join('\n'),
+		'src/routes/thing.route.js': [
+			"import express from 'express'",
+			'const router = express.Router()',
+			"router.get('/:id', showThing)",
+			'export default router',
+		].join('\n'),
+	});
+	const detection = detectJavaScriptExpressRoot(root);
+	assert.ok(detection, 'a semicolon-less repo must still be detected');
+	const result = scanJavaScriptExpress(root, detection);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	// The full prefix chain only resolves if BOTH the multi-line `express, { Router }` clause and
+	// the semicolon-less `import express from 'express'` in the leaf file parsed correctly.
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/thing/:id']);
+});
+
 // The exact shape that broke the G6 adapter's whole mount graph while it was being written: prose
 // in a header comment quoting an import statement, which an unmasked
 // `import\s+([^;]*?)\s*from\s*['"]express['"]` matched across a newline into the real statement.
