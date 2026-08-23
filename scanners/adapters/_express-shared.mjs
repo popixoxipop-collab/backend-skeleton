@@ -91,22 +91,65 @@ export function declaresExpress(packageJsonPath) {
 // rather than protect them. Newlines are preserved and no character index shifts, so
 // `lineNumberAt()` and every `matchBalancedParens()` offset stay valid against the masked text.
 //
-// Deliberately NOT handled: a regex literal containing an unescaped comment marker. `/` inside a
-// regex literal must be escaped (`/\/\//`) or the literal ends there, so a regex body can never
-// legally contain a bare `//` or `/*` for this scanner to trip over.
+// Regex literals ARE tracked, and not defensively: `const re = /'/g;` contains an odd number of
+// quote characters, and without regex tracking the scanner enters a phantom string that runs to
+// the next quote ANYWHERE later in the file -- leaving every comment in between unmasked, which is
+// precisely the phantom-route bug this function exists to prevent. Confirmed live before the
+// tracking was added. Whether `/` opens a regex or is division is decided from the previous
+// significant character (the standard JavaScript-lexer heuristic), and an unterminated literal
+// bails at end of line so a misjudged division can never run away past it.
+// Deliberately narrow. Arithmetic operators (`+ - * % ^ < > ~`) are legal regex-preceders in the
+// grammar but never appear before one in real code (`a + /re/` is a type error), while
+// `y++ / 2` IS real -- so including them buys nothing and costs a false positive. These twelve
+// cover every position a regex literal actually occupies in practice.
+const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+
+function isRegexStart(lastSignificant, recentText) {
+	if (lastSignificant === null) return true; // start of file
+	if (REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+	return REGEX_PRECEDING_KEYWORD_RE.test(recentText);
+}
+
+// Returns the index just past the literal's closing `/`. Handles `\` escapes and `[...]` character
+// classes (a `/` inside a class is not a terminator). Bails at a newline: a real regex literal
+// cannot span lines, so hitting one means this `/` was division after all, and stopping there
+// bounds the damage of a misjudgement to the rest of one line.
+function skipRegexLiteral(text, start) {
+	let i = start + 1;
+	let inClass = false;
+	while (i < text.length) {
+		const ch = text[i];
+		if (ch === '\\') { i += 2; continue; }
+		if (ch === '\n') return i;
+		if (inClass) {
+			if (ch === ']') inClass = false;
+			i++;
+			continue;
+		}
+		if (ch === '[') { inClass = true; i++; continue; }
+		if (ch === '/') return i + 1;
+		i++;
+	}
+	return i;
+}
+
 export function maskJsComments(text) {
 	const out = text.split('');
 	let i = 0;
 	let quote = null; // "'" | '"' | '`' when inside a string/template literal
+	let lastSignificant = null; // last non-whitespace CODE character seen
 	while (i < text.length) {
 		const ch = text[i];
 		if (quote) {
 			if (ch === '\\') { i += 2; continue; }
-			if (ch === quote) quote = null;
+			if (ch === quote) { quote = null; lastSignificant = ch; }
 			i++;
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+		// Comment markers win over regex detection unconditionally, and correctly: `//` is never a
+		// valid empty regex, and a regex body cannot begin with `*`.
 		if (ch === '/' && text[i + 1] === '/') {
 			while (i < text.length && text[i] !== '\n') { out[i] = ' '; i++; }
 			continue;
@@ -117,6 +160,12 @@ export function maskJsComments(text) {
 			for (; i < stop; i++) if (text[i] !== '\n') out[i] = ' ';
 			continue;
 		}
+		if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			i = skipRegexLiteral(text, i);
+			lastSignificant = '/';
+			continue;
+		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
 		i++;
 	}
 	return out.join('');

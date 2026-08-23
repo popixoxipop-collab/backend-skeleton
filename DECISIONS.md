@@ -5445,8 +5445,21 @@ already does for `typescript-express`).
   the forward line-oriented pattern could never have matched, and let detect()'s ripgrep pre-filter
   shrink to just the `from 'express'` tail (rg matches line by line, so a fuller pattern would miss
   a wrapped clause; the masked re-read is the real gate either way).
+- **A regex literal containing a quote defeated the masker for the rest of the file.**
+  `const re = /'/g;` has an odd number of quote characters, and the first `maskJsComments()` draft
+  tracked only strings and comments -- so that `'` opened a phantom string that ran to the next
+  quote ANYWHERE later in the file, leaving every comment in between unmasked and reintroducing
+  precisely the phantom-route bug the function exists to prevent. Confirmed live. Fixed by tracking
+  regex literals too, deciding `/`-is-regex-vs-division from the previous significant character
+  (the standard JavaScript-lexer heuristic), with two deliberate bounds: the preceder set is kept
+  narrow (arithmetic operators are legal regex-preceders in the grammar but never precede one in
+  real code, while `y++ / 2` genuinely occurs, so including them would only buy false positives),
+  and an unterminated literal bails at end of line so a misjudged division can damage at most the
+  rest of one line rather than running away. Comment markers still win unconditionally over regex
+  detection, which is correct: `//` is never a valid empty regex and a regex body cannot begin
+  with `*`.
 
-**Verification**: 25 net new tests, `npm test` 743 -> **768**, every pre-existing test passing
+**Verification**: 28 net new tests, `npm test` 743 -> **771**, every pre-existing test passing
 unmodified.
 - `test/javascript-express-cli.test.mjs` (x15) -- everything goes through the real `bin/bskel.mjs`
   CLI against a real git repo, never through the adapter's exported functions, because the claim
@@ -5462,13 +5475,14 @@ unmodified.
   pointing at `--openapi-file`; `handles plan` exiting 17 naming `codegen.handles` with nothing
   written to disk; CommonJS falling back to `generic-grep`; `.mjs`-without-`"type"` detected and
   `.js`-without-`"type"` not; and an intra-file mount cycle terminating.
-- `test/express-shared.test.mjs` (x10) -- `maskJsComments()` directly, because the two properties
-  that matter are invisible end-to-end: that offsets never shift (asserted character by character
-  against the original) and that a `//` inside a URL string, a template literal, or after an escaped
-  quote is never treated as a comment. Plus the phantom-route regression and the
-  `Router({ mergeParams: true })` regression, each for BOTH adapters, and a semicolon-less +
-  multi-line-import repo whose full `/api/thing/:id` prefix chain only resolves if both clause
-  shapes parsed correctly.
+- `test/express-shared.test.mjs` (x13) -- `maskJsComments()` directly, because the properties that
+  matter are invisible end-to-end: that offsets never shift (asserted character by character
+  against the original), that a `//` inside a URL string, a template literal, or after an escaped
+  quote is never treated as a comment, and all three regex-literal cases (a regex containing a
+  quote, division NOT misread as a regex, and a `/` inside a `[...]` character class). Plus the
+  phantom-route regression and the `Router({ mergeParams: true })` regression, each for BOTH
+  adapters, and a semicolon-less + multi-line-import repo whose full `/api/thing/:id` prefix chain
+  only resolves if both clause shapes parsed correctly.
 - `test/conformance-harness.test.mjs` gained the real fixture wiring and passes
   `checkAdapterConformance` (including its back-to-back determinism check) on first run. It has
   deliberately NO `checkProviderConformance` entry for this adapter, with a comment saying so and

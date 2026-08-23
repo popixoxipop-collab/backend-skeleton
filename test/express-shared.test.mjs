@@ -48,6 +48,35 @@ test('maskJsComments never starts a comment inside a string, template, or after 
 	assert.equal(masked, src, 'no character inside a string or template literal may be blanked');
 });
 
+// A regex literal containing an odd number of quote characters used to put the scanner into a
+// phantom string that ran to the next quote ANYWHERE later in the file, leaving every comment in
+// between unmasked -- reintroducing exactly the phantom-route bug this function exists to prevent.
+// Confirmed live before regex tracking was added.
+test('maskJsComments tracks regex literals, so a regex containing a quote does not swallow the rest of the file', () => {
+	const src = ["const re = /'/g;", "// router.get('/phantom', h)", "router.get('/real', h);"].join('\n');
+	const masked = maskJsComments(src);
+	assert.ok(!masked.includes('phantom'), 'the comment after a quote-containing regex must still be masked');
+	assert.ok(masked.includes("'/real'"), 'real code after it must survive');
+	assert.equal(masked.length, src.length);
+});
+
+// The other half of regex tracking: `/` is far more often division, and misreading it as a regex
+// start would skip real code. Decided from the previous significant character.
+test('maskJsComments does not mistake division for a regex literal', () => {
+	const src = ['const half = total / 2;', "// router.get('/phantom', h)", 'const rest = total % 2;'].join('\n');
+	const masked = maskJsComments(src);
+	assert.ok(!masked.includes('phantom'), 'the following comment must still be masked');
+	assert.ok(masked.includes('const half = total / 2;'), 'the division expression must survive untouched');
+	assert.ok(masked.includes('const rest = total % 2;'));
+});
+
+test('maskJsComments handles a `/` inside a regex character class without ending the literal early', () => {
+	const src = ['const sep = /[/]/;', "// router.get('/phantom', h)", 'const done = true;'].join('\n');
+	const masked = maskJsComments(src);
+	assert.ok(!masked.includes('phantom'));
+	assert.ok(masked.includes('const done = true;'));
+});
+
 // String literals must survive INTACT (unlike the Java masker, which blanks string interiors):
 // every path these adapters report is read straight out of a string literal.
 test('maskJsComments leaves route path literals readable after masking', () => {
