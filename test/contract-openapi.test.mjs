@@ -10,6 +10,7 @@ import {
 	loadOpenApiDocument, indexOpenApiDocument, inferPathPrefix, reconcileModule,
 	normalizeRoute, OPERATION_ID_RE, PATH_PREFIX_RE,
 	inlineSchema, COMPONENT_SCHEMA_NAME_RE, SCHEMA_PROPERTY_NAME_RE,
+	snapshotFromReconciliation, hasBskelExportMarker, BSKEL_PASSTHROUGH_EXTENSION, BSKEL_GENERATED_EXTENSION,
 } from '../contracts/openapi.mjs';
 import { BARE_UUID_PATTERN } from '../contracts/emit.mjs';
 
@@ -895,4 +896,390 @@ test('a component with properties+required and no type (the real ErrorResponse r
 	const { result } = reconcileCreateWidget(doc);
 	assert.equal('type' in result.errorSchema, false);
 	assert.deepEqual(result.errorSchema.required, ['code', 'message']);
+});
+
+// ===== A7: source-backed OpenAPI field passthrough =====
+
+// --- inlineSchema learns `default` ---
+
+test('inlineSchema: `default` is copied verbatim on a plain (non-$ref) node -- the 22 real direct occurrences', () => {
+	const result = inlineSchema({ type: 'string', default: 'READINESS' }, new Map());
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.default, 'READINESS');
+});
+
+test('inlineSchema: `default` alongside `$ref` used to fail closed (ref-with-siblings) -- now tolerated AND merged onto the resolved schema, the real 9 occurrences (e.g. ProjectListSort)', () => {
+	const components = new Map([['ProjectListSort', { type: 'string', enum: ['READINESS', 'NAME'] }]]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/ProjectListSort', default: 'READINESS' }, components);
+	assert.equal(result.ok, true);
+	assert.equal(JSON.stringify(result.schema).includes('$ref'), false);
+	assert.deepEqual(result.schema.enum, ['READINESS', 'NAME']);
+	assert.equal(result.schema.default, 'READINESS');
+});
+
+test('inlineSchema: a $ref sibling that is NOT `default` (and not a DROPPED_KEYWORDS entry) still fails ref-with-siblings -- the `default` tolerance did not widen generally', () => {
+	const components = new Map([['X', { type: 'string' }]]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/X', minLength: 1 }, components);
+	assert.equal(result.ok, false);
+	assert.equal(result.reason, 'ref-with-siblings');
+});
+
+// --- indexOpenApiDocument: securitySchemes indexing ---
+
+test('indexOpenApiDocument: components.securitySchemes indexes into a Map, security_scheme_count matches', () => {
+	const doc = { components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' }, apiKey: { type: 'apiKey', in: 'header', name: 'X-Api-Key' } } } };
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	assert.equal(indexed.securitySchemes.size, 2);
+	assert.equal(indexed.stats.security_scheme_count, 2);
+	assert.deepEqual(indexed.securitySchemes.get('bearerAuth'), { type: 'http', scheme: 'bearer' });
+});
+
+test('indexOpenApiDocument: a __proto__ security-scheme name is rejected, no pollution', () => {
+	const doc = JSON.parse('{"components":{"securitySchemes":{"__proto__":{"type":"http"},"bearerAuth":{"type":"http"}}}}');
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	assert.equal(indexed.securitySchemes.has('__proto__'), false);
+	assert.equal(indexed.stats.rejected_security_schemes, 1);
+	assert.equal(indexed.securitySchemes.size, 1);
+	assert.equal(({}).polluted, undefined, 'no global prototype pollution occurred');
+});
+
+test('indexOpenApiDocument: exceeding MAX_SECURITY_SCHEMES returns {ok:false}, not a partial index', () => {
+	const securitySchemes = {};
+	for (let i = 0; i < 65; i++) securitySchemes[`scheme${i}`] = { type: 'http', scheme: 'bearer' };
+	const result = indexOpenApiDocument({ components: { securitySchemes } });
+	assert.equal(result.ok, false);
+	assert.match(result.error, /64-scheme limit/);
+});
+
+test('indexOpenApiDocument retains parameters/security/summary/tags verbatim; a real explicit security:[] is preserved distinctly from absent', () => {
+	const doc = {
+		paths: {
+			'/a': { get: { operationId: 'x', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }], security: [], summary: 'find things', tags: ['Widgets'] } },
+			'/b': { get: { operationId: 'y' } },
+		},
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const x = indexed.byOperationId.get('x');
+	assert.deepEqual(x.security, []);
+	assert.equal(x.summary, 'find things');
+	assert.deepEqual(x.tags, ['Widgets']);
+	assert.equal(x.parameters.length, 1);
+	const y = indexed.byOperationId.get('y');
+	assert.equal(y.security, null, 'absent security must not be confused with an explicit []');
+	assert.equal(y.summary, null);
+	assert.equal(y.tags, null);
+	assert.equal(y.parameters, null);
+});
+
+// --- applyParameters / copyParameter, via reconcileModule integration ---
+
+function docWithOperationFields(fields, { componentSchemas = {}, securitySchemes = {}, openapiVersion = '3.1.0' } = {}) {
+	return {
+		openapi: openapiVersion,
+		components: { schemas: componentSchemas, securitySchemes },
+		paths: { '/api/v0/widgets': { post: { operationId: 'createWidget', ...fields } } },
+	};
+}
+
+test('matched: query/header/cookie parameters are copied with schema resolved; a path-shaped entry in parameters[] is never copied here', () => {
+	const doc = docWithOperationFields({
+		parameters: [
+			{ name: 'q', in: 'query', required: false, description: 'search term', schema: { type: 'string', maxLength: 10 } },
+			{ name: 'X-Trace-Id', in: 'header', schema: { type: 'string' } },
+			{ name: 'session', in: 'cookie', schema: { type: 'string' } },
+			{ name: 'widgetId', in: 'path', schema: { type: 'string' } },
+		],
+	});
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(result.sourceParameters.length, 3);
+	assert.ok(result.sourceParameters.every((p) => p.in !== 'path'));
+	const q = result.sourceParameters.find((p) => p.name === 'q');
+	assert.equal(q.description, 'search term');
+	assert.equal(q.schema.maxLength, 10);
+	assert.equal(recon.stats.parameters_copied, 1);
+	assert.equal('parametersUnresolved' in result, false);
+});
+
+test('dedup: two parameters sharing (name,in) in the source keep only the first, source order', () => {
+	const doc = docWithOperationFields({
+		parameters: [
+			{ name: 'q', in: 'query', schema: { type: 'string', maxLength: 5 } },
+			{ name: 'q', in: 'query', schema: { type: 'string', maxLength: 999 } },
+		],
+	});
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal(result.sourceParameters.length, 1);
+	assert.equal(result.sourceParameters[0].schema.maxLength, 5);
+});
+
+test('a $ref parameter and a content-keyed parameter both fail closed for that ONE parameter, never the whole operation', () => {
+	const doc = docWithOperationFields({
+		parameters: [
+			{ '$ref': '#/components/parameters/Widget' },
+			{ name: 'x', in: 'query', content: { 'application/json': { schema: { type: 'string' } } } },
+			{ name: 'ok', in: 'query', schema: { type: 'string' } },
+		],
+	});
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(result.sourceParameters.length, 1, 'the one clean parameter still gets copied');
+	assert.equal(result.sourceParameters[0].name, 'ok');
+	assert.equal(result.parametersUnresolved.length, 2);
+	assert.deepEqual(result.parametersUnresolved.map((p) => p.reason).sort(), ['content-parameter', 'ref-parameter']);
+	assert.equal(recon.stats.parameters_unresolved, 1, 'per-OPERATION tally, not per-parameter');
+});
+
+test('an unknown parameter keyword fails that parameter closed by name, never silently dropped without a reason', () => {
+	const doc = docWithOperationFields({ parameters: [{ name: 'x', in: 'query', schema: { type: 'string' }, style: 'form', explode: true, weirdKeyword: 1 }] });
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal('sourceParameters' in result, false);
+	assert.equal(result.parametersUnresolved[0].reason, 'unsupported-keyword:weirdKeyword');
+});
+
+test('style/explode/allowReserved/allowEmptyValue/deprecated are COPIED verbatim (real, if rare, keys this policy explicitly allows)', () => {
+	const doc = docWithOperationFields({
+		parameters: [{ name: 'x', in: 'query', schema: { type: 'string' }, style: 'form', explode: true, allowReserved: true, allowEmptyValue: true, deprecated: true }],
+	});
+	const { result } = reconcileCreateWidget(doc);
+	const p = result.sourceParameters[0];
+	assert.equal(p.style, 'form');
+	assert.equal(p.explode, true);
+	assert.equal(p.allowReserved, true);
+	assert.equal(p.allowEmptyValue, true);
+	assert.equal(p.deprecated, true);
+});
+
+test('example/examples are DROPPED silently (annotation-only), not a copy failure', () => {
+	const doc = docWithOperationFields({ parameters: [{ name: 'x', in: 'query', schema: { type: 'string' }, example: 'abc', examples: { a: { value: 'abc' } } }] });
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal('parametersUnresolved' in result, false);
+	assert.equal('example' in result.sourceParameters[0], false);
+	assert.equal('examples' in result.sourceParameters[0], false);
+});
+
+test('a parameter whose schema fails to resolve is STILL copied (every other field is real and safe), just without a `schema` key -- and it drives the warning', () => {
+	const doc = docWithOperationFields({ parameters: [{ name: 'x', in: 'query', required: true, schema: { type: 'object', discriminator: { propertyName: 'kind' } } }] });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(result.sourceParameters.length, 1);
+	assert.equal(result.sourceParameters[0].name, 'x');
+	assert.equal(result.sourceParameters[0].required, true);
+	assert.equal('schema' in result.sourceParameters[0], false);
+	assert.match(result.parametersUnresolved[0].reason, /unsupported-keyword:discriminator/);
+	assert.equal(recon.stats.parameters_unresolved, 1);
+});
+
+test('exceeding MAX_PARAMETERS_PER_OPERATION fails the WHOLE parameter set closed for this operation, never the whole reconciliation', () => {
+	const parameters = [];
+	for (let i = 0; i < 65; i++) parameters.push({ name: `q${i}`, in: 'query', schema: { type: 'string' } });
+	const doc = docWithOperationFields({ parameters });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(result.kind, 'matched', 'the operation itself is unaffected -- only its parameter passthrough fails');
+	assert.equal('sourceParameters' in result, false);
+	assert.equal(result.parametersUnresolved.length, 65);
+	assert.ok(result.parametersUnresolved.every((p) => p.reason === 'too-many-parameters'));
+	assert.equal(recon.stats.parameters_unresolved, 1);
+});
+
+test('parameters ride the schema-bearing dialect gate: a 3.0 document skips parameter passthrough entirely, parametersSkippedDialect true', () => {
+	const doc = docWithOperationFields({ parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }] }, { openapiVersion: '3.0.1' });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(recon.schemaProjection.enabled, false);
+	assert.equal('sourceParameters' in result, false);
+	assert.equal(result.parametersSkippedDialect, true);
+	assert.equal(recon.stats.parameters_skipped_dialect, 1);
+});
+
+test('no non-path parameters at all -> parameters_none, no sourceParameters/parametersUnresolved keys', () => {
+	const doc = docWithOperationFields({});
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('sourceParameters' in result, false);
+	assert.equal('parametersUnresolved' in result, false);
+	assert.equal(recon.stats.parameters_none, 1);
+});
+
+test('drift never gets sourceParameters, even with a perfectly resolvable one in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		paths: { '/api/v0/widgets/{id}': { post: { // verb drift: doc says POST, scan says GET
+			operationId: 'findWidget',
+			parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/{id}', operationId: 'findWidget', method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('sourceParameters' in result, false);
+});
+
+// --- applySecurity ---
+
+test('security:[] (a real, explicit public endpoint) is preserved verbatim, counted security_public -- never treated as absent', () => {
+	const doc = docWithOperationFields({ security: [] });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.deepEqual(result.sourceSecurity, []);
+	assert.equal(recon.stats.security_public, 1);
+	assert.equal(recon.stats.security_copied, 0);
+});
+
+test('a non-empty security requirement naming a real scheme is copied verbatim, and the scheme name is accumulated for sourceSecuritySchemes', () => {
+	const doc = docWithOperationFields({ security: [{ bearerAuth: [] }] }, { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.deepEqual(result.sourceSecurity, [{ bearerAuth: [] }]);
+	assert.equal(recon.stats.security_copied, 1);
+	assert.deepEqual([...recon.sourceSecuritySchemes.keys()], ['bearerAuth']);
+});
+
+test('a security requirement naming an UNDECLARED scheme drops the WHOLE security value for that operation -- never a dangling reference', () => {
+	const doc = docWithOperationFields({ security: [{ apiKeyAuth: [] }] }); // no components.securitySchemes.apiKeyAuth
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('sourceSecurity' in result, false);
+	assert.equal(result.securityUnresolvedReason, 'unknown-scheme');
+	assert.equal(recon.stats.security_unresolved, 1);
+	assert.equal(recon.sourceSecuritySchemes.size, 0, 'nothing was actually referenced by a COPIED requirement');
+});
+
+test('a scheme declared in the document but never referenced by any copied security requirement is NOT included in sourceSecuritySchemes', () => {
+	const doc = {
+		openapi: '3.1.0',
+		components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' }, unused: { type: 'http', scheme: 'basic' } } },
+		paths: { '/api/v0/widgets': { post: { operationId: 'createWidget', security: [{ bearerAuth: [] }] } } },
+	};
+	const { recon } = reconcileCreateWidget(doc);
+	assert.deepEqual([...recon.sourceSecuritySchemes.keys()], ['bearerAuth']);
+});
+
+test('exceeding MAX_SECURITY_REQUIREMENTS_PER_OPERATION fails closed with too-many-requirements', () => {
+	const security = [];
+	for (let i = 0; i < 33; i++) security.push({ bearerAuth: [] });
+	const doc = docWithOperationFields({ security }, { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('sourceSecurity' in result, false);
+	assert.equal(result.securityUnresolvedReason, 'too-many-requirements');
+	assert.equal(recon.stats.security_unresolved, 1);
+});
+
+test('no `security` key at all on the operation -> security_none, no sourceSecurity/securityUnresolvedReason keys', () => {
+	const doc = docWithOperationFields({});
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('sourceSecurity' in result, false);
+	assert.equal('securityUnresolvedReason' in result, false);
+	assert.equal(recon.stats.security_none, 1);
+});
+
+test('security is dialect-INDEPENDENT: a 3.0 document still copies it, unlike parameters (the deliberate asymmetry)', () => {
+	const doc = docWithOperationFields({ security: [{ bearerAuth: [] }] }, { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } }, openapiVersion: '3.0.1' });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(recon.schemaProjection.enabled, false, 'schema-bearing projection IS disabled for this document');
+	assert.deepEqual(result.sourceSecurity, [{ bearerAuth: [] }], 'but security copies anyway -- it carries no Schema Object');
+});
+
+test('drift never gets sourceSecurity, even with a perfectly resolvable one in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
+		paths: { '/api/v0/widgets/{id}': { post: {
+			operationId: 'findWidget',
+			security: [{ bearerAuth: [] }],
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/{id}', operationId: 'findWidget', method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('sourceSecurity' in result, false);
+});
+
+// --- applySummaryAndTags ---
+
+test('summary and tags are copied verbatim when present; non-string tag entries are filtered, not a failure', () => {
+	const doc = docWithOperationFields({ summary: 'create a widget', tags: ['Widgets', 42, 'Admin'] });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(result.sourceSummary, 'create a widget');
+	assert.deepEqual(result.sourceTags, ['Widgets', 'Admin']);
+	assert.equal(recon.stats.summary_copied, 1);
+	assert.equal(recon.stats.tags_copied, 1);
+});
+
+test('no summary/tags on the operation -> neither key appears, neither counter increments', () => {
+	const doc = docWithOperationFields({});
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal('sourceSummary' in result, false);
+	assert.equal('sourceTags' in result, false);
+	assert.equal(recon.stats.summary_copied, 0);
+	assert.equal(recon.stats.tags_copied, 0);
+});
+
+test('an empty tags array is never copied as an empty array -- omitted entirely, matching the "never null/[]" discipline', () => {
+	const doc = docWithOperationFields({ tags: [] });
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal('sourceTags' in result, false);
+});
+
+test('summary/tags are dialect-INDEPENDENT: a 3.0 document still copies them', () => {
+	const doc = docWithOperationFields({ summary: 'x', tags: ['Y'] }, { openapiVersion: '3.0.1' });
+	const { recon, result } = reconcileCreateWidget(doc);
+	assert.equal(recon.schemaProjection.enabled, false);
+	assert.equal(result.sourceSummary, 'x');
+	assert.deepEqual(result.sourceTags, ['Y']);
+});
+
+// --- snapshotFromReconciliation: the four A7 decision fields ---
+
+function snapshotOp(doc, featureId = '001-x') {
+	const indexed = indexOpenApiDocument(doc);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0' });
+	const reconciliation = {
+		byEndpoint: recon.byEndpoint, prefix: recon.prefix, stats: recon.stats, schemaProjection: recon.schemaProjection,
+		document: { hash: 'x', bytes: 1, path_count: 1, operation_count: 1, skipped_path_refs: 0, rejected_operation_ids: 0, component_schema_count: 0, rejected_component_schemas: 0, security_scheme_count: 0, rejected_security_schemes: 0, openapi_version: doc.openapi, servers: [] },
+	};
+	const snapshot = snapshotFromReconciliation(reconciliation, { featureId, sourceFile: { file: 'x.json', outsideRepo: false } });
+	return snapshot.operations.createWidget;
+}
+
+test('snapshot decision fields: parameters "copied:N" / "partial:M-of-N" / "none" / "skipped:dialect"', () => {
+	assert.equal(snapshotOp(docWithOperationFields({})).parameters, 'none');
+	assert.equal(snapshotOp(docWithOperationFields({ parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }] })).parameters, 'copied:1');
+	assert.equal(
+		snapshotOp(docWithOperationFields({ parameters: [
+			{ name: 'q', in: 'query', schema: { type: 'string' } },
+			{ '$ref': '#/components/parameters/Bad' },
+		] })).parameters,
+		'partial:1-of-2',
+	);
+	assert.equal(snapshotOp(docWithOperationFields({ parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }] }, { openapiVersion: '3.0.1' })).parameters, 'skipped:dialect');
+});
+
+test('snapshot decision fields: security "copied:N" / "copied:public" / "unresolved:X" / "none"', () => {
+	assert.equal(snapshotOp(docWithOperationFields({})).security, 'none');
+	assert.equal(snapshotOp(docWithOperationFields({ security: [] })).security, 'copied:public');
+	assert.equal(snapshotOp(docWithOperationFields({ security: [{ bearerAuth: [] }] }, { securitySchemes: { bearerAuth: { type: 'http' } } })).security, 'copied:1');
+	assert.equal(snapshotOp(docWithOperationFields({ security: [{ ghost: [] }] })).security, 'unresolved:unknown-scheme');
+});
+
+test('snapshot decision fields: summary "copied" / "none", tags "copied:N" / "none"', () => {
+	assert.equal(snapshotOp(docWithOperationFields({})).summary, 'none');
+	assert.equal(snapshotOp(docWithOperationFields({})).tags, 'none');
+	assert.equal(snapshotOp(docWithOperationFields({ summary: 'x' })).summary, 'copied');
+	assert.equal(snapshotOp(docWithOperationFields({ tags: ['a', 'b'] })).tags, 'copied:2');
+});
+
+// --- the self-import guard's second key material ---
+
+test('hasBskelExportMarker: an operation-level x-bskel-passthrough marker is detected with NO info marker present', () => {
+	const doc = {
+		openapi: '3.1.0',
+		paths: { '/w': { get: { operationId: 'findW', [BSKEL_PASSTHROUGH_EXTENSION]: { source_sha256: 'abc123' } } } },
+	};
+	assert.equal(hasBskelExportMarker(doc), true);
+});
+
+test('hasBskelExportMarker: neither marker present is false; the info marker alone is still sufficient (unchanged A6 behavior)', () => {
+	const bare = { openapi: '3.1.0', paths: { '/w': { get: { operationId: 'findW' } } } };
+	assert.equal(hasBskelExportMarker(bare), false);
+	const withInfoOnly = { openapi: '3.1.0', info: { [BSKEL_GENERATED_EXTENSION]: {} }, paths: { '/w': { get: { operationId: 'findW' } } } };
+	assert.equal(hasBskelExportMarker(withInfoOnly), true);
 });

@@ -448,15 +448,23 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    operations); a WAIVED `partial` contract IS exportable, the same bar `handles emit` already
   #    accepts, and the export discloses `completeness: "partial"` in its own metadata.
   #
-  #    IT IS A LOSSY, NARROW PROJECTION OF ONE FEATURE, AND IT SAYS SO. The contract carries no
-  #    query parameters, no header parameters, no security requirements, no summaries/tags, no
-  #    per-status responses (2xx bodies are one union, 4xx/5xx another), and nothing at all for a
-  #    non-JSON request body -- every one of those is disclosed in `info.description` AND in a
-  #    machine-readable `info.x-bskel-omitted` array. Nothing is ever synthesized to fill a gap:
-  #    `security` is OMITTED rather than emitted as `[]` (an empty array positively claims no auth
-  #    is required), summaries/tags are never invented from operationIds or module names, and an
-  #    operation whose body shape the contract doesn't know gets `content: {application/json: {}}`
-  #    -- a media-type entry with no schema -- rather than a fabricated `{type: "object"}`.
+  #    IT IS A LOSSY, NARROW PROJECTION OF ONE FEATURE, AND IT SAYS SO. Per-status responses (2xx
+  #    bodies are one union, 4xx/5xx another) and anything for a non-JSON request body are NEVER
+  #    represented (Phase 2, not built) -- disclosed in `info.description` AND in a machine-readable
+  #    `info.x-bskel-omitted` array. Nothing is ever synthesized to fill a gap: an operation whose
+  #    body shape the contract doesn't know gets `content: {application/json: {}}` -- a media-type
+  #    entry with no schema -- rather than a fabricated `{type: "object"}`.
+  #
+  #    A7 (D-openapi-passthrough): query/header/cookie parameters, `security` (+ referenced
+  #    `components.securitySchemes`), `summary`, and `tags` ARE emitted -- but ONLY when a real
+  #    `--openapi-file` source document licensed them for that EXACT operation, copied byte-for-byte
+  #    (parameter `schema` resolved through the same `inlineSchema()` used for bodies). Where no
+  #    source document was given, or it said nothing for that operation, the key is omitted, meaning
+  #    "unspecified" -- never invented. `security: []` is copied when the SOURCE said `[]` (a real,
+  #    positive claim of "no auth required" from the document itself); it is still never invented as
+  #    a default. `x-bskel-omitted` reflects this per-field: query/header/cookie-parameters,
+  #    security, summaries, and tags are each listed only if at least one exported operation lacks
+  #    them, not unconditionally.
   #
   #    OpenAPI 3.1 ONLY, and deliberately not 3.0 even behind a flag: 3.0 requires `responses` on
   #    every operation (forcing a synthesized response), types exclusiveMinimum/exclusiveMaximum as

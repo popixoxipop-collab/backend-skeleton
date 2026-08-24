@@ -443,7 +443,7 @@ test('drift never gets a requestBodySchema, even though the doc entry has a perf
 	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
 });
 
-test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v4)', () => {
+test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v5)', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
@@ -452,7 +452,7 @@ test('a contract with a projected requestBodySchema still validates against sche
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
 	assert.equal(ok, true, JSON.stringify(validate.errors));
-	assert.equal(contract.sbf_contract, '4');
+	assert.equal(contract.sbf_contract, '5'); // A7: sbf_contract "4" -> "5" (source* fields + sourceSecuritySchemes)
 });
 
 // ===== A3: response/error JSON Schema projection, buildContract() integration =====
@@ -577,7 +577,7 @@ test('drift never gets responseSchema/errorSchema, even though the doc entry has
 	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
 });
 
-test('a contract carrying all four projected fields (request+response+error) still validates against schemas/feature-contract.schema.json (v4)', () => {
+test('a contract carrying all four projected fields (request+response+error) still validates against schemas/feature-contract.schema.json (v5)', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_RESPONSE_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
@@ -586,6 +586,127 @@ test('a contract carrying all four projected fields (request+response+error) sti
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
 	assert.equal(ok, true, JSON.stringify(validate.errors));
+});
+
+// ===== A7: source-backed OpenAPI field passthrough, buildContract() integration =====
+
+const WIDGET_PASSTHROUGH_DOC = (operationOverride) => ({
+	openapi: '3.1.0',
+	components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
+	paths: { '/api/v0/widgets': { post: {
+		operationId: 'createWidget',
+		parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
+		security: [{ bearerAuth: [] }],
+		summary: 'create a widget',
+		tags: ['Widgets'],
+		...operationOverride,
+	} } },
+});
+
+test('matched + a full passthrough operation: all four source* fields land on the operation, sourceSecuritySchemes lands on the contract root', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_PASSTHROUGH_DOC());
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal(op.sourceParameters.length, 1);
+	assert.equal(op.sourceParameters[0].name, 'q');
+	assert.deepEqual(op.sourceSecurity, [{ bearerAuth: [] }]);
+	assert.equal(op.sourceSummary, 'create a widget');
+	assert.deepEqual(op.sourceTags, ['Widgets']);
+	assert.deepEqual(contract.sourceSecuritySchemes, { bearerAuth: { type: 'http', scheme: 'bearer' } });
+	assert.ok(!contract.warnings.some((w) => w.code.startsWith('CONTRACT_OPENAPI_') && w.code.endsWith('_UNRESOLVED')));
+});
+
+test('adopted + a full passthrough operation: source* fields present AND CONTRACT_OPENAPI_DERIVED_OPERATION_ID still fires', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: null, method: 'createWidget' }]);
+	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_PASSTHROUGH_DOC());
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal(op.sourceSummary, 'create a widget');
+	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DERIVED_OPERATION_ID'));
+});
+
+test('a parameter that could not be copied raises CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED (WARN), completeness stays complete', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const doc = WIDGET_PASSTHROUGH_DOC({ parameters: [{ '$ref': '#/components/parameters/Bad' }] });
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal('sourceParameters' in op, false);
+	const w = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED');
+	assert.ok(w);
+	assert.equal(w.severity, 'warn');
+	assert.equal(w.subject, 'createWidget');
+	assert.match(w.message, /ref-parameter/);
+	assert.equal(contract.completeness.status, 'complete');
+});
+
+test('security naming an undeclared scheme raises CONTRACT_OPENAPI_SECURITY_UNRESOLVED (WARN), completeness stays complete', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const doc = WIDGET_PASSTHROUGH_DOC({ security: [{ ghostScheme: [] }] });
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.createWidget;
+	assert.equal('sourceSecurity' in op, false);
+	const w = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_SECURITY_UNRESOLVED');
+	assert.ok(w);
+	assert.equal(w.severity, 'warn');
+	assert.equal(w.subject, 'createWidget');
+	assert.match(w.message, /unknown-scheme/);
+	assert.equal(contract.completeness.status, 'complete');
+	assert.equal('sourceSecuritySchemes' in contract, false, 'nothing was actually referenced by a COPIED requirement');
+});
+
+test('a parameter AND a security failure on the SAME operation: two warnings, two different codes, same subject -- proves the codes are genuinely separate', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const doc = WIDGET_PASSTHROUGH_DOC({ parameters: [{ '$ref': '#/components/parameters/Bad' }], security: [{ ghostScheme: [] }] });
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const unresolved = contract.warnings.filter((w) => w.code === 'CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED' || w.code === 'CONTRACT_OPENAPI_SECURITY_UNRESOLVED');
+	assert.equal(unresolved.length, 2);
+	assert.deepEqual(unresolved.map((w) => w.code).sort(), ['CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED', 'CONTRACT_OPENAPI_SECURITY_UNRESOLVED']);
+	assert.ok(unresolved.every((w) => w.subject === 'createWidget'));
+});
+
+test('drift never gets any of the four source* fields, even with a perfectly copyable set in the doc', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const doc = {
+		openapi: '3.1.0',
+		components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
+		paths: { '/api/v0/widgets/{widgetId}': { post: { // verb drift: doc says POST, scan says GET
+			operationId: 'findWidget',
+			parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
+			security: [{ bearerAuth: [] }],
+			summary: 'x', tags: ['y'],
+		} } },
+	};
+	const openapi = reconcileFixture(scanReport, 'widget', doc);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	const op = contract.operations.findWidget;
+	for (const key of ['sourceParameters', 'sourceSecurity', 'sourceSummary', 'sourceTags']) {
+		assert.equal(key in op, false, `drift must not carry ${key}`);
+	}
+	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
+});
+
+test('openapi:null produces none of the four source* fields, nor sourceSecuritySchemes at the root -- extends the byte-identity guarantee', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets', operationId: 'findWidgets', method: 'findWidgets' }]);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi: null });
+	for (const key of ['sourceParameters', 'sourceSecurity', 'sourceSummary', 'sourceTags']) {
+		assert.equal(key in contract.operations.findWidgets, false);
+	}
+	assert.equal('sourceSecuritySchemes' in contract, false);
+});
+
+test('sbf_contract is "5", and a full passthrough contract validates against schemas/feature-contract.schema.json', () => {
+	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
+	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_PASSTHROUGH_DOC());
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
+	assert.equal(contract.sbf_contract, '5');
+	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validate = ajv.compile(schema);
+	assert.equal(validate(contract), true, JSON.stringify(validate.errors));
 });
 
 // ===== A2: operationPayloadSchema() / envelope validation with a projected requestBodySchema =====
