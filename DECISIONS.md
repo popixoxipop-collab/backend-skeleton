@@ -6720,3 +6720,215 @@ token set -- `scan_report_hash`, not `head_sha` -- this item's own preceding pla
 directly against `lib/gate-definitions.mjs` before writing this section); `D-security-1`/
 `D-security-2` (the prototype-pollution and bare-UUID-pattern classes this item inherits unchanged,
 including in the new `securitySchemes` Map and parameter-name handling).
+
+## D-openapi-per-status (A8): additive, not a second union -- per-status responses and non-JSON request media types
+
+**WHY:** A7's own EXIT clause named this the next slice and said to number it A8, not fold it into
+"A7 Phase 2" -- followed here. A7 copied query/header/cookie parameters, `security`, `summary`, and
+`tags` from a real `--openapi-file` source document, but two real gaps remained structural (always
+omitted, for every contract): per-status responses (A3's `responseSchema`/`errorSchema` collapse
+every documented `2xx`/`4xx`/`5xx` body into two `anyOf` unions and record no real status codes at
+all) and non-JSON request media types (a `multipart/form-data` body is entirely invisible -- the
+contract only ever knows `application/json`). Both are real, measured gaps: on the real
+Team-IZ-Backend oracle (148 operations, re-measured fresh for this item, not carried over from A7's
+own numbers), 694 response-status entries exist across those operations (4.69/operation, max 9),
+and 5 real operations declare a `multipart/form-data` request body invisible to A2's
+`requestBodySchema`.
+
+**The central design question, resolved by reading the real code rather than guessing: additive,
+never replacing the union.** `contracts/validate.mjs`'s entire response/error path is nine lines --
+`direction === 'response' ? opContract.responseSchema : opContract.errorSchema`, wrapped in an
+envelope with no status-code field at all (`schemas/agent-envelope.schema.json` has never had one).
+Three facts made "replace the union with per-status data" strictly worse, not merely more work: (1)
+the envelope genuinely has nowhere to put a status code, so a per-status-only representation would
+give `contracts/validate.mjs` a map and no key to look it up with; (2) the only way to make replace
+work would be moving A3's `canonicalJson` dedup, `anyOf`-never-`oneOf` choice, and
+fail-closed-on-first-unresolvable rule out of `contracts/openapi.mjs` (pure, already tested) into
+`contracts/validate.mjs` (which today contains zero projection logic and compiles an Ajv schema per
+call) -- re-deriving at read time a decision this codebase already makes once, at emit time; (3) the
+decisive measurement: 0/148 real operations have more than one distinct 2xx schema, and 0/148 have
+more than one distinct 4xx/5xx/default schema. Every union in the real oracle has exactly one
+source. Per-status data therefore carries **zero additional schema information** on real data --
+replacing two ~1,883-byte union fields with a per-status structure encoding the identical shapes at
+each of their real status keys would cost roughly double the bytes to say the same thing twice.
+**`contracts/validate.mjs` is untouched by this item -- verified by diff, not merely intended.**
+
+**`sourceResponses`, keyed by the source document's own literal status key (a literal code, a range
+key, or `default`) -- never re-bucketed.** Each entry carries at most one body descriptor:
+`schemaFrom: "response"|"error"` (this status's JSON body is canonically identical to the
+operation's already-stored `responseSchema`/`errorSchema` -- **provable, not guessed**: A3's own
+`projectResponseSchemas()` already deduplicated every status in its bucket down to `sources`
+distinct resolved shapes, so if `sources === 1`, every status in that bucket with a JSON schema
+resolved to that one shape by construction; this function only has to point at it), `schema` (an
+inline, individually-resolved shape, for the rare `sources > 1` case -- never observed on real
+data -- or a status outside both buckets, e.g. a `1xx`/`3xx` key), `mediaTypes` (a non-JSON
+response's media type NAMES, disclosed, its shape never projected -- 0/674 real occurrences), or
+none of the three (no body declared, e.g. a bare `204`). **Measured: 674/674 real status entries
+with a JSON schema take the `schemaFrom` branch; zero ever needed individual resolution.** That is
+what keeps this item's real cost additive rather than duplicative.
+
+**Fail-closed invariant that makes the `schemaFrom` shortcut sound, and keeps per-status coverage
+honest:** `sourceResponses` is written for an operation only when BOTH of A3's own bucket outcomes
+are `resolved` or `none` -- never `unresolved`. If either bucket failed to resolve, this silently
+and correctly falls back to the pre-A8 union-only export path for that operation; the failure is
+already recorded via A3's own `responseSchemaUnresolvedReason`/`errorSchemaUnresolvedReason`, and
+nothing here duplicates it. **A direct, structural consequence, proven by tracing every reachable
+resolution kind, not asserted:** every contract-resident operation that lacks a source entry
+already carries an ERROR through an *existing* code (`CONTRACT_OPENAPI_DRIFT`/
+`CONTRACT_OPENAPI_MISSING_OPERATION`/`CONTRACT_OPENAPI_AMBIGUOUS`/`CONTRACT_UNMATCHED_ENDPOINT`), so
+a `complete` contract emitted with `--openapi-file` has **100% per-status coverage by
+construction**. Mixed coverage (some operations per-status, some union-only) can therefore only
+arise in an explicitly waived `partial` contract -- exactly the coverage this item's export-side
+disclosure (below) exists to surface, never a silent gap in an otherwise-trusted contract.
+
+**No new WARN code for per-status failure -- reasoned from the real code, not from symmetry with
+A7's own two new codes.** Per-status failure is not independent of A3's existing failure: both walk
+the exact same `responses` map through the exact same `inlineSchema()` at the exact same
+`MAX_RESPONSES_PER_OPERATION` cap. Whatever makes a bucket `unresolved` already fires
+`CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED`/`CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED` -- a third
+code here would be a duplicate warning for one root cause, the exact "flood every contract with N
+warnings for one cause" failure A2's own dialect-gate comment already refuses. **One new code IS
+needed for the multipart side**, `CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED` (WARN, waivable):
+a real operation can legally accept both `application/json` and `multipart/form-data`
+simultaneously, so this failure genuinely is independent of A2's own `CONTRACT_OPENAPI_SCHEMA_UNRESOLVED`
+(the JSON-body code) -- sharing one would let a waiver for one silently cover the other, the same
+`{code, subject}`-key reasoning `D-openapi-response-schema` already established for its own
+response/error split and A7 reused for parameters/security.
+
+**`security: []`'s sharpest-case precedent, reapplied to `sourceRequestBody`: `content` here NEVER
+contains `application/json`.** That stays A2's `requestBodySchema` field -- the one representation
+of that one fact, enforced structurally (the copy loop explicitly excludes the JSON media type key)
+and expressed as a schema invariant (`schemas/feature-contract.schema.json`'s `not: {required:
+["application/json"]}`) rather than trusted to stay true by convention alone.
+
+**A real, pre-existing disagreement this item makes newly visible, not one it invents:** the real
+oracle's multipart handlers use `@RequestPart("file") MultipartFile file`, never `@RequestBody` --
+`contracts/emit.mjs`'s `detectRequestBody()` greps only `/@RequestBody/`, so these operations carry
+`body: false` from the scan alone. After this item, the export emits a copied `multipart/form-data`
+body for an operation whose contract says `body: false`. This is NOT a new class of disagreement --
+`contracts/export.mjs`'s `buildRequestBody()` already checked `op.requestBodySchema` *before*
+`op.body` for the JSON case (an operation with `body: false` and a projected JSON schema already
+exported a `requestBody`, and `test/contract.test.mjs` already pinned this), so this item extends a
+shipped behavior rather than inventing one. Disclosed, not fixed here.
+
+**A second real bug, found by running a multipart-only fixture through the exporter, not by
+inspection: the pre-A8 `op.body === true` bare-JSON fallback would ALSO fire alongside a real
+`sourceRequestBody`, emitting a self-contradicting document.** `buildRequestBody()`'s
+`content: {'application/json': {}}` fallback exists for "the scan detected a body, its shape is
+genuinely unknown" -- a real gap in information. But when `op.sourceRequestBody` is present,
+reconciliation already positively determined this operation's real media type(s) from a source
+document, and `application/json` was not among them. Applying the guess on top of that positive
+fact produced `content: {'application/json': {}, 'multipart/form-data': {...}}` for an operation
+whose real document declared multipart ONLY -- worse than the gap it was meant to extend, since it
+actively claims an unconstrained JSON body the source document said does not exist. Fixed by
+suppressing the bare-JSON fallback whenever `op.sourceRequestBody` carries real content, JSON or
+not -- positive information from a real document always wins over the scan's own guess.
+
+**A real round-trip hazard, found by executing the export -> re-import cycle, not by inspection,
+and closed structurally:** OpenAPI 3.1 requires `description` on every Response Object. When the
+source document had none, the exporter must synthesize a stand-in string to stay spec-valid --
+but the FIRST implementation of this let that stand-in text round-trip back in as if it were real:
+export a contract whose responses had no `description`, strip the self-import marker, re-import,
+and the synthetic filler text came back as a genuine copied `description`, breaking A6's own
+"export -> re-import reproduces operations exactly" invariant for a `contract-field`, not merely a
+`stats`, difference (reproduced directly with the fixture `widgetOpenApiDoc({withResponses:true})`
+before the fix: `after.warnings` carried 14 entries where `before.warnings` had 0). **Pre-A8's two
+equivalent union-path stand-ins (`SUCCESS_RESPONSE_DESCRIPTION`/`ERROR_RESPONSE_DESCRIPTION`) never
+had this problem** -- nothing on the import side ever reads a response object's `description`, only
+its `content` schema; this item is the first field to read `description` back in at all, which is
+what introduced the hazard. Fixed the same way `BSKEL_GENERATED_EXTENSION`/
+`BSKEL_PASSTHROUGH_EXTENSION` close the self-import hole: a shared constant
+(`PER_STATUS_NO_DESCRIPTION_STANDIN`), declared on the reading side so writer and reader cannot
+drift apart, and `applyPerStatusResponses()` explicitly refuses to copy a `description` that
+matches it byte-for-byte. Re-verified after the fix: the same round trip now reproduces
+`after.warnings === []` and `after.operations` byte-identical to `before.operations`.
+
+**The self-import guard needed a real widening, not a "probably fine" assumption.**
+`contracts/export.mjs`'s `hasPassthrough` (which decides whether an operation gets the
+`x-bskel-passthrough` per-operation marker) checked exactly A7's four fields. An operation whose
+ONLY copied content is per-status responses or a multipart body -- no source parameters, no
+security, no summary, no tags -- got NO marker under the pre-A8 code, silently reopening the exact
+hole A7 closed for that one operation: stripping only `info.x-bskel-generated` would again be
+sufficient to disarm the guard, for that operation. Never arises on the real oracle (148/148
+operations already carry `summary`+`tags`+`security`), but is structurally reachable from a
+minimal hand-written document declaring only `responses` -- fixed by adding both new fields to
+`hasPassthrough`'s OR chain; `contracts/openapi.mjs`'s `hasBskelExportMarker()` needed no change
+(it already returns true on any operation-level marker, generically).
+
+**`literalStatusStandIn` needed a real fix, not a redundant flag check.** The pre-A8 computation
+(`statusCodes === 'literal' && ops.some(op => Boolean(op.responseSchema))`) would have printed
+"`200` is a bskel-chosen stand-in" for a document where every `200` is a real, copied status key --
+false, and misleading. Fixed to exclude any operation that took the per-status path: `... &&
+ops.some(op => op.responseSchema && !hasPerStatus)`. `renderDescription()`'s status-codes paragraph
+gained a third variant, computed from the contract's own content (never guessed): none of an
+export's response/error-bearing operations carry per-status data (the pre-A8 wording, unchanged),
+all of them do (a new sentence stating plainly that every status code here is a copied fact), or a
+mix (names the count on each side and points at `info.x-bskel-generated.passthrough` for which is
+which).
+
+**`collectOmissions()` restructured, following the exact ANY-based doctrine A7 already established
+for its own four fields.** `per-status-responses` and `non-json-media-types` (renamed
+`non-json-request-media-types`, since the response side gets its own, separately-tracked entry)
+move out of the always-on `STRUCTURAL_OMISSIONS` list into the derived set -- present only when at
+least one exported operation genuinely lacks the field. **Proven derived, not merely renamed, by a
+real test**: a fixture where every operation documents a resolvable `200` and `400` shows
+`per-status-responses` genuinely ABSENT from its omission list -- the case that would be impossible
+if the list were still a fixed disclaimer. Two new genuinely-structural entries join
+`STRUCTURAL_OMISSIONS`: `non-json-response-schemas` (a non-JSON response media type's NAME is
+disclosed via a per-status entry's `mediaTypes`, but its SHAPE is never projected -- 0/674 real
+occurrences, so building that machinery would violate this project's own "don't build for zero real
+cases" discipline) and `response-headers` (a per-status response's `headers`/`links` -- 0/694 real
+occurrences, a gap only genuinely visible now that per-status responses otherwise look complete).
+`descriptions`' own prose was rewritten from "not yet built" to state the real measured reason it
+stays excluded (below).
+
+**Operation-level `description`, the third field A7's EXIT clause named for this slice, deferred
+again -- with a measured reason, not a repeated deferral.** Real average 2,442.7 bytes/operation
+(max 13,758 bytes; the largest is a full Markdown API design document embedded in the OpenAPI
+document, not a caption). That is larger than every other field this item copies, combined, and
+roughly 1.3x the ENTIRE existing A3 schema-projection payload. If this is ever built, it must ship
+opt-in behind a flag -- unlike every other field this project's OpenAPI-passthrough items (A7, this
+one) have shipped default-on, because none of them came close to this cost. Recorded here as a
+measured, deliberate scope narrowing relative to A7's own EXIT text, not a silent drop.
+
+**COST:** ~576 bytes/operation across the real oracle's 9 modules with an HTTP surface (measured
+directly, not estimated) -- a real, if modest, contract-size increase (roughly +24% on the
+cumulative per-operation OpenAPI-derived payload, A2 through this item). `sbf_contract` bumped
+`"5"` -> `"6"`, with a real read-time consequence (S5's `loadContract()` validates on read) --
+mitigated, cheaply this time, by the friendly re-emit pre-check A7 already built (needed zero new
+code; only its two regression tests' expected version strings needed re-pointing). Two new WARN
+codes (well, one new -- see above) whose non-ERROR severity means an operation can silently lose a
+multipart media type's shape with only a warning, not a block. An exported document carrying real
+per-status data with real (often non-English) descriptions is measurably closer to indistinguishable
+from the source oracle than A7's own export already was -- mitigated by the widened self-import
+guard, not eliminated. The standing A7 asymmetry (fields present for some operations, absent for
+others in a waived-`partial` contract) now also applies to per-status responses and request media
+types.
+
+**EXIT:** `contracts/openapi.mjs`'s `applyPerStatusResponses()`/`applyRequestMediaTypes()` are the
+single place to widen what per-status/media-type data may be copied later (e.g. response
+`headers`/`links`, should a real document ever need them). `contracts/export.mjs`'s
+`STRUCTURAL_OMISSIONS`/`OMISSION_PROSE`/`collectOmissions()` remain the single place a disclosure
+lives. Operation-level `description` is the next, explicitly-scoped-out slice, and must ship behind
+a flag given its measured cost. Replacing the contract's path-parameter heuristic with copied
+source path parameters (the `batchRequestId` finding, A7) and constraining envelope payloads with
+copied query parameters remain separate, untouched future items. Turning a copied `security`
+requirement into generated authorization code remains permanently excluded, unchanged from A7.
+OpenAPI 3.0 output remains unchanged from A6's three cited blockers.
+
+Cross-references: `D-openapi-passthrough` (A7, the mechanism this item extends -- the exact
+matched/adopted-only `applyPassthrough()` call sites, the `source*` field-naming convention, the
+`BSKEL_PASSTHROUGH_EXTENSION` self-import-guard marker this item widens, and the ANY-based
+`collectOmissions()` doctrine this item's own two moved entries follow); `D-openapi-response-schema`
+(A3, the `responseSchema`/`errorSchema` union and `projectResponseSchemas()` machinery this item is
+strictly additive to, and the two-separate-codes reasoning this item deliberately does NOT apply to
+per-status failure, reusing A3's own codes instead); `D-openapi-export` (A6, the exporter this
+item's `buildResponses()`/`buildRequestBody()` extend, the `security: []`-is-spec-legal-but-
+untruthful precedent this item's `content` invariant reapplies, and the round-trip invariant this
+item both threatened and re-closed); `D-openapi-request-schema` (A2, `inlineSchema()` reused
+unchanged for every schema this item resolves, and the `body:false`-with-a-projected-schema
+precedent this item's multipart handling extends); `D-security-1`/`D-security-2` (the
+prototype-pollution class `RESPONSE_STATUS_KEY_RE`/`MEDIA_TYPE_RE` guard against, structurally
+mirroring `OPERATION_ID_RE`/`COMPONENT_SCHEMA_NAME_RE`); `D-persistence-integrity` (S5, the
+`loadContract()` schema-validation-on-read this item's `sbf_contract` bump has a consequence
+against, mitigated by the already-institutionalized friendly pre-check).

@@ -154,10 +154,18 @@ test('round trip: export -> re-import against the same scan report reproduces th
 
 	assert.equal(run(['contract', 'export', '--feature', FEATURE, '--out', 'exported.json'], root).code, 0);
 	// The self-import guard refuses an unmodified export outright (proven below); stripping the
-	// marker is the exact escape hatch its own error message names, and is what makes this
-	// invariant observable at all.
+	// marker(s) is the exact escape hatch its own error message names, and is what makes this
+	// invariant observable at all. A8: also strips the per-operation `x-bskel-passthrough` marker
+	// -- widened (D-openapi-per-status) to also fire for an operation whose only copied content is
+	// per-status responses (createWidget, here), so `info.x-bskel-generated` alone is no longer
+	// sufficient to disarm the guard for this fixture.
 	const exported = JSON.parse(fs.readFileSync(path.join(root, 'exported.json'), 'utf8'));
 	delete exported.info['x-bskel-generated'];
+	for (const item of Object.values(exported.paths)) {
+		for (const op of Object.values(item)) {
+			if (op && typeof op === 'object') delete op['x-bskel-passthrough'];
+		}
+	}
 	fs.writeFileSync(path.join(root, 'stripped.json'), JSON.stringify(exported, null, 2));
 
 	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', 'stripped.json'], root).code, 0);
@@ -310,7 +318,7 @@ test('a blocked (zero-operation) contract is refused even when its gate was forc
 	assert.equal(fs.existsSync(path.join(root, 'exported.json')), false, 'nothing may be written on a refusal');
 });
 
-test('--status-codes rejects an unknown mode (exit 14) and `literal` emits 200 plus a one-time stand-in note', () => {
+test('--status-codes rejects an unknown mode (exit 14)', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
@@ -319,13 +327,52 @@ test('--status-codes rejects an unknown mode (exit 14) and `literal` emits 200 p
 	const bad = run(['contract', 'export', '--feature', FEATURE, '--status-codes', 'openapi30'], root);
 	assert.equal(bad.code, 14);
 	assert.match(bad.stderr, /--status-codes must be one of: range\|literal/);
+});
+
+// Real dogfooding-adjacent finding, A8 (D-openapi-per-status): `widgetOpenApiDoc({withResponses:
+// true})`'s default fixture ALREADY uses literal status keys (201/400, not 2XX/default) in the
+// SOURCE document -- once per-status passthrough is on by default, those real keys are what the
+// export shows, regardless of --status-codes, since buildPerStatusResponses() is tried before the
+// union path and does not consult the flag at all. This is the intended behavior: --status-codes
+// only shapes the FALLBACK union rendering for an operation with no per-status source data.
+test('--status-codes has no effect on an operation with real per-status source data -- the source\'s own codes win either way', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
 
 	const range = exportedDoc(root);
-	assert.deepEqual(Object.keys(range.doc.paths['/api/v0/widgets'].post.responses), ['2XX', 'default']);
+	assert.deepEqual(Object.keys(range.doc.paths['/api/v0/widgets'].post.responses), ['201', '400'], 'the source document\'s own real status keys, copied verbatim');
+	assert.equal(range.stderr.includes('stand-in'), false, 'a copied real status is never a stand-in');
+
+	const literal = exportedDoc(root, ['--status-codes', 'literal']);
+	assert.deepEqual(Object.keys(literal.doc.paths['/api/v0/widgets'].post.responses), ['201', '400'], '--status-codes literal must not override real per-status data');
+	assert.equal(literal.stderr.includes('stand-in'), false, 'no operation took the union fallback path, so no stand-in note fires');
+});
+
+// The union fallback (and --status-codes' effect on it) is still real and still tested here --
+// exercised by making exactly the ERROR side unresolvable (an unsupported `discriminator`
+// keyword), which is enough to make BOTH sides skip per-status (see D-openapi-per-status's
+// fail-closed invariant: sourceResponses is written only when BOTH buckets are resolved-or-none)
+// while the SUCCESS side still resolves and renders through the pre-A8 union path unchanged.
+test('--status-codes shapes the union fallback for an operation with no per-status source data (one side unresolvable)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withResponses: true });
+	doc.components.schemas.ErrorResponse = { type: 'object', discriminator: { propertyName: 'kind' } };
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.ok(contract.operations.createWidget.responseSchema, 'the success side must still resolve');
+	assert.equal('errorSchema' in contract.operations.createWidget, false, 'the error side must genuinely fail to resolve for this test to mean anything');
+	assert.equal('sourceResponses' in contract.operations.createWidget, false, 'per-status must skip entirely when either bucket is unresolved');
+
+	const range = exportedDoc(root);
+	assert.deepEqual(Object.keys(range.doc.paths['/api/v0/widgets'].post.responses), ['2XX'], 'only the resolved success side renders, via the union fallback');
 	assert.equal(range.stderr.includes('stand-in'), false, 'range mode invents nothing, so it must not warn about a stand-in');
 
 	const literal = exportedDoc(root, ['--status-codes', 'literal']);
-	assert.deepEqual(Object.keys(literal.doc.paths['/api/v0/widgets'].post.responses), ['200', 'default']);
+	assert.deepEqual(Object.keys(literal.doc.paths['/api/v0/widgets'].post.responses), ['200']);
 	assert.match(literal.stderr, /bskel-chosen stand-in/);
 	assert.equal(literal.stderr.split('bskel-chosen stand-in').length - 1, 1, 'the note must be printed once for the document, not once per operation');
 });
@@ -621,6 +668,68 @@ test('a full-passthrough export (parameters, security, summary, tags) still vali
 	assertValidOpenApi(exportedDoc(root).doc, 'a full-passthrough export');
 });
 
+// --- A8: per-status responses + non-JSON request media types (D-openapi-per-status) -----------
+
+test('A8: a real per-status export (204 no-body, custom description, multipart request) validates against the official 3.1 meta-schema', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withResponses: true });
+	doc.paths['/api/v0/widgets'].post.responses['204'] = { description: 'nothing to report' };
+	doc.paths['/api/v0/widgets'].post.requestBody = {
+		content: { 'multipart/form-data': { schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } } } },
+	};
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const { doc: exported } = exportedDoc(root);
+	const responses = exported.paths['/api/v0/widgets'].post.responses;
+	assert.deepEqual(Object.keys(responses).sort(), ['201', '204', '400'], 'the source document\'s own real status keys, copied verbatim');
+	assert.equal(responses['204'].description, 'nothing to report');
+	assert.deepEqual(Object.keys(exported.paths['/api/v0/widgets'].post.requestBody.content), ['multipart/form-data']);
+	assertValidOpenApi(exported, 'a real per-status + multipart export');
+});
+
+test('A8: a per-status entry with no description at all gets the honest stand-in string, which is spec-valid and never round-trips back in as real', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withResponses: true });
+	delete doc.paths['/api/v0/widgets'].post.responses['201'].description;
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const { doc: exported } = exportedDoc(root);
+	assert.match(exported.paths['/api/v0/widgets'].post.responses['201'].description, /documents this status.*gives no description/);
+	assertValidOpenApi(exported, 'a per-status export with a synthesized description stand-in');
+});
+
+test('A8: a non-JSON request media type whose schema fails to resolve raises CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED (WARN -- never blocks, same as its A7 siblings)', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets'].post.requestBody = {
+		content: { 'multipart/form-data': { schema: { type: 'object', discriminator: { propertyName: 'kind' } } } },
+	};
+	const docFile = writeOpenApiFixture(root, doc);
+	const emitted = run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root);
+	assert.equal(emitted.code, 0, 'WARN severity never blocks the gate -- same invariant test/contract-completeness.test.mjs pins for the two A7 sibling codes');
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	const warning = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED');
+	assert.ok(warning, 'the new code must actually fire');
+	assert.equal(warning.subject, 'createWidget');
+	assert.equal(warning.severity, 'warn');
+	assert.equal(run(['gate', 'require', 'contract', '--feature', FEATURE], root).code, 0);
+});
+
+test('A8: per-status responses are ANY-based derived omissions -- absent when every operation resolves a real status, present when at least one lacks per-status data', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	// createWidget resolves real per-status data; findWidgets/findWidget have no responses documented
+	// at all, so they lack it.
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const mixed = exportedDoc(root).doc.info['x-bskel-omitted'];
+	assert.ok(mixed.includes('per-status-responses'), 'findWidgets/findWidget have no per-status data at all');
+});
+
 // --- A7: loadContract()'s friendly sbf_contract mismatch message -------------------------------
 
 // loadContract()'s pre-check is exercised through an UNGATED command (`contract tool-schema`, not
@@ -642,7 +751,7 @@ test('an on-disk contract from an older bskel (sbf_contract "4") gets a friendly
 
 	const result = run(['contract', 'tool-schema', '--feature', FEATURE, '--operation', 'createWidget'], root);
 	assert.equal(result.code, 2, 'loadContract()\'s INVALID_ARTIFACT failures share exit NOT_PASSED(2), same as MISSING_ARTIFACT');
-	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "5"\)/);
+	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "6"\)/);
 	assert.match(result.stderr, /re-run `bskel contract emit --feature 001-widget-management`/);
 	assert.equal(result.stderr.includes('does not match schemas/feature-contract.schema.json'), false, 'the friendly message must replace the raw ajv dump for this specific, common case');
 });
@@ -696,13 +805,22 @@ test('x-bskel-omitted is derived from the contract, not hardcoded', () => {
 	const omittedC = exportedDoc(allSchemas).doc.info['x-bskel-omitted'];
 	assert.equal(omittedC.includes('response-schemas'), false);
 	assert.equal(omittedC.includes('error-schemas'), false);
+	// A8: every operation in fixture C has a resolvable 200 AND 400 -- 100% per-status coverage by
+	// construction (see D-openapi-per-status), so `per-status-responses` must NOT be omitted here,
+	// the exact case that would be impossible if the list were a fixed disclaimer.
+	assert.equal(omittedC.includes('per-status-responses'), false);
 
-	// The structural entries are present in all three, and the prose disclosure lists them too.
+	// Genuinely structural (never conditional on any fixture's content) entries are present in all
+	// three, and the prose disclosure lists them too.
 	for (const omitted of [omittedA, omittedB, omittedC]) {
-		for (const key of ['query-parameters', 'header-parameters', 'security', 'summaries', 'tags', 'non-json-media-types', 'per-status-responses', 'descriptions']) {
+		for (const key of ['query-parameters', 'header-parameters', 'security', 'summaries', 'tags', 'non-json-response-schemas', 'response-headers', 'path-parameter-schemas', 'vendor-extensions', 'descriptions']) {
 			assert.ok(omitted.includes(key), `every export must disclose "${key}"`);
 		}
 	}
+	// A8: `per-status-responses` IS derived (fixture C proves it above), so it's asserted separately
+	// only for A/B, which each have at least one operation with no per-status source data.
+	assert.ok(omittedA.includes('per-status-responses'));
+	assert.ok(omittedB.includes('per-status-responses'));
 	assert.match(exportedDoc(noSchemas).doc.info.description, /query-parameters/);
 });
 
@@ -773,7 +891,9 @@ test('regression: a >64KB exported document is not truncated when captured via e
 	assert.equal(exported.code, 0);
 	assert.ok(exported.stdout.length > 65536, `fixture must actually exceed the 64KB boundary that exposed the bug (got ${exported.stdout.length} bytes)`);
 	assert.doesNotThrow(() => JSON.parse(exported.stdout), 'output must be complete, valid JSON -- not truncated mid-write');
-	assert.equal(Object.keys(JSON.parse(exported.stdout).paths['/api/v0/widgets'].post.responses['2XX'].content['application/json'].schema.properties).length, 401);
+	// A8: widgetOpenApiDoc({withResponses:true})'s default success key is the literal "201" (not a
+	// range key) -- per-status passthrough now copies it verbatim, so that is the real key here.
+	assert.equal(Object.keys(JSON.parse(exported.stdout).paths['/api/v0/widgets'].post.responses['201'].content['application/json'].schema.properties).length, 401);
 });
 
 test('--help works without --feature, and an unknown flag is rejected with the usage line', () => {

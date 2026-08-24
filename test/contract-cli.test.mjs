@@ -647,6 +647,36 @@ test('snapshot markers: response_schema and error_schema both record "resolved"'
 	assert.equal(snapshot.operations.createWidget.error_schema, 'resolved');
 });
 
+// A8: same "no new token key needed, contract_hash already covers it" invariant A7's own
+// sourceSecurity/responseSchema tests already established.
+test('gate token: hand-editing sourceResponses in the contract file stales the gate; re-emitting restores it -- no new token key needed', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	const contractPath = contractSchemaPath(root);
+	const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	contract.operations.createWidget.sourceResponses['201'].description = 'hand-edited';
+	fs.writeFileSync(contractPath, JSON.stringify(contract, null, 2));
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 4, 'hand-editing sourceResponses must stale the gate -- contract_hash covers it directly');
+
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+});
+
+test('snapshot markers: per_status_responses and request_media_types record "copied:N" for a real widgetOpenApiDoc fixture', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+
+	const snapshot = JSON.parse(fs.readFileSync(contractSnapshotPath(root), 'utf8'));
+	assert.equal(snapshot.operations.createWidget.per_status_responses, 'copied:2');
+	assert.equal(snapshot.operations.createWidget.request_media_types, 'none');
+});
+
 // A3 real-world find: `contract emit --json` writing a large contract to a PIPE (not a file or a
 // TTY) could be truncated -- process.exit() was called immediately after console.log(), and Node
 // does not guarantee a large async pipe write completes before a forced exit. Found live during

@@ -11,6 +11,7 @@ import {
 	normalizeRoute, OPERATION_ID_RE, PATH_PREFIX_RE,
 	inlineSchema, COMPONENT_SCHEMA_NAME_RE, SCHEMA_PROPERTY_NAME_RE,
 	snapshotFromReconciliation, hasBskelExportMarker, BSKEL_PASSTHROUGH_EXTENSION, BSKEL_GENERATED_EXTENSION,
+	RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN,
 } from '../contracts/openapi.mjs';
 import { BARE_UUID_PATTERN } from '../contracts/emit.mjs';
 
@@ -1282,4 +1283,255 @@ test('hasBskelExportMarker: neither marker present is false; the info marker alo
 	assert.equal(hasBskelExportMarker(bare), false);
 	const withInfoOnly = { openapi: '3.1.0', info: { [BSKEL_GENERATED_EXTENSION]: {} }, paths: { '/w': { get: { operationId: 'findW' } } } };
 	assert.equal(hasBskelExportMarker(withInfoOnly), true);
+});
+
+// ===== A8: per-status responses + non-JSON request media types =====
+
+test('per-status: a real, resolvable status with an application/json schema takes the schemaFrom branch, not an inline schema', () => {
+	const doc = docWithOperationFields({
+		responses: {
+			'201': { description: 'created', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'400': { description: 'bad input', content: { 'application/json': { schema: { '$ref': '#/components/schemas/ErrorResponse' } } } },
+		},
+	}, { componentSchemas: { Widget: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } }, ErrorResponse: { type: 'object', required: ['code'], properties: { code: { type: 'string' } } } } });
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal(result.sourceResponses['201'].schemaFrom, 'response');
+	assert.equal('schema' in result.sourceResponses['201'], false, 'schemaFrom points at the already-resolved responseSchema, no duplicate inline schema');
+	assert.equal(result.sourceResponses['201'].description, 'created');
+	assert.equal(result.sourceResponses['400'].schemaFrom, 'error');
+	assert.equal(result.sourceResponses['400'].description, 'bad input');
+	assert.equal(recon.stats.per_status_copied, 1);
+});
+
+test('per-status: a status with no JSON content at all (a bare 204) still gets an entry, with description only', () => {
+	const doc = docWithOperationFields({
+		responses: {
+			'200': { description: 'ok', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'204': { description: 'no content' },
+		},
+	}, { componentSchemas: { Widget: { type: 'object' } } });
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.deepEqual(result.sourceResponses['204'], { description: 'no content' });
+});
+
+test('per-status: a status with a non-JSON media type discloses the media type NAME via `mediaTypes`, never a schema', () => {
+	const doc = docWithOperationFields({
+		responses: {
+			'200': { description: 'ok', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'201': { description: 'csv export', content: { 'text/csv': {} } },
+		},
+	}, { componentSchemas: { Widget: { type: 'object' } } });
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.deepEqual(result.sourceResponses['201'].mediaTypes, ['text/csv']);
+	assert.equal('schema' in result.sourceResponses['201'], false);
+	assert.equal('schemaFrom' in result.sourceResponses['201'], false);
+});
+
+test('per-status: written only when BOTH response and error buckets are resolved-or-none -- an unresolvable error schema skips per-status entirely, even though the success side resolved cleanly', () => {
+	const doc = docWithOperationFields({
+		responses: {
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/BadError' } } } },
+		},
+	}, { componentSchemas: { Widget: { type: 'object' }, BadError: { type: 'object', discriminator: { propertyName: 'kind' } } } });
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.ok(result.responseSchema, 'the success side must still resolve');
+	assert.equal('errorSchema' in result, false, 'the error side must genuinely fail to resolve for this test to mean anything');
+	assert.equal('sourceResponses' in result, false, 'per-status must skip entirely, not partially, when either bucket is unresolved');
+	assert.equal(result.perStatusResponsesSkippedUnresolved, true);
+	assert.equal(recon.stats.per_status_skipped_unresolved, 1);
+});
+
+test('per-status: a bogus/malicious status key ("600", "__proto__") is dropped silently, never a failure and never a polluted prototype', () => {
+	const doc = docWithOperationFields({
+		responses: {
+			'200': { description: 'ok', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'600': { description: 'not a real status', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'__proto__': { description: 'attack', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+		},
+	}, { componentSchemas: { Widget: { type: 'object' } } });
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.deepEqual(Object.keys(result.sourceResponses), ['200']);
+	assert.equal(Object.prototype.toJSON, undefined, 'the real global Object.prototype must be untouched');
+});
+
+test('per-status rides the schema-bearing dialect gate: a 3.0 document skips it entirely, perStatusResponsesSkippedDialect true', () => {
+	const doc = docWithOperationFields({
+		responses: { '200': { description: 'ok', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } } },
+	}, { componentSchemas: { Widget: { type: 'object' } }, openapiVersion: '3.0.1' });
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal(result.perStatusResponsesSkippedDialect, true);
+	assert.equal('sourceResponses' in result, false);
+	assert.equal(recon.stats.per_status_skipped_dialect, 1);
+});
+
+test('per-status: drift/missing/ambiguous/unresolved never get sourceResponses, even with a perfectly resolvable one in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		components: { schemas: { Widget: { type: 'object' } } },
+		paths: { '/totally/unrelated': { post: {
+			operationId: 'createWidget',
+			responses: { '200': { description: 'ok', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } } },
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('sourceResponses' in result, false);
+	assert.equal(recon.stats.per_status_copied, 0);
+});
+
+test('per-status: no responses key at all on the operation -> per_status_none, no sourceResponses key', () => {
+	const doc = docWithOperationFields({});
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal('sourceResponses' in result, false);
+	assert.equal(recon.stats.per_status_none, 1);
+});
+
+test('per-status round-trip defense: a description that exactly matches PER_STATUS_NO_DESCRIPTION_STANDIN is never copied back in', () => {
+	const doc = docWithOperationFields({
+		responses: { '200': { description: PER_STATUS_NO_DESCRIPTION_STANDIN, content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } } },
+	}, { componentSchemas: { Widget: { type: 'object' } } });
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.equal('description' in result.sourceResponses['200'], false, 'the exact stand-in string must never be treated as a real, source-authored description');
+});
+
+test('RESPONSE_STATUS_KEY_RE: accepts literal codes, range keys, and "default"; rejects anything else', () => {
+	for (const ok of ['200', '404', '2XX', '4XX', '5XX', 'default']) assert.ok(RESPONSE_STATUS_KEY_RE.test(ok), ok);
+	for (const bad of ['600', '99', 'default2', '__proto__', 'constructor', '']) assert.equal(RESPONSE_STATUS_KEY_RE.test(bad), false, bad);
+});
+
+// --- A8: non-JSON request media types ---
+
+function docWithRequestBody(requestBody, { componentSchemas = {}, openapiVersion = '3.1.0' } = {}) {
+	return {
+		openapi: openapiVersion,
+		components: { schemas: componentSchemas },
+		paths: { '/api/v0/widgets': { post: { operationId: 'createWidget', requestBody } } },
+	};
+}
+
+function reconcileCreateWidgetFields(doc) {
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0' });
+	return { recon, result: recon.byEndpoint.get('0:0') };
+}
+
+test('request media types: a real multipart/form-data body is copied with its schema resolved, and application/json is never present in this field', () => {
+	const doc = docWithRequestBody(
+		{ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } } } } },
+	);
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal(result.sourceRequestBody.required, true);
+	assert.deepEqual(Object.keys(result.sourceRequestBody.content), ['multipart/form-data']);
+	assert.equal(result.sourceRequestBody.content['multipart/form-data'].schema.properties.file.format, 'binary');
+	assert.equal(recon.stats.request_media_types_copied, 1);
+});
+
+test('request media types: application/json alongside multipart -- only the non-JSON media type is copied here (JSON stays A2\'s requestBodySchema, never duplicated)', () => {
+	const doc = docWithRequestBody(
+		{
+			content: {
+				'application/json': { schema: { '$ref': '#/components/schemas/CreateWidgetRequest' } },
+				'multipart/form-data': { schema: { type: 'object' } },
+			},
+		},
+		{ componentSchemas: { CreateWidgetRequest: { type: 'object' } } },
+	);
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.ok(result.requestBodySchema, 'A2\'s own field still resolves the JSON side');
+	assert.deepEqual(Object.keys(result.sourceRequestBody.content), ['multipart/form-data']);
+	assert.equal('application/json' in result.sourceRequestBody.content, false);
+});
+
+test('request media types: a media type whose schema fails to resolve is still recorded (media type name is real and safe), just without a `schema` key -- and drives the new warning signal', () => {
+	const doc = docWithRequestBody(
+		{ content: { 'multipart/form-data': { schema: { type: 'object', discriminator: { propertyName: 'kind' } } } } },
+	);
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.deepEqual(result.sourceRequestBody.content['multipart/form-data'], {});
+	assert.equal(result.requestMediaTypesUnresolvedReason, 'schema-unresolved');
+});
+
+test('request media types: exceeding MAX_REQUEST_MEDIA_TYPES fails the whole media-type set closed for this operation, never partially', () => {
+	const content = {};
+	for (let i = 0; i < 20; i++) content[`application/vnd.widget-${i}+json`] = { schema: { type: 'object' } };
+	const doc = docWithRequestBody({ content });
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal('sourceRequestBody' in result, false);
+	assert.equal(result.requestMediaTypesUnresolvedReason, 'too-many-media-types');
+	assert.equal(recon.stats.request_media_types_unresolved, 1);
+});
+
+test('request media types ride the schema-bearing dialect gate: a 3.0 document skips them entirely, requestMediaTypesSkippedDialect true', () => {
+	const doc = docWithRequestBody(
+		{ content: { 'multipart/form-data': { schema: { type: 'object' } } } },
+		{ openapiVersion: '3.0.1' },
+	);
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal(result.requestMediaTypesSkippedDialect, true);
+	assert.equal('sourceRequestBody' in result, false);
+	assert.equal(recon.stats.request_media_types_skipped_dialect, 1);
+});
+
+test('request media types: drift/missing/ambiguous/unresolved never get sourceRequestBody, even with a perfectly resolvable multipart body in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		paths: { '/totally/unrelated': { post: {
+			operationId: 'createWidget',
+			requestBody: { content: { 'multipart/form-data': { schema: { type: 'object' } } } },
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('sourceRequestBody' in result, false);
+	assert.equal(recon.stats.request_media_types_copied, 0);
+});
+
+test('request media types: no requestBody at all, or a $ref requestBody -> request_media_types_none, no sourceRequestBody key', () => {
+	const none1 = reconcileCreateWidgetFields(docWithRequestBody(null));
+	assert.equal('sourceRequestBody' in none1.result, false);
+	assert.equal(none1.recon.stats.request_media_types_none, 1);
+	const { recon, result } = reconcileCreateWidgetFields(docWithRequestBody({ '$ref': '#/components/requestBodies/X' }));
+	assert.equal('sourceRequestBody' in result, false);
+	assert.equal(recon.stats.request_media_types_none, 1);
+});
+
+test('MEDIA_TYPE_RE: accepts real type/subtype media types, rejects anything without a "/" (structurally excludes __proto__/constructor)', () => {
+	for (const ok of ['application/json', 'multipart/form-data', 'text/csv', 'application/vnd.api+json']) assert.ok(MEDIA_TYPE_RE.test(ok), ok);
+	for (const bad of ['__proto__', 'constructor', 'toString', 'application', '']) assert.equal(MEDIA_TYPE_RE.test(bad), false, bad);
+});
+
+// --- A8: snapshot decision fields ---
+
+test('snapshot decision fields: per_status_responses "copied:N" / "none" / "skipped:dialect" / "skipped:unresolved"', () => {
+	assert.equal(snapshotOp(docWithOperationFields({})).per_status_responses, 'none');
+	assert.equal(
+		snapshotOp(docWithOperationFields({ responses: { '200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } } } }, { componentSchemas: { Widget: { type: 'object' } } })).per_status_responses,
+		'copied:1',
+	);
+	assert.equal(
+		snapshotOp(docWithOperationFields({ responses: { '200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } } } }, { componentSchemas: { Widget: { type: 'object' } }, openapiVersion: '3.0.1' })).per_status_responses,
+		'skipped:dialect',
+	);
+	assert.equal(
+		snapshotOp(docWithOperationFields({ responses: { '400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Bad' } } } } } }, { componentSchemas: { Bad: { type: 'object', discriminator: { propertyName: 'k' } } } })).per_status_responses,
+		'skipped:unresolved',
+	);
+});
+
+test('snapshot decision fields: request_media_types "copied:N" / "partial:N" / "unresolved:X" / "none"', () => {
+	assert.equal(snapshotOp(docWithOperationFields({})).request_media_types, 'none');
+	assert.equal(
+		snapshotOp(docWithOperationFields({ requestBody: { content: { 'multipart/form-data': { schema: { type: 'object' } } } } })).request_media_types,
+		'copied:1',
+	);
+	assert.equal(
+		snapshotOp(docWithOperationFields({ requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', discriminator: { propertyName: 'k' } } } } } })).request_media_types,
+		'partial:1',
+	);
 });

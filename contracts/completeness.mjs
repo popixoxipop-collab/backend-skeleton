@@ -87,6 +87,18 @@ export const WARNING_CODES = Object.freeze({
 	// defect, not a missed enhancement. Waivable so a false-positive signal (see --allow-unprefixed's
 	// own escape hatch) doesn't permanently block a module it genuinely doesn't apply to.
 	CONTRACT_UNREFLECTED_PATH_PREFIX: { severity: SEVERITY.ERROR, waivable: true },
+	// A8: the operation's request body declared a non-JSON media type (e.g. multipart/form-data)
+	// whose schema could not be fully projected -- the media type name is still recorded, its
+	// shape is not. Deliberately a SEPARATE code from CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (the
+	// application/json-body code) -- the two can co-occur on one operation, and a shared code
+	// would let a waiver for one silently cover the other, same reasoning D-openapi-response-schema
+	// established for its own response/error split. WARN: verb/path/the JSON body (if any) stay
+	// correctly contracted, this is a missed enhancement. No equivalent code exists for per-status
+	// responses -- that failure mode is not independent of A3's own response/error unresolved
+	// codes (both walk the same responses map through the same inlineSchema() at the same cap), so
+	// it reuses CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED/CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED
+	// unchanged -- see D-openapi-per-status.
+	CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));
