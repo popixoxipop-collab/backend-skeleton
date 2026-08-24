@@ -162,6 +162,14 @@ export function contractSnapshotPath(root) {
 // (CONTRACT_OPENAPI_DRIFT, ERROR), which is the operation kind the self-import guard exists to keep
 // an export from laundering back into `matched`. `rangeStatusKeys` writes the same responses under
 // OpenAPI's `2XX`/`default` range keys instead of `201`/`400`.
+// A7: `withParameters` adds real query/header/cookie parameters to findWidgets (GET
+// /api/v0/widgets) -- all fully resolvable, so the round-trip invariant stays provable.
+// `withSecurity` adds a real `[{bearerAuth: []}]` requirement + `components.securitySchemes` to
+// createWidget/findWidget; `publicFindWidgets` (only meaningful alongside `withSecurity`)
+// overrides findWidgets's own security to a literal `[]` (a genuinely public endpoint);
+// `securityUnknownScheme` overrides createWidget's security to reference a scheme that is NOT in
+// components.securitySchemes, exercising the unresolved/dropped path. `withSummaryTags` adds a
+// `summary` + `tags` to every operation.
 export function widgetOpenApiDoc({
 	includeDeleteWidget = false, includePatchWidget = false,
 	withRequestBodies = false, unsupportedSchema = false,
@@ -169,6 +177,9 @@ export function widgetOpenApiDoc({
 	openapiVersion = '3.1.0',
 	driftFindWidget = false,
 	rangeStatusKeys = false,
+	withParameters = false,
+	withSecurity = false, publicFindWidgets = false, securityUnknownScheme = false,
+	withSummaryTags = false,
 } = {}) {
 	const paths = {
 		'/api/v0/widgets': {
@@ -183,6 +194,7 @@ export function widgetOpenApiDoc({
 	if (includePatchWidget) paths['/api/v0/widgets/{widgetId}'].patch = { operationId: 'patchWidget' };
 	const doc = { openapi: openapiVersion, info: { title: 'fixture', version: '1' }, paths };
 	const schemas = {};
+	const securitySchemes = {};
 	if (withRequestBodies) {
 		schemas.CreateWidgetRequest = unsupportedSchema
 			? { type: 'object', discriminator: { propertyName: 'kind' } }
@@ -204,7 +216,34 @@ export function widgetOpenApiDoc({
 			[errorKey]: { content: { 'application/json': { schema: { '$ref': '#/components/schemas/ErrorResponse' } } } },
 		};
 	}
-	if (Object.keys(schemas).length > 0) doc.components = { schemas };
+	if (withParameters) {
+		paths['/api/v0/widgets'].get.parameters = [
+			{ name: 'q', in: 'query', description: 'search term', schema: { type: 'string', maxLength: 40 } },
+			{ name: 'X-Trace-Id', in: 'header', schema: { type: 'string' } },
+			{ name: 'session', in: 'cookie', schema: { type: 'string' } },
+		];
+	}
+	if (withSecurity) {
+		securitySchemes.bearerAuth = { type: 'http', scheme: 'bearer' };
+		paths['/api/v0/widgets'].get.security = publicFindWidgets ? [] : [{ bearerAuth: [] }];
+		paths['/api/v0/widgets'].post.security = securityUnknownScheme ? [{ apiKeyAuth: [] }] : [{ bearerAuth: [] }];
+		const findWidgetItem = driftFindWidget ? paths['/api/v0/widgets/{widgetId}'].post : paths['/api/v0/widgets/{widgetId}'].get;
+		findWidgetItem.security = [{ bearerAuth: [] }];
+	}
+	if (withSummaryTags) {
+		paths['/api/v0/widgets'].get.summary = 'list widgets';
+		paths['/api/v0/widgets'].get.tags = ['Widgets'];
+		paths['/api/v0/widgets'].post.summary = 'create a widget';
+		paths['/api/v0/widgets'].post.tags = ['Widgets'];
+		const findWidgetItem = driftFindWidget ? paths['/api/v0/widgets/{widgetId}'].post : paths['/api/v0/widgets/{widgetId}'].get;
+		findWidgetItem.summary = 'find a widget';
+		findWidgetItem.tags = ['Widgets'];
+	}
+	if (Object.keys(schemas).length > 0 || Object.keys(securitySchemes).length > 0) {
+		doc.components = {};
+		if (Object.keys(schemas).length > 0) doc.components.schemas = schemas;
+		if (Object.keys(securitySchemes).length > 0) doc.components.securitySchemes = securitySchemes;
+	}
 	return doc;
 }
 

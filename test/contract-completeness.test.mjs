@@ -171,3 +171,50 @@ test('evaluateResolution: both new A3 codes never block, waived or not; complete
 	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
 	assert.equal(classifyContract(contract), COMPLETENESS.COMPLETE);
 });
+
+// A7: the two source-backed passthrough warning codes.
+test('CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED and CONTRACT_OPENAPI_SECURITY_UNRESOLVED exist with {severity: WARN, waivable: true}', () => {
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_SECURITY_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED'));
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_SECURITY_UNRESOLVED'));
+});
+
+test('evaluateResolution: both new A7 codes never block, waived or not; completeness stays COMPLETE even with both present', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [
+			makeWarning('CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED', { subject: 'createWidget', message: 'x' }),
+			makeWarning('CONTRACT_OPENAPI_SECURITY_UNRESOLVED', { subject: 'createWidget', message: 'y' }),
+		],
+	};
+	assert.equal(evaluateResolution(contract, { waivers: [] }).blocking, false);
+	assert.equal(classifyContract(contract), COMPLETENESS.COMPLETE);
+});
+
+// A7: a waiver for one of the two codes must never silently cover the other on the same operation
+// -- same operation, same subject (operationId), genuinely unrelated failures. Direct proof that
+// two codes (not one shared code) was the right call, same as D-openapi-response-schema's own test
+// for the request/response/error split.
+test('a waiver for CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED does not cover CONTRACT_OPENAPI_SECURITY_UNRESOLVED on the same operation', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [
+			makeWarning('CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED', { subject: 'createWidget', message: 'x' }),
+			makeWarning('CONTRACT_OPENAPI_SECURITY_UNRESOLVED', { subject: 'createWidget', message: 'y' }),
+		],
+	};
+	// Both are WARN, so neither blocks regardless -- the waiver-independence claim is about the
+	// WAIVER KEY, not about blocking, so assert on evaluateResolution's own waived/unwaived split.
+	const resolution = { waivers: [{ code: 'CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED', subject: 'createWidget', reason: 'x' }] };
+	const result = evaluateResolution(contract, resolution);
+	// Neither WARN contributes to errorWarnings at all (evaluateResolution only tracks ERROR
+	// severity in unwaived/waived) -- so this asserts the waiver key computation itself is distinct,
+	// via warningKey, rather than through evaluateResolution's blocking-only view.
+	assert.notEqual(
+		warningKey(contract.warnings[0]),
+		warningKey(contract.warnings[1]),
+		'CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED and CONTRACT_OPENAPI_SECURITY_UNRESOLVED on the same subject must produce different waiver keys',
+	);
+	assert.equal(result.blocking, false);
+});

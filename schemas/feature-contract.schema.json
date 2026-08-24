@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["sbf_contract", "feature_id", "feature_uid", "source", "operations", "warnings", "completeness"],
   "properties": {
-    "sbf_contract": { "const": "4" },
+    "sbf_contract": { "const": "5" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
     "source": {
@@ -18,6 +18,10 @@
         "module": { "type": ["string", "null"] },
         "provenance": { "type": "string" }
       }
+    },
+    "sourceSecuritySchemes": {
+      "description": "A7: components.securitySchemes entries copied verbatim from a real source document (--openapi-file), restricted to schemes actually referenced by at least one operation's copied sourceSecurity requirement anywhere in this contract. Omitted entirely when openapi reconciliation never resolved any security requirement.",
+      "type": "object"
     },
     "operations": {
       "type": "object",
@@ -43,6 +47,25 @@
           "errorSchema": {
             "description": "A3: all documented 4xx/5xx application/json response schemas for this operation, fully inlined (no $ref); an anyOf union when 2+ distinct shapes are documented. Present only when matched/adopted AND at least one resolved.",
             "type": "object"
+          },
+          "sourceParameters": {
+            "description": "A7: non-path (query/header/cookie) parameters copied verbatim from a real source document's operation.parameters[], with `schema` resolved through inlineSchema(). Present only when matched/adopted AND the source document declared at least one such parameter that could be copied (a parameter whose own schema failed to resolve is still included here, just without a `schema` key).",
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "sourceSecurity": {
+            "description": "A7: the operation's OpenAPI Security Requirement array, copied verbatim from the source document -- including a literal [] (a genuine positive claim of 'no auth required'). Present only when the source document declared `security` for this exact operation AND every scheme it names resolved against components.securitySchemes.",
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "sourceSummary": {
+            "description": "A7: the operation's `summary` string, copied verbatim from the source document. Present only when the source document set one -- never synthesized from operationId or module names.",
+            "type": "string"
+          },
+          "sourceTags": {
+            "description": "A7: the operation's `tags` array, copied verbatim from the source document. Present only when the source document set at least one.",
+            "type": "array",
+            "items": { "type": "string" }
           }
         }
       }

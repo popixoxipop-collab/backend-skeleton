@@ -6380,3 +6380,343 @@ has no effect on its own), before any gate/feature-state work runs. New regressi
 `CONTRACT_UNREFLECTED_PATH_PREFIX` fix from the same dogfooding pass -- that one is the more
 consequential of the two (it changes a real module's completeness verdict); this one is a pure
 CLI-ergonomics fix with no completeness-logic change.
+
+## D-openapi-passthrough (A7): copying is not synthesizing -- what a real source document licenses the export to say
+
+**WHY**: A6's whole design is dominated by "never synthesize what the contract does not know" --
+but by the time A6 shipped, the contract genuinely did not know query/header/cookie parameters,
+security, summaries, or tags, because A1's `indexOpenApiDocument()` never retained them off the
+source document in the first place. That is a gap in what gets INDEXED, not a permanent limit on
+what an export is allowed to say. A7 changes the antecedent, not the rule: when `contract emit
+--openapi-file <real doc>` reconciles an operation as `matched`/`adopted`, a real, human-supplied,
+already-validated document said something concrete about that exact operation -- copying those
+bytes across is the same class of act as A1 copying `docEntry.path`, or A2/A3 copying a
+`$ref`-inlined body/response schema. The rule an implementer can apply mechanically: a field may be
+copied iff its value exists verbatim in the source document, on the operation object reconciliation
+already tied to THIS contract operation (or in a `components` section that operation's own value
+names), and the only transformation applied is one this codebase already performs mechanically
+elsewhere (`inlineSchema()`'s `$ref` inlining + keyword whitelist + `format: uuid` -> bare-pattern
+rewrite). Anything requiring a decision about what the API probably does stays omitted.
+
+**`security` is the sharpest case, and it flips A6's own stated rule rather than merely extending
+it.** A6 refused to ever emit `security: []` because inventing it is a positive false claim of "no
+auth required." Copying `security: []` from a source document that states it is the opposite: it is
+the DOCUMENT's own positive claim, transported, not invented. Measured on the real 148-operation
+Team-IZ-Backend oracle (`~/Desktop/Team-IZ-Backend/build/api-docs.json`, re-measured now, by
+execution, not carried over from A6's own prose): 137/148 operations carry `[{"bearerAuth":[]}]`
+and 11 carry a literal `[]` -- 11 genuinely public endpoints whose public-ness was, until this item,
+unrepresentable by this projection at all. A7 emits `[]` only when the source said `[]`, never as a
+default, never as a fallback.
+
+**Schema validity still decides nothing -- reconfirmed, not assumed, by executing the vendored
+`test/fixtures/openapi-3.1-meta-schema.json`.** A document whose `security` requirement names a
+scheme with no `components.securitySchemes` entry at all validates `true`; two parameters sharing
+the same `(name, in)` also validate `true`. Both are real spec violations the meta-schema cannot
+express. So the exporter enforces scheme-resolution and `(name, in)` uniqueness itself, the same
+"truthfulness, not validity" lesson A6 already recorded for `security: []`.
+
+**Measured coverage, re-run now against the real oracle, not trusted from the plan that preceded
+this implementation pass** (`node --input-type=module -e '...'` against
+`contracts/openapi.mjs`'s own exported functions, no changes to the oracle repo):
+
+| Field | Oracle measurement (re-confirmed) |
+|---|---|
+| operations with >=1 query param | 33/148 |
+| operations with >=1 header param | 23/148 |
+| operations with >=1 cookie param | 2/148 |
+| total parameter objects | 255 (max 9 on one operation) |
+| operations with an explicit `security` | 148/148 -- 137 x `[{bearerAuth:[]}]`, 11 x `[]` |
+| `components.securitySchemes` | exactly one: `bearerAuth` (`type: http`, `scheme: bearer`, `bearerFormat: JWT`) |
+| `$ref` parameter objects / path-item-level `parameters` / `style`/`explode` / parameter `content` / operation `servers` / `callbacks` / `deprecated` | 0 of each |
+| operations with `summary` / `tags` | 148 / 148 |
+| operation vendor extensions | 148 x `x-readiness` |
+
+Every one of these numbers reproduced exactly against the real oracle -- confirming the pre-existing
+plan's own measurements rather than taking them on faith, per this project's standing "no agent
+self-report is trusted, including a prior plan's" discipline.
+
+**`inlineSchema()` learns `default` -- the one real keyword-policy change this item forced, and its
+blast radius was measured, not assumed.** Parameter schemas resolved 222/253 before this change;
+all 31 failures shared one root cause -- `default` (22 x `unsupported-keyword:default`, 9 x
+`ref-with-siblings` where the sibling *is* `default`, e.g. `{"$ref": ".../ProjectListSort",
+"default": "READINESS"}`). Adding `default` to `COPIED_KEYWORDS` (for a plain node) and tolerating
++ merging it as a `$ref` sibling (for the ref-with-siblings case) lifts resolution to **253/253** --
+re-run directly against the live code in this branch, not carried over as a claim. The blast radius
+onto ALREADY-SHIPPED A2/A3 output was also re-measured directly: walking every real request-body
+and response schema reachable in the oracle finds **zero** that contain `default` anywhere, so this
+change provably produces zero bytes of difference in A2/A3's own output on the real document.
+`default` is annotation-only in 2020-12 and this repo's Ajv runs with `useDefaults` off, so it is
+inert for validation either way -- the value is purely informational, carried through because it is
+real and human-authored, not because it changes what a payload validates against.
+
+**One unplanned, real, disclosed-not-fixed finding, reconfirmed by execution**: the contract's own
+path-param heuristic (`contracts/emit.mjs`'s `pathParamsSchema`, `/id$/i` -> `BARE_UUID_PATTERN`)
+disagrees with the oracle on exactly one of 130 real path parameters --
+`findTraineeRegistrationProgress`'s `batchRequestId` is declared plain `{"type":"string"}` in the
+real document while the contract pins it to a UUID pattern, i.e. `contract validate` today would
+reject a real, valid request shaped like `"trainee-batch-001"`. This is a genuine, small,
+pre-existing false-negative in shipped validation. A7 discloses it (the new
+`path-parameter-schemas` omission entry, always-on) but does NOT fix it -- replacing the contract's
+path-parameter schemas with copied source path parameters is out of THIS item's scope, named as a
+separate future item in EXIT below, not silently folded in.
+
+**SCOPE (Phase 1 only)**: parameters (query/header/cookie), security (+referenced
+securitySchemes), summary, tags. Default-on whenever `--openapi-file` is given -- no new CLI flag
+(measured ~234 bytes/operation across all 9 real modules with an HTTP surface, see COST; small
+enough that gating it behind a flag would only add friction for no real protection). Per-status
+responses, non-JSON media types, and operation `description` are explicitly Phase 2 and are NOT
+touched by this pass --
+`contracts/validate.mjs`'s response/error union logic is unmodified, no per-status response field
+was added, no multipart handling was added.
+
+**EXCLUDED from this pass, named rather than silently dropped:**
+- *Per-status responses, non-JSON request media types (multipart), operation `description`* -- all
+  Phase 2, independently shippable later, not started here.
+- *Vendor `x-*` extensions* -- copyable in principle (`x-readiness` appears on all 148 real
+  operations), excluded because their semantics are tool-specific. Disclosed as a new, always-on
+  `vendor-extensions` omission entry rather than silently dropped.
+- *Document-level `security` inheritance -> operation.* Only operation-level `security` is ever
+  copied; if absent, omitted -- never a root `security`, which would silently also cover operations
+  A7 did not individually resolve.
+- *Replacing the contract's path-param schemas with the source's* -- disclosed (the `batchRequestId`
+  finding above, and the new `path-parameter-schemas` omission entry) but not implemented; a
+  separate future item, named in EXIT.
+- *Turning copied `security` into generated authorization code* -- hard no, permanently, stated
+  explicitly here because "the contract now knows the endpoint needs `bearerAuth`" is exactly the
+  kind of fact a future reader will be tempted to codegen from. A copied requirement is
+  documentation, not an authorization contract; every provider's `check_access`/`requiredAuthority`
+  stays a fail-closed stub, completely untouched by this item.
+- *OpenAPI 3.0 output* -- unchanged from A6's three cited blockers; not revisited here.
+
+**Mechanism**:
+- `indexOpenApiDocument()` retains `parameters`/`security`/`summary`/`tags` (raw nodes) on each
+  entry, and indexes `doc.components.securitySchemes` into a Map (never a plain object, same
+  `COMPONENT_SCHEMA_NAME_RE` whitelist `componentSchemas` already uses, same prototype-pollution
+  reasoning), bounded by new `MAX_SECURITY_SCHEMES = 64` (real observed: 1). `security` is retained
+  via `Array.isArray(...) ? ... : null` specifically so a real, explicit `[]` (11/148 real
+  operations) is distinguishable from "absent" -- collapsing them would silently destroy the exact
+  fact this item exists to preserve.
+- New caps, same "generous multiple of the real observed max" style as every existing one:
+  `MAX_PARAMETERS_PER_OPERATION = 64` (real max 9), `MAX_SECURITY_REQUIREMENTS_PER_OPERATION = 32`
+  (real max 1), `MAX_SECURITY_SCHEMES = 64` (real 1). Exceeding a cap fails that ONE field closed
+  for that operation, never the whole reconciliation -- same posture as every other cap in this
+  module.
+- **Parameter Object key policy** (`copyParameter()`), mirroring `inlineSchema()`'s
+  RECURSED/COPIED/DROPPED/fail-closed structure one level up, so there is one house style for "what
+  may I copy": COPIED verbatim (`required`, `deprecated`, `description`, `style`, `explode`,
+  `allowReserved`, `allowEmptyValue`); RESOLVED (`schema`, through `inlineSchema()`); DROPPED
+  (`example`/`examples`, annotation-only); FAIL CLOSED for that ONE parameter (`$ref` -- needs
+  `components.parameters`, which this module does not index; `content` -- a media-type-keyed
+  alternative to `schema`, Phase 2 machinery; any other unrecognized key). A parameter whose
+  `schema` alone fails to resolve is STILL added to `sourceParameters` (every other field it carries
+  is real and safe) just without a `schema` key -- the exporter fills `{}`, the same honest-minimum
+  fallback `buildPathParameters()` already uses for a path parameter with no known schema. `path`
+  parameters are filtered out before this policy even runs (path stays contract-derived); dedup is
+  on `(name, in)`, source order, first occurrence wins.
+- **`applyParameters()` rides the schema-bearing dialect gate** (`schemaProjectionEnabled`) -- a 3.0
+  document disables it exactly like A2/A3, recording `parameters: "skipped:dialect"` in the
+  snapshot. **`applySecurity()`/summary/tags are dialect-INDEPENDENT** and always attempted --
+  a Security Requirement Object, a `summary` string, and a `tags` array mean the same thing under
+  3.0 and 3.1, unlike a Schema Object's `exclusiveMinimum`/`nullable`. This is a deliberate,
+  documented asymmetry between the four fields, tested in both directions
+  (`test/contract-openapi.test.mjs`'s two "dialect-INDEPENDENT" tests), not an oversight.
+- **`applySecurity()` is all-or-nothing per operation**, unlike parameters' per-item fail-closed: a
+  requirement naming a scheme that could not be resolved against `index.securitySchemes` drops the
+  WHOLE `security` value for that operation, never a dangling reference -- the meta-schema
+  demonstrably cannot catch this itself (see the reconfirmed finding above). A shared `Set`,
+  threaded through both `reconcileModule()` call sites (`matched`/`adopted`, the exact placement
+  A2/A3's own helpers already occupy -- see the refusal-behaviour bullet below), accumulates every
+  scheme name any operation's COPIED security actually referenced; at the end of `reconcileModule()`
+  this is resolved against `index.securitySchemes` into `sourceSecuritySchemes` (a Map, only the
+  referenced subset, never the document's whole catalog) and propagated through
+  `buildReconciliation()` to `contracts/emit.mjs`'s `buildContract()`, which attaches it at the
+  CONTRACT ROOT (`sourceSecuritySchemes`, omitted entirely when empty).
+- **`buildOpenApiDocument()` (export side)**: `buildOperationParameters()` appends
+  `op.sourceParameters` to the path-derived list, deduped on `(name, in)` with the path-derived ones
+  winning -- the exporter enforces uniqueness itself, since the meta-schema demonstrably does not. A
+  parameter with no `schema` key gets `{}` appended before emission (never dropped). `security` is
+  emitted (via `Array.isArray`, not a truthy check, so `[]` survives) exactly when
+  `op.sourceSecurity` is present; `summary`/`tags` likewise. `components.securitySchemes` is emitted
+  from `contract.sourceSecuritySchemes` verbatim -- no re-verification needed at export time, since
+  `applySecurity()` already guarantees every name it references resolves.
+- **Snapshot decision fields**, exactly parallel to A2/A3's `request_body_schema`/`response_schema`/
+  `error_schema` (`snapshotFromReconciliation()` "records the DECISION, not the schema itself"):
+  `parameters: "copied:N" | "partial:M-of-N" | "none" | "skipped:dialect"`,
+  `security: "copied:N" | "copied:public" | "unresolved:<reason>" | "none"`,
+  `summary: "copied" | "none"`, `tags: "copied:N" | "none"`. New stats counters
+  (`parameters_copied`/`_unresolved`/`_none`/`_skipped_dialect`,
+  `security_copied`/`_public`/`_unresolved`/`_none`, `summary_copied`, `tags_copied`), initialized
+  up-front for the same shape-stability reason A2/A3's own counters are.
+- **Two new WARN codes** (`contracts/completeness.mjs`), each ONE warning per OPERATION (not per
+  individual parameter/reason), same "subject is the operationId, message enumerates the specifics"
+  shape as `CONTRACT_OPENAPI_SCHEMA_UNRESOLVED`: `CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED` (at least
+  one parameter could not be copied -- names each `name`+`in`+reason in the message) and
+  `CONTRACT_OPENAPI_SECURITY_UNRESOLVED` (the operation's security could not be copied). Two codes,
+  not one shared, for the identical reason `D-openapi-response-schema` split response/error: a
+  waiver keyed `{code, subject}` for one must never silently cover an unrelated failure sharing the
+  same operation. Both WARN, not ERROR -- the contract stays correct on verb/path/body, this is a
+  missed enhancement.
+- **The self-import guard is hardened, not just extended.** A passthrough-heavy export (real
+  query/header parameters, a real bearer-auth requirement, real summaries/tags) reads much closer to
+  the source oracle than A6's original thin projection, so the documented escape hatch (stripping
+  `info.x-bskel-generated`) needed to get harder to trigger by accident, proportionate to how real
+  the export now looks. A second marker, `BSKEL_PASSTHROUGH_EXTENSION = 'x-bskel-passthrough'`
+  (value `{source_sha256: <12-char prefix>}`), is stamped on every operation that actually carries at
+  least one copied field; `hasBskelExportMarker()` now returns `true` if EITHER the `info` marker OR
+  any operation's marker is present. Both constants live on the reading side
+  (`contracts/openapi.mjs`), imported by the writer, so writer and reader cannot drift apart. Proven
+  load-bearing, not decorative: stripping ONLY `info.x-bskel-generated` from a passthrough-heavy
+  export is still refused (the operation markers alone trigger the guard); stripping BOTH is what
+  actually disarms it.
+- **The round-trip claim is extended, with one new, disclosed asymmetry.** For a `complete`
+  contract, export -> re-import (all markers stripped, both kinds) against the same scan report
+  reproduces `operations` exactly, including all four new `source*` fields and the root
+  `sourceSecuritySchemes` -- tested end to end through the real CLI, not through direct function
+  calls. One new, real asymmetry, same class as A6's own `format:'uuid'` rewrite: a parameter whose
+  `schema` failed to resolve is exported as `schema: {}` (the honest-minimum fallback); `{}` is a
+  trivially valid JSON Schema, so RE-importing that export resolves it successfully the second time
+  around -- the original "unresolved" status is not perfectly preserved through one round trip. This
+  is "convergence after one step," the exact phrase A6 already used for the same class of behavior,
+  not a new kind of lossiness; the round-trip TEST for this item deliberately uses only
+  fully-resolvable fields to keep the asserted invariant clean, the same restraint A6's own
+  round-trip test already used.
+- **Migration cost, real and different from A2/A3's own "no migration cost" framing.**
+  `schemas/feature-contract.schema.json` bumps `sbf_contract` `"4"` -> `"5"`
+  (`CONTRACT_SCHEMA_VERSION`, exported once from `contracts/emit.mjs`, imported by `bin/bskel.mjs`
+  so the literal is never duplicated). Unlike A2/A3 (which shipped before S5's `loadContract()`
+  schema-validated contracts on READ), this bump has a REAL read-time consequence: every
+  previously-emitted contract now fails `contract export`/`waive`/`validate`/`tool-schema` against
+  the raw ajv dump, unless a targeted pre-check catches it first. `loadContract()` now checks
+  `parsed.sbf_contract !== CONTRACT_SCHEMA_VERSION` BEFORE the full schema validation and, only for
+  that specific case, prints *"this contract was emitted by an older bskel ... re-run \`bskel
+  contract emit --feature <id>\`"* instead of a raw ajv dump; any OTHER schema violation still falls
+  through to the generic message, confirmed by a dedicated regression test.
+- **Mixed passthrough coverage is disclosed, not newly refused.** Trace it: every operation that
+  reaches `contract.operations` via a kind OTHER than `matched`/`adopted` (a waived `drift`/
+  `missing`) already carries an ERROR through an EXISTING code
+  (`CONTRACT_OPENAPI_DRIFT`/`CONTRACT_OPENAPI_MISSING_OPERATION`), so a `complete` contract (zero
+  unwaived ERRORs) has 100% passthrough coverage BY CONSTRUCTION -- mixed coverage can only arise in
+  an explicitly waived `partial` contract. `buildOpenApiDocument()` computes a per-operation boolean
+  map (`generated.passthrough`, always present, machine-readable) and returns whether coverage is
+  genuinely mixed; `cmdContractExport` prints ONE stderr note (not per-operation) naming how many
+  operations lack it, only when mixed. This is disclosure, not a new refusal -- proven by a pair of
+  tests (a waived-drift contract prints the note with the exact map; a `complete` contract prints
+  nothing).
+- **Refusal behaviour, completely unaffected, verified not assumed.** `applyPassthrough()` is
+  invoked from the exact same two call sites (`matched`, `adopted`) inside `reconcileModule()` that
+  A2/A3's own helpers already occupy -- no other kind's `result` object ever reaches it. A dedicated
+  test confirms `drift` never carries any of the four `source*` fields even when the doc entry has a
+  perfectly copyable set of all four. `openapi: null` (no `--openapi-file` at all) never assigns any
+  of the four fields nor `sourceSecuritySchemes` -- extends the existing byte-identity regression
+  test.
+
+**Real findings during implementation, reproduced by execution, none hypothetical**:
+- The `default`-keyword fix and its zero-blast-radius-on-A2/A3 proof, both above.
+- The `batchRequestId` path-param-heuristic disagreement, above -- disclosed via the new
+  `path-parameter-schemas` omission, not fixed.
+- **The size-cost estimate this item's own preceding plan cited (~130 bytes/operation) undershot
+  the real, re-measured cost by roughly 1.8x.** Measured directly, twice, at increasing scope: first
+  organization/member/curriculum (47 real operations, 227.8 bytes/op average), then re-measured
+  across all 9 real modules with an HTTP surface (104 real operations --
+  organization/member/curriculum/academicoperations/notification/projectexecution/reporting/
+  usagemetering/analytics -- the serialized bytes of exactly the four new operation fields plus the
+  root `sourceSecuritySchemes`): **234.5 bytes/operation** on average, ranging 112.6 (academicoperations)
+  to 693.0 (notification, only 2 operations, high variance from a small sample), not ~130. The
+  likely cause, not merely asserted: the plan's estimate did not account for
+  `summary`/`description` text being real, multi-byte-UTF-8 Korean prose (Team-IZ-Backend's own API
+  is documented in Korean), nor for the nested-object overhead of nesting a nontrivial `schema` and
+  `description` inside every copied parameter. Recorded here, not silently corrected, per this
+  project's Data-First Numerics discipline -- a plan's own cited number is a hypothesis, not a fact,
+  until re-measured against the running code.
+- **The preceding plan's own §4 claim about the `contract` gate's "exact 4 keys" named the wrong
+  fourth key.** It stated the set as `contract_hash, head_sha, resolution_hash,
+  openapi_snapshot_hash`; the actual, real key set (`lib/gate-definitions.mjs`'s `contract.recompute`,
+  and `test/gate-definitions.test.mjs`'s own exact-key-set assertion, both re-read directly before
+  writing this item) is `contract_hash, openapi_snapshot_hash, resolution_hash, scan_report_hash` --
+  `scan_report_hash`, not `head_sha`. `head_sha` was removed from this gate entirely by S2
+  (`D-gate-precision`, "head_sha is GONE"), before A6 was even written; A6's own DECISIONS.md text
+  correctly says `scan_report_hash` in its own EXCLUDED/Deliberately-unchanged section, so this was
+  specifically an error introduced while drafting the A7 plan's own §4 recap, not a pre-existing
+  documentation bug. Recorded here because the instruction to "re-run what the plan measured rather
+  than trust it" caught it; the gate machinery itself needed and received zero changes either way
+  (unchanged per this item's own SCOPE), so no code was affected by the error -- only a sentence in
+  the plan that preceded this implementation.
+
+**Verification**: `npm test` 841 -> **900** (59 net new, counted directly from each file's own
+`^test(` occurrence count before/after this item, not estimated: 35 in
+`test/contract-openapi.test.mjs` covering `inlineSchema`'s `default` handling,
+`copyParameter`/`applyParameters`/`applySecurity`/`applySummaryAndTags` in isolation, the dialect
+asymmetry, the snapshot decision fields, and `hasBskelExportMarker`'s new operation-level check; 8
+in `test/contract.test.mjs` covering `buildContract()` integration -- both new warning codes, the
+root `sourceSecuritySchemes`, drift refusal, and the extended byte-identity guarantee; 3 in
+`test/contract-completeness.test.mjs` covering the two new warning-code table entries and their
+waiver-key independence; 13 in `test/contract-export.test.mjs` covering parameter merge/dedupe,
+`security`/`components.securitySchemes` emission, the derived (ANY-based) omissions, the hardened
+guard, the extended round trip, mixed-coverage disclosure, and `loadContract()`'s friendly
+`sbf_contract` message).
+Zero pre-existing tests were rewritten to accommodate new behavior except the two that PINNED the
+old `sbf_contract: "4"` literal as a fixture value (`test/schema-validate.test.mjs`,
+`test/contract.test.mjs`) -- both are updated to `"5"`, and both still assert the exact same claim
+they always did (a minimal valid contract passes; a non-UUID `feature_uid` is rejected), unaffected
+by the version bump itself. Re-run against the real oracle (`~/Desktop/Team-IZ-Backend`, disposable
+worktree, no writes to the shared checkout): reconciling ALL 148 real operations at once (a
+synthetic module built from every real `operationId`, so every operation reconciles as `matched`)
+produced `parameters_copied: 55`, `parameters_unresolved: 0`, `security_copied: 137`,
+`security_public: 11`, `security_unresolved: 0`, `summary_copied: 148`, `tags_copied: 148`,
+`sourceSecuritySchemes: {bearerAuth}` -- exactly the coverage table above, zero unresolved anywhere,
+confirming both the `default` fix and the whole passthrough mechanism end to end against real data,
+not only against synthetic fixtures. Exported documents for all 9 real modules with an HTTP surface
+(`organization`/`member`/`curriculum`/`academicoperations`/`notification`/`projectexecution`/
+`reporting`/`usagemetering`/`analytics`, 104 real operations total), plus a fully-synthetic
+full-passthrough fixture, all validate against the vendored official 3.1 meta-schema AND against
+`schemas/feature-contract.schema.json` -- re-run a second time, at wider scope, in a disposable copy
+of the oracle repo (never the shared checkout itself) after the first, narrower 3-module pass.
+
+**COST**: larger contracts (~234 bytes/operation measured across 9 real modules, not the ~130
+originally estimated -- see the finding above). A real `sbf_contract` bump with a real read-time consequence for the first
+time (mitigated by the friendly re-emit message, not eliminated -- any OTHER tool reading the
+contract file directly, outside `bskel` itself, still needs to handle the version change). Two new
+WARN codes whose non-ERROR severity means an operation can silently lose its query parameters or
+its security requirement in an export with only a warning, never a hard failure -- the same
+trade-off A2/A3 already accepted for schema projection, extended here. An export that is now much
+easier to mistake for the real source document -- mitigated by disclosure (`x-bskel-omitted`, the
+mixed-coverage stderr note) and the harder-to-disarm guard, not made impossible; a consumer who
+reads one operation's `security` and generalizes to the rest of the document will be wrong exactly
+in the mixed-coverage case the disclosure exists to flag. The standing, permanent asymmetry that
+`security` is now sometimes present and sometimes absent on operations of the SAME exported
+document is itself a new kind of thing to misread, where A6's original all-or-nothing omission
+could not be.
+
+**EXIT**: `contracts/openapi.mjs`'s `copyParameter()`/`applyParameters()`/`applySecurity()` are the
+single place to widen what may be copied later (e.g. teaching `content`-keyed parameters, or
+`components.parameters` `$ref` resolution, once a real need is measured). `contracts/export.mjs`'s
+`STRUCTURAL_OMISSIONS`/`OMISSION_PROSE`/`collectOmissions()` remain the single place a disclosure
+lives, extended, not replaced. Phase 2 (per-status responses, non-JSON media types, operation
+`description`) is the named next slice -- do not build it as part of any future A7 follow-up without
+naming it A8 or later, the same "confirm no existing work claims this before writing code" discipline
+this item's own WHY used when confirming A7 itself was unclaimed. Replacing the contract's
+path-parameter heuristic with copied source path parameters (closing the real, disclosed
+`batchRequestId` false-negative) is a separate, already-scoped future item, not silently folded into
+a later A7 update. Turning copied `security` into generated authorization code is EXCLUDED
+permanently, not deferred -- see EXCLUDED above; a future item that wants to do this must argue past
+this item's own stated reasoning, not merely cite that `security` is now present in the contract.
+
+Cross-references: `D-openapi-export` (A6, the export mechanism this item extends field-by-field, the
+`security: []`-is-spec-legal-but-untruthful finding this item's own security handling generalizes,
+the self-import guard this item hardens, and the round-trip invariant this item extends with one new
+disclosed asymmetry); `D-openapi-reconciliation` (A1, the `indexOpenApiDocument()`/`byOperationId`/
+`byRoute` machinery this item's `applyPassthrough()` reuses unchanged, and the "describe the method,
+not an unchecked fact about the repo" omission-prose discipline this item's rewritten `security`/
+`summaries` prose follows); `D-openapi-request-schema` (A2, `inlineSchema()`'s keyword-whitelist
+structure `copyParameter()` mirrors one level up, and the `format:'uuid'` rewrite this item's own
+parameter-schema resolution inherits unchanged); `D-openapi-response-schema` (A3, the two-separate-
+codes-not-one-shared reasoning this item's `CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED`/
+`CONTRACT_OPENAPI_SECURITY_UNRESOLVED` split follows exactly); `D-contract-completeness` (A5, the
+`{code, subject}` waiver-key discipline both new WARN codes respect, and the three-way completeness
+verdict the mixed-passthrough-coverage disclosure reads through the gate); `D-persistence-integrity`
+(S5, the `loadContract()` schema-validation-on-read this item's `sbf_contract` bump has a real
+consequence against for the first time); `D-gate-precision` (S2, the `contract` gate's real 4-key
+token set -- `scan_report_hash`, not `head_sha` -- this item's own preceding plan mis-cited, verified
+directly against `lib/gate-definitions.mjs` before writing this section); `D-security-1`/
+`D-security-2` (the prototype-pollution and bare-UUID-pattern classes this item inherits unchanged,
+including in the new `securitySchemes` Map and parameter-name handling).

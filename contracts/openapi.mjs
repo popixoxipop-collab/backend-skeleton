@@ -42,6 +42,12 @@ const SCHEMA_REF_PREFIX = '#/components/schemas/';
 // response/error side can have many documented statuses -- MAX_RESPONSES_PER_OPERATION bounds
 // that (real max observed: 9). See D-openapi-response-schema in DECISIONS.md.
 const MAX_RESPONSES_PER_OPERATION = 64;
+// A7: source-backed passthrough caps, same "generous multiple of the real observed max" style as
+// every cap above. Measured against the real Team-IZ-Backend oracle: max 9 parameters on one
+// operation, max 1 security requirement per operation, exactly 1 security scheme document-wide.
+const MAX_PARAMETERS_PER_OPERATION = 64;
+const MAX_SECURITY_REQUIREMENTS_PER_OPERATION = 32;
+const MAX_SECURITY_SCHEMES = 64;
 // A6 (D-openapi-export): widened from `/^2[0-9]{2}$/` and `/^[45][0-9]{2}$/` to also accept
 // OpenAPI's own RANGE keys. These are ordinary in real hand-written documents and legal per the
 // official 3.1 meta-schema, whose `responses` object accepts exactly `^[1-5](?:[0-9]{2}|XX)$` plus
@@ -93,8 +99,14 @@ export const SCHEMA_PROPERTY_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,127}$/;
 // emit a schema WEAKER than the real one, which is worse than emitting no schema at all -- see
 // D-openapi-request-schema in DECISIONS.md.
 const RECURSED_KEYWORDS = Object.freeze(new Set(['properties', 'items', 'additionalProperties', 'oneOf', 'anyOf', 'allOf']));
+// A7: `default` added -- annotation-only per 2020-12 (Ajv runs with useDefaults off here, so it's
+// inert for validation either way), but a real, human-authored fact from the source document worth
+// carrying through regardless. Measured across every real request-body and response schema in the
+// oracle: 0 contain `default` anywhere, so this addition provably changes zero bytes of A2/A3
+// output on real data -- the only place it actually fires is parameter schemas (22/253 real
+// parameters use it directly, another 9 via a `$ref`-sibling, see the $ref handling below).
 const COPIED_KEYWORDS = Object.freeze(new Set([
-	'type', 'enum', 'const', 'required',
+	'type', 'enum', 'const', 'required', 'default',
 	'minLength', 'maxLength',
 	'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
 	'minItems', 'maxItems', 'uniqueItems',
@@ -123,10 +135,35 @@ class InlineFailure extends Error {
 // writer and the reader cannot drift apart and silently disarm the guard.
 export const BSKEL_GENERATED_EXTENSION = 'x-bskel-generated';
 
+// A7: a SECOND, per-operation marker. A passthrough-heavy export (real query/header parameters, a
+// real bearer-auth requirement, real summaries/tags) reads much closer to the source oracle
+// document than A6's original thin projection did, so the documented escape hatch (stripping
+// `info.x-bskel-generated`) needs to get harder to trigger by accident, proportionate to how real
+// the export now looks. Declared here, alongside BSKEL_GENERATED_EXTENSION, for the identical
+// "writer and reader cannot drift apart" reason -- contracts/export.mjs imports both.
+export const BSKEL_PASSTHROUGH_EXTENSION = 'x-bskel-passthrough';
+
 export function hasBskelExportMarker(doc) {
 	const info = doc?.info;
-	if (typeof info !== 'object' || info === null || Array.isArray(info)) return false;
-	return Object.hasOwn(info, BSKEL_GENERATED_EXTENSION);
+	if (typeof info === 'object' && info !== null && !Array.isArray(info) && Object.hasOwn(info, BSKEL_GENERATED_EXTENSION)) {
+		return true;
+	}
+	// A7: OR any operation carries the passthrough marker -- closes the exact gap a passthrough-
+	// heavy export would otherwise leave: stripping only `info.x-bskel-generated` used to be
+	// sufficient to disarm the guard for ANY export; now it is only sufficient for one that carries
+	// no copied parameters/security/summary/tags at all.
+	const paths = doc?.paths;
+	if (typeof paths !== 'object' || paths === null || Array.isArray(paths)) return false;
+	for (const pathItem of Object.values(paths)) {
+		if (typeof pathItem !== 'object' || pathItem === null || Array.isArray(pathItem)) continue;
+		for (const [methodKey, operation] of Object.entries(pathItem)) {
+			if (!HTTP_METHODS.has(methodKey.toLowerCase())) continue; // skip 'parameters'/'summary'/etc path-item-level keys
+			if (operation && typeof operation === 'object' && !Array.isArray(operation) && Object.hasOwn(operation, BSKEL_PASSTHROUGH_EXTENSION)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 export function normalizeRoute(routePath) {
@@ -186,17 +223,24 @@ export function indexOpenApiDocument(doc) {
 	const byOperationId = new Map();
 	const byRoute = new Map();
 	const componentSchemas = new Map();
+	// A7: Map<name, schemeNode> from doc.components.securitySchemes -- same "Map, never a plain
+	// object" reasoning as componentSchemas above, same COMPONENT_SCHEMA_NAME_RE whitelist (a
+	// security scheme name becomes an object key downstream, in the contract's own root-level
+	// sourceSecuritySchemes).
+	const securitySchemes = new Map();
 	const stats = {
 		path_count: 0, operation_count: 0, skipped_path_refs: 0, rejected_operation_ids: 0,
 		component_schema_count: 0, rejected_component_schemas: 0,
+		security_scheme_count: 0, rejected_security_schemes: 0,
 	};
 
 	const openapiVersion = typeof doc.openapi === 'string' ? doc.openapi : null;
 	const schemaDialectSupported = typeof openapiVersion === 'string' && /^3\.1(?:\.|$)/.test(openapiVersion);
 
-	const rawComponentSchemas = doc.components && typeof doc.components === 'object' && !Array.isArray(doc.components)
-		? doc.components.schemas
+	const rawComponents = doc.components && typeof doc.components === 'object' && !Array.isArray(doc.components)
+		? doc.components
 		: null;
+	const rawComponentSchemas = rawComponents ? rawComponents.schemas : null;
 	if (rawComponentSchemas && typeof rawComponentSchemas === 'object' && !Array.isArray(rawComponentSchemas)) {
 		const schemaNames = Object.keys(rawComponentSchemas);
 		if (schemaNames.length > MAX_COMPONENT_SCHEMAS) {
@@ -211,9 +255,24 @@ export function indexOpenApiDocument(doc) {
 		stats.component_schema_count = componentSchemas.size;
 	}
 
+	const rawSecuritySchemes = rawComponents ? rawComponents.securitySchemes : null;
+	if (rawSecuritySchemes && typeof rawSecuritySchemes === 'object' && !Array.isArray(rawSecuritySchemes)) {
+		const schemeNames = Object.keys(rawSecuritySchemes);
+		if (schemeNames.length > MAX_SECURITY_SCHEMES) {
+			return { ok: false, error: `OpenAPI document has ${schemeNames.length} security schemes, exceeds the ${MAX_SECURITY_SCHEMES}-scheme limit` };
+		}
+		for (const name of schemeNames) {
+			const value = rawSecuritySchemes[name];
+			if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+			if (!COMPONENT_SCHEMA_NAME_RE.test(name)) { stats.rejected_security_schemes++; continue; }
+			securitySchemes.set(name, value);
+		}
+		stats.security_scheme_count = securitySchemes.size;
+	}
+
 	const paths = doc.paths;
 	if (typeof paths !== 'object' || paths === null || Array.isArray(paths)) {
-		return { ok: true, byOperationId, byRoute, componentSchemas, stats, servers: [], openapiVersion, schemaDialectSupported };
+		return { ok: true, byOperationId, byRoute, componentSchemas, securitySchemes, stats, servers: [], openapiVersion, schemaDialectSupported };
 	}
 
 	const pathKeys = Object.keys(paths);
@@ -266,7 +325,17 @@ export function indexOpenApiDocument(doc) {
 			const responses = typeof operation.responses === 'object' && operation.responses !== null && !Array.isArray(operation.responses)
 				? operation.responses
 				: null;
-			const entry = { verb, path: routeKey, operationId, requestBody, responses };
+			// A7: raw parameters/security/summary/tags retained verbatim, same "no new read, no new
+			// size cap" reasoning as requestBody/responses above. `security` is deliberately
+			// Array.isArray-checked rather than truthy-checked -- a real, explicit `[]` (11/148 real
+			// operations) must be preserved as-is, not collapsed into "absent" the way a falsy check
+			// would (an empty array is truthy in JS, so this already works, but the explicit
+			// Array.isArray guard is what actually decides "present" vs "absent/malformed").
+			const parameters = Array.isArray(operation.parameters) ? operation.parameters : null;
+			const security = Array.isArray(operation.security) ? operation.security : null;
+			const summary = typeof operation.summary === 'string' ? operation.summary : null;
+			const tags = Array.isArray(operation.tags) ? operation.tags : null;
+			const entry = { verb, path: routeKey, operationId, requestBody, responses, parameters, security, summary, tags };
 
 			const routeMatchKey = `${verb} ${normalizedRoute}`;
 			const existingRoute = byRoute.get(routeMatchKey);
@@ -284,7 +353,7 @@ export function indexOpenApiDocument(doc) {
 		? doc.servers.filter((s) => s && typeof s.url === 'string').map((s) => s.url)
 		: [];
 
-	return { ok: true, byOperationId, byRoute, componentSchemas, stats, servers, openapiVersion, schemaDialectSupported };
+	return { ok: true, byOperationId, byRoute, componentSchemas, securitySchemes, stats, servers, openapiVersion, schemaDialectSupported };
 }
 
 // `S` (scan path) always starts with "/" (scanners/adapters/java-spring.mjs's joinPath guarantees
@@ -353,11 +422,14 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 
 	if (Object.hasOwn(node, '$ref')) {
 		// 2020-12 permits siblings alongside $ref (unlike OpenAPI 3.0's restriction), but this
-		// module doesn't attempt to MERGE $ref with a sibling assertion -- a DROPPED_KEYWORDS
-		// sibling (e.g. a documentation-only `description`) is harmless and ignored; anything else
-		// would need merge semantics this vertical slice doesn't implement, so it fails closed.
+		// module doesn't attempt to MERGE $ref with a sibling assertion, with ONE exception (A7):
+		// `default` is a real, human-authored override worth carrying through (the exact real shape
+		// `{"$ref": ".../ProjectListSort", "default": "READINESS"}` -- a $ref-typed parameter
+		// schema with its own default value, 9 real occurrences). A DROPPED_KEYWORDS sibling (e.g. a
+		// documentation-only `description`) is harmless and ignored; anything else would need merge
+		// semantics this vertical slice doesn't implement, so it fails closed.
 		const siblingKeys = Object.keys(node).filter((k) => k !== '$ref');
-		if (siblingKeys.some((k) => !DROPPED_KEYWORDS.has(k))) fail('ref-with-siblings');
+		if (siblingKeys.some((k) => !DROPPED_KEYWORDS.has(k) && k !== 'default')) fail('ref-with-siblings');
 		const ref = node['$ref'];
 		if (typeof ref !== 'string' || !ref.startsWith(SCHEMA_REF_PREFIX)) fail('unsupported-ref');
 		const name = ref.slice(SCHEMA_REF_PREFIX.length);
@@ -368,13 +440,20 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 		const target = componentSchemas.get(name);
 		if (!target) fail('component-not-found');
 		visiting.add(name);
+		let resolved;
 		try {
-			return walkSchemaNode(target, componentSchemas, depth + 1, visiting, state, limits);
+			resolved = walkSchemaNode(target, componentSchemas, depth + 1, visiting, state, limits);
 		} finally {
 			// Delete-on-exit: a diamond (two sibling properties referencing the SAME component) stays
 			// legal and is inlined independently for each -- only a true ancestor-chain cycle fails.
 			visiting.delete(name);
 		}
+		// A7: the sibling `default` (if any) is merged into the RESOLVED schema, not the $ref node
+		// itself -- it describes what value applies when this particular use of the component is
+		// absent, which is a fact about the reference site, carried onto the schema the reference
+		// resolves to.
+		if (Object.hasOwn(node, 'default')) resolved.default = node.default;
+		return resolved;
 	}
 
 	const out = {};
@@ -626,6 +705,225 @@ function applyProjectionOutcome(result, projected, stats, kind) {
 	}
 }
 
+// ===== A7: source-backed OpenAPI field passthrough =====
+// D-openapi-passthrough: a field may be copied iff its value exists verbatim in the source
+// document, on the operation object reconciliation already tied to this contract operation, and
+// the only transformation applied is one this module already performs mechanically elsewhere
+// (inlineSchema()'s $ref inlining + keyword whitelist + format:uuid rewrite). Anything requiring a
+// decision about what the API probably does stays omitted. Phase 1 (this pass): non-path
+// parameters, security, summary, tags. Phase 2 (NOT this pass): per-status responses, non-JSON
+// media types, operation description.
+
+// A7: `in` locations this passthrough may copy. 'path' is deliberately excluded -- path parameters
+// stay contract-derived from the route template + the contract's own name heuristic (see
+// contracts/export.mjs's buildPathParameters), a genuinely separate kind of claim from a copied
+// source parameter, disclosed as its own `path-parameter-schemas` omission entry rather than
+// silently superseded here.
+const PARAMETER_LOCATIONS = Object.freeze(new Set(['query', 'header', 'cookie']));
+
+// A7: Parameter Object key policy -- mirrors inlineSchema()'s RECURSED/COPIED/DROPPED/fail-closed
+// shape one level up (a Parameter Object, not a Schema Object). COPIED verbatim (every value here
+// is a scalar, nothing to recurse into); `schema` is RESOLVED through inlineSchema() (handled
+// separately in copyParameter, below); `example`/`examples` are DROPPED (annotation-only, same
+// reasoning DROPPED_KEYWORDS already applies one layer down); a `$ref` parameter (needs
+// components.parameters, which indexOpenApiDocument() does not index), a `content`-keyed parameter
+// (a media-type-keyed alternative to `schema` -- Phase 2 machinery), or any other unrecognized key
+// fails CLOSED for that ONE parameter only, never the whole operation.
+const PARAMETER_COPIED_KEYS = Object.freeze(new Set([
+	'required', 'deprecated', 'description', 'style', 'explode', 'allowReserved', 'allowEmptyValue',
+]));
+const PARAMETER_DROPPED_KEYS = Object.freeze(new Set(['example', 'examples']));
+
+function safeParamName(raw) {
+	return raw && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.name === 'string' ? raw.name : null;
+}
+function safeParamIn(raw) {
+	return raw && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.in === 'string' ? raw.in : null;
+}
+
+// Non-path parameters only, source order, deduplicated on (name,in) -- first occurrence wins, same
+// "first occurrence wins" convention indexOpenApiDocument()'s own byOperationId uses. A malformed
+// entry (not an object, or missing name/in as strings) cannot participate in dedup meaningfully --
+// it is still counted and still attempted (and will fail its own copy attempt on its own merits).
+function collectNonPathParameters(rawParameters) {
+	if (!Array.isArray(rawParameters)) return [];
+	const seen = new Set();
+	const out = [];
+	for (const p of rawParameters) {
+		if (p && typeof p === 'object' && !Array.isArray(p) && p.in === 'path') continue; // stays contract-derived
+		const name = safeParamName(p);
+		const loc = safeParamIn(p);
+		if (name !== null && loc !== null) {
+			const key = `${loc} ${name}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+		}
+		out.push(p);
+	}
+	return out;
+}
+
+// Copies one raw Parameter Object into the sourceParameters shape, or fails it closed.
+// Returns one of:
+//   {ok:false, reason}                                  -- dropped entirely, not copied at all
+//   {ok:true, parameter}                                 -- copied cleanly, schema included if present
+//   {ok:true, parameter, schemaUnresolvedReason}          -- copied, but `schema` could not resolve
+// The middle+last cases both add the parameter to sourceParameters (every OTHER field it carries is
+// real and safe); the last case additionally drives CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED, exactly
+// the "found but couldn't project" distinction applyRequestBodySchema already draws for a body.
+function copyParameter(raw, componentSchemas) {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'not-a-parameter-object' };
+	if (Object.hasOwn(raw, '$ref')) return { ok: false, reason: 'ref-parameter' };
+	if (Object.hasOwn(raw, 'content')) return { ok: false, reason: 'content-parameter' };
+	const name = raw.name;
+	if (typeof name !== 'string' || name.length === 0) return { ok: false, reason: 'missing-name' };
+	const loc = raw.in;
+	if (!PARAMETER_LOCATIONS.has(loc)) return { ok: false, reason: 'unsupported-location' };
+
+	const parameter = { name, in: loc };
+	for (const key of Object.keys(raw)) {
+		if (key === 'name' || key === 'in' || key === 'schema') continue; // handled explicitly
+		if (PARAMETER_DROPPED_KEYS.has(key)) continue;
+		if (PARAMETER_COPIED_KEYS.has(key)) { parameter[key] = raw[key]; continue; }
+		return { ok: false, reason: `unsupported-keyword:${key}` };
+	}
+
+	if (Object.hasOwn(raw, 'schema')) {
+		const resolved = inlineSchema(raw.schema, componentSchemas);
+		if (resolved.ok) {
+			parameter.schema = resolved.schema;
+		} else {
+			return { ok: true, parameter, schemaUnresolvedReason: resolved.reason };
+		}
+	}
+	return { ok: true, parameter };
+}
+
+// A7: parameters ride the schema-bearing gate (schemaProjectionEnabled) -- a `schema` inside a
+// parameter goes through inlineSchema() exactly like a request/response body does, and a 3.0
+// document's `exclusiveMinimum`/`nullable` mean something different under the 2020-12 dialect
+// Ajv2020 speaks, the same reasoning that already disables A2/A3 for a whole document. Sets, on
+// `result`: parametersTotal/parametersCleanCount (reconciliation-internal bookkeeping consumed only
+// by snapshotFromReconciliation, never copied into the contract itself), parametersSkippedDialect,
+// sourceParameters (omitted when empty), parametersUnresolved (omitted when empty).
+function applyParameters(result, docEntry, index, stats, schemaProjectionEnabled) {
+	const candidates = collectNonPathParameters(docEntry.parameters);
+	if (candidates.length === 0) {
+		stats.parameters_none++;
+		return;
+	}
+	if (!schemaProjectionEnabled) {
+		result.parametersSkippedDialect = true;
+		stats.parameters_skipped_dialect++;
+		return;
+	}
+
+	const copied = [];
+	const unresolved = [];
+	let cleanCount = 0;
+
+	if (candidates.length > MAX_PARAMETERS_PER_OPERATION) {
+		// Exceeding the cap fails the WHOLE parameter set closed for this operation, never the whole
+		// reconciliation -- same "fail this field, not the operation kind" posture every cap in this
+		// module already takes.
+		for (const p of candidates) {
+			unresolved.push({ name: safeParamName(p), in: safeParamIn(p), reason: 'too-many-parameters' });
+		}
+	} else {
+		for (const raw of candidates) {
+			const outcome = copyParameter(raw, index.componentSchemas);
+			if (!outcome.ok) {
+				unresolved.push({ name: safeParamName(raw), in: safeParamIn(raw), reason: outcome.reason });
+				continue;
+			}
+			copied.push(outcome.parameter);
+			if (outcome.schemaUnresolvedReason) {
+				unresolved.push({ name: outcome.parameter.name, in: outcome.parameter.in, reason: outcome.schemaUnresolvedReason });
+			} else {
+				cleanCount++;
+			}
+		}
+	}
+
+	result.parametersTotal = candidates.length;
+	result.parametersCleanCount = cleanCount;
+	if (copied.length > 0) result.sourceParameters = copied;
+	if (unresolved.length > 0) result.parametersUnresolved = unresolved;
+
+	if (cleanCount === candidates.length) stats.parameters_copied++;
+	else stats.parameters_unresolved++;
+}
+
+// A7: security is dialect-independent -- a Security Requirement Object means the same thing under
+// 3.0 and 3.1, so this is copied regardless of schemaProjectionEnabled (a deliberate asymmetry with
+// applyParameters above, not an oversight -- see D-openapi-passthrough). All-or-nothing per
+// operation (unlike parameters' per-item fail-closed): a requirement naming a scheme that could not
+// be resolved means the WHOLE security value is dropped for that operation, never a dangling
+// reference -- verified by executing the real 3.1 meta-schema that it cannot itself catch this (a
+// `security` requirement naming an undeclared scheme validates `true`). `referencedSchemeNames` is
+// a Set shared across the whole reconciliation -- accumulates every scheme name any operation's
+// COPIED security actually referenced, which becomes the contract-root `sourceSecuritySchemes`.
+function applySecurity(result, docEntry, index, stats, referencedSchemeNames) {
+	const security = docEntry.security;
+	if (security === null) {
+		stats.security_none++;
+		return;
+	}
+	if (security.length > MAX_SECURITY_REQUIREMENTS_PER_OPERATION) {
+		result.securityUnresolvedReason = 'too-many-requirements';
+		stats.security_unresolved++;
+		return;
+	}
+	const namesInThisOperation = [];
+	for (const requirement of security) {
+		if (!requirement || typeof requirement !== 'object' || Array.isArray(requirement)) {
+			result.securityUnresolvedReason = 'malformed-requirement';
+			stats.security_unresolved++;
+			return;
+		}
+		for (const schemeName of Object.keys(requirement)) {
+			if (!Object.hasOwn(requirement, schemeName)) continue; // Object.keys is already own-only; defensive
+			if (!index.securitySchemes.has(schemeName)) {
+				result.securityUnresolvedReason = 'unknown-scheme';
+				stats.security_unresolved++;
+				return;
+			}
+			namesInThisOperation.push(schemeName);
+		}
+	}
+	result.sourceSecurity = security;
+	for (const name of namesInThisOperation) referencedSchemeNames.add(name);
+	if (security.length === 0) stats.security_public++;
+	else stats.security_copied++;
+}
+
+// A7: summary/tags are dialect-independent, same reasoning as applySecurity above -- copied
+// verbatim, never synthesized from operationId or module names (same discipline A6's own omitted-
+// summaries rule established, now source-conditioned instead of always-omitted).
+function applySummaryAndTags(result, docEntry, stats) {
+	if (typeof docEntry.summary === 'string' && docEntry.summary.length > 0) {
+		result.sourceSummary = docEntry.summary;
+		stats.summary_copied++;
+	}
+	if (Array.isArray(docEntry.tags) && docEntry.tags.length > 0) {
+		const tags = docEntry.tags.filter((t) => typeof t === 'string');
+		if (tags.length > 0) {
+			result.sourceTags = tags;
+			stats.tags_copied++;
+		}
+	}
+}
+
+// A7: the single entry point called from reconcileModule()'s two matched/adopted call sites --
+// exactly the placement A2/A3's own helpers already occupy, which IS the refusal mechanism for
+// every other resolution kind (drift/missing/ambiguous/unresolved never reach this function at
+// all, see reconcileModule below).
+function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnabled, referencedSchemeNames) {
+	applyParameters(result, docEntry, index, stats, schemaProjectionEnabled);
+	applySecurity(result, docEntry, index, stats, referencedSchemeNames);
+	applySummaryAndTags(result, docEntry, stats);
+}
+
 // The core reconciliation, pure (no I/O). `module` is a scanReport related_modules entry (as
 // selected by contracts/emit.mjs's selectModule -- caller's responsibility to pass the SAME
 // selection buildContract() will use, so endpointKey(ci,ei) lines up). `pathPrefix`, if given
@@ -660,7 +958,18 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 		// A3: response (2xx) / error (4xx/5xx) counters, same stable-shape reasoning.
 		response_schema_resolved: 0, response_schema_unresolved: 0, response_schema_none: 0, response_schema_skipped_media_type: 0,
 		error_schema_resolved: 0, error_schema_unresolved: 0, error_schema_none: 0, error_schema_skipped_media_type: 0,
+		// A7: source-backed passthrough counters -- parameters/security are per-OPERATION tallies
+		// (an operation with a mix of resolved/unresolved parameters counts once, under
+		// parameters_unresolved, matching the "partial:M-of-N" snapshot decision), summary/tags are
+		// simple presence counts.
+		parameters_copied: 0, parameters_unresolved: 0, parameters_none: 0, parameters_skipped_dialect: 0,
+		security_copied: 0, security_public: 0, security_unresolved: 0, security_none: 0,
+		summary_copied: 0, tags_copied: 0,
 	};
+	// A7: accumulates every security-scheme name any operation's COPIED security requirement
+	// actually referenced, across the WHOLE module -- becomes the contract-root sourceSecuritySchemes
+	// (only schemes actually used, never the document's full componentSchemas-style catalog).
+	const referencedSecuritySchemeNames = new Set();
 	// A2: an OpenAPI 3.0 document's `exclusiveMinimum`/`nullable` mean something different under
 	// JSON Schema 2020-12 (the dialect Ajv2020 speaks) -- rather than silently misinterpreting
 	// those, schema projection is disabled for the WHOLE document, once, here -- not per-operation
@@ -701,6 +1010,11 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 							applyRequestBodySchema(result, docEntry, index.componentSchemas, stats);
 							applyResponseSchemas(result, docEntry, index.componentSchemas, stats);
 						}
+						// A7: same matched/adopted-only placement -- this IS the refusal mechanism for
+						// every other resolution kind. Called unconditionally (not gated on
+						// schemaProjection.enabled): parameters gate internally (schema-bearing);
+						// security/summary/tags are dialect-independent and always attempted.
+						applyPassthrough(result, docEntry, index, stats, schemaProjection.enabled, referencedSecuritySchemeNames);
 					} else {
 						result = {
 							kind: 'drift', reason: 'path',
@@ -729,6 +1043,7 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 						applyRequestBodySchema(result, hits[0], index.componentSchemas, stats);
 						applyResponseSchemas(result, hits[0], index.componentSchemas, stats);
 					}
+					applyPassthrough(result, hits[0], index, stats, schemaProjection.enabled, referencedSecuritySchemeNames);
 				} else if (hits.length === 1) {
 					// A single route match, but the document itself never gave that operation an
 					// operationId -- nothing to route by, so this can't become an addressable
@@ -749,7 +1064,16 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 		}
 	}
 
-	return { byEndpoint, prefix, stats, schemaProjection };
+	// A7: resolve the accumulated scheme names against index.securitySchemes -- only names that
+	// actually made it into at least one operation's COPIED sourceSecurity end up here, so this Map
+	// is exactly what buildContract() should attach as the contract-root sourceSecuritySchemes.
+	const sourceSecuritySchemes = new Map();
+	for (const name of referencedSecuritySchemeNames) {
+		const scheme = index.securitySchemes.get(name);
+		if (scheme) sourceSecuritySchemes.set(name, scheme);
+	}
+
+	return { byEndpoint, prefix, stats, schemaProjection, sourceSecuritySchemes };
 }
 
 // Convenience entry point: load + index + reconcile in one call, propagating the first failure.
@@ -790,6 +1114,8 @@ export function buildReconciliation({ filePath, module, pathPrefix = null }) {
 			rejected_operation_ids: indexed.stats.rejected_operation_ids,
 			component_schema_count: indexed.stats.component_schema_count,
 			rejected_component_schemas: indexed.stats.rejected_component_schemas,
+			security_scheme_count: indexed.stats.security_scheme_count,
+			rejected_security_schemes: indexed.stats.rejected_security_schemes,
 			openapi_version: indexed.openapiVersion,
 			servers: indexed.servers,
 		},
@@ -797,7 +1123,32 @@ export function buildReconciliation({ filePath, module, pathPrefix = null }) {
 		prefix: recon.prefix,
 		stats: recon.stats,
 		schemaProjection: recon.schemaProjection,
+		// A7: only schemes actually referenced by at least one copied sourceSecurity requirement --
+		// contracts/emit.mjs attaches this at the contract root when non-empty.
+		sourceSecuritySchemes: recon.sourceSecuritySchemes,
 	};
+}
+
+// A7: decision-only audit-trail strings for the four passthrough fields, exactly parallel to
+// request_body_schema/response_schema/error_schema above -- the snapshot records the DECISION, not
+// the payload (the payload lives in the contract file, already covered by contract_hash).
+function parametersDecision(result) {
+	if (result.parametersSkippedDialect) return 'skipped:dialect';
+	if (!result.parametersTotal) return 'none';
+	return result.parametersCleanCount === result.parametersTotal
+		? `copied:${result.parametersTotal}`
+		: `partial:${result.parametersCleanCount}-of-${result.parametersTotal}`;
+}
+function securityDecision(result) {
+	if (result.sourceSecurity) return result.sourceSecurity.length === 0 ? 'copied:public' : `copied:${result.sourceSecurity.length}`;
+	if (result.securityUnresolvedReason) return `unresolved:${result.securityUnresolvedReason}`;
+	return 'none';
+}
+function summaryDecision(result) {
+	return result.sourceSummary ? 'copied' : 'none';
+}
+function tagsDecision(result) {
+	return result.sourceTags ? `copied:${result.sourceTags.length}` : 'none';
 }
 
 // `sourceFile`: {file, outsideRepo} precomputed by the caller (bin/bskel.mjs knows the repo
@@ -831,6 +1182,11 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 					: result.errorSchemaUnresolvedReason
 						? `unresolved:${result.errorSchemaUnresolvedReason}`
 						: 'none',
+				// A7: same decision-only audit trail, for the four passthrough fields.
+				parameters: parametersDecision(result),
+				security: securityDecision(result),
+				summary: summaryDecision(result),
+				tags: tagsDecision(result),
 			};
 		}
 	}
@@ -849,6 +1205,8 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 			skipped_path_refs: reconciliation.document.skipped_path_refs,
 			component_schema_count: reconciliation.document.component_schema_count,
 			rejected_component_schemas: reconciliation.document.rejected_component_schemas,
+			security_scheme_count: reconciliation.document.security_scheme_count,
+			rejected_security_schemes: reconciliation.document.rejected_security_schemes,
 			openapi_version: reconciliation.document.openapi_version,
 			servers: reconciliation.document.servers,
 		},

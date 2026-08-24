@@ -64,6 +64,20 @@ export const WARNING_CODES = Object.freeze({
 	// enhancement, not a defect. See D-openapi-response-schema in DECISIONS.md.
 	CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 	CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	// A7: at least one non-path parameter on a matched/adopted operation could not be copied into
+	// sourceParameters -- an unsupported shape ($ref/content/unknown key/cap exceeded), or a schema
+	// inlineSchema() itself could not resolve. WARN, not ERROR: verb/path/body are still correctly
+	// contracted, this is a missed enhancement -- same reasoning as CONTRACT_OPENAPI_SCHEMA_UNRESOLVED.
+	CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	// A7: the operation declared `security` in the source document, but at least one named scheme
+	// could not be resolved against components.securitySchemes (or the requirement itself was
+	// malformed/oversized) -- the WHOLE security value is dropped for that operation rather than a
+	// partial/dangling one, and this warns about it. Deliberately a SEPARATE code from
+	// CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED (same operation, same subject, unrelated failure) --
+	// same "a waiver for one must never silently cover the other" reasoning D-openapi-response-schema
+	// already established for the response/error split. WARN: omitting security is still honest
+	// ("unspecified"), just less specific than the source document actually was.
+	CONTRACT_OPENAPI_SECURITY_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 	// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): A1 §7's `path_prefix_signals`
 	// were only ever consulted at `contract export` time (A6's own refusal, contracts/export.mjs's
 	// unreflectedPathPrefixes()) -- a module with an unaddressed global prefix signal could still

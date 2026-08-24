@@ -25,7 +25,7 @@ import { introspectSchema, describeConnectionError } from '../scanners/db/intros
 import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '../scanners/render.mjs';
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
-import { buildContract, selectModule } from '../contracts/emit.mjs';
+import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
@@ -971,6 +971,11 @@ function cmdContractEmit(args) {
 					console.log(`openapi: ${s.schema_resolved} request body schema(s) projected, ${s.schema_unresolved} unresolved`);
 					console.log(`openapi: ${s.response_schema_resolved} response + ${s.error_schema_resolved} error schema(s) projected, ${s.response_schema_unresolved + s.error_schema_unresolved} unresolved`);
 				}
+				// A7: dialect-independent (security/summary/tags) always ran; parameters only when
+				// schema projection was enabled -- printed unconditionally either way, same "just print
+				// the numbers, they may be zero" style as the two lines above.
+				const p = reconciliation.stats;
+				console.log(`openapi: ${p.parameters_copied} operation(s) with parameters copied (${p.parameters_unresolved} partial/unresolved), ${p.security_copied + p.security_public} with security copied, ${p.summary_copied} summaries + ${p.tags_copied} tag sets copied`);
 			}
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
@@ -1014,6 +1019,14 @@ function loadContract(root, featureId) {
 		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no contract at ${contractPath} -- run \`bskel contract emit --feature ${featureId}\` first`);
 	}
 	const parsed = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	// A7: a targeted pre-check for the single most common way an old contract fails the schema
+	// below -- an `sbf_contract` bump has a real read-time consequence for the first time (S5's
+	// schema validation postdates A2/A3, which had none), so a contract emitted by an older bskel
+	// gets a friendly re-emit instruction instead of a raw ajv dump. Any OTHER schema violation
+	// (hand-edited, corrupted, etc.) still falls through to the generic message below unchanged.
+	if (typeof parsed?.sbf_contract === 'string' && parsed.sbf_contract !== CONTRACT_SCHEMA_VERSION) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${contractPath}: this contract was emitted by an older bskel (sbf_contract "${parsed.sbf_contract}", expected "${CONTRACT_SCHEMA_VERSION}") -- re-run \`bskel contract emit --feature ${featureId}\` to re-emit it in the current format.`);
+	}
 	// S5 (D-persistence-integrity): validated against schemas/feature-contract.schema.json (the
 	// meta-schema for THIS file's own shape -- not the same as contracts/validate.mjs, which
 	// validates a runtime agent envelope's PAYLOAD against one operation inside an already-valid
@@ -1124,6 +1137,13 @@ function cmdContractExport(args) {
 	// cmdContractEmit gives its own snapshot/dialect notes.
 	if (built.literalStatusStandIn) {
 		console.error('note: --status-codes literal writes `200` for every documented success body. The source contract records no status codes whatsoever, so `200` is a bskel-chosen stand-in, NOT a claim that any of these operations actually returns 200 -- `--status-codes range` (the default) emits the spec-legal `2XX` range key and invents nothing.');
+	}
+	// A7: ONE stderr note, not per-operation -- mixed passthrough coverage can only arise in an
+	// explicitly waived `partial` contract (a `complete` one has 100% coverage by construction, see
+	// D-openapi-passthrough); disclosure, not a new refusal. The exact per-operation map is always in
+	// info.x-bskel-generated.passthrough regardless of whether this note fires.
+	if (built.mixedPassthrough) {
+		console.error(`note: ${built.passthroughWithoutCount} of ${Object.keys(contract.operations).length} operation(s) in this export carry no source-document passthrough (parameters/security/summary/tags) -- see info.x-bskel-generated.passthrough for exactly which ones.`);
 	}
 
 	const rendered = `${JSON.stringify(built.document, null, 2)}\n`;

@@ -379,7 +379,13 @@ test('the same repo exports without --allow-unprefixed once the contract\'s path
 
 // --- what the document says, and what it deliberately never says ----------------------------
 
-test('security, summary, description and tags never appear on any operation, for any fixture', () => {
+// A7: this claim is now source-conditioned, not universal (security/summary/tags DO appear when
+// the source document carries them -- see the dedicated A7 section below). What is STILL a
+// universal claim, and is what this test now actually pins: none of the four ever appear when the
+// SOURCE document never carried them either (neither fixture below opts into the new
+// withSecurity/withSummaryTags knobs), and `description` (the operation-level field, not the
+// response-object one) is never emitted at all -- Phase 2, unbuilt.
+test('security, summary, tags never appear when the source document did not carry them; description never appears at all (Phase 2)', () => {
 	const cases = [
 		() => {
 			const root = buildFixtureRepo();
@@ -408,6 +414,252 @@ test('security, summary, description and tags never appear on any operation, for
 		// disclosure in info.description / info.x-bskel-omitted.
 		assert.equal(JSON.stringify(doc.paths).includes('"security"'), false, 'no security key anywhere under paths');
 	}
+});
+
+// --- A7: source-backed OpenAPI field passthrough, export-side ------------------------------
+
+test('A7: query/header/cookie parameters are merged onto the path-derived ones, security/summary/tags are emitted, components.securitySchemes carries only the referenced scheme', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withParameters: true, withSecurity: true, withSummaryTags: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const { doc } = exportedDoc(root);
+	const findWidgets = doc.paths['/api/v0/widgets'].get;
+	// Path-derived parameters are gone here (findWidgets has no path params), so all 3 are the
+	// copied ones, in addition to whatever this operation's own path template contributes.
+	assert.deepEqual(findWidgets.parameters.map((p) => `${p.in}:${p.name}`).sort(), ['cookie:session', 'header:X-Trace-Id', 'query:q']);
+	assert.deepEqual(findWidgets.security, [{ bearerAuth: [] }]);
+	assert.equal(findWidgets.summary, 'list widgets');
+	assert.deepEqual(findWidgets.tags, ['Widgets']);
+
+	const findWidget = doc.paths['/api/v0/widgets/{widgetId}'].get;
+	// findWidget's own path parameter (widgetId) coexists with its copied security/summary/tags --
+	// no dedup collision since sourceParameters never carries an `in: 'path'` entry.
+	assert.deepEqual(findWidget.parameters.map((p) => p.in), ['path']);
+	assert.deepEqual(findWidget.security, [{ bearerAuth: [] }]);
+
+	assert.deepEqual(doc.components, { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } });
+});
+
+test('A7: security:[] (a genuinely public endpoint) is emitted verbatim, and is distinguishable from an operation with no security at all', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withSecurity: true, publicFindWidgets: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const { doc } = exportedDoc(root);
+	assert.deepEqual(doc.paths['/api/v0/widgets'].get.security, [], 'findWidgets is genuinely public -- [] is a real positive claim from the source');
+	assert.deepEqual(doc.paths['/api/v0/widgets'].post.security, [{ bearerAuth: [] }]);
+});
+
+test('A7: a security requirement naming an undeclared scheme drops security for that operation, and components.securitySchemes still carries no dangling reference', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withSecurity: true, securityUnknownScheme: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_SECURITY_UNRESOLVED' && w.subject === 'createWidget'));
+
+	const { doc } = exportedDoc(root);
+	assert.equal('security' in doc.paths['/api/v0/widgets'].post, false, 'createWidget\'s security referenced an undeclared scheme -- dropped, not a dangling reference');
+	assert.deepEqual(doc.paths['/api/v0/widgets/{widgetId}'].get.security, [{ bearerAuth: [] }], 'findWidget is unaffected -- its own security resolved cleanly');
+});
+
+test('A7: query/header/cookie-parameters, security, summaries, tags are ANY-based derived omissions -- present when at least one operation lacks the field, absent only when every operation carries it', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	// Only findWidgets carries parameters/security/summary/tags; createWidget and findWidget do not.
+	const doc = widgetOpenApiDoc({ withParameters: true });
+	doc.paths['/api/v0/widgets'].get.security = [{ bearerAuth: [] }];
+	doc.paths['/api/v0/widgets'].get.summary = 'list widgets';
+	doc.paths['/api/v0/widgets'].get.tags = ['Widgets'];
+	doc.components = { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } };
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const omitted = exportedDoc(root).doc.info['x-bskel-omitted'];
+	for (const key of ['query-parameters', 'header-parameters', 'cookie-parameters', 'security', 'summaries', 'tags']) {
+		assert.ok(omitted.includes(key), `${key} must be disclosed -- createWidget/findWidget carry none of it`);
+	}
+	// The always-on new structural entries, present regardless of what the contract carries.
+	for (const key of ['path-parameter-schemas', 'vendor-extensions']) {
+		assert.ok(omitted.includes(key));
+	}
+
+	// Now every operation carries all four -- none of the six should be in the omission list.
+	const rootFull = buildFixtureRepo();
+	initThroughScanDisposition(rootFull);
+	const docFullFile = writeOpenApiFixture(rootFull, widgetOpenApiDoc({ withParameters: true, withSecurity: true, withSummaryTags: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFullFile], rootFull).code, 0);
+	const omittedFull = exportedDoc(rootFull).doc.info['x-bskel-omitted'];
+	// findWidgets alone carries query/header/cookie -- createWidget/findWidget still don't, so
+	// those three stay disclosed; security/summaries/tags are on EVERY operation in this fixture.
+	for (const key of ['security', 'summaries', 'tags']) {
+		assert.equal(omittedFull.includes(key), false, `${key} must NOT be disclosed -- every operation carries it`);
+	}
+	for (const key of ['query-parameters', 'header-parameters', 'cookie-parameters']) {
+		assert.ok(omittedFull.includes(key), `${key} -- only findWidgets carries parameters, so this must still be disclosed`);
+	}
+});
+
+test('A7: an operation carrying at least one passthrough field gets the x-bskel-passthrough marker; one that carries none does not', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	// widgetOpenApiDoc's withSummaryTags touches every declared operation -- strip it back off
+	// findWidget specifically, so exactly one operation (of three) carries genuinely NO passthrough,
+	// proving the marker is per-operation, not blanket.
+	const doc = widgetOpenApiDoc({ withSummaryTags: true });
+	delete doc.paths['/api/v0/widgets/{widgetId}'].get.summary;
+	delete doc.paths['/api/v0/widgets/{widgetId}'].get.tags;
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const { doc: exported } = exportedDoc(root);
+	assert.ok(exported.paths['/api/v0/widgets'].post['x-bskel-passthrough'], 'createWidget carries summary+tags -- must be marked');
+	assert.match(exported.paths['/api/v0/widgets'].post['x-bskel-passthrough'].source_sha256, /^[0-9a-f]{12}$/);
+	assert.equal('x-bskel-passthrough' in exported.paths['/api/v0/widgets/{widgetId}'].get, false, 'findWidget carries no passthrough -- must NOT be marked');
+});
+
+// --- A7: the self-import guard's second key material ----------------------------------------
+
+test('A7 self-import guard: stripping ONLY info.x-bskel-generated is no longer sufficient for a passthrough-heavy export -- the operation-level markers still refuse it', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withSecurity: true, withSummaryTags: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	assert.equal(run(['contract', 'export', '--feature', FEATURE, '--out', 'exported.json'], root).code, 0);
+
+	const exported = JSON.parse(fs.readFileSync(path.join(root, 'exported.json'), 'utf8'));
+	delete exported.info['x-bskel-generated'];
+	fs.writeFileSync(path.join(root, 'stripped.json'), JSON.stringify(exported, null, 2));
+
+	const reImport = run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', 'stripped.json'], root);
+	assert.equal(reImport.code, 14, 'operation-level x-bskel-passthrough markers alone must still trigger the guard');
+	assert.match(reImport.stderr, /generated by `bskel contract export`/);
+});
+
+test('A7 self-import guard: stripping info.x-bskel-generated AND every operation\'s x-bskel-passthrough marker is what actually disarms the guard', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withSecurity: true, withSummaryTags: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	assert.equal(run(['contract', 'export', '--feature', FEATURE, '--out', 'exported.json'], root).code, 0);
+
+	const exported = JSON.parse(fs.readFileSync(path.join(root, 'exported.json'), 'utf8'));
+	delete exported.info['x-bskel-generated'];
+	for (const item of Object.values(exported.paths)) {
+		for (const operation of Object.values(item)) {
+			delete operation['x-bskel-passthrough'];
+		}
+	}
+	fs.writeFileSync(path.join(root, 'stripped.json'), JSON.stringify(exported, null, 2));
+
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', 'stripped.json'], root).code, 0);
+});
+
+// --- A7: round trip, extended to cover the new fields ----------------------------------------
+
+test('A7 round trip: a complete, fully-passthrough contract survives export -> re-import (all markers stripped) with source* fields intact', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withParameters: true, withSecurity: true, withSummaryTags: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const before = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.equal(before.completeness.status, 'complete');
+	assert.ok(before.operations.findWidgets.sourceParameters);
+	assert.ok(before.operations.createWidget.sourceSecurity);
+	assert.ok(before.sourceSecuritySchemes);
+
+	assert.equal(run(['contract', 'export', '--feature', FEATURE, '--out', 'exported.json'], root).code, 0);
+	const exported = JSON.parse(fs.readFileSync(path.join(root, 'exported.json'), 'utf8'));
+	delete exported.info['x-bskel-generated'];
+	for (const item of Object.values(exported.paths)) {
+		for (const operation of Object.values(item)) delete operation['x-bskel-passthrough'];
+	}
+	fs.writeFileSync(path.join(root, 'stripped.json'), JSON.stringify(exported, null, 2));
+
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', 'stripped.json'], root).code, 0);
+	const after = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.deepEqual(after.operations, before.operations, 'every operation, including the four source* fields, must survive the round trip unchanged');
+	assert.deepEqual(after.sourceSecuritySchemes, before.sourceSecuritySchemes);
+	assert.deepEqual(after.warnings, [], 're-importing an export of a complete contract must produce no new warnings');
+});
+
+// --- A7: mixed passthrough coverage -----------------------------------------------------------
+
+test('A7: a waived partial contract with mixed passthrough coverage prints ONE stderr note (not per-operation), and info.x-bskel-generated.passthrough carries the exact per-operation map', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	// findWidget drifts (never gets passthrough); findWidgets/createWidget get real summary/tags.
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withSummaryTags: true, driftFindWidget: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 3, 'a drift is an ERROR, awaiting disposition');
+	assert.equal(run(['contract', 'waive', '--feature', FEATURE, '--code', 'CONTRACT_OPENAPI_DRIFT', '--all', '--reason', 'accepted for this test'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', FEATURE], root).code, 0);
+
+	const { doc, stderr } = exportedDoc(root);
+	assert.match(stderr, /1 of 3 operation\(s\) in this export carry no source-document passthrough/);
+	assert.deepEqual(doc.info['x-bskel-generated'].passthrough, { createWidget: true, findWidgets: true, findWidget: false });
+});
+
+test('A7: a complete contract (100% passthrough coverage by construction) prints no mixed-coverage note', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withSummaryTags: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const { stderr } = exportedDoc(root);
+	assert.equal(stderr.includes('carry no source-document passthrough'), false);
+});
+
+// --- A7: meta-schema validation of a full-passthrough export ----------------------------------
+
+test('a full-passthrough export (parameters, security, summary, tags) still validates against the official 3.1 meta-schema', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withParameters: true, withSecurity: true, withSummaryTags: true, withRequestBodies: true, withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	assertValidOpenApi(exportedDoc(root).doc, 'a full-passthrough export');
+});
+
+// --- A7: loadContract()'s friendly sbf_contract mismatch message -------------------------------
+
+// loadContract()'s pre-check is exercised through an UNGATED command (`contract tool-schema`, not
+// `contract export`) deliberately: `contract export` requires the `contract` gate to have PASSED
+// first, and hand-editing the on-disk contract's `sbf_contract` field changes its bytes, which
+// would make the gate's own `contract_hash` go STALE and refuse at that earlier check (exit 4) --
+// a real mechanism, but the wrong one to exercise here. `contract tool-schema`/`contract validate`
+// call loadContract() directly with no gate check, which is the actual real-world path an upgraded
+// bskel hits: the on-disk file is untouched (still v4-shaped) and its gate token still matches it.
+test('an on-disk contract from an older bskel (sbf_contract "4") gets a friendly re-emit message from `contract tool-schema`, not a raw ajv dump', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE], root).code, 0);
+
+	const contractPath = contractSchemaPath(root);
+	const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	contract.sbf_contract = '4';
+	fs.writeFileSync(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
+
+	const result = run(['contract', 'tool-schema', '--feature', FEATURE, '--operation', 'createWidget'], root);
+	assert.equal(result.code, 2, 'loadContract()\'s INVALID_ARTIFACT failures share exit NOT_PASSED(2), same as MISSING_ARTIFACT');
+	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "5"\)/);
+	assert.match(result.stderr, /re-run `bskel contract emit --feature 001-widget-management`/);
+	assert.equal(result.stderr.includes('does not match schemas/feature-contract.schema.json'), false, 'the friendly message must replace the raw ajv dump for this specific, common case');
+});
+
+test('a contract with a genuinely INVALID shape (not just an old sbf_contract) still gets the raw ajv dump, unaffected by the new pre-check', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE], root).code, 0);
+
+	const contractPath = contractSchemaPath(root);
+	const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	delete contract.completeness; // a required field, genuinely malformed, sbf_contract itself untouched
+	fs.writeFileSync(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
+
+	const result = run(['contract', 'tool-schema', '--feature', FEATURE, '--operation', 'createWidget'], root);
+	assert.equal(result.code, 2);
+	assert.match(result.stderr, /does not match schemas\/feature-contract\.schema\.json/);
 });
 
 test('x-bskel-omitted is derived from the contract, not hardcoded', () => {

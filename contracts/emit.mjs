@@ -15,6 +15,13 @@ import { pathPrefixCandidates, unreflectedPathPrefixes } from './export.mjs';
 // a path param. Direction stays one-way (openapi.mjs imports from emit.mjs, never the reverse).
 export const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
+// A7: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract` const --
+// bin/bskel.mjs's loadContract() imports this too, so the friendly "re-emit with the current bskel"
+// message and the value actually written here cannot drift apart. Bumped "4" -> "5" for this item
+// (source* fields + sourceSecuritySchemes); this bump has a real read-time consequence unlike A2/A3
+// (S5's loadContract() schema validation postdates them) -- see D-openapi-passthrough.
+export const CONTRACT_SCHEMA_VERSION = '5';
+
 function pathParamsSchema(routePath) {
 	const params = [...routePath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
 	const properties = {};
@@ -102,6 +109,14 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				let responseSchemaUnresolvedReason = null;
 				let errorSchema = null;
 				let errorSchemaUnresolvedReason = null;
+				// A7: same matched/adopted-only discipline as A2/A3's fields above -- stays null for
+				// every other kind.
+				let sourceParameters = null;
+				let parametersUnresolved = null;
+				let sourceSecurity = null;
+				let securityUnresolvedReason = null;
+				let sourceSummary = null;
+				let sourceTags = null;
 
 				if (res) {
 					switch (res.kind) {
@@ -119,6 +134,12 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							responseSchemaUnresolvedReason = res.responseSchemaUnresolvedReason ?? null;
 							errorSchema = res.errorSchema ?? null;
 							errorSchemaUnresolvedReason = res.errorSchemaUnresolvedReason ?? null;
+							sourceParameters = res.sourceParameters ?? null;
+							parametersUnresolved = res.parametersUnresolved ?? null;
+							sourceSecurity = res.sourceSecurity ?? null;
+							securityUnresolvedReason = res.securityUnresolvedReason ?? null;
+							sourceSummary = res.sourceSummary ?? null;
+							sourceTags = res.sourceTags ?? null;
 							break;
 						case 'adopted':
 							// No @Operation(operationId=...) in source at all -- the id itself comes from
@@ -136,6 +157,12 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							responseSchemaUnresolvedReason = res.responseSchemaUnresolvedReason ?? null;
 							errorSchema = res.errorSchema ?? null;
 							errorSchemaUnresolvedReason = res.errorSchemaUnresolvedReason ?? null;
+							sourceParameters = res.sourceParameters ?? null;
+							parametersUnresolved = res.parametersUnresolved ?? null;
+							sourceSecurity = res.sourceSecurity ?? null;
+							securityUnresolvedReason = res.securityUnresolvedReason ?? null;
+							sourceSummary = res.sourceSummary ?? null;
+							sourceTags = res.sourceTags ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
 								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
@@ -242,18 +269,45 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						detail: { reason: errorSchemaUnresolvedReason, verb, path: route, operationId },
 					}));
 				}
+				// A7: at least one non-path parameter on this matched/adopted operation could not be
+				// copied verbatim -- an unsupported parameter shape ($ref/content/unknown key/cap
+				// exceeded) or a schema inlineSchema() itself could not resolve. One warning per
+				// operation (not per parameter), same "subject is the operationId" shape as the schema-
+				// unresolved codes above -- the message enumerates every individual failure.
+				if (parametersUnresolved) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) has ${parametersUnresolved.length} parameter(s) that could not be copied from the source document: ${parametersUnresolved.map((p) => `${p.in ?? '?'} "${p.name ?? '?'}" (${p.reason})`).join(', ')}`,
+						detail: { verb, path: route, operationId, unresolved: parametersUnresolved },
+					}));
+				}
+				// A7: the operation declared `security` in the source document, but at least one named
+				// scheme could not be resolved against components.securitySchemes (or the requirement
+				// itself was malformed/oversized) -- the WHOLE security value is dropped for this
+				// operation, never a dangling reference (see contracts/openapi.mjs's applySecurity).
+				if (securityUnresolvedReason) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_SECURITY_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) declares a security requirement that could not be copied (${securityUnresolvedReason}) -- security stays unrepresented for this operation, same as before --openapi-file`,
+						detail: { reason: securityUnresolvedReason, verb, path: route, operationId },
+					}));
+				}
 				operations[operationId] = {
 					verb,
 					path: route,
 					pathParams: pathParamsSchema(route),
 					body: hasBody === null ? 'unknown' : hasBody,
 					provenance,
-					// A2/A3: omitted entirely (not null/false) when there's nothing to project -- keeps
-					// `openapi:null` (and any operation that isn't matched/adopted) byte-identical to
-					// pre-A2/A3 output, the same guarantee A1 established for its own fields.
+					// A2/A3/A7: omitted entirely (not null/false) when there's nothing to project/copy --
+					// keeps `openapi:null` (and any operation that isn't matched/adopted) byte-identical
+					// to pre-A2/A3/A7 output, the same guarantee A1 established for its own fields.
 					...(requestBodySchema ? { requestBodySchema, requestBodyRequired } : {}),
 					...(responseSchema ? { responseSchema } : {}),
 					...(errorSchema ? { errorSchema } : {}),
+					...(sourceParameters ? { sourceParameters } : {}),
+					...(sourceSecurity ? { sourceSecurity } : {}),
+					...(sourceSummary ? { sourceSummary } : {}),
+					...(sourceTags ? { sourceTags } : {}),
 				};
 			}
 		}
@@ -290,13 +344,22 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 		endpoint_count: endpointCount,
 	};
 
+	// A7: only schemes actually referenced by at least one operation's COPIED sourceSecurity
+	// requirement anywhere in this contract -- omitted entirely (not {}) when openapi is null or no
+	// operation ended up with a resolvable security requirement, same byte-identity discipline as
+	// every other openapi-derived field.
+	const sourceSecuritySchemes = openapi && openapi.sourceSecuritySchemes && openapi.sourceSecuritySchemes.size > 0
+		? Object.fromEntries(openapi.sourceSecuritySchemes)
+		: null;
+
 	return {
-		sbf_contract: '4',
+		sbf_contract: CONTRACT_SCHEMA_VERSION,
 		feature_id: featureId,
 		feature_uid: featureUid,
 		source: targetModule
 			? { adapter: scanReport.adapter, module: targetModule.module, provenance: openapi ? 'scan+openapi' : 'scan' }
 			: { adapter: scanReport.adapter ?? null, module: null, provenance: 'none' },
+		...(sourceSecuritySchemes ? { sourceSecuritySchemes } : {}),
 		operations,
 		warnings,
 		completeness,
