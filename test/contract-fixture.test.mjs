@@ -168,11 +168,18 @@ test('fixture curriculum module: 8 endpoints, 2 operations, 6 unmatched -> parti
 	assert.equal(unmatched.length, 6);
 });
 
-test('fixture organization module stays complete with zero warnings', () => {
+// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): this fixture faithfully mirrors
+// the real repo's `/api/v0` global prefix (application.yml's `paths-to-match` + ApiPathConfig's
+// `addPathPrefix`), and `contract emit` -- not just `contract export` -- now catches paths that
+// don't reflect it (CONTRACT_UNREFLECTED_PATH_PREFIX). Every operation here still resolves; only
+// completeness/warnings changed, matching the real smoke test below.
+test('fixture organization module: 15 operations, but partial due to the unreflected /api/v0 prefix', () => {
 	const contract = buildOrgContract();
-	assert.equal(contract.completeness.status, 'complete');
+	assert.equal(contract.completeness.status, 'partial');
 	assert.equal(contract.completeness.operation_count, 15);
-	assert.equal(contract.warnings.length, 0);
+	assert.equal(contract.warnings.length, 1);
+	assert.equal(contract.warnings[0].code, 'CONTRACT_UNREFLECTED_PATH_PREFIX');
+	assert.equal(contract.warnings[0].subject, '/api/v0');
 });
 
 test('an emitted contract validates against schemas/feature-contract.schema.json', () => {

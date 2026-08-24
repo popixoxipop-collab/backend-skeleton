@@ -836,6 +836,15 @@ function cmdContractEmit(args) {
 	const flags = parseCommand('contract emit', args);
 	if (flags.help) { console.log(renderCommandHelp('contract emit')); process.exit(0); }
 	setContext('contract emit', flags);
+
+	// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): --path-prefix only has any
+	// effect inside buildReconciliation(), which only runs when --openapi-file is also given (see
+	// below) -- passing --path-prefix alone was a silent no-op with zero feedback. Checked before
+	// any repo/gate work so the failure is immediate and doesn't depend on feature/gate state.
+	if (flags['path-prefix'] && !flags['openapi-file']) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--path-prefix only applies when reconciling against a real OpenAPI document -- pass --openapi-file <path> together with it, or drop --path-prefix (the value has no effect on its own).`);
+	}
+
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
 	requireValidFeatureId(flags.feature);

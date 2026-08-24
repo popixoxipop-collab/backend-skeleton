@@ -64,6 +64,15 @@ export const WARNING_CODES = Object.freeze({
 	// enhancement, not a defect. See D-openapi-response-schema in DECISIONS.md.
 	CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 	CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): A1 §7's `path_prefix_signals`
+	// were only ever consulted at `contract export` time (A6's own refusal, contracts/export.mjs's
+	// unreflectedPathPrefixes()) -- a module with an unaddressed global prefix signal could still
+	// classify as `complete` at `contract emit` time, which is exactly backwards: the paths ARE
+	// wrong, `contract export` just happens to independently catch it before publishing. ERROR (not
+	// WARN) for the same reason CONTRACT_OPENAPI_DRIFT is ERROR: a wrong path is a correctness
+	// defect, not a missed enhancement. Waivable so a false-positive signal (see --allow-unprefixed's
+	// own escape hatch) doesn't permanently block a module it genuinely doesn't apply to.
+	CONTRACT_UNREFLECTED_PATH_PREFIX: { severity: SEVERITY.ERROR, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { makeWarning, classifyContract } from './completeness.mjs';
 import { findMethodParams } from '../scanners/adapters/_java-spring-analyzer.mjs';
+import { pathPrefixCandidates, unreflectedPathPrefixes } from './export.mjs';
 
 // D-security-2: a plain UUID `pattern`, not `format: 'uuid'`. ajv-formats' uuid format accepts
 // an optional `urn:uuid:` prefix (per its RFC 4122 reading), but Spring's `UUID` path-variable
@@ -264,6 +265,22 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 	if (Object.keys(operations).length === 0) {
 		warnings.push(makeWarning('CONTRACT_EMPTY', {
 			message: 'this contract has zero operations -- it cannot be used by `contract validate`/`tool-schema`, or routed to by `handles emit`. Fix --module/--terms, or if this module genuinely has no HTTP surface (yet), there is nothing to contract.',
+		}));
+	}
+
+	// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): reuses A6's own
+	// pathPrefixCandidates()/unreflectedPathPrefixes() (contracts/export.mjs) rather than
+	// re-deriving prefix detection here -- this is the SAME check `contract export` already runs,
+	// just moved earlier so `completeness` itself reflects it instead of only being caught later at
+	// export time. Runs against the final `operations` (post-reconciliation, if any) rather than
+	// gating on `!openapi`, because a partially-reconciled contract (matched paths corrected, a
+	// drift/missing one left at its uncorrected scan path) is exactly the mixed case
+	// unreflectedPathPrefixes() itself warns is no safer than a wholly-unprefixed contract.
+	for (const prefix of unreflectedPathPrefixes({ operations }, pathPrefixCandidates(scanReport.path_prefix_signals))) {
+		warnings.push(makeWarning('CONTRACT_UNREFLECTED_PATH_PREFIX', {
+			subject: prefix,
+			message: `the scan found a global path-prefix signal (${prefix}) that this contract's operation paths do not reflect -- \`contract export\` already refuses to publish this by default (see D-openapi-export); this warning surfaces the same issue at \`contract emit\` time instead of only at export time. Re-run with --openapi-file to correct the paths, or waive if this signal genuinely does not apply to this module.`,
+			detail: { prefix },
 		}));
 	}
 

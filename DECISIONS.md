@@ -497,6 +497,30 @@ exactly this trap on `registerCurriculum` by chance, not because anything forced
 **EXIT**: `contracts/completeness.mjs`'s `WARNING_CODES` table is the single place to add a new
 warning code, adjust its default severity, or change whether it's waivable.
 
+**Update (2026-08-24, real dogfooding, Phase 3, Team-IZ/Backend)**: this module's own
+`classifyContract()` never looked at A1 §7's `path_prefix_signals` at all -- only `contract
+export` (D-openapi-export, A6, below) did, via `unreflectedPathPrefixes()`. A real Codex-run
+dogfooding pass against the real `organization` module (which genuinely has an unaddressed
+`/api/v0` prefix) surfaced that this let a contract with wrong paths classify as `complete` --
+`contract export` still caught it before publishing, but the contract's own completeness verdict
+was misleadingly clean before that point. Fixed by adding `CONTRACT_UNREFLECTED_PATH_PREFIX`
+(ERROR, waivable -- same severity class as `CONTRACT_OPENAPI_DRIFT`, for the same "a wrong path is
+a correctness defect, not a missed enhancement" reason) to `WARNING_CODES`, and having
+`contracts/emit.mjs`'s `buildContract()` call the SAME `pathPrefixCandidates()`/
+`unreflectedPathPrefixes()` functions A6 already had (contracts/export.mjs), rather than
+re-deriving prefix detection. Runs against the final `operations` (post-reconciliation, if any),
+not gated on `!openapi`, for the same "a partially-corrected contract is the dangerous mixed case"
+reason A6's own guard already cared about. Real consequence: the real `organization` module's
+smoke test (`test/contract.test.mjs`) now correctly asserts `partial` with exactly this one
+warning, where it previously (wrongly) asserted `complete`/zero-warnings -- that assertion was
+itself encoding the bug. `test/contract-fixture.test.mjs`'s frozen fixture (which mirrors the real
+`/api/v0` setup) updated identically. `test/contract-export.test.mjs`'s refusal test restructured:
+`contract emit` now blocks (exit 3, `awaiting_disposition`) before `contract export` is even
+reached in the un-waived case; a waiver demonstrates defense-in-depth -- `contract export`'s own
+guard does not trust an upstream completeness waiver and still refuses without `--allow-unprefixed`.
+Tests 840 -> 841 (net; three updated in place, one new). See D-openapi-export below for the
+companion `--path-prefix` fix from the same dogfooding pass.
+
 ## D-openapi-reconciliation (A1): a source-annotation contract cannot see a framework-level path prefix
 
 **WHY**: after A5, Codex's next suggested item was OpenAPI operation reconciliation, scoped to a
@@ -6344,3 +6368,15 @@ precedent `test/_contract-fixture.mjs` follows); `D-artifact-determinism` (O6, t
 byte-identical-re-run property an export inherits and is tested for);
 `D-javascript-express-adapter` (G6, the "confirm the test fails against the pre-fix code before
 keeping it" discipline both importer fixes followed).
+
+**Update (2026-08-24, real dogfooding, Phase 3, Team-IZ/Backend)**: `--path-prefix` is only ever
+read inside `buildReconciliation()`, called only when `--openapi-file` is also given
+(`bin/bskel.mjs`'s `cmdContractEmit`) -- passing `--path-prefix` alone was a silent no-op with zero
+feedback, found by a real Codex-run dogfooding pass against Team-IZ/Backend, not by review. Fixed
+with an early, repo-independent check in `cmdContractEmit`: `--path-prefix` without
+`--openapi-file` now fails closed (exit 14, BAD_ARGS) with a message naming exactly why (the flag
+has no effect on its own), before any gate/feature-state work runs. New regression test in
+`test/contract-cli.test.mjs`. See D-contract-completeness above for the companion
+`CONTRACT_UNREFLECTED_PATH_PREFIX` fix from the same dogfooding pass -- that one is the more
+consequential of the two (it changes a real module's completeness verdict); this one is a pure
+CLI-ergonomics fix with no completeness-logic change.

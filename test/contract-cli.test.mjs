@@ -302,6 +302,24 @@ test('a nonexistent --openapi-file, broken JSON, and an invalid --path-prefix al
 	assert.equal(JSON.parse(gateShow.stdout).record, null, 'the contract gate must never have been touched by any of the three failed emits above');
 });
 
+// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): --path-prefix only has any
+// effect inside the --openapi-file reconciliation path -- passing it alone used to be a silent
+// no-op with zero feedback. This is checked before any repo/gate work, so it must fail even
+// without a valid --feature or an initialized repo.
+test('--path-prefix without --openapi-file is rejected as a silent no-op, before touching the repo or the gate', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+
+	const bare = run(['contract', 'emit', '--feature', '001-widget-management', '--path-prefix', '/api/v0'], root);
+	assert.equal(bare.code, 14);
+	assert.match(bare.stderr, /--path-prefix only applies when reconciling against a real OpenAPI document/);
+	assert.ok(!fs.existsSync(contractSchemaPath(root)));
+
+	const gateShow = run(['gate', 'show', 'contract', '--feature', '001-widget-management'], root);
+	assert.equal(gateShow.code, 0);
+	assert.equal(JSON.parse(gateShow.stdout).record, null, 'the contract gate must never have been touched');
+});
+
 test('gate token: deleting the openapi snapshot after a corrected emit makes contract stale; restoring it passes again', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
