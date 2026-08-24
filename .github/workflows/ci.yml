@@ -17,6 +17,14 @@ on:
     paths-ignore:
       - '**/*.md'
   workflow_dispatch:
+  # D-greenfield-parameters (P2b): `bskel new --stack spring`'s own local validators (group-id,
+  # package-name, java-version) exist specifically because start.spring.io's live behavior is
+  # measured, point-in-time evidence, not a stable contract -- javaVersion=99 returning HTTP 200
+  # today doesn't mean it always will, and vice versa. A daily, non-blocking canary (spring-
+  # initializr-canary job below) re-runs that same real scaffold-and-compile against the live
+  # service so drift shows up as a scheduled-run failure, not silently inside someone's PR.
+  schedule:
+    - cron: '17 3 * * *'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -345,3 +353,33 @@ jobs:
           java-version: '17'
       - run: npm ci
       - run: npm test
+
+  # D-greenfield-parameters (P2b): the ONLY job in this workflow that talks to a live external
+  # service -- deliberately kept off the push/PR path (`npm test`'s own start.spring.io coverage
+  # is entirely mocked-fetch, matching D-greenfield-bootstrap's "CI must not hit an external
+  # service" rule) and run on a schedule instead, so drift in Initializr's own behavior surfaces
+  # as a scheduled-run failure someone notices, not a silent gap in what CI actually proves.
+  # Never blocks a PR: `schedule`/`workflow_dispatch` only, via the `if:` below.
+  spring-initializr-canary:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      # java-version here MUST match scripts/spring-initializr-canary.mjs's own hardcoded
+      # --java-version -- found live, not anticipated: the script requests a real, non-default
+      # Java version (21) specifically to exercise P2b's on-demand start.spring.io metadata
+      # fetch, and Gradle's own toolchain resolution genuinely fails closed (a clean, correct
+      # "Cannot find a Java installation... matching {languageVersion=21}" error, not a bskel bug)
+      # if the requested toolchain isn't actually installed on the runner. If the canary script's
+      # own --java-version value ever changes, this must change with it.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: npm run test:spring-initializr-canary
