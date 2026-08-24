@@ -195,14 +195,20 @@ test('smoke (real Team-IZ-Backend, when present): curriculum module -- endpoint_
 	assert.equal(unmatched.length, contract.completeness.endpoint_count - contract.completeness.operation_count);
 });
 
-// A5, real-oracle regression: organization must stay `complete` with zero warnings -- A5 must not
-// turn an already-good contract into a false positive. No exact operation_count assertion (that
-// number is free to grow as the real API grows); "complete, zero warnings" is the invariant.
-test('smoke (real Team-IZ-Backend, when present): organization module stays complete with zero warnings', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
+// A5, real-oracle regression: organization must stay `partial` with exactly the one, expected
+// warning -- A5 must not turn an already-good contract into a false positive, and (real dogfooding
+// finding, Phase 3, Team-IZ/Backend, 2026-08-24) this module's real ApiPathConfig.addPathPrefix
+// global `/api/v0` prefix is genuinely unreflected in a scan-only contract (no --openapi-file), so
+// asserting `complete`/zero-warnings here was itself the bug CONTRACT_UNREFLECTED_PATH_PREFIX was
+// added to catch -- see contracts/completeness.mjs. No exact operation_count assertion (that
+// number is free to grow as the real API grows).
+test('smoke (real Team-IZ-Backend, when present): organization module is partial, with exactly the unreflected-/api/v0-prefix warning', { skip: !repoPresent && 'Team-IZ-Backend not present' }, () => {
 	const contract = buildRealContract();
-	assert.equal(contract.completeness.status, 'complete');
+	assert.equal(contract.completeness.status, 'partial');
 	assert.ok(contract.completeness.operation_count > 0);
-	assert.equal(contract.warnings.length, 0);
+	assert.equal(contract.warnings.length, 1);
+	assert.equal(contract.warnings[0].code, 'CONTRACT_UNREFLECTED_PATH_PREFIX');
+	assert.equal(contract.warnings[0].subject, '/api/v0');
 });
 
 // A5: promotes schemas/feature-contract.schema.json from an unreferenced document into a live

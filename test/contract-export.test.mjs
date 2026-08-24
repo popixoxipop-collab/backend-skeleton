@@ -338,8 +338,24 @@ test('a scanned global path-prefix signal the contract does not reflect refuses 
 	const report = JSON.parse(fs.readFileSync(path.join(root, `specs/${FEATURE}/brownfield-scan.json`), 'utf8'));
 	assert.ok(report.path_prefix_signals.some((s) => s.kind === 'context-path' && s.prefix === '/api/v0'), 'the fixture must actually produce a prefix signal');
 
-	// Emitted with no --openapi-file: every path is missing the prefix the scan just found.
-	assert.equal(run(['contract', 'emit', '--feature', FEATURE], root).code, 0);
+	// Real dogfooding finding (Phase 3, Team-IZ/Backend, 2026-08-24): `contract emit` itself now
+	// also catches an unaddressed prefix signal (CONTRACT_UNREFLECTED_PATH_PREFIX), not just
+	// `contract export` -- every path is missing the prefix the scan just found, so the contract
+	// gate does not pass without a waiver, and `contract export` (which requires a passed gate)
+	// never even reaches its own guard here.
+	const emitted = run(['contract', 'emit', '--feature', FEATURE], root);
+	assert.equal(emitted.code, 3);
+	assert.match(emitted.stderr, /CONTRACT_UNREFLECTED_PATH_PREFIX/);
+	const blockedByGate = run(['contract', 'export', '--feature', FEATURE, '--out', 'exported.json'], root);
+	assert.notEqual(blockedByGate.code, 0);
+	assert.equal(fs.existsSync(path.join(root, 'exported.json')), false);
+
+	// Waiving the completeness warning lets the gate pass -- but `contract export`'s OWN
+	// independent guard (contracts/export.mjs's unreflectedPathPrefixes()) does not trust an
+	// upstream waiver and must still refuse. Defense in depth: a human saying "this doesn't block
+	// completeness" is not the same as saying "publish these exact paths to a client generator".
+	assert.equal(run(['contract', 'waive', '--feature', FEATURE, '--code', 'CONTRACT_UNREFLECTED_PATH_PREFIX', '--subject', '/api/v0', '--reason', 'test'], root).code, 0);
+
 	const refused = run(['contract', 'export', '--feature', FEATURE, '--out', 'exported.json'], root);
 	assert.equal(refused.code, 14);
 	assert.match(refused.stderr, /global path-prefix signal \(\/api\/v0\)/);
