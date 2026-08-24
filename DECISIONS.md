@@ -5938,6 +5938,30 @@ through to); `D-adapter-registry` (G1, the fresh-every-run detection this item's
 stance is consistent with); `D-fastapi-adapter` (G2, `detectPythonFastApiRoot()`, the invariant every
 template edit here is tested against); `D-npm-packaging` (P1, the `files` allowlist this item needed
 no change to).
+
+**Update (beta-release-prep)**: a second-opinion review (Codex, asked to independently assess this
+project's own next direction) flagged a real residual risk in this item's own design that had gone
+unaddressed: the live `start.spring.io` validation matrix recorded above is explicitly a
+**point-in-time measurement** of a service this project doesn't control, but `npm test`'s own
+coverage of it is entirely mocked-`fetch` (by design -- `D-greenfield-bootstrap`'s "CI must not hit
+an external service" rule, which this item inherited unchanged). That combination meant nothing
+would ever notice if Initializr's real, live behavior drifted from what was measured when this item
+shipped -- a `--java-version` value that fails open today could start failing closed tomorrow (or
+vice versa) with no test anywhere catching it. Closed with a new `spring-initializr-canary` CI job
+(`.github/workflows/ci.yml`) and `scripts/spring-initializr-canary.mjs`: a real, unmocked
+`bskel new --stack spring --java-version 21 --add-dependencies actuator` against the live API,
+followed by a real `./gradlew compileJava`, run on a **daily schedule only** (`cron`), never on
+push/PR -- the same "keep a live-service dependency off the blocking path" posture
+`D-greenfield-bootstrap` already established for why this whole command needs `--offline` and never
+auto-chains into anything. Verified locally before shipping: the scaffold step alone (no network-adjacent
+JDK-availability confound) correctly produces a `build.gradle` requesting `JavaLanguageVersion.of(21)`
+`com.example.canary`/`spring-boot-starter-actuator`; a full scaffold-then-compile pass against a real
+non-default Java version (26, the one actually installed on the verifying machine -- 21 was not
+locally available, a real environment gap distinct from anything this item's own code does)
+produced a clean `BUILD SUCCESSFUL`, confirming the mechanism end-to-end. The CI job's own
+`actions/setup-java@v4` step is pinned to Java 21 specifically to match the canary script's own
+hardcoded `--java-version` -- the two must be changed together, noted inline in both files.
+
 ## D-openapi-export (A6): the export direction, and the four ways a lossy projection can lie
 
 **WHY**: A1 built the OpenAPI IMPORT direction and A2/A3 made it load-bearing -- `python-fastapi`,

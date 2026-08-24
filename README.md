@@ -1,18 +1,39 @@
 # backend-skeleton
 
-Spec-driven backend scaffolding for brownfield (and greenfield) Java/Spring Boot and Python/FastAPI
-repos: a brownfield-collision gate before any spec/plan step, feature_id-scoped machine-readable
-contracts, UUID-addressable field handles, and stack-choice (e.g. ngrok) wiring — all enforced by
-disk `content-hash` gates, not prompt instructions a future session could ignore.
+Spec-driven backend scaffolding for brownfield (and greenfield) Java/Spring Boot, Python/FastAPI,
+and TypeScript/JavaScript Express repos: a brownfield-collision gate before any spec/plan step,
+feature_id-scoped machine-readable contracts, UUID-addressable field handles, and stack-choice
+(e.g. ngrok) wiring — all enforced by disk `content-hash` gates, not prompt instructions a future
+session could ignore.
 
 `bskel` exists because a previous ad-hoc agent-driven scaffolding attempt branched a worktree 658
 commits behind the real default branch and never noticed. Every gate in this tool is a regression
 check for a specific failure mode found the same way — see `DECISIONS.md` for the full record.
 
+## Status: beta
+
+This is the first public release, and it's deliberately labeled a beta rather than `1.0.0`
+stable. Split by actual maturity, not by feature list:
+
+- **`scan`, `contract` (including `export`), and `new`** are the most exercised paths — real,
+  measured verification against a real production Spring Boot repo (see `DECISIONS.md`), plus a
+  synthetic fixture corpus for every adapter, run in CI on every change.
+- **`handles`** (the UUID-addressable resolver/codec/router codegen) is functionally complete and
+  tested the same way, but has never been deployed to a real production repo, and two named gaps
+  stay open specifically because of that: generated `fetch()`/`patch()` paths never check
+  `HandleRegistry` for revocation, and generated authorization is inferred from a single
+  `@PreAuthorize(hasRole(...))` shape rather than a real policy contract. Both are tracked as `O3`
+  and `O5` in `CATALOG.md`, explicitly deferred until handles are actually used somewhere real --
+  treat `handles emit`'s output as a scaffold to finish by hand, not a production-ready subsystem,
+  until that work lands.
+
+Version numbers, install instructions, and a real feedback path will firm up as this gets used
+against more real repos.
+
 ## Quickstart
 
 ```bash
-npm install -g backend-skeleton   # or: npx backend-skeleton <command>
+npm install -g backend-skeleton@beta   # or: npx backend-skeleton@beta <command>
 cd <target-repo>                  # must be a git repository
 
 bskel doctor                      # what's on PATH, which scanner adapter detects this repo, and why
