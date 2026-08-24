@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["sbf_contract", "feature_id", "feature_uid", "source", "operations", "warnings", "completeness"],
   "properties": {
-    "sbf_contract": { "const": "5" },
+    "sbf_contract": { "const": "6" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
     "source": {
@@ -66,6 +66,38 @@
             "description": "A7: the operation's `tags` array, copied verbatim from the source document. Present only when the source document set at least one.",
             "type": "array",
             "items": { "type": "string" }
+          },
+          "sourceResponses": {
+            "description": "A8: per-status HTTP responses copied from a real source document, keyed by the document's own literal status key (a literal code, a range key like \"2XX\", or \"default\") -- never re-bucketed. Additive to responseSchema/errorSchema above, never replacing them; contracts/validate.mjs does not read this field. Present only when matched/adopted AND both the response and error union projections resolved cleanly (or had nothing to project) for this operation.",
+            "type": "object",
+            "propertyNames": { "pattern": "^(?:[1-5](?:[0-9]{2}|XX)|default)$" },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "description": { "type": "string" },
+                "schemaFrom": { "enum": ["response", "error"] },
+                "schema": { "type": "object" },
+                "mediaTypes": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "sourceRequestBody": {
+            "description": "A8: the request body's non-application/json media types (e.g. multipart/form-data), copied from a real source document. `content` never carries an \"application/json\" key -- that stays requestBodySchema above, the one representation of that one fact.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "required": { "type": "boolean" },
+              "content": {
+                "type": "object",
+                "not": { "required": ["application/json"] },
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": { "schema": { "type": "object" } }
+                }
+              }
+            }
           }
         }
       }

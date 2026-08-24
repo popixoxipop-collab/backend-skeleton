@@ -15,12 +15,13 @@ import { pathPrefixCandidates, unreflectedPathPrefixes } from './export.mjs';
 // a path param. Direction stays one-way (openapi.mjs imports from emit.mjs, never the reverse).
 export const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
-// A7: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract` const --
-// bin/bskel.mjs's loadContract() imports this too, so the friendly "re-emit with the current bskel"
-// message and the value actually written here cannot drift apart. Bumped "4" -> "5" for this item
-// (source* fields + sourceSecuritySchemes); this bump has a real read-time consequence unlike A2/A3
-// (S5's loadContract() schema validation postdates them) -- see D-openapi-passthrough.
-export const CONTRACT_SCHEMA_VERSION = '5';
+// A7/A8: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
+// const -- bin/bskel.mjs's loadContract() imports this too, so the friendly "re-emit with the
+// current bskel" message and the value actually written here cannot drift apart. Bumped "5" -> "6"
+// for this item (sourceResponses/sourceRequestBody) -- cheap this time: the friendly re-emit
+// pre-check in loadContract() needed zero code change, it already compares against this imported
+// constant -- see D-openapi-per-status.
+export const CONTRACT_SCHEMA_VERSION = '6';
 
 function pathParamsSchema(routePath) {
 	const params = [...routePath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
@@ -117,6 +118,10 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				let securityUnresolvedReason = null;
 				let sourceSummary = null;
 				let sourceTags = null;
+				// A8: same discipline, for the two new passthrough fields.
+				let sourceResponses = null;
+				let sourceRequestBody = null;
+				let requestMediaTypesUnresolvedReason = null;
 
 				if (res) {
 					switch (res.kind) {
@@ -140,6 +145,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							securityUnresolvedReason = res.securityUnresolvedReason ?? null;
 							sourceSummary = res.sourceSummary ?? null;
 							sourceTags = res.sourceTags ?? null;
+							sourceResponses = res.sourceResponses ?? null;
+							sourceRequestBody = res.sourceRequestBody ?? null;
+							requestMediaTypesUnresolvedReason = res.requestMediaTypesUnresolvedReason ?? null;
 							break;
 						case 'adopted':
 							// No @Operation(operationId=...) in source at all -- the id itself comes from
@@ -163,6 +171,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							securityUnresolvedReason = res.securityUnresolvedReason ?? null;
 							sourceSummary = res.sourceSummary ?? null;
 							sourceTags = res.sourceTags ?? null;
+							sourceResponses = res.sourceResponses ?? null;
+							sourceRequestBody = res.sourceRequestBody ?? null;
+							requestMediaTypesUnresolvedReason = res.requestMediaTypesUnresolvedReason ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
 								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
@@ -292,6 +303,23 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						detail: { reason: securityUnresolvedReason, verb, path: route, operationId },
 					}));
 				}
+				// A8: the operation's request body declared a non-application/json media type (e.g.
+				// multipart/form-data) whose schema could not be fully projected -- the media type
+				// itself is still recorded in sourceRequestBody (see contracts/openapi.mjs's
+				// applyRequestMediaTypes), only its shape is missing. A SEPARATE code from
+				// CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (the application/json body's own code): the two
+				// CAN co-occur on one operation (an endpoint legally accepting both application/json
+				// and multipart/form-data), and warningKey is {code, subject=operationId} -- sharing a
+				// code would let a waiver for one silently cover the other, the same reasoning
+				// D-openapi-response-schema's response/error split already established and A7 reused
+				// for parameters/security.
+				if (requestMediaTypesUnresolvedReason) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) declares a non-JSON request media type that could not be fully copied (${requestMediaTypesUnresolvedReason}) -- the media type name is still recorded where possible, its shape is not`,
+						detail: { reason: requestMediaTypesUnresolvedReason, verb, path: route, operationId },
+					}));
+				}
 				operations[operationId] = {
 					verb,
 					path: route,
@@ -308,6 +336,8 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 					...(sourceSecurity ? { sourceSecurity } : {}),
 					...(sourceSummary ? { sourceSummary } : {}),
 					...(sourceTags ? { sourceTags } : {}),
+					...(sourceResponses ? { sourceResponses } : {}),
+					...(sourceRequestBody ? { sourceRequestBody } : {}),
 				};
 			}
 		}

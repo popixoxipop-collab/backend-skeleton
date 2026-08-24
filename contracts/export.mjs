@@ -14,13 +14,16 @@
 // the contract does not know. A7 (D-openapi-passthrough) narrowed that lossiness for four fields --
 // query/header/cookie parameters, security (+securitySchemes), summary, and tags are now emitted,
 // but ONLY when a real source document (--openapi-file) licensed it for that EXACT operation; where
-// no source stated one, the key is still omitted, meaning "unspecified". Per-status responses,
-// non-JSON media types, and operation `description` remain Phase 2 -- still always omitted, still
-// disclosed as structural. Every omission is disclosed in prose (`info.description`) and
-// machine-readably (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export and
-// D-openapi-passthrough in DECISIONS.md.
+// no source stated one, the key is still omitted, meaning "unspecified". A8 (D-openapi-per-status)
+// extends the same discipline to per-status responses (additive to, never replacing, the
+// responseSchema/errorSchema union) and non-JSON request media types. Operation-level
+// `description` remains excluded -- measured too expensive to default-on (2,442.7 bytes/operation
+// average, larger than every other field this projection copies combined), still disclosed as
+// structural. Every omission is disclosed in prose (`info.description`) and machine-readably
+// (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export, D-openapi-passthrough,
+// and D-openapi-per-status in DECISIONS.md.
 import { createHash } from 'node:crypto';
-import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE } from './openapi.mjs';
+import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE, RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN } from './openapi.mjs';
 
 // 3.1 ONLY, and deliberately no 3.0 mode even as a flag -- this is a cited exclusion, not
 // laziness. Verified by executing the official meta-schemas, not by reading prose: 3.0's
@@ -54,31 +57,39 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 //
 // A7: query/header/cookie parameters, security, summaries, and tags moved OUT of this list -- they
 // are now real emitted content when a source document licensed them, so they only belong in the
-// DERIVED (ANY-based) set collectOmissions() builds below. `descriptions` (field-level AND, still
-// unbuilt, operation-level), `non-json-media-types`, and `per-status-responses` stay here -- all
-// three are Phase 2, untouched by this item. Two new always-on entries: `path-parameter-schemas`
-// (path-param schemas come from this contract's own name heuristic, never from a source document,
-// even when --openapi-file was given -- see the real `batchRequestId` finding in
-// D-openapi-passthrough) and `vendor-extensions` (x-* keys on an operation are never copied --
-// excluded in principle, not by cap or failure, since their semantics are tool-specific).
+// DERIVED (ANY-based) set collectOmissions() builds below. A8 moves `per-status-responses` and
+// `non-json-request-media-types` (renamed from `non-json-media-types`) out the same way. What
+// stays structural: `descriptions` (field-level AND operation-level -- the latter measured and
+// deliberately excluded, not merely unbuilt), `path-parameter-schemas` (path-param schemas come
+// from this contract's own name heuristic, never from a source document, even when --openapi-file
+// was given -- see the real `batchRequestId` finding in D-openapi-passthrough), `vendor-extensions`
+// (x-* keys on an operation are never copied -- excluded in principle, not by cap or failure, since
+// their semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a
+// non-JSON response media type's NAME is copied via a per-status entry's `mediaTypes`, but its
+// SHAPE is never projected -- 0/674 real occurrences, so building that machinery would violate
+// this project's own "don't build for zero real cases" discipline) and `response-headers`
+// (response `headers`/`links` -- 0/694 real occurrences, a genuinely visible gap only now that
+// per-status responses look complete).
 const STRUCTURAL_OMISSIONS = Object.freeze([
 	'descriptions',
-	'non-json-media-types',
+	'non-json-response-schemas',
 	'path-parameter-schemas',
-	'per-status-responses',
+	'response-headers',
 	'vendor-extensions',
 ]);
 
 const OMISSION_PROSE = Object.freeze({
 	'cookie-parameters': 'cookie parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
-	descriptions: 'field-level descriptions/titles/examples (contracts/openapi.mjs drops them as DROPPED_KEYWORDS while inlining a schema), and operation-level `description` (not yet built -- Phase 2)',
+	descriptions: 'field-level descriptions/titles/examples (contracts/openapi.mjs drops them as DROPPED_KEYWORDS while inlining a schema), and operation-level `description` -- measured and deliberately excluded (real average 2,442.7 bytes/operation, larger than every other field this projection copies combined); if ever built, it must be opt-in behind a flag, unlike everything else this projection copies by default',
 	'error-schemas': 'a JSON error-body schema for at least one operation',
 	'header-parameters': 'header parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
-	'non-json-media-types': 'request/response bodies in any media type other than application/json (multipart uploads in particular are invisible to the contract)',
+	'non-json-request-media-types': 'the media type of the request body, for at least one operation that takes one -- a non-application/json request media type is emitted only when a real source document declared one for that exact operation, copied byte-for-byte; otherwise this document shows a JSON media-type entry because that is all the contract knows, never because the real body is known to be JSON',
+	'non-json-response-schemas': 'a JSON Schema for any response body in a media type other than application/json -- the media type is named where a source document declared one for that status, but its shape is never projected',
 	'path-parameter-schemas': 'path parameter schemas -- always derived from this contract\'s own name heuristic (a trailing "Id" is assumed to be a UUID), never from a source document even when --openapi-file was given; a real, small false-negative of this heuristic is known and disclosed, not fixed, by this projection',
-	'per-status-responses': 'per-status responses -- the contract collapses every 2xx body into one union and every 4xx/5xx body into another, and records no status codes at all',
+	'per-status-responses': 'per-status responses, for at least one operation -- that operation\'s entry collapses every documented 2xx body into one `2XX` union and every 4xx/5xx body into one `default` union, and records no real status codes. Where a real source document (--openapi-file) documented statuses for an operation, its own status codes and descriptions are emitted verbatim instead; nothing is invented for an operation the source said nothing about',
 	'query-parameters': 'query parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'request-body-schemas': 'a JSON request-body schema for at least one operation that takes a body',
+	'response-headers': 'response headers and links on any documented status -- copyable in principle, not built; a per-status response here describes its body and nothing else',
 	'response-schemas': 'a JSON success-body schema for at least one operation',
 	security: 'security requirements and/or security schemes, for at least one operation -- `security` is emitted ONLY when a real source document (--openapi-file) stated one for that EXACT operation, byte-for-byte, including a literal `[]` (a genuine claim that no authentication is required); where no source document was given, or the source stated nothing for that operation, the key is omitted, meaning "unspecified", never invented',
 	summaries: 'operation summaries, for at least one operation -- copied from a real source document when present, never synthesized from operationId or module names',
@@ -112,8 +123,39 @@ export function collectOmissions(contract) {
 		if (!op.sourceSecurity) omissions.add('security');
 		if (!op.sourceSummary) omissions.add('summaries');
 		if (!op.sourceTags) omissions.add('tags');
+		// A8: per-status responses -- ANY-based, same doctrine as every check above.
+		if (!(op.sourceResponses && typeof op.sourceResponses === 'object' && Object.keys(op.sourceResponses).length > 0)) {
+			omissions.add('per-status-responses');
+		}
+		// A8: non-JSON request media type -- only meaningful for an operation that takes a body at
+		// all (same gate request-body-schemas above already uses); an operation with body===false
+		// genuinely has no request media type to disclose.
+		if ((op.body === true || op.body === 'unknown') && !op.requestBodySchema && !op.sourceRequestBody) {
+			omissions.add('non-json-request-media-types');
+		}
 	}
 	return [...omissions].sort();
+}
+
+// A8: which of the three status-codes variants applies -- none of this contract's response/error-
+// bearing operations carry per-status source data (the pre-A8 union-only story, unchanged wording),
+// all of them do (every real status code in this export is a copied fact, not an invented one), or
+// a mix (some real, some union stand-ins) -- computed from the contract's own content, never
+// guessed.
+function statusCodesLine(contract, statusCodes) {
+	const opsWithSchema = Object.values(contract.operations).filter((op) => op.responseSchema || op.errorSchema);
+	const perStatusCount = opsWithSchema.filter((op) => op.sourceResponses && typeof op.sourceResponses === 'object' && Object.keys(op.sourceResponses).length > 0).length;
+	if (opsWithSchema.length > 0 && perStatusCount === opsWithSchema.length) {
+		return 'Status codes: every response/error-bearing operation in this export carries the source document\'s own real status codes, copied verbatim (--openapi-file) -- nothing here is invented.';
+	}
+	if (perStatusCount > 0) {
+		return statusCodes === 'literal'
+			? `Status codes: ${perStatusCount} of ${opsWithSchema.length} response/error-bearing operation(s) carry the source document's own real status codes, copied verbatim; the rest have no per-status source data, so \`200\` is a bskel-chosen stand-in for those -- see info.x-bskel-generated.passthrough for exactly which is which.`
+			: `Status codes: ${perStatusCount} of ${opsWithSchema.length} response/error-bearing operation(s) carry the source document's own real status codes, copied verbatim; the rest have no per-status source data, so \`2XX\`/\`default\` range keys are used for those, inventing nothing but recording no real code -- see info.x-bskel-generated.passthrough for exactly which is which.`;
+	}
+	return statusCodes === 'literal'
+		? 'Status codes: `200` is a bskel-chosen stand-in for "the documented success body". The source contract records no status codes whatsoever, so `200` here is NOT a claim that this operation returns 200. Re-export with `--status-codes range` for the spec-legal `2XX` range key, which invents nothing.'
+		: 'Status codes: `2XX` and `default` are OpenAPI 3.1 range keys. They are used because the source contract records no status codes whatsoever, so any concrete code would be invented.';
 }
 
 function renderDescription(contract, omissions, statusCodes) {
@@ -127,9 +169,7 @@ function renderDescription(contract, omissions, statusCodes) {
 		'',
 		...omissions.map((key) => `  - ${key}: ${OMISSION_PROSE[key] ?? key}`),
 		'',
-		statusCodes === 'literal'
-			? 'Status codes: `200` is a bskel-chosen stand-in for "the documented success body". The source contract records no status codes whatsoever, so `200` here is NOT a claim that this operation returns 200. Re-export with `--status-codes range` for the spec-legal `2XX` range key, which invents nothing.'
-			: 'Status codes: `2XX` and `default` are OpenAPI 3.1 range keys. They are used because the source contract records no status codes whatsoever, so any concrete code would be invented.',
+		statusCodesLine(contract, statusCodes),
 		'',
 		'The same information, machine-readable, is in `info.x-bskel-omitted`.',
 	];
@@ -190,17 +230,98 @@ function buildOperationParameters(op) {
 // whose shape this contract does not know" without inventing one. Emitting `{type: 'object'}` there
 // would be a fabricated schema, AND would break the round-trip invariant (re-importing would
 // produce a `requestBodySchema` the original contract never had).
+//
+// A8: non-JSON media types (op.sourceRequestBody) merge in regardless of the JSON branch above -- a
+// real operation can legally accept BOTH application/json and multipart/form-data. This is also
+// where the real, pre-existing `body:false`-but-a-real-body-exists disagreement (see
+// D-openapi-per-status -- multipart handlers use @RequestPart, not @RequestBody, so the scan
+// misses them) becomes visible for multipart the same way it already was for JSON: `body:false` +
+// a source document that documented a body wins, extending a shipped behavior rather than
+// inventing one. Revalidated through MEDIA_TYPE_RE the same defensive way buildPerStatusResponses
+// revalidates status keys below (the contract file is hand-editable JSON on disk -- S5);
+// JSON_MEDIA_TYPE itself is excluded explicitly, so this loop cannot introduce a second
+// "application/json" entry even from a hand-edited file.
+//
+// A real bug found by executing this against a multipart-only fixture, not by inspection: the
+// `op.body === true/'unknown'` bare-JSON fallback below is a SCAN-driven guess for "we don't know
+// this body's shape at all" -- but when `op.sourceRequestBody` is present, reconciliation already
+// positively determined this operation's ONLY media type(s) from a real document, and none of them
+// was `application/json`. Applying the guess on top of that positive fact would emit a second,
+// contradicting "maybe it's also unconstrained JSON" entry the source document never declared --
+// worse than the pre-A8 gap it extends, not a continuation of it. So the fallback is suppressed
+// whenever real per-operation media-type information already exists, JSON or not.
 function buildRequestBody(op) {
+	const hasSourceMediaTypeInfo = op.sourceRequestBody && typeof op.sourceRequestBody === 'object' && !Array.isArray(op.sourceRequestBody);
+	let body = null;
 	if (op.requestBodySchema) {
-		return {
-			required: op.requestBodyRequired === true,
-			content: { [JSON_MEDIA_TYPE]: { schema: op.requestBodySchema } },
-		};
+		body = { required: op.requestBodyRequired === true, content: { [JSON_MEDIA_TYPE]: { schema: op.requestBodySchema } } };
+	} else if (op.body === true && !hasSourceMediaTypeInfo) {
+		body = { required: true, content: { [JSON_MEDIA_TYPE]: {} } };
+	} else if (op.body === 'unknown' && !hasSourceMediaTypeInfo) {
+		body = { content: { [JSON_MEDIA_TYPE]: {} } };
 	}
-	if (op.body === true) return { required: true, content: { [JSON_MEDIA_TYPE]: {} } };
-	if (op.body === 'unknown') return { content: { [JSON_MEDIA_TYPE]: {} } };
-	// op.body === false: the scan positively determined this operation takes no @RequestBody.
-	return null;
+	// op.body === false, or op.body true/'unknown' with real sourceRequestBody info taking
+	// precedence over the scan-driven guess: body stays null here, filled in below if
+	// sourceRequestBody has real content.
+
+	const srcContent = hasSourceMediaTypeInfo ? op.sourceRequestBody.content : null;
+	if (srcContent && typeof srcContent === 'object' && !Array.isArray(srcContent)) {
+		for (const mt of Object.keys(srcContent)) {
+			if (mt === JSON_MEDIA_TYPE || !MEDIA_TYPE_RE.test(mt)) continue;
+			const entry = srcContent[mt];
+			const mediaTypeObject = {};
+			if (entry && typeof entry === 'object' && !Array.isArray(entry) && entry.schema && typeof entry.schema === 'object' && !Array.isArray(entry.schema)) {
+				mediaTypeObject.schema = entry.schema;
+			}
+			if (!body) body = { content: {} };
+			body.content[mt] = mediaTypeObject;
+		}
+		if (body && op.sourceRequestBody.required === true) body.required = true;
+	}
+	return body;
+}
+
+// A8: the per-status path -- returns null (never {}) when op.sourceResponses is absent OR,
+// defensively, when nothing in it survives revalidation (reconciliation itself never produces an
+// empty sourceResponses, see contracts/openapi.mjs's applyPerStatusResponses' anyEntry check; this
+// branch only matters for a hand-edited contract file -- S5/persistence-integrity). Revalidated
+// through RESPONSE_STATUS_KEY_RE/MEDIA_TYPE_RE the same defensive way buildRequestBody() revalidates
+// media-type keys above -- this is the one place a status/media-type key becomes a real object key
+// in the exported document, so it cannot simply trust what is already on disk. Presence of a
+// non-null return here IS the seam buildResponses() below acts on: no other logic decides between
+// the two paths.
+function buildPerStatusResponses(op) {
+	if (!op.sourceResponses || typeof op.sourceResponses !== 'object' || Array.isArray(op.sourceResponses)) return null;
+	const responses = new Map();
+	for (const key of Object.keys(op.sourceResponses)) {
+		if (!RESPONSE_STATUS_KEY_RE.test(key)) continue;
+		const entry = op.sourceResponses[key];
+		if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+		// OpenAPI 3.1 requires `description` on every Response Object -- same rule the union path
+		// below already follows, source-conditioned here: a real copied description if the source had
+		// one, else a stand-in that describes the projection, never the API (same discipline
+		// SUCCESS_RESPONSE_DESCRIPTION/ERROR_RESPONSE_DESCRIPTION already established).
+		const responseObject = {
+			description: typeof entry.description === 'string' && entry.description.length > 0
+				? entry.description
+				: PER_STATUS_NO_DESCRIPTION_STANDIN,
+		};
+		if (entry.schemaFrom === 'response' && op.responseSchema) {
+			responseObject.content = { [JSON_MEDIA_TYPE]: { schema: op.responseSchema } };
+		} else if (entry.schemaFrom === 'error' && op.errorSchema) {
+			responseObject.content = { [JSON_MEDIA_TYPE]: { schema: op.errorSchema } };
+		} else if (entry.schema && typeof entry.schema === 'object' && !Array.isArray(entry.schema)) {
+			responseObject.content = { [JSON_MEDIA_TYPE]: { schema: entry.schema } };
+		} else if (Array.isArray(entry.mediaTypes) && entry.mediaTypes.length > 0) {
+			const content = {};
+			for (const mt of entry.mediaTypes) {
+				if (MEDIA_TYPE_RE.test(mt)) content[mt] = {};
+			}
+			if (Object.keys(content).length > 0) responseObject.content = content;
+		}
+		responses.set(key, responseObject);
+	}
+	return responses.size > 0 ? Object.fromEntries(responses) : null;
 }
 
 // `range` (default) uses `2XX`/`default`, both legal per the official 3.1 meta-schema's own
@@ -211,7 +332,15 @@ function buildRequestBody(op) {
 // one (`$defs.operation` has no `required` array -- also verified by execution), and `responses: {}`
 // is illegal anyway (`minProperties: 1`). Omitting is both legal and honest; guessing a status
 // would be neither.
+//
+// A8: buildPerStatusResponses() above is tried FIRST -- when the contract carries the source
+// document's own real per-status data for this operation, that is emitted verbatim instead of
+// collapsing everything into the 2XX/default union below. The union path is otherwise completely
+// unchanged.
 function buildResponses(op, statusCodes) {
+	const perStatus = buildPerStatusResponses(op);
+	if (perStatus) return perStatus;
+
 	const responses = new Map();
 	if (op.responseSchema) {
 		responses.set(statusCodes === 'literal' ? '200' : '2XX', {
@@ -332,11 +461,19 @@ export function buildOpenApiDocument({ contract, snapshot = null, options = {} }
 		if (op.sourceSummary) operation.summary = op.sourceSummary;
 		if (Array.isArray(op.sourceTags) && op.sourceTags.length > 0) operation.tags = op.sourceTags;
 
+		// A8: two more clauses -- an operation whose ONLY passthrough is per-status responses or a
+		// copied multipart body (no source parameters/security/summary/tags at all) previously got NO
+		// marker, reopening the exact self-import hole A7 closed for that one operation. Never arises
+		// on the real oracle (148/148 already carry summary+tags+security) but is structurally
+		// reachable from a minimal hand-written document declaring only `responses` -- see
+		// D-openapi-per-status.
 		const hasPassthrough = Boolean(
 			(Array.isArray(op.sourceParameters) && op.sourceParameters.length > 0)
 			|| Array.isArray(op.sourceSecurity)
 			|| op.sourceSummary
-			|| (Array.isArray(op.sourceTags) && op.sourceTags.length > 0),
+			|| (Array.isArray(op.sourceTags) && op.sourceTags.length > 0)
+			|| (op.sourceResponses && typeof op.sourceResponses === 'object' && Object.keys(op.sourceResponses).length > 0)
+			|| (op.sourceRequestBody && typeof op.sourceRequestBody === 'object'),
 		);
 		passthroughByOperation[operationId] = hasPassthrough;
 		if (hasPassthrough) {
@@ -418,8 +555,12 @@ export function buildOpenApiDocument({ contract, snapshot = null, options = {} }
 		statusCodes,
 		// True when `literal` actually produced at least one stand-in `200` -- lets the CLI print
 		// the stand-in warning ONCE, and only when it is actually relevant, rather than per
-		// operation or unconditionally.
-		literalStatusStandIn: statusCodes === 'literal' && Object.values(contract.operations).some((op) => Boolean(op.responseSchema)),
+		// operation or unconditionally. A8: excludes an operation that took the per-status path --
+		// its `200` (if any) is a copied real status key, never a bskel-chosen stand-in.
+		literalStatusStandIn: statusCodes === 'literal' && Object.values(contract.operations).some((op) => {
+			const hasPerStatus = op.sourceResponses && typeof op.sourceResponses === 'object' && Object.keys(op.sourceResponses).length > 0;
+			return Boolean(op.responseSchema) && !hasPerStatus;
+		}),
 		// A7: lets cmdContractExport print its ONE mixed-coverage stderr note only when genuinely
 		// warranted -- see D-openapi-passthrough.
 		mixedPassthrough: passthroughMixed,

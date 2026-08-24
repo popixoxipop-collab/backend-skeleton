@@ -48,6 +48,11 @@ const MAX_RESPONSES_PER_OPERATION = 64;
 const MAX_PARAMETERS_PER_OPERATION = 64;
 const MAX_SECURITY_REQUIREMENTS_PER_OPERATION = 32;
 const MAX_SECURITY_SCHEMES = 64;
+// A8: per-status responses / non-JSON request media types. No new cap for per-status responses --
+// MAX_RESPONSES_PER_OPERATION above already bounds the same `responses` map (real max observed:
+// 9). MAX_REQUEST_MEDIA_TYPES is new: real max observed on one operation's requestBody.content is
+// 1 (always either application/json alone or multipart/form-data alone in the oracle).
+const MAX_REQUEST_MEDIA_TYPES = 16;
 // A6 (D-openapi-export): widened from `/^2[0-9]{2}$/` and `/^[45][0-9]{2}$/` to also accept
 // OpenAPI's own RANGE keys. These are ordinary in real hand-written documents and legal per the
 // official 3.1 meta-schema, whose `responses` object accepts exactly `^[1-5](?:[0-9]{2}|XX)$` plus
@@ -88,6 +93,33 @@ export const PATH_PREFIX_RE = /^(?:\/[A-Za-z0-9._~%-]+)+$/;
 // against all 308 real Team-IZ-Backend component-schema names with zero rejections.
 export const COMPONENT_SCHEMA_NAME_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,199}$/;
 export const SCHEMA_PROPERTY_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,127}$/;
+
+// A8: an OpenAPI response-object status key becomes an object key downstream, in both this
+// contract's sourceResponses and the exported document's responses -- same prototype-pollution
+// class OPERATION_ID_RE/COMPONENT_SCHEMA_NAME_RE guard against. A real status key is a literal
+// 3-digit code (100-599), a range key (1XX-5XX), or the literal "default" -- nothing else is a
+// legal OpenAPI response status, so anything else is DROPPED (not a failure), mirroring
+// indexOpenApiDocument()'s own "malformed entry, safe to skip" posture.
+export const RESPONSE_STATUS_KEY_RE = /^(?:[1-5](?:[0-9]{2}|XX)|default)$/;
+// A8: a media-type key becomes an object key downstream too (sourceRequestBody, a per-status
+// entry's mediaTypes disclosure, and the exported document itself). A real media type always
+// contains a '/' (type/subtype per RFC 6838) -- that requirement alone structurally excludes
+// '__proto__'/'constructor'/'toString', the same defense COMPONENT_SCHEMA_NAME_RE's leading-letter
+// requirement provides one layer down.
+export const MEDIA_TYPE_RE = /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/;
+
+// A8: the exact stand-in text contracts/export.mjs writes into a per-status Response Object when
+// the source had no description of its own (OpenAPI 3.1 requires one on every Response Object).
+// Declared here, the READING side, for the identical "writer and reader cannot drift apart" reason
+// BSKEL_GENERATED_EXTENSION/BSKEL_PASSTHROUGH_EXTENSION are -- applyPerStatusResponses() below must
+// recognize and skip this exact string on import, or round-tripping an export whose source had no
+// real description would silently launder synthetic filler text into a real contract field,
+// breaking the "export -> re-import reproduces operations exactly" invariant A6/A7 already
+// established. (The pre-A8 union path's own two stand-in descriptions never needed this defense --
+// nothing on the import side ever reads a response object's `description`, only its `content`
+// schema; this field is the first to read description back in, which is what introduces the
+// hazard.)
+export const PER_STATUS_NO_DESCRIPTION_STANDIN = 'The source document documents this status for this operation but gives no description.';
 
 // inlineSchema()'s keyword policy: RECURSED keywords are walked into; ASSERTION keywords are
 // copied verbatim (their values are scalars/arrays of scalars, not schema nodes -- nothing to
@@ -710,9 +742,10 @@ function applyProjectionOutcome(result, projected, stats, kind) {
 // document, on the operation object reconciliation already tied to this contract operation, and
 // the only transformation applied is one this module already performs mechanically elsewhere
 // (inlineSchema()'s $ref inlining + keyword whitelist + format:uuid rewrite). Anything requiring a
-// decision about what the API probably does stays omitted. Phase 1 (this pass): non-path
-// parameters, security, summary, tags. Phase 2 (NOT this pass): per-status responses, non-JSON
-// media types, operation description.
+// decision about what the API probably does stays omitted. A7 (Phase 1): non-path parameters,
+// security, summary, tags. A8 (D-openapi-per-status, below): per-status responses, non-JSON
+// request media types. Operation-level `description` remains excluded (measured too expensive to
+// default-on -- see D-openapi-per-status).
 
 // A7: `in` locations this passthrough may copy. 'path' is deliberately excluded -- path parameters
 // stay contract-derived from the route template + the contract's own name heuristic (see
@@ -914,6 +947,148 @@ function applySummaryAndTags(result, docEntry, stats) {
 	}
 }
 
+// A8: per-status responses -- additive to (never replacing) the responseSchema/errorSchema union
+// projection above; contracts/validate.mjs is untouched by this item, see D-openapi-per-status.
+// Gated on schemaProjectionEnabled, same reasoning as applyParameters -- a JSON Schema resolved
+// under a 3.0 document's dialect means something different under 2020-12, and per-status
+// responses resolve schemas via the exact same inlineSchema() path parameters/bodies already do.
+//
+// Written only when BOTH projectResponseSchemas() outcomes for this operation are resolved-or-none
+// (never unresolved) -- if either bucket failed to resolve, this silently and correctly skips,
+// falling back to the existing union-only export path; the failure is already recorded via A3's
+// own responseSchemaUnresolvedReason/errorSchemaUnresolvedReason, nothing here duplicates it.
+//
+// schemaFrom is provable, not guessed: projectResponseSchemas() already deduplicated every status
+// in its bucket down to `sources` distinct resolved shapes -- if sources===1, EVERY status in that
+// bucket with a JSON schema resolved to THAT one shape, by construction, so this function can point
+// at it instead of re-resolving. When sources>1 (never observed on real data, but structurally
+// possible) or the status sits outside both buckets (a 1xx/3xx key), the status's own schema is
+// resolved individually into an inline `schema` instead.
+function applyPerStatusResponses(result, docEntry, componentSchemas, stats, schemaProjectionEnabled) {
+	if (!schemaProjectionEnabled) {
+		result.perStatusResponsesSkippedDialect = true;
+		stats.per_status_skipped_dialect++;
+		return;
+	}
+	const responses = docEntry.responses;
+	if (!responses || typeof responses !== 'object' || Array.isArray(responses) || Object.keys(responses).length === 0) {
+		stats.per_status_none++;
+		return;
+	}
+	if (result.responseSchemaUnresolvedReason || result.errorSchemaUnresolvedReason) {
+		result.perStatusResponsesSkippedUnresolved = true;
+		stats.per_status_skipped_unresolved++;
+		return;
+	}
+
+	const perStatus = {};
+	let anyEntry = false;
+	for (const key of Object.keys(responses)) {
+		if (!RESPONSE_STATUS_KEY_RE.test(key)) continue; // not a legal status key -- dropped, not a failure
+		const resp = responses[key];
+		if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) continue;
+
+		const entry = {};
+		if (typeof resp.description === 'string' && resp.description.length > 0 && resp.description !== PER_STATUS_NO_DESCRIPTION_STANDIN) {
+			entry.description = resp.description;
+		}
+
+		const content = resp.content;
+		if (content && typeof content === 'object' && !Array.isArray(content)) {
+			if (Object.hasOwn(content, JSON_MEDIA_TYPE)) {
+				const mediaEntry = content[JSON_MEDIA_TYPE];
+				const schemaNode = mediaEntry && typeof mediaEntry === 'object' && !Array.isArray(mediaEntry) ? mediaEntry.schema : null;
+				if (schemaNode && typeof schemaNode === 'object' && !Array.isArray(schemaNode)) {
+					if (SUCCESS_STATUS_RE.test(key) && result.responseSchema && result.responseSchemaSources === 1) {
+						entry.schemaFrom = 'response';
+					} else if ((ERROR_STATUS_RE.test(key) || key === DEFAULT_STATUS_KEY) && result.errorSchema && result.errorSchemaSources === 1) {
+						entry.schemaFrom = 'error';
+					} else {
+						const resolved = inlineSchema(schemaNode, componentSchemas);
+						// unresolved here just leaves `schema` absent -- `description` alone (if any) stays
+						// valid, same "copied without schema" posture copyParameter() already takes.
+						if (resolved.ok) entry.schema = resolved.schema;
+					}
+				}
+			} else {
+				const mediaTypes = Object.keys(content).filter((mt) => MEDIA_TYPE_RE.test(mt));
+				if (mediaTypes.length > 0) entry.mediaTypes = mediaTypes;
+			}
+		}
+
+		perStatus[key] = entry;
+		anyEntry = true;
+	}
+
+	if (!anyEntry) {
+		stats.per_status_none++;
+		return;
+	}
+	result.sourceResponses = perStatus;
+	stats.per_status_copied++;
+}
+
+// A8: non-JSON request media types (multipart/form-data in the real oracle) -- additive to A2's
+// requestBodySchema, never overlapping it: `content` here never contains application/json (that
+// stays A2's field, the one representation of that one fact -- expressed as a schema invariant in
+// schemas/feature-contract.schema.json too). Gated on schemaProjectionEnabled for the same reason
+// as applyPerStatusResponses above -- a media-type schema resolves through the same inlineSchema()
+// path.
+function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schemaProjectionEnabled) {
+	if (!schemaProjectionEnabled) {
+		result.requestMediaTypesSkippedDialect = true;
+		stats.request_media_types_skipped_dialect++;
+		return;
+	}
+	const requestBody = docEntry.requestBody;
+	if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody) || Object.hasOwn(requestBody, '$ref')) {
+		stats.request_media_types_none++;
+		return;
+	}
+	const content = requestBody.content;
+	if (typeof content !== 'object' || content === null || Array.isArray(content)) {
+		stats.request_media_types_none++;
+		return;
+	}
+	const mediaTypeKeys = Object.keys(content).filter((mt) => mt !== JSON_MEDIA_TYPE && MEDIA_TYPE_RE.test(mt));
+	if (mediaTypeKeys.length === 0) {
+		stats.request_media_types_none++;
+		return;
+	}
+	if (mediaTypeKeys.length > MAX_REQUEST_MEDIA_TYPES) {
+		// Exceeding the cap fails the WHOLE media-type set closed for this operation, same "fail this
+		// field, not the operation kind" posture every cap in this module already takes.
+		result.requestMediaTypesUnresolvedReason = 'too-many-media-types';
+		stats.request_media_types_unresolved++;
+		return;
+	}
+
+	const copiedContent = {};
+	let cleanCount = 0;
+	for (const mt of mediaTypeKeys) {
+		const mediaEntry = content[mt];
+		const entry = {};
+		const schemaNode = mediaEntry && typeof mediaEntry === 'object' && !Array.isArray(mediaEntry) ? mediaEntry.schema : null;
+		if (schemaNode && typeof schemaNode === 'object' && !Array.isArray(schemaNode)) {
+			const resolved = inlineSchema(schemaNode, componentSchemas);
+			if (resolved.ok) { entry.schema = resolved.schema; cleanCount++; }
+		} else {
+			cleanCount++; // no schema declared for this media type at all is not a failure -- same
+			              // "nothing to project" posture applyRequestBodySchema already takes.
+		}
+		copiedContent[mt] = entry;
+	}
+
+	result.sourceRequestBody = { content: copiedContent };
+	if (requestBody.required === true) result.sourceRequestBody.required = true;
+	if (cleanCount === mediaTypeKeys.length) {
+		stats.request_media_types_copied++;
+	} else {
+		result.requestMediaTypesUnresolvedReason = 'schema-unresolved';
+		stats.request_media_types_unresolved++;
+	}
+}
+
 // A7: the single entry point called from reconcileModule()'s two matched/adopted call sites --
 // exactly the placement A2/A3's own helpers already occupy, which IS the refusal mechanism for
 // every other resolution kind (drift/missing/ambiguous/unresolved never reach this function at
@@ -922,6 +1097,10 @@ function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnable
 	applyParameters(result, docEntry, index, stats, schemaProjectionEnabled);
 	applySecurity(result, docEntry, index, stats, referencedSchemeNames);
 	applySummaryAndTags(result, docEntry, stats);
+	// A8: same matched/adopted-only placement as the three calls above -- this IS the refusal
+	// mechanism for every other resolution kind, extended unchanged for the two new fields.
+	applyPerStatusResponses(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
+	applyRequestMediaTypes(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
 }
 
 // The core reconciliation, pure (no I/O). `module` is a scanReport related_modules entry (as
@@ -965,6 +1144,10 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 		parameters_copied: 0, parameters_unresolved: 0, parameters_none: 0, parameters_skipped_dialect: 0,
 		security_copied: 0, security_public: 0, security_unresolved: 0, security_none: 0,
 		summary_copied: 0, tags_copied: 0,
+		// A8: per-status responses / request media types counters, same per-operation-tally shape as
+		// the A7 counters above.
+		per_status_copied: 0, per_status_skipped_unresolved: 0, per_status_none: 0, per_status_skipped_dialect: 0,
+		request_media_types_copied: 0, request_media_types_unresolved: 0, request_media_types_none: 0, request_media_types_skipped_dialect: 0,
 	};
 	// A7: accumulates every security-scheme name any operation's COPIED security requirement
 	// actually referenced, across the WHOLE module -- becomes the contract-root sourceSecuritySchemes
@@ -1150,6 +1333,22 @@ function summaryDecision(result) {
 function tagsDecision(result) {
 	return result.sourceTags ? `copied:${result.sourceTags.length}` : 'none';
 }
+// A8: same decision-only audit-trail shape, for the two new passthrough fields.
+function perStatusResponsesDecision(result) {
+	if (result.perStatusResponsesSkippedDialect) return 'skipped:dialect';
+	if (result.perStatusResponsesSkippedUnresolved) return 'skipped:unresolved';
+	if (result.sourceResponses) return `copied:${Object.keys(result.sourceResponses).length}`;
+	return 'none';
+}
+function requestMediaTypesDecision(result) {
+	if (result.requestMediaTypesSkippedDialect) return 'skipped:dialect';
+	if (result.sourceRequestBody) {
+		const count = Object.keys(result.sourceRequestBody.content).length;
+		return result.requestMediaTypesUnresolvedReason ? `partial:${count}` : `copied:${count}`;
+	}
+	if (result.requestMediaTypesUnresolvedReason) return `unresolved:${result.requestMediaTypesUnresolvedReason}`;
+	return 'none';
+}
 
 // `sourceFile`: {file, outsideRepo} precomputed by the caller (bin/bskel.mjs knows the repo
 // root; this module deliberately doesn't) -- keeps machine-specific absolute paths out of a
@@ -1187,6 +1386,9 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 				security: securityDecision(result),
 				summary: summaryDecision(result),
 				tags: tagsDecision(result),
+				// A8: same decision-only audit trail, for the two new passthrough fields.
+				per_status_responses: perStatusResponsesDecision(result),
+				request_media_types: requestMediaTypesDecision(result),
 			};
 		}
 	}

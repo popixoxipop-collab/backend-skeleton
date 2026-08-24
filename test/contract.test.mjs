@@ -443,7 +443,7 @@ test('drift never gets a requestBodySchema, even though the doc entry has a perf
 	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
 });
 
-test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v5)', () => {
+test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v6)', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
@@ -452,7 +452,7 @@ test('a contract with a projected requestBodySchema still validates against sche
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
 	assert.equal(ok, true, JSON.stringify(validate.errors));
-	assert.equal(contract.sbf_contract, '5'); // A7: sbf_contract "4" -> "5" (source* fields + sourceSecuritySchemes)
+	assert.equal(contract.sbf_contract, '6'); // A8: sbf_contract "5" -> "6" (sourceResponses/sourceRequestBody)
 });
 
 // ===== A3: response/error JSON Schema projection, buildContract() integration =====
@@ -577,7 +577,7 @@ test('drift never gets responseSchema/errorSchema, even though the doc entry has
 	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
 });
 
-test('a contract carrying all four projected fields (request+response+error) still validates against schemas/feature-contract.schema.json (v5)', () => {
+test('a contract carrying all four projected fields (request+response+error) still validates against schemas/feature-contract.schema.json (v6)', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_RESPONSE_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
@@ -698,11 +698,11 @@ test('openapi:null produces none of the four source* fields, nor sourceSecurityS
 	assert.equal('sourceSecuritySchemes' in contract, false);
 });
 
-test('sbf_contract is "5", and a full passthrough contract validates against schemas/feature-contract.schema.json', () => {
+test('sbf_contract is "6", and a full passthrough contract validates against schemas/feature-contract.schema.json', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_PASSTHROUGH_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
-	assert.equal(contract.sbf_contract, '5');
+	assert.equal(contract.sbf_contract, '6');
 	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
 	const ajv = new Ajv2020({ allErrors: true, strict: false });
 	const validate = ajv.compile(schema);

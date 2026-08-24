@@ -218,3 +218,29 @@ test('a waiver for CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED does not cover CONTRAC
 	);
 	assert.equal(result.blocking, false);
 });
+
+// A8: exactly ONE new warning code (per-status failure reuses A3's own two response/error codes --
+// see D-openapi-per-status -- since it is not independent of them; the multipart-schema failure
+// genuinely is independent, hence its own code).
+test('CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED exists with {severity: WARN, waivable: true}', () => {
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED'));
+});
+
+// A real operation can legally accept both application/json and multipart/form-data at once -- a
+// waiver for the JSON body's own failure (CONTRACT_OPENAPI_SCHEMA_UNRESOLVED, A2) must never
+// silently cover an unrelated multipart-schema failure on the same operation.
+test('a waiver for CONTRACT_OPENAPI_SCHEMA_UNRESOLVED does not cover CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED on the same operation', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [
+			makeWarning('CONTRACT_OPENAPI_SCHEMA_UNRESOLVED', { subject: 'createWidget', message: 'x' }),
+			makeWarning('CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED', { subject: 'createWidget', message: 'y' }),
+		],
+	};
+	assert.notEqual(
+		warningKey(contract.warnings[0]),
+		warningKey(contract.warnings[1]),
+		'CONTRACT_OPENAPI_SCHEMA_UNRESOLVED and CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED on the same subject must produce different waiver keys',
+	);
+});

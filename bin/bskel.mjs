@@ -976,6 +976,8 @@ function cmdContractEmit(args) {
 				// the numbers, they may be zero" style as the two lines above.
 				const p = reconciliation.stats;
 				console.log(`openapi: ${p.parameters_copied} operation(s) with parameters copied (${p.parameters_unresolved} partial/unresolved), ${p.security_copied + p.security_public} with security copied, ${p.summary_copied} summaries + ${p.tags_copied} tag sets copied`);
+				// A8: same "just print the numbers" style.
+				console.log(`openapi: ${p.per_status_copied} operation(s) with per-status responses copied, ${p.request_media_types_copied} with non-JSON request media type(s) copied`);
 			}
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);

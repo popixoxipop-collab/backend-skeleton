@@ -119,19 +119,22 @@ inverse of `contract emit --openapi-file`. Useful for a Swagger UI page scoped t
 instead of the whole repo, a client generator that can't follow `$ref` (an exported document has
 none), or a mock server for one feature's operations.
 
-It is a **deliberately lossy, narrow projection, and it says so**: per-status responses are never
-represented (2xx/4xx/5xx bodies stay collapsed into two unions), and neither is anything for a
-non-JSON request body — every omission is disclosed both in prose (`info.description`) and
-machine-readably (`info.x-bskel-omitted`). Nothing is invented to fill a gap: an operation whose
-body shape the contract doesn't know gets a JSON media-type entry with no schema rather than a
-fabricated one.
+It is a **deliberately lossy, narrow projection, and it says so** — every omission is disclosed
+both in prose (`info.description`) and machine-readably (`info.x-bskel-omitted`). Nothing is
+invented to fill a gap: an operation whose body shape the contract doesn't know gets a JSON
+media-type entry with no schema rather than a fabricated one, and an operation with no per-status
+source data still collapses its 2xx/4xx/5xx bodies into two unions rather than guessing a status
+code.
 
-Query/header/cookie parameters, `security` (plus the referenced security schemes), `summary`, and
-`tags` **are** emitted — but only when a real `--openapi-file` source document said something for
-that exact operation, copied byte-for-byte. `security: []` is emitted when the source document
-itself said `[]` (a genuine claim that no authentication is required); it is never invented as a
-default. Where no source document was given, or it said nothing for an operation, the key is
-simply omitted, meaning "unspecified."
+Query/header/cookie parameters, `security` (plus the referenced security schemes), `summary`,
+`tags`, per-status responses, and non-JSON request media types (e.g. `multipart/form-data`) **are**
+emitted — but only when a real `--openapi-file` source document said something for that exact
+operation, copied byte-for-byte, never reconstructed. `security: []` is emitted when the source
+document itself said `[]` (a genuine claim that no authentication is required); it is never
+invented as a default. Where no source document was given, or it said nothing for an operation
+(or a particular field of one), the key is simply omitted, meaning "unspecified." Operation-level
+`description` remains excluded — measured too expensive to copy by default (real average 2,442.7
+bytes/operation).
 
 Export refuses a zero-operation contract, refuses when the scan found a global path prefix the
 contract's paths don't reflect (`--allow-unprefixed` overrides), and stamps every document with an
