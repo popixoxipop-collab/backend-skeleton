@@ -3653,6 +3653,45 @@ day-to-day, not workflow_dispatch) also completed all 5 jobs green
 (https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32331926485) -- the first
 genuine, unprompted proof this job works the way it will actually be used going forward.
 
+**Update (2026-08-24): migrated the runner host from `bob-macmini` to `macstudio`.** Trigger: the
+`23a15d9` (`beta-release-prep`) main-push CI run stalled indefinitely on the `macos` job --
+`bob-macmini`'s launchd service had been deliberately stopped for unrelated maintenance and never
+restarted, and `gh api .../actions/runners` showed zero registered runners for this repo. Rather
+than just restarting `bob-macmini`, migrated to `macstudio` (the user's Mac Studio, already the
+consistently-available/trusted machine for this user's other repos) for the same underlying reason
+this job exists on a self-hosted runner at all: zero marginal cost regardless of which idle machine
+hosts it, so the choice comes down to uptime, and `macstudio` has it.
+
+Mechanically: confirmed `macstudio` reachable via the `macstudio` SSH alias (Mac13,1, 10 CPU, 64GB
+RAM, macOS 26.6.1, Homebrew already present); `brew install node ripgrep openjdk@17 gradle` --
+the exact same package set this job's original WHY section grounded for `bob-macmini`, kept for
+parity rather than re-deriving a minimal set. Obtained a registration token via `gh api
+repos/.../actions/runners/registration-token -X POST`, registered a fresh runner named `macstudio`
+with a matching custom label, installed as a persistent per-user launchd service (`./svc.sh
+install && ./svc.sh start` as user `eoe`, no `sudo` -- confirmed this doesn't need root the same
+way `bob-macmini`'s did not).
+
+**Real finding, not assumed:** `actions/setup-node`/`actions/setup-java` sidestep the "launchd
+service PATH differs from an interactive shell" gotcha this job's own comment already named --
+but `rg` has no such action and is the one dependency this job silently relies on the host's raw
+PATH for. Confirmed directly, not by reading the runner's docs: `ps eww` on the freshly started
+`Runner.Listener` process showed only `/usr/bin:/bin:/usr/sbin:/sbin` -- a launchd-started service
+does NOT source `~/.zprofile`, so `brew`'s `/opt/homebrew/bin` was genuinely absent, not just
+theoretically at risk. Fixed with a `.env` file in the runner's install directory (a real,
+documented `actions/runner` mechanism, not a workaround) setting
+`PATH=/opt/homebrew/bin:/opt/homebrew/opt/openjdk@17/bin:/usr/bin:/bin:/usr/sbin:/sbin`.
+
+**Verification:** pushed the `runs-on` label change on branch `macos-runner-macstudio-migration`,
+then `gh workflow run ci.yml --ref macos-runner-macstudio-migration` (workflow_dispatch, since
+`macos` is a no-op on `pull_request` by design -- the only way to prove the new runner works
+*before* merging) -- all 12 jobs green including `macos` on `macstudio`
+(https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/32683772845), the same
+before-merge-proof pattern as the original `bob-macmini` verification above. `bob-macmini`'s own
+runner registration was left in place (not deregistered) rather than force-removed sight-unseen --
+its host is offline so it will simply show `offline` on GitHub's side, harmless, and easy to
+formally deregister later once its actual state (decommissioned vs. temporarily off) is confirmed
+with the user.
+
 ## D-python-import-check (P3b): real `import`, not `ast.parse`, for generated Python
 
 **WHY:** `test/python-fastapi-handles.test.mjs`'s e2e suite used to assert every generated `.py`
