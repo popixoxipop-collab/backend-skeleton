@@ -23,7 +23,7 @@
 // (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export, D-openapi-passthrough,
 // and D-openapi-per-status in DECISIONS.md.
 import { createHash } from 'node:crypto';
-import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE, RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN } from './openapi.mjs';
+import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE, RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN, SUCCESS_STATUS_RE, ERROR_STATUS_RE, DEFAULT_STATUS_KEY } from './openapi.mjs';
 
 // 3.1 ONLY, and deliberately no 3.0 mode even as a flag -- this is a cited exclusion, not
 // laziness. Verified by executing the official meta-schemas, not by reading prose: 3.0's
@@ -306,9 +306,18 @@ function buildPerStatusResponses(op) {
 				? entry.description
 				: PER_STATUS_NO_DESCRIPTION_STANDIN,
 		};
-		if (entry.schemaFrom === 'response' && op.responseSchema) {
+		// Codex review (A8 follow-up): `schemaFrom` is re-checked against the ACTUAL status key it sits
+		// under, not just trusted as a string -- the feature-contract schema's `enum` only constrains
+		// schemaFrom to one of two values, never that the value agrees with its own status key. Real
+		// reconciliation output can never disagree (contracts/openapi.mjs's applyPerStatusResponses only
+		// ever sets 'response' under a SUCCESS_STATUS_RE key and 'error' under an ERROR_STATUS_RE/default
+		// key), so this only matters for a hand-edited contract file -- S5/persistence-integrity, same
+		// posture as the RESPONSE_STATUS_KEY_RE/MEDIA_TYPE_RE re-checks already in this function. A
+		// mismatched claim (e.g. "response" under a 4xx key) falls through to the entry's own inline
+		// `schema`/`mediaTypes` instead of exporting the wrong union under the wrong status.
+		if (entry.schemaFrom === 'response' && SUCCESS_STATUS_RE.test(key) && op.responseSchema) {
 			responseObject.content = { [JSON_MEDIA_TYPE]: { schema: op.responseSchema } };
-		} else if (entry.schemaFrom === 'error' && op.errorSchema) {
+		} else if (entry.schemaFrom === 'error' && (ERROR_STATUS_RE.test(key) || key === DEFAULT_STATUS_KEY) && op.errorSchema) {
 			responseObject.content = { [JSON_MEDIA_TYPE]: { schema: op.errorSchema } };
 		} else if (entry.schema && typeof entry.schema === 'object' && !Array.isArray(entry.schema)) {
 			responseObject.content = { [JSON_MEDIA_TYPE]: { schema: entry.schema } };

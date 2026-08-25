@@ -701,6 +701,26 @@ test('A8: a per-status entry with no description at all gets the honest stand-in
 	assertValidOpenApi(exported, 'a per-status export with a synthesized description stand-in');
 });
 
+test('A8 follow-up (Codex review): a hand-edited schemaFrom that disagrees with its own status key is re-checked at export, never leaking the wrong union under the wrong status', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const contractPath = contractSchemaPath(root);
+	const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+	assert.equal(contract.operations.createWidget.sourceResponses['400'].schemaFrom, 'error', 'the fixture must produce the real, correct pairing before it is corrupted');
+	// Hand-edit: falsely claim the 400 (error-class) status resolves from the SUCCESS union.
+	contract.operations.createWidget.sourceResponses['400'].schemaFrom = 'response';
+	fs.writeFileSync(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
+	assert.equal(run(['gate', 'force', 'contract', '--feature', FEATURE, '--reason', 'testing a hand-edited schemaFrom/status-key mismatch'], root).code, 0);
+
+	const { doc: exported } = exportedDoc(root);
+	const response400 = exported.paths['/api/v0/widgets'].post.responses['400'];
+	assert.equal('content' in response400, false, 'no content leaks at all -- the mismatched claim is rejected and there is no other schema/mediaTypes to fall back on for this entry');
+	assertValidOpenApi(exported, 'an export with a hand-edited schemaFrom/status-key mismatch, safely degraded');
+});
+
 test('A8: a non-JSON request media type whose schema fails to resolve raises CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED (WARN -- never blocks, same as its A7 siblings)', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);

@@ -6932,3 +6932,51 @@ prototype-pollution class `RESPONSE_STATUS_KEY_RE`/`MEDIA_TYPE_RE` guard against
 mirroring `OPERATION_ID_RE`/`COMPONENT_SCHEMA_NAME_RE`); `D-persistence-integrity` (S5, the
 `loadContract()` schema-validation-on-read this item's `sbf_contract` bump has a consequence
 against, mitigated by the already-institutionalized friendly pre-check).
+
+**FOLLOW-UP (independent Codex review of the merged commit, two real findings, both fixed):** the
+merged A8 diff was handed to an independent Codex review with no fix authority -- read-only,
+report-only. Three claimed invariants (the `validate.mjs`-untouched design, the fail-closed
+100%-coverage gate, and the three self-found bugs already documented above) were each independently
+re-derived from the diff and CONFIRMED. The review also surfaced two real gaps, both closed in a
+direct follow-up commit (same "detect and honestly fix, never guess" posture as the three bugs
+above -- these two were not caught during the original implementation because nothing in the test
+suite exercised a hand-edited or `$ref`-shaped input for either path):
+
+1. **`schemaFrom` was trusted, not re-checked, against its own status key.** The feature-contract
+   schema's `enum` on `schemaFrom` only constrains the value to `"response"`/`"error"` -- it cannot
+   express "and this must agree with the status key it sits under" (JSON Schema has no cross-property
+   `propertyNames`-conditional mechanism for this). `contracts/export.mjs`'s
+   `buildPerStatusResponses()` trusted the stored string outright. Real reconciliation output can
+   never disagree (`applyPerStatusResponses()` in `contracts/openapi.mjs` only ever sets `'response'`
+   under a `SUCCESS_STATUS_RE` key and `'error'` under an `ERROR_STATUS_RE`/`default` key), so this
+   was purely a hand-edited-contract exposure -- but a real one, confirmed by a live probe: a
+   `sourceResponses["400"].schemaFrom: "response"` document passed `feature-contract.schema.json`
+   validation cleanly and exported the SUCCESS union's schema under HTTP 400. **Fixed** by exporting
+   `SUCCESS_STATUS_RE`/`ERROR_STATUS_RE`/`DEFAULT_STATUS_KEY` from `contracts/openapi.mjs` and
+   re-checking the status key's own class in `buildPerStatusResponses()` before trusting
+   `schemaFrom` -- same S5/persistence-integrity "never trust the on-disk contract file" posture
+   `RESPONSE_STATUS_KEY_RE`/`MEDIA_TYPE_RE` already follow in this same function. A mismatch now
+   falls through to the entry's own inline `schema`/`mediaTypes`, or (as in the regression test) to
+   a description-only entry with no `content` at all -- never the wrong union under the wrong status.
+
+2. **A Response Object `$ref` was silently read as an empty entry.** OpenAPI 3.1 permits
+   `components.responses.<Name>` + `$ref` in place of an inline Response Object (the vendored
+   official meta-schema's `response-or-reference`), but `applyPerStatusResponses()` never checked for
+   `resp.$ref` -- it fell through with `resp.description`/`resp.content` both `undefined`, which the
+   exporter then filled with the synthetic `PER_STATUS_NO_DESCRIPTION_STANDIN`, falsely implying the
+   source genuinely documented that status with no description. **Measured before deciding how to
+   fix it** (this project's "don't build for zero real cases" discipline, already applied twice in
+   A8 itself to `non-json-response-schemas`/`response-headers`): the real Team-IZ-Backend oracle has
+   694 response objects across 148 operations and ZERO of them use `$ref`, and its document declares
+   no `components.responses` section at all. Building a `components.responses` indexing/resolution
+   subsystem (the same shape `componentSchemas` already gives schemas) to handle a 0-real-occurrence
+   case would be exactly the over-building this project's own numerics discipline forbids. **Fixed**
+   the honest, minimal way instead: `$ref`-shaped response entries are now explicitly skipped (not
+   fabricated) in `applyPerStatusResponses()`, named as a permanent gap here rather than left as an
+   accidental one. If a future real source document is found using `components.responses` `$ref`,
+   resolving it is the natural next slice -- same shape as `componentSchemas`, gated the same way.
+
+Both fixes are `contracts/openapi.mjs`/`contracts/export.mjs`-only; `contracts/validate.mjs` is
+untouched by this follow-up too (`git diff --stat` confirms). Full suite: 930 → **932** (two new
+regression tests, one per finding). No CATALOG.md/sbf_contract change -- both are within A8's
+existing field shapes, not a new capability.

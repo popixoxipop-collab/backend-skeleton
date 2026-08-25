@@ -62,9 +62,16 @@ const MAX_REQUEST_MEDIA_TYPES = 16;
 // is (correctly) not a failure, so the loss produced no warning anywhere. This is a general
 // importer capability gain, not round-trip plumbing -- it is what makes such a document readable
 // by `contract emit --openapi-file` at all.
-const SUCCESS_STATUS_RE = /^2(?:[0-9]{2}|XX)$/;
-const ERROR_STATUS_RE = /^[45](?:[0-9]{2}|XX)$/;
-const DEFAULT_STATUS_KEY = 'default';
+// Exported (not just module-local) so contracts/export.mjs can re-check a hand-edited contract's
+// `schemaFrom` claim against the ACTUAL status key it sits under, instead of trusting the string --
+// same S5/persistence-integrity "never trust the on-disk contract file" posture RESPONSE_STATUS_KEY_RE/
+// MEDIA_TYPE_RE already follow (Codex review finding, A8 follow-up: a hand-edited
+// `sourceResponses["400"].schemaFrom:"response"` passed schema validation and exported `responseSchema`
+// under HTTP 400 -- the schema's `enum` on schemaFrom checks the value is one of two strings, never that
+// it agrees with the status key it's attached to).
+export const SUCCESS_STATUS_RE = /^2(?:[0-9]{2}|XX)$/;
+export const ERROR_STATUS_RE = /^[45](?:[0-9]{2}|XX)$/;
+export const DEFAULT_STATUS_KEY = 'default';
 
 // Same shape convention as the rest of contracts/ -- operationId becomes an object key
 // downstream (contracts/emit.mjs's `operations[operationId]`), so it's whitelisted before it's
@@ -987,6 +994,15 @@ function applyPerStatusResponses(result, docEntry, componentSchemas, stats, sche
 		if (!RESPONSE_STATUS_KEY_RE.test(key)) continue; // not a legal status key -- dropped, not a failure
 		const resp = responses[key];
 		if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) continue;
+		// A8 follow-up (Codex review): a Response Object `$ref` (`components.responses.<Name>`, legal
+		// per the official 3.1 meta-schema's `response-or-reference`) is not resolved here -- 0 real
+		// occurrences against the Team-IZ-Backend oracle (694 response objects, 0 $ref), named rather
+		// than built, same "don't build for zero real cases" discipline as non-json-response-schemas/
+		// response-headers below. Skipping is the fail-closed choice: falling through with
+		// resp.description/resp.content both undefined would produce a description-only entry carrying
+		// the synthetic PER_STATUS_NO_DESCRIPTION_STANDIN as if the source truly documented this status
+		// with no description -- false. A referenced response is simply omitted for this status.
+		if (typeof resp.$ref === 'string') continue;
 
 		const entry = {};
 		if (typeof resp.description === 'string' && resp.description.length > 0 && resp.description !== PER_STATUS_NO_DESCRIPTION_STANDIN) {
