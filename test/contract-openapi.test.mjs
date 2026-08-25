@@ -1397,6 +1397,17 @@ test('per-status round-trip defense: a description that exactly matches PER_STAT
 	assert.equal('description' in result.sourceResponses['200'], false, 'the exact stand-in string must never be treated as a real, source-authored description');
 });
 
+test('per-status: a Response Object $ref (components.responses) is skipped, not fabricated as a description-only entry with the false no-description stand-in', () => {
+	const doc = docWithOperationFields({
+		responses: {
+			'200': { description: 'ok', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
+			'404': { '$ref': '#/components/responses/NotFound' },
+		},
+	}, { componentSchemas: { Widget: { type: 'object' } } });
+	const { result } = reconcileCreateWidgetFields(doc);
+	assert.deepEqual(Object.keys(result.sourceResponses), ['200'], 'the $ref status is omitted entirely, not exported as a fake empty/stand-in entry');
+});
+
 test('RESPONSE_STATUS_KEY_RE: accepts literal codes, range keys, and "default"; rejects anything else', () => {
 	for (const ok of ['200', '404', '2XX', '4XX', '5XX', 'default']) assert.ok(RESPONSE_STATUS_KEY_RE.test(ok), ok);
 	for (const bad of ['600', '99', 'default2', '__proto__', 'constructor', '']) assert.equal(RESPONSE_STATUS_KEY_RE.test(bad), false, bad);
