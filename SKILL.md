@@ -1,7 +1,7 @@
 ---
 name: backend-skeleton
 description: Use when scaffolding a new backend feature from a spec into an existing (brownfield) or new (greenfield) repo, and you need the plan to actually account for what already exists in the codebase instead of guessing. Covers pre-flight branch/worktree sanity, a brownfield collision scan before any spec/plan step, feature_id-scoped machine-readable contracts, UUID-addressable field handles, and stack-choice (e.g. ngrok) wiring.
-license: MIT
+license: AGPL-3.0-or-later
 metadata:
   version: 1.0.0
   author: popixoxipop
