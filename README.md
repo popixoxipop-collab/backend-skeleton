@@ -290,4 +290,7 @@ are not part of the published package — clone this repository directly if you 
 
 ## License
 
-MIT — see `LICENSE`.
+Dual-licensed: [AGPL-3.0-or-later](./LICENSE) for open-source use, or a
+commercial license for closed-source/proprietary use without AGPL's
+copyleft obligations. See [`COMMERCIAL-LICENSE.md`](./COMMERCIAL-LICENSE.md)
+for why, and how to obtain one.
