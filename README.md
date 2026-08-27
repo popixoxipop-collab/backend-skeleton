@@ -135,7 +135,11 @@ invented as a default. Where no source document was given, or it said nothing fo
 (or a particular field of one), the key is simply omitted, meaning "unspecified." Operation-level
 `description` is copied too, but **opt-in only** (`contract emit --descriptions`) — measured too
 expensive to copy by default (real average 2,442.7 bytes/operation, larger than every other field
-this projection copies combined).
+this projection copies combined). The same flag also copies a schema FIELD's own `description`/
+`example` (a property's own annotation, not the operation's) one level deeper into request-body/
+response/error/parameter/per-status/path-param schemas — `title`, plural `examples`,
+`externalDocs`, `xml`, and `deprecated` stay unconditionally dropped either way (0 real occurrences
+measured against the Team-IZ-Backend oracle).
 
 Export refuses a zero-operation contract, refuses when the scan found a global path prefix the
 contract's paths don't reflect (`--allow-unprefixed` overrides), and stamps every document with an

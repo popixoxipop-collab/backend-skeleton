@@ -1747,3 +1747,142 @@ test('snapshot decision field: description "copied" / "unresolved:too-long" / "n
 	assert.equal(snapshotOpWithFlag(docWithOperationFields({ description: 'x'.repeat(40001) }), true).description, 'unresolved:too-long');
 	assert.equal(snapshotOpWithFlag(docWithOperationFields({ description: 'ok' }), false).description, 'none', 'flag off reads the same as "none" at the snapshot level -- description_skipped_flag is the module-wide stat that distinguishes them');
 });
+
+// --- A11: field-level description/example passthrough (D-openapi-field-docs) ------------------
+// Reuses the SAME --descriptions flag as A10 (includeDescriptions doubles as includeFieldDocs) --
+// there is no separate flag to test. title/examples(plural)/externalDocs/xml/deprecated stay
+// permanently, unconditionally dropped (0 real occurrences measured against the oracle) -- only
+// `description` and `example` are gated on the flag at all.
+
+test('inlineSchema: description and example on a plain schema node are copied only when includeFieldDocs is true', () => {
+	const schema = { type: 'string', description: 'the widget label', example: 'foo' };
+	const off = inlineSchema(schema, new Map());
+	assert.equal('description' in off.schema, false);
+	assert.equal('example' in off.schema, false);
+	const on = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(on.schema.description, 'the widget label');
+	assert.equal(on.schema.example, 'foo');
+});
+
+test('inlineSchema: title/examples(plural)/externalDocs/xml/deprecated stay dropped regardless of includeFieldDocs -- 0 real occurrences, permanently out of scope', () => {
+	const schema = {
+		type: 'string', title: 'Widget', examples: ['a', 'b'],
+		externalDocs: { url: 'https://example.com' }, xml: { name: 'widget' }, deprecated: true,
+	};
+	for (const includeFieldDocs of [false, true]) {
+		const result = inlineSchema(schema, new Map(), { includeFieldDocs });
+		assert.equal(result.ok, true);
+		for (const key of ['title', 'examples', 'externalDocs', 'xml', 'deprecated']) {
+			assert.equal(key in result.schema, false, `${key} must never appear (includeFieldDocs=${includeFieldDocs})`);
+		}
+	}
+});
+
+test('inlineSchema: example copies non-string JSON values verbatim (number/object/array/boolean) -- example is not a string-only field', () => {
+	for (const value of [409, { status: 'ACTIVE' }, [1, 2, 3], false, 0]) {
+		const result = inlineSchema({ type: 'string', example: value }, new Map(), { includeFieldDocs: true });
+		assert.deepEqual(result.schema.example, value);
+	}
+});
+
+test('inlineSchema: a description over MAX_DESCRIPTION_LENGTH is silently dropped -- the field alone, not the whole schema, and no failure/reason', () => {
+	const result = inlineSchema({ type: 'string', description: 'x'.repeat(40001) }, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal('description' in result.schema, false);
+});
+
+test('inlineSchema: a description of exactly MAX_DESCRIPTION_LENGTH is still copied -- boundary, not off-by-one', () => {
+	const result = inlineSchema({ type: 'string', description: 'x'.repeat(40000) }, new Map(), { includeFieldDocs: true });
+	assert.equal(result.schema.description.length, 40000);
+});
+
+test('inlineSchema: an example whose JSON.stringify length exceeds MAX_EXAMPLE_LENGTH (2000) is silently dropped', () => {
+	const result = inlineSchema({ type: 'string', example: 'x'.repeat(2000) }, new Map(), { includeFieldDocs: true });
+	// JSON.stringify of a 2000-char string is 2002 bytes (quotes) -- over the cap.
+	assert.equal('example' in result.schema, false);
+});
+
+test('inlineSchema: an example at exactly MAX_EXAMPLE_LENGTH (serialized) is still copied -- boundary, not off-by-one', () => {
+	const value = 'x'.repeat(1998); // JSON.stringify adds 2 quote bytes -> exactly 2000
+	assert.equal(JSON.stringify(value).length, 2000);
+	const result = inlineSchema({ type: 'string', example: value }, new Map(), { includeFieldDocs: true });
+	assert.equal(result.schema.example, value);
+});
+
+test('inlineSchema: description/example are copied recursively -- nested inside properties/items, not just the root node', () => {
+	const schema = {
+		type: 'object',
+		properties: {
+			items: {
+				type: 'array',
+				description: 'the line items',
+				items: { type: 'string', example: 'sku-123', description: 'a line item sku' },
+			},
+		},
+	};
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.schema.properties.items.description, 'the line items');
+	assert.equal(result.schema.properties.items.items.description, 'a line item sku');
+	assert.equal(result.schema.properties.items.items.example, 'sku-123');
+});
+
+test('inlineSchema: a domain field literally NAMED "description" or "example" is a normal property, never confused with the annotation', () => {
+	// Real oracle case (findConceptCandidates): a business field named "description" of type
+	// string|null. Must round-trip as an ordinary property regardless of includeFieldDocs.
+	const schema = {
+		type: 'object',
+		properties: {
+			description: { type: ['string', 'null'] },
+			example: { type: 'string' },
+		},
+	};
+	for (const includeFieldDocs of [false, true]) {
+		const result = inlineSchema(schema, new Map(), { includeFieldDocs });
+		assert.deepEqual(result.schema.properties.description.type, ['string', 'null']);
+		assert.equal(result.schema.properties.example.type, 'string');
+	}
+});
+
+test('inlineSchema: `description`/`example` alongside `$ref` are tolerated (not ref-with-siblings) regardless of includeFieldDocs, but only copied onto the resolved schema when the flag is on', () => {
+	const components = new Map([['Widget', { type: 'object', properties: { id: { type: 'string' } } }]]);
+	const off = inlineSchema({ '$ref': '#/components/schemas/Widget', description: 'a widget', example: { id: 'x' } }, components);
+	assert.equal(off.ok, true, 'sibling tolerance is structural, independent of the flag');
+	assert.equal('description' in off.schema, false);
+	assert.equal('example' in off.schema, false);
+	const on = inlineSchema({ '$ref': '#/components/schemas/Widget', description: 'a widget', example: { id: 'x' } }, components, { includeFieldDocs: true });
+	assert.equal(on.ok, true);
+	// A7's own `default`-merge precedent only ever merged `default` -- ref-sibling description/
+	// example are tolerated (don't fail the ref) but, unlike `default`, are not merged onto the
+	// resolved component schema: no real occurrence of this combination exists in the oracle (0
+	// measured), so no merge semantics were built for it, only tolerance.
+	assert.equal('description' in on.schema, false);
+	assert.equal('example' in on.schema, false);
+});
+
+test('reconcileModule: requestBodySchema and responseSchema carry field-level description/example only when includeDescriptions is true (the flag doubles as includeFieldDocs)', () => {
+	function reconcileWithFieldDocs(includeDescriptions) {
+		const doc = {
+			openapi: '3.1.0',
+			paths: { '/api/v0/widgets': { post: {
+				operationId: 'createWidget',
+				requestBody: { content: { 'application/json': { schema: {
+					type: 'object', properties: { label: { type: 'string', description: 'the widget label', example: 'foo' } },
+				} } } },
+				responses: { '201': { content: { 'application/json': { schema: {
+					type: 'object', properties: { id: { type: 'string', example: '11111111-1111-4111-8111-111111111111' } },
+				} } } } },
+			} } },
+		};
+		const indexed = indexOpenApiDocument(doc);
+		const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0', includeDescriptions });
+		return recon.byEndpoint.get('0:0');
+	}
+	const off = reconcileWithFieldDocs(false);
+	assert.equal('description' in off.requestBodySchema.properties.label, false);
+	assert.equal('example' in off.responseSchema.properties.id, false);
+
+	const on = reconcileWithFieldDocs(true);
+	assert.equal(on.requestBodySchema.properties.label.description, 'the widget label');
+	assert.equal(on.requestBodySchema.properties.label.example, 'foo');
+	assert.equal(on.responseSchema.properties.id.example, '11111111-1111-4111-8111-111111111111');
+});

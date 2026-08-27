@@ -59,6 +59,14 @@ const MAX_REQUEST_MEDIA_TYPES = 16;
 // already uses -- NOT a UTF-8 byte count, which runs higher for this oracle's real multi-byte
 // Korean text: 13,758 bytes for the same longest description).
 const MAX_DESCRIPTION_LENGTH = 40000;
+// A11: a FIELD-level `example` value, inside a schema this whole file resolves -- unlike
+// MAX_DESCRIPTION_LENGTH's single operation-level string, `example` is an arbitrary JSON value
+// (string/number/array/object all occur for real, see D-openapi-field-docs), so the cap applies to
+// its serialized (`JSON.stringify(value).length`) size, not `.length` directly. Real max observed
+// on the oracle: 70. A generously round bound, not a tight multiple, since a legitimately useful
+// example (e.g. a full sample response object) could reasonably run longer than any single real
+// value happened to here.
+const MAX_EXAMPLE_LENGTH = 2000;
 // A6 (D-openapi-export): widened from `/^2[0-9]{2}$/` and `/^[45][0-9]{2}$/` to also accept
 // OpenAPI's own RANGE keys. These are ordinary in real hand-written documents and legal per the
 // official 3.1 meta-schema, whose `responses` object accepts exactly `^[1-5](?:[0-9]{2}|XX)$` plus
@@ -136,12 +144,16 @@ export const PER_STATUS_NO_DESCRIPTION_STANDIN = 'The source document documents 
 
 // inlineSchema()'s keyword policy: RECURSED keywords are walked into; ASSERTION keywords are
 // copied verbatim (their values are scalars/arrays of scalars, not schema nodes -- nothing to
-// recurse); DROPPED keywords carry no validation meaning and are silently discarded (their
-// absence changes nothing about what a schema accepts); anything else fails that schema closed.
-// The FORMAT set is checked separately (see inlineSchema's format handling) since `uuid` gets
-// rewritten rather than either copied or dropped. A missing-and-therefore-fail-closed keyword is
-// deliberate: silently dropping an assertion (e.g. an unrecognized `pattern`-like keyword) would
-// emit a schema WEAKER than the real one, which is worse than emitting no schema at all -- see
+// recurse); DOCUMENTATION keywords (A11) are copied verbatim ONLY when opted in
+// (`includeFieldDocs`), dropped otherwise -- unlike an ASSERTION keyword, dropping one never
+// changes what a schema VALIDATES, only how well-documented it is, so there is no fail-closed
+// concern either way; DROPPED keywords carry no validation meaning AND have zero real occurrences
+// on the oracle (measured, not assumed -- see D-openapi-field-docs), so they are unconditionally
+// discarded regardless of any flag; anything else fails that schema closed. The FORMAT set is
+// checked separately (see inlineSchema's format handling) since `uuid` gets rewritten rather than
+// either copied or dropped. A missing-and-therefore-fail-closed keyword is deliberate: silently
+// dropping an assertion (e.g. an unrecognized `pattern`-like keyword) would emit a schema WEAKER
+// than the real one, which is worse than emitting no schema at all -- see
 // D-openapi-request-schema in DECISIONS.md.
 const RECURSED_KEYWORDS = Object.freeze(new Set(['properties', 'items', 'additionalProperties', 'oneOf', 'anyOf', 'allOf']));
 // A7: `default` added -- annotation-only per 2020-12 (Ajv runs with useDefaults off here, so it's
@@ -157,7 +169,16 @@ const COPIED_KEYWORDS = Object.freeze(new Set([
 	'minItems', 'maxItems', 'uniqueItems',
 	'minProperties', 'maxProperties',
 ]));
-const DROPPED_KEYWORDS = Object.freeze(new Set(['description', 'title', 'example', 'examples', 'externalDocs', 'xml', 'deprecated']));
+// A11 (D-openapi-field-docs): `description`/`example` measured real and heavily used at the FIELD
+// level (3,982 / 2,077 occurrences across the oracle's request/response/parameter schemas,
+// 520,527 / 32,708 real bytes) -- moved out of DROPPED_KEYWORDS into their own conditionally-
+// copied set. `title`/`examples`(plural)/`externalDocs`/`xml`/`deprecated` stay unconditionally
+// dropped: 0 real occurrences for every one of them (measured, not assumed), so building any
+// copy path for them would violate this project's own "don't build for zero real cases"
+// discipline -- named here, not built, a permanent gap like A8's `non-json-response-schemas`/
+// `response-headers`.
+const DOCUMENTATION_KEYWORDS = Object.freeze(new Set(['description', 'example']));
+const DROPPED_KEYWORDS = Object.freeze(new Set(['title', 'examples', 'externalDocs', 'xml', 'deprecated']));
 // Real Team-IZ-Backend format-value histogram (request-body-reachable schemas only): uuid(20),
 // int32(10), email(7), date(10), date-time(3), int64(2). `uuid` is handled separately (rewritten
 // to BARE_UUID_PATTERN, see inlineSchema) -- not in this set, since it never survives as `format`.
@@ -448,6 +469,9 @@ export function inlineSchema(node, componentSchemas, opts = {}) {
 		maxDepth: opts.maxDepth ?? MAX_SCHEMA_DEPTH,
 		maxNodes: opts.maxNodes ?? MAX_SCHEMA_NODES,
 		maxPatternLength: opts.maxPatternLength ?? MAX_PATTERN_LENGTH,
+		// A11: opt-in only (default false, matching every prior call site's existing behavior
+		// byte-for-byte when the caller doesn't pass it) -- see D-openapi-field-docs.
+		includeFieldDocs: opts.includeFieldDocs ?? false,
 	};
 	const state = { nodes: 0 };
 	try {
@@ -474,11 +498,14 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 		// module doesn't attempt to MERGE $ref with a sibling assertion, with ONE exception (A7):
 		// `default` is a real, human-authored override worth carrying through (the exact real shape
 		// `{"$ref": ".../ProjectListSort", "default": "READINESS"}` -- a $ref-typed parameter
-		// schema with its own default value, 9 real occurrences). A DROPPED_KEYWORDS sibling (e.g. a
-		// documentation-only `description`) is harmless and ignored; anything else would need merge
-		// semantics this vertical slice doesn't implement, so it fails closed.
+		// schema with its own default value, 9 real occurrences). A DROPPED_KEYWORDS or
+		// DOCUMENTATION_KEYWORDS sibling (e.g. a documentation-only `description`) is harmless and
+		// ignored -- NOT merged onto the resolved schema even when includeFieldDocs is on (A11: 0
+		// real occurrences of a $ref carrying a sibling description/example, measured directly, so
+		// there is no real case to build merge semantics for, unlike `default`'s 9); anything else
+		// would need merge semantics this vertical slice doesn't implement, so it fails closed.
 		const siblingKeys = Object.keys(node).filter((k) => k !== '$ref');
-		if (siblingKeys.some((k) => !DROPPED_KEYWORDS.has(k) && k !== 'default')) fail('ref-with-siblings');
+		if (siblingKeys.some((k) => !DROPPED_KEYWORDS.has(k) && !DOCUMENTATION_KEYWORDS.has(k) && k !== 'default')) fail('ref-with-siblings');
 		const ref = node['$ref'];
 		if (typeof ref !== 'string' || !ref.startsWith(SCHEMA_REF_PREFIX)) fail('unsupported-ref');
 		const name = ref.slice(SCHEMA_REF_PREFIX.length);
@@ -525,6 +552,32 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 	for (const key of Object.keys(node)) {
 		if (key === '$ref' || key === 'format') continue; // format already handled above
 		if (DROPPED_KEYWORDS.has(key)) continue;
+
+		// A11: description/example are DROPPED (same as before this item) unless includeFieldDocs is
+		// on -- when it is, copy verbatim IF the value passes a defensive length check, else drop
+		// (silently, same as if the flag were off for this one field) rather than failing the whole
+		// schema closed. Unlike an ASSERTION keyword's fail-closed policy, dropping an annotation
+		// NEVER changes what the schema validates -- only how well-documented it is -- so there is no
+		// correctness reason to fail the operation over one oversized documentation string, and a
+		// per-FIELD warning here would be unusably noisy (a single schema can carry dozens of these,
+		// unlike A10's one-per-operation description). Real data never exercises this path (measured
+		// max: 3,148 for description, 70 for example -- both far under their caps), so this is a
+		// defensive bound against a hostile/malformed --openapi-file, not an expected real branch.
+		if (DOCUMENTATION_KEYWORDS.has(key)) {
+			if (!limits.includeFieldDocs) continue;
+			if (key === 'description') {
+				if (typeof node.description === 'string' && node.description.length <= MAX_DESCRIPTION_LENGTH) {
+					out.description = node.description;
+				}
+			} else if (key === 'example') {
+				let serialized;
+				try { serialized = JSON.stringify(node.example); } catch { serialized = null; }
+				if (serialized !== undefined && serialized !== null && serialized.length <= MAX_EXAMPLE_LENGTH) {
+					out.example = node.example;
+				}
+			}
+			continue;
+		}
 
 		if (key === 'pattern') {
 			// Two patterns can't be expressed without allOf, which this slice doesn't attempt to
@@ -607,7 +660,7 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 // let alone body shape. `docEntry` is the OpenAPI-side entry (from byOperationId or byRoute) whose
 // `.requestBody` indexOpenApiDocument() retained. Never treats "nothing to project" as a failure --
 // only an actual unresolvable schema increments schema_unresolved / sets schemaUnresolvedReason.
-function applyRequestBodySchema(result, docEntry, componentSchemas, stats) {
+function applyRequestBodySchema(result, docEntry, componentSchemas, stats, includeFieldDocs) {
 	const requestBody = docEntry.requestBody;
 	if (!requestBody || Object.hasOwn(requestBody, '$ref')) {
 		stats.schema_none++;
@@ -624,7 +677,7 @@ function applyRequestBodySchema(result, docEntry, componentSchemas, stats) {
 		stats.schema_none++;
 		return;
 	}
-	const resolved = inlineSchema(schemaNode, componentSchemas);
+	const resolved = inlineSchema(schemaNode, componentSchemas, { includeFieldDocs });
 	if (resolved.ok) {
 		result.requestBodySchema = resolved.schema;
 		result.requestBodyRequired = requestBody.required === true;
@@ -676,7 +729,7 @@ function canonicalJson(value) {
 // nothing it had before (nothing read `default` at all until now); one whose `default` describes an
 // error -- the overwhelmingly common case, and the only case `bskel contract export` itself emits --
 // gains a real error schema it previously dropped silently.
-function projectResponseSchemas(responses, statusRe, componentSchemas, { includeDefault = false } = {}) {
+function projectResponseSchemas(responses, statusRe, componentSchemas, { includeDefault = false, includeFieldDocs = false } = {}) {
 	if (!responses) return { outcome: 'none' };
 	const statusKeys = Object.keys(responses);
 	if (statusKeys.length > MAX_RESPONSES_PER_OPERATION) {
@@ -703,9 +756,14 @@ function projectResponseSchemas(responses, statusRe, componentSchemas, { include
 		return { outcome: sawContentWithoutJson ? 'skipped-media-type' : 'none' };
 	}
 
+	// A11: includeFieldDocs can make two previously-identical-looking resolved schemas turn out
+	// distinct (different field-level description/example), which correctly increases `sources` --
+	// see D-openapi-field-docs for why this is a self-consistent consequence of being more precise
+	// about equality, not a bug, and the real measurement confirming it never actually happens on
+	// the Team-IZ-Backend oracle.
 	const resolvedByCanonical = new Map();
 	for (const node of rawNodesByKey.values()) {
-		const resolved = inlineSchema(node, componentSchemas);
+		const resolved = inlineSchema(node, componentSchemas, { includeFieldDocs });
 		if (!resolved.ok) return { outcome: 'unresolved', reason: resolved.reason };
 		const canonicalKey = canonicalJson(resolved.schema);
 		if (!resolvedByCanonical.has(canonicalKey)) resolvedByCanonical.set(canonicalKey, resolved.schema);
@@ -729,10 +787,10 @@ function projectResponseSchemas(responses, statusRe, componentSchemas, { include
 // schemaProjection.enabled guard). Fields are set ONLY when resolved -- omitted, not null/false,
 // so an operation with nothing to project stays byte-identical to pre-A3 output (same discipline
 // as A2's requestBodySchema).
-function applyResponseSchemas(result, docEntry, componentSchemas, stats) {
-	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, SUCCESS_STATUS_RE, componentSchemas), stats, 'response');
+function applyResponseSchemas(result, docEntry, componentSchemas, stats, includeFieldDocs) {
+	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, SUCCESS_STATUS_RE, componentSchemas, { includeFieldDocs }), stats, 'response');
 	// A6: `default` contributes to the ERROR side only -- see projectResponseSchemas' own comment.
-	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, ERROR_STATUS_RE, componentSchemas, { includeDefault: true }), stats, 'error');
+	applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, ERROR_STATUS_RE, componentSchemas, { includeDefault: true, includeFieldDocs }), stats, 'error');
 }
 
 function applyProjectionOutcome(result, projected, stats, kind) {
@@ -821,7 +879,7 @@ function collectNonPathParameters(rawParameters) {
 // The middle+last cases both add the parameter to sourceParameters (every OTHER field it carries is
 // real and safe); the last case additionally drives CONTRACT_OPENAPI_PARAMETERS_UNRESOLVED, exactly
 // the "found but couldn't project" distinction applyRequestBodySchema already draws for a body.
-function copyParameter(raw, componentSchemas) {
+function copyParameter(raw, componentSchemas, includeFieldDocs) {
 	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'not-a-parameter-object' };
 	if (Object.hasOwn(raw, '$ref')) return { ok: false, reason: 'ref-parameter' };
 	if (Object.hasOwn(raw, 'content')) return { ok: false, reason: 'content-parameter' };
@@ -839,7 +897,7 @@ function copyParameter(raw, componentSchemas) {
 	}
 
 	if (Object.hasOwn(raw, 'schema')) {
-		const resolved = inlineSchema(raw.schema, componentSchemas);
+		const resolved = inlineSchema(raw.schema, componentSchemas, { includeFieldDocs });
 		if (resolved.ok) {
 			parameter.schema = resolved.schema;
 		} else {
@@ -856,7 +914,7 @@ function copyParameter(raw, componentSchemas) {
 // `result`: parametersTotal/parametersCleanCount (reconciliation-internal bookkeeping consumed only
 // by snapshotFromReconciliation, never copied into the contract itself), parametersSkippedDialect,
 // sourceParameters (omitted when empty), parametersUnresolved (omitted when empty).
-function applyParameters(result, docEntry, index, stats, schemaProjectionEnabled) {
+function applyParameters(result, docEntry, index, stats, schemaProjectionEnabled, includeFieldDocs) {
 	const candidates = collectNonPathParameters(docEntry.parameters);
 	if (candidates.length === 0) {
 		stats.parameters_none++;
@@ -881,7 +939,7 @@ function applyParameters(result, docEntry, index, stats, schemaProjectionEnabled
 		}
 	} else {
 		for (const raw of candidates) {
-			const outcome = copyParameter(raw, index.componentSchemas);
+			const outcome = copyParameter(raw, index.componentSchemas, includeFieldDocs);
 			if (!outcome.ok) {
 				unresolved.push({ name: safeParamName(raw), in: safeParamIn(raw), reason: outcome.reason });
 				continue;
@@ -1009,7 +1067,7 @@ function applyDescription(result, docEntry, stats, includeDescriptions) {
 // at it instead of re-resolving. When sources>1 (never observed on real data, but structurally
 // possible) or the status sits outside both buckets (a 1xx/3xx key), the status's own schema is
 // resolved individually into an inline `schema` instead.
-function applyPerStatusResponses(result, docEntry, componentSchemas, stats, schemaProjectionEnabled) {
+function applyPerStatusResponses(result, docEntry, componentSchemas, stats, schemaProjectionEnabled, includeFieldDocs) {
 	if (!schemaProjectionEnabled) {
 		result.perStatusResponsesSkippedDialect = true;
 		stats.per_status_skipped_dialect++;
@@ -1058,7 +1116,7 @@ function applyPerStatusResponses(result, docEntry, componentSchemas, stats, sche
 					} else if ((ERROR_STATUS_RE.test(key) || key === DEFAULT_STATUS_KEY) && result.errorSchema && result.errorSchemaSources === 1) {
 						entry.schemaFrom = 'error';
 					} else {
-						const resolved = inlineSchema(schemaNode, componentSchemas);
+						const resolved = inlineSchema(schemaNode, componentSchemas, { includeFieldDocs });
 						// unresolved here just leaves `schema` absent -- `description` alone (if any) stays
 						// valid, same "copied without schema" posture copyParameter() already takes.
 						if (resolved.ok) entry.schema = resolved.schema;
@@ -1088,7 +1146,7 @@ function applyPerStatusResponses(result, docEntry, componentSchemas, stats, sche
 // schemas/feature-contract.schema.json too). Gated on schemaProjectionEnabled for the same reason
 // as applyPerStatusResponses above -- a media-type schema resolves through the same inlineSchema()
 // path.
-function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schemaProjectionEnabled) {
+function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schemaProjectionEnabled, includeFieldDocs) {
 	if (!schemaProjectionEnabled) {
 		result.requestMediaTypesSkippedDialect = true;
 		stats.request_media_types_skipped_dialect++;
@@ -1124,7 +1182,7 @@ function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schem
 		const entry = {};
 		const schemaNode = mediaEntry && typeof mediaEntry === 'object' && !Array.isArray(mediaEntry) ? mediaEntry.schema : null;
 		if (schemaNode && typeof schemaNode === 'object' && !Array.isArray(schemaNode)) {
-			const resolved = inlineSchema(schemaNode, componentSchemas);
+			const resolved = inlineSchema(schemaNode, componentSchemas, { includeFieldDocs });
 			if (resolved.ok) { entry.schema = resolved.schema; cleanCount++; }
 		} else {
 			cleanCount++; // no schema declared for this media type at all is not a failure -- same
@@ -1159,7 +1217,7 @@ function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schem
 // `result` for contracts/emit.mjs's pathParamsSchema() call to consult -- never itself persisted to
 // the contract; only the corrected `pathParams` (and, when at least one segment still falls back to
 // the heuristic, `pathParamsHeuristic`) are.
-function applyPathParameterSchemas(result, docEntry, componentSchemas, stats, schemaProjectionEnabled) {
+function applyPathParameterSchemas(result, docEntry, componentSchemas, stats, schemaProjectionEnabled, includeFieldDocs) {
 	const rawParameters = Array.isArray(docEntry.parameters) ? docEntry.parameters : [];
 	const pathParams = rawParameters.filter((p) => p && typeof p === 'object' && !Array.isArray(p) && p.in === 'path');
 	if (pathParams.length === 0) {
@@ -1177,7 +1235,7 @@ function applyPathParameterSchemas(result, docEntry, componentSchemas, stats, sc
 		if (name === null || !Object.hasOwn(p, 'schema')) continue; // no name, or source declared no schema -- nothing to prefer over the heuristic for this one segment
 		const schemaNode = p.schema;
 		if (!schemaNode || typeof schemaNode !== 'object' || Array.isArray(schemaNode)) continue;
-		const out = inlineSchema(schemaNode, componentSchemas);
+		const out = inlineSchema(schemaNode, componentSchemas, { includeFieldDocs });
 		if (out.ok) resolved.set(name, out.schema);
 	}
 	if (resolved.size > 0) {
@@ -1193,15 +1251,19 @@ function applyPathParameterSchemas(result, docEntry, componentSchemas, stats, sc
 // every other resolution kind (drift/missing/ambiguous/unresolved never reach this function at
 // all, see reconcileModule below).
 function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnabled, referencedSchemeNames, includeDescriptions) {
-	applyParameters(result, docEntry, index, stats, schemaProjectionEnabled);
+	// A11 (D-openapi-field-docs): includeDescriptions doubles as includeFieldDocs here -- reusing
+	// the existing --descriptions flag rather than adding a second one, since it already governs
+	// "copy source-authored documentation prose" at the operation level (A10); field-level
+	// description/example is the same policy applied one level deeper into the same schemas.
+	applyParameters(result, docEntry, index, stats, schemaProjectionEnabled, includeDescriptions);
 	applySecurity(result, docEntry, index, stats, referencedSchemeNames);
 	applySummaryAndTags(result, docEntry, stats);
 	// A8: same matched/adopted-only placement as the three calls above -- this IS the refusal
 	// mechanism for every other resolution kind, extended unchanged for the two new fields.
-	applyPerStatusResponses(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
-	applyRequestMediaTypes(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
+	applyPerStatusResponses(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled, includeDescriptions);
+	applyRequestMediaTypes(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled, includeDescriptions);
 	// A9: same placement again, for the path-parameter schema fix.
-	applyPathParameterSchemas(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
+	applyPathParameterSchemas(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled, includeDescriptions);
 	// A10: same placement again -- applyDescription() itself decides whether includeDescriptions
 	// gates it off, matching how applyParameters decides its own schemaProjectionEnabled gate
 	// internally rather than being skipped by the caller.
@@ -1300,8 +1362,8 @@ export function reconcileModule({ index, module, pathPrefix = null, includeDescr
 						// A2/A3: matched/adopted ONLY -- schema enrichment never applies to drift/missing/
 						// ambiguous/unresolved, same "don't guess" rule A1 established for path/verb.
 						if (schemaProjection.enabled) {
-							applyRequestBodySchema(result, docEntry, index.componentSchemas, stats);
-							applyResponseSchemas(result, docEntry, index.componentSchemas, stats);
+							applyRequestBodySchema(result, docEntry, index.componentSchemas, stats, includeDescriptions);
+							applyResponseSchemas(result, docEntry, index.componentSchemas, stats, includeDescriptions);
 						}
 						// A7: same matched/adopted-only placement -- this IS the refusal mechanism for
 						// every other resolution kind. Called unconditionally (not gated on
@@ -1333,8 +1395,8 @@ export function reconcileModule({ index, module, pathPrefix = null, includeDescr
 					};
 					stats.adopted++;
 					if (schemaProjection.enabled) {
-						applyRequestBodySchema(result, hits[0], index.componentSchemas, stats);
-						applyResponseSchemas(result, hits[0], index.componentSchemas, stats);
+						applyRequestBodySchema(result, hits[0], index.componentSchemas, stats, includeDescriptions);
+						applyResponseSchemas(result, hits[0], index.componentSchemas, stats, includeDescriptions);
 					}
 					applyPassthrough(result, hits[0], index, stats, schemaProjection.enabled, referencedSecuritySchemeNames, includeDescriptions);
 				} else if (hits.length === 1) {
