@@ -7291,3 +7291,63 @@ precedent this item deliberately does NOT extend to `description`/`example`, and
 `D-openapi-per-status` (A8, the `schemaFrom`/`sources` dedup mechanism this item's own real-oracle
 verification confirms is unaffected in practice); `D-openapi-export` (A6, the `MAX_PATTERN_LENGTH`-
 style defensive-cap precedent `MAX_EXAMPLE_LENGTH` follows).
+
+## D-contract-history: a read-only view over whatever git already recorded, not a new store
+
+**WHY:** After the OpenAPI-passthrough line (A7-A11) shipped and the repo went public, the user
+asked for an ROI-ranked backlog closing self-identified weaknesses and extending differentiators.
+The initial verbal design for this item assumed `specs/<feature_id>/contracts/<feature_id>.schema.json`
+(the emitted contract) is "already committed" in every target repo -- **wrong, checked before
+building**: `.gitignore`'s own comment on `.sbf/` says plainly that `.sbf/`/`specs/` are ephemeral
+per-repo state `bskel` writes into a TARGET repo, not this skill's own; whether a target repo
+commits them is entirely that repo's own choice, outside `bskel`'s control or knowledge. The
+shared test fixture (`test/_contract-fixture.mjs`'s `buildFixtureRepo()`) itself gitignores
+`specs/` by default -- confirming this is the REALISTIC common case, not an edge case. The command
+therefore has to treat "never committed" as a normal, expected outcome, not a failure.
+
+**A second wrong assumption caught before building, not after**: the original design also planned
+to cross-reference each git commit against `.sbf/<feature>.history.jsonl`'s gate-pass `token`s, to
+mark which revisions correspond to a real `contract` gate PASS. That file is itself gitignored,
+per-machine, ephemeral state (same `.gitignore` comment) -- a git commit is shared across clones
+and machines, but the local `.sbf/` history is not, so there is no reliable 1:1 relationship
+between "this commit" and "a gate pass recorded on THIS machine." Building that cross-reference
+would have quietly conflated two orthogonal facts. Dropped entirely; `bskel gate export` (a later,
+separate backlog item) is the correct tool for "what did this machine's gate history record" --
+this item only ever answers "what does git itself say changed."
+
+**Mechanism**: `lib/repo.mjs` (already the module for small git read-helpers -- `repoRoot()`,
+`localDefaultBranch()`, `remoteTrackingTip()`) gains `fileHistory(cwd, relPath)` (git log
+`--follow` for rename survival, reversed into oldest-first order for a forward-walking diff) and
+`showFileAtRevision(cwd, sha, relPath)` (`git show <sha>:<path>`, a read of history, never the
+working tree). Both return an empty/null result rather than throwing when the path has no history
+at that point -- matching every other absence-is-normal posture in this module. New
+`bskel contract history --feature <id> [--json]` (`cmdContractHistory` in `bin/bskel.mjs`, `contract
+history` in `lib/cli.mjs`'s COMMANDS table) walks the revisions oldest-to-newest, parses each
+revision's own JSON, and diffs `Object.keys(operations)` against the previous revision to report
+`operations_added`/`operations_removed` per commit -- alongside that revision's own
+`sbf_contract`/`completeness.status`/`completeness.operation_count`. A revision that fails to
+parse (a pre-JSON-era commit, a hand-corrupted one) is marked `parse_error: true` for THAT
+revision only, never failing the whole command -- the same per-item-not-whole-operation fail
+posture `contracts/openapi.mjs` already uses throughout.
+
+**Read-only, no gate interaction.** Unlike every `contract` subcommand that touches state
+(`emit`/`waive`), `history` never calls `requireNamedGate`/`passNamedGate` -- it works regardless
+of whether the `contract` gate currently passes, mirroring `bskel gate history`'s own posture (gate
+history is inspectable independent of current gate state).
+
+**Verified**: a hand-built git repo with 3 controlled revisions (`test/contract-history-cli.test.mjs`)
+confirms the operations-added/removed diff is correct and chronologically ordered; a corrupted
+middle revision is isolated to that one entry; a real `bskel contract emit` output, once actually
+committed by the fixture, round-trips through `contract history` with matching `sbf_contract`/
+`operation_count` values pulled straight from the real emitted file. `npm test` 973 -> **981**
+(8 new).
+
+**EXIT**: field-level diffing (e.g. "which operation's `requestBodySchema` changed shape between
+these two revisions") is out of scope for this item -- only the operation NAME set is diffed, not
+the schemas inside each operation. Named here as a deliberately narrower scope than a full
+structural diff, not an oversight.
+
+Cross-references: `D-gate-history` (S4, the append-only `.sbf/<feature>.history.jsonl` mechanism
+this item deliberately does NOT cross-reference, and why); `D-fixture-corpus` (P3, confirms
+`specs/` is gitignored by default in the shared test fixture, the evidence this item's own
+"not committed is the common case" design rests on).
