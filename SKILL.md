@@ -358,13 +358,14 @@ bskel feature init --slug organization-management
   # -> mints feature_id (e.g. 001-organization-management, auto-numbered) + a UUIDv4 feature_uid,
   #    writes specs/<id>/feature.json + .sbf/feature-index.json. Requires preflight to have passed.
 
-bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
+bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   # -> requires the `scan` gate to have passed (greenfield auto-pass, or a recorded disposition).
   #    Seeds specs/<id>/contracts/<id>.schema.json's operations from the scan's controller
   #    endpoints for the given module (defaults to the top-scoring related module): verb, path,
-  #    path-param schema (uuid-format for *Id-named params), and whether the endpoint takes a
-  #    body (re-checks the source for @RequestBody per-method -- verb alone is not reliable,
-  #    e.g. a DELETE that still takes a confirm-name body).
+  #    path-param schema (uuid-format for *Id-named params -- overridden per-segment by a real
+  #    --openapi-file source schema when it resolves one, see A9 below), and whether the endpoint
+  #    takes a body (re-checks the source for @RequestBody per-method -- verb alone is not
+  #    reliable, e.g. a DELETE that still takes a confirm-name body).
   #    ALWAYS writes the contract file, even when incomplete -- but the `contract` gate only
   #    passes when completeness is `complete`. `partial` (endpoints exist with no correlated
   #    operationId, or a duplicate operationId) and `blocked` (zero operations -- no module
@@ -438,6 +439,19 @@ bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <p
   #    Before A6 a document written with range keys or `default` lost every response/error schema
   #    SILENTLY -- "no status matched" is correctly not a failure, so nothing warned. See
   #    `D-openapi-export`.
+  #
+  #    A9 (D-openapi-path-params): a path parameter's schema is corrected from a real --openapi-file
+  #    source document, per-segment, whenever it declares a resolvable one -- overriding the *Id-name
+  #    heuristic above in place, not adding a second field. Falls back to the heuristic only for a
+  #    segment the source doesn't answer.
+  #
+  #    A10 (D-openapi-description): pass --descriptions to also copy each operation's real
+  #    `description` verbatim (`sourceDescription`) -- the one source-backed field that stays
+  #    OPT-IN rather than default-on, because the measured cost (real average 2,442.7
+  #    bytes/operation) is larger than every other field this whole effort copies combined. Fails
+  #    closed (CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED, WARN, never blocks) only if the source's
+  #    description exceeds a defensive length cap; --descriptions without --openapi-file is
+  #    rejected the same way a lone --path-prefix already is (no effect on its own).
 
 bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   # -> A6: the inverse of `--openapi-file`. Renders an already-emitted contract as a standalone
@@ -453,9 +467,7 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    synthesized to fill a gap: an operation whose body shape the contract doesn't know gets
   #    `content: {application/json: {}}` -- a media-type entry with no schema -- rather than a
   #    fabricated `{type: "object"}`; an operation with no per-status source data still collapses
-  #    its 2xx/4xx/5xx bodies into two unions rather than guessing a status code. Operation-level
-  #    `description` remains excluded -- measured too expensive to copy by default (real average
-  #    2,442.7 bytes/operation, larger than every other field this projection copies combined).
+  #    its 2xx/4xx/5xx bodies into two unions rather than guessing a status code.
   #
   #    A7 (D-openapi-passthrough): query/header/cookie parameters, `security` (+ referenced
   #    `components.securitySchemes`), `summary`, and `tags` ARE emitted -- but ONLY when a real
@@ -471,6 +483,12 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    per-field: query/header/cookie-parameters, security, summaries, tags, per-status responses,
   #    and non-JSON request media types are each listed only if at least one exported operation lacks
   #    them, not unconditionally.
+  #
+  #    A10 (D-openapi-description): operation-level `description` is copied too -- the one
+  #    source-backed field that is OPT-IN (`contract emit --descriptions`), not default-on, because
+  #    the measured cost (real average 2,442.7 bytes/operation) is larger than every other field this
+  #    projection copies combined. Copied verbatim only when the flag was passed AND the source
+  #    document declared one for that exact operation AND it did not exceed a defensive length cap.
   #
   #    OpenAPI 3.1 ONLY, and deliberately not 3.0 even behind a flag: 3.0 requires `responses` on
   #    every operation (forcing a synthesized response), types exclusiveMinimum/exclusiveMaximum as

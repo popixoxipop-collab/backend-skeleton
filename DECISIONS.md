@@ -7082,3 +7082,84 @@ on); `D-security-2` (the `format: 'uuid'` -> `BARE_UUID_PATTERN` rewrite this it
 through `inlineSchema()`, and the "convergence after one step" round-trip framing this item's own
 finding extends); `D-security-1` (the prototype-pollution class `Map`-based `pathParamSchemas`
 sidesteps entirely, the same reasoning `componentSchemas`/`securitySchemes` already established).
+
+## D-openapi-description (A10): the one source-backed field that stays opt-in
+
+**WHY:** A7 and A8 each deferred operation-level `description` with the exact same measured
+reason: real average 2,442.7 bytes/operation across the Team-IZ-Backend oracle, larger than every
+other field this whole passthrough effort copies combined -- both explicitly said "if ever built,
+must be opt-in behind a flag, unlike everything else this project's OpenAPI-passthrough work has
+shipped default-on." This item builds it, on that exact term. User-directed ("operation-level
+description... 진행하자"), following the design A7/A8 already committed to rather than inventing a
+new one.
+
+**Different from A7/A8/A9 in one respect: opt-in, not default-on.** Every other source-backed field
+in this project activates automatically whenever `--openapi-file` is given -- the measured cost of
+each was small enough that gating it behind a flag would only add friction for no real protection
+(A7's own stated reasoning). Description breaks that pattern on cost alone, so `contract emit
+--descriptions` is required in addition to `--openapi-file` -- refused with a `BAD_ARGS` error if
+passed without it (`--descriptions only applies when reconciling against a real OpenAPI document`),
+the exact same "would be a silent no-op otherwise" refusal `--path-prefix` already needed (Phase 3
+dogfooding finding, `cad53c1`).
+
+**Mechanism**: `indexOpenApiDocument()` retains raw `description` per entry (same "no size cap at
+index time" posture as every other raw field -- the cap applies at the point of copying, not
+indexing). New `applyDescription()` (called from `applyPassthrough()`'s existing matched/adopted-
+only call sites -- no new call sites, same refusal mechanism every A7/A8/A9 field already relies
+on) is a no-op unless `includeDescriptions` is true, threaded as a new parameter through
+`reconcileModule()`/`buildReconciliation()` from `cmdContractEmit`'s own `--descriptions` flag.
+Copied verbatim -- unlike a schema, there is no keyword whitelist to apply to a plain string, only
+a length gate: `MAX_DESCRIPTION_LENGTH` (40,000, `.length` i.e. UTF-16 code units, same measure
+`MAX_PATTERN_LENGTH` already uses) fails a too-long description closed with a new,
+independent WARN code (`CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED` -- nothing else tracks description
+length, so this cannot reuse an existing code, the same reasoning A8 used to justify its own new
+multipart code instead of overloading `CONTRACT_OPENAPI_SCHEMA_UNRESOLVED`). The cap protects
+gate-token hashing / contract-file size against a malformed or hostile `--openapi-file`, the same
+defensive-cap class as D-security-1/D-security-2 that every other unbounded-size field in
+`contracts/openapi.mjs` already defends against -- not a concern for a normal document (real max
+observed: 9,083 `.length`, ~4.4x headroom to the cap).
+
+**`descriptions` splits into two entries, one moves, one stays.** The old single structural
+omission entry conflated two genuinely different gaps: field-level `description`/`title`/`example`
+(dropped as `DROPPED_KEYWORDS` while inlining ANY schema -- request bodies, responses, parameters)
+and operation-level `description`. This item only touches the second. `field-descriptions` (the
+first) stays permanently structural -- no plan to build per-FIELD copying, a genuinely different
+and much larger scope. `operation-descriptions` moves to the ANY-based derived set, the same
+migration A8 made for `per-status-responses`/`non-json-request-media-types` and A9 made for
+`path-parameter-schemas`: present whenever at least one exported operation lacks
+`sourceDescription` -- which is EVERY operation whenever `--descriptions` was not passed at all
+(the common case), so the omission fires unconditionally until the flag is used, same as how
+`security`/`summary` read before A7 shipped.
+
+**Verified against the real 148-operation Team-IZ-Backend oracle** (`reconcileModule()` called
+directly with a synthetic all-148-operations module, `includeDescriptions: true`): **146/148
+operations have their real description copied verbatim** (`description_copied: 146`), 2 genuinely
+have none in the source (`description_none: 2`), zero exceed the length cap
+(`description_unresolved: 0`) -- re-confirming the real max (9,083) sits comfortably under the
+40,000 cap. With the flag held at its default `false` against the identical document: `0` copied,
+`148` skipped via the flag gate -- confirming the opt-in default has zero effect until explicitly
+requested, the regression check this item's whole design rests on.
+
+**No round-trip hazard, unlike A8/A9.** A plain string has nothing analogous to A8's synthesized-
+stand-in problem (no spec-required placeholder is ever invented for a missing `description` --
+absent is legal, the key is simply omitted) or A9's heuristic-becomes-confirmed convergence (there
+is no heuristic for description at all -- it is either real and copied, or absent). Exporting and
+re-importing a `sourceDescription` is a straightforward byte-identical round trip.
+
+`sbf_contract` bumped `"7"` -> `"8"` for the new `sourceDescription` field (the operation schema's
+`additionalProperties: false` requires it to be explicitly whitelisted, same as every prior field).
+`contracts/validate.mjs`, `lib/gate-definitions.mjs`, `lib/verify.mjs`, and
+`.github/workflows/ci.yml` are all untouched (`git diff --stat` confirms) -- `sourceDescription` is
+purely an export-time/disclosure field, `contract validate` never reads it, matching A8's own
+`sourceResponses`/`sourceRequestBody` precedent exactly.
+
+**EXIT**: field-level `description`/`title`/`example` copying (the genuinely separate, much larger
+scope `field-descriptions` still names) remains unbuilt and unscoped -- no plan exists, named here
+as a permanent, deliberate gap rather than an oversight.
+
+Cross-references: `D-openapi-passthrough` (A7, the exact deferral this item builds on, and the
+`--path-prefix`-would-be-a-silent-no-op precedent `--descriptions` reuses); `D-openapi-per-status`
+(A8, both the STRUCTURAL-to-ANY-based omission migration and the "one genuinely independent failure
+needs its own new WARN code" reasoning this item follows); `D-openapi-path-params` (A9, the most
+recent sibling item, same `applyPassthrough()` call-site placement); `D-openapi-export` (A6, the
+`MAX_PATTERN_LENGTH`-style defensive-cap precedent this item's `MAX_DESCRIPTION_LENGTH` follows).

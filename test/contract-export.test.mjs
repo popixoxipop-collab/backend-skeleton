@@ -449,7 +449,7 @@ test('the same repo exports without --allow-unprefixed once the contract\'s path
 // SOURCE document never carried them either (neither fixture below opts into the new
 // withSecurity/withSummaryTags knobs), and `description` (the operation-level field, not the
 // response-object one) is never emitted at all -- Phase 2, unbuilt.
-test('security, summary, tags never appear when the source document did not carry them; description never appears at all (Phase 2)', () => {
+test('security, summary, tags, description never appear when the source document did not carry them (or --descriptions was not passed)', () => {
 	const cases = [
 		() => {
 			const root = buildFixtureRepo();
@@ -804,6 +804,83 @@ test('A9: path-parameter schemas are an ANY-based derived omission -- absent whe
 	assert.ok(heuristic.includes('path-parameter-schemas'), 'findWidget\'s widgetId has no source document to resolve against');
 });
 
+// --- A10: opt-in operation-level description (D-openapi-description) ---------------------------
+
+test('A10: --descriptions actually copies the real operation description into the exported document, verbatim', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets'].post.description = 'creates a widget for the current organization.';
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile, '--descriptions'], root).code, 0);
+	const { doc: exported } = exportedDoc(root);
+	assert.equal(exported.paths['/api/v0/widgets'].post.description, 'creates a widget for the current organization.');
+	assertValidOpenApi(exported, 'an export with an opt-in operation-level description');
+});
+
+test('A10: without --descriptions, the real source description is never copied, even though the source document has one', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets'].post.description = 'creates a widget for the current organization.';
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0); // no --descriptions
+	const { doc: exported } = exportedDoc(root);
+	assert.equal('description' in exported.paths['/api/v0/widgets'].post, false);
+});
+
+test('A10: --descriptions without --openapi-file is refused (would be a silent no-op), same as a lone --path-prefix', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const result = run(['contract', 'emit', '--feature', FEATURE, '--descriptions'], root);
+	assert.equal(result.code, 14);
+	assert.match(result.stderr, /--descriptions only applies when reconciling against a real OpenAPI document/);
+});
+
+test('A10: a source description exceeding the length cap raises CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED (WARN -- never blocks) and is not exported', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets'].post.description = 'x'.repeat(40001);
+	const docFile = writeOpenApiFixture(root, doc);
+	const emitted = run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile, '--descriptions'], root);
+	assert.equal(emitted.code, 0, 'WARN severity never blocks the gate -- same invariant this file already pins for A7/A8\'s own new codes');
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	const warning = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED');
+	assert.ok(warning, 'the new code must actually fire');
+	assert.equal(warning.subject, 'createWidget');
+	assert.equal(warning.severity, 'warn');
+	assert.equal('description' in exportedDoc(root).doc.paths['/api/v0/widgets'].post, false);
+});
+
+test('A10: operation-descriptions is an ANY-based derived omission -- present without the flag, present with the flag when the source has none, absent only when every operation is source-described', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const withoutFlag = writeOpenApiFixture(root, widgetOpenApiDoc({}));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', withoutFlag], root).code, 0);
+	assert.ok(exportedDoc(root).doc.info['x-bskel-omitted'].includes('operation-descriptions'), 'the flag was never passed');
+
+	const root2 = buildFixtureRepo();
+	initThroughScanDisposition(root2);
+	const doc2 = widgetOpenApiDoc({});
+	// findWidgets/findWidget get a real description; createWidget does not -- a genuine mix.
+	doc2.paths['/api/v0/widgets'].get.description = 'lists widgets.';
+	doc2.paths['/api/v0/widgets/{widgetId}'].get.description = 'finds one widget.';
+	const docFile2 = writeOpenApiFixture(root2, doc2);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile2, '--descriptions'], root2).code, 0);
+	assert.ok(exportedDoc(root2).doc.info['x-bskel-omitted'].includes('operation-descriptions'), 'createWidget still has no description even with the flag on');
+
+	const root3 = buildFixtureRepo();
+	initThroughScanDisposition(root3);
+	const doc3 = widgetOpenApiDoc({});
+	for (const item of Object.values(doc3.paths)) {
+		for (const operation of Object.values(item)) operation.description = 'every operation gets one here.';
+	}
+	const docFile3 = writeOpenApiFixture(root3, doc3);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile3, '--descriptions'], root3).code, 0);
+	assert.equal(exportedDoc(root3).doc.info['x-bskel-omitted'].includes('operation-descriptions'), false, 'every operation is source-described with the flag on -- the case that would be impossible if the list were a fixed disclaimer');
+});
+
 // --- A7: loadContract()'s friendly sbf_contract mismatch message -------------------------------
 
 // loadContract()'s pre-check is exercised through an UNGATED command (`contract tool-schema`, not
@@ -825,7 +902,7 @@ test('an on-disk contract from an older bskel (sbf_contract "4") gets a friendly
 
 	const result = run(['contract', 'tool-schema', '--feature', FEATURE, '--operation', 'createWidget'], root);
 	assert.equal(result.code, 2, 'loadContract()\'s INVALID_ARTIFACT failures share exit NOT_PASSED(2), same as MISSING_ARTIFACT');
-	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "7"\)/);
+	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "8"\)/);
 	assert.match(result.stderr, /re-run `bskel contract emit --feature 001-widget-management`/);
 	assert.equal(result.stderr.includes('does not match schemas/feature-contract.schema.json'), false, 'the friendly message must replace the raw ajv dump for this specific, common case');
 });
@@ -887,7 +964,7 @@ test('x-bskel-omitted is derived from the contract, not hardcoded', () => {
 	// Genuinely structural (never conditional on any fixture's content) entries are present in all
 	// three, and the prose disclosure lists them too.
 	for (const omitted of [omittedA, omittedB, omittedC]) {
-		for (const key of ['query-parameters', 'header-parameters', 'security', 'summaries', 'tags', 'non-json-response-schemas', 'response-headers', 'path-parameter-schemas', 'vendor-extensions', 'descriptions']) {
+		for (const key of ['query-parameters', 'header-parameters', 'security', 'summaries', 'tags', 'non-json-response-schemas', 'response-headers', 'path-parameter-schemas', 'vendor-extensions', 'field-descriptions', 'operation-descriptions']) {
 			assert.ok(omitted.includes(key), `every export must disclose "${key}"`);
 		}
 	}

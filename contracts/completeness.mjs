@@ -99,6 +99,12 @@ export const WARNING_CODES = Object.freeze({
 	// it reuses CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED/CONTRACT_OPENAPI_ERROR_SCHEMA_UNRESOLVED
 	// unchanged -- see D-openapi-per-status.
 	CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	// A10: the operation's description exceeded MAX_DESCRIPTION_LENGTH -- independent of every code
+	// above (nothing else tracks description length), so it gets its own code rather than reusing
+	// one, same reasoning A8 used to justify its own new multipart code. WARN: every other field
+	// this operation carries is unaffected, this is a missed (opt-in) enhancement, same severity
+	// class as its A7/A8 siblings.
+	CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));

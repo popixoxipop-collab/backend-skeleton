@@ -65,7 +65,7 @@ function usage() {
   bskel feature rename <id> --to <new-slug> --reason "..." [--json]
   bskel feature link <keepId> <aliasId> --reason "..." [--json]
   bskel feature archive <id> --reason "..." [--json]
-  bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0]
+  bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
@@ -844,6 +844,11 @@ function cmdContractEmit(args) {
 	if (flags['path-prefix'] && !flags['openapi-file']) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--path-prefix only applies when reconciling against a real OpenAPI document -- pass --openapi-file <path> together with it, or drop --path-prefix (the value has no effect on its own).`);
 	}
+	// A10: same "would be a silent no-op" reasoning as --path-prefix above -- --descriptions only has
+	// any effect inside buildReconciliation(), which only runs when --openapi-file is also given.
+	if (flags.descriptions && !flags['openapi-file']) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--descriptions only applies when reconciling against a real OpenAPI document -- pass --openapi-file <path> together with it, or drop --descriptions (it has no effect on its own).`);
+	}
 
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
@@ -878,7 +883,7 @@ function cmdContractEmit(args) {
 	if (flags['openapi-file']) {
 		const targetModule = selectModule(scanReport, flags.module);
 		if (targetModule) {
-			const result = buildReconciliation({ filePath: flags['openapi-file'], module: targetModule, pathPrefix: flags['path-prefix'] });
+			const result = buildReconciliation({ filePath: flags['openapi-file'], module: targetModule, pathPrefix: flags['path-prefix'], includeDescriptions: flags.descriptions });
 			if (!result.ok) {
 				fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', result.error);
 			}
@@ -978,6 +983,12 @@ function cmdContractEmit(args) {
 				console.log(`openapi: ${p.parameters_copied} operation(s) with parameters copied (${p.parameters_unresolved} partial/unresolved), ${p.security_copied + p.security_public} with security copied, ${p.summary_copied} summaries + ${p.tags_copied} tag sets copied`);
 				// A8: same "just print the numbers" style.
 				console.log(`openapi: ${p.per_status_copied} operation(s) with per-status responses copied, ${p.request_media_types_copied} with non-JSON request media type(s) copied`);
+				// A10: printed only when --descriptions was actually passed -- unlike A7/A8/A9's
+				// default-on fields, printing "0 copied" unconditionally here would misleadingly
+				// suggest this opt-in field was attempted when it never was.
+				if (flags.descriptions) {
+					console.log(`openapi: ${p.description_copied} operation(s) with description copied, ${p.description_unresolved} unresolved`);
+				}
 			}
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
