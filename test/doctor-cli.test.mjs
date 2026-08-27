@@ -128,3 +128,52 @@ test('computeDoctorChecks: showAdapters is true for scan/handles/unscoped, false
 	assert.equal(computeDoctorChecks(process.cwd(), { workflow: 'handles' }).showAdapters, true);
 	assert.equal(computeDoctorChecks(process.cwd(), { workflow: 'stack' }).showAdapters, false);
 });
+
+// D-openapi-extraction-hint (W5): every adapter whose contract-emit accuracy (or, for the three
+// with api.operations:false, whose ability to adopt ANY operation at all) depends on
+// --openapi-file names a real, adapter-specific way to get one without a running server, printed
+// via the existing G1 diagnostics() mechanism -- no new doctor plumbing.
+test('bskel doctor --json: every real framework adapter (not generic-grep) carries an openapi-extraction-hint diagnostic', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor', '--json'], root);
+	assert.equal(result.code, 0);
+	const { adapters } = JSON.parse(result.stdout);
+	const byId = Object.fromEntries(adapters.map((a) => [a.id, a]));
+	for (const id of ['java-spring', 'python-fastapi', 'typescript-express', 'javascript-express']) {
+		const hint = byId[id].diagnostics.find((d) => d.code === 'openapi-extraction-hint');
+		assert.ok(hint, `expected ${id} to carry an openapi-extraction-hint`);
+		assert.equal(hint.level, 'info');
+	}
+	assert.ok(!byId['generic-grep'].diagnostics.some((d) => d.code === 'openapi-extraction-hint'), 'generic-grep is not a real framework -- no adapter-specific extraction method to name');
+});
+
+test('java-spring\'s hint names the real Gradle plugin task AND the manual curl fallback -- the accuracy framing, not the load-bearing framing FastAPI/Express get', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor', '--json'], root);
+	const { adapters } = JSON.parse(result.stdout);
+	const hint = adapters.find((a) => a.id === 'java-spring').diagnostics.find((d) => d.code === 'openapi-extraction-hint');
+	assert.match(hint.message, /generateOpenApiDocs/);
+	assert.match(hint.message, /curl/);
+	assert.match(hint.message, /accuracy/);
+});
+
+test('python-fastapi\'s hint names the real no-server-needed extraction command and explains WHY it is load-bearing (api.operations:false)', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor', '--json'], root);
+	const { adapters } = JSON.parse(result.stdout);
+	const hint = adapters.find((a) => a.id === 'python-fastapi').diagnostics.find((d) => d.code === 'openapi-extraction-hint');
+	assert.match(hint.message, /app\.openapi\(\)/);
+	assert.match(hint.message, /No server needs to be running/);
+	assert.match(hint.message, /cannot adopt any operation without one/);
+});
+
+test('both Express adapters honestly say there is NO framework-native OpenAPI generation, rather than inventing one', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor', '--json'], root);
+	const { adapters } = JSON.parse(result.stdout);
+	for (const id of ['typescript-express', 'javascript-express']) {
+		const hint = adapters.find((a) => a.id === id).diagnostics.find((d) => d.code === 'openapi-extraction-hint');
+		assert.match(hint.message, /NO framework-native OpenAPI generation/);
+		assert.match(hint.message, /swagger-jsdoc/);
+	}
+});

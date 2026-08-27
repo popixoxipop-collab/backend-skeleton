@@ -7629,3 +7629,59 @@ file layout and `env_upsert()` reuse follow, and `D-ngrok-no-static-config-file`
 decision on the ngrok entry's own script-vs-static-config split); `D-extension-conformance` (P4,
 `bskel catalog lint`'s own residual-template-var check, the exact tool that caught this item's own
 self-inflicted bug).
+
+## D-openapi-extraction-hint (W5): reusing G1's own per-adapter diagnostics() mechanism, not new plumbing
+
+**WHY:** Part of the same ROI-ordered backlog as `D-contract-history`/`D-gate-export`/
+`D-unsupported-annotation-warning`/`D-docker-postgres-stack`. Weakness W5: `--openapi-file` is
+where real accuracy comes from throughout the whole A1-A12 passthrough line, and for three of the
+four real framework adapters it is outright load-bearing (`api.operations: false` means `contract
+emit` cannot adopt a single operation without one -- see D-fastapi-adapter/G5/G6). None of that is
+discoverable without already knowing to read `CATALOG.md`/`DECISIONS.md` prose first. This closes
+that gap the cheapest way available: reusing G1's own existing `diagnostics(repoRoot)` mechanism
+every adapter already implements for `bskel doctor`, rather than inventing a new plumbing path.
+
+**Deliberately per-adapter, not one generic message.** Each of the three real framework adapters
+gets a genuinely different, framework-accurate answer, not a templated "see your framework's
+docs" placeholder:
+- **java-spring**: `api.operations` is already `true` (operationIds come from real source
+  annotations), so this is an ACCURACY improvement, not load-bearing -- worded accordingly. Names
+  the REAL mechanism this project's own Team-IZ-Backend oracle file was produced by:
+  `org.springdoc.openapi-gradle-plugin`'s `./gradlew generateOpenApiDocs` task, which boots the
+  app briefly and writes `build/api-docs.json` without a human starting/curling a server by hand --
+  confirmed by recognizing the oracle file's own path (`build/api-docs.json`) IS that plugin's
+  default output location, not just plausible-sounding advice. Falls back to naming the manual
+  `curl .../v3/api-docs` capture honestly when that plugin isn't configured.
+- **python-fastapi**: `api.operations` is `false` -- worded as load-bearing, explaining WHY
+  (FastAPI assigns operationIds at runtime, not from static source). Names FastAPI's own real,
+  no-server-required mechanism: importing the `app` object and calling `app.openapi()` directly
+  (`python -c "from app.main import app; ...`) -- the actual technique, not a guess.
+- **typescript-express / javascript-express** (shared `expressDiagnostics()`): also load-bearing,
+  worded the same way. Says PLAINLY that plain Express has no framework-native OpenAPI generation
+  mechanism at all -- naming a real limitation rather than inventing a fake "just run this command"
+  answer where none exists, and pointing at real third-party generators (swagger-jsdoc/tsoa/
+  zod-to-openapi) a project might already use instead.
+- **generic-grep**: deliberately excluded -- it isn't a real framework, so there is no
+  framework-specific extraction method to name; a generic hint here would be empty filler.
+
+**Always shown, not conditioned on whether `--openapi-file` was already used.** `bskel doctor`
+has no mechanism to know a target feature's own command history (and inventing one would be a
+disproportionate amount of new state-tracking for this item's own "S" scope) -- each hint's own
+message text says plainly "ignore this if you already have a source document" instead.
+
+**Verified**: `bskel doctor --json` against a real fixture confirms all four real framework
+adapters (not `generic-grep`) carry the new `openapi-extraction-hint` diagnostic at `level: 'info'`,
+and dedicated tests pin down each adapter's own real wording -- java-spring's Gradle-plugin task
+name and manual curl fallback, python-fastapi's exact no-server-needed command and its
+load-bearing (not just accuracy) framing, and both Express adapters' honest "no framework-native
+generation" admission.
+
+**EXIT**: no attempt to auto-run any of these extraction commands -- this is guidance text only,
+matching every other `diagnostics()` entry in this codebase (informational, never executed by
+`bskel doctor` itself).
+
+Cross-references: `D-adapter-registry` (G1, the `diagnostics()` mechanism this item's whole design
+reuses unchanged); `D-fastapi-adapter` (G2, the `api.operations: false` load-bearing-ness this
+item explains to a human for the first time); `D-openapi-passthrough` (A7, the broader
+`--openapi-file` accuracy story this hint exists to surface earlier, before a user has read any
+prose documentation).
