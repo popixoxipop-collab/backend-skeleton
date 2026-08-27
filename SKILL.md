@@ -179,6 +179,12 @@ bskel doctor [--workflow scan|handles|stack] [--json]
                               #    specificity/capabilities and whether it detects THIS repo (scan/
                               #    handles/unscoped) -- see `bskel scan` below. See
                               #    `D-doctor-workflow` in DECISIONS.md.
+                              #    D-openapi-extraction-hint: each real framework adapter's own
+                              #    diagnostics also names a real, framework-accurate way to get an
+                              #    --openapi-file document without a running server (java-spring:
+                              #    the springdoc Gradle plugin task or a manual curl capture;
+                              #    python-fastapi: app.openapi() directly, no server needed;
+                              #    Express: honestly says there is no framework-native mechanism).
 bskel preflight               # fetches origin first (fails closed if that fails -- see --offline
                               #    below), then does the 3-way default-branch cross-check +
                               #    behind/ahead + worktree provenance

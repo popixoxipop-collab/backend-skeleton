@@ -234,5 +234,15 @@ export function expressDiagnostics(repoRoot) {
 	if (!rgOk) {
 		messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
 	}
+	// D-openapi-extraction-hint: like FastAPI, both Express adapters declare `api.operations:
+	// false` -- --openapi-file is load-bearing for `contract emit` to adopt any operation, not just
+	// an accuracy improvement. Unlike java-spring/python-fastapi, plain Express has NO framework-
+	// native OpenAPI generation mechanism at all -- said plainly, not papered over with vague
+	// "check your framework's docs" language. If the target project already uses a third-party
+	// generator (swagger-jsdoc, tsoa, zod-to-openapi, etc.), that tool's own output is what to pass.
+	messages.push({
+		level: 'info', code: 'openapi-extraction-hint',
+		message: '--openapi-file is not just an accuracy improvement for this adapter -- api.operations is false (no operationId concept in plain Express), so `contract emit` cannot adopt any operation without one. Plain Express has NO framework-native OpenAPI generation -- if this project already uses a third-party generator (swagger-jsdoc, tsoa, zod-to-openapi, etc.), pass that tool\'s own output. Ignore this if you already have a source document.',
+	});
 	return messages;
 }

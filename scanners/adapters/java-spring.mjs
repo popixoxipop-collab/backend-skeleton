@@ -296,6 +296,19 @@ export const adapter = {
 				messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
 			}
 		}
+		// D-openapi-extraction-hint: `contract emit --openapi-file` (A1-A12) is where real accuracy
+		// comes from for this adapter (path/schema/parameter/security correction, not just the
+		// name-heuristic fallback) -- most useful before that flag has ever been used, hence
+		// `level: 'info'`, not a warning. If springdoc-openapi is on the classpath: with the Gradle
+		// plugin (`org.springdoc.openapi-gradle-plugin`) configured, `./gradlew generateOpenApiDocs`
+		// boots the app briefly and writes build/api-docs.json without a human ever starting/curling
+		// a server by hand -- this repo's own real Team-IZ-Backend oracle file was produced exactly
+		// this way. Without that plugin, the only way is to actually run the app and capture its
+		// live /v3/api-docs endpoint -- named honestly as manual, not hidden behind vague language.
+		messages.push({
+			level: 'info', code: 'openapi-extraction-hint',
+			message: 'for real schema/path accuracy, pass --openapi-file to `contract emit`. If springdoc-openapi is on the classpath: with the Gradle plugin (org.springdoc.openapi-gradle-plugin) configured, `./gradlew generateOpenApiDocs` writes build/api-docs.json without running the app by hand; otherwise, run the app and capture its live /v3/api-docs endpoint (e.g. `curl http://localhost:8080/v3/api-docs > api-docs.json`). Ignore this if you already have a source document.',
+		});
 		return messages;
 	},
 };

@@ -343,6 +343,16 @@ export const adapter = {
 		if (!rgOk) {
 			messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
 		}
+		// D-openapi-extraction-hint: unlike java-spring, this adapter's own capabilities already
+		// declare `api.operations: false` (FastAPI assigns operationIds at runtime) -- --openapi-file
+		// isn't just an accuracy improvement here, it's load-bearing for `contract emit` to adopt any
+		// operation at all (see D-fastapi-adapter). FastAPI exposes its own OpenAPI schema directly
+		// via `app.openapi()` -- no server needs to actually be listening, just importing the app
+		// object is enough, the real mechanism this project's own oracle checks used.
+		messages.push({
+			level: 'info', code: 'openapi-extraction-hint',
+			message: '--openapi-file is not just an accuracy improvement for this adapter -- api.operations is false (FastAPI assigns operationIds at runtime), so `contract emit` cannot adopt any operation without one. No server needs to be running: `python -c "from app.main import app; import json; print(json.dumps(app.openapi()))" > api-docs.json` (adjust the import path to your own app module). Ignore this if you already have a source document.',
+		});
 		return messages;
 	},
 };
