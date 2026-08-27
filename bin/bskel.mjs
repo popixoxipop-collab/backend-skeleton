@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
-import { repoRoot, localDefaultBranch } from '../lib/repo.mjs';
+import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision } from '../lib/repo.mjs';
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
@@ -67,6 +67,7 @@ function usage() {
   bskel feature archive <id> --reason "..." [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
+  bskel contract history --feature <id> [--json]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
@@ -1285,6 +1286,74 @@ function cmdContractWaive(args) {
 	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
+// D-contract-history: a derived VIEW over the contract file's own git history in whatever repo
+// bskel is invoked in -- reads, never writes. Deliberately does NOT try to correlate a commit to
+// a specific `.sbf/<feature>.history.jsonl` gate-pass event: that file is per-machine, gitignored,
+// ephemeral state (see .gitignore's own comment on `.sbf/`), while a commit is shared -- the two
+// have no reliable 1:1 relationship, so this only reports what git itself can prove. `bskel gate
+// export` (a separate, later item) is the tool for "what did THIS machine's gate history record."
+function cmdContractHistory(args) {
+	const flags = parseCommand('contract history', args);
+	if (flags.help) { console.log(renderCommandHelp('contract history')); process.exit(0); }
+	setContext('contract history', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	const contractPath = specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`);
+	const relPath = path.relative(root, contractPath);
+	const commits = fileHistory(root, relPath);
+
+	if (commits.length === 0) {
+		if (flags.json) {
+			console.log(JSON.stringify({ feature_id: flags.feature, path: relPath, revisions: [] }, null, 2));
+		} else {
+			console.log(`no git history for ${relPath} -- either this feature's contract was never committed, or specs/ isn't tracked in this repo. bskel does not require specs/ to be committed; if you want a history view, commit the contract as part of your normal workflow.`);
+		}
+		process.exit(0);
+	}
+
+	let prevOperationNames = new Set();
+	const revisions = commits.map(({ sha, date, subject }) => {
+		const raw = showFileAtRevision(root, sha, relPath);
+		let parsed = null;
+		if (raw !== null) {
+			try { parsed = JSON.parse(raw); } catch { parsed = null; }
+		}
+		if (parsed === null) {
+			return { sha: sha.slice(0, 12), date, subject, parse_error: true };
+		}
+		const operationNames = new Set(Object.keys(parsed.operations ?? {}));
+		const added = [...operationNames].filter((n) => !prevOperationNames.has(n)).sort();
+		const removed = [...prevOperationNames].filter((n) => !operationNames.has(n)).sort();
+		prevOperationNames = operationNames;
+		return {
+			sha: sha.slice(0, 12), date, subject,
+			sbf_contract: parsed.sbf_contract ?? null,
+			completeness_status: parsed.completeness?.status ?? null,
+			operation_count: parsed.completeness?.operation_count ?? operationNames.size,
+			operations_added: added,
+			operations_removed: removed,
+		};
+	});
+
+	if (flags.json) {
+		console.log(JSON.stringify({ feature_id: flags.feature, path: relPath, revisions }, null, 2));
+	} else {
+		console.log(`${relPath} -- ${revisions.length} revision(s), oldest first:\n`);
+		for (const r of revisions) {
+			if (r.parse_error) {
+				console.log(`${r.date}  ${r.sha}  (unparseable at this revision -- pre-JSON format or corrupted)`);
+				continue;
+			}
+			const delta = [];
+			if (r.operations_added.length > 0) delta.push(`+${r.operations_added.join(',+')}`);
+			if (r.operations_removed.length > 0) delta.push(`-${r.operations_removed.join(',-')}`);
+			console.log(`${r.date}  ${r.sha}  sbf_contract=${r.sbf_contract} completeness=${r.completeness_status} operations=${r.operation_count}${delta.length > 0 ? `  (${delta.join(' ')})` : ''}`);
+		}
+	}
+	process.exit(0);
+}
+
 function cmdContractValidate(args) {
 	const flags = parseCommand('contract validate', args);
 	if (flags.help) { console.log(renderCommandHelp('contract validate')); process.exit(0); }
@@ -2364,6 +2433,7 @@ async function dispatchCommand(cmd, rest) {
 			const subArgs = rest.slice(1);
 			if (sub === 'emit') return cmdContractEmit(subArgs);
 			if (sub === 'export') return cmdContractExport(subArgs);
+			if (sub === 'history') return cmdContractHistory(subArgs);
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
 			if (sub === 'waive') return cmdContractWaive(subArgs);
