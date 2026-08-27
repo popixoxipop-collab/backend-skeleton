@@ -7847,3 +7847,102 @@ recording infrastructure this item reads, and the opt-in posture its own caveat 
 (S6, the same real-Docker-Postgres verification discipline reused for this item's own manual
 verification); `D-handles-providers` (G4, the byte-identical `sbf_handle`/`sbf_handle_snapshot`
 schema across java-spring/python-fastapi this item's single query depends on).
+
+## D-handle-uid-type-binding (O3, part 1 of 2): closing the one branch of `deriveHandleUid` that never bound `type` into the hash
+
+**WHY:** O3's own catalog text ("Define and enforce the handle trust model") bundles two
+independent problems; this is the first, and the one the second (registry enforcement, part 2)
+must land on top of, not before. `HandleCodec.deriveHandleUid("r", type, uuid, null)` returned
+`uuid` **verbatim** — `kind=f`/`kind=o` already hash `type` into a UUIDv5 discriminant, but
+`kind=r`, the single most common case (every whole-resource handle), skipped it entirely. Read
+directly (not assumed) across all four codec implementations before writing anything — `handles/
+codec.mjs` (JS reference), `HandleCodec.java.tmpl`, `codec.py.tmpl`, `codec.ts.tmpl` — all four
+shared the exact same `kind === 'r' ? uuid : uuidv5(...)` shape.
+
+**The real, concrete consequence**: `sbf_handle.handle_uid` is that table's PRIMARY KEY. If two
+different resource TYPES (e.g. `Widget` and `Organization`) ever shared the same `resourceUid`,
+`HandleService.register()`'s `findById(handleUid).orElse(null)` would find the FIRST type's row
+already sitting at that primary key and call `refresh()` on it — silently blending the second
+type's `featureUid`/`operationId`/`contractRef` into the first type's row, without ever updating
+`resourceType`. Worse: `HandleService.revoke(handleUid, reason)` takes only the raw UUID — revoking
+one type's handle would revoke the literal same database row the OTHER type's handle also lives
+at. This bug was **latent, not yet active** — nothing read the registry for `fetch()`/`patch()`
+before this session's O7/O3-part-2 work — but becomes security-relevant the moment enforcement
+exists, which is exactly why this ships first.
+
+**Mechanism**: unify all three `kind` branches onto the SAME "hash a discriminant string with
+UUIDv5" shape `kind=f`/`kind=o` already used:
+```
+r -> uuidv5(NS_SBF_FIELD, "type:uuid")
+f -> uuidv5(NS_SBF_FIELD, "type:uuid:pointer")
+o -> uuidv5(NS_SBF_FIELD, "type:uuid:o")
+```
+Provably collision-free across kinds without any token-format change: `kind=f`'s discriminant
+always has a pointer segment starting with `/` (RFC 6901), `kind=o`'s always ends in the literal
+`:o` with no leading slash, and `kind=r`'s never has a third segment at all — no two different
+`(kind, type, uuid, pointer)` tuples can ever produce the same discriminant string. Reuses the
+existing `NS_SBF_FIELD` namespace constant unchanged — this is a generated template, not a
+library with external consumers whose constant names need preserving, and there's no benefit to
+renaming it. Every call site (`HandleService.register`/`revoke`, `HandleAspect`,
+`HandleController.fetch/patch/recover`, `router.py.tmpl`, `record_snapshot.py.tmpl`) calls
+`deriveHandleUid()` fresh every time rather than caching or comparing against the raw resource
+UUID anywhere — confirmed by grepping every call site before writing the fix — so this is a clean,
+localized, single-function change per language with no hidden call-site assumption to break.
+
+**Ported to all four codec implementations in lockstep**, matching this project's own established
+cross-language parity discipline (G4/G5): `handles/codec.mjs` first (the reference everything else
+is checked against), then `HandleCodec.java.tmpl`, `codec.py.tmpl`, `codec.ts.tmpl`.
+`typescript-express` gets the fix for codec parity only — it has no `HandleRegistry` table at all
+(G5's own documented 1st-slice scope), so the bug never had a live consequence there; its own
+`deriveHandleUid` export is currently unused elsewhere in that provider.
+
+**Verified live, not just at the function level.** Every cross-language codec parity test
+(`test/handles-codec.test.mjs`, `test/handles-java-codec.test.mjs`, `test/handles-python-codec.test.mjs`,
+`test/handles-typescript-codec.test.mjs`) gained two new tests each: `kind=r` no longer returns the
+identity, and — the real regression guard, written so it would fail against the pre-fix formula —
+two different types sharing a UUID now derive genuinely different `handle_uid`s, cross-checked
+against the REAL rendered/compiled file in each language (a real `javac`-compiled class via the
+existing line-protocol `Driver`, a real `python3` subprocess, a real `node --experimental-strip-types`
+subprocess), not merely the JS reference alone. One pre-existing test, `handles-codec.test.mjs`'s
+own `'deriveHandleUid: a resource handle (kind=r) IS the resource's own uuid'`, had encoded the
+bug as if it were the intended contract — renamed and rewritten to assert the corrected, type-bound
+behavior instead of the old identity-function shape.
+
+Beyond the function level: started a real, disposable `postgres:16-alpine` container, created the
+real `sbf_handle` table from the real `migration.sql.tmpl` schema, computed both types' `handle_uid`
+via the real (Java-cross-checked) JS reference for a `Widget` and an `Organization` sharing one
+UUID, and inserted both — succeeded as two independent rows. Revoking only the `Widget` row (a
+real `UPDATE ... WHERE handle_uid = ...`) left the `Organization` row's `revoked_at` untouched,
+confirmed by a real `SELECT`. As a negative control, reproduced the OLD bug for real: built a
+second table with the OLD (type-blind) scheme, inserted the `Widget` row, then attempted to insert
+`Organization` at the same (old-scheme) primary key — Postgres genuinely raised `duplicate key
+value violates unique constraint`, the exact conflict `HandleService.register()`'s
+`findById().orElse()` would have silently absorbed via `refresh()` rather than erroring, since that
+code path never distinguishes "the same handle re-registering" from "a different type colliding at
+the same primary key." Container stopped/cleaned up afterward. A full `@SpringBootTest` run through
+O4's own `scripts/java-integration-smoke.mjs` harness was not possible in this environment (no
+local `gradle`) — the existing single-type `HandleLifecycleIntegrationTest` this script drives is
+otherwise unmodified by this change and is expected to still pass once CI (or a `gradle`-equipped
+environment) runs it, since nothing about the single-resource-type lifecycle this test already
+covers changed shape.
+
+**EXIT, stated plainly**: no dual-scheme migration mechanism (a second token prefix, dual-derivation
+dispatch keyed by which prefix a token carries) was built. O3's own long-standing status note
+already establishes no real production deployment of `bskel`-generated handles has ever existed —
+this fix is therefore zero-impact on any real deployment today, but would orphan any
+already-registered `kind=r` `sbf_handle` row relative to the newly-derived `handle_uid` for the
+same already-issued token, if a real deployment existed. Building a migration mechanism now, for a
+migration scenario with zero real instances to migrate, would be exactly the kind of speculative
+infra this project has repeatedly measured and rejected elsewhere (G6's own rejected-Phase-2
+precedent, built and tested against a real fixture before being rejected on evidence, not skipped
+on assumption).
+
+Cross-references: `D-handles-providers` (G4, the cross-language codec parity discipline this item
+follows, and the byte-identical `sbf_handle` schema across providers this fix protects);
+`D-handle-lifecycle` (O4, `HandleService.register`/`revoke`'s own call sites, and the
+`HandleController.recover()` D-security-9 cross-check whose shape this item's fix makes trustworthy
+for the first time); `D-typescript-express-provider` (G5, why the fix is parity-only for that
+provider); `D-docker-postgres-stack` (S6, the same real-Docker-Postgres verification discipline
+reused here); `D-generic-grep-reconnaissance`/`D-javascript-express-adapter` (G3/G6, the
+"investigate for real before building, and say so when you don't build something" precedent this
+item's own EXIT section follows).

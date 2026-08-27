@@ -90,12 +90,18 @@ export function uuidv5(namespaceUuid, name) {
 }
 
 // The plain-UUID identity of a handle (for use as a DB primary key / foreign key), derivable
-// offline without a DB round-trip: kind=r handles ARE the resource's own uuid (no derivation
-// needed -- a resource handle and the entity's own PK are the same identity); kind=f handles
-// derive a UUIDv5 from type+uuid+pointer, so the same field always gets the same handle_uid
-// without ever needing to look it up first.
+// offline without a DB round-trip. O3 (D-handle-uid-type-binding): ALL three kinds now hash a
+// `type:uuid[:...]` discriminant through UUIDv5 -- kind=r used to return `uuid` verbatim (no type
+// binding at all), so two different resource TYPES sharing the same resourceUid derived the SAME
+// handle_uid and collided on the same `sbf_handle` primary key (silently blending their
+// featureUid/operationId/contractRef, and letting HandleService.revoke() on one type's handle
+// also revoke the other's -- the literal same row). Provably collision-free across kinds without
+// a token-format change: kind=f's discriminant always has a pointer segment starting with "/"
+// (RFC 6901), kind=o's always ends in the literal ":o" with no leading slash, and kind=r's never
+// has a third segment at all -- no two different (kind, type, uuid, pointer) tuples can ever
+// produce the same discriminant string.
 export function deriveHandleUid({ kind, type, uuid, pointer }) {
-	if (kind === 'r') return uuid;
+	if (kind === 'r') return uuidv5(NS_SBF_FIELD, `${type}:${uuid}`);
 	if (kind === 'f') {
 		if (!pointer) throw new Error('field handles require a pointer to derive handle_uid');
 		return uuidv5(NS_SBF_FIELD, `${type}:${uuid}:${pointer}`);

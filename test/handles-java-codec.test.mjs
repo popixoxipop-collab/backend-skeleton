@@ -223,6 +223,40 @@ test('HandleCodec.deriveHandleUid (Java) matches handles/codec.mjs\'s deriveHand
 	});
 });
 
+// O3 (D-handle-uid-type-binding): kind=r used to return `uuid` VERBATIM (no type binding at
+// all) -- this is the regression guard that the fix actually took, on both the JS reference and
+// the real rendered Java file, not just the parity check above (which would pass even if BOTH
+// sides had regressed back to the old verbatim behavior together).
+test('kind=r no longer returns the resource uuid verbatim, in JS or Java', () => {
+	const c = { kind: 'r', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null };
+	const jsResult = deriveHandleUid(c);
+	assert.notEqual(jsResult, c.uuid, 'JS deriveHandleUid must no longer be the identity function for kind=r');
+	const [javaResult] = runJava([{ op: 'derive', ...c }]);
+	assert.equal(javaResult.ok, true, javaResult.error);
+	assert.notEqual(javaResult.result, c.uuid, 'Java deriveHandleUid must no longer be the identity function for kind=r');
+	assert.equal(javaResult.result, jsResult);
+});
+
+// O3 (D-handle-uid-type-binding): the real bug this item fixes -- reproduced live against the
+// REAL rendered Java file, not just asserted. Before the fix, two different resource TYPES
+// sharing the same resourceUid derived the SAME handle_uid (the sbf_handle table's own primary
+// key), silently colliding on one registry row; revoking one type's handle would also revoke the
+// other's. This test is written so it would FAIL against the pre-fix formula (kind=r -> uuid
+// verbatim, type-independent) and PASSES only because type now participates in the hash.
+test('collision fix: two different resource types sharing the same UUID derive DIFFERENT kind=r handle_uids (Java)', () => {
+	const sharedUuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+	const [widget, organization] = runJava([
+		{ op: 'derive', kind: 'r', type: 'Widget', uuid: sharedUuid, pointer: null },
+		{ op: 'derive', kind: 'r', type: 'Organization', uuid: sharedUuid, pointer: null },
+	]);
+	assert.equal(widget.ok, true, widget.error);
+	assert.equal(organization.ok, true, organization.error);
+	assert.notEqual(widget.result, organization.result, 'two different resource types sharing a UUID must never derive the same handle_uid (registry primary key collision)');
+	// Cross-checked against the JS reference too -- both sides must agree the collision is gone.
+	assert.equal(widget.result, deriveHandleUid({ kind: 'r', type: 'Widget', uuid: sharedUuid, pointer: null }));
+	assert.equal(organization.result, deriveHandleUid({ kind: 'r', type: 'Organization', uuid: sharedUuid, pointer: null }));
+});
+
 test('negative parity: Java rejects the exact same malformed input JS rejects (charset, missing prefix, over-length, kind/pointer mismatch)', () => {
 	const [charset, prefix, tooLong] = runJava([
 		{ op: 'decode', token: 'sbf1_not!valid++base64==' },

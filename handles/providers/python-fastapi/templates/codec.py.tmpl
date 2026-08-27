@@ -76,9 +76,17 @@ def decode_handle(token: str) -> DecodedHandle:
     return DecodedHandle(kind.lower(), type_, resource_uuid.lower(), pointer)
 
 
+# O3 (D-handle-uid-type-binding): ALL three kinds hash a "type:uuid[:...]" discriminant through
+# UUIDv5 -- kind="r" used to return resource_uuid verbatim (no type binding at all), so two
+# different resource TYPES sharing the same resourceUid derived the SAME handle_uid and collided
+# on the same sbf_handle primary key. Provably collision-free across kinds without a token-format
+# change: kind="f"'s discriminant always has a pointer segment starting with "/" (RFC 6901),
+# kind="o"'s always ends in the literal ":o" with no leading slash, and kind="r"'s never has a
+# third segment at all -- no two different (kind, type, uuid, pointer) tuples can ever produce the
+# same discriminant string.
 def derive_handle_uid(kind: str, type_: str, resource_uuid: str, pointer: str | None) -> str:
     if kind == "r":
-        return resource_uuid
+        return str(uuid.uuid5(NS_SBF_FIELD, f"{type_}:{resource_uuid}"))
     if kind == "f":
         if not pointer:
             raise ValueError("field handles require a pointer to derive handle_uid")

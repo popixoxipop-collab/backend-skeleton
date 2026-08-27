@@ -66,9 +66,27 @@ test('encodeHandle rejects a non-field handle (kind=r or kind=o) that carries a 
 	assert.throws(() => encodeHandle({ ...base, kind: 'o' }), /must not carry a JSON Pointer/);
 });
 
-test('deriveHandleUid: a resource handle (kind=r) IS the resource\'s own uuid', () => {
+// O3 (D-handle-uid-type-binding): kind=r used to return the resource's own uuid VERBATIM (no type
+// binding at all) -- two different resource TYPES sharing the same uuid then derived the SAME
+// handle_uid, silently colliding on the same `sbf_handle` registry primary key. Now hashes a
+// type:uuid discriminant through UUIDv5, the same shape kind=f/kind=o already used -- deterministic
+// and offline-derivable exactly as before, just no longer type-blind.
+test('deriveHandleUid: a resource handle (kind=r) is type-bound, deterministic, and no longer the identity function', () => {
 	const uuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
-	assert.equal(deriveHandleUid({ kind: 'r', type: 'Organization', uuid }), uuid);
+	const derived = deriveHandleUid({ kind: 'r', type: 'Organization', uuid });
+	assert.notEqual(derived, uuid, 'must no longer return the raw resource uuid verbatim');
+	assert.match(derived, /^[0-9a-f-]{36}$/);
+	assert.equal(deriveHandleUid({ kind: 'r', type: 'Organization', uuid }), derived, 'same inputs must derive the same handle_uid every time (no DB round-trip needed)');
+});
+
+// O3 (D-handle-uid-type-binding): the real bug this item fixes, reproduced at the JS-reference
+// level -- written to fail against the pre-fix formula (kind=r -> uuid verbatim, type-independent)
+// and pass only because type now participates in the hash.
+test('deriveHandleUid: two different resource types sharing the same UUID derive DIFFERENT kind=r handle_uids', () => {
+	const uuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+	const widget = deriveHandleUid({ kind: 'r', type: 'Widget', uuid });
+	const organization = deriveHandleUid({ kind: 'r', type: 'Organization', uuid });
+	assert.notEqual(widget, organization, 'two different resource types sharing a UUID must never derive the same handle_uid (registry primary key collision)');
 });
 
 test('deriveHandleUid: a field handle (kind=f) is deterministic and differs per pointer', () => {

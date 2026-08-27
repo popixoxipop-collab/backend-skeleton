@@ -89,8 +89,17 @@ export function uuidv5(namespaceUuid: string, name: string): string {
   return bytesToUuid(bytes);
 }
 
+// O3 (D-handle-uid-type-binding): ALL three kinds hash a "type:uuid[:...]" discriminant through
+// UUIDv5 -- kind='r' used to return uuid verbatim (no type binding at all), so two different
+// resource TYPES sharing the same uuid derived the SAME handle_uid and would collide on the same
+// registry primary key, were this provider to ever gain one (parity fix only -- this provider has
+// no HandleRegistry table today, see D-typescript-express-provider). Provably collision-free
+// across kinds without a token-format change: kind='f''s discriminant always has a pointer
+// segment starting with "/" (RFC 6901), kind='o''s always ends in the literal ":o" with no
+// leading slash, and kind='r''s never has a third segment at all -- no two different (kind, type,
+// uuid, pointer) tuples can ever produce the same discriminant string.
 export function deriveHandleUid(kind: string, type: string, uuid: string, pointer: string | null): string {
-  if (kind === 'r') return uuid;
+  if (kind === 'r') return uuidv5(NS_SBF_FIELD, `${type}:${uuid}`);
   if (kind === 'f') {
     if (!pointer) throw new Error('field handles require a pointer to derive handle_uid');
     return uuidv5(NS_SBF_FIELD, `${type}:${uuid}:${pointer}`);
