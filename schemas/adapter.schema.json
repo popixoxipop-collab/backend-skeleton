@@ -5,9 +5,9 @@
   "description": "Validates the JSON-shaped fields of the `adapter` object a scanners/adapters/<id>.mjs module must export (detect/scan/diagnostics/listReadSet are functions and are checked separately -- JSON Schema has no vocabulary for them). Loaded by scanners/registry.mjs at process start. See D-adapter-registry in DECISIONS.md.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract", "id", "title", "specificity", "confidence", "capabilities"],
+  "required": ["contract", "id", "title", "specificity", "confidence", "capabilities", "verificationBasis"],
   "properties": {
-    "contract": { "const": "sbf.adapter/1" },
+    "contract": { "const": "sbf.adapter/2" },
     "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
     "title": { "type": "string" },
     "specificity": { "type": "number" },
@@ -18,6 +18,10 @@
         "enum": ["api.operations", "api.request-shape", "resource.fetch", "codegen.handles"]
       },
       "additionalProperties": { "type": "boolean" }
+    },
+    "verificationBasis": {
+      "description": "D-adapter-verification-basis (W2/B6): a DIFFERENT axis from `confidence` above -- confidence means \"how sure was detect() this repo uses this framework,\" verificationBasis means \"how well was this adapter's own parsing/codegen logic checked against real code, ever.\" official-reference: verified against a framework-author-maintained reference stack. production-repo: verified against a real production repo. community-sample: verified against one hand-read community boilerplate, no official reference exists. synthetic-only: no real-world oracle at all, only a committed synthetic fixture. not-applicable: reconnaissance-only, no codegen to verify (generic-grep).",
+      "enum": ["official-reference", "production-repo", "community-sample", "synthetic-only", "not-applicable"]
     }
   }
 }

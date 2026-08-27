@@ -177,3 +177,26 @@ test('both Express adapters honestly say there is NO framework-native OpenAPI ge
 		assert.match(hint.message, /swagger-jsdoc/);
 	}
 });
+
+// D-adapter-verification-basis (W2/B6): bskel doctor --json surfaces each adapter's
+// verificationBasis verbatim, matching schemas/adapter.schema.json's per-adapter values --
+// turns "you find out by reading DECISIONS.md prose" into "the CLI tells you before you commit
+// to an adapter."
+test('bskel doctor --json: every adapter carries its real verificationBasis value', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor', '--json'], root);
+	const { adapters } = JSON.parse(result.stdout);
+	const byId = Object.fromEntries(adapters.map((a) => [a.id, a]));
+	assert.equal(byId['java-spring'].verificationBasis, 'production-repo');
+	assert.equal(byId['python-fastapi'].verificationBasis, 'official-reference');
+	assert.equal(byId['typescript-express'].verificationBasis, 'community-sample');
+	assert.equal(byId['javascript-express'].verificationBasis, 'synthetic-only');
+	assert.equal(byId['generic-grep'].verificationBasis, 'not-applicable');
+});
+
+test('bskel doctor (text mode): each adapter line names its verificationBasis alongside specificity/confidence', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor'], root);
+	assert.match(result.stdout, /java-spring \(specificity \d+, confidence \w+, verified: production-repo\)/);
+	assert.match(result.stdout, /generic-grep \(specificity \d+, confidence \w+, verified: not-applicable\)/);
+});

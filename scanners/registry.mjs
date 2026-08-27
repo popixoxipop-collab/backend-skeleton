@@ -29,7 +29,10 @@ import Ajv2020 from 'ajv/dist/2020.js';
 const REGISTRY_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ADAPTERS_DIR = path.join(REGISTRY_DIR, 'adapters');
 const SCHEMAS_ROOT = path.join(REGISTRY_DIR, '..', 'schemas');
-const SUPPORTED_CONTRACT = 'sbf.adapter/1';
+// D-adapter-verification-basis (W2/B6): bumped 1->2 for the new required `verificationBasis`
+// field -- a real breaking change to the descriptor shape, same "bump the contract const" house
+// style A7-A11 already established for sbf_contract.
+const SUPPORTED_CONTRACT = 'sbf.adapter/2';
 
 let _ajv = null;
 function ajv() {
@@ -67,7 +70,7 @@ async function loadOneAdapter(file, schema) {
 	}
 	const descriptor = mod.adapter;
 	if (!descriptor || typeof descriptor !== 'object') {
-		return { error: { file, message: 'must `export const adapter = {...}` (sbf.adapter/1 shape) -- no such export found' } };
+		return { error: { file, message: `must \`export const adapter = {...}\` (${SUPPORTED_CONTRACT} shape) -- no such export found` } };
 	}
 	if (descriptor.contract !== SUPPORTED_CONTRACT) {
 		return { error: { file, message: `declares contract "${descriptor.contract}" -- this build only understands "${SUPPORTED_CONTRACT}"` } };

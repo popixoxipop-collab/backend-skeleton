@@ -264,11 +264,16 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 // (not an inherent "TypeScript signals are weaker" claim) so a polyglot repo's adapter selection
 // stays deterministic, checkable via `bskel doctor`.
 export const adapter = {
-	contract: 'sbf.adapter/1',
+	contract: 'sbf.adapter/2',
 	id: 'typescript-express',
 	title: 'TypeScript / Express / TypeORM',
 	specificity: 85,
 	confidence: 'high',
+	// D-adapter-verification-basis: no framework-maintained Express reference exists (confirmed by
+	// real research before this adapter was built) -- verified instead against the best-validated
+	// real community boilerplate found, `mkosir/typeorm-express-typescript`. Permanently weaker
+	// than java-spring/python-fastapi's own basis, named honestly rather than hidden.
+	verificationBasis: 'community-sample',
 	capabilities: {
 		// false: plain Express has no operationId concept at all. --openapi-file is the honest path
 		// forward for an app that has one; see CAPABILITY_SATISFIERS in scanners/capabilities.mjs.

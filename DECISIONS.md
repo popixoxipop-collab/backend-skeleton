@@ -7685,3 +7685,73 @@ reuses unchanged); `D-fastapi-adapter` (G2, the `api.operations: false` load-bea
 item explains to a human for the first time); `D-openapi-passthrough` (A7, the broader
 `--openapi-file` accuracy story this hint exists to surface earlier, before a user has read any
 prose documentation).
+
+## D-adapter-verification-basis (W2/B6): a genuinely different axis from `confidence`, surfaced before commitment instead of buried in prose
+
+**WHY:** Weakness W2/B6 from the differentiators analysis: each adapter's real verification
+pedigree already existed in prose (G2's official FastAPI reference stack, G5's one hand-read
+community boilerplate, G6's "no real-world oracle at all" admission, java-spring's real
+Team-IZ-Backend production oracle) but only inside `DECISIONS.md`/`CATALOG.md`. Nothing in the
+CLI itself told a user, before they committed to scanning their repo with a given adapter, how
+well that adapter's own codegen had ever actually been checked against real code. `bskel doctor`
+already runs per-adapter and already renders a `confidence` field — but `confidence`
+(`schemas/adapter.schema.json`'s existing `enum: ["high","low"]`) answers a completely different
+question: "how sure was `detect()` this repo uses this framework." Silently overloading that field
+to also mean "how well-verified is this adapter" would collide two axes that can disagree in
+either direction (a `confidence: high` detection on an adapter with `verificationBasis:
+synthetic-only`, or vice versa) — so this ships as a new, separately-named required field instead.
+
+**Mechanism.** `schemas/adapter.schema.json` gains `verificationBasis` (required, 5-value enum:
+`official-reference`, `production-repo`, `community-sample`, `synthetic-only`, `not-applicable`),
+each value's meaning spelled out in the schema's own `description` so the distinction from
+`confidence` is documented at the point a new adapter author would actually read it. Adding a
+required field to an already-shipped descriptor shape is a breaking change to the shape itself —
+`contract` bumps from `sbf.adapter/1` to `sbf.adapter/2`, matching this project's own established
+`sbf_contract`-bump convention (A7-A11) rather than inventing a new versioning scheme. All 5
+shipped adapters set the value that matches what `CATALOG.md` already says in prose, checked
+against each one's own `[IMPLEMENTED as G...]` entry rather than assumed from memory:
+- **java-spring** → `production-repo` (Team-IZ-Backend, a real production codebase — G1/O4's
+  own verification history).
+- **python-fastapi** → `official-reference` (`fastapi/full-stack-fastapi-template`, the
+  framework-author-maintained reference stack G2 cloned and ran against).
+- **typescript-express** → `community-sample` (`mkosir/typeorm-express-typescript`, G5's own
+  explicit "no framework-maintained Express reference exists" finding — one hand-read community
+  boilerplate, not an official one).
+- **javascript-express** → `synthetic-only` (G6's own words: "no real-world oracle at all... the
+  committed synthetic fixture carries all of the regression weight").
+- **generic-grep** → `not-applicable` — not a weaker tier than the other four, a different kind of
+  answer: G3 keeps this adapter reconnaissance-only by design (every codegen capability is
+  honestly `false`), so there is no codegen output to ever verify against any oracle at all.
+
+`bin/bskel.mjs`'s `cmdDoctor` surfaces the field verbatim in both output modes: `--json`'s
+per-adapter object gains `verificationBasis` alongside the existing `specificity`/`confidence`,
+and the text-mode adapter line grows a `verified: <value>` segment
+(`  <id> (specificity N, confidence high, verified: production-repo) -- capabilities: ...`).
+
+**Verified**: `test/adapter-registry.test.mjs`'s shared `fixtureSource()` helper (used by every
+zero-registration/arbitration/malformed-adapter test in that file) updated to the new
+`sbf.adapter/2` contract and a `verificationBasis` default — otherwise every fixture-based test
+would fail the exact same "declares contract X, this build only understands sbf.adapter/2" guard
+real third-party adapters now hit. Dedicated tests in `test/doctor-cli.test.mjs` confirm all 5
+shipped adapters carry their real, correct `verificationBasis` value in `--json` output, and that
+the text-mode rendering names it alongside `specificity`/`confidence` for both a real-oracle
+adapter (java-spring) and the reconnaissance-only one (generic-grep). `contracts/validate.mjs`/
+`lib/gate-definitions.mjs`/`lib/verify.mjs`/`.github/workflows/ci.yml` all confirmed untouched —
+this item never touches gate/validation logic, only the adapter descriptor shape and `doctor`'s
+existing rendering path.
+
+**EXIT**: no attempt to derive `verificationBasis` automatically (e.g. from git history or a
+fixture-file heuristic) — it is a human judgment call recorded once per adapter at the point its
+real oracle was established, the same way `confidence`'s own per-adapter values are hand-set, not
+computed. No badge/README surface added in this slice — the original backlog item floated a
+static README badge row idea, but `bskel doctor` already answers "which oracle backs this
+adapter" at the exact moment (before committing to a scan) the question actually matters; a README
+badge would be redundant with, not additive to, that.
+
+Cross-references: `D-adapter-registry` (G1, the `contract`/`confidence`/`capabilities` shape this
+item extends, and the exact bump precedent `sbf.adapter/1` → `sbf.adapter/2` follows);
+`D-fastapi-adapter` (G2, `official-reference`'s real oracle); `D-typescript-express-provider` (G5,
+`community-sample`'s real oracle and the "no framework-maintained reference exists" finding);
+`D-javascript-express-adapter` (G6, `synthetic-only`'s own honest-gap admission this field now
+makes machine-readable); `D-generic-grep-reconnaissance` (G3, why `not-applicable` is a distinct
+answer, not a weaker `synthetic-only`).

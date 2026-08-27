@@ -101,11 +101,15 @@ export function scanGenericGrep(repoRoot) {
 // regardless of what generic-grep itself finds. See D-generic-grep-reconnaissance for why every
 // capability below is honestly false rather than a best-effort partial implementation.
 export const adapter = {
-	contract: 'sbf.adapter/1',
+	contract: 'sbf.adapter/2',
 	id: 'generic-grep',
 	title: 'Generic route-pattern grep (fallback)',
 	specificity: 0,
 	confidence: 'low',
+	// D-adapter-verification-basis: reconnaissance-only by design (G3) -- every codegen capability
+	// is honestly false, so there is no codegen output to verify against any oracle at all. Not
+	// "unverified" in the sense the other four values mean; genuinely not applicable.
+	verificationBasis: 'not-applicable',
 	capabilities: {
 		'api.operations': false,
 		'api.request-shape': false,
