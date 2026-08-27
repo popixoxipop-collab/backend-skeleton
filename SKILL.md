@@ -705,6 +705,24 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--
   #    resolver a feature no longer generates (e.g. after a service-signature change) is reported
   #    as an orphan and left untouched, never deleted -- suppressed entirely under --resource.
 
+bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
+  #    O7 (D-handle-audit-report): a live, read-only query over sbf_handle/sbf_handle_snapshot --
+  #    the tables O4's own HandleService.recordSnapshot/@RecordHandleSnapshot (java-spring) and
+  #    record_snapshot (python-fastapi) write to, only when a target app opts into recording. Both
+  #    providers generate the byte-identical table shape, so one query covers either. Pure reader,
+  #    gate-independent (unlike `handles plan`/`handles emit`) -- works even before a scan report
+  #    exists, as long as specs/<id>/feature.json does. Reuses A4's own --database-url-env
+  #    convention (never reads .env directly -- names an already-exported variable) and
+  #    `handles plan`/`handles emit`'s own --resource type1,type2 multi-value filter, unlike
+  #    `scan --db`, --database-url-env is REQUIRED here -- there is no meaningful "run without a
+  #    connection" mode for a command whose whole purpose IS the live query. Output: each handle's
+  #    kind/resource/pointer/revocation state, its real snapshot_count and last_recorded_at, plus a
+  #    summary block (total/revoked/never-snapshotted/total-snapshots). Every mode -- --json's own
+  #    `caveat` field, and a stderr note in text mode -- carries the same honest limitation
+  #    plainly: this reports what the target app CHOSE to record, is NOT a security control on its
+  #    own (see O3/O5 for revocation enforcement/authorization contracts), and a snapshot's absence
+  #    never means a handle was never used, only that recording was never opted into for that path.
+
 bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   # -> aggregates all 5 gates (lib/gate-definitions.mjs is the single source both this and every
   #    gate-writing command consume) via the same machinery every other command uses, plus
