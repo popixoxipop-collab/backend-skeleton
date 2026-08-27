@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
-import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision } from '../lib/repo.mjs';
+import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision, headSha, currentBranch, isDirty } from '../lib/repo.mjs';
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
@@ -84,6 +84,7 @@ function usage() {
   bskel gate revoke <name> --reason "..." [--feature <id>]
   bskel gate history <name> [--feature <id>] [--json]
   bskel gate show [<name>] [--feature <id>]
+  bskel gate export --feature <id> [--out <path>] [--json]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
 `);
 }
@@ -358,6 +359,48 @@ function cmdGateShow(args) {
 	}
 	const { scopeId } = resolveGateArg(gateName, flags.feature);
 	console.log(JSON.stringify({ gate: gateName, feature: scopeId, record: getGate(root, scopeId, gateName) }, null, 2));
+	process.exit(0);
+}
+
+// D-gate-export (S7's own sibling item): a standalone, human- and machine-readable report of
+// exactly what THIS repo's own `.sbf/*.history.jsonl` shows -- current state + full history for
+// every gate, plus enough git provenance (branch/HEAD/dirty) to say when it was captured. Built to
+// answer "what did this PR actually get verified against" *independent of whether CI ran at all* --
+// the concrete, real mitigation for the exact GitHub-Actions-billing outage this repo itself has
+// been running under (see feedback_backend_skeleton_ci_gate_suspended_billing in project memory).
+// Pure reader -- never mutates a gate, never requires one to currently pass.
+function cmdGateExport(args) {
+	const flags = parseCommand('gate export', args);
+	if (flags.help) { console.log(renderCommandHelp('gate export')); process.exit(0); }
+	setContext('gate export', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	const gates = {};
+	for (const name of GATE_NAMES) {
+		const scopeId = gateScopeId(name, flags.feature);
+		gates[name] = { scope: scopeId, current: getGate(root, scopeId, name), history: readGateHistory(root, scopeId, name) };
+	}
+
+	const report = {
+		schema: 'sbf.gate-export/1',
+		feature_id: flags.feature,
+		generated_at: new Date().toISOString(),
+		git: { branch: currentBranch(root), head_sha: headSha(root), dirty: isDirty(root) },
+		gates,
+	};
+	const rendered = `${JSON.stringify(report, null, 2)}\n`;
+
+	if (flags.out) {
+		const outPath = path.resolve(process.cwd(), flags.out);
+		writeFileAtomic(outPath, rendered);
+		if (!flags.quiet) {
+			const passCount = GATE_NAMES.filter((n) => gates[n].current?.status === 'pass').length;
+			console.log(`wrote ${flags.out} -- ${passCount}/${GATE_NAMES.length} gate(s) currently passing, ${report.git.branch}@${report.git.head_sha?.slice(0, 12) ?? '(unknown)'}${report.git.dirty ? ' (dirty)' : ''}`);
+		}
+	} else {
+		console.log(rendered);
+	}
 	process.exit(0);
 }
 
@@ -2503,6 +2546,7 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'revoke') return cmdGateRevoke(subArgs);
 			if (sub === 'history') return cmdGateHistory(subArgs);
 			if (sub === 'show') return cmdGateShow(subArgs);
+			if (sub === 'export') return cmdGateExport(subArgs);
 			usage();
 			process.exit(14);
 			break;

@@ -205,6 +205,13 @@ bskel gate show                # dump the full gate-state JSON for this repo -- 
   #    deliberately a state DUMP: it never recomputes, so `gate require` is what tells you whether
   #    the gate is CURRENTLY satisfied.
 bskel gate show stack          # or just one gate's own record (optional <name> positional arg)
+bskel gate export --feature <id> [--out <path>] [--json]
+  #    D-gate-export: a standalone report of current state + full history for all 5 gates, plus
+  #    git provenance (branch/HEAD/dirty) at capture time -- the CI-independent answer to "what
+  #    did this actually get verified against." Pure reader, never mutates a gate. Deliberately
+  #    does NOT try to correlate a specific git commit to a specific historical gate-pass event
+  #    (see D-contract-history's own rejection of that exact approach) -- git context here is
+  #    capture-time provenance only, never a claimed commit<->history correlation.
 
 bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
 bskel scan --feature 001-organization-management      # writes specs/<id>/brownfield-scan.{json,md}, sets the `scan` gate
@@ -524,7 +531,17 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    against its own export would make it confirm itself -- silently reclassifying a recorded
   #    CONTRACT_OPENAPI_DRIFT/MISSING_OPERATION ERROR as `matched`. See `D-openapi-export`.
 
-bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
+bskel contract history --feature <id> [--json]
+  # -> D7 (D-contract-history): a chronological view of this feature's own emitted contract file,
+  #    sourced entirely from `git log`/`git show` on whatever the target repo already committed.
+  #    `specs/` is the TARGET repo's own file -- bskel never requires it to be committed, and
+  #    "never committed" (no history at all) is a normal, common outcome, not an error. Each
+  #    revision reports its own `sbf_contract`/`completeness.status`/`operation_count` plus which
+  #    operations were added/removed relative to the previous revision. Read-only, works
+  #    regardless of current gate state. Deliberately does NOT try to correlate a commit to a
+  #    `.sbf/`-recorded gate-pass event -- see `bskel gate export` for that.
+
+bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..." [--expires <Nd>]
   # -> the `scan disposition` of contracts: explicitly accepts specific `partial` warnings so the
   #    `contract` gate can pass, recorded in specs/<id>/contracts/<id>.resolution.json (kept
   #    separate from the contract artifact itself, so re-emitting after a re-scan doesn't erase
@@ -534,6 +551,14 @@ bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all)
   #    code, or a {code, subject} pair not currently present, exits 14. `blocked` contracts
   #    cannot be waived at all (exit 14) -- see contracts/completeness.mjs's WARNING_CODES for
   #    the full code table and which are waivable.
+  #
+  #    S7 (D-waiver-expiry): `--expires <Nd>` (whole days) makes a waiver temporary -- once
+  #    `expires_at` passes, the waiver stops covering its warning and the gate re-blocks on the
+  #    next `contract emit`/`contract waive`, disclosed the same way as the pre-existing
+  #    `staleWaivers` note (a genuinely different fact: stale means the warning is gone, expired
+  #    means it's still there but the grace period ran out -- a waiver can be both at once).
+  #    Omitting `--expires` writes no `expires_at` at all, byte-identical to every waiver written
+  #    before this feature existed.
 
 bskel contract validate --feature <id> --file envelope.json
   # -> validates a {sbf, feature_id, feature_uid, operation_id, direction, payload} envelope:

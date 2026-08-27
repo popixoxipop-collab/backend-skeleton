@@ -7409,3 +7409,60 @@ to surface it, not a new standalone command.
 Cross-references: `D-contract-completeness` (A5, the `staleWaivers`/`blocking` mechanism this item
 extends without altering); `D-gate-history` (S4, `--max-age-minutes`'s own "opt-in only, never
 silently starts a clock" precedent `--expires` follows the same way).
+
+## D-gate-export: CI-independent evidence, built to answer a real question this project itself has
+
+**WHY:** The highest-ROI item in the same backlog as D-contract-history/D-waiver-expiry. This
+repo's own GitHub Actions has been blocked on unresolved billing since 2026-08-26 (see the
+project's own `feedback_backend_skeleton_ci_gate_suspended_billing` memory) -- every PR in this
+whole backlog has been merged on local verification plus explicit human approval, not a real CI
+run. `bskel gate export` is the direct, structural answer to "what did this PR actually get
+verified against" that doesn't depend on CI having run at all: a standalone report of exactly what
+`.sbf/*.history.jsonl` and the current `.sbf/<feature>.json` state already say, for every one of
+the 5 gates, plus enough git provenance to know when it was captured.
+
+**Deliberately NOT the same mechanism D-contract-history rejected.** That item's own design
+originally tried to correlate a git commit to a `.sbf/`-recorded gate-pass token, and was corrected
+before building anything: `.sbf/` is gitignored, per-machine, ephemeral state, with no reliable
+1:1 relationship to a shared commit. This item does not repeat that mistake -- it reports the
+CURRENT git HEAD/branch/dirty-state as capture-time PROVENANCE ("this is what was true when the
+report was generated"), never as a claim that any specific historical gate-history line
+corresponds to any specific commit.
+
+**Mechanism**: `lib/repo.mjs` gains two more small git read-helpers, matching its existing
+try/catch-returns-null convention: `currentBranch()` (`git rev-parse --abbrev-ref HEAD` --
+deliberately distinct from the existing `localDefaultBranch()`, which answers a completely
+different question, "what does origin/HEAD point at") and `isDirty()` (`git status --porcelain`
+non-empty). New `bskel gate export --feature <id> [--out <path>] [--json]` (`cmdGateExport`) loops
+`GATE_NAMES` (`preflight`, `scan`, `contract`, `handles`, `stack`), resolves each gate's real scope
+via the existing `gateScopeId()` (`preflight` is repo-scoped -- `_repo` -- every other gate is
+feature-scoped, exactly the same distinction `gate show`/`gate history` already make), and pairs
+each gate's current state (`getGate()`) with its full history (the existing `readGateHistory()`,
+called once per gate name rather than refactored into a single multi-gate reader -- the file is
+small and this reuses an already-correct, already-tested function unchanged). Pure reader: never
+calls `setGate`/`passNamedGate`/any mutating gate function, confirmed by a dedicated test that the
+feature's own `.sbf/<id>.json` is byte-identical before and after a `gate export` call, including
+with `--out` and `--json`.
+
+**Report shape mirrors `contract export`'s own established "the document IS the payload" posture**
+(`--json` only changes the `--out`-path confirmation message, never the report's own content,
+which is JSON either way) -- not a new convention invented for this one command.
+
+**Verified**: real end-to-end tests confirm `preflight` reports scope `_repo` while the other 4
+gates report the feature's own id; a forced gate's real `--reason` shows up in both current state
+and history; `--out` writes a file whose `git.head_sha` matches the real `git rev-parse HEAD`
+output at test time (not a stubbed value); an uncommitted scratch file correctly flips
+`git.dirty` to `true`; a feature with no gates run beyond `preflight`/`scan` correctly reports
+`current: null, history: []` for the untouched gates rather than a crash or a fabricated state.
+
+**EXIT**: no cryptographic signing of the exported report -- "verifiable" here means "an honest,
+complete transcript of what this machine's local state actually says," not "cryptographically
+provable to a third party who doesn't trust this machine at all." If that stronger guarantee is
+ever needed, it is a genuinely separate, larger feature (report signing/attestation), not an
+extension of this one.
+
+Cross-references: `D-contract-history` (D7, the git-commit-correlation mistake this item was
+deliberately built to NOT repeat); `D-gate-history` (S4, the append-only `.sbf/*.history.jsonl`
+mechanism and `readGateHistory()` this item reads from unchanged); `D-openapi-export` (A6, the
+"the document IS the payload, `--json` only changes the confirmation message" precedent this
+item's own `--out` handling follows).
