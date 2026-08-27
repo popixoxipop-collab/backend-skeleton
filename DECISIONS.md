@@ -7755,3 +7755,95 @@ item extends, and the exact bump precedent `sbf.adapter/1` → `sbf.adapter/2` f
 `D-javascript-express-adapter` (G6, `synthetic-only`'s own honest-gap admission this field now
 makes machine-readable); `D-generic-grep-reconnaissance` (G3, why `not-applicable` is a distinct
 answer, not a weaker `synthetic-only`).
+
+## D-handle-audit-report (O7/B2): a query layer over data a target app already chose to record, honestly capped until O3/O5 close
+
+**WHY:** The last item in this session's ROI-ordered backlog. Weakness B2 from the differentiators
+analysis: O4 already built real handle-lifecycle recording infrastructure
+(`HandleService.recordSnapshot`, the opt-in `@RecordHandleSnapshot`/`HandleAspect` interceptor,
+`HandleSnapshotRepository`, and the Python `record_snapshot` decorator + `HandleSnapshot` table),
+but nothing in `bskel` itself could ever read that data back out. A human debugging "was this
+handle actually used, and what did it return" had to hand-write SQL against tables this project
+generated but never gave its own reader for.
+
+**A real precedent already existed for `bskel` connecting to a live database at all** — A4/
+`D-db-schema-plane`'s `scanners/db/introspect.mjs` (Plane C live schema introspection), confirmed
+by reading it directly before designing anything new. This item reuses that precedent's exact
+conventions rather than inventing new ones: the `pg` `Client` (one connection, sequential queries,
+never a `Pool` — this is a one-shot CLI invocation, not a long-lived server), `BEGIN TRANSACTION
+READ ONLY` as structural defense-in-depth (the DB itself refuses any write this connection could
+ever attempt), and the `--database-url-env <NAME>` flag naming an already-exported environment
+variable — **never reading `.env` directly**, the same rule A4 and this project's own CLAUDE.md
+§6 both already state. Unlike `scan --db`, `--database-url-env` is `required` here — this
+command's entire purpose IS the live query, so there is no meaningful "run without a connection"
+mode to fall back to.
+
+**Both real providers generate the identical table shape.** Confirmed by reading
+`handles/providers/java-spring/templates/{migration.sql.tmpl,HandleSnapshot.java.tmpl}` and
+`handles/providers/python-fastapi/templates/tables.py.tmpl` directly, not assumed: both emit the
+same `sbf_handle`/`sbf_handle_snapshot` table names and columns (the Python template's own comment
+says so explicitly — "same table names, columns... so both providers' generated schemas agree
+byte-for-byte at the DDL level"). One query in `handles/audit.mjs` therefore works regardless of
+which provider backed a given feature. `typescript-express` (G5) never implemented `recover()`/
+these tables at all — a feature scanned by that provider simply reports 0 handles if audited,
+an honest, correct answer, not a special case.
+
+**Mechanism.** `handles/audit.mjs` exports `auditHandles({connectionString, featureUid,
+resourceTypes})` — a `LEFT JOIN` from `sbf_handle` to `sbf_handle_snapshot`, `GROUP BY
+h.handle_uid`, filtered to one feature's own `feature_uid` (loaded from `specs/<id>/feature.json`,
+the same field `D-feature-lifecycle`'s D6 already validates) and optionally to a
+`--resource type1,type2` allow-list — reusing `handles plan`/`handles emit`'s own existing
+multi-value flag convention exactly, not a new singular `--resource-type` flag. `isMissingHandleTables(err)`
+distinguishes Postgres's real `42P01` ("relation does not exist" — the target app's migration.sql
+was simply never applied, matching `D-migration-scope`'s own "bskel never applies it
+automatically") from any other query failure. `bin/bskel.mjs`'s `cmdHandlesAudit` is a pure reader,
+deliberately gate-independent (matching `D-contract-history`/`D-gate-export`'s own posture, not
+`handles plan`/`handles emit`'s capability gating) — it never touches adapter-specific codegen, so
+it works even before a scan report exists.
+
+**Verified live, not merely structurally**: a real, disposable Docker Postgres (`postgres:16-alpine`,
+matching this project's own S6/`D-docker-postgres-stack` precedent) was started, given the real
+`migration.sql.tmpl` schema, and seeded with four real rows across two `feature_uid`s — one handle
+with 2 snapshots, one with 0 (never-snapshotted), one revoked with 1 snapshot, and one belonging to
+a DIFFERENT feature entirely (to prove the `feature_uid` filter genuinely excludes it, not just
+happens to). `auditHandles()` was run directly against it: the `GROUP BY h.handle_uid` +
+`h.*`-column-selection form (a real Postgres functional-dependency extension, not portable SQL —
+confirmed live, not assumed from the standard) returned exactly the right shape; the resource-type
+`= ANY($2)` filter correctly included/excluded; the cross-feature row was correctly excluded.
+Separately, the real tables were dropped and the query re-run to confirm the exact live
+`42P01`/`isMissingHandleTables` path, and a real invalid-UUID input was fed through to confirm
+`isMissingHandleTables` does NOT false-positive on an unrelated error code (`22P02`). The full CLI
+path was then run end-to-end against a fresh container through a real `bskel preflight` →
+`feature init` → `handles audit` sequence, both `--json` and text mode, confirming the rendered
+report matches the live database exactly. `npm test` itself stays Docker-free — matching
+`test/db-schema-plane.test.mjs`'s own established precedent, `test/handle-audit.test.mjs` unit-tests
+`isMissingHandleTables`/`summarizeAudit` as pure functions and CLI-tests only the pre-connection
+guard paths (missing/unset `--database-url-env`, invalid/missing `--feature`) — the live query
+behavior above was this item's own one-time manual verification, documented here rather than
+re-run on every `npm test` invocation.
+
+**The honest limitation, stated plainly, not implied away**: this command reports what a target
+application chose to record via `@RecordHandleSnapshot`/`record_snapshot` — recording is opt-in,
+per O4's own design. Absence of a snapshot does NOT mean a handle was never used, only that
+recording was never turned on for that call path. This is NOT, and cannot be, a security control
+on its own — it has no ability to prevent, only to report after the fact, and a revoked handle's
+`revoked_at` here still means nothing was ever stopped from using it (that is O3's job, still
+unbuilt). This caveat is printed by the CLI itself, in every mode (`--json`'s own `caveat` field,
+and a stderr note in text mode) — not buried in `DECISIONS.md` prose alone, the same "the tool
+itself carries the warning" posture `D-openapi-extraction-hint` already established.
+
+**EXIT**: no attempt to correlate a snapshot's `payload` back to a specific contract operation
+beyond the `operation_id`/`contract_hash` columns the recording side already writes — a schema-drift
+comparison (does this snapshot's contract hash still match the CURRENT contract) is deliberately
+left to a target app's own `recover` endpoint, which already does exactly this; duplicating it here
+would be a second, potentially-diverging implementation of the same check. No `--since`/date-range
+filter — the full history for a feature is small enough in every real case measured so far that a
+time filter would be premature scope, not a proven need.
+
+Cross-references: `D-db-schema-plane` (A4, the `pg`/`--database-url-env`/read-only-transaction
+conventions this item reuses unchanged, and the first-ever precedent for `bskel` opening a network
+connection to something other than a git remote/GitHub API); `D-handle-lifecycle` (O4, the
+recording infrastructure this item reads, and the opt-in posture its own caveat repeats); `D-docker-postgres-stack`
+(S6, the same real-Docker-Postgres verification discipline reused for this item's own manual
+verification); `D-handles-providers` (G4, the byte-identical `sbf_handle`/`sbf_handle_snapshot`
+schema across java-spring/python-fastapi this item's single query depends on).

@@ -22,6 +22,7 @@ import {
 import { runScan } from '../scanners/index.mjs';
 import { scanMigrations } from '../scanners/db/migrations.mjs';
 import { introspectSchema, describeConnectionError } from '../scanners/db/introspect.mjs';
+import { auditHandles, summarizeAudit, isMissingHandleTables } from '../handles/audit.mjs';
 import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '../scanners/render.mjs';
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
@@ -76,6 +77,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
+  bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
@@ -2041,6 +2043,69 @@ function cmdHandlesPatchApprove(args) {
 	process.exit(0);
 }
 
+// O7 (D-handle-audit-report): a pure reader, deliberately gate-independent -- matches
+// D-contract-history/D-gate-export's own posture, not `handles plan`/`handles emit`'s capability
+// gating. It never touches adapter-specific codegen (the query is over `feature_uid` alone, the
+// same regardless of which provider backed this feature), so it works even before a scan report
+// exists, as long as `specs/<id>/feature.json` does.
+async function cmdHandlesAudit(args) {
+	const flags = parseCommand('handles audit', args);
+	if (flags.help) { console.log(renderCommandHelp('handles audit')); process.exit(0); }
+	setContext('handles audit', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	const featureRecord = loadFeatureRecord(root, flags.feature);
+
+	// Same "never read from .env directly, name an already-exported env var" convention as A4's
+	// --database-url-env (D-db-schema-plane) -- reused unchanged, not reinvented.
+	const connectionString = process.env[flags['database-url-env']];
+	if (!connectionString) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--database-url-env ${flags['database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
+	}
+	const resourceTypes = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
+
+	let rows;
+	try {
+		rows = await auditHandles({ connectionString, featureUid: featureRecord.feature_uid, resourceTypes });
+	} catch (err) {
+		if (isMissingHandleTables(err)) {
+			fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `sbf_handle/sbf_handle_snapshot don't exist in this database -- the generated migration.sql (see \`bskel handles emit\`'s own output) was never applied here. bskel never applies a migration automatically (see D-migration-scope in DECISIONS.md).`);
+		}
+		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `could not query handle audit data: ${describeConnectionError(err)}`);
+	}
+
+	const summary = summarizeAudit(rows);
+	// Printed in EVERY mode, not just as a doc comment -- this command's whole value is genuinely
+	// capped until O3 (revocation enforcement)/O5 (authorization contracts) close, and that must
+	// not be discoverable only by someone who already read DECISIONS.md prose (see
+	// D-openapi-extraction-hint's own precedent for "the CLI itself carries this warning, not
+	// just documentation").
+	const caveat = 'this reports what the target application chose to record via @RecordHandleSnapshot / record_snapshot -- it is NOT, and cannot be, a security control on its own (see O3/O5 in CATALOG.md for revocation enforcement and authorization contracts). Absence of a snapshot does not mean a handle was never used, only that recording was never opted into for that call path.';
+	const report = {
+		schema: 'sbf.handle-audit/1',
+		feature_id: flags.feature,
+		feature_uid: featureRecord.feature_uid,
+		generated_at: new Date().toISOString(),
+		summary,
+		handles: rows,
+		caveat,
+	};
+
+	if (flags.json) {
+		console.log(JSON.stringify(report, null, 2));
+	} else {
+		console.log(`handle audit -- feature ${flags.feature} (${featureRecord.feature_uid})`);
+		console.log(`  ${summary.total_handles} handle(s), ${summary.revoked_handles} revoked, ${summary.never_snapshotted} never snapshotted, ${summary.total_snapshots} snapshot(s) total`);
+		for (const h of rows) {
+			const revokedNote = h.revoked_at ? ` -- REVOKED (${h.revoked_reason ?? 'no reason recorded'})` : '';
+			const pointerNote = h.pointer ? `#${h.pointer}` : '';
+			console.log(`  ${h.kind} ${h.resource_type}/${h.resource_uid}${pointerNote} -- ${h.snapshot_count} snapshot(s), last ${h.last_recorded_at ?? 'never'}${revokedNote}`);
+		}
+		console.error(`\nnote: ${caveat}`);
+	}
+	process.exit(0);
+}
+
 // S2: "stale" alone sends a human/agent re-running steps until one happens to stick. Name the
 // input that actually moved, using the exact reason requireGate()'s explainStaleness() reports.
 function describeStale(g) {
@@ -2529,6 +2594,7 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'plan') return cmdHandlesPlan(rest.slice(1));
 			if (rest[0] === 'emit') return cmdHandlesEmit(rest.slice(1));
 			if (rest[0] === 'patch' && rest[1] === 'approve') return cmdHandlesPatchApprove(rest.slice(2));
+			if (rest[0] === 'audit') return await cmdHandlesAudit(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;
