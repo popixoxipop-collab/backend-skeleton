@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["sbf_contract", "feature_id", "feature_uid", "source", "operations", "warnings", "completeness"],
   "properties": {
-    "sbf_contract": { "const": "6" },
+    "sbf_contract": { "const": "7" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
     "source": {
@@ -98,6 +98,11 @@
                 }
               }
             }
+          },
+          "pathParamsHeuristic": {
+            "description": "A9: names every path-parameter segment in `pathParams` whose schema still came from this contract's own name heuristic (`/id$/i` -> a UUID pattern) rather than a real source document -- because no source document was given, the source declared no schema for that segment, or the schema failed to resolve. Present only when at least one segment is still heuristic-derived; a segment absent from this list was resolved from the source document's own real schema.",
+            "type": "array",
+            "items": { "type": "string" }
           }
         }
       }

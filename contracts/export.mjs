@@ -16,12 +16,15 @@
 // but ONLY when a real source document (--openapi-file) licensed it for that EXACT operation; where
 // no source stated one, the key is still omitted, meaning "unspecified". A8 (D-openapi-per-status)
 // extends the same discipline to per-status responses (additive to, never replacing, the
-// responseSchema/errorSchema union) and non-JSON request media types. Operation-level
-// `description` remains excluded -- measured too expensive to default-on (2,442.7 bytes/operation
-// average, larger than every other field this projection copies combined), still disclosed as
-// structural. Every omission is disclosed in prose (`info.description`) and machine-readably
-// (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export, D-openapi-passthrough,
-// and D-openapi-per-status in DECISIONS.md.
+// responseSchema/errorSchema union) and non-JSON request media types. A9 (D-openapi-path-params) is
+// different in kind from A7/A8 -- not additive, a REPLACEMENT in place: a path parameter's own
+// `pathParams` schema is corrected from the source document per-segment when it resolves one,
+// falling back to the pre-existing name heuristic only where the source doesn't answer. Operation-
+// level `description` remains excluded -- measured too expensive to default-on (2,442.7 bytes/
+// operation average, larger than every other field this projection copies combined), still
+// disclosed as structural. Every omission is disclosed in prose (`info.description`) and machine-
+// readably (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export,
+// D-openapi-passthrough, D-openapi-per-status, and D-openapi-path-params in DECISIONS.md.
 import { createHash } from 'node:crypto';
 import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE, RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN, SUCCESS_STATUS_RE, ERROR_STATUS_RE, DEFAULT_STATUS_KEY } from './openapi.mjs';
 
@@ -58,22 +61,23 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 // A7: query/header/cookie parameters, security, summaries, and tags moved OUT of this list -- they
 // are now real emitted content when a source document licensed them, so they only belong in the
 // DERIVED (ANY-based) set collectOmissions() builds below. A8 moves `per-status-responses` and
-// `non-json-request-media-types` (renamed from `non-json-media-types`) out the same way. What
-// stays structural: `descriptions` (field-level AND operation-level -- the latter measured and
-// deliberately excluded, not merely unbuilt), `path-parameter-schemas` (path-param schemas come
-// from this contract's own name heuristic, never from a source document, even when --openapi-file
-// was given -- see the real `batchRequestId` finding in D-openapi-passthrough), `vendor-extensions`
-// (x-* keys on an operation are never copied -- excluded in principle, not by cap or failure, since
-// their semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a
-// non-JSON response media type's NAME is copied via a per-status entry's `mediaTypes`, but its
-// SHAPE is never projected -- 0/674 real occurrences, so building that machinery would violate
-// this project's own "don't build for zero real cases" discipline) and `response-headers`
-// (response `headers`/`links` -- 0/694 real occurrences, a genuinely visible gap only now that
-// per-status responses look complete).
+// `non-json-request-media-types` (renamed from `non-json-media-types`) out the same way. A9 moves
+// `path-parameter-schemas` out the same way too -- path-param schemas now come from a real source
+// document whenever it declares a resolvable one (see D-openapi-path-params, the real fix for the
+// `batchRequestId` finding this omission entry used to describe unconditionally), falling back to
+// the contract's own name heuristic only per-segment, so its presence is now content-conditional
+// like every other A7/A8 field, not a permanent structural fact. What stays structural:
+// `descriptions` (field-level AND operation-level -- the latter measured and deliberately excluded,
+// not merely unbuilt), `vendor-extensions` (x-* keys on an operation are never copied -- excluded in
+// principle, not by cap or failure, since their semantics are tool-specific), and two A8 additions:
+// `non-json-response-schemas` (a non-JSON response media type's NAME is copied via a per-status
+// entry's `mediaTypes`, but its SHAPE is never projected -- 0/674 real occurrences, so building that
+// machinery would violate this project's own "don't build for zero real cases" discipline) and
+// `response-headers` (response `headers`/`links` -- 0/694 real occurrences, a genuinely visible gap
+// only now that per-status responses look complete).
 const STRUCTURAL_OMISSIONS = Object.freeze([
 	'descriptions',
 	'non-json-response-schemas',
-	'path-parameter-schemas',
 	'response-headers',
 	'vendor-extensions',
 ]);
@@ -85,7 +89,7 @@ const OMISSION_PROSE = Object.freeze({
 	'header-parameters': 'header parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'non-json-request-media-types': 'the media type of the request body, for at least one operation that takes one -- a non-application/json request media type is emitted only when a real source document declared one for that exact operation, copied byte-for-byte; otherwise this document shows a JSON media-type entry because that is all the contract knows, never because the real body is known to be JSON',
 	'non-json-response-schemas': 'a JSON Schema for any response body in a media type other than application/json -- the media type is named where a source document declared one for that status, but its shape is never projected',
-	'path-parameter-schemas': 'path parameter schemas -- always derived from this contract\'s own name heuristic (a trailing "Id" is assumed to be a UUID), never from a source document even when --openapi-file was given; a real, small false-negative of this heuristic is known and disclosed, not fixed, by this projection',
+	'path-parameter-schemas': 'a path parameter\'s schema, for at least one path segment on at least one operation -- derived from this contract\'s own name heuristic (a trailing "Id" is assumed to be a UUID) rather than a real source document, because no source document was given, the source declared no schema for that segment, or the schema failed to resolve; a segment not covered by this note was resolved from the source document\'s own real schema',
 	'per-status-responses': 'per-status responses, for at least one operation -- that operation\'s entry collapses every documented 2xx body into one `2XX` union and every 4xx/5xx body into one `default` union, and records no real status codes. Where a real source document (--openapi-file) documented statuses for an operation, its own status codes and descriptions are emitted verbatim instead; nothing is invented for an operation the source said nothing about',
 	'query-parameters': 'query parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'request-body-schemas': 'a JSON request-body schema for at least one operation that takes a body',
@@ -132,6 +136,12 @@ export function collectOmissions(contract) {
 		// genuinely has no request media type to disclose.
 		if ((op.body === true || op.body === 'unknown') && !op.requestBodySchema && !op.sourceRequestBody) {
 			omissions.add('non-json-request-media-types');
+		}
+		// A9: path-parameter schemas -- ANY-based, same doctrine as every check above. An operation
+		// with zero path params, or every one source-resolved, has no pathParamsHeuristic at all
+		// (contracts/emit.mjs never persists an empty array), so it naturally never trips this check.
+		if (Array.isArray(op.pathParamsHeuristic) && op.pathParamsHeuristic.length > 0) {
+			omissions.add('path-parameter-schemas');
 		}
 	}
 	return [...omissions].sort();

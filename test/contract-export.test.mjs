@@ -140,7 +140,24 @@ test('an exported document validates against the official 3.1 meta-schema, for a
 // hypothetical upstream document. A projected `format: 'uuid'` is rewritten to a bare-UUID
 // `pattern` on import (D-security-2), and a multi-shape `anyOf` response union re-imports as one
 // raw node rather than N -- both are stable from the FIRST emitted contract onward, which is what
-// this asserts.
+// this asserts. A9 adds a third (D-openapi-path-params): a path parameter's `pathParamsHeuristic`
+// entry can legitimately DISAPPEAR across one round trip -- the export faithfully re-emits a
+// heuristic-derived pathParams schema as a real Parameter Object with a `schema`, and re-importing
+// it correctly treats a real, resolvable schema as source-confirmed, exactly as it should for any
+// independent document (the self-import guard, not this function, is what distinguishes "really
+// independent" from "our own unmodified export" -- once its markers are stripped, as here, there is
+// no other signal left to withhold trust on, by this project's own established design). The
+// underlying `pathParams` schema value itself is untouched either way; only its provenance label
+// converges. Stripped from the comparison below for that reason, not because anything was lost.
+function withoutPathParamsHeuristic(operations) {
+	const out = {};
+	for (const [operationId, op] of Object.entries(operations)) {
+		const { pathParamsHeuristic, ...rest } = op;
+		out[operationId] = rest;
+	}
+	return out;
+}
+
 test('round trip: export -> re-import against the same scan report reproduces the contract\'s operations exactly', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
@@ -171,7 +188,7 @@ test('round trip: export -> re-import against the same scan report reproduces th
 	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', 'stripped.json'], root).code, 0);
 	const after = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
 
-	assert.deepEqual(after.operations, before.operations, 'every operation must survive the round trip unchanged');
+	assert.deepEqual(withoutPathParamsHeuristic(after.operations), withoutPathParamsHeuristic(before.operations), 'every operation must survive the round trip unchanged, aside from pathParamsHeuristic converging (see comment above)');
 	assert.deepEqual(after.warnings, [], 're-importing an export of a complete contract must produce no new warnings');
 	assert.equal(JSON.parse(fs.readFileSync(snapshotPath, 'utf8')).stats.matched, matchedBefore);
 });
@@ -606,6 +623,10 @@ test('A7 self-import guard: stripping info.x-bskel-generated AND every operation
 
 // --- A7: round trip, extended to cover the new fields ----------------------------------------
 
+// A9: pathParamsHeuristic converges across this round trip too, same reasoning as the comment
+// above the first round-trip test in this file (withoutPathParamsHeuristic()) -- this fixture's
+// `widgetId` segment has no source-declared path-parameter schema either, so it is heuristic-
+// derived in `before` and source-confirmed in `after`, with the underlying schema unchanged.
 test('A7 round trip: a complete, fully-passthrough contract survives export -> re-import (all markers stripped) with source* fields intact', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
@@ -628,7 +649,7 @@ test('A7 round trip: a complete, fully-passthrough contract survives export -> r
 
 	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', 'stripped.json'], root).code, 0);
 	const after = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
-	assert.deepEqual(after.operations, before.operations, 'every operation, including the four source* fields, must survive the round trip unchanged');
+	assert.deepEqual(withoutPathParamsHeuristic(after.operations), withoutPathParamsHeuristic(before.operations), 'every operation, including the four source* fields, must survive the round trip unchanged, aside from pathParamsHeuristic converging (see the comment above the first round-trip test)');
 	assert.deepEqual(after.sourceSecuritySchemes, before.sourceSecuritySchemes);
 	assert.deepEqual(after.warnings, [], 're-importing an export of a complete contract must produce no new warnings');
 });
@@ -750,6 +771,39 @@ test('A8: per-status responses are ANY-based derived omissions -- absent when ev
 	assert.ok(mixed.includes('per-status-responses'), 'findWidgets/findWidget have no per-status data at all');
 });
 
+// --- A9: source-backed path-parameter schemas (D-openapi-path-params) --------------------------
+
+test('A9: an exported path parameter carries the real source schema, not the "/id$/i" heuristic guess, when the source declared one', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets/{widgetId}'].get.parameters = [{ name: 'widgetId', in: 'path', required: true, schema: { type: 'string' } }];
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+
+	const { doc: exported } = exportedDoc(root);
+	const widgetIdParam = exported.paths['/api/v0/widgets/{widgetId}'].get.parameters.find((p) => p.name === 'widgetId');
+	assert.deepEqual(widgetIdParam.schema, { type: 'string' }, 'the real source schema, no UUID pattern invented');
+	assertValidOpenApi(exported, 'an export with a source-backed path-parameter schema');
+});
+
+test('A9: path-parameter schemas are an ANY-based derived omission -- absent when every path param on every operation is source-resolved, present when at least one still relies on the heuristic', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets/{widgetId}'].get.parameters = [{ name: 'widgetId', in: 'path', required: true, schema: { type: 'string' } }];
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
+	const fullySourced = exportedDoc(root).doc.info['x-bskel-omitted'];
+	assert.equal(fullySourced.includes('path-parameter-schemas'), false, 'the only path parameter in this fixture was source-resolved');
+
+	const root2 = buildFixtureRepo();
+	initThroughScanDisposition(root2);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE], root2).code, 0); // no --openapi-file at all -- widgetId stays heuristic-derived
+	const heuristic = exportedDoc(root2).doc.info['x-bskel-omitted'];
+	assert.ok(heuristic.includes('path-parameter-schemas'), 'findWidget\'s widgetId has no source document to resolve against');
+});
+
 // --- A7: loadContract()'s friendly sbf_contract mismatch message -------------------------------
 
 // loadContract()'s pre-check is exercised through an UNGATED command (`contract tool-schema`, not
@@ -771,7 +825,7 @@ test('an on-disk contract from an older bskel (sbf_contract "4") gets a friendly
 
 	const result = run(['contract', 'tool-schema', '--feature', FEATURE, '--operation', 'createWidget'], root);
 	assert.equal(result.code, 2, 'loadContract()\'s INVALID_ARTIFACT failures share exit NOT_PASSED(2), same as MISSING_ARTIFACT');
-	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "6"\)/);
+	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "7"\)/);
 	assert.match(result.stderr, /re-run `bskel contract emit --feature 001-widget-management`/);
 	assert.equal(result.stderr.includes('does not match schemas/feature-contract.schema.json'), false, 'the friendly message must replace the raw ajv dump for this specific, common case');
 });

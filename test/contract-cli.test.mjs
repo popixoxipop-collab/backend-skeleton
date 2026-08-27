@@ -14,6 +14,7 @@ import {
 	initThroughScanDisposition, contractSchemaPath, contractResolutionPath, contractSnapshotPath,
 	widgetOpenApiDoc, writeOpenApiFixture,
 } from './_contract-fixture.mjs';
+import { BARE_UUID_PATTERN } from '../contracts/emit.mjs';
 
 test('feature init -> scan -> disposition -> contract emit -> validate -> tool-schema, full flow', () => {
 	const root = buildFixtureRepo();
@@ -50,6 +51,43 @@ test('feature init -> scan -> disposition -> contract emit -> validate -> tool-s
 	const toolSchema = run(['contract', 'tool-schema', '--feature', '001-widget-management', '--operation', 'createWidget'], root);
 	assert.equal(toolSchema.code, 0);
 	assert.equal(JSON.parse(toolSchema.stdout).name, 'createWidget');
+});
+
+// A9 (D-openapi-path-params): the real, disclosed A7 finding, actually fixed -- a plain-string path
+// parameter that happens to end in "Id" is wrongly rejected by the pre-A9 heuristic. Same envelope,
+// same value, on two contracts for the same feature: without a source document the heuristic still
+// rejects it (proving this is a real, reproducible baseline behavior, not a strawman), and with one
+// that declares the real (non-UUID) schema, the identical request is accepted.
+test('the real batchRequestId fix: a plain-string path param value is rejected by the heuristic alone, accepted once a real source document declares its true shape', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
+	const heuristicContract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.deepEqual(heuristicContract.operations.findWidget.pathParams.properties.widgetId, { type: 'string', pattern: BARE_UUID_PATTERN }, 'baseline: the heuristic really does guess UUID for an "Id"-suffixed name with no source document');
+	assert.deepEqual(heuristicContract.operations.findWidget.pathParamsHeuristic, ['widgetId']);
+
+	const envelopePath = path.join(root, 'envelope.json');
+	const featureRecord = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/feature.json'), 'utf8'));
+	fs.writeFileSync(envelopePath, JSON.stringify({
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureRecord.feature_uid,
+		operation_id: 'findWidget', direction: 'request', payload: { pathParams: { widgetId: 'trainee-batch-001' } },
+	}));
+	const beforeValidate = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(beforeValidate.code, 1, 'the pre-A9 heuristic must genuinely reject this real, valid value -- otherwise this test proves nothing');
+	assert.equal(JSON.parse(beforeValidate.stdout).ok, false);
+
+	const doc = widgetOpenApiDoc({});
+	doc.paths['/api/v0/widgets/{widgetId}'].get.parameters = [{ name: 'widgetId', in: 'path', required: true, schema: { type: 'string' } }];
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root).code, 0);
+	const sourcedContract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.deepEqual(sourcedContract.operations.findWidget.pathParams.properties.widgetId, { type: 'string' }, 'the real source schema, no UUID pattern');
+	assert.equal('pathParamsHeuristic' in sourcedContract.operations.findWidget, false, 'every path param on this operation was source-resolved');
+
+	const afterValidate = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(afterValidate.code, 0);
+	assert.equal(JSON.parse(afterValidate.stdout).ok, true, 'the identical real, valid value is now accepted');
 });
 
 test('contract emit is blocked before preflight has run', () => {

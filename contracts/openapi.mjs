@@ -1105,6 +1105,51 @@ function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schem
 	}
 }
 
+// A9 (D-openapi-path-params): the real fix for A7's own disclosed `batchRequestId` finding --
+// contracts/emit.mjs's pathParamsSchema() names a path segment by NAME ONLY (`/id$/i` ->
+// BARE_UUID_PATTERN), a heuristic that is provably wrong for at least one real path parameter
+// (`batchRequestId`, a plain string despite the "Id" suffix). Unlike A7's own parameters (query/
+// header/cookie, which stay ADDITIVE alongside pathParams' own separate story), this one REPLACES
+// the heuristic's guess in place for any segment the source document can answer -- the same
+// "positive information overrides a guess" principle A8's `hasSourceMediaTypeInfo` already
+// established, applied here to path-param TYPE instead of request media type.
+//
+// Returns a Map (never a plain object -- this is `--openapi-file`-sourced, untrusted data keyed by
+// parameter NAME, the exact class RESPONSE_STATUS_KEY_RE/MEDIA_TYPE_RE exist to defend against
+// elsewhere in this file; a Map sidesteps prototype pollution entirely rather than needing a third
+// whitelist regex) from resolved path-parameter name to its inlined schema, stashed transiently on
+// `result` for contracts/emit.mjs's pathParamsSchema() call to consult -- never itself persisted to
+// the contract; only the corrected `pathParams` (and, when at least one segment still falls back to
+// the heuristic, `pathParamsHeuristic`) are.
+function applyPathParameterSchemas(result, docEntry, componentSchemas, stats, schemaProjectionEnabled) {
+	const rawParameters = Array.isArray(docEntry.parameters) ? docEntry.parameters : [];
+	const pathParams = rawParameters.filter((p) => p && typeof p === 'object' && !Array.isArray(p) && p.in === 'path');
+	if (pathParams.length === 0) {
+		stats.path_params_none++;
+		return;
+	}
+	if (!schemaProjectionEnabled) {
+		result.pathParamsSkippedDialect = true;
+		stats.path_params_skipped_dialect++;
+		return;
+	}
+	const resolved = new Map();
+	for (const p of pathParams) {
+		const name = safeParamName(p);
+		if (name === null || !Object.hasOwn(p, 'schema')) continue; // no name, or source declared no schema -- nothing to prefer over the heuristic for this one segment
+		const schemaNode = p.schema;
+		if (!schemaNode || typeof schemaNode !== 'object' || Array.isArray(schemaNode)) continue;
+		const out = inlineSchema(schemaNode, componentSchemas);
+		if (out.ok) resolved.set(name, out.schema);
+	}
+	if (resolved.size > 0) {
+		result.pathParamSchemas = resolved;
+		stats.path_params_copied++;
+	} else {
+		stats.path_params_unresolved++;
+	}
+}
+
 // A7: the single entry point called from reconcileModule()'s two matched/adopted call sites --
 // exactly the placement A2/A3's own helpers already occupy, which IS the refusal mechanism for
 // every other resolution kind (drift/missing/ambiguous/unresolved never reach this function at
@@ -1117,6 +1162,8 @@ function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnable
 	// mechanism for every other resolution kind, extended unchanged for the two new fields.
 	applyPerStatusResponses(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
 	applyRequestMediaTypes(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
+	// A9: same placement again, for the path-parameter schema fix.
+	applyPathParameterSchemas(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
 }
 
 // The core reconciliation, pure (no I/O). `module` is a scanReport related_modules entry (as
@@ -1164,6 +1211,8 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 		// the A7 counters above.
 		per_status_copied: 0, per_status_skipped_unresolved: 0, per_status_none: 0, per_status_skipped_dialect: 0,
 		request_media_types_copied: 0, request_media_types_unresolved: 0, request_media_types_none: 0, request_media_types_skipped_dialect: 0,
+		// A9: source-backed path-parameter schema counters, same per-operation-tally shape.
+		path_params_copied: 0, path_params_unresolved: 0, path_params_none: 0, path_params_skipped_dialect: 0,
 	};
 	// A7: accumulates every security-scheme name any operation's COPIED security requirement
 	// actually referenced, across the WHOLE module -- becomes the contract-root sourceSecuritySchemes
@@ -1365,6 +1414,12 @@ function requestMediaTypesDecision(result) {
 	if (result.requestMediaTypesUnresolvedReason) return `unresolved:${result.requestMediaTypesUnresolvedReason}`;
 	return 'none';
 }
+// A9: same decision-only audit-trail shape, for the path-parameter schema fix.
+function pathParamSchemasDecision(result) {
+	if (result.pathParamsSkippedDialect) return 'skipped:dialect';
+	if (result.pathParamSchemas) return `copied:${result.pathParamSchemas.size}`;
+	return 'none';
+}
 
 // `sourceFile`: {file, outsideRepo} precomputed by the caller (bin/bskel.mjs knows the repo
 // root; this module deliberately doesn't) -- keeps machine-specific absolute paths out of a
@@ -1405,6 +1460,8 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 				// A8: same decision-only audit trail, for the two new passthrough fields.
 				per_status_responses: perStatusResponsesDecision(result),
 				request_media_types: requestMediaTypesDecision(result),
+				// A9: same decision-only audit trail, for the path-parameter schema fix.
+				path_param_schemas: pathParamSchemasDecision(result),
 			};
 		}
 	}

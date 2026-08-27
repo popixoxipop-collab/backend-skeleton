@@ -1546,3 +1546,120 @@ test('snapshot decision fields: request_media_types "copied:N" / "partial:N" / "
 		'partial:1',
 	);
 });
+
+// --- A9: applyPathParameterSchemas (D-openapi-path-params, the real batchRequestId fix) --------
+
+// findWidget at /api/v0/widgets/{batchRequestId} -- a path-param name that ends in "Id" (the
+// heuristic's own trigger), the exact shape of the real finding this item fixes.
+function reconcileFindWidgetBatchId(doc) {
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/{batchRequestId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	return { recon, result: recon.byEndpoint.get('0:0') };
+}
+function docWithBatchIdPathParam(schema) {
+	return {
+		openapi: '3.1.0',
+		paths: { '/api/v0/widgets/{batchRequestId}': { get: {
+			operationId: 'findWidget',
+			...(schema !== undefined ? { parameters: [{ name: 'batchRequestId', in: 'path', required: true, schema }] } : {}),
+		} } },
+	};
+}
+
+test('the real batchRequestId fix: a source-declared plain-string schema overrides the "/id$/i" -> UUID heuristic', () => {
+	const { recon, result } = reconcileFindWidgetBatchId(docWithBatchIdPathParam({ type: 'string' }));
+	assert.deepEqual(result.pathParamSchemas.get('batchRequestId'), { type: 'string' });
+	assert.equal(result.pathParamSchemas.has('batchRequestId') && 'pattern' in result.pathParamSchemas.get('batchRequestId'), false, 'the source schema has no pattern -- the heuristic\'s UUID pattern must not leak in');
+	assert.equal(recon.stats.path_params_copied, 1);
+});
+
+test('no source document at all: the heuristic still fires exactly as before this item (no regression)', () => {
+	const { recon, result } = reconcileFindWidgetBatchId(docWithBatchIdPathParam(undefined));
+	assert.equal('pathParamSchemas' in result, false);
+	assert.equal(recon.stats.path_params_none, 1);
+});
+
+test('source declares the path param but with no `schema` key: falls back to the heuristic, not a failure', () => {
+	const doc = {
+		openapi: '3.1.0',
+		paths: { '/api/v0/widgets/{batchRequestId}': { get: {
+			operationId: 'findWidget',
+			parameters: [{ name: 'batchRequestId', in: 'path', required: true, description: 'the batch id' }],
+		} } },
+	};
+	const { recon, result } = reconcileFindWidgetBatchId(doc);
+	assert.equal('pathParamSchemas' in result, false);
+	assert.equal(recon.stats.path_params_unresolved, 1);
+});
+
+test('source declares an unresolvable schema for the path param: falls back to the heuristic', () => {
+	const { recon, result } = reconcileFindWidgetBatchId(docWithBatchIdPathParam({ type: 'object', discriminator: { propertyName: 'kind' } }));
+	assert.equal('pathParamSchemas' in result, false);
+	assert.equal(recon.stats.path_params_unresolved, 1);
+});
+
+test('path parameters ride the schema-bearing dialect gate: a 3.0 document skips them entirely, pathParamsSkippedDialect true', () => {
+	const doc = docWithBatchIdPathParam({ type: 'string' });
+	doc.openapi = '3.0.1';
+	const { recon, result } = reconcileFindWidgetBatchId(doc);
+	assert.equal(result.pathParamsSkippedDialect, true);
+	assert.equal('pathParamSchemas' in result, false);
+	assert.equal(recon.stats.path_params_skipped_dialect, 1);
+});
+
+test('drift never gets pathParamSchemas, even with a perfectly resolvable one in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		paths: { '/api/v0/widgets/{batchRequestId}': { post: { // verb drift: doc says POST, scan says GET
+			operationId: 'findWidget',
+			parameters: [{ name: 'batchRequestId', in: 'path', required: true, schema: { type: 'string' } }],
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/{batchRequestId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('pathParamSchemas' in result, false);
+});
+
+test('a path parameter literally named "__proto__" is handled safely -- Map-based, never a plain-object key', () => {
+	const { result } = reconcileFindWidgetBatchId({
+		openapi: '3.1.0',
+		paths: { '/api/v0/widgets/{batchRequestId}': { get: {
+			operationId: 'findWidget',
+			parameters: [
+				{ name: 'batchRequestId', in: 'path', required: true, schema: { type: 'string' } },
+				{ name: '__proto__', in: 'path', required: true, schema: { type: 'string' } },
+			],
+		} } },
+	});
+	assert.equal(result.pathParamSchemas instanceof Map, true);
+	assert.deepEqual(result.pathParamSchemas.get('batchRequestId'), { type: 'string' });
+	assert.equal(Object.prototype.toJSON, undefined, 'the real global Object.prototype must be untouched');
+});
+
+test('D-security-2: a source path-param schema using format:"uuid" is rewritten to the bare-UUID pattern via inlineSchema(), same as everywhere else in this file', () => {
+	const { result } = reconcileFindWidgetBatchId(docWithBatchIdPathParam({ type: 'string', format: 'uuid' }));
+	assert.deepEqual(result.pathParamSchemas.get('batchRequestId'), { type: 'string', pattern: BARE_UUID_PATTERN });
+});
+
+test('snapshot decision field: path_param_schemas "copied:N" / "none" / "skipped:dialect"', () => {
+	function snapshotFindWidget(doc) {
+		const indexed = indexOpenApiDocument(doc);
+		const module = oneControllerModule([{ verb: 'GET', path: '/widgets/{batchRequestId}', operationId: 'findWidget', method: 'findWidget' }]);
+		const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+		const reconciliation = {
+			byEndpoint: recon.byEndpoint, prefix: recon.prefix, stats: recon.stats, schemaProjection: recon.schemaProjection,
+			document: { hash: 'x', bytes: 1, path_count: 1, operation_count: 1, skipped_path_refs: 0, rejected_operation_ids: 0, component_schema_count: 0, rejected_component_schemas: 0, security_scheme_count: 0, rejected_security_schemes: 0, openapi_version: doc.openapi, servers: [] },
+		};
+		return snapshotFromReconciliation(reconciliation, { featureId: '001-x', sourceFile: { file: 'x.json', outsideRepo: false } }).operations.findWidget;
+	}
+	assert.equal(snapshotFindWidget(docWithBatchIdPathParam(undefined)).path_param_schemas, 'none');
+	assert.equal(snapshotFindWidget(docWithBatchIdPathParam({ type: 'string' })).path_param_schemas, 'copied:1');
+	const dialect30 = docWithBatchIdPathParam({ type: 'string' });
+	dialect30.openapi = '3.0.1';
+	assert.equal(snapshotFindWidget(dialect30).path_param_schemas, 'skipped:dialect');
+});
