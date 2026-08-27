@@ -7466,3 +7466,86 @@ deliberately built to NOT repeat); `D-gate-history` (S4, the append-only `.sbf/*
 mechanism and `readGateHistory()` this item reads from unchanged); `D-openapi-export` (A6, the
 "the document IS the payload, `--json` only changes the confirmation message" precedent this
 item's own `--out` handling follows).
+
+## D-unsupported-annotation-warning: 0 real occurrences on one oracle is not 0 occurrences everywhere
+
+**WHY:** A11 (D-openapi-field-docs) narrowed `DROPPED_KEYWORDS` from seven to five keywords
+(`title`, plural `examples`, `externalDocs`, `xml`, `deprecated`) on the strength of a real
+measurement: 0 occurrences of any of the five, anywhere in the 148-operation Team-IZ-Backend
+oracle. That measurement justifies never building copy support for them -- it does NOT justify
+silently dropping them with zero signal. A genuinely different real `--openapi-file` document
+could use any of these five, and a consumer would have no way to know their schema got quietly
+thinner. This item closes that gap the cheapest possible way: presence detection, not support.
+
+**A real bug caught and fixed before merge, not after.** The first implementation walked
+`RECURSED_KEYWORDS` generically, including `properties` -- but `properties`' VALUE is a
+field-name -> schema MAP, not a schema itself; recursing into the map object directly (instead of
+`Object.values(...)` first) silently walked past every property's real schema and found nothing
+underneath `properties` at all, ever. A dedicated test (`deprecated` nested three levels down
+through `properties`) caught this immediately -- fixed by special-casing `properties` to recurse
+its VALUES, leaving `items`/`additionalProperties` (already schemas directly) and
+`oneOf`/`anyOf`/`allOf` (already arrays of schemas) unchanged.
+
+**Scoped to genuine Schema Object structure, not a blanket document-wide key scan -- a second,
+equally real precision problem caught before writing any scan logic, not discovered by a failing
+test.** Several of `DROPPED_KEYWORDS`' names collide with real, UNRELATED OpenAPI 3.1 fields that
+live outside any Schema Object entirely: an Operation Object has its OWN `deprecated` (marks a
+whole ENDPOINT deprecated), and so does a Parameter Object (independent of that parameter's own
+nested `schema.deprecated`). A naive "does this key appear anywhere in `paths`" scan would
+misreport an ordinary, already-correctly-ignored `operation.deprecated: true` as "found an
+unsupported schema keyword" -- false, and exactly the kind of unearned claim this project's own
+discipline refuses to make. `findUnsupportedAnnotations()` therefore only ever descends from
+CONFIRMED schema roots -- `components.schemas` entries, `requestBody`/`responses` media-type
+`.schema`, and `parameters[].schema` -- the exact same roots `inlineSchema()` itself is ever
+called on, walked via the same `RECURSED_KEYWORDS` set (`properties`/`items`/
+`additionalProperties`/`oneOf`/`anyOf`/`allOf`) inlineSchema() itself recurses through. A test pair
+(`operation.deprecated`/`parameter.deprecated` both correctly ignored; `parameter.schema.deprecated`
+correctly found) locks this distinction in.
+
+**Deliberately NOT routed through `walkSchemaNode()`'s fail-closed machinery.** This scan's only
+job is presence detection across a document that inlineSchema() may never even attempt to resolve
+(a schema-projection-disabled 3.0 document, an unresolvable `$ref`, a too-deep structure) -- it
+must never throw on a shape inlineSchema() itself would reject. Bounded for free by
+`loadOpenApiDocument()`'s own `MAX_DOCUMENT_BYTES` check upstream; no separate depth/node cap
+needed.
+
+**Module-wide, not per-operation.** `contracts/openapi.mjs`'s `buildReconciliation()` computes
+`findUnsupportedAnnotations(loaded.doc)` once per `--openapi-file` document and exposes it as
+`unsupportedAnnotations` (a sorted, deduped array of keyword names) at the reconciliation root.
+`contracts/emit.mjs`'s `buildContract()` pushes AT MOST ONE new
+`CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT` warning per detected keyword name (subject = the
+keyword, e.g. `"title"`), independent of the per-operation endpoint loop -- a fact about the whole
+document, not any one operation, so a per-operation warning would just be the same fact repeated
+N times for no additional information.
+
+**WARN, not ERROR -- and deliberately not proven waivable via the CLI in this item's own tests.**
+Nothing this projection already copies is affected by an unsupported annotation being present;
+this is pure disclosure. `contracts/completeness.mjs`'s `WARNING_CODES` marks it `waivable: true`
+for consistency with every WARN-severity sibling code's own table entry, but `cmdContractWaive`'s
+real, pre-existing filter (`w.severity === 'error'`) only ever matches ERROR-severity warnings --
+a genuine, already-existing property of `contract waive`, not something this item changes or
+should paper over with a misleading test. What this item DOES verify directly: the new warning
+never blocks the `contract` gate, the same as every other WARN-severity `CONTRACT_OPENAPI_*`
+sibling.
+
+**Verified**: 10 unit tests (`test/contract-openapi.test.mjs`) cover an empty document, a
+`components.schemas`-level occurrence, a properties-nested occurrence, the two real
+Operation/Parameter-level false-positive traps (both correctly NOT reported), a genuine
+`parameter.schema`-nested occurrence (correctly reported), request-body/response/deep
+properties-then-items nesting, multi-keyword dedup+sort, a self-referential raw structure (does
+not hang), and confirmation that A11's own `description`/`example` are never reported here (a
+different, already-handled mechanism). 4 CLI-level tests confirm the real warning fires with the
+right subject on a real `contract emit --openapi-file` run, two distinct keywords each get their
+own entry while a repeated keyword doesn't duplicate, a document using none of the five never
+fires it, and the gate never blocks because of it. Re-run against the real 148-operation
+Team-IZ-Backend oracle through the actual shipped function (not a re-derived estimate): `[]` --
+confirms A11's own original 0-occurrence measurement.
+
+**EXIT**: still no copy support for any of the five keywords -- that remains a permanent,
+deliberate gap (A11's own EXIT). This item only changes silence into disclosure.
+
+Cross-references: `D-openapi-field-docs` (A11, the exact 0-occurrence measurement and
+`DROPPED_KEYWORDS` set this item builds detection for, without changing what stays dropped);
+`D-openapi-request-schema` (the original "silently dropping is worse than failing closed"
+reasoning `DROPPED_KEYWORDS`' own inline comment already states, extended here from "assertion
+keywords must fail closed" to "annotation keywords should at least be disclosed").

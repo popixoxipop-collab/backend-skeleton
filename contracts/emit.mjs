@@ -103,6 +103,17 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 	const warnings = [];
 	let endpointCount = 0;
 
+	// D-unsupported-annotation-warning: module-wide, computed once, independent of targetModule/
+	// endpoint iteration below -- the source document either uses one of the 5 permanently-dropped
+	// schema keywords or it doesn't, a fact about the WHOLE document, not any one operation.
+	for (const keyword of openapi?.unsupportedAnnotations ?? []) {
+		warnings.push(makeWarning('CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT', {
+			subject: keyword,
+			message: `the source OpenAPI document uses the schema keyword "${keyword}" at least once -- this projection unconditionally drops it (0 real occurrences were measured against the reference document this behavior was built against, but this document has at least one), so it is never represented in any operation's projected schema`,
+			detail: { keyword },
+		}));
+	}
+
 	if (!targetModule) {
 		warnings.push(makeWarning('CONTRACT_NO_MODULE', {
 			message: 'no related module in the scan report -- emitting an empty operation set. Pass --module, or re-run `bskel scan` with terms that actually match the intended feature.',

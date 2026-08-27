@@ -12,6 +12,7 @@ import {
 	inlineSchema, COMPONENT_SCHEMA_NAME_RE, SCHEMA_PROPERTY_NAME_RE,
 	snapshotFromReconciliation, hasBskelExportMarker, BSKEL_PASSTHROUGH_EXTENSION, BSKEL_GENERATED_EXTENSION,
 	RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN,
+	findUnsupportedAnnotations,
 } from '../contracts/openapi.mjs';
 import { BARE_UUID_PATTERN } from '../contracts/emit.mjs';
 
@@ -1885,4 +1886,88 @@ test('reconcileModule: requestBodySchema and responseSchema carry field-level de
 	assert.equal(on.requestBodySchema.properties.label.description, 'the widget label');
 	assert.equal(on.requestBodySchema.properties.label.example, 'foo');
 	assert.equal(on.responseSchema.properties.id.example, '11111111-1111-4111-8111-111111111111');
+});
+
+// --- findUnsupportedAnnotations (D-unsupported-annotation-warning) -----------------------------
+
+test('findUnsupportedAnnotations: an empty document (no paths, no components) finds nothing', () => {
+	assert.deepEqual(findUnsupportedAnnotations({}), []);
+	assert.deepEqual(findUnsupportedAnnotations({ paths: {}, components: { schemas: {} } }), []);
+});
+
+test('findUnsupportedAnnotations: title in a components.schemas entry is found', () => {
+	const doc = { components: { schemas: { Widget: { type: 'object', title: 'A Widget' } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['title']);
+});
+
+test('findUnsupportedAnnotations: deprecated NESTED inside a schema (a real schema-level keyword) is found', () => {
+	const doc = { components: { schemas: { Widget: { type: 'object', properties: { legacyField: { type: 'string', deprecated: true } } } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['deprecated']);
+});
+
+test('findUnsupportedAnnotations: an Operation Object\'s OWN `deprecated` (a real, unrelated 3.1 field marking a whole endpoint deprecated) is NOT reported -- it lives outside any Schema Object entirely', () => {
+	const doc = { paths: { '/widgets': { get: { operationId: 'findWidgets', deprecated: true, responses: {} } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), []);
+});
+
+test('findUnsupportedAnnotations: a Parameter Object\'s OWN `deprecated` is NOT reported either -- same reasoning, only the parameter\'s nested `schema` counts', () => {
+	const doc = { paths: { '/widgets': { get: {
+		operationId: 'findWidgets',
+		parameters: [{ name: 'q', in: 'query', deprecated: true, schema: { type: 'string' } }],
+		responses: {},
+	} } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), []);
+});
+
+test('findUnsupportedAnnotations: a Parameter Object\'s nested schema.deprecated (a genuine schema-level occurrence) IS reported', () => {
+	const doc = { paths: { '/widgets': { get: {
+		operationId: 'findWidgets',
+		parameters: [{ name: 'q', in: 'query', schema: { type: 'string', deprecated: true } }],
+		responses: {},
+	} } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['deprecated']);
+});
+
+test('findUnsupportedAnnotations: found inside a request body schema, a response schema, and a deeply nested properties/items chain', () => {
+	const doc = {
+		paths: {
+			'/widgets': {
+				post: {
+					operationId: 'createWidget',
+					requestBody: { content: { 'application/json': { schema: { type: 'object', xml: { name: 'widget' } } } } },
+					responses: {
+						'201': { content: { 'application/json': { schema: {
+							type: 'object',
+							properties: { items: { type: 'array', items: { type: 'object', externalDocs: { url: 'https://example.com' } } } },
+						} } } },
+					},
+				},
+			},
+		},
+	};
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['externalDocs', 'xml']);
+});
+
+test('findUnsupportedAnnotations: multiple distinct keywords across the document are deduped and sorted', () => {
+	const doc = { components: { schemas: {
+		A: { type: 'string', title: 'A' },
+		B: { type: 'string', title: 'B (same keyword, still one entry)' },
+		C: { type: 'string', deprecated: true },
+	} } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['deprecated', 'title']);
+});
+
+test('findUnsupportedAnnotations: a $ref cycle does not hang -- the same `seen` guard as inlineSchema(), just not fail-closed', () => {
+	const doc = { components: { schemas: {
+		A: { allOf: [{ '$ref': '#/components/schemas/A' }] }, // not resolved by this scan at all, but must not infinite-loop on the raw structure either
+	} } };
+	// allOf entries are walked directly (not $ref-resolved -- this scan is not inlineSchema()),
+	// so this just confirms the object-identity `seen` guard prevents runaway recursion on a
+	// self-referential raw object graph, without needing to understand $ref semantics at all.
+	assert.doesNotThrow(() => findUnsupportedAnnotations(doc));
+});
+
+test('findUnsupportedAnnotations: description/example (A11\'s own DOCUMENTATION_KEYWORDS, not DROPPED_KEYWORDS) are never reported here -- a different mechanism already handles them', () => {
+	const doc = { components: { schemas: { Widget: { type: 'string', description: 'x', example: 'y' } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), []);
 });

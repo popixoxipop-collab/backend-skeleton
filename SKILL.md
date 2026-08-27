@@ -512,6 +512,13 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    `examples`, `externalDocs`, `xml`, `deprecated`) that stay permanently, unconditionally
   #    dropped regardless of the flag.
   #
+  #    A12 (D-unsupported-annotation-warning): if the source document uses any of those five
+  #    permanently-dropped keywords even once, `CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT`
+  #    (WARN, never blocks) fires once per keyword name found, module-wide -- always-on, no flag
+  #    (this is a disclosure, unlike A10/A11's opt-in copying). Scoped to genuine Schema Object
+  #    structure only (component schemas, request/response media-type schemas, parameter schemas)
+  #    -- an Operation/Parameter Object's OWN unrelated `deprecated` field is never misreported.
+  #
   #    OpenAPI 3.1 ONLY, and deliberately not 3.0 even behind a flag: 3.0 requires `responses` on
   #    every operation (forcing a synthesized response), types exclusiveMinimum/exclusiveMaximum as
   #    booleans where a projected 3.1 schema carries numbers (silently inverting their meaning), and
