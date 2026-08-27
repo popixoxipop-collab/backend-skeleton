@@ -176,8 +176,8 @@ bskel doctor [--workflow scan|handles|stack] [--json]
                               #    later, not by `stack apply` itself). Only git/Node/rg are
                               #    `required` -- everything else is informational with a
                               #    remediation string. Also lists every installed scanner adapter's
-                              #    specificity/capabilities and whether it detects THIS repo (scan/
-                              #    handles/unscoped) -- see `bskel scan` below. See
+                              #    specificity/confidence/capabilities and whether it detects THIS
+                              #    repo (scan/handles/unscoped) -- see `bskel scan` below. See
                               #    `D-doctor-workflow` in DECISIONS.md.
                               #    D-openapi-extraction-hint: each real framework adapter's own
                               #    diagnostics also names a real, framework-accurate way to get an
@@ -185,6 +185,13 @@ bskel doctor [--workflow scan|handles|stack] [--json]
                               #    the springdoc Gradle plugin task or a manual curl capture;
                               #    python-fastapi: app.openapi() directly, no server needed;
                               #    Express: honestly says there is no framework-native mechanism).
+                              #    D-adapter-verification-basis: each adapter also carries
+                              #    `verificationBasis` (text mode: "verified: <value>") -- a
+                              #    DIFFERENT axis from `confidence` ("how sure was detect() this
+                              #    repo uses this framework"). verificationBasis answers "how well
+                              #    was this adapter's own codegen ever checked against real code":
+                              #    official-reference/production-repo/community-sample/
+                              #    synthetic-only/not-applicable -- see per-adapter values below.
 bskel preflight               # fetches origin first (fails closed if that fails -- see --offline
                               #    below), then does the 3-way default-branch cross-check +
                               #    behind/ahead + worktree provenance
@@ -236,10 +243,14 @@ if/else (see `D-adapter-registry` in DECISIONS.md) -- every `scanners/adapters/<
 declares its own `specificity` (an arbitration number; higher wins) and which capabilities
 (`api.operations`, `api.request-shape`, `resource.fetch`, `codegen.handles`) it supports. The
 highest-specificity adapter whose `detect()` matches this repo is chosen; `bskel doctor` lists
-every installed adapter and whether it detects the current repo. Shipped today: `java-spring`
+every installed adapter and whether it detects the current repo. Every adapter also declares
+`verificationBasis` (see `D-adapter-verification-basis` in DECISIONS.md) -- how well its own
+codegen has ever actually been checked against real code, a DIFFERENT axis from `confidence`.
+Shipped today: `java-spring`
 (specificity 100 -- ripgrep + full-file regex, no real Java parser, see
 `scanners/adapters/java-spring.mjs`; detects `build.gradle`/`pom.xml` + `src/main/java`;
-declares every capability), `python-fastapi` (specificity 90 -- same ripgrep + regex philosophy,
+declares every capability; `verificationBasis: "production-repo"` -- verified against Team-IZ-Backend,
+a real production codebase), `python-fastapi` (specificity 90 -- same ripgrep + regex philosophy,
 see `scanners/adapters/python-fastapi.mjs`; detects a `fastapi` dependency declaration AND
 source-level confirmation together; declares `resource.fetch` AND `codegen.handles` true -- a real
 Python/FastAPI/SQLModel handle codegen provider exists (G4, see `D-handles-providers` in
@@ -247,12 +258,15 @@ DECISIONS.md). `api.operations`/`api.request-shape` stay honestly `false` becaus
 generates operation ids at runtime and this project's request-body detection is Java-only. A real
 OpenAPI document via `--openapi-file` (usually also needing `--path-prefix`, see
 `D-fastapi-adapter`) is still the trustworthy path to a *contract* for this adapter -- see
-`D-fastapi-adapter` in DECISIONS.md), `typescript-express` (specificity 85 --
+`D-fastapi-adapter` in DECISIONS.md; `verificationBasis: "official-reference"` -- verified against
+`fastapi/full-stack-fastapi-template`, the framework-author-maintained reference stack), `typescript-express` (specificity 85 --
 TypeScript/Express/TypeORM, see `scanners/adapters/typescript-express.mjs`; detects an `express`
 dependency AND a `.ts` file importing and calling `Router()`; declares `resource.fetch` AND
 `codegen.handles` true -- a real codegen provider exists -- with `api.operations`/
 `api.request-shape` honestly `false`, since plain Express has no operationId concept at all; see
-`D-typescript-express-provider` in DECISIONS.md), `javascript-express` (specificity 80 -- plain
+`D-typescript-express-provider` in DECISIONS.md; `verificationBasis: "community-sample"` -- no
+framework-maintained Express reference exists, verified instead against one hand-read community
+boilerplate, `mkosir/typeorm-express-typescript`), `javascript-express` (specificity 80 -- plain
 JavaScript ESM Express with **no ORM**, calling `mysql2`/`mariadb` directly, commonly deployed to
 Lambda behind `serverless-http`; see `scanners/adapters/javascript-express.mjs`. Route paths are
 resolved through a full mount-graph walk over (file, router-variable) nodes, so an intra-file
@@ -260,9 +274,12 @@ resolved through a full mount-graph walk over (file, router-variable) nodes, so 
 stack has no ORM metadata to read, and raw SQL string literals cannot safely supply a table,
 primary key or column allow-list -- see `D-javascript-express-adapter` in DECISIONS.md for the
 measured reasoning, and note it is nonetheless `confidence: "high"`, since what it *does* report is
-trustworthy), and `generic-grep` (specificity 0,
+trustworthy; `verificationBasis: "synthetic-only"` -- no real-world oracle at all, only a committed
+synthetic fixture), and `generic-grep` (specificity 0,
 unconditional last-resort fallback -- route-pattern grep for Express/Flask/FastAPI-shaped code,
-see `D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities).
+see `D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities;
+`verificationBasis: "not-applicable"` -- reconnaissance only by design, no codegen output to ever
+verify against any oracle).
 
 **`generic-grep` is reconnaissance only, never contract-grade** -- no real parser, no operationId
 (so `contract emit` can never build a usable operation from it, per `D-contract-completeness`),

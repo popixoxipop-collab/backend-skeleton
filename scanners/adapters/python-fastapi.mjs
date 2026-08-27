@@ -288,11 +288,15 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 // them has to win, and it must be the same one every time" -- not a functional gap on this side
 // anymore, a real, documented trade-off (see DECISIONS.md), checkable via `bskel doctor`.
 export const adapter = {
-	contract: 'sbf.adapter/1',
+	contract: 'sbf.adapter/2',
 	id: 'python-fastapi',
 	title: 'Python / FastAPI',
 	specificity: 90,
 	confidence: 'high',
+	// D-adapter-verification-basis: verified against `fastapi/full-stack-fastapi-template`, the
+	// official FastAPI-author-maintained reference stack -- the strongest verification tier this
+	// project distinguishes (unlike java-spring's real-but-non-canonical production repo).
+	verificationBasis: 'official-reference',
 	capabilities: {
 		// false: FastAPI generates operation ids at runtime (per-project, sometimes customized) --
 		// never statically derivable from source. --openapi-file is the honest path forward; see

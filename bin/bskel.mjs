@@ -2219,6 +2219,10 @@ function cmdDoctor(args) {
 	const adapters = showAdapters
 		? ADAPTERS.map((a) => ({
 			id: a.id, specificity: a.specificity, confidence: a.confidence, capabilities: a.capabilities,
+			// D-adapter-verification-basis: a DIFFERENT axis from confidence (schemas/adapter.
+			// schema.json's own description has the full explanation) -- how well this adapter's
+			// codegen was ever checked against real code, not how sure detect() is about this repo.
+			verificationBasis: a.verificationBasis,
 			// `detect()` itself can return null on a legitimate non-match -- coerce to a real
 			// boolean here so `null` unambiguously means "not applicable, no root" below, not
 			// "detect() happened to return a falsy value".
@@ -2250,7 +2254,7 @@ function cmdDoctor(args) {
 			console.log('Scanner adapters:');
 			for (const a of adapters) {
 				const caps = Object.entries(a.capabilities).filter(([, v]) => v).map(([k]) => k).join(', ') || '(none)';
-				let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}) -- capabilities: ${caps}`;
+				let line = `  ${a.id} (specificity ${a.specificity}, confidence ${a.confidence}, verified: ${a.verificationBasis}) -- capabilities: ${caps}`;
 				if (a.detects !== null) line += a.detects ? ' -- DETECTS this repo' : ' -- does not detect this repo';
 				console.log(line);
 				for (const d of a.diagnostics) console.log(`      [${d.level}] ${d.code}: ${d.message}`);

@@ -250,11 +250,15 @@ export function scanJavaSpring(repoRoot) {
 // build file AND src/main/java both exist -- a build-file-plus-source-layout-confirmed match, the
 // strongest signal any adapter in this codebase can give.
 export const adapter = {
-	contract: 'sbf.adapter/1',
+	contract: 'sbf.adapter/2',
 	id: 'java-spring',
 	title: 'Java / Spring Boot',
 	specificity: 100,
 	confidence: 'high',
+	// D-adapter-verification-basis: the whole A1-A12 OpenAPI-passthrough line, plus O1-O6's
+	// handles codegen, was verified against a real production Spring Boot repo (Team-IZ-Backend) --
+	// the strongest basis any adapter in this codebase has.
+	verificationBasis: 'production-repo',
 	capabilities: {
 		'api.operations': true,
 		'api.request-shape': true,

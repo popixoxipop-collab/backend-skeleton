@@ -23,7 +23,7 @@ function writeAdapter(dir, filename, source) {
 }
 
 // A minimal, always-valid adapter body -- individual tests override just the fields under test.
-function fixtureSource({ id = 'zzz-fixture', contract = "'sbf.adapter/1'", specificity = 50, capabilities = "{ 'api.operations': true }", detectReturns = 'true' } = {}) {
+function fixtureSource({ id = 'zzz-fixture', contract = "'sbf.adapter/2'", specificity = 50, capabilities = "{ 'api.operations': true }", verificationBasis = "'synthetic-only'", detectReturns = 'true' } = {}) {
 	return `
 export const adapter = {
   contract: ${contract},
@@ -32,6 +32,7 @@ export const adapter = {
   specificity: ${specificity},
   confidence: 'high',
   capabilities: ${capabilities},
+  verificationBasis: ${verificationBasis},
   detect(repoRoot) { return ${detectReturns}; },
   scan(repoRoot, detection) { return { modules: [] }; },
 };

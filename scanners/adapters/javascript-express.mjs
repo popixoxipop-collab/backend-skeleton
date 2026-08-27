@@ -382,7 +382,7 @@ export function scanJavaScriptExpress(repoRoot, detection) {
 // metadata and a working codegen provider), so it should win that overlap quietly rather than
 // tripping runScan()'s same-specificity ambiguity error. Checkable via `bskel doctor`.
 export const adapter = {
-	contract: 'sbf.adapter/1',
+	contract: 'sbf.adapter/2',
 	id: 'javascript-express',
 	title: 'JavaScript / Express (ESM, no ORM)',
 	specificity: 80,
@@ -391,6 +391,10 @@ export const adapter = {
 	// walk), not how many capabilities it can offer. generic-grep is `low` because it has no module
 	// inference and no prefix resolution at all -- this adapter has both.
 	confidence: 'high',
+	// D-adapter-verification-basis: no real-world oracle at all, unlike every other real framework
+	// adapter -- the real target repository was deliberately never touched, and the committed
+	// synthetic fixture carries all of the regression weight. Named honestly, not hidden.
+	verificationBasis: 'synthetic-only',
 	capabilities: {
 		// false: plain Express has no operationId concept at all. --openapi-file is the honest path
 		// forward for an app that has one; see CAPABILITY_SATISFIERS in scanners/capabilities.mjs.
