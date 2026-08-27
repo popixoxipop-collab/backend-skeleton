@@ -614,6 +614,18 @@ bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run 
   #    scripts/_bskel-lib.sh, .env.example) -- deleting OR editing any of them stales the gate,
   #    naming the exact file (D-gate-precision). It no longer stales merely because an unrelated
   #    commit landed elsewhere in the repo. Re-running `--apply` (idempotent) is the remedy.
+
+bskel stack apply --choice postgres-dev-db --apply   # a second, real catalog entry -- zero new code in stack/apply.mjs
+  # -> P5 (D-docker-postgres-stack): a LOCAL DEV Postgres via Docker Compose, adapter-agnostic
+  #    (works the same regardless of which of the 4 scanner adapters detected the repo) --
+  #    deliberately NOT application containerization, which doesn't fit this mechanism (real
+  #    per-language build steps, `stack apply` has no adapter awareness). Creates
+  #    docker-compose.postgres.yml + scripts/db-up.sh + scripts/_bskel-lib.sh (the SAME shared
+  #    helper file ngrok already deploys, unmodified). The runtime half is NOT run by this
+  #    command: a human runs ./scripts/db-up.sh themselves, which starts the container, polls
+  #    real pg_isready readiness, and writes DATABASE_URL into .env -- rename it if your app
+  #    expects a different name, and pass that name to `bskel scan --db --database-url-env
+  #    <NAME>` (A4) for schema introspection.
 ```
 
 ```bash
