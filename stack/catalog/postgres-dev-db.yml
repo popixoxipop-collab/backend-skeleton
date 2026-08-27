@@ -1,0 +1,55 @@
+id: postgres-dev-db
+description: >
+  A local-only Postgres container for development, via Docker Compose -- run via
+  scripts/db-up.sh, which starts it, waits for readiness, and writes DATABASE_URL into .env.
+  See D-docker-postgres-stack in DECISIONS.md: this is a LOCAL DEV database only, not a
+  production deployment recipe (no TLS, a fixed default password, single unreplicated
+  container) -- a permanent, deliberate scope limit, not a to-do.
+
+detect:
+  files:
+    - docker-compose.postgres.yml
+  env_keys: []
+
+static:
+  files:
+    - path: docker-compose.postgres.yml
+      template: bootstrap/docker-compose.postgres.yml
+      mode: "644"
+    - path: scripts/db-up.sh
+      template: bootstrap/db-up.sh
+      mode: "755"
+    - path: scripts/_bskel-lib.sh
+      template: bootstrap/_lib.sh
+      mode: "644"
+
+  env_example:
+    - key: DATABASE_URL
+      required: false
+      secret: true
+      doc: "written automatically by scripts/db-up.sh once postgres is confirmed ready -- do not set this by hand, it will be overwritten. If your app reads a differently-named variable, copy/rename this value."
+    - key: POSTGRES_USER
+      required: false
+      doc: "defaults to \"app\" if unset -- override before running scripts/db-up.sh to change the container's own username."
+    - key: POSTGRES_PASSWORD
+      required: false
+      secret: true
+      doc: "defaults to \"app\" if unset -- a real password, override this before running scripts/db-up.sh for anything beyond a throwaway local container."
+    - key: POSTGRES_DB
+      required: false
+      doc: "defaults to \"app\" if unset."
+    - key: POSTGRES_PORT
+      required: false
+      doc: "host port to bind the container's 5432 to -- defaults to 5432 if unset."
+
+runtime:
+  script: scripts/db-up.sh
+  # D5: doctor --workflow stack reads this to tell a human what the SCRIPT it's about to generate
+  # will need, before they hit a missing-binary failure mid-startup -- same pattern the ngrok
+  # catalog entry already established, `bskel stack apply` itself never shells out to docker.
+  requires:
+    - docker
+  produces:
+    - key: DATABASE_URL
+      sink: env
+      mode: set

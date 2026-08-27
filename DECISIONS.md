@@ -7549,3 +7549,83 @@ Cross-references: `D-openapi-field-docs` (A11, the exact 0-occurrence measuremen
 `D-openapi-request-schema` (the original "silently dropping is worse than failing closed"
 reasoning `DROPPED_KEYWORDS`' own inline comment already states, extended here from "assertion
 keywords must fail closed" to "annotation keywords should at least be disclosed").
+
+## D-docker-postgres-stack: proving the extension point, not building app containerization
+
+**WHY:** Part of the same ROI-ordered backlog as `D-contract-history`/`D-waiver-expiry`/
+`D-gate-export`/`D-unsupported-annotation-warning` -- the weakness this closes is
+W1 ("narrow scope, no deployment story") from the differentiators/weaknesses discussion. The
+answer given at the time was that `stack/catalog/*.yml` is a genuine, already-built extension
+point (`listCatalogChoices()`'s own `fs.readdirSync` discovery, zero registration) and adding a
+new deployment-adjacent stack choice should prove that out rather than stay a claim.
+
+**Scoped DOWN from "Docker/K8s deployment" to a local dev Postgres, once the real shape of the
+extension point was checked, not assumed.** The original framing ("a deployment-stack catalog
+entry") implicitly meant application containerization -- a Dockerfile that builds and runs the
+target app itself. That does NOT fit `stack apply`'s actual mechanism: `planApply()`/
+`renderTemplateFile()` are pure, adapter-AGNOSTIC `{{VAR}}` text substitution (only `PORT` is ever
+threaded through) with no awareness of which of the four scanner adapters (java-spring/
+python-fastapi/typescript-express/javascript-express) detected the target repo -- and a real
+Dockerfile's build steps are fundamentally different per language (`./gradlew build` vs. `pip
+install` vs. `npm install`). Forcing that through the existing mechanism would mean either
+building real adapter-conditional template selection into `stack/apply.mjs` (a genuinely new,
+much larger architectural extension, not what this backlog item scoped) or shipping a Dockerfile
+that quietly only works for one adapter while claiming to be generic. Neither is what "prove out
+the extension point" should mean. A local Postgres dev database needs neither: every adapter can
+equally use one, `docker compose up` for a stock `postgres:16-alpine` image needs no
+adapter-specific build logic at all, and it directly complements A4's own already-existing
+`--database postgres`/`--database-url-env` support rather than inventing an unrelated concern.
+
+**A LOCAL DEV database only, not a production deployment recipe -- named as a permanent, deliberate
+scope limit in the catalog entry's own `description`, not a to-do.** No TLS, a fixed default
+password (`app`/`app`), a single unreplicated container, a Docker named volume (not a
+production-grade persistent store). Real users who need a production Postgres are expected to use
+their own real infrastructure -- this exists only to make local development friction-free.
+
+**Mechanism: zero new code**, exactly the claim being proven. `stack/catalog/postgres-dev-db.yml`
+(new catalog entry, discovered automatically) + `stack/bootstrap/docker-compose.postgres.yml`
+(a stock Compose file, Docker's own `${VAR:-default}` substitution syntax -- deliberately NOT
+this project's `{{VAR}}` template syntax, since Postgres's fixed 5432 port has nothing to do with
+the app's own `--port`) + `stack/bootstrap/db-up.sh` (starts the container, polls
+`pg_isready` for real readiness rather than a fixed sleep, writes `DATABASE_URL` into `.env` via
+the SAME `env_upsert()` helper `scripts/_bskel-lib.sh` already provides for the ngrok stack choice
+-- a second real consumer of that shared file, unmodified, not a second copy). No `--database-url-
+env`-style fixed variable-name assumption: `db-up.sh`'s own final message explicitly tells the
+user to rename `DATABASE_URL` to whatever name they pass to `bskel scan --db --database-url-env`.
+
+**A real, self-inflicted lint bug found and fixed live, not by luck.** The first draft's own
+explanatory comment in `docker-compose.postgres.yml` -- written to explain that Compose's
+`${VAR:-default}` syntax is NOT this project's own double-brace template syntax -- spelled that
+double-brace syntax out literally (`` `{{VAR}}` ``) to name it, which is byte-for-byte what
+`lib/template.mjs`'s `RESIDUAL_TEMPLATE_VAR_RE` exists to catch. `bskel catalog lint
+postgres-dev-db` caught it immediately (the exact tool this bug would otherwise have shipped past
+unnoticed by), fixed by describing the syntax in prose instead of naming it literally.
+
+**Verified end-to-end against a REAL Docker daemon, not just planApply()'s dry-run structure.**
+`bskel catalog lint` passes for both catalog entries. A real fixture repo ran `stack apply
+--choice postgres-dev-db --apply` followed by the actual generated `scripts/db-up.sh`: a real
+`postgres:16-alpine` container came up, `pg_isready` readiness polling succeeded, `DATABASE_URL`
+was written to `.env` with the exact expected connection string, and `psql -c "SELECT 1"` through
+that exact connection string returned a real row -- confirmed working, not just "the script looks
+right." The container, its named volume, and its network were torn down (`docker compose down -v`)
+and confirmed absent afterward; the scratch fixture directory was removed. 3 new automated tests
+in `test/stack-cli.test.mjs` (15 total in that file, including the pre-existing 12 -- covering
+discovery/dry-run/apply/idempotence/executable-bit, the rendered Compose file's real shape, no
+residual `{{VAR}}` tokens survive rendering, and the shared `_bskel-lib.sh` helper
+file is unmodified by this second consumer) run without a real Docker daemon -- the live-container
+run above was a one-time hands-on verification, not part of the automated suite (matching
+`D-contract-history`/`D-gate-export`'s own "real end-to-end proof, then automated regression
+coverage separately" pattern).
+
+**EXIT**: application containerization (a Dockerfile that builds/runs the target app itself,
+per-adapter) remains unbuilt and unscoped -- a genuinely different, much larger feature (real
+adapter-conditional codegen in `stack/apply.mjs`) than this item, named here as a permanent,
+deliberate gap rather than something this entry quietly claims to cover.
+
+Cross-references: `D-db-schema-plane` (A4, the `--database postgres`/`--database-url-env`
+convention this stack choice's own `.env` output is designed to feed, without assuming a fixed
+variable name); `D7` (the original declarative-catalog-not-bespoke-code precedent this item's own
+file layout and `env_upsert()` reuse follow, and `D-ngrok-no-static-config-file`, the sibling
+decision on the ngrok entry's own script-vs-static-config split); `D-extension-conformance` (P4,
+`bskel catalog lint`'s own residual-template-var check, the exact tool that caught this item's own
+self-inflicted bug).

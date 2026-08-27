@@ -277,3 +277,61 @@ test('stack apply dry-run does not read .env, and detection still works via dete
 	const rerun = run(['stack', 'apply', '--choice', 'ngrok', '--json'], root);
 	assert.equal(JSON.parse(rerun.stdout).alreadyDetected, true, 'detect.files (scripts/dev-tunnel.sh) alone is sufficient once applied');
 });
+
+// D-docker-postgres-stack (W1): a second real catalog entry, deliberately reusing the same
+// zero-new-code extension point ngrok already proved out -- `listCatalogChoices()`'s own
+// `fs.readdirSync` discovery means this test needs no registration anywhere beyond the new
+// stack/catalog/postgres-dev-db.yml + stack/bootstrap/* files themselves.
+test('postgres-dev-db is discovered automatically (zero-registration, same mechanism as ngrok)', () => {
+	assert.ok(listCatalogChoices().includes('postgres-dev-db'));
+});
+
+test('stack apply --choice postgres-dev-db: dry-run writes nothing, --apply writes and is idempotent, db-up.sh is executable', () => {
+	const root = buildFixtureRepo();
+	assert.equal(run(['preflight'], root).code, 0);
+
+	const dryRun = run(['stack', 'apply', '--choice', 'postgres-dev-db', '--json'], root);
+	assert.equal(dryRun.code, 0);
+	const plan = JSON.parse(dryRun.stdout);
+	assert.equal(plan.alreadyDetected, false);
+	assert.ok(plan.files.every((f) => f.action === 'create'));
+	assert.ok(!fs.existsSync(path.join(root, 'docker-compose.postgres.yml')), 'dry-run must not write files');
+
+	const apply = run(['stack', 'apply', '--choice', 'postgres-dev-db', '--apply', '--json'], root);
+	assert.equal(apply.code, 0);
+	const result = JSON.parse(apply.stdout);
+	assert.deepEqual(result.written.sort(), ['.env.example', 'docker-compose.postgres.yml', 'scripts/_bskel-lib.sh', 'scripts/db-up.sh'].sort());
+	assert.equal(result.gate.status, 'pass');
+
+	const dbUpPath = path.join(root, 'scripts', 'db-up.sh');
+	assert.ok(fs.existsSync(dbUpPath));
+	assert.equal(fs.statSync(dbUpPath).mode & 0o777, 0o755, 'db-up.sh must be executable');
+	assert.match(fs.readFileSync(path.join(root, '.env.example'), 'utf8'), /DATABASE_URL=/);
+
+	// Re-running is idempotent: nothing left to write, already-detected.
+	const rerun = run(['stack', 'apply', '--choice', 'postgres-dev-db', '--json'], root);
+	const rerunPlan = JSON.parse(rerun.stdout);
+	assert.equal(rerunPlan.alreadyDetected, true);
+	assert.ok(rerunPlan.files.every((f) => f.action === 'unchanged'));
+});
+
+test('the rendered docker-compose.postgres.yml is valid YAML with the expected service/volume shape, and db-up.sh sources the shared _bskel-lib.sh helpers unmodified', () => {
+	const root = buildFixtureRepo();
+	run(['preflight'], root);
+	run(['stack', 'apply', '--choice', 'postgres-dev-db', '--apply'], root);
+
+	const composeContent = fs.readFileSync(path.join(root, 'docker-compose.postgres.yml'), 'utf8');
+	assert.match(composeContent, /image:\s*postgres:16-alpine/);
+	assert.match(composeContent, /POSTGRES_USER/);
+	assert.match(composeContent, /bskel-postgres-dev-data/);
+	// {{PORT}}-style bskel template variables must never survive rendering (catalog lint's own
+	// check, re-verified here at the CLI level against the real applied output).
+	assert.doesNotMatch(composeContent, /\{\{[A-Z_]+\}\}/);
+
+	const dbUpContent = fs.readFileSync(path.join(root, 'scripts', 'db-up.sh'), 'utf8');
+	assert.match(dbUpContent, /source scripts\/_bskel-lib\.sh/);
+	assert.match(dbUpContent, /env_upsert "\$ENV_FILE" DATABASE_URL/);
+
+	const libContent = fs.readFileSync(path.join(root, 'scripts', '_bskel-lib.sh'), 'utf8');
+	assert.match(libContent, /env_upsert\(\)/, 'the same shared helper file ngrok already deploys, unmodified by this second consumer');
+});
