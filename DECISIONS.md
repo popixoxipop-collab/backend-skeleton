@@ -7351,3 +7351,61 @@ Cross-references: `D-gate-history` (S4, the append-only `.sbf/<feature>.history.
 this item deliberately does NOT cross-reference, and why); `D-fixture-corpus` (P3, confirms
 `specs/` is gitignored by default in the shared test fixture, the evidence this item's own
 "not committed is the common case" design rests on).
+
+## D-waiver-expiry: a genuinely different axis from staleness, not a variant of it
+
+**WHY:** Part of the same ROI-ordered backlog as D-contract-history. `contract waive` records a
+waiver permanently -- once written, it covers its `{code, subject}` pair forever, with no way to
+say "look at this again in 90 days" short of manually editing the resolution file or deleting the
+entry by hand. Real organizations commonly waive something as a temporary "not now" rather than a
+permanent "never" -- letting that distinction go unexpressed means a genuinely temporary exception
+quietly becomes permanent, the exact silent-tech-debt failure mode this item closes.
+
+**Not the same thing `staleWaivers` already reports.** `evaluateResolution()` already had a
+`staleWaivers` bucket -- but that means "the warning this waiver covered no longer exists at all"
+(the underlying problem was fixed), a completely different fact from "the warning is STILL there,
+but the grace period someone granted has run out." A waiver can be both at once (nothing prevents
+the underlying warning from having also disappeared before the clock ran out) -- the two lists are
+independent, computed independently, never conflated into one.
+
+**Mechanism**: `contract waive` gains `--expires <Nd>` (whole days only, `N >= 1` -- deliberately
+NOT a general ISO-8601 duration parser; `<N>d` is the realistic common case, and this project's own
+"don't build for hypothetical cases" discipline argues against speculative unit support with zero
+real demand). `parseExpiresFlag()` computes `expires_at` once, at write time, from the real command
+clock (`Date.now()`), the same "no injectable now(), match the existing `lib/gates.mjs` convention"
+posture every other time-dependent check in this codebase already uses (`checkFreshness()`'s own
+`Date.now() - passedAt` is the precedent). `schemas/contract-resolution.schema.json`'s waiver item
+gains an OPTIONAL `expires_at` (format date-time) -- omitted entirely when `--expires` wasn't
+passed, so every waiver ever written before this feature existed remains valid and un-migrated.
+`evaluateResolution()` computes `expiredWaivers` (any waiver whose `expires_at <= now`, inclusive
+boundary -- fail-closed: a waiver expiring at exactly this instant is treated as already expired,
+not still-valid) and excludes those from `waivedKeys`, so an expired waiver's warning becomes
+unwaived again on the very next evaluation -- no separate sweep/cron job, no state mutation on
+expiry, just a live re-evaluation exactly like `staleWaivers` already is.
+
+**Disclosed the same way `staleWaivers` already is, at both call sites.** Both `cmdContractEmit`
+and `cmdContractWaive` gained `expired_waivers` in their gate evidence and a matching stderr note
+(`N recorded waiver(s) have expired and no longer cover their warning`) -- the exact same
+double-call-site treatment `stale_waivers` already had, not a special case invented for this one
+field.
+
+**Verified**: unit tests (`test/contract-completeness.test.mjs`) cover future/past/exactly-now
+boundaries, the no-`expires_at`-at-all case (unaffected, matching every pre-existing waiver), and
+the both-stale-and-expired-at-once combination. CLI-level tests (`test/contract-cli.test.mjs`)
+confirm `--expires 90d` computes a real `expires_at` from the actual command clock (not a fixed
+literal), that omitting `--expires` writes no `expires_at` key at all (not `null` -- byte-identical
+to every waiver written before this feature shipped), that five malformed `--expires` values
+(`90`, `0d`, `-5d`, `1w`, prose) are all refused with `BAD_ARGS` and write no resolution file, and
+a real end-to-end run: two waivers resolve a partial contract to a passing gate, one is
+hand-backdated to a past `expires_at` (the CLI itself can only ever write a FUTURE one, so this
+mirrors how other tests in this file already simulate states the CLI can't directly produce), and
+the next `contract emit` genuinely re-blocks with the expiry disclosed in stderr.
+
+**EXIT**: no automatic notification when a waiver is about to expire (or already has) outside of
+running `contract emit`/`contract waive` again -- this is a pull-based check, not a push
+notification. If that gap becomes real friction, `bskel status`/`bskel next` are the natural place
+to surface it, not a new standalone command.
+
+Cross-references: `D-contract-completeness` (A5, the `staleWaivers`/`blocking` mechanism this item
+extends without altering); `D-gate-history` (S4, `--max-age-minutes`'s own "opt-in only, never
+silently starts a clock" precedent `--expires` follows the same way).

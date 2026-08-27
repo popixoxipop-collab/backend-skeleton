@@ -70,7 +70,7 @@ function usage() {
   bskel contract history --feature <id> [--json]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
-  bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..."
+  bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..." [--expires <Nd>]
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
@@ -943,6 +943,7 @@ function cmdContractEmit(args) {
 		warning_codes: countByCode(contract.warnings),
 		waived_count: evaluation.waived.length,
 		stale_waivers: evaluation.staleWaivers.length,
+		expired_waivers: evaluation.expiredWaivers.length,
 		openapi: reconciliation
 			? {
 				applied: true,
@@ -994,6 +995,10 @@ function cmdContractEmit(args) {
 		}
 		for (const w of contract.warnings) console.error(`warning[${w.severity}] ${w.code}${w.subject ? ` (${w.subject})` : ''}: ${w.message}`);
 		if (!flags.quiet) console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		if (evaluation.expiredWaivers.length > 0) {
+			console.error(`\nnote: ${evaluation.expiredWaivers.length} recorded waiver(s) have expired and no longer cover their warning (re-waive with --expires if still needed):`);
+			for (const w of evaluation.expiredWaivers) console.error(`  ${w.code} (${w.subject ?? '*'}) expired ${w.expires_at}`);
+		}
 		if (evaluation.staleWaivers.length > 0) {
 			console.error(`\nnote: ${evaluation.staleWaivers.length} recorded waiver(s) no longer match any current warning (kept as-is, not auto-removed):`);
 			for (const w of evaluation.staleWaivers) console.error(`  ${w.code} (${w.subject ?? '*'})`);
@@ -1198,12 +1203,26 @@ function cmdContractExport(args) {
 // waiver: `--all` expands to the SPECIFIC code+subject pairs present right now, recorded as
 // individual entries -- a warning that doesn't exist yet (e.g. a new unannotated endpoint added
 // later) is never covered by an old waive. See D-contract-completeness in DECISIONS.md.
+// D-waiver-expiry: only `<N>d` (whole days) -- the realistic common case for "look at this
+// again later," not a general ISO-8601 duration parser nobody asked for. `N` must be a positive
+// integer; `0d`/negative would either be a no-op waiver (already expired the moment it's written)
+// or nonsensical, and silently accepting either would be more confusing than refusing.
+function parseExpiresFlag(raw) {
+	if (raw == null) return null;
+	const match = /^([1-9][0-9]*)d$/.exec(raw);
+	if (!match) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--expires must look like "<N>d" (whole days, N >= 1), got "${raw}"`);
+	}
+	const days = Number(match[1]);
+	return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function cmdContractWaive(args) {
 	const flags = parseCommand('contract waive', args);
 	if (flags.help) { console.log(renderCommandHelp('contract waive')); process.exit(0); }
 	setContext('contract waive', flags);
 	const root = requireRepoRoot();
-	const usageText = 'usage: bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path" | --all) --reason "..."';
+	const usageText = 'usage: bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path" | --all) --reason "..." [--expires <Nd>]';
 	try {
 		requireWarningCode(flags.code);
 	} catch (err) {
@@ -1215,6 +1234,7 @@ function cmdContractWaive(args) {
 	if (!flags.subject && !flags.all) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', usageText);
 	}
+	const expiresAt = parseExpiresFlag(flags.expires);
 
 	const contract = loadContract(root, flags.feature);
 	if (contract.completeness.status === 'blocked') {
@@ -1248,7 +1268,7 @@ function cmdContractWaive(args) {
 		const at = new Date().toISOString();
 		const entries = toWaive
 			.filter((w) => !existingKeys.has(warningKey(w)))
-			.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at }));
+			.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at, ...(expiresAt ? { expires_at: expiresAt } : {}) }));
 		const next = {
 			schema: 'sbf.contract-resolution/1',
 			feature_id: flags.feature,
@@ -1266,6 +1286,7 @@ function cmdContractWaive(args) {
 		warning_codes: countByCode(contract.warnings),
 		waived_count: evaluation.waived.length,
 		stale_waivers: evaluation.staleWaivers.length,
+		expired_waivers: evaluation.expiredWaivers.length,
 	};
 	const gateState = evaluation.blocking
 		? awaitNamedGateDisposition(root, 'contract', flags.feature, { ...evidence, unwaived: evaluation.unwaived.map(({ code, subject }) => ({ code, subject })) })
@@ -1275,8 +1296,12 @@ function cmdContractWaive(args) {
 		console.log(JSON.stringify({ waived: newEntries, gate: gateState.gates.contract }, null, 2));
 	} else {
 		if (!flags.quiet) {
-			console.log(`waived ${newEntries.length} new warning(s)${newEntries.length < toWaive.length ? ` (${toWaive.length - newEntries.length} already waived)` : ''}`);
+			console.log(`waived ${newEntries.length} new warning(s)${newEntries.length < toWaive.length ? ` (${toWaive.length - newEntries.length} already waived)` : ''}${expiresAt ? `, expiring ${expiresAt}` : ''}`);
 			console.log(`gate: contract -> ${gateState.gates.contract.status}`);
+		}
+		if (evaluation.expiredWaivers.length > 0) {
+			console.error(`\nnote: ${evaluation.expiredWaivers.length} recorded waiver(s) have expired and no longer cover their warning (re-waive with --expires if still needed):`);
+			for (const w of evaluation.expiredWaivers) console.error(`  ${w.code} (${w.subject ?? '*'}) expired ${w.expires_at}`);
 		}
 		if (evaluation.blocking) {
 			console.error(`\nstill blocked: ${evaluation.unwaived.length} unresolved warning(s) remain:`);

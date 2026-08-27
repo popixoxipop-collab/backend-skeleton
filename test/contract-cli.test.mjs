@@ -190,6 +190,79 @@ test('waiving an unknown warning code fails with the known code list', () => {
 	assert.match(waive.stderr, /unknown contract warning code "CONTRACT_TYPO"/);
 });
 
+// D-waiver-expiry
+test('contract waive --expires writes expires_at, computed from the real command time', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+
+	const before = Date.now();
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '90d'], root);
+	const after = Date.now();
+
+	const resolution = JSON.parse(fs.readFileSync(contractResolutionPath(root), 'utf8'));
+	const expiresAt = Date.parse(resolution.waivers[0].expires_at);
+	assert.ok(expiresAt >= before + 90 * 86400000 - 5000 && expiresAt <= after + 90 * 86400000 + 5000, 'expires_at is ~90 days from the real command time');
+});
+
+test('contract waive without --expires writes no expires_at at all -- opt-in only, matches every waiver written before this feature existed', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'x'], root);
+	const resolution = JSON.parse(fs.readFileSync(contractResolutionPath(root), 'utf8'));
+	assert.equal('expires_at' in resolution.waivers[0], false);
+});
+
+test('an invalid --expires value is refused with BAD_ARGS, writes no resolution file', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	// '-5d' is deliberately excluded here: node:util.parseArgs treats a value starting with '-'
+	// as ambiguous (needs the explicit `--expires=-5d` form, D2's own already-covered "ambiguous
+	// option" class -- see test/cli-contract.test.mjs's `--feature --json` test) BEFORE it ever
+	// reaches parseExpiresFlag() at all, so it isn't this feature's own validation being exercised.
+	for (const bad of ['90', '0d', '1w', 'ninety days']) {
+		const waive = run(['contract', 'waive', '--feature', '001-widget-management',
+			'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'x', '--expires', bad], root);
+		assert.equal(waive.code, 14, `expected "${bad}" to be refused`);
+		assert.match(waive.stderr, /--expires must look like/);
+	}
+	// The unambiguous `--flag=value` form (D2's own "an explicit inline value is never ambiguous"
+	// precedent) is how a negative value actually reaches parseExpiresFlag() at all.
+	const negative = run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'x', '--expires=-5d'], root);
+	assert.equal(negative.code, 14);
+	assert.match(negative.stderr, /--expires must look like/);
+	assert.ok(!fs.existsSync(contractResolutionPath(root)));
+});
+
+test('an expired waiver stops covering its warning on the NEXT contract emit -- the gate re-blocks, and the expiry is disclosed', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'PATCH /widgets/{widgetId}', '--reason', 'temporary'], root);
+	// Both waived -- confirm the gate genuinely passes before backdating anything.
+	assert.equal(run(['verify', '--feature', '001-widget-management', '--json'], root).code, 0);
+
+	// --expires only ever accepts a future N, so a real "already expired" waiver has to be
+	// hand-backdated on disk -- the same "directly manipulate the persisted artifact" technique
+	// other tests in this file already use to simulate states the CLI itself can't produce.
+	const resolutionPath = contractResolutionPath(root);
+	const resolution = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+	resolution.waivers[0].expires_at = new Date(Date.now() - 1000).toISOString();
+	fs.writeFileSync(resolutionPath, JSON.stringify(resolution, null, 2));
+
+	const emit = runCapturingStderr(['contract', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(emit.code, 3, 'the expired waiver no longer covers DELETE, so the gate re-blocks');
+	assert.match(emit.stderr, /1 recorded waiver\(s\) have expired/);
+});
+
 test('contract waive requires either --subject or --all', () => {
 	const root = buildFixtureRepo({ coverage: 'partial' });
 	initThroughScanDisposition(root);
