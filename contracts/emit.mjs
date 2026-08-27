@@ -15,12 +15,12 @@ import { pathPrefixCandidates, unreflectedPathPrefixes } from './export.mjs';
 // a path param. Direction stays one-way (openapi.mjs imports from emit.mjs, never the reverse).
 export const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
-// A7/A8/A9: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
+// A7/A8/A9/A10: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
 // const -- bin/bskel.mjs's loadContract() imports this too, so the friendly "re-emit with the
-// current bskel" message and the value actually written here cannot drift apart. Bumped "6" -> "7"
-// for this item (pathParamsHeuristic) -- again cheap, the friendly re-emit pre-check needs zero
-// code change -- see D-openapi-path-params.
-export const CONTRACT_SCHEMA_VERSION = '7';
+// current bskel" message and the value actually written here cannot drift apart. Bumped "7" -> "8"
+// for this item (sourceDescription) -- again cheap, the friendly re-emit pre-check needs zero
+// code change -- see D-openapi-description.
+export const CONTRACT_SCHEMA_VERSION = '8';
 
 // A9 (D-openapi-path-params): `sourcePathParamSchemas` (a Map<name, schema>, contracts/openapi.mjs's
 // applyPathParameterSchemas -- present only for a matched/adopted operation whose source document
@@ -143,6 +143,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				// A9: same discipline -- transient (Map), consulted below by pathParamsSchema(), never
 				// itself spread into the persisted operation object (see that function's own comment).
 				let pathParamSchemas = null;
+				// A10: same discipline, for the opt-in operation-level description.
+				let sourceDescription = null;
+				let descriptionUnresolvedReason = null;
 
 				if (res) {
 					switch (res.kind) {
@@ -170,6 +173,8 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							sourceRequestBody = res.sourceRequestBody ?? null;
 							requestMediaTypesUnresolvedReason = res.requestMediaTypesUnresolvedReason ?? null;
 							pathParamSchemas = res.pathParamSchemas ?? null;
+						sourceDescription = res.sourceDescription ?? null;
+						descriptionUnresolvedReason = res.descriptionUnresolvedReason ?? null;
 							break;
 						case 'adopted':
 							// No @Operation(operationId=...) in source at all -- the id itself comes from
@@ -197,6 +202,8 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							sourceRequestBody = res.sourceRequestBody ?? null;
 							requestMediaTypesUnresolvedReason = res.requestMediaTypesUnresolvedReason ?? null;
 							pathParamSchemas = res.pathParamSchemas ?? null;
+						sourceDescription = res.sourceDescription ?? null;
+						descriptionUnresolvedReason = res.descriptionUnresolvedReason ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
 								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
@@ -343,6 +350,17 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						detail: { reason: requestMediaTypesUnresolvedReason, verb, path: route, operationId },
 					}));
 				}
+				// A10: only fires when --descriptions was passed AND the source declared one AND it
+				// exceeded MAX_DESCRIPTION_LENGTH -- independent from every other unresolved code above
+				// (a genuinely new failure mode, not reusing an existing one), same reasoning A8 used to
+				// justify its own new multipart code instead of overloading an existing one.
+				if (descriptionUnresolvedReason) {
+					warnings.push(makeWarning('CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED', {
+						subject: operationId,
+						message: `operationId "${operationId}" (${verb} ${route}) declares a description that could not be copied (${descriptionUnresolvedReason}) -- description stays unrepresented for this operation, same as before --descriptions`,
+						detail: { reason: descriptionUnresolvedReason, verb, path: route, operationId },
+					}));
+				}
 				const { pathParams, pathParamsHeuristic } = pathParamsSchema(route, pathParamSchemas);
 				operations[operationId] = {
 					verb,
@@ -364,6 +382,10 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 					...(sourceRequestBody ? { sourceRequestBody } : {}),
 					// A9: omitted (not []) when every segment resolved from source, or the route has none.
 					...(pathParamsHeuristic ? { pathParamsHeuristic } : {}),
+					// A10: omitted entirely when --descriptions was not passed, the source had none, or
+					// it failed the length cap -- same "omitted, never null/false" discipline as every
+					// other field above.
+					...(sourceDescription ? { sourceDescription } : {}),
 				};
 			}
 		}

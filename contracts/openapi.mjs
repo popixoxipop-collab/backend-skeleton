@@ -53,6 +53,12 @@ const MAX_SECURITY_SCHEMES = 64;
 // 9). MAX_REQUEST_MEDIA_TYPES is new: real max observed on one operation's requestBody.content is
 // 1 (always either application/json alone or multipart/form-data alone in the oracle).
 const MAX_REQUEST_MEDIA_TYPES = 16;
+// A10: operation-level `description`, same "generous multiple of the real observed max" style as
+// every cap above -- real max observed on the Team-IZ-Backend oracle (148 operations, 146 carry a
+// non-empty description) is 9,083 (`.length`, UTF-16 code units, same measure MAX_PATTERN_LENGTH
+// already uses -- NOT a UTF-8 byte count, which runs higher for this oracle's real multi-byte
+// Korean text: 13,758 bytes for the same longest description).
+const MAX_DESCRIPTION_LENGTH = 40000;
 // A6 (D-openapi-export): widened from `/^2[0-9]{2}$/` and `/^[45][0-9]{2}$/` to also accept
 // OpenAPI's own RANGE keys. These are ordinary in real hand-written documents and legal per the
 // official 3.1 meta-schema, whose `responses` object accepts exactly `^[1-5](?:[0-9]{2}|XX)$` plus
@@ -374,7 +380,11 @@ export function indexOpenApiDocument(doc) {
 			const security = Array.isArray(operation.security) ? operation.security : null;
 			const summary = typeof operation.summary === 'string' ? operation.summary : null;
 			const tags = Array.isArray(operation.tags) ? operation.tags : null;
-			const entry = { verb, path: routeKey, operationId, requestBody, responses, parameters, security, summary, tags };
+			// A10: same "raw, no size cap at index time" reasoning as summary above -- MAX_DESCRIPTION_
+			// LENGTH is enforced only at applyDescription() (the point of actually copying it into the
+			// contract), matching where every other length/count cap in this file is enforced.
+			const description = typeof operation.description === 'string' ? operation.description : null;
+			const entry = { verb, path: routeKey, operationId, requestBody, responses, parameters, security, summary, tags, description };
 
 			const routeMatchKey = `${verb} ${normalizedRoute}`;
 			const existingRoute = byRoute.get(routeMatchKey);
@@ -954,6 +964,34 @@ function applySummaryAndTags(result, docEntry, stats) {
 	}
 }
 
+// A10 (D-openapi-description): the one A7/A8/A9 sibling that is NOT default-on -- gated behind
+// `includeDescriptions`, opt-in only, because the measured cost (2,442.7 bytes/operation average
+// across the real oracle, re-confirmed exactly at this item's own implementation) is larger than
+// every other field this whole passthrough effort copies COMBINED. Copied verbatim, no
+// transformation (unlike a schema, there is no keyword whitelist to apply to a plain string) --
+// fails closed only on length, via MAX_DESCRIPTION_LENGTH, the same defensive posture every other
+// unbounded-size field in this file has (same defensive-cap class as D-security-1/D-security-2) --
+// protecting the contract file/gate-token hashing cost from a malformed or hostile --openapi-file,
+// not a normal document.
+function applyDescription(result, docEntry, stats, includeDescriptions) {
+	if (!includeDescriptions) {
+		stats.description_skipped_flag++;
+		return;
+	}
+	const raw = docEntry.description;
+	if (typeof raw !== 'string' || raw.length === 0) {
+		stats.description_none++;
+		return;
+	}
+	if (raw.length > MAX_DESCRIPTION_LENGTH) {
+		result.descriptionUnresolvedReason = 'too-long';
+		stats.description_unresolved++;
+		return;
+	}
+	result.sourceDescription = raw;
+	stats.description_copied++;
+}
+
 // A8: per-status responses -- additive to (never replacing) the responseSchema/errorSchema union
 // projection above; contracts/validate.mjs is untouched by this item, see D-openapi-per-status.
 // Gated on schemaProjectionEnabled, same reasoning as applyParameters -- a JSON Schema resolved
@@ -1154,7 +1192,7 @@ function applyPathParameterSchemas(result, docEntry, componentSchemas, stats, sc
 // exactly the placement A2/A3's own helpers already occupy, which IS the refusal mechanism for
 // every other resolution kind (drift/missing/ambiguous/unresolved never reach this function at
 // all, see reconcileModule below).
-function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnabled, referencedSchemeNames) {
+function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnabled, referencedSchemeNames, includeDescriptions) {
 	applyParameters(result, docEntry, index, stats, schemaProjectionEnabled);
 	applySecurity(result, docEntry, index, stats, referencedSchemeNames);
 	applySummaryAndTags(result, docEntry, stats);
@@ -1164,6 +1202,10 @@ function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnable
 	applyRequestMediaTypes(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
 	// A9: same placement again, for the path-parameter schema fix.
 	applyPathParameterSchemas(result, docEntry, index.componentSchemas, stats, schemaProjectionEnabled);
+	// A10: same placement again -- applyDescription() itself decides whether includeDescriptions
+	// gates it off, matching how applyParameters decides its own schemaProjectionEnabled gate
+	// internally rather than being skipped by the caller.
+	applyDescription(result, docEntry, stats, includeDescriptions);
 }
 
 // The core reconciliation, pure (no I/O). `module` is a scanReport related_modules entry (as
@@ -1171,7 +1213,7 @@ function applyPassthrough(result, docEntry, index, stats, schemaProjectionEnable
 // selection buildContract() will use, so endpointKey(ci,ei) lines up). `pathPrefix`, if given
 // (from --path-prefix), overrides inference entirely but the anchor pass still runs so its
 // deltas are recorded for audit in the snapshot.
-export function reconcileModule({ index, module, pathPrefix = null }) {
+export function reconcileModule({ index, module, pathPrefix = null, includeDescriptions = false }) {
 	const anchorDeltas = [];
 	for (const controller of module.controllers) {
 		for (const ep of controller.endpoints) {
@@ -1213,6 +1255,9 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 		request_media_types_copied: 0, request_media_types_unresolved: 0, request_media_types_none: 0, request_media_types_skipped_dialect: 0,
 		// A9: source-backed path-parameter schema counters, same per-operation-tally shape.
 		path_params_copied: 0, path_params_unresolved: 0, path_params_none: 0, path_params_skipped_dialect: 0,
+		// A10: operation-level description counters. skipped_flag is the common case when
+		// --descriptions was not passed -- distinct from `none` (flag WAS passed, source had nothing).
+		description_copied: 0, description_unresolved: 0, description_none: 0, description_skipped_flag: 0,
 	};
 	// A7: accumulates every security-scheme name any operation's COPIED security requirement
 	// actually referenced, across the WHOLE module -- becomes the contract-root sourceSecuritySchemes
@@ -1262,7 +1307,7 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 						// every other resolution kind. Called unconditionally (not gated on
 						// schemaProjection.enabled): parameters gate internally (schema-bearing);
 						// security/summary/tags are dialect-independent and always attempted.
-						applyPassthrough(result, docEntry, index, stats, schemaProjection.enabled, referencedSecuritySchemeNames);
+						applyPassthrough(result, docEntry, index, stats, schemaProjection.enabled, referencedSecuritySchemeNames, includeDescriptions);
 					} else {
 						result = {
 							kind: 'drift', reason: 'path',
@@ -1291,7 +1336,7 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 						applyRequestBodySchema(result, hits[0], index.componentSchemas, stats);
 						applyResponseSchemas(result, hits[0], index.componentSchemas, stats);
 					}
-					applyPassthrough(result, hits[0], index, stats, schemaProjection.enabled, referencedSecuritySchemeNames);
+					applyPassthrough(result, hits[0], index, stats, schemaProjection.enabled, referencedSecuritySchemeNames, includeDescriptions);
 				} else if (hits.length === 1) {
 					// A single route match, but the document itself never gave that operation an
 					// operationId -- nothing to route by, so this can't become an addressable
@@ -1326,7 +1371,7 @@ export function reconcileModule({ index, module, pathPrefix = null }) {
 
 // Convenience entry point: load + index + reconcile in one call, propagating the first failure.
 // This is what bin/bskel.mjs's cmdContractEmit calls.
-export function buildReconciliation({ filePath, module, pathPrefix = null }) {
+export function buildReconciliation({ filePath, module, pathPrefix = null, includeDescriptions = false }) {
 	if (pathPrefix != null && !PATH_PREFIX_RE.test(pathPrefix)) {
 		return { ok: false, error: `--path-prefix "${pathPrefix}" is not a valid path prefix (expected e.g. "/api/v0")` };
 	}
@@ -1350,7 +1395,7 @@ export function buildReconciliation({ filePath, module, pathPrefix = null }) {
 	}
 	const indexed = indexOpenApiDocument(loaded.doc);
 	if (!indexed.ok) return indexed;
-	const recon = reconcileModule({ index: indexed, module, pathPrefix });
+	const recon = reconcileModule({ index: indexed, module, pathPrefix, includeDescriptions });
 	return {
 		ok: true,
 		document: {
@@ -1420,6 +1465,12 @@ function pathParamSchemasDecision(result) {
 	if (result.pathParamSchemas) return `copied:${result.pathParamSchemas.size}`;
 	return 'none';
 }
+// A10: same decision-only audit-trail shape as every field above.
+function descriptionDecision(result) {
+	if (result.sourceDescription) return 'copied';
+	if (result.descriptionUnresolvedReason) return `unresolved:${result.descriptionUnresolvedReason}`;
+	return 'none';
+}
 
 // `sourceFile`: {file, outsideRepo} precomputed by the caller (bin/bskel.mjs knows the repo
 // root; this module deliberately doesn't) -- keeps machine-specific absolute paths out of a
@@ -1462,6 +1513,8 @@ export function snapshotFromReconciliation(reconciliation, { featureId, sourceFi
 				request_media_types: requestMediaTypesDecision(result),
 				// A9: same decision-only audit trail, for the path-parameter schema fix.
 				path_param_schemas: pathParamSchemasDecision(result),
+				// A10: same decision-only audit trail, for the opt-in operation-level description.
+				description: descriptionDecision(result),
 			};
 		}
 	}

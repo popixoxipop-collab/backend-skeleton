@@ -244,3 +244,25 @@ test('a waiver for CONTRACT_OPENAPI_SCHEMA_UNRESOLVED does not cover CONTRACT_OP
 		'CONTRACT_OPENAPI_SCHEMA_UNRESOLVED and CONTRACT_OPENAPI_REQUEST_MEDIA_TYPE_UNRESOLVED on the same subject must produce different waiver keys',
 	);
 });
+
+// A10: exactly one new warning code (nothing else tracks description length, so this is
+// independent by construction, same reasoning A8 used for its own new multipart code).
+test('CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED exists with {severity: WARN, waivable: true}', () => {
+	assert.deepEqual(WARNING_CODES.CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED, { severity: SEVERITY.WARN, waivable: true });
+	assert.doesNotThrow(() => requireWarningCode('CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED'));
+});
+
+test('a waiver for CONTRACT_OPENAPI_SCHEMA_UNRESOLVED does not cover CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED on the same operation', () => {
+	const contract = {
+		operations: { findX: {} },
+		warnings: [
+			makeWarning('CONTRACT_OPENAPI_SCHEMA_UNRESOLVED', { subject: 'createWidget', message: 'x' }),
+			makeWarning('CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED', { subject: 'createWidget', message: 'y' }),
+		],
+	};
+	assert.notEqual(
+		warningKey(contract.warnings[0]),
+		warningKey(contract.warnings[1]),
+		'CONTRACT_OPENAPI_SCHEMA_UNRESOLVED and CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED on the same subject must produce different waiver keys',
+	);
+});

@@ -1663,3 +1663,87 @@ test('snapshot decision field: path_param_schemas "copied:N" / "none" / "skipped
 	dialect30.openapi = '3.0.1';
 	assert.equal(snapshotFindWidget(dialect30).path_param_schemas, 'skipped:dialect');
 });
+
+// --- A10: applyDescription (D-openapi-description, the one opt-in source-backed field) ---------
+
+function reconcileCreateWidgetWithFlag(doc, includeDescriptions) {
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0', includeDescriptions });
+	return { recon, result: recon.byEndpoint.get('0:0') };
+}
+
+test('a real source description is copied verbatim only when includeDescriptions is true', () => {
+	const doc = docWithOperationFields({ description: 'creates a widget for the current organization.' });
+	const { recon, result } = reconcileCreateWidgetWithFlag(doc, true);
+	assert.equal(result.sourceDescription, 'creates a widget for the current organization.');
+	assert.equal(recon.stats.description_copied, 1);
+});
+
+test('the flag defaults to false: a real source description is NOT copied when includeDescriptions is omitted', () => {
+	const doc = docWithOperationFields({ description: 'creates a widget for the current organization.' });
+	const { recon, result } = reconcileCreateWidgetWithFlag(doc, undefined);
+	assert.equal('sourceDescription' in result, false);
+	assert.equal(recon.stats.description_skipped_flag, 1);
+	assert.equal(recon.stats.description_copied, 0);
+});
+
+test('flag true, but the source has no description at all: description_none, no sourceDescription key', () => {
+	const doc = docWithOperationFields({});
+	const { recon, result } = reconcileCreateWidgetWithFlag(doc, true);
+	assert.equal('sourceDescription' in result, false);
+	assert.equal(recon.stats.description_none, 1);
+});
+
+test('flag true, but the source description exceeds MAX_DESCRIPTION_LENGTH: falls back closed, does not crash, drives CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED', () => {
+	const doc = docWithOperationFields({ description: 'x'.repeat(40001) });
+	const { recon, result } = reconcileCreateWidgetWithFlag(doc, true);
+	assert.equal('sourceDescription' in result, false);
+	assert.equal(result.descriptionUnresolvedReason, 'too-long');
+	assert.equal(recon.stats.description_unresolved, 1);
+});
+
+test('a description of exactly MAX_DESCRIPTION_LENGTH is still copied -- the cap is a boundary, not an off-by-one trap', () => {
+	const doc = docWithOperationFields({ description: 'x'.repeat(40000) });
+	const { recon, result } = reconcileCreateWidgetWithFlag(doc, true);
+	assert.equal(result.sourceDescription.length, 40000);
+	assert.equal(recon.stats.description_copied, 1);
+});
+
+test('description is dialect-INDEPENDENT: a 3.0 document still copies it when the flag is set, unlike parameters', () => {
+	const doc = docWithOperationFields({ description: 'a plain string, no schema involved' }, { openapiVersion: '3.0.1' });
+	const { recon, result } = reconcileCreateWidgetWithFlag(doc, true);
+	assert.equal(recon.schemaProjection.enabled, false, 'schema-bearing projection IS disabled for this document');
+	assert.equal(result.sourceDescription, 'a plain string, no schema involved', 'but description copies anyway -- it carries no Schema Object');
+});
+
+test('drift never gets sourceDescription, even with the flag set and a real description in the doc', () => {
+	const doc = {
+		openapi: '3.1.0',
+		paths: { '/api/v0/widgets': { get: { // verb drift: doc says GET, scan says POST
+			operationId: 'createWidget',
+			description: 'a real description that must never launder through a drifted operation',
+		} } },
+	};
+	const indexed = indexOpenApiDocument(doc);
+	const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0', includeDescriptions: true });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'drift');
+	assert.equal('sourceDescription' in result, false);
+});
+
+test('snapshot decision field: description "copied" / "unresolved:too-long" / "none"', () => {
+	function snapshotOpWithFlag(doc, includeDescriptions) {
+		const indexed = indexOpenApiDocument(doc);
+		const recon = reconcileModule({ index: indexed, module: createWidgetModule(), pathPrefix: '/api/v0', includeDescriptions });
+		const reconciliation = {
+			byEndpoint: recon.byEndpoint, prefix: recon.prefix, stats: recon.stats, schemaProjection: recon.schemaProjection,
+			document: { hash: 'x', bytes: 1, path_count: 1, operation_count: 1, skipped_path_refs: 0, rejected_operation_ids: 0, component_schema_count: 0, rejected_component_schemas: 0, security_scheme_count: 0, rejected_security_schemes: 0, openapi_version: doc.openapi, servers: [] },
+		};
+		return snapshotFromReconciliation(reconciliation, { featureId: '001-x', sourceFile: { file: 'x.json', outsideRepo: false } }).operations.createWidget;
+	}
+	assert.equal(snapshotOpWithFlag(docWithOperationFields({}), true).description, 'none');
+	assert.equal(snapshotOpWithFlag(docWithOperationFields({ description: 'ok' }), true).description, 'copied');
+	assert.equal(snapshotOpWithFlag(docWithOperationFields({ description: 'x'.repeat(40001) }), true).description, 'unresolved:too-long');
+	assert.equal(snapshotOpWithFlag(docWithOperationFields({ description: 'ok' }), false).description, 'none', 'flag off reads the same as "none" at the snapshot level -- description_skipped_flag is the module-wide stat that distinguishes them');
+});

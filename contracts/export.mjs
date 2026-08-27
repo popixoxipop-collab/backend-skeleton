@@ -19,12 +19,14 @@
 // responseSchema/errorSchema union) and non-JSON request media types. A9 (D-openapi-path-params) is
 // different in kind from A7/A8 -- not additive, a REPLACEMENT in place: a path parameter's own
 // `pathParams` schema is corrected from the source document per-segment when it resolves one,
-// falling back to the pre-existing name heuristic only where the source doesn't answer. Operation-
-// level `description` remains excluded -- measured too expensive to default-on (2,442.7 bytes/
-// operation average, larger than every other field this projection copies combined), still
-// disclosed as structural. Every omission is disclosed in prose (`info.description`) and machine-
-// readably (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export,
-// D-openapi-passthrough, D-openapi-per-status, and D-openapi-path-params in DECISIONS.md.
+// falling back to the pre-existing name heuristic only where the source doesn't answer. A10
+// (D-openapi-description) finally builds operation-level `description` -- the one field this whole
+// effort measured too expensive to default-on (2,442.7 bytes/operation average, larger than every
+// other field this projection copies combined) -- as the one source-backed field that is opt-in
+// (`contract emit --descriptions`) rather than default-on. Every omission is disclosed in prose
+// (`info.description`) and machine-readably (`info.x-bskel-omitted`) rather than papered over --
+// see D-openapi-export, D-openapi-passthrough, D-openapi-per-status, D-openapi-path-params, and
+// D-openapi-description in DECISIONS.md.
 import { createHash } from 'node:crypto';
 import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE, RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN, SUCCESS_STATUS_RE, ERROR_STATUS_RE, DEFAULT_STATUS_KEY } from './openapi.mjs';
 
@@ -66,17 +68,21 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 // document whenever it declares a resolvable one (see D-openapi-path-params, the real fix for the
 // `batchRequestId` finding this omission entry used to describe unconditionally), falling back to
 // the contract's own name heuristic only per-segment, so its presence is now content-conditional
-// like every other A7/A8 field, not a permanent structural fact. What stays structural:
-// `descriptions` (field-level AND operation-level -- the latter measured and deliberately excluded,
-// not merely unbuilt), `vendor-extensions` (x-* keys on an operation are never copied -- excluded in
-// principle, not by cap or failure, since their semantics are tool-specific), and two A8 additions:
-// `non-json-response-schemas` (a non-JSON response media type's NAME is copied via a per-status
-// entry's `mediaTypes`, but its SHAPE is never projected -- 0/674 real occurrences, so building that
-// machinery would violate this project's own "don't build for zero real cases" discipline) and
-// `response-headers` (response `headers`/`links` -- 0/694 real occurrences, a genuinely visible gap
-// only now that per-status responses look complete).
+// like every other A7/A8 field, not a permanent structural fact. A10 splits the old single
+// `descriptions` entry in two: `operation-descriptions` moves out (opt-in via `--descriptions`, so
+// its presence is now content-AND-flag-conditional, same ANY-based doctrine), while
+// `field-descriptions` (schema-field-level `description`/`title`/`example`, dropped as
+// DROPPED_KEYWORDS while inlining ANY schema -- a genuinely different, permanently unbuilt gap, not
+// this item's scope) stays structural. What else stays structural: `vendor-extensions` (x-* keys on
+// an operation are never copied -- excluded in principle, not by cap or failure, since their
+// semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a non-JSON
+// response media type's NAME is copied via a per-status entry's `mediaTypes`, but its SHAPE is never
+// projected -- 0/674 real occurrences, so building that machinery would violate this project's own
+// "don't build for zero real cases" discipline) and `response-headers` (response `headers`/`links`
+// -- 0/694 real occurrences, a genuinely visible gap only now that per-status responses look
+// complete).
 const STRUCTURAL_OMISSIONS = Object.freeze([
-	'descriptions',
+	'field-descriptions',
 	'non-json-response-schemas',
 	'response-headers',
 	'vendor-extensions',
@@ -84,11 +90,12 @@ const STRUCTURAL_OMISSIONS = Object.freeze([
 
 const OMISSION_PROSE = Object.freeze({
 	'cookie-parameters': 'cookie parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
-	descriptions: 'field-level descriptions/titles/examples (contracts/openapi.mjs drops them as DROPPED_KEYWORDS while inlining a schema), and operation-level `description` -- measured and deliberately excluded (real average 2,442.7 bytes/operation, larger than every other field this projection copies combined); if ever built, it must be opt-in behind a flag, unlike everything else this projection copies by default',
 	'error-schemas': 'a JSON error-body schema for at least one operation',
+	'field-descriptions': 'field-level descriptions/titles/examples (contracts/openapi.mjs drops them as DROPPED_KEYWORDS while inlining a schema) -- a different, permanently unbuilt gap from the operation-level `description` field (see `operation-descriptions` below)',
 	'header-parameters': 'header parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'non-json-request-media-types': 'the media type of the request body, for at least one operation that takes one -- a non-application/json request media type is emitted only when a real source document declared one for that exact operation, copied byte-for-byte; otherwise this document shows a JSON media-type entry because that is all the contract knows, never because the real body is known to be JSON',
 	'non-json-response-schemas': 'a JSON Schema for any response body in a media type other than application/json -- the media type is named where a source document declared one for that status, but its shape is never projected',
+	'operation-descriptions': 'the operation-level `description`, for at least one operation -- copied only when `contract emit --descriptions` was used (opt-in: measured real average 2,442.7 bytes/operation, larger than every other field this projection copies combined) AND the source document declared one for that exact operation AND it did not exceed the length cap; otherwise this key is absent for that operation, never synthesized',
 	'path-parameter-schemas': 'a path parameter\'s schema, for at least one path segment on at least one operation -- derived from this contract\'s own name heuristic (a trailing "Id" is assumed to be a UUID) rather than a real source document, because no source document was given, the source declared no schema for that segment, or the schema failed to resolve; a segment not covered by this note was resolved from the source document\'s own real schema',
 	'per-status-responses': 'per-status responses, for at least one operation -- that operation\'s entry collapses every documented 2xx body into one `2XX` union and every 4xx/5xx body into one `default` union, and records no real status codes. Where a real source document (--openapi-file) documented statuses for an operation, its own status codes and descriptions are emitted verbatim instead; nothing is invented for an operation the source said nothing about',
 	'query-parameters': 'query parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
@@ -143,6 +150,11 @@ export function collectOmissions(contract) {
 		if (Array.isArray(op.pathParamsHeuristic) && op.pathParamsHeuristic.length > 0) {
 			omissions.add('path-parameter-schemas');
 		}
+		// A10: operation-level description -- ANY-based, same doctrine. Absent whenever
+		// --descriptions was not used at all (every operation then lacks sourceDescription, so this
+		// always trips until the flag is used), the source had none for this operation, or it
+		// exceeded the length cap.
+		if (!op.sourceDescription) omissions.add('operation-descriptions');
 	}
 	return [...omissions].sort();
 }
@@ -474,25 +486,31 @@ export function buildOpenApiDocument({ contract, snapshot = null, options = {} }
 		// for this exact operation. `security: []` is spec-legal (confirmed by executing the
 		// meta-schema) AND, when copied, a genuine positive claim FROM THE SOURCE that no
 		// authentication is required -- Array.isArray, not a truthy check, so `[]` is correctly
-		// treated as present. `op.sourceSecurity` is never emitted when absent; `description` (the
-		// operation-level field, not the response-object one) remains deliberately unset -- Phase 2.
+		// treated as present. `op.sourceSecurity` is never emitted when absent.
 		if (Array.isArray(op.sourceSecurity)) operation.security = op.sourceSecurity;
 		if (op.sourceSummary) operation.summary = op.sourceSummary;
 		if (Array.isArray(op.sourceTags) && op.sourceTags.length > 0) operation.tags = op.sourceTags;
+		// A10: same "only when the contract carries a copied value" discipline -- `sourceDescription`
+		// is present only when `contract emit --descriptions` was used AND the source had one for this
+		// exact operation, so this is never a synthesized or inferred string.
+		if (op.sourceDescription) operation.description = op.sourceDescription;
 
 		// A8: two more clauses -- an operation whose ONLY passthrough is per-status responses or a
 		// copied multipart body (no source parameters/security/summary/tags at all) previously got NO
 		// marker, reopening the exact self-import hole A7 closed for that one operation. Never arises
 		// on the real oracle (148/148 already carry summary+tags+security) but is structurally
 		// reachable from a minimal hand-written document declaring only `responses` -- see
-		// D-openapi-per-status.
+		// D-openapi-per-status. A10 adds a third clause for the same reason: an operation whose ONLY
+		// passthrough is a copied description (structurally reachable even though never arises on the
+		// real oracle, which already carries summary/tags/security everywhere).
 		const hasPassthrough = Boolean(
 			(Array.isArray(op.sourceParameters) && op.sourceParameters.length > 0)
 			|| Array.isArray(op.sourceSecurity)
 			|| op.sourceSummary
 			|| (Array.isArray(op.sourceTags) && op.sourceTags.length > 0)
 			|| (op.sourceResponses && typeof op.sourceResponses === 'object' && Object.keys(op.sourceResponses).length > 0)
-			|| (op.sourceRequestBody && typeof op.sourceRequestBody === 'object'),
+			|| (op.sourceRequestBody && typeof op.sourceRequestBody === 'object')
+			|| op.sourceDescription,
 		);
 		passthroughByOperation[operationId] = hasPassthrough;
 		if (hasPassthrough) {

@@ -133,8 +133,9 @@ operation, copied byte-for-byte, never reconstructed. `security: []` is emitted 
 document itself said `[]` (a genuine claim that no authentication is required); it is never
 invented as a default. Where no source document was given, or it said nothing for an operation
 (or a particular field of one), the key is simply omitted, meaning "unspecified." Operation-level
-`description` remains excluded — measured too expensive to copy by default (real average 2,442.7
-bytes/operation).
+`description` is copied too, but **opt-in only** (`contract emit --descriptions`) — measured too
+expensive to copy by default (real average 2,442.7 bytes/operation, larger than every other field
+this projection copies combined).
 
 Export refuses a zero-operation contract, refuses when the scan found a global path prefix the
 contract's paths don't reflect (`--allow-unprefixed` overrides), and stamps every document with an
