@@ -127,6 +127,22 @@ test('deriveHandleUid (TypeScript) matches handles/codec.mjs\'s deriveHandleUid 
 	});
 });
 
+// O3 (D-handle-uid-type-binding): kind=r used to return uuid VERBATIM (no type binding at all) --
+// this is the regression guard that the fix actually took, on both the JS reference and the real
+// rendered TypeScript file, not just the parity check above (which would pass even if BOTH sides
+// had regressed back to the old verbatim behavior together). Parity-only fix for this provider --
+// it has no HandleRegistry table (see D-typescript-express-provider), so there is no live
+// collision to reproduce here the way the Java/Python tests do.
+test('kind=r no longer returns the resource uuid verbatim, in JS or TypeScript', () => {
+	const c = { kind: 'r', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null };
+	const jsResult = deriveHandleUid(c);
+	assert.notEqual(jsResult, c.uuid, 'JS deriveHandleUid must no longer be the identity function for kind=r');
+	const [tsResult] = runTypeScript([{ op: 'derive', ...c }]);
+	assert.equal(tsResult.ok, true, tsResult.error);
+	assert.notEqual(tsResult.result, c.uuid, 'TypeScript deriveHandleUid must no longer be the identity function for kind=r');
+	assert.equal(tsResult.result, jsResult);
+});
+
 // D-typescript-express-provider: resolveJsonPointer needed NO `_MISSING`-style sentinel here,
 // unlike the Python port -- TypeScript/JavaScript already distinguishes `undefined` (absent) from
 // a genuine `null`, so this is a direct, unmodified port of the JS reference's own logic. Confirmed

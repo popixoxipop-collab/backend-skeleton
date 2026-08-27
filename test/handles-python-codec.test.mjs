@@ -134,6 +134,39 @@ test('derive_handle_uid matches handles/codec.mjs\'s deriveHandleUid exactly for
 	});
 });
 
+// O3 (D-handle-uid-type-binding): kind=r used to return resource_uuid VERBATIM (no type binding
+// at all) -- this is the regression guard that the fix actually took, on both the JS reference
+// and the real rendered Python file, not just the parity check above (which would pass even if
+// BOTH sides had regressed back to the old verbatim behavior together).
+test('kind=r no longer returns the resource uuid verbatim, in JS or Python', () => {
+	const c = { kind: 'r', type: 'Organization', uuid: 'e957347e-3794-4c71-92a8-cec75dec1c97', pointer: null };
+	const jsResult = deriveHandleUid(c);
+	assert.notEqual(jsResult, c.uuid, 'JS deriveHandleUid must no longer be the identity function for kind=r');
+	const [pyResult] = runPython([{ op: 'derive', ...c }]);
+	assert.equal(pyResult.ok, true, pyResult.error);
+	assert.notEqual(pyResult.result, c.uuid, 'Python derive_handle_uid must no longer be the identity function for kind=r');
+	assert.equal(pyResult.result, jsResult);
+});
+
+// O3 (D-handle-uid-type-binding): the real bug this item fixes -- reproduced live against the
+// REAL rendered Python file, not just asserted. Before the fix, two different resource TYPES
+// sharing the same resourceUid derived the SAME handle_uid (the sbf_handle table's own primary
+// key), silently colliding on one registry row. This test is written so it would FAIL against the
+// pre-fix formula (kind=r -> resource_uuid verbatim, type-independent) and PASSES only because
+// type now participates in the hash.
+test('collision fix: two different resource types sharing the same UUID derive DIFFERENT kind=r handle_uids (Python)', () => {
+	const sharedUuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+	const [widget, organization] = runPython([
+		{ op: 'derive', kind: 'r', type: 'Widget', uuid: sharedUuid, pointer: null },
+		{ op: 'derive', kind: 'r', type: 'Organization', uuid: sharedUuid, pointer: null },
+	]);
+	assert.equal(widget.ok, true, widget.error);
+	assert.equal(organization.ok, true, organization.error);
+	assert.notEqual(widget.result, organization.result, 'two different resource types sharing a UUID must never derive the same handle_uid (registry primary key collision)');
+	assert.equal(widget.result, deriveHandleUid({ kind: 'r', type: 'Widget', uuid: sharedUuid, pointer: null }));
+	assert.equal(organization.result, deriveHandleUid({ kind: 'r', type: 'Organization', uuid: sharedUuid, pointer: null }));
+});
+
 // G4 follow-up (D-handles-providers): resolve_json_pointer parity, including the exact case a
 // literal JS port would have gotten wrong -- a present-but-null field must resolve to `null`
 // (200), not be conflated with "path doesn't exist" (404). See resolve_json_pointer's own
