@@ -199,10 +199,20 @@ export function saveResolution(root, featureId, resolution) {
 // blocks, waived or not). Deliberately no wildcard match: a waiver only cancels the EXACT
 // code+subject pair recorded for it, so a new unmatched endpoint added later is never silently
 // covered by an old "--all" waive -- see the "waiver invalidation" test in test/contract-cli.test.mjs.
+// D-waiver-expiry: `expires_at` is a genuinely different axis from `staleWaivers` below --
+// staleness means "the warning this waiver covered no longer exists at all" (the underlying
+// problem was fixed), expiry means "the waiver covered a warning that's STILL there, but the
+// grace period the person who filed it granted has run out" -- an expired waiver stops covering
+// its warning, so `unwaived`/`blocking` treat it exactly as if it had never been recorded. A
+// waiver can be BOTH stale and expired at once (nothing prevents that combination); the two
+// lists are independent, not mutually exclusive.
 export function evaluateResolution(contract, resolution) {
 	const status = classifyContract(contract);
 	const waivers = resolution.waivers ?? [];
-	const waivedKeys = new Set(waivers.map(warningKey));
+	const now = Date.now();
+	const expiredWaivers = waivers.filter((w) => typeof w.expires_at === 'string' && Date.parse(w.expires_at) <= now);
+	const expiredKeys = new Set(expiredWaivers.map(warningKey));
+	const waivedKeys = new Set(waivers.filter((w) => !expiredKeys.has(warningKey(w))).map(warningKey));
 
 	const errorWarnings = contract.warnings.filter((w) => w.severity === SEVERITY.ERROR);
 	const unwaived = errorWarnings.filter((w) => !waivedKeys.has(warningKey(w)));
@@ -213,5 +223,5 @@ export function evaluateResolution(contract, resolution) {
 
 	const blocking = status === COMPLETENESS.BLOCKED || unwaived.length > 0;
 
-	return { status, blocking, unwaived, waived, staleWaivers };
+	return { status, blocking, unwaived, waived, staleWaivers, expiredWaivers };
 }

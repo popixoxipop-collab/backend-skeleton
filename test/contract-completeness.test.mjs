@@ -98,6 +98,49 @@ test('evaluateResolution: a waiver with no matching current warning is reported 
 	assert.equal(result.staleWaivers.length, 1);
 });
 
+// D-waiver-expiry
+test('evaluateResolution: a waiver with a future expires_at still covers its warning', () => {
+	const contract = { operations: { findX: {} }, warnings: [makeWarning('CONTRACT_UNMATCHED_ENDPOINT', { subject: 'GET /a', message: 'x' })] };
+	const resolution = { waivers: [{ code: 'CONTRACT_UNMATCHED_ENDPOINT', subject: 'GET /a', reason: 'test', expires_at: new Date(Date.now() + 86400000).toISOString() }] };
+	const result = evaluateResolution(contract, resolution);
+	assert.equal(result.blocking, false);
+	assert.equal(result.waived.length, 1);
+	assert.equal(result.expiredWaivers.length, 0);
+});
+
+test('evaluateResolution: a waiver with a past expires_at no longer covers its warning -- blocks again, reported as expired', () => {
+	const contract = { operations: { findX: {} }, warnings: [makeWarning('CONTRACT_UNMATCHED_ENDPOINT', { subject: 'GET /a', message: 'x' })] };
+	const resolution = { waivers: [{ code: 'CONTRACT_UNMATCHED_ENDPOINT', subject: 'GET /a', reason: 'test', expires_at: new Date(Date.now() - 1000).toISOString() }] };
+	const result = evaluateResolution(contract, resolution);
+	assert.equal(result.blocking, true);
+	assert.equal(result.unwaived.length, 1);
+	assert.equal(result.waived.length, 0);
+	assert.equal(result.expiredWaivers.length, 1);
+});
+
+test('evaluateResolution: a waiver expiring at exactly now is treated as expired (boundary is inclusive, fail-closed)', () => {
+	const contract = { operations: { findX: {} }, warnings: [makeWarning('CONTRACT_UNMATCHED_ENDPOINT', { subject: 'GET /a', message: 'x' })] };
+	const resolution = { waivers: [{ code: 'CONTRACT_UNMATCHED_ENDPOINT', subject: 'GET /a', reason: 'test', expires_at: new Date(Date.now() - 1).toISOString() }] };
+	const result = evaluateResolution(contract, resolution);
+	assert.equal(result.expiredWaivers.length, 1);
+});
+
+test('evaluateResolution: a waiver with no expires_at at all never expires, unaffected by this feature', () => {
+	const contract = { operations: { findX: {} }, warnings: [makeWarning('CONTRACT_UNMATCHED_ENDPOINT', { subject: 'GET /a', message: 'x' })] };
+	const resolution = { waivers: [{ code: 'CONTRACT_UNMATCHED_ENDPOINT', subject: 'GET /a', reason: 'test' }] };
+	const result = evaluateResolution(contract, resolution);
+	assert.equal(result.blocking, false);
+	assert.equal(result.expiredWaivers.length, 0);
+});
+
+test('evaluateResolution: a waiver can be BOTH expired and stale at once -- the two lists are independent, not mutually exclusive', () => {
+	const contract = { operations: { findX: {} }, warnings: [] }; // the warning is long gone (stale) too
+	const resolution = { waivers: [{ code: 'CONTRACT_UNMATCHED_ENDPOINT', subject: 'GET /long-gone', reason: 'test', expires_at: new Date(Date.now() - 1000).toISOString() }] };
+	const result = evaluateResolution(contract, resolution);
+	assert.equal(result.staleWaivers.length, 1);
+	assert.equal(result.expiredWaivers.length, 1);
+});
+
 test('evaluateResolution: blocked (zero operations) is never waivable, even with a matching waiver', () => {
 	const contract = { operations: {}, warnings: [makeWarning('CONTRACT_NO_MODULE', { message: 'x' })] };
 	const resolution = { waivers: [{ code: 'CONTRACT_NO_MODULE', subject: null, reason: 'test' }] };

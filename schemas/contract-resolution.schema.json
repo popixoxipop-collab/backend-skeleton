@@ -20,7 +20,12 @@
           "code": { "type": "string", "pattern": "^CONTRACT_[A-Z_]+$" },
           "subject": { "type": ["string", "null"] },
           "reason": { "type": "string" },
-          "at": { "type": "string", "format": "date-time" }
+          "at": { "type": "string", "format": "date-time" },
+          "expires_at": {
+            "description": "D-waiver-expiry: optional, set only when `contract waive --expires <Nd>` was used. Once now >= expires_at, this waiver stops covering its warning -- see contracts/completeness.mjs's evaluateResolution().",
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     }
