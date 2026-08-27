@@ -6980,3 +6980,105 @@ Both fixes are `contracts/openapi.mjs`/`contracts/export.mjs`-only; `contracts/v
 untouched by this follow-up too (`git diff --stat` confirms). Full suite: 930 → **932** (two new
 regression tests, one per finding). No CATALOG.md/sbf_contract change -- both are within A8's
 existing field shapes, not a new capability.
+
+## D-openapi-path-params (A9): replacing a guess with a real answer, when one exists
+
+**WHY:** A7's own implementation disclosed, but explicitly did not fix, a real, small false-negative:
+`contracts/emit.mjs`'s `pathParamsSchema()` names every `{segment}` in a route by a pure heuristic
+(`/id$/i` -> a bare-UUID `pattern`) with no awareness of the real source document, even when
+`--openapi-file` was given. Against the real Team-IZ-Backend oracle this disagrees with reality on
+exactly one of 130 real path parameters: `findTraineeRegistrationProgress`'s `batchRequestId` is a
+plain string (`"trainee-batch-001"`-shaped) in the real document, but the heuristic pins it to a UUID
+pattern -- meaning `contract validate` would reject a real, valid request today. A7's own EXIT
+section named "replacing the contract's path-parameter heuristic with copied source path parameters"
+as a separate future item, not silently folded in. This is that item, done directly at the user's
+request (no agent delegation), following the exact scope A7 already named.
+
+**THE FIX IS A REPLACEMENT, NOT AN ADDITIVE FIELD -- different in kind from A7/A8.** Every other
+`source*` field this project has shipped (A7's `sourceParameters`/`sourceSecurity`/etc., A8's
+`sourceResponses`/`sourceRequestBody`) sits ALONGSIDE an existing field, both present, contract
+readers choosing which to trust. Path parameters are different: there is exactly one place
+`contract validate` and `contract export` both read from (`pathParams`), and the bug is that its
+VALUE is sometimes wrong. So this item corrects `pathParams` itself in place, per segment, rather
+than adding a second, competing source of truth next to an unchanged, still-wrong one.
+
+**Mechanism**: `contracts/openapi.mjs`'s new `applyPathParameterSchemas()` (called from
+`applyPassthrough()`'s existing matched/adopted-only call sites -- no new call sites, same refusal
+mechanism every A7/A8 field already relies on) resolves each `in: "path"` entry in the real
+document's `parameters[]` through `inlineSchema()` (the same resolver every other schema-bearing
+field in this file uses -- D-security-2's `format: 'uuid'` -> `BARE_UUID_PATTERN` rewrite is
+therefore inherited for free, not reimplemented). Resolved schemas are stashed in a `Map<name,
+schema>` on `result.pathParamSchemas` -- a Map, never a plain object, the same "sidestep prototype
+pollution entirely rather than add a third whitelist regex" reasoning `componentSchemas`/
+`securitySchemes` already established, since this is `--openapi-file`-sourced (untrusted) data keyed
+by parameter NAME. `contracts/emit.mjs`'s `pathParamsSchema()` then prefers the source's schema for
+any segment it can answer, falling back to the pre-existing heuristic per-segment for any it can't
+(no source document, no schema declared for that name, or a schema that failed to resolve) --
+`pathParamsHeuristic` (new, omitted when empty) names exactly which segments, if any, still rely on
+the guess, giving `contracts/export.mjs`'s `collectOmissions()` a real per-operation signal instead
+of an always-on disclaimer.
+
+**`path-parameter-schemas` moves from STRUCTURAL to ANY-based derived**, the same migration A8 made
+for `per-status-responses`/`non-json-request-media-types`: it used to be unconditionally true ("path
+params are ALWAYS heuristic, never source-backed"), and after this item that claim is simply false
+whenever a source document answers a segment -- so the omission is now present only for an operation
+where `pathParamsHeuristic` is non-empty, derived from the contract's own content like every other
+ANY-based entry, never hardcoded.
+
+**A real round-trip finding, understood and accepted rather than "fixed" with more machinery**: both
+existing round-trip tests broke on this item, and not from a mistake -- `contracts/export.mjs`'s
+`buildPathParameters()` faithfully re-exports a heuristic-derived `pathParams` schema as a real
+Parameter Object with a real `schema`. Re-importing that export (self-import-guard markers stripped,
+simulating a genuinely independent document, exactly what those tests already do) means
+`applyPathParameterSchemas()` correctly finds a resolvable schema and treats it as source-confirmed
+-- so `pathParamsHeuristic` can legitimately shrink or disappear across one round trip, even though
+the underlying schema VALUE (and therefore `contract validate`'s actual pass/fail behavior) is
+byte-identical before and after. This is not a bug: the self-import guard is the ONLY mechanism this
+project uses to distinguish "genuinely independent" from "our own export" (D-openapi-export), and
+once its markers are gone, by this project's own established design there is no other signal left to
+withhold trust on -- an independent document that happens to declare the exact schema our heuristic
+already guessed IS legitimate confirmation, the same as any other independent document would be. This
+is the same class of finding the existing round-trip tests already document for `format: 'uuid'`
+rewriting and multi-shape `anyOf` collapsing ("convergence after one step, not identity with some
+hypothetical upstream document") -- a third instance of the same, already-understood phenomenon, not
+a new one. Both tests were updated (`withoutPathParamsHeuristic()`), not weakened elsewhere.
+
+**No new WARN code.** A path segment whose source schema fails to resolve simply falls back to the
+heuristic -- the exact same behavior as before this item, not a new failure mode, so (matching A8's
+own reasoning for reusing A3's response/error codes) nothing new needs to fire.
+
+`sbf_contract` bumped `"6"` -> `"7"` for the new `pathParamsHeuristic` field (the operation schema's
+`additionalProperties: false` requires it to be explicitly whitelisted, same as every prior field).
+`contracts/validate.mjs`, `lib/gate-definitions.mjs`, `lib/verify.mjs`, and `.github/workflows/ci.yml`
+are all untouched (`git diff --stat` confirms) -- this item makes `contract validate`'s INPUT more
+accurate without changing its logic at all, which is the entire point: the real
+`batchRequestId`-shaped request that was wrongly rejected before is accepted now, with zero code
+changed in the function that rejected it.
+
+**Verified against the real 148-operation Team-IZ-Backend oracle** (a synthetic all-148-operations
+module, every operation reconciling as `matched`, same technique A7/A8 both used): 107 of 148
+operations carry at least one path parameter, and **all 107 resolve every one of their path
+parameters from the real source document** (`path_params_copied: 107`, `path_params_unresolved: 0`,
+zero names still falling back to the heuristic) -- including `batchRequestId` itself, confirming the
+exact finding this item set out to fix. `problemNo` (a real path parameter name that does NOT end in
+"Id", so the old heuristic would have guessed `{type:'string'}` with no pattern anyway) resolves from
+source too, same as every other name -- real data wins regardless of whether the heuristic would
+have happened to guess right or wrong for that particular name.
+
+**EXIT**: constraining envelope payloads with copied query parameters (named alongside this item in
+A7's own EXIT) remains a separate, untouched future item. Should a future real source document ever
+use `components.parameters` + `$ref` for a path parameter (0 real occurrences observed, same
+"don't build for zero real cases" reasoning A8 applied to `components.responses` $ref), resolving it
+is the natural next slice -- `copyParameter()`'s existing `ref-parameter` refusal already fails this
+case closed, consistent with every other unresolved-schema fallback in this item.
+
+Cross-references: `D-openapi-passthrough` (A7, the `batchRequestId` finding this item fixes, first
+disclosed there; the `applyPassthrough()` call-site placement this item's own call reuses
+unchanged); `D-openapi-per-status` (A8, the STRUCTURAL-to-ANY-based omission migration pattern this
+item reapplies, and the `hasSourceMediaTypeInfo`-style "positive information overrides a guess"
+principle this item applies to path-param type instead of request media type); `D-openapi-export`
+(A6, the self-import guard whose markers are the ONLY signal this item's round-trip finding turns
+on); `D-security-2` (the `format: 'uuid'` -> `BARE_UUID_PATTERN` rewrite this item inherits for free
+through `inlineSchema()`, and the "convergence after one step" round-trip framing this item's own
+finding extends); `D-security-1` (the prototype-pollution class `Map`-based `pathParamSchemas`
+sidesteps entirely, the same reasoning `componentSchemas`/`securitySchemes` already established).

@@ -15,24 +15,42 @@ import { pathPrefixCandidates, unreflectedPathPrefixes } from './export.mjs';
 // a path param. Direction stays one-way (openapi.mjs imports from emit.mjs, never the reverse).
 export const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
-// A7/A8: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
+// A7/A8/A9: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
 // const -- bin/bskel.mjs's loadContract() imports this too, so the friendly "re-emit with the
-// current bskel" message and the value actually written here cannot drift apart. Bumped "5" -> "6"
-// for this item (sourceResponses/sourceRequestBody) -- cheap this time: the friendly re-emit
-// pre-check in loadContract() needed zero code change, it already compares against this imported
-// constant -- see D-openapi-per-status.
-export const CONTRACT_SCHEMA_VERSION = '6';
+// current bskel" message and the value actually written here cannot drift apart. Bumped "6" -> "7"
+// for this item (pathParamsHeuristic) -- again cheap, the friendly re-emit pre-check needs zero
+// code change -- see D-openapi-path-params.
+export const CONTRACT_SCHEMA_VERSION = '7';
 
-function pathParamsSchema(routePath) {
+// A9 (D-openapi-path-params): `sourcePathParamSchemas` (a Map<name, schema>, contracts/openapi.mjs's
+// applyPathParameterSchemas -- present only for a matched/adopted operation whose source document
+// resolved at least one real path-param schema) is preferred per-segment over the name heuristic
+// below. The heuristic remains the fallback for any segment the source doesn't answer (no source
+// document at all, source declared no schema for that name, or the schema failed to resolve) --
+// this function's OWN correctness posture is unchanged for those cases, exactly as before this
+// item. `pathParamsHeuristic` names every segment that still fell back, so a downstream consumer
+// (contracts/export.mjs's collectOmissions()) can tell, per operation, whether ANY segment is still
+// a guess -- `null` (never `[]`) when every segment was source-resolved or the route has none.
+function pathParamsSchema(routePath, sourcePathParamSchemas = null) {
 	const params = [...routePath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
 	const properties = {};
+	const heuristicNames = [];
 	for (const p of params) {
+		const sourced = sourcePathParamSchemas ? sourcePathParamSchemas.get(p) : undefined;
+		if (sourced) {
+			properties[p] = sourced;
+			continue;
+		}
 		// Naming convention seen throughout Team-IZ-Backend (`UUID organizationId`, etc.) --
 		// a heuristic, not a guarantee; wrong for a path param that happens to end in "Id" but
 		// isn't a UUID, which just means an over-strict uuid-shaped check on that one field.
 		properties[p] = /id$/i.test(p) ? { type: 'string', pattern: BARE_UUID_PATTERN } : { type: 'string' };
+		heuristicNames.push(p);
 	}
-	return { type: 'object', additionalProperties: false, properties, required: params };
+	return {
+		pathParams: { type: 'object', additionalProperties: false, properties, required: params },
+		pathParamsHeuristic: heuristicNames.length > 0 ? heuristicNames : null,
+	};
 }
 
 // Re-reads the controller source (already located by the scan) to check whether this specific
@@ -122,6 +140,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				let sourceResponses = null;
 				let sourceRequestBody = null;
 				let requestMediaTypesUnresolvedReason = null;
+				// A9: same discipline -- transient (Map), consulted below by pathParamsSchema(), never
+				// itself spread into the persisted operation object (see that function's own comment).
+				let pathParamSchemas = null;
 
 				if (res) {
 					switch (res.kind) {
@@ -148,6 +169,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							sourceResponses = res.sourceResponses ?? null;
 							sourceRequestBody = res.sourceRequestBody ?? null;
 							requestMediaTypesUnresolvedReason = res.requestMediaTypesUnresolvedReason ?? null;
+							pathParamSchemas = res.pathParamSchemas ?? null;
 							break;
 						case 'adopted':
 							// No @Operation(operationId=...) in source at all -- the id itself comes from
@@ -174,6 +196,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							sourceResponses = res.sourceResponses ?? null;
 							sourceRequestBody = res.sourceRequestBody ?? null;
 							requestMediaTypesUnresolvedReason = res.requestMediaTypesUnresolvedReason ?? null;
+							pathParamSchemas = res.pathParamSchemas ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
 								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
@@ -320,10 +343,11 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						detail: { reason: requestMediaTypesUnresolvedReason, verb, path: route, operationId },
 					}));
 				}
+				const { pathParams, pathParamsHeuristic } = pathParamsSchema(route, pathParamSchemas);
 				operations[operationId] = {
 					verb,
 					path: route,
-					pathParams: pathParamsSchema(route),
+					pathParams,
 					body: hasBody === null ? 'unknown' : hasBody,
 					provenance,
 					// A2/A3/A7: omitted entirely (not null/false) when there's nothing to project/copy --
@@ -338,6 +362,8 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 					...(sourceTags ? { sourceTags } : {}),
 					...(sourceResponses ? { sourceResponses } : {}),
 					...(sourceRequestBody ? { sourceRequestBody } : {}),
+					// A9: omitted (not []) when every segment resolved from source, or the route has none.
+					...(pathParamsHeuristic ? { pathParamsHeuristic } : {}),
 				};
 			}
 		}
