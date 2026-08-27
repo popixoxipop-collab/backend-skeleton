@@ -1,5 +1,10 @@
 # backend-skeleton
 
+[![npm version](https://img.shields.io/npm/v/backend-skeleton.svg)](https://www.npmjs.com/package/backend-skeleton)
+[![npm license](https://img.shields.io/npm/l/backend-skeleton.svg)](https://github.com/popixoxipop-collab/backend-skeleton/blob/main/LICENSE)
+[![node](https://img.shields.io/node/v/backend-skeleton.svg)](https://www.npmjs.com/package/backend-skeleton)
+[![GitHub release](https://img.shields.io/github/v/release/popixoxipop-collab/backend-skeleton?include_prereleases&label=release)](https://github.com/popixoxipop-collab/backend-skeleton/releases)
+
 Spec-driven backend scaffolding for brownfield (and greenfield) Java/Spring Boot, Python/FastAPI,
 and TypeScript/JavaScript Express repos: a brownfield-collision gate before any spec/plan step,
 feature_id-scoped machine-readable contracts, UUID-addressable field handles, and stack-choice
