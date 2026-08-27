@@ -179,6 +179,97 @@ const COPIED_KEYWORDS = Object.freeze(new Set([
 // `response-headers`.
 const DOCUMENTATION_KEYWORDS = Object.freeze(new Set(['description', 'example']));
 const DROPPED_KEYWORDS = Object.freeze(new Set(['title', 'examples', 'externalDocs', 'xml', 'deprecated']));
+
+// D-unsupported-annotation-warning: 0 real occurrences on the ONE oracle this whole module's
+// caps/keyword sets were measured against does not mean 0 occurrences everywhere -- a genuinely
+// different real-world document could use any of DROPPED_KEYWORDS, and silently dropping them
+// with no signal at all is a real honesty gap (see D-contract-history/D-gate-export's own backlog
+// for the broader "self-identified weaknesses" context this closes one instance of).
+//
+// Deliberately walks ONLY genuine Schema Object structure (via RECURSED_KEYWORDS, the exact same
+// `properties`/`items`/`additionalProperties`/`oneOf`/`anyOf`/`allOf` set inlineSchema() itself
+// recurses through) -- NOT a blanket "every key anywhere in the document" scan. That distinction
+// is load-bearing, not cosmetic: several of DROPPED_KEYWORDS' names collide with REAL, unrelated
+// OpenAPI concepts that live outside a Schema Object entirely -- an Operation Object's own
+// `deprecated` (marks a whole ENDPOINT deprecated) and a Parameter Object's own `deprecated`, both
+// legitimate 3.1 fields with nothing to do with inlineSchema()'s keyword handling. A blanket walk
+// would misreport those as "an unsupported schema keyword found," which is false. This function
+// only descends from confirmed schema roots (a `$ref`-or-inline `schema` under `content.<media>`
+// or `parameters[].schema`, or a named entry in `components.schemas`), the same roots
+// inlineSchema() itself is ever called on.
+//
+// NOT routed through walkSchemaNode()'s fail-closed machinery -- it must never throw on a shape
+// inlineSchema() itself would reject, since its only job is presence detection, not validation.
+// Bounded for free by loadOpenApiDocument()'s own MAX_DOCUMENT_BYTES check upstream.
+function collectUnsupportedAnnotationKeys(node, found, seen) {
+	if (node === null || typeof node !== 'object' || Array.isArray(node) || seen.has(node)) return;
+	seen.add(node);
+	for (const key of Object.keys(node)) {
+		if (DROPPED_KEYWORDS.has(key)) found.add(key);
+		if (RECURSED_KEYWORDS.has(key)) {
+			const value = node[key];
+			// `properties` is a field-NAME -> schema map (its VALUES are schemas, its keys are not
+			// schema keywords at all) -- a real bug caught live before merge: recursing into the
+			// map object itself, instead of `Object.values(value)`, silently walked past every
+			// property's actual schema and found nothing beneath `properties` ever. `items`/
+			// `additionalProperties` ARE schemas directly; `oneOf`/`anyOf`/`allOf` are arrays of
+			// schemas, already handled by the branch below.
+			if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
+				for (const propSchema of Object.values(value)) collectUnsupportedAnnotationKeys(propSchema, found, seen);
+			} else if (Array.isArray(value)) {
+				for (const item of value) collectUnsupportedAnnotationKeys(item, found, seen);
+			} else {
+				collectUnsupportedAnnotationKeys(value, found, seen);
+			}
+		}
+	}
+}
+
+function collectSchemaRootsFromMediaTypes(content, roots) {
+	if (!content || typeof content !== 'object' || Array.isArray(content)) return;
+	for (const mediaEntry of Object.values(content)) {
+		const schema = mediaEntry && typeof mediaEntry === 'object' && !Array.isArray(mediaEntry) ? mediaEntry.schema : null;
+		if (schema && typeof schema === 'object' && !Array.isArray(schema)) roots.push(schema);
+	}
+}
+
+// Every real schema root a document can offer `inlineSchema()`: named `components.schemas`
+// entries, every operation's requestBody/response content schemas, and every operation's
+// parameter schemas -- deliberately NOT `info`/`servers`/`tags`/security schemes, none of which
+// are ever schema-shaped.
+export function findUnsupportedAnnotations(doc) {
+	const roots = [];
+	const schemas = doc.components?.schemas;
+	if (schemas && typeof schemas === 'object' && !Array.isArray(schemas)) roots.push(...Object.values(schemas));
+
+	const paths = doc.paths;
+	if (paths && typeof paths === 'object' && !Array.isArray(paths)) {
+		for (const item of Object.values(paths)) {
+			if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+			for (const [verbOrKey, operation] of Object.entries(item)) {
+				if (!HTTP_METHODS.has(verbOrKey) || !operation || typeof operation !== 'object' || Array.isArray(operation)) continue;
+				collectSchemaRootsFromMediaTypes(operation.requestBody?.content, roots);
+				if (operation.responses && typeof operation.responses === 'object' && !Array.isArray(operation.responses)) {
+					for (const resp of Object.values(operation.responses)) {
+						collectSchemaRootsFromMediaTypes(resp?.content, roots);
+					}
+				}
+				if (Array.isArray(operation.parameters)) {
+					for (const p of operation.parameters) {
+						if (p && typeof p === 'object' && !Array.isArray(p) && p.schema && typeof p.schema === 'object' && !Array.isArray(p.schema)) {
+							roots.push(p.schema);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	const found = new Set();
+	const seen = new Set();
+	for (const root of roots) collectUnsupportedAnnotationKeys(root, found, seen);
+	return [...found].sort();
+}
 // Real Team-IZ-Backend format-value histogram (request-body-reachable schemas only): uuid(20),
 // int32(10), email(7), date(10), date-time(3), int64(2). `uuid` is handled separately (rewritten
 // to BARE_UUID_PATTERN, see inlineSchema) -- not in this set, since it never survives as `format`.
@@ -1481,6 +1572,10 @@ export function buildReconciliation({ filePath, module, pathPrefix = null, inclu
 		// A7: only schemes actually referenced by at least one copied sourceSecurity requirement --
 		// contracts/emit.mjs attaches this at the contract root when non-empty.
 		sourceSecuritySchemes: recon.sourceSecuritySchemes,
+		// D-unsupported-annotation-warning: computed once per document, not per-operation -- a
+		// module-wide presence signal, not a per-operation fact, so contracts/emit.mjs pushes at
+		// most one warning per keyword name for the whole module, not one per operation.
+		unsupportedAnnotations: findUnsupportedAnnotations(loaded.doc),
 	};
 }
 

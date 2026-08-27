@@ -90,6 +90,56 @@ test('the real batchRequestId fix: a plain-string path param value is rejected b
 	assert.equal(JSON.parse(afterValidate.stdout).ok, true, 'the identical real, valid value is now accepted');
 });
 
+// D-unsupported-annotation-warning
+test('a source document using a permanently-dropped schema keyword (title) raises CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT, subject = the keyword name, module-wide not per-operation', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true });
+	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root).code, 0);
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	const warning = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT');
+	assert.ok(warning);
+	assert.equal(warning.subject, 'title');
+	assert.equal(warning.severity, 'warn');
+});
+
+test('two DIFFERENT dropped keywords each get their own warning entry, but the SAME keyword appearing twice gets only one', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true, withResponses: true });
+	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
+	doc.components.schemas.CreateWidgetRequest.title = 'Create Widget Request (same keyword again)';
+	doc.components.schemas.WidgetResponse.properties.id.deprecated = true;
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root).code, 0);
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	const warnings = contract.warnings.filter((w) => w.code === 'CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT');
+	assert.equal(warnings.length, 2);
+	assert.deepEqual(warnings.map((w) => w.subject).sort(), ['deprecated', 'title']);
+});
+
+test('a document using none of the 5 dropped keywords never raises CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true, withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root).code, 0);
+	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
+	assert.equal(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT'), false);
+});
+
+test('the new warning never blocks the contract gate -- WARN severity, same as every other CONTRACT_OPENAPI_*_UNRESOLVED sibling', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true });
+	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
+	const docFile = writeOpenApiFixture(root, doc);
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(emit.code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+});
+
 test('contract emit is blocked before preflight has run', () => {
 	const root = buildFixtureRepo();
 	const emit = run(['contract', 'emit', '--feature', '001-whatever'], root);

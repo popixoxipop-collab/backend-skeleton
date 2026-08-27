@@ -105,6 +105,15 @@ export const WARNING_CODES = Object.freeze({
 	// this operation carries is unaffected, this is a missed (opt-in) enhancement, same severity
 	// class as its A7/A8 siblings.
 	CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED: { severity: SEVERITY.WARN, waivable: true },
+	// D-unsupported-annotation-warning: the source document uses a schema keyword (title/plural
+	// examples/externalDocs/xml/deprecated) this whole module unconditionally drops -- 0 real
+	// occurrences were ever measured on the one oracle these caps/keyword sets were built against,
+	// but a genuinely different real document can still use any of them. Module-wide, not
+	// per-operation (subject is the keyword NAME, not an operationId) -- contracts/openapi.mjs's
+	// findUnsupportedAnnotations() computes this once per document. WARN: nothing this projection
+	// already copies is affected, this is purely a disclosure that something in the source is
+	// silently unrepresented.
+	CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT: { severity: SEVERITY.WARN, waivable: true },
 });
 
 export const WARNING_CODE_NAMES = Object.freeze(Object.keys(WARNING_CODES));
