@@ -881,6 +881,72 @@ test('A10: operation-descriptions is an ANY-based derived omission -- present wi
 	assert.equal(exportedDoc(root3).doc.info['x-bskel-omitted'].includes('operation-descriptions'), false, 'every operation is source-described with the flag on -- the case that would be impossible if the list were a fixed disclaimer');
 });
 
+// --- A11: field-level description/example passthrough (D-openapi-field-docs) -------------------
+// Rides the SAME --descriptions flag as A10 -- no new flag, no sbf_contract bump, no new top-level
+// contract field: description/example live inside the already-`{"type":"object"}`-typed schema
+// blobs (requestBodySchema/responseSchema/etc.) export.mjs already copies through verbatim.
+
+test('A11: --descriptions copies field-level description/example into the exported requestBody schema, verbatim, and the result still validates against the official 3.1 meta-schema', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true });
+	doc.components.schemas.CreateWidgetRequest.properties.name.description = 'the widget name shown to customers.';
+	doc.components.schemas.CreateWidgetRequest.properties.name.example = 'Blue Widget';
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile, '--descriptions'], root).code, 0);
+	const { doc: exported } = exportedDoc(root);
+	const nameSchema = exported.paths['/api/v0/widgets'].post.requestBody.content['application/json'].schema.properties.name;
+	assert.equal(nameSchema.description, 'the widget name shown to customers.');
+	assert.equal(nameSchema.example, 'Blue Widget');
+	assertValidOpenApi(exported, 'an export with opt-in field-level description/example');
+});
+
+test('A11: without --descriptions, field-level description/example are never copied, even though the source document has them', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true });
+	doc.components.schemas.CreateWidgetRequest.properties.name.description = 'the widget name shown to customers.';
+	doc.components.schemas.CreateWidgetRequest.properties.name.example = 'Blue Widget';
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0); // no --descriptions
+	const { doc: exported } = exportedDoc(root);
+	const nameSchema = exported.paths['/api/v0/widgets'].post.requestBody.content['application/json'].schema.properties.name;
+	assert.equal('description' in nameSchema, false);
+	assert.equal('example' in nameSchema, false);
+});
+
+test('A11: field-descriptions is an ANY-based derived omission -- present without the flag, present with the flag when a schema field has none, absent only when every schema-bearing operation carries at least one field-level annotation', () => {
+	const withoutFlag = buildFixtureRepo();
+	initThroughScanDisposition(withoutFlag);
+	const docNoFlag = writeOpenApiFixture(withoutFlag, widgetOpenApiDoc({ withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docNoFlag], withoutFlag).code, 0);
+	assert.ok(exportedDoc(withoutFlag).doc.info['x-bskel-omitted'].includes('field-descriptions'), 'the flag was never passed');
+
+	const partial = buildFixtureRepo();
+	initThroughScanDisposition(partial);
+	const docPartial = widgetOpenApiDoc({ withResponses: true });
+	// createWidget's success schema gets a field annotation; its error schema and every other
+	// operation's schemas do not -- a genuine mix.
+	docPartial.components.schemas.WidgetResponse.properties.id.description = 'the widget id.';
+	const docPartialFile = writeOpenApiFixture(partial, docPartial);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docPartialFile, '--descriptions'], partial).code, 0);
+	assert.ok(exportedDoc(partial).doc.info['x-bskel-omitted'].includes('field-descriptions'), 'createWidget\'s errorSchema, and every other operation\'s response/error schemas, still have no field-level annotation even with the flag on');
+
+	const full = buildFixtureRepo();
+	initThroughScanDisposition(full);
+	const docFull = widgetOpenApiDoc({ withResponses: true });
+	docFull.components.schemas.WidgetResponse.properties.id.description = 'the widget id.';
+	docFull.components.schemas.ErrorResponse.properties.code.example = 'NOT_FOUND';
+	// Every operation (not just createWidget) needs a schema-bearing response for
+	// field-descriptions to be checkable at all -- same construction fixture C above already uses.
+	for (const item of Object.values(docFull.paths)) {
+		for (const operation of Object.values(item)) operation.responses = { 200: OK_RESPONSE, 400: ERR_RESPONSE };
+	}
+	const docFullFile = writeOpenApiFixture(full, docFull);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFullFile, '--descriptions'], full).code, 0);
+	assert.equal(exportedDoc(full).doc.info['x-bskel-omitted'].includes('field-descriptions'), false, 'every schema-bearing operation shares the same WidgetResponse/ErrorResponse components, both of which now carry a field-level annotation');
+});
+
 // --- A7: loadContract()'s friendly sbf_contract mismatch message -------------------------------
 
 // loadContract()'s pre-check is exercised through an UNGATED command (`contract tool-schema`, not

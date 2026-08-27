@@ -7153,13 +7153,141 @@ re-importing a `sourceDescription` is a straightforward byte-identical round tri
 purely an export-time/disclosure field, `contract validate` never reads it, matching A8's own
 `sourceResponses`/`sourceRequestBody` precedent exactly.
 
-**EXIT**: field-level `description`/`title`/`example` copying (the genuinely separate, much larger
-scope `field-descriptions` still names) remains unbuilt and unscoped -- no plan exists, named here
-as a permanent, deliberate gap rather than an oversight.
+**EXIT** (superseded by A11, D-openapi-field-docs): field-level `description`/`example` copying is
+now built -- see D-openapi-field-docs below. `title`, plural `examples`, `externalDocs`, `xml`, and
+`deprecated` remain unbuilt and unscoped (0 real occurrences of any of the five, measured against
+the Team-IZ-Backend oracle), named there as the permanent, deliberate remainder of this gap.
 
 Cross-references: `D-openapi-passthrough` (A7, the exact deferral this item builds on, and the
 `--path-prefix`-would-be-a-silent-no-op precedent `--descriptions` reuses); `D-openapi-per-status`
 (A8, both the STRUCTURAL-to-ANY-based omission migration and the "one genuinely independent failure
 needs its own new WARN code" reasoning this item follows); `D-openapi-path-params` (A9, the most
 recent sibling item, same `applyPassthrough()` call-site placement); `D-openapi-export` (A6, the
-`MAX_PATTERN_LENGTH`-style defensive-cap precedent this item's `MAX_DESCRIPTION_LENGTH` follows).
+`MAX_PATTERN_LENGTH`-style defensive-cap precedent this item's `MAX_DESCRIPTION_LENGTH` follows);
+`D-openapi-field-docs` (A11, which extends this item's own `--descriptions` flag one level deeper).
+
+## D-openapi-field-docs (A11): the same flag, one level deeper -- schema FIELD-level description/example
+
+**WHY:** A10 closed operation-level `description` but explicitly left `field-descriptions` (schema
+FIELD-level `description`/`title`/`example`, dropped as `contracts/openapi.mjs`'s
+`DROPPED_KEYWORDS` while inlining ANY schema) as a named, permanent-looking gap. User asked how big
+that gap actually was ("field-level description... 영구 구조적, 계획 없음?"); measuring first
+(this project's own Data-First Numerics discipline) rather than guessing showed it was neither
+uniformly real nor uniformly noise: `title`/plural `examples`/`externalDocs`/`xml`/`deprecated` each
+have **0 real occurrences** against the Team-IZ-Backend oracle (a from-scratch walk of every schema
+node in the 148-operation document), while `description` and `example` are both real and
+substantial. A haiku sub-agent independently sampled real `example` values (including two that
+looked suspicious in isolation -- a bare `409` and a bare `300`) and confirmed both are genuine,
+correctly-typed documentation (an HTTP status code and a retry-after-seconds value respectively),
+not noise -- the finding that justified building `example` alongside `description` rather than
+`description` alone.
+
+**What stays permanently unbuilt, and why**: `title`, plural `examples`, `externalDocs`, `xml`,
+`deprecated` -- zero real occurrences each, so building copy machinery for them would violate this
+project's own "don't build for zero real cases" discipline (the same discipline that already keeps
+`non-json-response-schemas`/`response-headers` structural in `contracts/export.mjs`). These five
+keep being unconditionally dropped inside `inlineSchema()`, in a renamed set: `DROPPED_KEYWORDS`
+still holds exactly these five (down from the pre-A11 seven); `description`/`example` move to a new
+`DOCUMENTATION_KEYWORDS` set that `inlineSchema()`'s caller can opt into.
+
+**Mechanism: reuses A10's own `--descriptions` flag, does not add a second one.** The flag already
+means "copy source-authored documentation prose when it exists"; field-level `description`/
+`example` is the identical policy one schema level deeper, not a distinct feature that needs its
+own opt-in. `inlineSchema(node, componentSchemas, opts)` gains `opts.includeFieldDocs` (default
+`false`, preserving every prior call's byte-for-byte behavior with no argument change); its
+existing keyword-walk loop gains one new branch: when `DOCUMENTATION_KEYWORDS.has(key)` and the
+flag is off, `continue` (silently dropped, identical to `DROPPED_KEYWORDS`'s own branch); when on,
+`description` is copied verbatim if it is a string under `MAX_DESCRIPTION_LENGTH` (**reusing A10's
+existing 40,000 constant** -- real field-level max observed 3,148 bytes, no new constant needed),
+and `example` is copied verbatim (any JSON type -- it is not string-only, per the real 409/300
+findings above) if `JSON.stringify(value).length` is under a new `MAX_EXAMPLE_LENGTH = 2000` (real
+max observed 70 serialized bytes, ~28x headroom). `reconcileModule()`'s existing `includeDescriptions`
+parameter is threaded through as `includeFieldDocs` into every one of `contracts/openapi.mjs`'s six
+`inlineSchema()` call sites: `applyRequestBodySchema`, `projectResponseSchemas` (called from both
+`applyResponseSchemas`'s response and error branches), `copyParameter` (via `applyParameters`),
+`applyPerStatusResponses`, `applyRequestMediaTypes`, and `applyPathParameterSchemas` -- the same
+"one flag, every schema-bearing call site" shape A2's own `inlineSchema()` already established, not
+a special case for any one of them.
+
+**A too-long field-level description/example is silently dropped, with NO new WARN code and NO
+stats counter -- deliberately different from A10's own operation-level handling.** Three reasons,
+stated rather than assumed: (a) dropping one annotation never affects validation correctness, unlike
+a genuinely unresolvable schema; (b) a single schema can carry dozens of documentable fields, so a
+per-field WARN would be unusably noisy compared to A10's one-per-operation signal; (c) this path
+never actually fires on real data (the real max is well under both caps) -- it exists purely as a
+defensive bound against a hostile or malformed `--openapi-file`, the same D-security-1/D-security-2
+class of concern every other unbounded-size field in this module already defends against, not a
+condition this project expects to observe.
+
+**A `$ref` sibling of `description`/`example` is tolerated, not merged -- unlike A7's own `default`
+precedent.** `walkSchemaNode()`'s `ref-with-siblings` tolerance check already special-cased
+`default` (A7: real, 9 occurrences, merged onto the resolved component schema) and unconditionally
+tolerated `DROPPED_KEYWORDS` members as harmless siblings. This item adds `DOCUMENTATION_KEYWORDS`
+to that same tolerance list -- a `$ref` alongside a sibling `description`/`example` no longer fails
+`ref-with-siblings` -- but, unlike `default`, does NOT merge the value onto the resolved schema:
+measured **0 real occurrences** of this exact combination (a `$ref` node carrying a sibling
+`description` or `example`) against the oracle, so no merge semantics were built for a case that
+does not exist, only tolerance for the shape itself (consistent with the zero-occurrence discipline
+above -- tolerating an empty case costs nothing; building merge logic for it would be speculative).
+
+**Verified against the real 148-operation Team-IZ-Backend oracle** (`reconcileModule()` called
+directly with a synthetic all-148-operations module, same technique A9/A10 used): with
+`includeDescriptions: true`, every one of the 148 operations carries at least one field-level
+`description` or `example` somewhere in its request/response/error/parameter/per-status/path-param
+schemas (recursive walk, correctly distinguishing a genuine annotation -- a string `description`
+sibling of `type` -- from a same-named DOMAIN FIELD, e.g. `findConceptCandidates`'s own real
+business property literally called `description`, which appears as `properties.description =
+{type:[...]}`, an object, never a string, and so is never miscounted). With the flag held at its
+default `false` against the identical document: **zero** field-level `description`/`example`
+appear anywhere in any schema -- confirming the opt-in default has zero effect until explicitly
+requested, the same regression check A10's own design rests on.
+
+**The theoretical A3 dedup/sources-count interaction does not fire on real data.** A3's
+`projectResponseSchemas()` deduplicates resolved schemas by canonical JSON to compute
+`responseSchemaSources`/`errorSchemaSources`, which gates A8's `schemaFrom` shortcut eligibility at
+`sources===1`; enabling field docs could in principle make two previously-identical-looking schemas
+become distinct (differing only in field-level `description`/`example`), inflating `sources` and
+changing which operations get the `schemaFrom` shortcut. Measured directly: running the full
+148-operation reconciliation with the flag on and off and diffing every operation's
+`responseSchemaSources`/`errorSchemaSources`/`schemaFrom` choice produces **zero** differences --
+the oracle's actual response/error component schemas are either genuinely shared (and their field
+docs, being on the shared component, stay identical across every operation that references them) or
+already distinct for other reasons. Documented as a self-consistent, real, but currently-inert
+possibility rather than either ignored or defended against with unneeded code.
+
+**Export-side disclosure**: `field-descriptions` is repurposed (same name, new ANY-based meaning,
+the identical migration pattern A10 used for `operation-descriptions`) rather than left permanently
+structural -- present in `info.x-bskel-omitted` whenever at least one operation's projected
+request-body/response/error schema (or the absence of any of the three) carries no field-level
+annotation, absent only when every schema-bearing operation carries at least one. A new,
+narrower structural entry, `field-metadata`, takes over describing the five permanently-dropped
+keywords. Not tracked separately: field docs inside per-status responses, non-JSON request media
+types, or path-parameter schemas -- those may carry them when the flag is on, but `collectOmissions()`
+only walks `requestBodySchema`/`responseSchema`/`errorSchema` (where real field docs are
+overwhelmingly concentrated -- ~98% of `description` occurrences sit in response schemas), a
+named, narrower scope rather than a silent gap.
+
+`sbf_contract` is **not** bumped, and `schemas/feature-contract.schema.json` is **unchanged** --
+unlike A7/A8/A9/A10, this item adds no new top-level operation field. `description`/`example` live
+INSIDE already-permitted `{"type": "object"}` schema blobs (`requestBodySchema`, `responseSchema`,
+etc.), which carry no nested schema-of-schemas validation, so there is nothing new for the contract
+meta-schema to whitelist. `contracts/validate.mjs`, `lib/gate-definitions.mjs`, `lib/verify.mjs`,
+and `.github/workflows/ci.yml` are all untouched (`git diff --stat` confirms) -- same reasoning as
+every prior passthrough-only slice. `bin/bskel.mjs`/`lib/cli.mjs` are also untouched: `--descriptions`
+already flows end-to-end from the CLI to `reconcileModule()` since A10, so this item needed no new
+flag plumbing at any layer above `contracts/openapi.mjs` itself.
+
+**EXIT**: the five permanently-dropped keywords (`title`, plural `examples`, `externalDocs`, `xml`,
+`deprecated`) remain a genuine, named, zero-measured-occurrence gap -- not revisited unless a future
+oracle measurement finds a real occurrence. Field docs inside per-status responses, non-JSON request
+media type schemas, and path-parameter schemas are copied (the same `includeFieldDocs` flag reaches
+all of them) but their presence is not separately reflected in `x-bskel-omitted`'s `field-descriptions`
+entry -- a named, narrower disclosure gap, not a functional one.
+
+Cross-references: `D-openapi-description` (A10, the exact `--descriptions` flag this item reuses,
+and the STRUCTURAL-to-ANY-based `field-descriptions`/`operation-descriptions` split this item
+continues one level further); `D-openapi-passthrough` (A7, the `default`-merge-onto-`$ref`
+precedent this item deliberately does NOT extend to `description`/`example`, and why);
+`D-openapi-per-status` (A8, the `schemaFrom`/`sources` dedup mechanism this item's own real-oracle
+verification confirms is unaffected in practice); `D-openapi-export` (A6, the `MAX_PATTERN_LENGTH`-
+style defensive-cap precedent `MAX_EXAMPLE_LENGTH` follows).

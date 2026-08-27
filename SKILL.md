@@ -452,6 +452,13 @@ bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <p
   #    closed (CONTRACT_OPENAPI_DESCRIPTION_UNRESOLVED, WARN, never blocks) only if the source's
   #    description exceeds a defensive length cap; --descriptions without --openapi-file is
   #    rejected the same way a lone --path-prefix already is (no effect on its own).
+  #
+  #    A11 (D-openapi-field-docs): the SAME --descriptions flag also copies a schema FIELD's own
+  #    `description`/`example` (a property's own annotation, not the operation's) one level deeper
+  #    into request-body/response/error/parameter/per-status/path-param schemas. `title`, plural
+  #    `examples`, `externalDocs`, `xml`, `deprecated` stay unconditionally dropped either way (0
+  #    real occurrences measured against the Team-IZ-Backend oracle) -- permanently unbuilt, not
+  #    just deferred.
 
 bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   # -> A6: the inverse of `--openapi-file`. Renders an already-emitted contract as a standalone
@@ -489,6 +496,14 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    the measured cost (real average 2,442.7 bytes/operation) is larger than every other field this
   #    projection copies combined. Copied verbatim only when the flag was passed AND the source
   #    document declared one for that exact operation AND it did not exceed a defensive length cap.
+  #
+  #    A11 (D-openapi-field-docs): a schema FIELD's own `description`/`example` is copied too, under
+  #    the same flag, one level deeper (a property's own annotation, distinct from A10's
+  #    operation-level `description`). `field-descriptions` in `x-bskel-omitted` now means exactly
+  #    this -- present whenever at least one exported operation's schemas carry no field-level
+  #    annotation; a new, narrower `field-metadata` entry covers the five keywords (`title`, plural
+  #    `examples`, `externalDocs`, `xml`, `deprecated`) that stay permanently, unconditionally
+  #    dropped regardless of the flag.
   #
   #    OpenAPI 3.1 ONLY, and deliberately not 3.0 even behind a flag: 3.0 requires `responses` on
   #    every operation (forcing a synthesized response), types exclusiveMinimum/exclusiveMaximum as

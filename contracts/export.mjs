@@ -23,10 +23,13 @@
 // (D-openapi-description) finally builds operation-level `description` -- the one field this whole
 // effort measured too expensive to default-on (2,442.7 bytes/operation average, larger than every
 // other field this projection copies combined) -- as the one source-backed field that is opt-in
-// (`contract emit --descriptions`) rather than default-on. Every omission is disclosed in prose
-// (`info.description`) and machine-readably (`info.x-bskel-omitted`) rather than papered over --
-// see D-openapi-export, D-openapi-passthrough, D-openapi-per-status, D-openapi-path-params, and
-// D-openapi-description in DECISIONS.md.
+// (`contract emit --descriptions`) rather than default-on. A11 (D-openapi-field-docs) extends the
+// SAME `--descriptions` flag one level deeper: schema FIELD-level `description`/`example` (a
+// property's own annotation, not the operation's), reusing the flag rather than adding a second
+// one. Every omission is disclosed in prose (`info.description`) and machine-readably
+// (`info.x-bskel-omitted`) rather than papered over -- see D-openapi-export, D-openapi-passthrough,
+// D-openapi-per-status, D-openapi-path-params, D-openapi-description, and D-openapi-field-docs in
+// DECISIONS.md.
 import { createHash } from 'node:crypto';
 import { BSKEL_GENERATED_EXTENSION, BSKEL_PASSTHROUGH_EXTENSION, PATH_PREFIX_RE, RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN, SUCCESS_STATUS_RE, ERROR_STATUS_RE, DEFAULT_STATUS_KEY } from './openapi.mjs';
 
@@ -72,17 +75,24 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 // `descriptions` entry in two: `operation-descriptions` moves out (opt-in via `--descriptions`, so
 // its presence is now content-AND-flag-conditional, same ANY-based doctrine), while
 // `field-descriptions` (schema-field-level `description`/`title`/`example`, dropped as
-// DROPPED_KEYWORDS while inlining ANY schema -- a genuinely different, permanently unbuilt gap, not
-// this item's scope) stays structural. What else stays structural: `vendor-extensions` (x-* keys on
-// an operation are never copied -- excluded in principle, not by cap or failure, since their
-// semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a non-JSON
+// DROPPED_KEYWORDS while inlining ANY schema) stays structural at that point. A11
+// (D-openapi-field-docs) splits `field-descriptions` again the same way: `description`/`example`
+// move OUT to the ANY-based set below (`--descriptions` now doubles as the field-level flag too,
+// keeping the `field-descriptions` NAME since that is still exactly what it describes -- only its
+// meaning moves from "never built" to "content-AND-flag-conditional"), while `title`/`examples`
+// (plural)/`externalDocs`/`xml`/`deprecated` move to a new, narrower structural entry
+// (`field-metadata`) -- measured 0 real occurrences each against the Team-IZ-Backend oracle, so
+// they stay permanently unbuilt on the same "don't build for zero real cases" grounds as the two
+// A8 entries below, not this item's scope. What else stays structural: `vendor-extensions` (x-*
+// keys on an operation are never copied -- excluded in principle, not by cap or failure, since
+// their semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a non-JSON
 // response media type's NAME is copied via a per-status entry's `mediaTypes`, but its SHAPE is never
 // projected -- 0/674 real occurrences, so building that machinery would violate this project's own
 // "don't build for zero real cases" discipline) and `response-headers` (response `headers`/`links`
 // -- 0/694 real occurrences, a genuinely visible gap only now that per-status responses look
 // complete).
 const STRUCTURAL_OMISSIONS = Object.freeze([
-	'field-descriptions',
+	'field-metadata',
 	'non-json-response-schemas',
 	'response-headers',
 	'vendor-extensions',
@@ -91,7 +101,8 @@ const STRUCTURAL_OMISSIONS = Object.freeze([
 const OMISSION_PROSE = Object.freeze({
 	'cookie-parameters': 'cookie parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'error-schemas': 'a JSON error-body schema for at least one operation',
-	'field-descriptions': 'field-level descriptions/titles/examples (contracts/openapi.mjs drops them as DROPPED_KEYWORDS while inlining a schema) -- a different, permanently unbuilt gap from the operation-level `description` field (see `operation-descriptions` below)',
+	'field-descriptions': 'a schema field\'s own `description`/`example` (a property\'s own annotation, distinct from the operation-level `description` field -- see `operation-descriptions` below), for at least one field in the request-body/response/error schema of at least one operation -- copied only when `contract emit --descriptions` was used (the same flag as operation-level description) AND the source declared one for that exact field AND it did not exceed the length/size cap; otherwise the field carries no `description`/`example` key, never synthesized. Not tracked separately for per-status responses, non-JSON request media types, or path-parameter schemas -- those may carry field docs when the flag is on, but their presence is not reflected in this specific omission entry',
+	'field-metadata': 'a schema field\'s `title`, plural `examples`, `externalDocs`, `xml`, or `deprecated` keyword -- dropped unconditionally while inlining a schema (contracts/openapi.mjs\'s DROPPED_KEYWORDS), regardless of `--descriptions`. Permanently unbuilt: 0 real occurrences of any of these five measured against the Team-IZ-Backend oracle',
 	'header-parameters': 'header parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'non-json-request-media-types': 'the media type of the request body, for at least one operation that takes one -- a non-application/json request media type is emitted only when a real source document declared one for that exact operation, copied byte-for-byte; otherwise this document shows a JSON media-type entry because that is all the contract knows, never because the real body is known to be JSON',
 	'non-json-response-schemas': 'a JSON Schema for any response body in a media type other than application/json -- the media type is named where a source document declared one for that status, but its shape is never projected',
@@ -110,6 +121,28 @@ const OMISSION_PROSE = Object.freeze({
 
 function hasSourceParamIn(op, loc) {
 	return Array.isArray(op.sourceParameters) && op.sourceParameters.some((p) => p.in === loc);
+}
+
+// A11: whether AT LEAST ONE node anywhere in this schema carries a copied `description`/`example`
+// -- deliberately the same coarse "presence, not completeness" doctrine `operation-descriptions`
+// already uses for `op.sourceDescription` (this cannot know, from the exported contract alone,
+// whether a field WITHOUT one had none in the source or was simply never reached with the flag
+// off; it only discloses whether ANY field-level annotation survived at all). `seen` guards the
+// same delete-on-exit-shaped cycle risk inlineSchema() itself defends against -- belt-and-braces,
+// since a contract's own schemas are already acyclic by construction, but this walk is generic over
+// whatever JSON shape ends up in a contract field.
+function schemaHasFieldDocs(node, seen = new Set()) {
+	if (node === null || typeof node !== 'object' || Array.isArray(node) || seen.has(node)) return false;
+	seen.add(node);
+	if (typeof node.description === 'string' || Object.hasOwn(node, 'example')) return true;
+	if (node.properties && typeof node.properties === 'object' && !Array.isArray(node.properties)) {
+		for (const propSchema of Object.values(node.properties)) {
+			if (schemaHasFieldDocs(propSchema, seen)) return true;
+		}
+	}
+	if (node.items && typeof node.items === 'object' && schemaHasFieldDocs(node.items, seen)) return true;
+	if (node.additionalProperties && typeof node.additionalProperties === 'object' && schemaHasFieldDocs(node.additionalProperties, seen)) return true;
+	return false;
 }
 
 // Derived from the contract's ACTUAL content, not hardcoded -- an operation that takes a body but
@@ -155,6 +188,14 @@ export function collectOmissions(contract) {
 		// always trips until the flag is used), the source had none for this operation, or it
 		// exceeded the length cap.
 		if (!op.sourceDescription) omissions.add('operation-descriptions');
+		// A11: schema field-level description/example -- ANY-based, same doctrine as
+		// response-schemas/error-schemas just above: added whenever NONE of this operation's
+		// projected schemas carry a field-level annotation, including the (common) case where the
+		// operation has no projected schema at all to carry one -- same "absence of the whole class
+		// is itself disclosed" posture response-schemas/error-schemas already take unconditionally,
+		// not gated on whether a schema exists first.
+		const fieldSchemas = [op.requestBodySchema, op.responseSchema, op.errorSchema].filter(Boolean);
+		if (!fieldSchemas.some((s) => schemaHasFieldDocs(s))) omissions.add('field-descriptions');
 	}
 	return [...omissions].sort();
 }
