@@ -30,6 +30,7 @@ import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contrac
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
+import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
 import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
@@ -75,7 +76,7 @@ function usage() {
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
-  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff]
+  bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
@@ -1872,6 +1873,20 @@ function cmdHandlesEmit(args) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel handles emit --force requires --reason "..." -- every overwrite of diverged generated code must be auditable');
 	}
 
+	// O3 (D-handle-registry-enforcement): repo-wide, singleton state -- read BEFORE provider.emit()
+	// (which loads its own, separate in-memory copy for `files` tracking) so an omitted flag
+	// reuses whatever this repo's own manifest last recorded, rather than silently defaulting to
+	// off. --enforce-registry off requires --reason ONLY when it's a REAL downgrade (currently on)
+	// -- reaffirming an already-off value, or turning it on, never needs one.
+	const priorManifest = loadManifest(root);
+	if (flags['enforce-registry'] !== null && flags['enforce-registry'] !== 'on' && flags['enforce-registry'] !== 'off') {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--enforce-registry must be "on" or "off" (got "${flags['enforce-registry']}")`);
+	}
+	const enforceRegistry = flags['enforce-registry'] === null ? priorManifest.enforceRegistry : flags['enforce-registry'] === 'on';
+	if (flags['enforce-registry'] === 'off' && priorManifest.enforceRegistry === true && (!flags.reason || !flags.reason.trim())) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel handles emit --enforce-registry off requires --reason "..." when registry enforcement was previously on -- every downgrade of a security posture must be auditable');
+	}
+
 	// Handles are only emitted for a feature whose contract has actually been established --
 	// codegen against a feature nobody has scanned/contracted yet has nothing real to route to.
 	const contractResult = requireNamedGate(root, 'contract', flags.feature);
@@ -1905,8 +1920,21 @@ function cmdHandlesEmit(args) {
 	// does, without requiring both flags together.
 	const dryRun = flags.check || flags.diff;
 	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = provider.emit({
-		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff,
+		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff, enforceRegistry,
 	});
+
+	// O3 (D-handle-registry-enforcement): persisted whenever the effective value actually changed
+	// on a real (non-dryRun) run -- deliberately NOT gated on `blocked` below: O2's own "infra is
+	// one all-or-nothing unit" rule means global/handle/* (including HandleController.java.tmpl/
+	// router.py.tmpl) either all wrote together or none did, independent of a SEPARATE resolver
+	// file conflicting -- the manifest should track what ACTUALLY landed on disk, not the overall
+	// command's exit code. Re-reads the manifest fresh rather than reusing `priorManifest`, since
+	// provider.emit() above may have just updated its own `files` tracking via a separate
+	// loadManifest()/saveManifest() pair inside handles/_engine.mjs.
+	if (!dryRun && enforceRegistry !== priorManifest.enforceRegistry) {
+		const freshManifest = loadManifest(root);
+		saveManifest(root, { ...freshManifest, enforceRegistry });
+	}
 	// D4: found live while grounding this against a real fixture -- `written` (pre-existing field,
 	// unchanged semantics) unconditionally includes a java-spring `outputs.spec` file like
 	// migration.sql even when its content is byte-identical (P4 already found this: it's never

@@ -15,7 +15,7 @@ export const provider = {
 	requiresCapabilities: ['resource.fetch'],
 	outputs: { spec: ['handles/migration.sql'] },
 	plan,
-	emit({ repoRoot, featureId, plan: handlesPlan, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false }) {
-		return emitJavaSpring({ repoRoot, featureId, plan: handlesPlan, basePackage: handlesPlan.basePackage, resourceFilter, force, reason, dryRun, computeDiff });
+	emit({ repoRoot, featureId, plan: handlesPlan, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false, enforceRegistry = false }) {
+		return emitJavaSpring({ repoRoot, featureId, plan: handlesPlan, basePackage: handlesPlan.basePackage, resourceFilter, force, reason, dryRun, computeDiff, enforceRegistry });
 	},
 };

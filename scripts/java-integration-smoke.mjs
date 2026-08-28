@@ -127,7 +127,32 @@ try {
 	fail(`./gradlew test failed (exit ${err.status}) -- see output above`);
 }
 
-console.log('java-integration-smoke: PASS -- the full handle lifecycle ran for real against a real Postgres.');
+console.log('java-integration-smoke: PASS -- the full handle lifecycle ran for real against a real Postgres (registry enforcement OFF, the default).');
+
+// O3 (D-handle-registry-enforcement): a SEPARATE phase, not a second assertion inside the same
+// test class -- ENFORCE_REGISTRY is baked in at `handles emit` time as a compile-time constant,
+// not runtime-configurable, so exercising the enforced posture genuinely needs a second `handles
+// emit` + recompile, not a flag flipped mid-JVM. Reuses the same scratch repo/Postgres -- the
+// schema (sbf_handle/sbf_handle_snapshot/widgets) is unchanged; only HandleController.java is
+// re-rendered.
+console.log('java-integration-smoke: re-emitting with --enforce-registry on...');
+r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--enforce-registry', 'on'], scratch);
+if (r.code !== 0) fail(`handles emit --enforce-registry on: ${r.stderr || r.stdout}`);
+
+console.log('java-integration-smoke: clearing widget/handle rows for a clean enforcement-phase run...');
+const resetClient = new Client({ connectionString });
+await resetClient.connect();
+await resetClient.query('delete from sbf_handle_snapshot; delete from sbf_handle; delete from widgets');
+await resetClient.end();
+
+console.log('java-integration-smoke: running the real @SpringBootTest suite (./gradlew test) with registry enforcement ON...');
+try {
+	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.handle.HandleRegistryEnforcementIntegrationTest', '--console=plain'], scratch, { env: testEnv });
+} catch (err) {
+	fail(`./gradlew test (enforcement ON) failed (exit ${err.status}) -- see output above`);
+}
+
+console.log('java-integration-smoke: PASS -- registry enforcement genuinely gates fetch()/patch() for real, against a real Postgres.');
 
 console.log('java-integration-smoke: cleaning up...');
 const cleanupClient = new Client({ connectionString });

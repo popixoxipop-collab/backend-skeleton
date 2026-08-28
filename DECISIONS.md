@@ -7946,3 +7946,114 @@ provider); `D-docker-postgres-stack` (S6, the same real-Docker-Postgres verifica
 reused here); `D-generic-grep-reconnaissance`/`D-javascript-express-adapter` (G3/G6, the
 "investigate for real before building, and say so when you don't build something" precedent this
 item's own EXIT section follows).
+
+## D-handle-registry-enforcement (O3, part 2 of 2): opt-in enforcement, and a real bootstrapping constraint found only by actually running it
+
+**WHY:** The other half of O3's own catalog text. `HandleController.fetch()`/`patch()`
+(java-spring) and `router.py.tmpl`'s `fetch_handle`/`patch_handle` (python-fastapi) never queried
+`HandleRegistry`/`sbf_handle` at all -- only `/handles/{handle}/recover` did (D-security-9's own
+cross-check). Calling `HandleService.revoke()` had **zero effect** on whether a handle could still
+be fetched or patched, only on whether its history could be recovered. This closes that gap by
+reusing `recover()`'s own cross-check for `fetch()`/`patch()` too, gated behind a new opt-in
+codegen flag so existing generated code for current adopters never silently changes behavior.
+
+**Mechanism.** `--enforce-registry on|off` at `bskel handles emit` time bakes a runtime constant
+into the shared infra file (`private static final boolean ENFORCE_REGISTRY = {{ENFORCE_REGISTRY}};`
+in Java, a module-level `ENFORCE_REGISTRY = {{ENFORCE_REGISTRY}}` in Python -- `lib/template.mjs`
+is pure `{{VAR}}` substitution with no conditionals, so a build-time code branch isn't available;
+a runtime-checked constant matches the existing precedent `contractRef()`/`featureUid()` already
+set). `recover()`'s inline filter chain is extracted into a shared `requireRegisteredOrThrow()`
+(`_require_registered_or_404()` in Python) that `recover()` now calls unconditionally (it
+structurally needs a registry row to find a snapshot's primary key -- there is no "unenforced"
+mode for it) and `fetch()`/`patch()` call only `if (ENFORCE_REGISTRY)`. Scope: java-spring and
+python-fastapi only -- `typescript-express` has no `HandleRegistry` table at all (G5's own
+documented 1st-slice gap), so registry enforcement structurally does not apply there.
+
+**Persistence, a safety concern this design surfaces that didn't exist before.** `global/handle/*`
+is repo-wide singleton infra (O2's own "one all-or-nothing unit" framing), re-rendered on every
+`handles emit` run -- omitting `--enforce-registry` on a later run would silently revert a
+previously-enabled protection back to the codegen default (`off`) if nothing remembered the
+choice; O2's own manifest only detects *hand-edited* divergence, not *"regenerated with different
+flags than last time,"* so it would not catch this. Fixed by extending the already-repo-scoped
+`.sbf/handles-manifest.json` (`lib/handles-manifest.mjs`) with one new top-level `enforceRegistry`
+field (additive, no schema bump -- a manifest written before this existed simply reads as `false`,
+its correct historical value). Omitting the flag reuses the manifest's last value; an explicit
+`on`→`off` transition requires `--reason "..."` (reusing `--force`'s existing `--reason` flag
+rather than adding a second audited-override mechanism), mirroring this project's own
+`--force --reason`/`gate force --reason` convention for other deliberate security-posture
+downgrades. Persistence happens right after `provider.emit()` returns, gated only on `!dryRun` --
+deliberately NOT gated on the overall command's `blocked` verdict, since O2's all-or-nothing rule
+means infra either all wrote together or none did, independent of a separate resolver file
+conflicting; the manifest should track what actually landed on disk, not the command's exit code.
+
+**A real design flaw found only by actually running the generated code, not by reasoning about
+it.** The first cut of `requireRegisteredOrThrow()` mirrored `recover()`'s ORIGINAL D-security-9
+shape exactly: an exact match on the requested handle's own `(kind, pointer)`, not just its type.
+A real `@SpringBootTest` run against a real disposable Postgres caught this immediately: a fresh
+widget's very first field-level (`kind=f`) PATCH 404'd even with a correctly-authored test
+expecting `HandleAspect`'s auto-registration to make it succeed. Root cause, confirmed by reading
+`HandleAspect.record()` directly: it **always** calls `HandleService.register("r", ..., null,
+...)` -- the whole-resource row -- regardless of which handle actually triggered it; a field
+handle's own derived UID is never separately registered by anything automatic. Requiring an exact
+match therefore made every fresh resource's first field-level PATCH structurally impossible under
+enforcement: the registry check runs *before* `resolver.patchField()`/`patch_field()` is ever
+called, and registration only happens as a side effect of that call succeeding -- a genuine
+circular dependency, not a flag or ordering bug. **Fix**: `requireRegisteredOrThrow()` always
+looks up the PARENT RESOURCE's own row (`kind=r, pointer=null`), regardless of the requested
+handle's own `kind`/`pointer` -- `resourceType` is still exactly cross-checked (the real
+D-security-9 protection: an attacker-controlled `type` can't claim a different, more sensitive
+resource's registration by UUID coincidence), but `kind`/`pointer` are not, since every real
+registration in this whole system is resource-level. This is the semantically correct model, not
+merely a workaround: revocation is inherently a resource-level concept (`HandleService.revoke()`
+takes one `handleUid` representing the whole resource), matching how `fetch()`'s own `kind=f` path
+already fetches the WHOLE resource and narrows client-side with a pointer, never treating a field
+as its own separately-trusted object.
+
+**A second, real, structural finding that survives even the fix above, documented rather than
+engineered around**: a resource that has NEVER been registered by any means still cannot bootstrap
+its own first field-level PATCH under enforcement, even after the parent-lookup fix -- the
+registration is a side effect of a call the registry check itself gates, so there is no path for a
+truly first-ever interaction to succeed on its own. A real target app adopting
+`--enforce-registry on` alongside `@RecordHandleSnapshot` must call `HandleService.register()`
+explicitly at least once per resource (e.g. from its own create-flow) before ANY enforced
+fetch/patch against that resource can succeed; after that first registration (by any means --
+explicit call, or a legitimate `kind=r` interaction that itself doesn't need bootstrapping since
+`HandleAspect` registers before dispatching in that path), the aspect's own automatic
+re-registration on every subsequent call keeps the row fresh for free. This is a real integration
+requirement to document plainly for anyone turning this flag on, not something either provider
+silently works around.
+
+**Verified end-to-end, not just structurally.** A cached local Gradle 8.8 distribution (found under
+`~/.gradle/wrapper/dists`, run under JDK 17 -- the system default JDK 26 is too new for Gradle 8.8's
+own class-file-version ceiling) made a genuinely running `@SpringBootTest` + real disposable
+Postgres possible in this environment after all (Part 1's own DECISIONS.md entry noted this
+wasn't available; it was, once actually looked for). `scripts/java-integration-smoke.mjs` gained a
+second phase: after the existing `HandleLifecycleIntegrationTest` passes with enforcement OFF (the
+default -- confirming this item introduces zero behavior change for existing adopters), a real
+`bskel handles emit --feature ... --enforce-registry on` re-emits the infra, the same real Postgres
+tables are cleared for a clean phase, and a new `HandleRegistryEnforcementIntegrationTest` proves,
+against a genuinely running app: an unregistered handle 404s, a registered non-revoked handle
+fetches fine, a registered-then-revoked handle 404s (revocation genuinely has an effect for the
+first time), and a field-level PATCH on an ALREADY-registered resource succeeds via the
+parent-resource lookup while the aspect's own refresh-registration on top doesn't break it. The
+first version of this last test (assuming auto-registration could bootstrap a never-touched
+resource) genuinely failed for real, twice, against the two design iterations described above,
+before being corrected to test the actually-achievable scenario -- not adjusted to make a false
+claim pass.
+
+**EXIT**: no automatic way to detect "this resource has never been registered" and warn proactively
+-- `bskel doctor`/`handles audit` (O7) could theoretically report this, but doing so would need
+live target-app database access at doctor-time, a larger scope than this item's own; left as a
+named gap for a future item, not silently unaddressed. No dual-mode "enforce for kind=r only, not
+kind=f" flag -- the bootstrapping constraint applies identically to both, and splitting the
+enforcement granularity would add real complexity for a distinction the parent-lookup design
+already collapses correctly.
+
+Cross-references: `D-handle-uid-type-binding` (O3 part 1, the type-bound derivation this item's
+own enforcement checks depend on being collision-safe); `D-handle-lifecycle` (O4,
+`HandleAspect.record()`'s exact auto-registration call this item's own bootstrapping finding
+traces back to, and the `recover()` D-security-9 shape this item both reuses and corrects);
+`D-handles-ownership` (O2, the manifest this item extends and the "infra is one all-or-nothing
+unit" framing its persistence logic relies on); `D-handle-audit-report` (O7, the live-query
+precedent and the honest "this reports what was opted into" posture this item's own bootstrapping
+requirement echoes).

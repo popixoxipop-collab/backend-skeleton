@@ -106,7 +106,7 @@ function writeUnit(target, content) {
 // featureId/module/resourceFilter) -- never a blanket, unscoped force. `resourceFilter` (the same
 // array plan() was called with, or null) turns off orphan detection when non-null, since a scoped
 // run would otherwise report every OTHER resource's resolver as orphaned.
-export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false }) {
+export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false, enforceRegistry = false }) {
 	const javaSrcRoot = path.join(repoRoot, 'src', 'main', 'java', ...basePackage.split('.'));
 
 	// A3 (D-patch-strategy): loaded/detected once per emit call -- approvals are feature-scoped
@@ -120,7 +120,11 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 		id: f.template,
 		templatePath: path.join(TEMPLATES_DIR, f.template),
 		targetAbs: path.join(javaSrcRoot, f.target),
-		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage }),
+		// O3 (D-handle-registry-enforcement): ENFORCE_REGISTRY only appears in
+		// HandleController.java.tmpl -- applied to every infra file uniformly anyway, matching
+		// how BASE_PACKAGE/JACKSON_PACKAGE already do (render()'s replaceAll is a harmless no-op
+		// for a token absent from a given template, e.g. JACKSON_PACKAGE inside HandleCodec.java.tmpl).
+		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage, ENFORCE_REGISTRY: String(enforceRegistry) }),
 	}));
 
 	// O4 (D-handle-lifecycle): every resource in THIS feature shares the same contract file and

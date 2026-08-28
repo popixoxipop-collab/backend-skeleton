@@ -124,14 +124,24 @@ test('handles plan finds the Widget entity, its fetch operation, and its service
 	assert.equal(gateResult.code, 0);
 });
 
-// D-security-9 regression: HandleController.java's recover() must cross-check the decoded
-// type/kind/pointer against the HandleRegistry row for the derived handleUid (and reject a
-// revoked one), not look up snapshots by handleUid alone. Reproduces via static content
-// assertions on the emitted file -- there's no JVM in this test suite to actually run the
-// generated code against, but the fixed shape of the source is directly checkable, and the
-// pre-fix shape (registry consulted only for contractRef, without any equality check against
-// decoded.type()/kind()/pointer()) is exactly what these assertions would have failed against.
-test('handles emit writes a recover() that validates the registry row before returning a snapshot', () => {
+// D-security-9 regression, updated by O3 (D-handle-registry-enforcement): HandleController.java's
+// recover() must cross-check the decoded resourceType against the HandleRegistry row for the
+// PARENT RESOURCE's derived handleUid (and reject a revoked one), not look up snapshots by
+// handleUid alone. Reproduces via static content assertions on the emitted file -- there's no JVM
+// in this test suite to actually run the generated code against, but the fixed shape of the
+// source is directly checkable, and the pre-fix shape (registry consulted only for contractRef,
+// without any equality check against decoded.type()) is exactly what these assertions would have
+// failed against.
+//
+// O3 found live (a real integration-test failure, not assumed) that the ORIGINAL D-security-9
+// shape -- requiring an EXACT match on kind/pointer, not just type -- made a fresh resource's very
+// first field-level (kind=f) PATCH structurally impossible once registry enforcement (part 2)
+// existed: HandleAspect only ever auto-registers the WHOLE-RESOURCE (kind=r) row, never a
+// field-specific one, so an exact-match lookup could never find it. The corrected design always
+// looks up the PARENT resource's row (kind=r, pointer=null) regardless of the requested handle's
+// own kind/pointer -- resourceType is still exactly cross-checked (the real D-security-9
+// protection), but kind/pointer are not, since every real registration is resource-level.
+test('handles emit writes a recover() that validates the PARENT resource\'s registry row before returning a snapshot', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);
 	run(['handles', 'emit', '--feature', '001-widget-management'], root);
@@ -139,20 +149,25 @@ test('handles emit writes a recover() that validates the registry row before ret
 	const controllerPath = path.join(root, 'src/main/java/com/example/global/handle/HandleController.java');
 	const content = fs.readFileSync(controllerPath, 'utf8');
 
-	// The registry lookup must happen BEFORE the snapshot query, and must actually be assigned
-	// (not discarded) so it can gate access.
-	const registryLookupIdx = content.indexOf('handleRegistryRepository.findById(handleUid)');
-	const snapshotQueryIdx = content.indexOf('handleSnapshotRepository.findByHandleUidOrderByRecordedAtDesc(handleUid)');
-	assert.ok(registryLookupIdx >= 0, 'must look up the HandleRegistry row for this handleUid');
+	// recover() calls the shared requireRegisteredOrThrow() helper BEFORE the snapshot query, and
+	// actually uses its result (registry.getHandleUid()) so it can gate access.
+	const recoverIdx = content.indexOf('public ResponseEntity<?> recover(');
+	const registryCallIdx = content.indexOf('requireRegisteredOrThrow(decoded)', recoverIdx);
+	const snapshotQueryIdx = content.indexOf('handleSnapshotRepository.findByHandleUidOrderByRecordedAtDesc(handleUid)', recoverIdx);
+	assert.ok(registryCallIdx >= 0 && registryCallIdx > recoverIdx, 'recover() must call requireRegisteredOrThrow(decoded)');
 	assert.ok(snapshotQueryIdx >= 0);
-	assert.ok(registryLookupIdx < snapshotQueryIdx, 'registry must be validated before snapshots are fetched');
+	assert.ok(registryCallIdx < snapshotQueryIdx, 'registry must be validated before snapshots are fetched');
 
-	// The three fields a type-confused handle could disagree on, each checked.
+	// requireRegisteredOrThrow() itself: looks up the PARENT resource's derived handle_uid
+	// (kind="r", pointer=null -- NOT decoded.kind()/decoded.pointer()), cross-checks resourceType,
+	// and rejects a revoked row.
+	assert.match(content, /HandleCodec\.deriveHandleUid\("r", decoded\.type\(\), decoded\.uuid\(\), null\)/);
 	assert.match(content, /getResourceType\(\)\.equals\(decoded\.type\(\)\)/);
-	assert.match(content, /getKind\(\)\.equals\(decoded\.kind\(\)\)/);
-	assert.match(content, /Objects\.equals\(r\.getPointer\(\), decoded\.pointer\(\)\)/);
-	// A revoked handle must not be recoverable.
 	assert.match(content, /!r\.isRevoked\(\)/);
+	// The exact-match kind/pointer checks were the ORIGINAL D-security-9 shape -- deliberately
+	// gone now, confirming the fix actually took (not just that the new checks were added
+	// alongside the old, stricter-than-necessary ones).
+	assert.ok(!content.includes('getKind().equals(decoded.kind())'), 'the exact-kind cross-check must be gone -- every real registration is resource-level (kind=r), so requiring it would 404 every field handle');
 });
 
 // D-security-10 regression: patch() must check kind == "f" explicitly, not infer "this is a

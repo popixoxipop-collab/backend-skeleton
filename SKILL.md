@@ -672,7 +672,7 @@ bskel handles plan --feature <id> [--module <name>] [--resource Type1,Type2]
   #    If any of these is missing, says so and will not generate a broken (or unsafe) stub for
   #    that entity.
 
-bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--force --reason "..."]
+bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--force --reason "..."] [--enforce-registry on|off [--reason "..."]]
   # -> requires the `contract` gate to have passed. Dispatches to the codegen PROVIDER matching the
   #    scan report's adapter (G4, D-handles-providers) -- output shape is provider-specific:
   #
@@ -704,6 +704,24 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--
   #    changes -- force only ever overwrites content already recoverable from git history). A
   #    resolver a feature no longer generates (e.g. after a service-signature change) is reported
   #    as an orphan and left untouched, never deleted -- suppressed entirely under --resource.
+  #
+  #    O3 (D-handle-registry-enforcement): --enforce-registry on|off (java-spring/python-fastapi
+  #    only -- typescript-express has no HandleRegistry table). Bakes a runtime constant gating a
+  #    shared registry cross-check (the same one recover() already always runs) into fetch()/
+  #    patch() too -- default OFF, so existing generated code for current adopters never silently
+  #    changes behavior. Persisted in .sbf/handles-manifest.json (new enforceRegistry field) --
+  #    omitting the flag on a later emit reuses the last value, never silently reverting a
+  #    previously-enabled protection; a real on->off downgrade requires --reason "...". Looks up
+  #    the PARENT RESOURCE's own registry row regardless of the requested handle's own kind/
+  #    pointer (resourceType is still exactly cross-checked) -- a field-level (kind=f) handle is
+  #    NEVER separately registered by anything automatic, only the whole-resource (kind=r) row is,
+  #    via HandleAspect's opt-in auto-registration. Real, load-bearing constraint, not an
+  #    implementation detail to discover the hard way: a resource that has NEVER been registered
+  #    by any means (an explicit HandleService.register() call, typically from the target app's
+  #    own create-flow) cannot bootstrap its own first enforced fetch/patch on its own -- the
+  #    registration only happens as a side effect of a call the registry check itself gates.
+  #    Verified against a genuinely running @SpringBootTest app + real disposable Postgres, not
+  #    just structurally -- see D-handle-registry-enforcement in DECISIONS.md.
 
 bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
   #    O7 (D-handle-audit-report): a live, read-only query over sbf_handle/sbf_handle_snapshot --
