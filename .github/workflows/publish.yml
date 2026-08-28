@@ -40,6 +40,12 @@ jobs:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
+      # Found live on this workflow's first real run: `npm test` shells out to `rg` directly
+      # (throws, not degrades, without it -- same requirement ci.yml's own `test` job installs
+      # this for) and ubuntu-latest does NOT ship it preinstalled. 263 unrelated-looking test
+      # failures (`Command failed: which rg`) before this was added.
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       # Trusted publishing needs npm >= 11.5.1 -- not guaranteed to be what setup-node's bundled
       # npm version happens to be, so pinned to latest explicitly rather than hoping.
       - run: npm install -g npm@latest
