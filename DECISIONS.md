@@ -8336,3 +8336,59 @@ repo... a real target is a monorepo" design this item brings java-spring.mjs up 
 `_express-shared.mjs`'s own "deliberately narrow, byte-identical only" scoping rule this item respects
 by moving the genuinely-shared-across-THREE-adapters pieces out to `text-util.mjs` rather than
 widening `_express-shared.mjs` itself to cover a non-Express adapter).
+
+## D-npm-publish-oidc: automated npm publishing, and a real npm 11→12 breaking change found by actually running it
+
+**WHY:** manual `npm publish` for the `1.0.0-beta.4` release (27 commits, including 3 real bug
+fixes, accumulated since `beta.3`) repeatedly failed from this environment -- both the interactive
+WebAuthn/OTP flow and a fresh access token hit `npm error code EOTP`/`E404`, the OTP approval never
+completing inside npm's polling window. npmjs.com's own account-settings UI was, independently,
+already steering users toward OIDC "Trusted Publishing" and away from 2FA-bypass tokens ("npm
+tokens that bypass 2FA are being restricted"). New `.github/workflows/publish.yml`,
+`workflow_dispatch`-only (this project's release cadence is a manual, reviewed
+`chore(release): bump version to ...` commit, not automatic publish-on-merge -- see `git log`
+-- so an automatic trigger would be a materially different, unrequested release policy). No
+`NPM_TOKEN`/`NODE_AUTH_TOKEN` anywhere in the workflow: `permissions: id-token: write` plus a
+one-time manual npmjs.com configuration (`backend-skeleton` package -> Publishing access ->
+Trusted Publisher -> GitHub Actions, `popixoxipop-collab/backend-skeleton`, workflow filename
+`publish.yml`, no environment -- this step has no CLI/API equivalent, done by the user directly)
+is what lets `npm publish` obtain a short-lived registry token via OIDC token exchange, plus real
+provenance attestation `--provenance` a long-lived token could never provide.
+
+**Two real failures on the first two live runs, both found by actually executing the workflow, not
+by inspection -- matching this whole session's own "verify with real execution" discipline:**
+
+1. **Run 1** (`33141455812`): `npm test` failed with 263 unrelated-looking failures, all tracing
+   to one cause: `Command failed: which rg`. `publish.yml` was a brand-new workflow file that never
+   inherited the `install ripgrep` step `ci.yml`'s own `test` job already has (`ubuntu-latest` does
+   not ship it preinstalled) -- the exact same regression class W7 already hit once in `ci.yml`
+   itself, reproduced here because a NEW workflow file didn't carry the lesson forward. `npm
+   publish` never ran -- the job failed before reaching that step, no registry impact. Fixed by
+   adding the same step.
+2. **Run 2** (`33142143983`), after the ripgrep fix: `npm test` failed with 5 failures, all in
+   `test/package-manifest.test.mjs`, all `TypeError: object is not iterable` inside `packManifest()`.
+   Root cause, confirmed by directly invoking a pinned newer npm (`npx -y npm@12.0.2 pack --dry-run
+   --json`), not guessed: `npm pack --json`'s own top-level output shape changed between npm 11 and
+   npm 12 -- an array (`[ { files: [...] } ]`) on <12, a single object keyed by package name
+   (`{ "backend-skeleton": { files: [...] } }`) on >=12. `packManifest()` destructured the first
+   array element unconditionally, which had always been correct against this project's own dev
+   machine's npm (11.19.0) until `publish.yml`'s own `npm install -g npm@latest` step (needed for
+   OIDC trusted-publishing support) pulled the genuinely newer major version for the first time.
+   Fixed by handling both shapes (`Array.isArray(parsed) ? parsed[0] : Object.values(parsed)[0]`),
+   verified against BOTH real npm versions locally (a scoped `PATH` shim invoking `npx -y
+   npm@12.0.2` for one test run, confirming both branches actually execute and pass), not just the
+   newly-broken one -- this is a real forward-compatibility fix for any local dev machine that
+   eventually upgrades npm too, not just a CI-config workaround.
+
+**EXIT**: `npm install -g npm@latest` inside the workflow is left as-is (not pinned to a specific
+version) -- deliberately, since pinning would mean this workflow silently drifts stale against
+npm's own OIDC trusted-publishing feature requirements over time, and the real problem this item
+found (a test assuming one JSON shape) is now fixed at its actual source rather than papered over
+by freezing the npm version. If npm's `pack --json` shape changes again in some future major
+version, `test/package-manifest.test.mjs` failing loudly (as it did here) is the correct, desired
+outcome -- not something to design away.
+
+Cross-references: the `macos`/W7 jobs' own `install ripgrep` precedent (`D-macstudio-ci-runners`,
+the same regression class this item's Run 1 failure repeats in a new workflow file); `D-fixture-corpus`
+(P3, `test/package-manifest.test.mjs`'s own original P1/`D-npm-packaging` authoring, the `files`
+allowlist this item's tests still guard, unchanged by this fix).
