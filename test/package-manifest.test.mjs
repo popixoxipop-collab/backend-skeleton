@@ -15,9 +15,18 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
 
+// D-npm-publish-oidc: `npm pack --dry-run --json`'s own top-level shape changed in npm 12 --
+// found live, via a real `workflow_dispatch` failure, not anticipated: npm <12 returns an array
+// (`[ { files: [...] } ]`), npm >=12 returns a single object keyed by package name
+// (`{ "backend-skeleton": { files: [...] } }`), confirmed directly against a real npm@12.0.2
+// invocation (`npx -y npm@12.0.2 pack --dry-run --json`). This repo's own dev machine and this
+// repo's own npm-publish workflow (which explicitly runs `npm install -g npm@latest` for OIDC
+// trusted-publishing support) can legitimately be on either side of that line at different times,
+// so both shapes are handled rather than assuming one.
 function packManifest() {
 	const out = execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: REPO_ROOT, encoding: 'utf8' });
-	const [entry] = JSON.parse(out);
+	const parsed = JSON.parse(out);
+	const entry = Array.isArray(parsed) ? parsed[0] : Object.values(parsed)[0];
 	return entry.files.map((f) => f.path);
 }
 
