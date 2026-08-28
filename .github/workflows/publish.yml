@@ -18,25 +18,24 @@ name: Publish to npm
 # release cadence is a manual, reviewed `chore(release): bump version to ...` commit (see git
 # log), not an automatic "every merge to main ships a new version" model; auto-publishing here
 # would be a materially different (and riskier) release policy this repo has never adopted.
+#
+# COVERS `npm publish` ONLY -- deliberately does NOT attempt `npm dist-tag add` (e.g. moving
+# `latest` onto an already-published version). Tried once, real-execution confirmed it fails
+# with a plain E401 (the placeholder NODE_AUTH_TOKEN setup-node's registry-url writes, not a
+# real OIDC exchange) -- npm's trusted-publishing OIDC integration is currently scoped to the
+# publish action alone; there is an open, unresolved upstream feature request for dist-tag
+# support (npm/cli#8547, docs.npmjs.com/trusted-publishers/ lists only `npm publish`). Moving a
+# dist-tag onto an already-published version still needs a real, interactive `npm login` run by
+# a human in their own terminal (not through this workflow, not through an agent's headless Bash
+# tool -- see D-npm-publish-oidc in DECISIONS.md for why that specific combination reliably
+# fails). Revisit if npm ever ships OIDC coverage for dist-tag operations.
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'publish a new version, or promote-tag an already-published version (no republish -- npm rejects publishing an existing version anyway) onto a dist-tag like latest'
-        required: true
-        default: 'publish'
-        type: choice
-        options:
-          - publish
-          - promote-tag
       tag:
-        description: 'npm dist-tag: publish mode = tag to publish under; promote-tag mode = tag to move'
+        description: 'npm dist-tag (e.g. beta, latest)'
         required: true
         default: 'beta'
-      version:
-        description: 'promote-tag mode only: exact version to retag, e.g. 1.0.0-beta.4 (ignored in publish mode)'
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -57,33 +56,16 @@ jobs:
       # this for) and ubuntu-latest does NOT ship it preinstalled. 263 unrelated-looking test
       # failures (`Command failed: which rg`) before this was added.
       - name: install ripgrep
-        if: inputs.mode == 'publish'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       # Trusted publishing needs npm >= 11.5.1 -- not guaranteed to be what setup-node's bundled
       # npm version happens to be, so pinned to latest explicitly rather than hoping.
       - run: npm install -g npm@latest
       - run: npm test
-        if: inputs.mode == 'publish'
       # No NODE_AUTH_TOKEN/NPM_TOKEN anywhere in this workflow, deliberately -- with
       # id-token: write and the npm-side Trusted Publisher config above, `npm publish` obtains a
       # short-lived registry token itself via OIDC. Also generates real provenance attestation
       # (supply-chain verifiable back to this exact commit/workflow run), a capability a
       # long-lived token could never provide.
       - run: npm publish --tag "$NPM_DIST_TAG" --provenance
-        if: inputs.mode == 'publish'
         env:
-          NPM_DIST_TAG: ${{ inputs.tag }}
-      # D-npm-publish-oidc: `npm dist-tag add` was added after `npm login`'s local session
-      # expired outright (a plain 401, not an OTP prompt) while trying to move `latest` onto an
-      # already-published beta.4 by hand -- defeats the entire point of having just set up
-      # trusted publishing to avoid exactly this kind of local-auth friction. The npm-side
-      # Trusted Publisher config only lists "Allow npm publish"/"Allow npm stage publish" as
-      # explicit allowed actions (no separate dist-tag entry), so this was genuinely unverified
-      # until run for real -- if it turns out the OIDC token this grants doesn't cover
-      # `dist-tag add`, the real fix is a distinct trusted-publisher-covered action, not silently
-      # falling back to a local token.
-      - run: npm dist-tag add "backend-skeleton@$PROMOTE_VERSION" "$NPM_DIST_TAG"
-        if: inputs.mode == 'promote-tag'
-        env:
-          PROMOTE_VERSION: ${{ inputs.version }}
           NPM_DIST_TAG: ${{ inputs.tag }}

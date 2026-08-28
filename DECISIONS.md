@@ -8355,8 +8355,9 @@ Trusted Publisher -> GitHub Actions, `popixoxipop-collab/backend-skeleton`, work
 is what lets `npm publish` obtain a short-lived registry token via OIDC token exchange, plus real
 provenance attestation `--provenance` a long-lived token could never provide.
 
-**Two real failures on the first two live runs, both found by actually executing the workflow, not
-by inspection -- matching this whole session's own "verify with real execution" discipline:**
+**Three real failures across the first three live runs, all found by actually executing the
+workflow, not by inspection -- matching this whole session's own "verify with real execution"
+discipline:**
 
 1. **Run 1** (`33141455812`): `npm test` failed with 263 unrelated-looking failures, all tracing
    to one cause: `Command failed: which rg`. `publish.yml` was a brand-new workflow file that never
@@ -8380,13 +8381,37 @@ by inspection -- matching this whole session's own "verify with real execution" 
    newly-broken one -- this is a real forward-compatibility fix for any local dev machine that
    eventually upgrades npm too, not just a CI-config workaround.
 
+3. **A `promote-tag` mode**, added to move `latest` onto the already-published `beta.4` after
+   local `npm dist-tag add` hit a plain `E401` (`npm whoami` itself returned 401 -- the local
+   session had expired outright, not even reaching an OTP prompt), on the reasoning that OIDC
+   trusted publishing should cover this the same way it covers `npm publish`. Real execution
+   disproved that: the job's `npm dist-tag add` also hit `E401`, but via the LITERAL placeholder
+   `NODE_AUTH_TOKEN` `actions/setup-node`'s `registry-url` writes into `.npmrc` -- proof no OIDC
+   exchange was even attempted for that command, not just that it failed. Confirmed against npm's
+   own docs before trying a third variant: `docs.npmjs.com/trusted-publishers/` lists `npm
+   publish` as the only supported command, and `npm/cli#8547` ("Allow Trusted Publishers to run
+   `npm dist-tag add`") is an open, unresolved upstream feature request -- this is a genuine,
+   current npm limitation, not a config mistake. The `promote-tag` mode was reverted rather than
+   left shipping a broken option; `publish.yml` is back to `npm publish` only, with this finding
+   recorded in its own header comment so it isn't re-attempted blind. Moving a dist-tag onto an
+   already-published version currently has no CI/agent-safe path at all -- it needs a real,
+   interactive `npm login` run by a human in their own terminal (the one scenario where a
+   WebAuthn browser approval reliably completes; every attempt routed through this session's own
+   headless Bash tool -- both the original login flow and the token-based one -- failed).
+
 **EXIT**: `npm install -g npm@latest` inside the workflow is left as-is (not pinned to a specific
 version) -- deliberately, since pinning would mean this workflow silently drifts stale against
 npm's own OIDC trusted-publishing feature requirements over time, and the real problem this item
 found (a test assuming one JSON shape) is now fixed at its actual source rather than papered over
 by freezing the npm version. If npm's `pack --json` shape changes again in some future major
 version, `test/package-manifest.test.mjs` failing loudly (as it did here) is the correct, desired
-outcome -- not something to design away.
+outcome -- not something to design away. Dist-tag management (moving `latest`, `beta`, etc. onto an
+already-published version without a new `npm publish`) is explicitly NOT automated by this
+workflow -- revisit only if npm ships real OIDC coverage for it (track `npm/cli#8547`); until then,
+a human's own interactive `npm login` is the only path, and `~/.claude/hooks/scripts/
+npm-publish-oidc-guard.py` (a global PreToolUse:Bash hook, added the same day) deliberately does
+NOT block `npm dist-tag add` for exactly this reason -- blocking it and pointing at a workflow that
+cannot actually perform it would be actively wrong, not just unhelpful.
 
 Cross-references: the `macos`/W7 jobs' own `install ripgrep` precedent (`D-macstudio-ci-runners`,
 the same regression class this item's Run 1 failure repeats in a new workflow file); `D-fixture-corpus`
