@@ -8178,11 +8178,23 @@ conflict or destroys the hand-written logic with `--force`. The tool's own confl
 **Scope, decided and stated plainly:** java-spring provider only, matching O5's own established
 java-spring-only precedent (`schemas/handles-plan.schema.json`: "O5 ... java-spring only").
 `python-fastapi`'s `resolver.py.tmpl` bakes `CONTRACT_REF`/`FEATURE_UID` into the same file as
-hand-edited `patch_field`/`check_access` stubs -- same class of risk, smaller (no
-`requiredAuthority`/`requiredAuthorityForPatch` split there at all). `typescript-express`'s
-`resolver.ts.tmpl` mixes hand-edited `patchField`/`checkAccess` with machine-derived `fetch`/
-`toPublic` but bakes in no `CONTRACT_REF`/`FEATURE_UID`/authority value at all -- smaller exposure
-still. Neither addressed here; both are real, named, deferred scope, not silently dropped.
+hand-edited `patch_field`/`check_access` stubs -- same class of risk, smaller in scope (no
+`requiredAuthority`/`requiredAuthorityForPatch` split there at all, and `contract_ref`/`feature_uid`
+feed `router.py`'s `schema_drift` check rather than an access-control decision, so a stale value is
+an audit-integrity gap rather than a security bypass). **Confirmed live, not just theorized**
+(2026-08-29): the identical reproduction methodology -- hand-wire `check_access` with a real
+ownership check, then make a narrow, real, contract-affecting change (add a query parameter to the
+existing GET operation via `--openapi-file`, changing the emitted contract schema's hash) -- landed
+the exact same failure. `handles plan --diff` showed `item.py`'s single `conflict` diff bundling the
+hand-written `check_access` body together with the `CONTRACT_REF` value change; a real
+`handles emit` (no `--force`, exit 15) left the hand-edit intact but `CONTRACT_REF` permanently
+stuck at the pre-change hash. `typescript-express`'s `resolver.ts.tmpl` mixes hand-edited
+`patchField`/`checkAccess` with machine-derived `fetch`/`toPublic` but bakes in no
+`CONTRACT_REF`/`FEATURE_UID`/authority value at all -- smaller exposure still, not independently
+reproduced. Neither is fixed here -- both are real, named, deferred scope, not silently dropped;
+python-fastapi's own fix (mirroring this item's Policy-file split, minus the `requiredAuthority`
+half that doesn't apply there) is a natural, well-scoped follow-up once there's a reason to
+prioritize it over other work, not a hypothetical.
 Deliberately rejected: a generic field-level/AST cherry-pick merge engine that could preserve a
 hand-edit while still patching just the changed value in place -- this would recreate exactly the
 risk `D-resolver-scope` already rejected (guessing at hand-written code is worse than an honest
