@@ -1,6 +1,6 @@
 {
   "name": "backend-skeleton",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "type": "module",
   "description": "Spec-driven backend scaffolding: brownfield-scan gate, feature_id-keyed contracts, UUID bidirectional handles, stack-choice wiring.",
   "license": "AGPL-3.0-or-later",
