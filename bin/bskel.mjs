@@ -1972,7 +1972,8 @@ function cmdHandlesEmit(args) {
 			}
 			if (dryRun) console.error(`\n${renderFileActions(actions)}`);
 		}
-		// D-process-exit-audit: bounded by 7 + plan.resources.length units, no pipe-truncation risk.
+		// D-process-exit-audit: bounded by 7 + 2*plan.resources.length units (D-resolver-policy-split:
+		// Resolver + Policy per resource), no pipe-truncation risk.
 		// Carries a real payload (already printed above in --json mode) -- no diagnostic envelope.
 		// P4 precedent (catalog lint): reused, not a new exit code -- --check reaching the exact
 		// same verdict a real run would (exit 15) is the point, not a distinct "check found a

@@ -89,10 +89,13 @@ function runWorkflowThroughContract(root) {
 }
 
 const RESOLVER_REL = 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java';
+// D-resolver-policy-split: the live-derived/security-relevant declarations live in this separate,
+// always-safe-to-regenerate companion file -- see DECISIONS.md.
+const POLICY_REL = 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolverPolicy.java';
 const MANIFEST_REL = '.sbf/handles-manifest.json';
 const CONTROLLER_REL = 'src/main/java/com/example/domain/widget/presentation/WidgetController.java';
 
-test('handles emit --check on a fresh feature reports all 12 create actions, exits CHECK_FAILED, and writes nothing', () => {
+test('handles emit --check on a fresh feature reports all 13 create actions, exits CHECK_FAILED, and writes nothing', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);
 
@@ -102,7 +105,8 @@ test('handles emit --check on a fresh feature reports all 12 create actions, exi
 	assert.equal(body.check, true);
 	assert.equal(body.blocked, false);
 	assert.equal(body.gate, null, 'a dry run must never mark the handles gate passed');
-	assert.equal(body.actions.length, 12);
+	// D-resolver-policy-split: 10 infra + 2 resolver-kind units (Resolver + Policy) + 1 spec.
+	assert.equal(body.actions.length, 13);
 	assert.ok(body.actions.every((a) => a.action === 'create'));
 
 	assert.ok(!fs.existsSync(path.join(root, RESOLVER_REL)), '--check must not write the resolver');
@@ -121,7 +125,7 @@ test('handles plan --diff shows the same file-action preview as --check, without
 	const result = run(['handles', 'plan', '--feature', '001-widget-management', '--diff', '--json'], root);
 	assert.equal(result.code, 0, 'handles plan itself is purely informational, never a CI gate');
 	const body = JSON.parse(result.stdout);
-	assert.equal(body.actions.length, 12);
+	assert.equal(body.actions.length, 13);
 	assert.ok(body.actions.every((a) => a.action === 'create'));
 	assert.ok(!fs.existsSync(path.join(root, MANIFEST_REL)), 'handles plan --diff must not write anything either');
 });
@@ -141,7 +145,13 @@ test('handles emit --check after a real emit reports everything unchanged and ex
 	assert.ok(specAction, 'migration.sql must be reported with kind "spec"');
 	assert.equal(specAction.path, 'specs/001-widget-management/handles/migration.sql');
 	assert.deepEqual(body.actions.filter((a) => a.kind === 'infra').length, 10);
-	assert.equal(body.actions.find((a) => a.kind === 'resolver')?.resourceType, 'Widget');
+	// D-resolver-policy-split: two resolver-kind actions now (Resolver + Policy), both for Widget --
+	// look up by path, not by kind alone, since kind:'resolver' is no longer unique per resource.
+	const resolverActions = body.actions.filter((a) => a.kind === 'resolver');
+	assert.equal(resolverActions.length, 2);
+	assert.ok(resolverActions.every((a) => a.resourceType === 'Widget'));
+	assert.ok(resolverActions.some((a) => a.path === RESOLVER_REL));
+	assert.ok(resolverActions.some((a) => a.path === POLICY_REL));
 
 	assert.equal(fs.readFileSync(path.join(root, MANIFEST_REL), 'utf8'), manifestBefore, '--check must not touch the manifest even when nothing changed');
 });
@@ -192,17 +202,27 @@ test('handles emit --check --diff shows a real unified diff for a live-derived v
 	const result = run(['handles', 'emit', '--feature', '001-widget-management', '--check', '--diff', '--json'], root);
 	assert.equal(result.code, 1, 'a real, live-derived content change must fail --check');
 	const body = JSON.parse(result.stdout);
-	const resolverAction = body.actions.find((a) => a.kind === 'resolver');
-	assert.equal(resolverAction.action, 'update');
-	assert.match(resolverAction.diff, /-\t*return "SUPER_ADMIN";/);
-	assert.match(resolverAction.diff, /\+\t*return "WIDGET_ADMIN";/);
 
-	assert.match(fs.readFileSync(path.join(root, RESOLVER_REL), 'utf8'), /SUPER_ADMIN/, '--check --diff must not write the resolver, even though it computed what the new content would be');
+	// D-resolver-policy-split: this is the fix's proof point -- a requiredAuthority-only source
+	// change must NOT stale WidgetResolver.java (no live-derived token lives there anymore, so its
+	// fresh render is byte-identical) and must ONLY stale the companion WidgetResolverPolicy.java.
+	// Before this fix, both were the same file and both showed the same diff, which meant a hand-
+	// edited patchField() (a `conflict`, not `unchanged`) would block this legitimate role change too.
+	const resolverAction = body.actions.find((a) => a.path === RESOLVER_REL);
+	assert.equal(resolverAction.action, 'unchanged', 'Resolver.java must stay unchanged -- it has no live-derived-value tokens anymore');
+
+	const policyAction = body.actions.find((a) => a.path === POLICY_REL);
+	assert.equal(policyAction.action, 'update');
+	assert.match(policyAction.diff, /-\t*return "SUPER_ADMIN";/);
+	assert.match(policyAction.diff, /\+\t*return "WIDGET_ADMIN";/);
+
+	assert.match(fs.readFileSync(path.join(root, POLICY_REL), 'utf8'), /SUPER_ADMIN/, '--check --diff must not write the policy file, even though it computed what the new content would be');
 
 	// handles plan --diff must show the identical diff without ever running emit.
 	const planResult = run(['handles', 'plan', '--feature', '001-widget-management', '--diff', '--json'], root);
-	const planAction = JSON.parse(planResult.stdout).actions.find((a) => a.kind === 'resolver');
-	assert.equal(planAction.diff, resolverAction.diff);
+	const planActions = JSON.parse(planResult.stdout).actions;
+	assert.equal(planActions.find((a) => a.path === RESOLVER_REL).action, 'unchanged');
+	assert.equal(planActions.find((a) => a.path === POLICY_REL).diff, policyAction.diff);
 });
 
 test('handles emit --check without --diff never computes diff text (actions carry no .diff field)', () => {
@@ -220,9 +240,9 @@ test('handles emit --check without --diff never computes diff text (actions carr
 	const result = run(['handles', 'emit', '--feature', '001-widget-management', '--check', '--json'], root);
 	assert.equal(result.code, 1);
 	const body = JSON.parse(result.stdout);
-	const resolverAction = body.actions.find((a) => a.kind === 'resolver');
-	assert.equal(resolverAction.action, 'update');
-	assert.equal(resolverAction.diff, undefined);
+	const policyAction = body.actions.find((a) => a.path === POLICY_REL);
+	assert.equal(policyAction.action, 'update');
+	assert.equal(policyAction.diff, undefined);
 });
 
 test('a real handles emit is completely unaffected by D4 -- writes exactly as before, and its JSON gains only an additive actions field', () => {
@@ -233,9 +253,10 @@ test('a real handles emit is completely unaffected by D4 -- writes exactly as be
 	assert.equal(result.code, 0);
 	const body = JSON.parse(result.stdout);
 	assert.equal(body.gate.status, 'pass');
-	assert.equal(body.written.length, 12);
-	assert.ok(Array.isArray(body.actions) && body.actions.length === 12, 'a real (non---check) emit also gets the actions field for free, purely additive');
+	assert.equal(body.written.length, 13);
+	assert.ok(Array.isArray(body.actions) && body.actions.length === 13, 'a real (non---check) emit also gets the actions field for free, purely additive');
 	assert.ok(fs.existsSync(path.join(root, RESOLVER_REL)));
+	assert.ok(fs.existsSync(path.join(root, POLICY_REL)));
 });
 
 // python-fastapi has no outputs.spec (no migration.sql, no always-regenerated files) -- confirms

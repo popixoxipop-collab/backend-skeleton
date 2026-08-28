@@ -14,6 +14,9 @@ import { createHash } from 'node:crypto';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
 const RESOLVER_REL_PATH = 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java';
+// D-resolver-policy-split: the live-derived/security-relevant declarations live in this separate,
+// always-safe-to-regenerate companion file -- see DECISIONS.md.
+const POLICY_REL_PATH = 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolverPolicy.java';
 const MANIFEST_REL_PATH = '.sbf/handles-manifest.json';
 
 function run(args, cwd) {
@@ -125,6 +128,17 @@ test('(a) first emit creates files and records a manifest entry per infra file +
 	const diskContent = fs.readFileSync(path.join(root, RESOLVER_REL_PATH), 'utf8');
 	const diskHash = createHash('sha256').update(diskContent).digest('hex');
 	assert.equal(manifest.files[RESOLVER_REL_PATH].generated_hash, diskHash);
+
+	// D-resolver-policy-split: the companion Policy file gets its own manifest entry, same
+	// ownership/resource_type as the Resolver it sits beside -- two independently tracked files,
+	// not one entry covering both.
+	assert.ok(manifest.files[POLICY_REL_PATH]);
+	assert.equal(manifest.files[POLICY_REL_PATH].kind, 'resolver');
+	assert.equal(manifest.files[POLICY_REL_PATH].owner, '001-widget-management');
+	assert.equal(manifest.files[POLICY_REL_PATH].resource_type, 'Widget');
+	const policyDiskContent = fs.readFileSync(path.join(root, POLICY_REL_PATH), 'utf8');
+	const policyDiskHash = createHash('sha256').update(policyDiskContent).digest('hex');
+	assert.equal(manifest.files[POLICY_REL_PATH].generated_hash, policyDiskHash);
 });
 
 test('(b) re-emit with nothing touched is a no-op: nothing besides migration.sql is rewritten, manifest stays byte-identical', () => {
@@ -253,8 +267,13 @@ test('(e) a second feature touching the same resource type takes over ownership 
 	const content = fs.readFileSync(path.join(root, RESOLVER_REL_PATH), 'utf8');
 	assert.match(content, /for feature 002-widget-extras\./);
 
+	// The companion Policy file transfers ownership the same way, independently.
+	const policyContent = fs.readFileSync(path.join(root, POLICY_REL_PATH), 'utf8');
+	assert.match(policyContent, /for feature 002-widget-extras\./);
+
 	const manifest = readManifest(root);
 	assert.equal(manifest.files[RESOLVER_REL_PATH].owner, '002-widget-extras');
+	assert.equal(manifest.files[POLICY_REL_PATH].owner, '002-widget-extras');
 });
 
 test('(f) a resolver whose plan flips willGenerateResolver to false becomes an orphan warning, never deleted or rewritten; --resource suppresses it', () => {
@@ -307,4 +326,142 @@ test('(g) deleting the manifest (fresh-checkout simulation) silently re-adopts u
 	fs.writeFileSync(resolverPath, `${fs.readFileSync(resolverPath, 'utf8')}\n// edited\n`);
 	const emit3 = run(['handles', 'emit', '--feature', '001-widget-management', '--json'], root);
 	assert.equal(emit3.code, 15, 'the adoption path must still fail closed when the manifest is absent AND the file has genuinely diverged');
+});
+
+// D-resolver-policy-split: permanent regression for the exact live reproduction that found this
+// gap. Before the split, requiredAuthorityForPatch() lived in the SAME file as patchField(), so a
+// hand-finished patchField() (a legitimate, expected divergence -- see test (c) above) blocked a
+// narrow, unrelated, security-relevant @PreAuthorize change from ever applying, indefinitely,
+// with a conflict message ("nothing else in this run depends on it") that was factually wrong in
+// exactly this case. Fixture extends the base one with a real PATCH endpoint (method-level
+// @PreAuthorize, distinct from the class-level one) + an approved patch-wrapper field, matching
+// test/patch-approve-cli.test.mjs's own fixture shape.
+function buildPatchableFixtureRepo() {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-ownership-patchable-'));
+	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
+	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins {\n\tid 'org.springframework.boot' version '3.3.0'\n}\n");
+
+	const base = 'com/example';
+	const widgetDomain = path.join(root, 'src/main/java', base, 'domain/widget');
+	fs.mkdirSync(path.join(widgetDomain, 'presentation', 'dto'), { recursive: true });
+	fs.mkdirSync(path.join(widgetDomain, 'domain'), { recursive: true });
+	fs.mkdirSync(path.join(widgetDomain, 'application'), { recursive: true });
+	fs.mkdirSync(path.join(root, 'src/main/java', base), { recursive: true });
+
+	fs.writeFileSync(path.join(root, 'src/main/java', base, 'ExampleApplication.java'), 'package com.example;\npublic class ExampleApplication {}\n');
+	fs.writeFileSync(path.join(widgetDomain, 'presentation', 'WidgetController.java'), `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import org.springframework.security.access.prepost.PreAuthorize;
+import jakarta.validation.Valid;
+import com.example.domain.widget.presentation.dto.UpdateWidgetRequest;
+
+@PreAuthorize("hasRole('SUPER_ADMIN')")
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+	@Operation(operationId = "findWidget")
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+
+	@Operation(operationId = "updateWidget")
+	@PreAuthorize("hasRole('WIDGET_EDITOR')")
+	@PatchMapping("/{widgetId}")
+	public String updateWidget(@PathVariable String widgetId, @Valid @RequestBody UpdateWidgetRequest request) { return "ok"; }
+}
+`);
+	fs.writeFileSync(path.join(widgetDomain, 'presentation', 'dto', 'UpdateWidgetRequest.java'), `
+package com.example.domain.widget.presentation.dto;
+import com.example.global.json.PatchField;
+public record UpdateWidgetRequest(
+		PatchField<String> label
+) {}
+`);
+	fs.writeFileSync(path.join(widgetDomain, 'domain', 'Widget.java'), `
+package com.example.domain.widget.domain;
+import jakarta.persistence.*;
+@Entity
+@Table(name = "widget")
+public class Widget {
+	@Id
+	private java.util.UUID widgetId;
+}
+`);
+	fs.writeFileSync(path.join(widgetDomain, 'application', 'WidgetService.java'), `
+package com.example.domain.widget.application;
+import com.example.domain.widget.presentation.dto.UpdateWidgetRequest;
+public interface WidgetService {
+	Object findWidget(java.util.UUID id);
+	Object updateWidget(java.util.UUID id, UpdateWidgetRequest request);
+}
+`);
+
+	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-ownership-patchable-origin-'));
+	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
+	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+	return root;
+}
+
+test('(h) a hand-finished patchField() blocks Resolver.java but must NOT block an unrelated PATCH-role change from reaching the Policy file', () => {
+	const root = buildPatchableFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(run(['handles', 'patch', 'approve', '--feature', '001-widget-management', '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'trusted mapping'], root).code, 0);
+	assert.equal(run(['handles', 'emit', '--feature', '001-widget-management'], root).code, 0);
+
+	// Simulate a human finishing the generated patchField() stub -- same style as test (c) above,
+	// a legitimate divergence that must keep blocking Resolver.java's own regeneration forever.
+	const resolverPath = path.join(root, RESOLVER_REL_PATH);
+	const handEdited = `${fs.readFileSync(resolverPath, 'utf8')}\n\t// hand-completed: patchField() reviewed and approved as-is\n`;
+	fs.writeFileSync(resolverPath, handEdited);
+
+	// Change ONLY the PATCH endpoint's own @PreAuthorize role -- a narrow, real, security-relevant
+	// source change, uncommitted (same pattern as test/handles-check-cli.test.mjs's own diff test).
+	const controllerPath = path.join(root, 'src/main/java/com/example/domain/widget/presentation/WidgetController.java');
+	fs.writeFileSync(controllerPath, fs.readFileSync(controllerPath, 'utf8').replace("hasRole('WIDGET_EDITOR')", "hasRole('WIDGET_ADMIN')"));
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	assert.equal(run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
+
+	const check = run(['handles', 'emit', '--feature', '001-widget-management', '--check', '--diff', '--json'], root);
+	assert.equal(check.code, 15, 'the hand-finished patchField() must still block Resolver.java');
+	const checkBody = JSON.parse(check.stdout);
+	assert.equal(checkBody.blocked, true);
+	assert.equal(checkBody.conflicts.length, 1);
+	assert.equal(checkBody.conflicts[0].path, RESOLVER_REL_PATH);
+
+	const resolverAction = checkBody.actions.find((a) => a.path === RESOLVER_REL_PATH);
+	assert.equal(resolverAction.action, 'conflict', 'Resolver.java: hand-finished patchField() correctly still conflicts');
+
+	const policyAction = checkBody.actions.find((a) => a.path === POLICY_REL_PATH);
+	assert.equal(policyAction.action, 'update', 'Policy.java: no hand-edit here, so the role change is free to apply');
+	assert.match(policyAction.diff, /-\t*return "WIDGET_EDITOR";/);
+	assert.match(policyAction.diff, /\+\t*return "WIDGET_ADMIN";/);
+
+	// The real, non---check emit: still blocked overall (exit 15, Resolver.java's conflict is real
+	// and must not be silently discarded) -- but resolver units are independent per file, so the
+	// Policy file's update is NOT held hostage by the sibling conflict. This on-disk assertion is
+	// exactly the one that would have failed before D-resolver-policy-split: the role change would
+	// never have reached disk at all, silently, for as long as the hand-edit remained.
+	const real = run(['handles', 'emit', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(real.code, 15);
+	const realBody = JSON.parse(real.stdout);
+	assert.equal(realBody.blocked, true);
+	assert.equal(realBody.conflicts.length, 1);
+	assert.equal(realBody.conflicts[0].path, RESOLVER_REL_PATH);
+
+	assert.equal(fs.readFileSync(resolverPath, 'utf8'), handEdited, 'Resolver.java must remain byte-for-byte untouched, hand-edit intact');
+	const policyContent = fs.readFileSync(path.join(root, POLICY_REL_PATH), 'utf8');
+	assert.match(policyContent, /return "WIDGET_ADMIN";/, 'Policy.java must actually carry the new role on disk despite the overall run reporting blocked');
+	assert.doesNotMatch(policyContent, /WIDGET_EDITOR/, 'the stale role must be gone, not just the new one added alongside it');
 });

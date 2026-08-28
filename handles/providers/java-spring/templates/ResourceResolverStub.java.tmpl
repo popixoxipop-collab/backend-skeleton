@@ -36,18 +36,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 
-	// O4 (D-handle-lifecycle): baked in at `bskel handles emit` time -- CONTRACT_REF is the
-	// content hash of specs/{{FEATURE_ID}}/contracts/{{FEATURE_ID}}.schema.json as of this run,
-	// regenerated fresh every time (never read from disk at runtime, a deployed app has no
-	// access to specs/ at all).
-	private static final String CONTRACT_REF = "{{CONTRACT_REF}}";
-	private static final UUID FEATURE_UID = UUID.fromString("{{FEATURE_UID}}");
-
 	private final {{SERVICE_TYPE}} {{SERVICE_FIELD}};
 {{PATCH_FIELDS}}
+	// D-resolver-policy-split: these five delegate to {{RESOURCE_TYPE}}ResolverPolicy (a separate
+	// generated file) rather than implementing the values directly -- see that class's own
+	// javadoc for why. Their TEXT never changes when the underlying value changes, which is what
+	// lets a source-only @PreAuthorize/contract change regenerate the Policy file cleanly even
+	// while this file has a hand-edited patchField() and is correctly refusing to regenerate.
 	@Override
 	public String type() {
-		return "{{RESOURCE_TYPE}}";
+		return {{RESOURCE_TYPE}}ResolverPolicy.type();
 	}
 
 	@Override
@@ -62,21 +60,21 @@ public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 
 	@Override
 	public String requiredAuthority() {
-		return "{{REQUIRED_AUTHORITY}}";
+		return {{RESOURCE_TYPE}}ResolverPolicy.requiredAuthority();
 	}
 
 	@Override
 	public String requiredAuthorityForPatch() {
-		return "{{REQUIRED_AUTHORITY_PATCH}}";
+		return {{RESOURCE_TYPE}}ResolverPolicy.requiredAuthorityForPatch();
 	}
 
 	@Override
 	public String contractRef() {
-		return CONTRACT_REF;
+		return {{RESOURCE_TYPE}}ResolverPolicy.contractRef();
 	}
 
 	@Override
 	public UUID featureUid() {
-		return FEATURE_UID;
+		return {{RESOURCE_TYPE}}ResolverPolicy.featureUid();
 	}
 }

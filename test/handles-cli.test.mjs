@@ -115,7 +115,15 @@ test('handles plan finds the Widget entity, its fetch operation, and its service
 	const content = fs.readFileSync(resolverPath, 'utf8');
 	assert.match(content, /class WidgetResolver implements ResourceResolver/);
 	assert.match(content, /widgetService\.findWidget\(resourceUid\)/);
-	assert.match(content, /return "SUPER_ADMIN";/);
+	// D-resolver-policy-split: the live-derived/security-relevant values no longer live in this
+	// file -- Resolver.java only delegates to the companion Policy class.
+	assert.match(content, /WidgetResolverPolicy\.requiredAuthority\(\)/);
+
+	const policyPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolverPolicy.java');
+	assert.ok(fs.existsSync(policyPath));
+	const policyContent = fs.readFileSync(policyPath, 'utf8');
+	assert.match(policyContent, /class WidgetResolverPolicy/);
+	assert.match(policyContent, /return "SUPER_ADMIN";/);
 
 	assert.ok(fs.existsSync(path.join(root, 'src/main/java/com/example/global/handle/HandleCodec.java')));
 	assert.ok(fs.existsSync(path.join(root, 'specs/001-widget-management/handles/migration.sql')));
@@ -213,12 +221,18 @@ test('handles emit writes a patch() that checks the PATCH-specific authority, no
 	assert.match(resolverContent, /String requiredAuthority\(\);/);
 	assert.match(resolverContent, /String requiredAuthorityForPatch\(\);/);
 
-	// The generated per-resource resolver stub implements both, and they are genuinely two
-	// separate generated values (not the same template var rendered twice).
+	// The generated per-resource resolver stub implements both, delegating to the companion
+	// ResolverPolicy class (D-resolver-policy-split) where the two are genuinely separate
+	// generated values (not the same template var rendered twice).
 	const widgetResolverPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java');
 	const widgetResolverContent = fs.readFileSync(widgetResolverPath, 'utf8');
-	assert.match(widgetResolverContent, /public String requiredAuthority\(\)\s*\{\s*return "SUPER_ADMIN";/);
-	assert.match(widgetResolverContent, /public String requiredAuthorityForPatch\(\)\s*\{\s*return "TODO_ROLE";/, 'no PATCH endpoint exists on this fixture controller, so the patch authority must fail closed independently of the fetch one');
+	assert.match(widgetResolverContent, /public String requiredAuthority\(\)\s*\{\s*return WidgetResolverPolicy\.requiredAuthority\(\);/);
+	assert.match(widgetResolverContent, /public String requiredAuthorityForPatch\(\)\s*\{\s*return WidgetResolverPolicy\.requiredAuthorityForPatch\(\);/);
+
+	const widgetPolicyPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolverPolicy.java');
+	const widgetPolicyContent = fs.readFileSync(widgetPolicyPath, 'utf8');
+	assert.match(widgetPolicyContent, /static String requiredAuthority\(\)\s*\{\s*return "SUPER_ADMIN";/);
+	assert.match(widgetPolicyContent, /static String requiredAuthorityForPatch\(\)\s*\{\s*return "TODO_ROLE";/, 'no PATCH endpoint exists on this fixture controller, so the patch authority must fail closed independently of the fetch one');
 });
 
 // S6 regression, real end-to-end path (as opposed to the lighter `gate force`-based version in
