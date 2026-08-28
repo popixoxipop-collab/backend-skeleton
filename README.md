@@ -24,13 +24,17 @@ stable. Split by actual maturity, not by feature list:
   measured verification against a real production Spring Boot repo (see `DECISIONS.md`), plus a
   synthetic fixture corpus for every adapter, run in CI on every change.
 - **`handles`** (the UUID-addressable resolver/codec/router codegen) is functionally complete and
-  tested the same way, but has never been deployed to a real production repo, and two named gaps
-  stay open specifically because of that: generated `fetch()`/`patch()` paths never check
-  `HandleRegistry` for revocation, and generated authorization is inferred from a single
-  `@PreAuthorize(hasRole(...))` shape rather than a real policy contract. Both are tracked as `O3`
-  and `O5` in `CATALOG.md`, explicitly deferred until handles are actually used somewhere real --
-  treat `handles emit`'s output as a scaffold to finish by hand, not a production-ready subsystem,
-  until that work lands.
+  tested the same way, but has never been deployed to a real production repo. Two gaps named in
+  earlier betas have since been partially closed: `O3` (opt-in `--enforce-registry`, checked
+  fetch/patch/recover against `HandleRegistry`, revocation-aware) and `O5` (fetch/patch now derive
+  independently correct roles instead of silently sharing one) are both implemented -- see
+  `DECISIONS.md`'s `D-handle-registry-enforcement`/`D-resolver-authorization-action-aware`. Real
+  gaps remain and are explicitly still open, not closed: registry enforcement is opt-in, off by
+  default; authorization inference still only recognizes a single `@PreAuthorize(hasRole(...))`
+  shape (`hasAuthority`, role lists, ownership/tenant policy are unaddressed); and Java/Python are
+  the only providers either applies to -- TypeScript Express has no persistent handle table at
+  all. Treat `handles emit`'s output as a scaffold to finish by hand, not a production-ready
+  subsystem, until a real deployment happens.
 
 Version numbers, install instructions, and a real feedback path will firm up as this gets used
 against more real repos.
