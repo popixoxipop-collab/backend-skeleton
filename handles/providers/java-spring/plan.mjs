@@ -239,12 +239,28 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 		const service = findServiceFile(javaSrcRoot, targetModule.module, entity.className);
 		const serviceParamCount = (service && fetchOp) ? countServiceMethodParams(service.file, fetchOp.method) : null;
 
+		// O5 (D-resolver-authorization-action-aware): the SAME extraction, run again against the
+		// UPDATE (PATCH/PUT) endpoint instead of the fetch (GET) one -- previously nothing ever
+		// looked at the update endpoint's own @PreAuthorize at all, so patch() silently reused
+		// whichever role fetch() happened to require. Computed independently of planPatchable()'s
+		// own (conditional, gated on serviceParamCount===1) call to findUpdateOperation() below --
+		// requiredAuthorityForPatch is meaningful even when resolver codegen itself ends up
+		// blocked, exactly like requiredAuthority already is unconditional above.
+		const updateOpForAuthority = findUpdateOperation(targetModule.controllers, entity.className);
+		const patchAuthorityResult = findRequiredAuthority(updateOpForAuthority?.controllerFile ?? null, updateOpForAuthority?.method ?? null);
+		const requiredAuthorityForPatch = patchAuthorityResult.authority;
+
 		if (!fetchOp) {
 			notes.push(`${entity.className}: no single-resource GET endpoint found on a controller whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
 		} else if (authorityResult.unsupported) {
 			notes.push(`${entity.className}: @PreAuthorize found on ${fetchOp.controllerClassName}.${fetchOp.method} (or its class) but not in the simple hasRole('X') shape this scanner understands (e.g. hasAnyRole/SpEL) -- requiredAuthority() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
 		} else if (!requiredAuthority) {
 			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)) found for ${fetchOp.controllerClassName}.${fetchOp.method} -- requiredAuthority() defaults to "TODO_ROLE", fix before relying on it`);
+		}
+		if (updateOpForAuthority && patchAuthorityResult.unsupported) {
+			notes.push(`${entity.className}: @PreAuthorize found on ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} (or its class) but not in the simple hasRole('X') shape this scanner understands -- requiredAuthorityForPatch() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
+		} else if (updateOpForAuthority && !requiredAuthorityForPatch) {
+			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)) found for ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} -- requiredAuthorityForPatch() defaults to "TODO_ROLE", fix before relying on it`);
 		}
 		if (!service) {
 			notes.push(`${entity.className}: no ${entity.className}Service found under domain/${targetModule.module}/application/ -- resolver NOT generated for this entity (would produce a broken import). Emit it by hand once the right service is identified.`);
@@ -299,6 +315,10 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			updateDtoFile: patchResult.updateDtoFile ?? null,
 			updateServiceBlockedReason: patchResult.updateServiceBlockedReason,
 			requiredAuthority: requiredAuthority ?? 'TODO_ROLE',
+			// O5 (D-resolver-authorization-action-aware): independently derived from the UPDATE
+			// endpoint's own @PreAuthorize, not copied from requiredAuthority above -- see the
+			// computation and its own notes earlier in this loop.
+			requiredAuthorityForPatch: requiredAuthorityForPatch ?? 'TODO_ROLE',
 			service,
 			willGenerateResolver: Boolean(fetchOp && service && serviceParamCount === 1),
 		});

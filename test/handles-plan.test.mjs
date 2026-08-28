@@ -196,6 +196,103 @@ public class WidgetController {
 	assert.ok(plan.notes.some((n) => n.includes('hasAnyRole/SpEL')), 'must explain why it fell back to TODO_ROLE');
 });
 
+// O5 (D-resolver-authorization-action-aware): before this item, requiredAuthorityForPatch didn't
+// exist at all -- patch() silently reused requiredAuthority (the FETCH endpoint's own role) for
+// PATCH too, even though findUpdateOperation() already locates the real update endpoint (used
+// only for DTO classification, never for its own @PreAuthorize). Reproduces a real, unremarkable
+// shape: GET and PATCH on the same controller requiring genuinely different roles.
+test('requiredAuthorityForPatch is derived independently from the UPDATE endpoint\'s own @PreAuthorize, not copied from the fetch endpoint\'s role', () => {
+	const javaSrcRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-'));
+	const controllerDir = path.join(javaSrcRoot, 'domain', 'widget', 'presentation');
+	fs.mkdirSync(controllerDir, { recursive: true });
+	const controllerFile = path.join(controllerDir, 'WidgetController.java');
+	fs.writeFileSync(controllerFile, `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+
+	@PreAuthorize("hasRole('WIDGET_VIEWER')")
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+
+	@PreAuthorize("hasRole('WIDGET_EDITOR')")
+	@PatchMapping("/{widgetId}")
+	public String updateWidget(@PathVariable String widgetId, @RequestBody String request) { return "ok"; }
+}
+`);
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: controllerFile,
+				endpoints: [
+					{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' },
+					{ verb: 'PATCH', path: '/widgets/{widgetId}', operationId: null, method: 'updateWidget' },
+				],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.requiredAuthority, 'WIDGET_VIEWER', 'fetch/recover authority must come from the GET endpoint');
+	assert.equal(widget.requiredAuthorityForPatch, 'WIDGET_EDITOR', 'patch authority must come from the PATCH endpoint, not be copied from GET');
+});
+
+// O5: no discoverable UPDATE endpoint at all must fail closed to TODO_ROLE for the patch
+// authority too -- matching requiredAuthority's own "nothing found" behavior, not left undefined
+// or silently inherited from the fetch endpoint.
+test('requiredAuthorityForPatch fails closed to TODO_ROLE when no UPDATE endpoint is found at all', () => {
+	const javaSrcRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-'));
+	const controllerDir = path.join(javaSrcRoot, 'domain', 'widget', 'presentation');
+	fs.mkdirSync(controllerDir, { recursive: true });
+	const controllerFile = path.join(controllerDir, 'WidgetController.java');
+	fs.writeFileSync(controllerFile, `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+
+	@PreAuthorize("hasRole('WIDGET_VIEWER')")
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+}
+`);
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: controllerFile,
+				endpoints: [{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.requiredAuthority, 'WIDGET_VIEWER');
+	assert.equal(widget.requiredAuthorityForPatch, 'TODO_ROLE', 'must fail closed when there is no update endpoint to derive a patch authority from');
+});
+
 // D-security-8 regression: ResourceResolverStub.java.tmpl's fetch() always calls
 // `service.method(resourceUid)` with exactly ONE argument. Reproduces the exact shape the Codex
 // security review flagged: a Cohort scoped under an organization, whose real service method is

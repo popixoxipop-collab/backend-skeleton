@@ -32,8 +32,24 @@ public interface ResourceResolver {
 	 */
 	void patchField(UUID resourceUid, String pointer, Object value);
 
-	/** Spring Security role name (no "ROLE_" prefix) required to fetch/patch this resource type via a handle. */
+	/**
+	 * Spring Security role name (no "ROLE_" prefix) required to {@code fetch}/{@code recover}
+	 * this resource type via a handle. O5 (D-resolver-authorization-action-aware): derived from
+	 * the entity's FETCH (GET) endpoint's own {@code @PreAuthorize} -- deliberately NOT reused
+	 * for {@link #patchField}, which has its own {@link #requiredAuthorityForPatch()} derived
+	 * from the entity's real UPDATE endpoint instead, since a real app's GET and PATCH endpoints
+	 * can (and often do) require genuinely different roles.
+	 */
 	String requiredAuthority();
+
+	/**
+	 * O5 (D-resolver-authorization-action-aware): the {@code patchField} counterpart to {@link
+	 * #requiredAuthority()} -- derived independently from the entity's UPDATE (PATCH/PUT)
+	 * endpoint's own {@code @PreAuthorize}, not copied from the fetch endpoint's role. Before this
+	 * existed, {@link HandleController#patch} silently reused {@link #requiredAuthority()},
+	 * enforcing the wrong role whenever a real app's GET and PATCH endpoints genuinely differed.
+	 */
+	String requiredAuthorityForPatch();
 
 	/**
 	 * O4 (D-handle-lifecycle): the content hash of the feature contract this resolver was

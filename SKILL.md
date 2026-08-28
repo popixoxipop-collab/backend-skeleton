@@ -78,8 +78,12 @@ security review (`## Security hardening pass` in `DECISIONS.md`), not something 
 argument count matches what `fetch()` always passes (one UUID -- `D-security-8`), and
 `requiredAuthority()` is resolved from the SPECIFIC fetch method's own `@PreAuthorize`, not just
 the first one found in the controller file (`D-security-7`, fails closed to `TODO_ROLE` on an
-unsupported expression like `hasAnyRole`/SpEL rather than guessing). Still spot-check both before
-trusting a generated resolver in anything sensitive -- this is a regex scanner, not a compiler.
+unsupported expression like `hasAnyRole`/SpEL rather than guessing). O5
+(`D-resolver-authorization-action-aware`): `patch()` no longer reuses `requiredAuthority()` --
+`requiredAuthorityForPatch()` is resolved independently from the entity's own UPDATE (PATCH/PUT)
+endpoint, since a real app's GET and PATCH roles can genuinely differ (fails closed to `TODO_ROLE`
+the same way when no update endpoint is found). Still spot-check both before trusting a generated
+resolver in anything sensitive -- this is a regex scanner, not a compiler.
 `patchField()` is ALWAYS a stub requiring a human/agent to finish it, because this codebase uses
 at least three different partial-update DTO conventions (see `D-resolver-scope` in
 `DECISIONS.md`) and guessing wrong would silently bypass real validation. Do not "helpfully"

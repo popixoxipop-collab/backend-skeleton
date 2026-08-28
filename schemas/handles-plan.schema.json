@@ -22,6 +22,7 @@
           "idField": { "type": ["string", "null"] },
           "readPath": { "type": ["string", "null"] },
           "requiredAuthority": { "type": "string" },
+          "requiredAuthorityForPatch": { "type": "string", "description": "O5 (D-resolver-authorization-action-aware): java-spring only -- derived independently from the entity's UPDATE endpoint, not copied from requiredAuthority (which is fetch/recover's own value)." },
           "willGenerateResolver": { "type": "boolean" }
         }
       }

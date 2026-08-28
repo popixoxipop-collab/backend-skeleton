@@ -8057,3 +8057,100 @@ traces back to, and the `recover()` D-security-9 shape this item both reuses and
 unit" framing its persistence logic relies on); `D-handle-audit-report` (O7, the live-query
 precedent and the honest "this reports what was opted into" posture this item's own bootstrapping
 requirement echoes).
+
+## D-resolver-authorization-action-aware (O5): fetch and patch can require genuinely different roles, and until now only fetch's was ever checked
+
+**WHY:** O5's own catalog "What" says "make resolver authorization action- and resource-aware" --
+read literally and checked against the real code (not assumed from the "Why" bullet's own
+expression-recognition-breadth framing), this turned out to name a real, unaddressed gap more
+foundational than `hasRole`/`hasAuthority` recognition breadth: `findRequiredAuthority()`
+(`handles/providers/java-spring/plan.mjs`) is called **only** against the entity's FETCH (`GET
+.../{id}`) endpoint. Its single return value is stored as `resource.requiredAuthority` and used,
+unchanged, by `HandleController`'s `fetch()`, `patch()`, **and** `recover()` alike --
+`ResourceResolver.java.tmpl`'s own doc comment even claimed it was "required to fetch/**patch**",
+stating the bug as if it were the design. `findUpdateOperation()` already locates the entity's real
+`PATCH`/`PUT` endpoint (used since A3/D-patch-strategy for DTO field classification) -- but its own
+`@PreAuthorize` was never read at all. Consequence: a real app whose PATCH endpoint requires a
+stricter (or simply different) role than its GET endpoint -- an ordinary, unremarkable shape, not
+an edge case -- would have its generated `patch()` check silently enforce the **wrong** role.
+Invisible in the shared O4 integration fixture (`test/fixtures/java-compile`'s `WidgetController`
+happens to use `hasRole('ADMIN')` on both its GET and PATCH endpoints) but a real, live gap for any
+other shape, confirmed by writing a dedicated fixture with genuinely different roles and watching
+the pre-fix code get it wrong before fixing it.
+
+**Scope, decided and stated plainly, not silently narrowed:** this closes the fetch-vs-patch
+conflation only. Explicitly deferred: `hasAuthority('X')` recognition (needs the generated check
+to know whether to apply Spring Security's implicit `ROLE_` prefix -- `hasRole` does, `hasAuthority`
+doesn't -- a real discriminant, not just a wider regex); `hasAnyRole(...)`/`hasAnyAuthority(...)`
+(needs the single-string contract to become a list -- a materially different interface shape);
+ownership/organization-membership/service-layer policy awareness and "block the controller bean
+from activating until a human wires a real policy" (large and speculative -- the existing
+`"TODO_ROLE"` poison-pill string already provides an effective fail-closed default in practice, no
+real app has a role literally named that, and there is no evidence yet that a structurally stronger
+mechanism is needed). Building any of these now, without a proven need, would repeat exactly the
+speculative-infra mistake this project has already measured and rejected elsewhere (G6, O3 part 1's
+own EXIT).
+
+**Mechanism.** `plan.mjs` calls the existing `findRequiredAuthority()` a second time, against
+`findUpdateOperation()`'s own result (already computed for DTO classification, simply not reused
+for this before) -- if no update endpoint is found at all, the patch authority fails closed to
+`"TODO_ROLE"`, matching `requiredAuthority`'s own existing "nothing found" behavior. New resource
+field `requiredAuthorityForPatch` -- additive; `schemas/handles-plan.schema.json`'s resource
+objects already declare `additionalProperties: true` (unlike O3 part 1's `sbf.adapter/1→2`, whose
+schema is closed), so this needed no schema version bump, just a new optional property added for
+documentation/validation completeness. `ResourceResolver.java.tmpl` gains a
+`requiredAuthorityForPatch()` interface method alongside the existing `requiredAuthority()` (whose
+doc comment is corrected: it is fetch/recover's value only, not "fetch/patch" as it inaccurately
+claimed); `ResourceResolverStub.java.tmpl` gains the matching generated accessor via a new
+`{{REQUIRED_AUTHORITY_PATCH}}` template var, threaded through `emit.mjs` alongside the existing
+`REQUIRED_AUTHORITY`. `HandleController.patch()` now calls `resolver.requiredAuthorityForPatch()`;
+`fetch()`/`recover()` keep calling `requiredAuthority()` unchanged -- both are conceptually read
+operations (recovering historical data is a view action, not a write), so reusing the same value
+for both is intentional, not an oversight symmetric to the bug this item fixes.
+`python-fastapi`/`typescript-express` are unchanged -- confirmed by reading `router.py.tmpl`/
+`router.ts.tmpl` directly, neither ever attempts real `@PreAuthorize`-equivalent extraction;
+`check_access()`/`checkAccess()` is always a fail-closed, hand-written stub for every action
+already, so there is no "wrong extracted value" to conflate in the first place.
+
+**Verified.** This is a codegen-value-selection bug (which string gets extracted, which generated
+method calls it) rather than a runtime-enforcement-mechanism bug the way O3 part 2's registry check
+was, so -- matching this project's own established precedent for exactly this class of bug
+(`D-security-7`/`D-security-9`/`D-security-10`'s own tests are explicitly static content
+assertions on the emitted file, "there's no JVM in this test suite to actually run the generated
+code against, but the fixed shape of the source is directly checkable") -- verification stayed at
+the `plan.mjs` unit level and the emitted-file content-assertion level, not a new `@SpringBootTest`
+scenario. New `test/handles-plan.test.mjs` cases: a hand-crafted controller (the same
+throwaway-fixture pattern the existing D-security-7 regression already uses, not the shared O4
+integration app) with genuinely different `hasRole(...)` values on its GET and PATCH endpoints
+proves `requiredAuthorityForPatch` is derived independently and correctly, not copied from fetch's
+value; a second case proves the "no update endpoint found" fail-closed default. New
+`test/handles-cli.test.mjs` case, same style as the existing D-security-9/D-security-10 assertions:
+the real emitted `HandleController.java` has `fetch()`/`recover()` still calling
+`requiredAuthority()` and `patch()` now calling `requiredAuthorityForPatch()`, plus the emitted
+`ResourceResolver.java` interface and a real per-resource resolver stub both carry the new method.
+Deliberately did **not** modify the shared `test/fixtures/java-compile` app to prove this end-to-end
+against a real running server -- its `WidgetController` is load-bearing for O4's own real
+`@SpringBootTest` suite (`TestSecurityConfig` unconditionally stamps `ROLE_ADMIN` on every request),
+and giving it a genuinely different PATCH role to prove this fix would require also extending the
+security test config to support a second, distinct role without breaking every existing
+integration test -- real, doable work, but disproportionate to what a codegen-value-selection bug
+actually needs to be proven correct, unlike O3 part 2's registry-enforcement mechanism, which
+genuinely needed a live app to catch what it caught. `npm test` count and full-suite pass reported
+in CATALOG.md's own `[IMPLEMENTED as O5, ...]` entry.
+
+**EXIT**: no attempt was made to make `recover()` independently action-aware from `fetch()` --
+both are treated as the same "read" action deliberately, not because distinguishing them wasn't
+considered. If a real app is ever found where recovering snapshot history genuinely needs a
+different role than fetching the live resource, that would be a real, separate finding to
+investigate the same way this item's own gap was found -- not assumed away here.
+
+Cross-references: `D-handle-lifecycle` (O4, `TestSecurityConfig`'s unconditional `ROLE_ADMIN`
+stamp, the reason this item's own verification deliberately stayed at the static-assertion level
+rather than extending that shared fixture); `D-patch-strategy` (A3, `findUpdateOperation()`'s own
+origin -- already located for DTO classification, simply not reused for authority before this);
+`D-adapter-verification-basis` (G7, the same "different axis, don't overload an existing field's
+meaning" reasoning this item's own `requiredAuthorityForPatch` as a NEW field rather than a
+reinterpreted `requiredAuthority` follows); `D-handle-uid-type-binding`/`D-handle-registry-enforcement`
+(O3 parts 1-2, the immediately preceding items in this same session's ROI-ordered security-hardening
+sequence, and the shared "investigate for real, name what's deferred" discipline this item
+continues).

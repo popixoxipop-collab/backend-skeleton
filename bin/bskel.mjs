@@ -1712,7 +1712,8 @@ function renderHandlesPlan(plan, actions) {
 		lines.push(`## ${r.type}${r.willGenerateResolver ? '' : ' (resolver will NOT be generated -- see notes)'}`);
 		lines.push(`- table: ${r.table ?? '(unknown)'}, PK field: ${r.idField ?? '(unknown)'}`);
 		lines.push(`- read via: ${r.readPath ?? '(not found)'}`);
-		lines.push(`- requiredAuthority: ${r.requiredAuthority}`);
+		lines.push(`- requiredAuthority (fetch/recover): ${r.requiredAuthority}`);
+		if (r.requiredAuthorityForPatch !== undefined) lines.push(`- requiredAuthorityForPatch: ${r.requiredAuthorityForPatch}`);
 		lines.push('');
 	}
 	if (plan.notes.length > 0) {
