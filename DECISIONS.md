@@ -8154,3 +8154,100 @@ reinterpreted `requiredAuthority` follows); `D-handle-uid-type-binding`/`D-handl
 (O3 parts 1-2, the immediately preceding items in this same session's ROI-ordered security-hardening
 sequence, and the shared "investigate for real, name what's deferred" discipline this item
 continues).
+
+## D-macstudio-ci-runners (W7): a billing outage the ubuntu-latest jobs couldn't see past, and two GitHub Actions limitations the plan itself got wrong until real execution proved otherwise
+
+**WHY:** the catalog's own W7 item ("move more CI jobs to self-hosted runners") had sat untouched
+because it needed a real machine, not just code -- but investigating it live (`gh run list`, not
+assumed) found the actual trigger was more concrete than "nice to have someday": a real GitHub
+Actions billing failure (2026-08-26 15:58 -> 2026-08-27 16:03) had failed every `ubuntu-latest` job
+in this repo with "recent account payments have failed," while the one job already on the
+self-hosted `macstudio` runner (the pre-existing `macos` job, migrated from `bob-macmini` on
+2026-08-24) succeeded in the same run in 2m41s -- self-hosted execution genuinely isn't billed the
+same way and is immune to this exact failure mode. Moved the other 9 `ubuntu-latest` jobs (`test`,
+`package-install`, `java-compile`, `python-import`, `typescript-compile`, `db-introspect`,
+`python-integration`, `java-ast`, `java-integration`) onto `macstudio` too, for
+`push`(main)/`schedule`/`workflow_dispatch` only -- `pull_request` deliberately stays on
+`ubuntu-latest` unchanged, preserving the `macos` job's own existing security boundary (a
+self-hosted runner reachable from `pull_request` runs the PR's own arbitrary code on the user's
+personal, always-on machine; GitHub's own hardening guide flags exactly this combination). A single
+dynamic `runs-on` ternary (`github.event_name == 'pull_request' && 'ubuntu-latest' ||
+fromJSON('["self-hosted","macOS","macstudio"]')`) per job avoids duplicating job definitions.
+
+**Two premises, written into the plan and even into a first commit's own comments, turned out
+false the moment real execution touched them -- both corrected in the same branch, not left for
+later:**
+
+1. `services:` containers (used for the disposable Postgres in `db-introspect`/
+   `python-integration`/`java-integration`) are Linux-only in GitHub Actions
+   ("Container operations are only supported on Linux runners") -- a platform limitation, not a
+   Docker-daemon problem. The first version of this item's own plan (and its first commit's
+   comment) claimed the `services:` block "works unchanged on the self-hosted macstudio path too --
+   verified live against a real colima-provided Docker daemon," written before that block was ever
+   actually exercised against `macstudio` -- a real `workflow_dispatch` run immediately falsified
+   it. `colima` itself (installed via `brew install colima docker`, chosen over Docker Desktop for
+   this headless always-on host) genuinely does provide a working Docker daemon, proven by a
+   standalone `docker run postgres:16 ... pg_isready` round-trip -- only GitHub's own services:
+   orchestration layer is what can't run there. Fixed by replacing all 3 `services:` blocks with a
+   manual `docker run`/`pg_isready`-poll/`docker rm -f` step sequence built from nothing but the
+   `docker` CLI -- this runs identically on `ubuntu-latest`'s preinstalled Docker and `macstudio`'s
+   colima-provided one, so (unlike `runs-on`) it needed no OS branching and no per-job duplication.
+2. `actions/setup-python`'s precompiled macOS release tarballs (from `actions/python-versions`)
+   have `/Users/runner` -- GitHub-hosted macOS runners' fixed username -- baked into their own
+   install script at build time, not redirectable via `RUNNER_TOOL_CACHE` or any other env var
+   since the path lives inside the downloaded release asset itself. `macstudio`'s real user is
+   `eoe`, so `python-import`/`python-integration` failed outright
+   (`mkdir: /Users/runner: Permission denied`) the first time this ran for real. Fixed by skipping
+   `actions/setup-python@v5` on macOS (`if: runner.os != 'macOS'`) and instead symlinking a
+   job-temp shim (`$RUNNER_TEMP/py312-shim/python3 -> python@3.12/bin/python3.12`, prepended onto
+   `$GITHUB_PATH`) onto Homebrew's already-installed `python@3.12` -- verified via a real SSH
+   session on the machine (a `python3 -m venv` round-trip through the shim, confirming
+   `Python 3.12.13`) before committing it, this time. A plain PATH prepend of `python@3.12/bin`
+   alone would not have been enough: Homebrew's own unversioned `python3` symlink on this machine
+   currently resolves to `python@3.11`, not `3.12` (only `python3.12` exists inside `python@3.12`'s
+   own bin dir), which is why the explicit `python3`-named shim was needed rather than just adding
+   a directory to PATH.
+
+A third, smaller mistake in the same first commit: the `sudo apt-get install ripgrep` step was
+dropped outright from all 9 jobs on the reasoning that `rg` is already on `macstudio`'s PATH via
+its own `.env` file -- true, but the same job definition still resolves to `ubuntu-latest` for
+`pull_request`, which has no `rg` preinstalled; dropping the step unconditionally would have
+silently broken every PR's CI the moment it merged. Caught by the same `workflow_dispatch` run (a
+pre-existing static test, `test/ci-workflow.test.mjs`, asserts several jobs install ripgrep) before
+it ever reached a real PR. Fixed by restoring the step, gated `if: runner.os != 'macOS'`.
+
+**Process note, named plainly rather than glossed over:** this item's own first CI YAML edit was
+verified via a real `workflow_dispatch` run before ever being run through the local `npm test`
+suite -- the "local verify, then real verify" sequence this whole session had otherwise followed
+consistently was skipped here while attention was on the Docker/colima infrastructure setup, and
+is exactly why the ripgrep regression reached a real run instead of being caught in seconds
+locally. All three fixes above were run through local `npm test` (1043/1043 passing) before the
+corrective `workflow_dispatch` re-verification.
+
+**Verified for real, twice:** a `workflow_dispatch` run against `macstudio` with all three fixes
+applied (`33133855783`) showed all 12 jobs green, ripgrep correctly `skipped` on every
+macOS-routed job, the manual Postgres lifecycle steps succeeding, and the python@3.12 shim
+succeeding with `actions/setup-python@v5` correctly `skipped`. A separate `pull_request`-triggered
+run on this item's own PR (`33134484622`) confirmed the other half of the design: all 9 jobs still
+resolved to `ubuntu-latest` (`ripgrep` installed via real `apt-get` against `azure.archive.ubuntu.com`,
+confirmed in the job log) and passed there, `macos`/`spring-initializr-canary` correctly `skipped`
+-- zero behavior change on the PR path, the entire point of the dynamic `runs-on` design.
+
+**EXIT**: a single registered runner instance processes one job at a time -- moving 9 jobs there
+serializes what's `push`-to-main's own ~9-job matrix (observed: roughly 11 minutes wall-clock for
+the full serialized batch, once). Deliberately not registering multiple parallel runner instances
+yet -- `push` to main happens far less often than `pull_request` (which stays on GitHub-hosted,
+unaffected), and premature parallel-runner infrastructure would repeat the same speculative-infra
+mistake this project has already measured and rejected elsewhere (O3/G6's own precedent). The
+runner's `_work` directory is not wiped between jobs (only `actions/checkout`'s own `clean: true`
+resets the tracked repo dir) -- a residual risk already accepted, unchanged, from the original
+`macos` job's own design. `spring-initializr-canary` stays on `ubuntu-latest` deliberately -- its
+whole purpose is detecting drift against a genuinely fresh environment, and running it on the same
+long-lived machine every time would risk masking exactly the kind of environment drift it exists to
+catch.
+
+Cross-references: the `macos` job's own inline comments (the original self-hosted-runner security
+boundary and `.env`/PATH precedent this item extended rather than re-derived); `D-fixture-corpus`
+(P3, the original reasoning for why `test`/`java-compile` ran on `ubuntu-latest` at all, and why
+`macOS` was originally excluded from the Node matrix on cost grounds -- self-hosted execution is
+what changes that cost calculus).
