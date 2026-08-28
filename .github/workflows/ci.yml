@@ -62,10 +62,12 @@ jobs:
   # (a self-hosted runner reachable from `pull_request` runs the PR's own arbitrary code on the
   # user's personal, always-on machine); this ternary keeps that exact same boundary while adding
   # billing-outage resilience for push-to-main, which only an already-trusted pusher can trigger.
-  # `sudo apt-get install ripgrep` is dropped on this path -- `rg` is already on the macstudio
-  # runner's own PATH via its `.env` file (same as the `macos` job never needing this step); it's
-  # a genuine no-op on ubuntu-latest too since apt is Linux-only and this step only ever ran there
-  # anyway, so dropping it changes nothing for the pull_request path.
+  # `sudo apt-get install ripgrep` stays, but now gated `if: runner.os != 'macOS'` -- macstudio
+  # already has `rg` on PATH via the runner's own `.env` file (same as the `macos` job never
+  # needing this step), but `pull_request` still resolves to ubuntu-latest, which genuinely needs
+  # apt's own ripgrep install. An earlier version of this change dropped the step outright,
+  # silently breaking every pull_request run the moment it merged -- caught by a real
+  # workflow_dispatch run, not by inspection; kept as a cautionary note for the next reader.
   test:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     strategy:
@@ -74,6 +76,9 @@ jobs:
         node: ['22.x', '24.x']
     steps:
       - uses: actions/checkout@v4
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -92,6 +97,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # D-fixture-corpus (P3): test/package-install.test.mjs runs `bskel doctor --json` inside a
+      # real git repo -- `rg` is a required check there (unscoped doctor, same as scan/handles),
+      # so this job needs it even though it never runs `bskel scan`/`bskel handles` itself. Found
+      # live: this step was missing on the first real CI run, and the job failed exactly here.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:pack
 
@@ -111,6 +124,13 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      # D-fixture-corpus (P3): scripts/java-compile-smoke.mjs runs a real `bskel scan`, which
+      # shells out to `rg` directly (throws, not degrades, without it). Missing here on the first
+      # real CI run -- found live (`spawnSync rg ENOENT`).
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:java-compile
 
@@ -127,9 +147,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # W7: actions/setup-python's precompiled macOS release tarballs have `/Users/runner`
+      # (GitHub-hosted macOS runners' fixed username) baked into their own install script at
+      # build time -- found live: a real workflow_dispatch run against macstudio failed with
+      # `mkdir: /Users/runner: Permission denied`, since this runner's real user is `eoe`. Not
+      # fixable via RUNNER_TOOL_CACHE or any other env var -- the path is inside the downloaded
+      # release asset itself. Homebrew's own python@3.12 (already installed on macstudio,
+      # verified with a real `python3 -m venv` round-trip) is used instead via a job-temp shim
+      # dir prepended to PATH -- `python3` unqualified is what scripts/python-import-smoke.mjs
+      # hardcodes, and Homebrew's default unversioned `python3` symlink currently points at
+      # python@3.11, not the `3.12` this job declares, so the shim (not just adding
+      # python@3.12/bin to PATH) is what makes the resolved version match the declared one.
+      - name: point python3 at Homebrew's python@3.12 (macOS self-hosted only)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/py312-shim"
+          ln -sf /opt/homebrew/opt/python@3.12/bin/python3.12 "$RUNNER_TEMP/py312-shim/python3"
+          echo "$RUNNER_TEMP/py312-shim" >> "$GITHUB_PATH"
       - uses: actions/setup-python@v5
+        if: runner.os != 'macOS'
         with:
           python-version: '3.12'
+      # scripts/python-import-smoke.mjs runs a real `bskel scan`, same rg requirement as the other
+      # jobs above.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:python-import
 
@@ -148,6 +192,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # scripts/typescript-typecheck-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other jobs above.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:typescript-compile
 
@@ -155,43 +205,62 @@ jobs:
   # actually works against a real database -- previously verified only once, by hand, against a
   # local Homebrew Postgres. Same dedicated-job shape as java-compile/python-import above (a
   # real, network/service-touching check kept out of the fast `test` job's default `npm test`
-  # path). GitHub Actions' native `services:` container is a disposable Postgres for exactly this
-  # job's lifetime -- not a persistent/shared instance, nothing to clean up afterward.
+  # path).
   # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
-  # The `services:` block below works unchanged on the self-hosted macstudio path too -- verified
-  # live against a real colima-provided Docker daemon (`brew install colima docker`, `colima
-  # start`, a real `docker run postgres:16 ... pg_isready` round-trip) before this job was ever
-  # pointed at it; the runner's own `.env` gained `DOCKER_HOST=unix:///Users/eoe/.colima/default/
-  # docker.sock` since colima's socket isn't at the standard `/var/run/docker.sock` path.
+  # GitHub Actions' native `services:` container -- used here through the D-fixture-corpus/A4
+  # eras -- is Linux-only ("Container operations are only supported on Linux runners"); a real
+  # workflow_dispatch run against macstudio failed immediately with exactly that error the first
+  # time this job was pointed at the self-hosted path, disproving an earlier version of this
+  # comment that (wrongly, never actually exercised) claimed the services: block "works unchanged"
+  # there. Docker itself is NOT the blocker -- colima (`brew install colima docker`, `colima
+  # start`) genuinely provides a working daemon on macstudio, proven by a real `docker run
+  # postgres:16 ... pg_isready` round-trip -- only GitHub's own services: orchestration is
+  # Linux-only. Replaced with the steps below: a plain `docker run`/health-poll/`docker rm -f`
+  # sequence that reimplements what services: automated, using nothing but the `docker` CLI --
+  # this works identically on ubuntu-latest's own preinstalled Docker and macstudio's
+  # colima-provided one, so (unlike runs-on) this needs no OS branching at all. The runner's own
+  # `.env` gained `DOCKER_HOST=unix:///Users/eoe/.colima/default/docker.sock` since colima's
+  # socket isn't at the standard `/var/run/docker.sock` path.
   db-introspect:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
-    services:
-      # POSTGRES_HOST_AUTH_METHOD: trust -- this container is disposable, network-isolated to
-      # this one job's lifetime, and never holds anything but throwaway test tables, so it
-      # deliberately carries NO password at all rather than a hardcoded one (the official
-      # postgres image supports this exact mode for precisely this case -- avoids a
-      # credential-shaped string in this file entirely, not just a low-stakes one).
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_HOST_AUTH_METHOD: trust
-          POSTGRES_DB: bskel_a4_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # scripts/db-introspect-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other smoke-test jobs above.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      # POSTGRES_HOST_AUTH_METHOD=trust -- this container is disposable, network-isolated to this
+      # one job's lifetime, and never holds anything but throwaway test tables, so it deliberately
+      # carries NO password at all rather than a hardcoded one (the official postgres image
+      # supports this exact mode for precisely this case -- avoids a credential-shaped string in
+      # this file entirely, not just a low-stakes one).
+      - name: start postgres
+        run: |
+          docker run -d --name bskel-pg-a4 \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=bskel_a4_test \
+            -p 5432:5432 \
+            postgres:16
+      - name: wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker exec bskel-pg-a4 pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready in time" >&2
+          exit 1
       - run: npm ci
       - run: npm run test:db-introspect
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
+      - name: stop postgres
+        if: always()
+        run: docker rm -f bskel-pg-a4
 
   # G4 follow-up (D-handles-providers): the first automated proof that python-fastapi's own
   # handle read/snapshot lifecycle (register -> a decorated service function -> a real HTTP GET
@@ -200,35 +269,57 @@ jobs:
   # request/response cycles, no bound port) instead of a live server + real HTTP client, since
   # nothing here needs what only a live-bound-port test proves (unlike Java's own TestRestTemplate
   # PATCH limitation). Same db-introspect-style disposable Postgres service container, own DB name.
-  # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and the
-  # real colima-Docker verification this `services:` block now relies on when self-hosted.
+  # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and why
+  # `services:` was replaced with a manual docker run/health-poll/cleanup sequence -- GitHub's
+  # services: orchestration is Linux-only, not something colima's real Docker daemon can fix.
   python-integration:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_HOST_AUTH_METHOD: trust
-          POSTGRES_DB: bskel_g4_python_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      # W7: see the `python-import` job's own comment above -- actions/setup-python's macOS
+      # release cannot relocate off `/Users/runner`, so this uses the same Homebrew
+      # python@3.12-via-job-temp-shim approach instead of setup-python on macOS.
+      - name: point python3 at Homebrew's python@3.12 (macOS self-hosted only)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/py312-shim"
+          ln -sf /opt/homebrew/opt/python@3.12/bin/python3.12 "$RUNNER_TEMP/py312-shim/python3"
+          echo "$RUNNER_TEMP/py312-shim" >> "$GITHUB_PATH"
       - uses: actions/setup-python@v5
+        if: runner.os != 'macOS'
         with:
           python-version: '3.12'
+      # scripts/python-integration-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other smoke-test jobs above.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: start postgres
+        run: |
+          docker run -d --name bskel-pg-g4 \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=bskel_g4_python_test \
+            -p 5432:5432 \
+            postgres:16
+      - name: wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker exec bskel-pg-g4 pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready in time" >&2
+          exit 1
       - run: npm ci
       - run: npm run test:python-integration
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_g4_python_test
+      - name: stop postgres
+        if: always()
+        run: docker rm -f bskel-pg-g4
 
   # A2 Phase 2 (D-java-ast-helper): the first automated, clean-checkout proof that the bundled
   # JavaParser + Symbol Solver helper (handles/providers/java-spring/ast-helper/) actually builds
@@ -251,6 +342,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      # scripts/java-ast-smoke.mjs runs a real `bskel scan`, same rg requirement as the other
+      # smoke-test jobs above.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:java-ast
 
@@ -262,24 +359,13 @@ jobs:
   # check than either existing job alone. Same `POSTGRES_HOST_AUTH_METHOD: trust`, no-password
   # convention as db-introspect above; own DB name (bskel_o4_test) so this job and db-introspect/
   # python-integration could never collide even if a future change ran them concurrently.
-  # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and the
-  # real colima-Docker verification. This job (already the heaviest -- a real `./gradlew test`)
-  # is exactly the kind of check most worth insulating from a hosted-runner billing outage.
+  # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and why
+  # `services:` was replaced with a manual docker run/health-poll/cleanup sequence -- GitHub's
+  # services: orchestration is Linux-only, not something colima's real Docker daemon can fix.
+  # This job (already the heaviest -- a real `./gradlew test`) is exactly the kind of check most
+  # worth insulating from a hosted-runner billing outage.
   java-integration:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_HOST_AUTH_METHOD: trust
-          POSTGRES_DB: bskel_o4_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -290,10 +376,34 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      # scripts/java-integration-smoke.mjs runs a real `bskel scan`, same rg requirement as the
+      # other smoke-test jobs above.
+      # W7: gated `if: runner.os != 'macOS'` -- see the `test` job's own comment above.
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: start postgres
+        run: |
+          docker run -d --name bskel-pg-o4 \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=bskel_o4_test \
+            -p 5432:5432 \
+            postgres:16
+      - name: wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker exec bskel-pg-o4 pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready in time" >&2
+          exit 1
       - run: npm ci
       - run: npm run test:java-integration
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_o4_test
+      - name: stop postgres
+        if: always()
+        run: docker rm -f bskel-pg-o4
 
   # D-macos-runner (P3b): P3's own comment on the `test` job above said a macOS job "would mostly
   # re-test the one platform already exercised daily" locally -- true, but automated + repeatable
