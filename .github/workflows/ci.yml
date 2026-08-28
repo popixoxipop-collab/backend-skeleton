@@ -51,8 +51,23 @@ jobs:
   # Gradle and no network -- pure java.* stdlib, a two-file `javac` + one `java -cp` invocation,
   # sub-second -- cheap enough to run in the fast job on every push/PR, the same bar python3
   # already clears for the sibling Python codec test in this same job.
+  # W7: this job (and the 8 below it through java-integration) now run on the self-hosted
+  # `macstudio` runner for push(main)/schedule/workflow_dispatch, and stay on GitHub-hosted
+  # ubuntu-latest for pull_request -- UNCHANGED there, zero new exposure. Found live, not
+  # theoretical: during the real 2026-08-26/27 GitHub Actions billing outage, every ubuntu-latest
+  # job in this file failed with "recent account payments have failed" while the ALREADY-
+  # self-hosted `macos` job below (unaffected -- self-hosted execution isn't billed the same way)
+  # succeeded in the same run. `pull_request` is deliberately excluded from ever reaching
+  # `macstudio` here -- see the `macos` job's own SECURITY comment below for the full reasoning
+  # (a self-hosted runner reachable from `pull_request` runs the PR's own arbitrary code on the
+  # user's personal, always-on machine); this ternary keeps that exact same boundary while adding
+  # billing-outage resilience for push-to-main, which only an already-trusted pusher can trigger.
+  # `sudo apt-get install ripgrep` is dropped on this path -- `rg` is already on the macstudio
+  # runner's own PATH via its `.env` file (same as the `macos` job never needing this step); it's
+  # a genuine no-op on ubuntu-latest too since apt is Linux-only and this step only ever ran there
+  # anyway, so dropping it changes nothing for the pull_request path.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -66,32 +81,26 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm test
 
+  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   package-install:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-      # D-fixture-corpus (P3): test/package-install.test.mjs runs `bskel doctor --json` inside a
-      # real git repo -- `rg` is a required check there (unscoped doctor, same as scan/handles),
-      # so this job needs it even though it never runs `bskel scan`/`bskel handles` itself. Found
-      # live: this step was missing on the first real CI run, and the job failed exactly here.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:pack
 
   # D-fixture-corpus (P3): the first automated proof that `bskel handles emit`'s generated Java
   # actually compiles -- previously a one-time manual run, narrated in DECISIONS.md, on this one
   # machine, with a hand-symlinked JDK17 toolchain. See scripts/java-compile-smoke.mjs.
+  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   java-compile:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -102,11 +111,6 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      # D-fixture-corpus (P3): scripts/java-compile-smoke.mjs runs a real `bskel scan`, which
-      # shells out to `rg` directly (throws, not degrades, without it). Missing here on the first
-      # real CI run -- found live (`spawnSync rg ENOENT`).
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:java-compile
 
@@ -115,8 +119,9 @@ jobs:
   # network-touching check kept out of the fast `test` job's default `npm test` path) -- installs
   # fastapi+sqlmodel into a throwaway venv and imports every file `bskel handles emit` generates
   # for real, not just `ast.parse`s them. See scripts/python-import-smoke.mjs.
+  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   python-import:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -125,10 +130,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # scripts/python-import-smoke.mjs runs a real `bskel scan`, same rg requirement as the other
-      # jobs above.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:python-import
 
@@ -139,17 +140,14 @@ jobs:
   # `npx tsc --noEmit` against generated code -- unlike Python (dynamically typed, where a real
   # import already proves the meaningful thing), TypeScript's whole value proposition IS its
   # compiler. See scripts/typescript-typecheck-smoke.mjs.
+  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   typescript-compile:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-      # scripts/typescript-typecheck-smoke.mjs runs a real `bskel scan`, same rg requirement as the
-      # other jobs above.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:typescript-compile
 
@@ -159,8 +157,14 @@ jobs:
   # real, network/service-touching check kept out of the fast `test` job's default `npm test`
   # path). GitHub Actions' native `services:` container is a disposable Postgres for exactly this
   # job's lifetime -- not a persistent/shared instance, nothing to clean up afterward.
+  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # The `services:` block below works unchanged on the self-hosted macstudio path too -- verified
+  # live against a real colima-provided Docker daemon (`brew install colima docker`, `colima
+  # start`, a real `docker run postgres:16 ... pg_isready` round-trip) before this job was ever
+  # pointed at it; the runner's own `.env` gained `DOCKER_HOST=unix:///Users/eoe/.colima/default/
+  # docker.sock` since colima's socket isn't at the standard `/var/run/docker.sock` path.
   db-introspect:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     services:
       # POSTGRES_HOST_AUTH_METHOD: trust -- this container is disposable, network-isolated to
       # this one job's lifetime, and never holds anything but throwaway test tables, so it
@@ -184,10 +188,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-      # scripts/db-introspect-smoke.mjs runs a real `bskel scan`, same rg requirement as the
-      # other smoke-test jobs above.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:db-introspect
         env:
@@ -200,8 +200,10 @@ jobs:
   # request/response cycles, no bound port) instead of a live server + real HTTP client, since
   # nothing here needs what only a live-bound-port test proves (unlike Java's own TestRestTemplate
   # PATCH limitation). Same db-introspect-style disposable Postgres service container, own DB name.
+  # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and the
+  # real colima-Docker verification this `services:` block now relies on when self-hosted.
   python-integration:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     services:
       postgres:
         image: postgres:16
@@ -223,10 +225,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # scripts/python-integration-smoke.mjs runs a real `bskel scan`, same rg requirement as the
-      # other smoke-test jobs above.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:python-integration
         env:
@@ -240,8 +238,9 @@ jobs:
   # java-compile, this job's Gradle wrapper is already COMMITTED (it ships inside the npm package
   # for real consumers) -- no `gradle/actions/setup-gradle` needed for correctness, only kept for
   # its dependency-cache speedup between runs. See scripts/java-ast-smoke.mjs.
+  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   java-ast:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -252,10 +251,6 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      # scripts/java-ast-smoke.mjs runs a real `bskel scan`, same rg requirement as the other
-      # smoke-test jobs above.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:java-ast
 
@@ -265,10 +260,13 @@ jobs:
   # java-compile above) because it needs BOTH a JVM toolchain AND a database service container,
   # and actually runs `./gradlew test`, not just `compileJava` -- a materially heavier/slower
   # check than either existing job alone. Same `POSTGRES_HOST_AUTH_METHOD: trust`, no-password
-  # convention as db-introspect above; own DB name (bskel_o4_test) so a future re-run of both
-  # jobs concurrently on self-hosted infra could never collide.
+  # convention as db-introspect above; own DB name (bskel_o4_test) so this job and db-introspect/
+  # python-integration could never collide even if a future change ran them concurrently.
+  # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and the
+  # real colima-Docker verification. This job (already the heaviest -- a real `./gradlew test`)
+  # is exactly the kind of check most worth insulating from a hosted-runner billing outage.
   java-integration:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     services:
       postgres:
         image: postgres:16
@@ -292,10 +290,6 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      # scripts/java-integration-smoke.mjs runs a real `bskel scan`, same rg requirement as the
-      # other smoke-test jobs above.
-      - name: install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: npm run test:java-integration
         env:
