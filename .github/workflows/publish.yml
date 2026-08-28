@@ -1,0 +1,54 @@
+name: Publish to npm
+
+# npm trusted publishing (OIDC) -- chosen over a long-lived NPM_TOKEN secret after repeated
+# real-execution failures trying to complete npm's interactive WebAuthn/OTP flow through this
+# CI/agent environment (`npm publish` -- even with a fresh access token -- kept demanding an
+# EOTP the polling window never completed in time). npm's own account-settings UI (as of this
+# workflow's authoring) is actively steering users away from 2FA-bypass tokens toward exactly
+# this OIDC mechanism ("npm tokens that bypass 2FA are being restricted"), so this is both the
+# fix for today's blocker and the durable, forward-compatible one -- no token to leak, rotate,
+# or have expire.
+#
+# Requires a ONE-TIME manual step on npmjs.com that no CLI/API exposes (must be done in the
+# package's own web settings, see this repo's release notes / DECISIONS.md for the exact values
+# entered): backend-skeleton's "Publishing access" -> "Trusted Publisher" -> GitHub Actions,
+# pointed at this exact repo + this exact workflow filename (`publish.yml`), no environment.
+#
+# `workflow_dispatch` only, deliberately -- NOT triggered on every push/tag. This project's
+# release cadence is a manual, reviewed `chore(release): bump version to ...` commit (see git
+# log), not an automatic "every merge to main ships a new version" model; auto-publishing here
+# would be a materially different (and riskier) release policy this repo has never adopted.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag (e.g. beta, latest)'
+        required: true
+        default: 'beta'
+
+permissions:
+  contents: read
+  id-token: write   # required for npm's OIDC trusted-publishing token exchange
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      # Trusted publishing needs npm >= 11.5.1 -- not guaranteed to be what setup-node's bundled
+      # npm version happens to be, so pinned to latest explicitly rather than hoping.
+      - run: npm install -g npm@latest
+      - run: npm test
+      # No NODE_AUTH_TOKEN/NPM_TOKEN anywhere in this workflow, deliberately -- with
+      # id-token: write and the npm-side Trusted Publisher config above, `npm publish` obtains a
+      # short-lived registry token itself via OIDC. Also generates real provenance attestation
+      # (supply-chain verifiable back to this exact commit/workflow run), a capability a
+      # long-lived token could never provide.
+      - run: npm publish --tag "$NPM_DIST_TAG" --provenance
+        env:
+          NPM_DIST_TAG: ${{ inputs.tag }}
