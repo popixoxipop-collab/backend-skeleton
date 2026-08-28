@@ -155,16 +155,22 @@ test('scripts/db-introspect-smoke.mjs exists and is executable', () => {
 	assert.ok(mode & 0o111, `scripts/db-introspect-smoke.mjs is not executable (mode ${mode.toString(8)})`);
 });
 
-test('the db-introspect job provides a real postgres service container with no hardcoded credential, installs ripgrep, and passes a connection string through as an env var (never a literal in the workflow file)', () => {
+// W7: GitHub Actions' native `services:` container is Linux-only ("Container operations are only
+// supported on Linux runners") -- found live when this job was first pointed at the self-hosted
+// macstudio runner. Replaced with a manual `docker run`/health-poll/`docker rm -f` sequence that
+// works identically on ubuntu-latest's preinstalled Docker and macstudio's colima-provided one, so
+// this test now checks the run commands directly instead of a services: block.
+test('the db-introspect job provides a disposable postgres container with no hardcoded credential, installs ripgrep, and passes a connection string through as an env var (never a literal in the workflow file)', () => {
 	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
 	const job = doc.jobs['db-introspect'];
 	assert.ok(job, 'expected a "db-introspect" job');
-	const pg = job.services?.postgres;
-	assert.ok(pg, 'expected a postgres service container');
-	assert.equal(pg.env?.POSTGRES_HOST_AUTH_METHOD, 'trust', 'the disposable CI-only container should use trust auth, not a hardcoded password literal');
-	assert.equal(pg.env?.POSTGRES_PASSWORD, undefined, 'no password literal should be committed, even a throwaway one -- trust auth needs none at all');
+	assert.equal(job.services, undefined, 'db-introspect should no longer use a services: container -- it is Linux-only and this job now runs on macstudio too');
 	const commands = allRunCommands({ jobs: { 'db-introspect': job } });
 	assert.ok(commands.some((c) => c.includes('ripgrep')), 'scripts/db-introspect-smoke.mjs runs a real `bskel scan`, which shells out to rg directly');
+	assert.ok(commands.some((c) => c.includes('docker run') && c.includes('postgres:16')), 'expected a step that starts a real disposable postgres container via `docker run`');
+	assert.ok(commands.some((c) => c.includes('POSTGRES_HOST_AUTH_METHOD=trust')), 'the disposable CI-only container should use trust auth, not a hardcoded password literal');
+	assert.ok(!commands.some((c) => c.includes('POSTGRES_PASSWORD')), 'no password literal should be committed, even a throwaway one -- trust auth needs none at all');
+	assert.ok(commands.some((c) => c.includes('pg_isready')), 'expected a health-poll step waiting for the container to become ready before the test step runs');
 	const dbUrlStep = (job.steps ?? []).find((s) => s.env?.BSKEL_TEST_DATABASE_URL);
 	assert.ok(dbUrlStep, 'expected a step passing BSKEL_TEST_DATABASE_URL as an env var');
 });
