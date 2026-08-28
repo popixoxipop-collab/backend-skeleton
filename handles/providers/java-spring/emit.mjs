@@ -12,6 +12,11 @@ const PROVIDER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(PROVIDER_ROOT, 'templates');
 const MIGRATION_TEMPLATE = path.join(TEMPLATES_DIR, 'migration.sql.tmpl');
 const RESOLVER_TEMPLATE = path.join(TEMPLATES_DIR, 'ResourceResolverStub.java.tmpl');
+// D-resolver-policy-split: a resource's live-derived, security-relevant declarations
+// (type/requiredAuthority/requiredAuthorityForPatch/contractRef/featureUid) are generated into
+// this separate, always-safe-to-regenerate companion file rather than the same file as the
+// hand-editable patchField() body -- see the template's own javadoc and DECISIONS.md.
+const RESOLVER_POLICY_TEMPLATE = path.join(TEMPLATES_DIR, 'ResourceResolverPolicyStub.java.tmpl');
 
 const INFRA_FILES = [
 	{ template: 'HandleCodec.java.tmpl', target: 'global/handle/HandleCodec.java' },
@@ -146,7 +151,7 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 
 	const resolverUnits = plan.resources
 		.filter((r) => r.willGenerateResolver) // see plan.mjs: no broken imports generated on purpose
-		.map((resource) => {
+		.flatMap((resource) => {
 			const patchable = resource.patchable ?? [];
 			// A blocked update service (see plan.mjs's updateServiceBlockedReason) means NO field of
 			// this resource can be auto-generated regardless of approvals -- ignore any recorded
@@ -155,21 +160,17 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 			const approvedFields = resource.updateServiceBlockedReason ? new Set() : currentlyApprovedFields(patchApprovals, resource.type, patchable);
 			const { needsValidation, needsPatchFieldImport } = computeCodegenNeeds(patchable, approvedFields);
 			const serviceField = lowerFirst(resource.service.serviceType);
-			const vars = {
-				BASE_PACKAGE: basePackage,
-				MODULE: plan.module,
-				RESOURCE_TYPE: resource.type,
+			const sharedVars = { BASE_PACKAGE: basePackage, MODULE: plan.module, RESOURCE_TYPE: resource.type, FEATURE_ID: featureId };
+			// D-resolver-policy-split: the resolver's own vars no longer include the four
+			// live-derived/security-relevant tokens -- those move to policyVars below, into a
+			// separate generated file, specifically so a hand-edited patchField() (which stales
+			// THIS file's own template render) can never block one of those values from updating.
+			const resolverVars = {
+				...sharedVars,
 				SERVICE_IMPORT: `${basePackage}.domain.${plan.module}.application.${resource.service.serviceType}`,
 				SERVICE_TYPE: resource.service.serviceType,
 				SERVICE_FIELD: serviceField,
 				FETCH_METHOD: resource.fetchOperation.method,
-				REQUIRED_AUTHORITY: resource.requiredAuthority,
-				// O5 (D-resolver-authorization-action-aware): independently derived from the UPDATE
-				// endpoint's own @PreAuthorize -- see plan.mjs's own computation.
-				REQUIRED_AUTHORITY_PATCH: resource.requiredAuthorityForPatch,
-				FEATURE_ID: featureId,
-				CONTRACT_REF: contractRef,
-				FEATURE_UID: featureUid,
 				PATCH_IMPORTS: needsValidation ? buildPatchImports({ basePackage, module: plan.module, dtoTypeName: resource.dtoTypeName, needsPatchFieldImport, jacksonPackage }) : '',
 				PATCH_FIELDS: needsValidation ? buildPatchFields() : '',
 				PATCH_FIELD_BODY: renderPatchFieldBody({
@@ -182,27 +183,50 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 					blockedReason: resource.updateServiceBlockedReason,
 				}),
 			};
-			return {
-				id: 'ResourceResolverStub.java.tmpl',
-				resourceType: resource.type,
-				module: plan.module,
-				templatePath: RESOLVER_TEMPLATE,
-				targetAbs: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure', `${resource.type}Resolver.java`),
-				rendered: render(RESOLVER_TEMPLATE, vars),
-				pristineRenderFor: (ownerId) => render(RESOLVER_TEMPLATE, {
-				...vars,
-				FEATURE_ID: ownerId,
-				CONTRACT_REF: ownerId === featureId ? contractRef : contractRefFor(ownerId),
-				FEATURE_UID: ownerId === featureId ? featureUid : featureUidFor(ownerId),
-			}),
+			const policyVars = {
+				...sharedVars,
+				REQUIRED_AUTHORITY: resource.requiredAuthority,
+				// O5 (D-resolver-authorization-action-aware): independently derived from the UPDATE
+				// endpoint's own @PreAuthorize -- see plan.mjs's own computation.
+				REQUIRED_AUTHORITY_PATCH: resource.requiredAuthorityForPatch,
+				CONTRACT_REF: contractRef,
+				FEATURE_UID: featureUid,
 			};
+			return [
+				{
+					id: 'ResourceResolverStub.java.tmpl',
+					resourceType: resource.type,
+					module: plan.module,
+					templatePath: RESOLVER_TEMPLATE,
+					targetAbs: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure', `${resource.type}Resolver.java`),
+					rendered: render(RESOLVER_TEMPLATE, resolverVars),
+					// Only FEATURE_ID varies by owner now -- the four moved tokens no longer live here.
+					pristineRenderFor: (ownerId) => render(RESOLVER_TEMPLATE, { ...resolverVars, FEATURE_ID: ownerId }),
+				},
+				{
+					id: 'ResourceResolverPolicyStub.java.tmpl',
+					resourceType: resource.type,
+					module: plan.module,
+					templatePath: RESOLVER_POLICY_TEMPLATE,
+					targetAbs: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure', `${resource.type}ResolverPolicy.java`),
+					rendered: render(RESOLVER_POLICY_TEMPLATE, policyVars),
+					pristineRenderFor: (ownerId) => render(RESOLVER_POLICY_TEMPLATE, {
+						...policyVars,
+						FEATURE_ID: ownerId,
+						CONTRACT_REF: ownerId === featureId ? contractRef : contractRefFor(ownerId),
+						FEATURE_UID: ownerId === featureId ? featureUid : featureUidFor(ownerId),
+					}),
+				},
+			];
 		});
 
 	const orphanScan = (!resourceFilter && plan.module) ? {
 		dir: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure'),
 		module: plan.module,
-		matchesFile: (file) => file.endsWith('Resolver.java'),
-		resourceTypeOf: (file, _content) => file.replace(/Resolver\.java$/, ''),
+		// D-resolver-policy-split: recognize both generated suffixes -- longest-first so
+		// 'FooResolverPolicy.java' isn't misclassified as a plain '...Policy' resource type.
+		matchesFile: (file) => file.endsWith('ResolverPolicy.java') || file.endsWith('Resolver.java'),
+		resourceTypeOf: (file, _content) => file.replace(/ResolverPolicy\.java$|Resolver\.java$/, ''),
 	} : null;
 
 	const result = emitUnits({ repoRoot, featureId, provider: 'java-spring', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff });

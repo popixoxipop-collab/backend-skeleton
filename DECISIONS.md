@@ -8155,6 +8155,118 @@ reinterpreted `requiredAuthority` follows); `D-handle-uid-type-binding`/`D-handl
 sequence, and the shared "investigate for real, name what's deferred" discipline this item
 continues).
 
+## D-resolver-policy-split: a hand-finished patchField() used to also block an unrelated, security-relevant authority change from ever applying
+
+**WHY:** a live, end-to-end reproduction (real `bskel` pipeline against an isolated git repo, not a
+hypothetical) found a genuine correctness gap in `D-handles-ownership` (O2)'s file-level conflict
+detection: `handles emit` (java-spring) writes ONE file per resource, `{Type}Resolver.java`, that
+mixes two things with completely different edit lifecycles -- hand-editable business logic
+(`patchField()`'s per-field bodies, filled in by a human after `bskel handles patch approve`) and
+machine-owned, always-safe-to-regenerate, security-relevant declarations (`type()`,
+`requiredAuthority()`, `requiredAuthorityForPatch()` (O5), `contractRef()`, `featureUid()`), purely
+derived from `plan.mjs`'s already-computed values. Repro: hand-edit a real `patchField()` case
+(simulating a finished stub, the exact legitimate divergence O2 exists to protect), then change
+ONLY the source `@PreAuthorize` role on the PATCH endpoint (a narrow, real, contract-affecting
+change) -- `handles plan --diff` correctly scoped to one file, but the regenerated diff showed the
+hand-written `patchField()` line being deleted alongside the wanted `requiredAuthorityForPatch()`
+change. A real `handles emit` (no `--force`) correctly refused to write the file (exit 15), so the
+hand-edit was never actually lost -- but this means the security-relevant authority change *also*
+silently fails to apply, and keeps failing on every future emit until a human manually resolves the
+conflict or destroys the hand-written logic with `--force`. The tool's own conflict message
+("nothing else in this run depends on it") was factually wrong in exactly this case.
+
+**Scope, decided and stated plainly:** java-spring provider only, matching O5's own established
+java-spring-only precedent (`schemas/handles-plan.schema.json`: "O5 ... java-spring only").
+`python-fastapi`'s `resolver.py.tmpl` bakes `CONTRACT_REF`/`FEATURE_UID` into the same file as
+hand-edited `patch_field`/`check_access` stubs -- same class of risk, smaller (no
+`requiredAuthority`/`requiredAuthorityForPatch` split there at all). `typescript-express`'s
+`resolver.ts.tmpl` mixes hand-edited `patchField`/`checkAccess` with machine-derived `fetch`/
+`toPublic` but bakes in no `CONTRACT_REF`/`FEATURE_UID`/authority value at all -- smaller exposure
+still. Neither addressed here; both are real, named, deferred scope, not silently dropped.
+Deliberately rejected: a generic field-level/AST cherry-pick merge engine that could preserve a
+hand-edit while still patching just the changed value in place -- this would recreate exactly the
+risk `D-resolver-scope` already rejected (guessing at hand-written code is worse than an honest
+stub/conflict). The chosen fix reuses O2's existing per-file conflict-detection machinery as-is,
+with zero new conflict-decision code.
+
+**Mechanism.** New generated file per resource, `{Type}ResolverPolicy.java`: package-private,
+static-only, non-instantiable (stronger isolation than "just don't annotate it" -- structurally
+cannot become a second Spring bean colliding with `{Type}Resolver`'s own `@Component`, cannot be
+looked up externally, cannot accidentally receive DI). Holds `type()`, `requiredAuthority()`,
+`requiredAuthorityForPatch()`, `contractRef()`, `featureUid()` plus the `CONTRACT_REF`/
+`FEATURE_UID` constants -- new template `ResourceResolverPolicyStub.java.tmpl`.
+`ResourceResolverStub.java.tmpl`'s matching five methods become one-line delegators
+(`return {{RESOURCE_TYPE}}ResolverPolicy.type();`, etc.) and the four now-unused template vars are
+removed from it entirely -- this is the property that makes the fix real: Resolver.java's template
+no longer contains any token whose value depends on `resource.requiredAuthority`/etc., so a
+source-only `@PreAuthorize` change produces a byte-identical fresh render of Resolver.java
+(correctly still `conflict` if hand-edited) while producing a different fresh render of
+Policy.java (correctly `unchanged` -> `update` if untouched). `ResourceResolver.java.tmpl` (the
+interface) is unaffected -- signatures don't change, only which class implements each one; still
+exactly one `@Component implements ResourceResolver` per resource. `handles/providers/java-spring/
+emit.mjs`'s `resolverUnits` build changed from `.map()` to `.flatMap()`, returning two units per
+resource (Resolver with `resolverVars` trimmed to the tokens it still needs; Policy with its own
+`policyVars` and its own `pristineRenderFor` matching the existing owner-recovery pattern used for
+adopting a file from a prior feature). `orphanScan`'s `matchesFile`/`resourceTypeOf` recognize both
+generated suffixes, longest-first (`ResolverPolicy.java` before `Resolver.java`, so the strip regex
+doesn't leave a stray `Policy` in the recovered resource type). `handles/_engine.mjs`: the one real
+fix required outside emit.mjs -- `resolverStubs.push(u.resourceType)` runs per-unit,
+unconditionally; two units per resource now means the array gets each resource type twice, so the
+return statement dedupes via `[...new Set(resolverStubs)]`. `classifyFile()` itself
+(`lib/handles-manifest.mjs`), the conflict/force aggregation, and `handlesManifestChecks()`
+(`lib/verify.mjs`) needed zero changes -- confirmed generic over however many `kind:'resolver'`
+units exist per resource; the "provably untouched -> safe to regenerate even if content differs"
+branch already gives Policy files the always-safe-regen property with no new code path.
+
+**Real risk, named explicitly, not silently accepted: first emit after this ships conflicts on
+every existing hand-finished resolver.** Resolver.java's template *shape* changes (delegating
+one-liners instead of direct return statements), so its fresh render differs from anything the
+pre-split code ever wrote, for every resource, everywhere a `patchField()` was already
+hand-finished. The only path through is `--force`, which overwrites the whole file, destroying the
+hand-written body it exists to protect. This is the accepted, pre-existing cost of any
+`ResourceResolverStub.java.tmpl` shape change under the current manifest model (unrelated to this
+specific fix) -- mitigated by recommending `--check --diff` first to manually re-port a
+hand-written body before `--force`, not by building a migration tool. Low real-world stakes right
+now: handles has never been deployed to a real production app (confirmed repeatedly this session),
+so there is no real hand-finished resolver anywhere yet to break -- but the risk is real for future
+users and must stay documented here, not glossed over.
+
+**Verified.** `test/handles-cli.test.mjs`: the `return "SUPER_ADMIN";`-style content assertions
+moved from Resolver.java to the new Policy.java, with a new delegate-call assertion
+(`WidgetResolverPolicy.requiredAuthority()`) added on Resolver.java itself.
+`test/handles-check-cli.test.mjs`: magic-number action counts updated `12` -> `13` (10 infra + 2
+resolver-kind units + 1 spec) throughout; the `requiredAuthority`-change diff test (this item's own
+proof point) rewritten to assert BY PATH that Resolver.java's action is `unchanged` and
+Policy.java's action is `update` carrying the role diff -- `kind === 'resolver'` alone is no longer
+unique per resource, so every `.find()` on it was replaced with a path-based lookup.
+`test/handles-ownership-cli.test.mjs`: parallel manifest-entry assertions added for the new
+Policy.java file (same owner/resource_type as its sibling Resolver.java, including on ownership
+transfer between features); new permanent regression test (h) reproducing the exact live
+experiment that found this gap -- hand-finish `patchField()`, change only the PATCH endpoint's own
+`@PreAuthorize` role, re-scan/re-contract, `handles emit --check --diff --json` (Resolver.java
+`conflict`, Policy.java `update` with the role diff), then a REAL `handles emit --json` with no
+`--force` (exit 15/blocked overall, Resolver.java untouched byte-for-byte, but Policy.java's actual
+on-disk content carries the new role) -- the exact on-disk assertion that would have failed before
+this fix, since resolver units are independent per file and are not held hostage by a sibling
+unit's conflict. `npm test` count and full-suite pass reported in CATALOG.md's own entry.
+`scripts/java-compile-smoke.mjs`/`scripts/java-integration-smoke.mjs` against
+`test/fixtures/java-compile` confirm the split (delegating Resolver + static Policy) actually
+compiles and a real Spring context boots with it.
+
+**EXIT**: no attempt was made to build tooling that auto-migrates an already-hand-finished
+Resolver.java across the shape change this item introduces -- the named rollout risk above is
+accepted as a one-time cost, not solved. If python-fastapi or typescript-express are ever given
+handles the same production weight java-spring has here, their smaller versions of this same
+mixing problem become real, separate items to pick up then -- not spuriously ported in now
+without a proven need for that scope, matching O5's own java-spring-only precedent.
+
+Cross-references: `D-handles-ownership` (O2, the per-file conflict-detection machinery this item
+reuses entirely unchanged -- `classifyFile()`'s "provably untouched" branch is what makes a new
+always-safe-to-regenerate file work with zero new code); `D-resolver-authorization-action-aware`
+(O5, `requiredAuthorityForPatch()`, one of the five values that moves into the new Policy file);
+`D-resolver-scope` (the precedent this item's own rejected-alternative reasoning cites -- guessing
+at/auto-merging hand-written code is worse than an honest conflict).
+
 ## D-macstudio-ci-runners (W7): a billing outage the ubuntu-latest jobs couldn't see past, and two GitHub Actions limitations the plan itself got wrong until real execution proved otherwise
 
 **WHY:** the catalog's own W7 item ("move more CI jobs to self-hosted runners") had sat untouched

@@ -277,5 +277,7 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 
 	if (!dryRun && manifestChanged) saveManifest(repoRoot, manifest);
 
-	return { written, resolverStubs, conflicts, orphans, notes, forced, blocked: conflicts.length > 0, actions };
+	// D-resolver-policy-split: two units (Resolver + Policy) now share one resourceType, so
+	// resolverStubs.push above runs twice per resource -- dedupe here rather than at every push site.
+	return { written, resolverStubs: [...new Set(resolverStubs)], conflicts, orphans, notes, forced, blocked: conflicts.length > 0, actions };
 }
