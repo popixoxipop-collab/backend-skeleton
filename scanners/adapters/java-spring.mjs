@@ -5,14 +5,35 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { lineNumberAt } from '../text-util.mjs';
+import { lineNumberAt, listRgFiles, byShallowestThenName } from '../text-util.mjs';
 import { maskNonCode, findClassOrRecordDeclaration, findClassLevelMappingArgs, findMappingAnnotations } from './_java-spring-analyzer.mjs';
 
+const JAVA_BUILD_FILE_GLOBS = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
+
+// D-cross-adapter-root-detection: until now, the ONLY one of this project's 4 real adapters whose
+// detect() assumed repoRoot itself was the project root -- python-fastapi.mjs/typescript-express.mjs/
+// javascript-express.mjs each already walk the WHOLE repo for their own project marker file
+// (python-fastapi.mjs's own comment names the exact reason: "a real target [oracle] is a monorepo
+// whose FastAPI project lives under backend/"). A Spring project nested the same way (e.g.
+// backend-java/build.gradle in a polyglot monorepo) was silently invisible to this adapter --
+// found live by direct comparison of all 4 adapters' detect() functions, not anticipated
+// defensively. `runScan()`'s specificity-based arbitration (see scanners/index.mjs and
+// python-fastapi.mjs's own specificity comment) already handles the "two adapters both detect the
+// same repoRoot" case deterministically; this fix addresses the OTHER failure mode -- a real
+// Spring project going completely undetected and silently falling through to generic-grep.
+//
+// Every candidate build file is tried in turn, shallowest first, not just the first one found
+// (unlike python-fastapi's single-candidate check) -- a real multi-module Gradle project's ROOT
+// build.gradle is routinely just an aggregator (`subprojects { ... }`) with no src/main/java of
+// its own; the actual source lives under a child module's own build.gradle. Same two-signal bar
+// as before either way: a build file AND a sibling src/main/java, both required.
 export function detectJavaSpringRoot(repoRoot) {
-	const buildFiles = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
-	if (!buildFiles.some((f) => fs.existsSync(path.join(repoRoot, f)))) return null;
-	const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
-	return fs.existsSync(srcRoot) ? srcRoot : null;
+	const buildFiles = listRgFiles(repoRoot, JAVA_BUILD_FILE_GLOBS).sort(byShallowestThenName);
+	for (const buildFile of buildFiles) {
+		const srcRoot = path.join(path.dirname(buildFile), 'src', 'main', 'java');
+		if (fs.existsSync(srcRoot)) return srcRoot;
+	}
+	return null;
 }
 
 // O6: `rg --files` (no `--sort`) is explicitly unordered/parallel by ripgrep's own docs -- two
@@ -167,8 +188,12 @@ export function detectGlobalPathPrefixSignals(repoRoot) {
 	// mentioning configurePathMatch, then a content read confirms addPathPrefix( is actually
 	// present (a configurePathMatch override that does something else entirely -- a custom
 	// PathMatcher, a trailing-slash setting -- must not be reported as a prefix).
-	const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
-	if (fs.existsSync(srcRoot)) {
+	// D-cross-adapter-root-detection: reuses detectJavaSpringRoot() rather than re-deriving
+	// `path.join(repoRoot, 'src', 'main', 'java')` independently -- the latter was a SECOND place
+	// this file assumed repoRoot itself was the project root, found alongside the same bug in
+	// detectJavaSpringRoot() itself.
+	const srcRoot = detectJavaSpringRoot(repoRoot);
+	if (srcRoot) {
 		let candidates = [];
 		try {
 			candidates = execFileSync('rg', ['-l', 'configurePathMatch', '-g', '*.java', srcRoot], { encoding: 'utf8' }).split('\n').filter(Boolean).sort();
@@ -282,13 +307,17 @@ export const adapter = {
 	},
 	diagnostics(repoRoot) {
 		const messages = [];
-		const buildFiles = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
-		if (!buildFiles.some((f) => fs.existsSync(path.join(repoRoot, f)))) {
-			messages.push({ level: 'info', code: 'no-build-file', message: `none of ${buildFiles.join(', ')} found at repo root` });
+		// D-cross-adapter-root-detection: recursive now (matches detectJavaSpringRoot() itself),
+		// not repoRoot-only -- these two checks used to have their own private, repoRoot-only copy
+		// of the same signals detectJavaSpringRoot() computes, which is exactly what let the
+		// underlying bug (a nested build.gradle going undetected) hide from `bskel doctor` too.
+		const buildFiles = listRgFiles(repoRoot, JAVA_BUILD_FILE_GLOBS);
+		if (buildFiles.length === 0) {
+			messages.push({ level: 'info', code: 'no-build-file', message: `none of ${JAVA_BUILD_FILE_GLOBS.join(', ')} found anywhere in the repo` });
 		}
-		const srcRoot = path.join(repoRoot, 'src', 'main', 'java');
-		if (!fs.existsSync(srcRoot)) {
-			messages.push({ level: 'info', code: 'no-src-main-java', message: 'src/main/java does not exist' });
+		const srcRoot = detectJavaSpringRoot(repoRoot);
+		if (!srcRoot) {
+			messages.push({ level: 'info', code: 'no-src-main-java', message: buildFiles.length > 0 ? 'found a build file, but none has a sibling src/main/java' : 'src/main/java does not exist' });
 		} else {
 			let rgOk = true;
 			try {
