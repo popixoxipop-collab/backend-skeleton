@@ -95,7 +95,10 @@ public class HandleController {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cannot PATCH a resource-level handle (kind=r) -- only field handles (kind=f) support PATCH");
 		}
 		ResourceResolver resolver = resolverFor(decoded.type());
-		requireAuthority(resolver.requiredAuthority());
+		// O5 (D-resolver-authorization-action-aware): the PATCH-specific authority, independently
+		// derived from the entity's own UPDATE endpoint -- NOT resolver.requiredAuthority(), which
+		// is fetch()/recover()'s own value and may legitimately require a different role.
+		requireAuthority(resolver.requiredAuthorityForPatch());
 		if (ENFORCE_REGISTRY) {
 			requireRegisteredOrThrow(decoded);
 		}

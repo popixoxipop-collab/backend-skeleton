@@ -66,6 +66,11 @@ public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 	}
 
 	@Override
+	public String requiredAuthorityForPatch() {
+		return "{{REQUIRED_AUTHORITY_PATCH}}";
+	}
+
+	@Override
 	public String contractRef() {
 		return CONTRACT_REF;
 	}

@@ -184,6 +184,43 @@ test('handles emit writes a patch() that checks handle kind explicitly, not just
 	assert.match(content, /!decoded\.kind\(\)\.equals\("f"\) \|\| decoded\.pointer\(\) == null/);
 });
 
+// O5 (D-resolver-authorization-action-aware): before this item, patch() called
+// resolver.requiredAuthority() -- the SAME value fetch()/recover() use, silently reusing the
+// fetch endpoint's own role for PATCH too. Static content assertions on the emitted files, same
+// style as the D-security-9/D-security-10 regressions above -- this is a codegen-value-selection
+// bug, fully provable without a JVM.
+test('handles emit writes a patch() that checks the PATCH-specific authority, not the fetch one', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'emit', '--feature', '001-widget-management'], root);
+
+	const controllerPath = path.join(root, 'src/main/java/com/example/global/handle/HandleController.java');
+	const controllerContent = fs.readFileSync(controllerPath, 'utf8');
+	const patchIdx = controllerContent.indexOf('public ResponseEntity<Void> patch(');
+	const fetchIdx = controllerContent.indexOf('public ResponseEntity<Object> fetch(');
+	const recoverIdx = controllerContent.indexOf('public ResponseEntity<?> recover(');
+	assert.ok(patchIdx >= 0 && fetchIdx >= 0 && recoverIdx >= 0);
+	// fetch() is declared before patch() is before recover() in the template -- slice each method
+	// up to the START of the next one, not a fixed char count (the D-security-10/-9 explanatory
+	// comments inside these methods are long enough to push the real code past a short window).
+	assert.match(controllerContent.slice(fetchIdx, patchIdx), /requireAuthority\(resolver\.requiredAuthority\(\)\)/, 'fetch() must keep using the fetch/recover authority');
+	assert.match(controllerContent.slice(patchIdx, recoverIdx), /requireAuthority\(resolver\.requiredAuthorityForPatch\(\)\)/, 'patch() must use the patch-specific authority');
+	assert.match(controllerContent.slice(recoverIdx), /requireAuthority\(resolver\.requiredAuthority\(\)\)/, 'recover() must keep using the fetch/recover authority (it is conceptually a read, not a write)');
+
+	// ResourceResolver interface: both accessor methods present.
+	const resolverPath = path.join(root, 'src/main/java/com/example/global/handle/ResourceResolver.java');
+	const resolverContent = fs.readFileSync(resolverPath, 'utf8');
+	assert.match(resolverContent, /String requiredAuthority\(\);/);
+	assert.match(resolverContent, /String requiredAuthorityForPatch\(\);/);
+
+	// The generated per-resource resolver stub implements both, and they are genuinely two
+	// separate generated values (not the same template var rendered twice).
+	const widgetResolverPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java');
+	const widgetResolverContent = fs.readFileSync(widgetResolverPath, 'utf8');
+	assert.match(widgetResolverContent, /public String requiredAuthority\(\)\s*\{\s*return "SUPER_ADMIN";/);
+	assert.match(widgetResolverContent, /public String requiredAuthorityForPatch\(\)\s*\{\s*return "TODO_ROLE";/, 'no PATCH endpoint exists on this fixture controller, so the patch authority must fail closed independently of the fetch one');
+});
+
 // S6 regression, real end-to-end path (as opposed to the lighter `gate force`-based version in
 // test/verify-cli.test.mjs): the `handles` gate's token (lib/gate-definitions.mjs) covers only
 // head_sha + the contract's hash -- NOT migration.sql's own content -- so deleting an emitted

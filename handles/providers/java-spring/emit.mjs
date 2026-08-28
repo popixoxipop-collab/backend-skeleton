@@ -164,6 +164,9 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 				SERVICE_FIELD: serviceField,
 				FETCH_METHOD: resource.fetchOperation.method,
 				REQUIRED_AUTHORITY: resource.requiredAuthority,
+				// O5 (D-resolver-authorization-action-aware): independently derived from the UPDATE
+				// endpoint's own @PreAuthorize -- see plan.mjs's own computation.
+				REQUIRED_AUTHORITY_PATCH: resource.requiredAuthorityForPatch,
 				FEATURE_ID: featureId,
 				CONTRACT_REF: contractRef,
 				FEATURE_UID: featureUid,
