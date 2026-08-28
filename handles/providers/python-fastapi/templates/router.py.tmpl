@@ -20,6 +20,38 @@ from {{SESSION_DEP_MODULE}} import {{SESSION_DEP_NAME}}
 
 router = APIRouter(prefix="/handles", tags=["handles"])
 
+# O3 (D-handle-registry-enforcement, part 2 of 2): opt-in, defaults False -- baked in at
+# `bskel handles emit --enforce-registry on` time, matching every other per-target-repo codegen
+# constant this project bakes in. HandleService.register()'s Python equivalent is only ever
+# called from record_snapshot.py.tmpl's opt-in @record_snapshot decorator or a target app's own
+# hand-written calls -- an app that mints handles through neither path gets fully working
+# fetch_handle/patch_handle with zero registry involvement today; flipping this on
+# unconditionally would 404 every one of their existing handles.
+ENFORCE_REGISTRY = {{ENFORCE_REGISTRY}}
+
+
+# D-security-9 parity / O3 (D-handle-registry-enforcement): always looks up the PARENT RESOURCE's
+# own registry row (kind="r", pointer=None) -- deliberately NOT the exact (kind, pointer) of the
+# requested handle. Found live, not assumed: the record_snapshot decorator (the ONLY thing that
+# ever registers automatically) always calls register("r", ..., None, ...) regardless of which
+# handle actually triggered it -- a kind="f" field handle is NEVER auto-registered under its OWN
+# derived UID, only the whole-resource kind="r" one is. Requiring an exact (kind, pointer) match
+# (this check's original shape) made a fresh app's very FIRST field-level PATCH structurally
+# impossible under enforcement: the check ran BEFORE patch_field() was ever called, so the very
+# call that would (via the decorator) register something never got the chance to. This is also
+# the semantically correct model, not merely a workaround -- revocation is a RESOURCE-level
+# concept, so a field-level handle's access is properly gated by "is the resource itself
+# registered and non-revoked", the same way fetch_handle()'s own kind="f" path already fetches
+# the WHOLE resource and narrows client-side with a pointer. resource_type is still exactly
+# cross-checked (the real protection D-security-9 exists for); the kind/pointer cross-check
+# served no purpose beyond that once every real registration is confirmed to be resource-level.
+def _require_registered_or_404(session, decoded) -> HandleRegistry:
+    resource_handle_uid = uuid.UUID(derive_handle_uid("r", decoded.type, decoded.uuid, None))
+    registry = session.get(HandleRegistry, resource_handle_uid)
+    if registry is None or registry.resource_type != decoded.type or registry.is_revoked:
+        raise HTTPException(status_code=404, detail="no active registration for this handle")
+    return registry
+
 
 @router.get("/{handle}")
 def fetch_handle(handle: str, session: {{SESSION_DEP_NAME}}):
@@ -36,6 +68,8 @@ def fetch_handle(handle: str, session: {{SESSION_DEP_NAME}}):
     if obj is None:
         raise HTTPException(status_code=404, detail="resource not found")
     resolver.check_access(session, obj)
+    if ENFORCE_REGISTRY:
+        _require_registered_or_404(session, decoded)
     public = resolver.to_public(obj)
     if decoded.pointer is None:
         return public
@@ -75,18 +109,16 @@ def patch_handle(handle: str, session: {{SESSION_DEP_NAME}}, value: dict):
     if obj is None:
         raise HTTPException(status_code=404, detail="resource not found")
     resolver.check_access(session, obj)
+    if ENFORCE_REGISTRY:
+        _require_registered_or_404(session, decoded)
     resolver.patch_field(session, obj, decoded.pointer, value)
 
 
-# G4 follow-up (D-handles-providers): mirrors HandleController.recover() including its full
-# D-security-9 cross-check -- never weakened. handle_uid alone does not prove WHAT is being
-# recovered (kind="r"'s derivation returns the resource UUID verbatim, no type binding baked into
-# the hash), so an attacker who controls `type` in the token (as long as it names a real,
-# registered resolver whose check_access() they can pass) could otherwise request the snapshot
-# history of a DIFFERENT, more sensitive resource type sharing the same UUID. Fix: cross-check the
-# decoded type/kind/pointer against the registry row this handle_uid was actually registered
-# under, and 404 on ANY disagreement -- without saying which field mismatched, so the error can't
-# be used to probe which part was wrong. A revoked handle is rejected the same way.
+# G4 follow-up (D-handles-providers) / O3 (D-handle-registry-enforcement): mirrors
+# HandleController.recover() -- structurally REQUIRES a registry row to find a snapshot's own
+# primary key, so there is no "unenforced" mode for it, unlike fetch_handle/patch_handle above.
+# Always calls the same shared _require_registered_or_404() those two now optionally call, so the
+# paths can never silently drift apart.
 #
 # Ecosystem-honest gap, not silently resolved: Java's role check is resource-existence-independent
 # (recovering history of a since-deleted resource is legitimate), so it never calls fetch() at
@@ -109,16 +141,8 @@ def recover_handle(handle: str, session: {{SESSION_DEP_NAME}}, at: datetime | No
     obj = resolver.fetch(session, decoded.uuid)
     resolver.check_access(session, obj)
 
-    handle_uid = uuid.UUID(derive_handle_uid(decoded.kind, decoded.type, decoded.uuid, decoded.pointer))
-    registry = session.get(HandleRegistry, handle_uid)
-    if (
-        registry is None
-        or registry.resource_type != decoded.type
-        or registry.kind != decoded.kind
-        or registry.pointer != decoded.pointer
-        or registry.is_revoked
-    ):
-        raise HTTPException(status_code=404, detail="no snapshot recorded for this handle")
+    registry = _require_registered_or_404(session, decoded)
+    handle_uid = registry.handle_uid
 
     query = select(HandleSnapshot).where(HandleSnapshot.handle_uid == handle_uid)
     if at is not None:

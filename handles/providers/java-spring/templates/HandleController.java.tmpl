@@ -19,7 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,11 +44,24 @@ public class HandleController {
 	private final HandleSnapshotRepository handleSnapshotRepository;
 	private final ObjectMapper objectMapper;
 
+	// O3 (D-handle-registry-enforcement, part 2 of 2): opt-in, defaults false -- baked in at
+	// `bskel handles emit --enforce-registry on` time, matching every other per-target-repo
+	// codegen constant this project bakes in (e.g. ResourceResolver#contractRef()/featureUid()).
+	// `HandleService.register()` is only ever called by generated code from HandleAspect (an app
+	// that opted into @RecordHandleSnapshot) or a target app's own hand-written calls -- an app
+	// that mints handles through neither path gets fully working fetch()/patch() with zero
+	// registry involvement today; flipping this on unconditionally would 404 every one of their
+	// existing handles. Stays a deliberate, informed choice a target app's own maintainer makes.
+	private static final boolean ENFORCE_REGISTRY = {{ENFORCE_REGISTRY}};
+
 	@GetMapping("/{handle}")
 	public ResponseEntity<Object> fetch(@PathVariable String handle) {
 		HandleCodec.Decoded decoded = decodeOrThrow(handle);
 		ResourceResolver resolver = resolverFor(decoded.type());
 		requireAuthority(resolver.requiredAuthority());
+		if (ENFORCE_REGISTRY) {
+			requireRegisteredOrThrow(decoded);
+		}
 
 		Object resource = resolver.fetch(decoded.uuid());
 		if (decoded.pointer() == null) {
@@ -84,6 +96,9 @@ public class HandleController {
 		}
 		ResourceResolver resolver = resolverFor(decoded.type());
 		requireAuthority(resolver.requiredAuthority());
+		if (ENFORCE_REGISTRY) {
+			requireRegisteredOrThrow(decoded);
+		}
 
 		resolver.patchField(decoded.uuid(), decoded.pointer(), value);
 		return ResponseEntity.noContent().build();
@@ -95,24 +110,12 @@ public class HandleController {
 		ResourceResolver resolver = resolverFor(decoded.type());
 		requireAuthority(resolver.requiredAuthority());
 
-		UUID handleUid = HandleCodec.deriveHandleUid(decoded.kind(), decoded.type(), decoded.uuid(), decoded.pointer());
-
-		// D-security-9: handleUid alone does not prove WHAT is being recovered -- kind=r's
-		// derivation returns the resource UUID verbatim (no type binding baked into the hash), so
-		// an attacker who controls `type` in the handle token (as long as it names a real,
-		// registered resolver whose requiredAuthority() they can pass) can request the snapshot
-		// history of a DIFFERENT, more sensitive resource type that happens to share the same
-		// UUID. Found by the Codex security review. Fix: cross-check the decoded type/kind/pointer
-		// against the registry row this handleUid was actually registered under, and 404 on ANY
-		// disagreement -- without saying which field mismatched, so the error can't be used to
-		// probe which part was wrong. A revoked handle is rejected the same way; it must not be
-		// recoverable at all.
-		HandleRegistry registry = handleRegistryRepository.findById(handleUid)
-				.filter(r -> r.getResourceType().equals(decoded.type()))
-				.filter(r -> r.getKind().equals(decoded.kind()))
-				.filter(r -> Objects.equals(r.getPointer(), decoded.pointer()))
-				.filter(r -> !r.isRevoked())
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no snapshot recorded for this handle"));
+		// D-security-9 / O3 (D-handle-registry-enforcement): recover() structurally REQUIRES a
+		// registry row to find a snapshot's own primary key -- there is no "unenforced" mode for
+		// it, unlike fetch()/patch() above. Always calls the same shared cross-check those two now
+		// optionally call, so the two paths can never silently drift apart.
+		HandleRegistry registry = requireRegisteredOrThrow(decoded);
+		UUID handleUid = registry.getHandleUid();
 
 		List<HandleSnapshot> snapshots = handleSnapshotRepository.findByHandleUidOrderByRecordedAtDesc(handleUid);
 		Optional<HandleSnapshot> match = at == null
@@ -164,6 +167,34 @@ public class HandleController {
 				.filter(r -> r.type().equals(type))
 				.findFirst()
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no resolver registered for handle type \"" + type + "\""));
+	}
+
+	// D-security-9 / O3 (D-handle-registry-enforcement): always looks up the PARENT RESOURCE's own
+	// registry row (kind=r, pointer=null) -- deliberately NOT the exact (kind, pointer) of the
+	// requested handle. Found live, not assumed: HandleAspect (the ONLY thing that ever registers
+	// automatically) always calls HandleService.register("r", ..., null, ...) regardless of which
+	// handle actually triggered it -- a kind=f field handle is NEVER auto-registered under its OWN
+	// derived UID, only the whole-resource kind=r one is. Requiring an exact (kind, pointer) match
+	// (this check's original shape) made a fresh app's very FIRST field-level PATCH structurally
+	// impossible under enforcement: the check runs BEFORE resolver.patchField() is ever called, so
+	// the very call that would (via the aspect) register something never gets the chance to. This
+	// is also the semantically correct model, not merely a workaround -- revocation is a
+	// RESOURCE-level concept (HandleService.revoke() takes one handleUid representing the whole
+	// resource), so a field-level handle's access is properly gated by "is the resource itself
+	// registered and non-revoked", the same way `fetch()`'s own kind=f path already fetches the
+	// WHOLE resource and narrows client-side with a pointer, never treating a field as its own
+	// separately-trusted object. `resourceType` is still exactly cross-checked (the real
+	// protection D-security-9 exists for -- an attacker-controlled `type` in the token can't claim
+	// a different, more sensitive resource's registration by UUID coincidence); the `kind`/
+	// `pointer` cross-check served no purpose beyond that once every real registration is
+	// confirmed to be resource-level, so removing it is not a narrowed security posture, just a
+	// closer match to how registration actually works in this system.
+	private HandleRegistry requireRegisteredOrThrow(HandleCodec.Decoded decoded) {
+		UUID resourceHandleUid = HandleCodec.deriveHandleUid("r", decoded.type(), decoded.uuid(), null);
+		return handleRegistryRepository.findById(resourceHandleUid)
+				.filter(r -> r.getResourceType().equals(decoded.type()))
+				.filter(r -> !r.isRevoked())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no active registration for this handle"));
 	}
 
 	private void requireAuthority(String requiredRole) {

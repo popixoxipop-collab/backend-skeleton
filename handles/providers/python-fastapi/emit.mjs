@@ -43,7 +43,7 @@ function dottedModulePath(file, importRoot) {
 // but the router itself is infra -- generated once, independent of which resolvers exist -- so it
 // needs its own guard for the "found zero resolvers, and specifically because no SessionDep
 // exists" case).
-export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false }) {
+export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = null, force = false, reason = '', dryRun = false, computeDiff = false, enforceRegistry = false }) {
 	const handlesDir = path.join(plan.importRoot, plan.topPackage, 'handles');
 	const resolversDir = path.join(handlesDir, 'resolvers');
 
@@ -70,6 +70,10 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 				PKG: plan.topPackage,
 				SESSION_DEP_MODULE: dottedModulePath(sessionDep.file, plan.importRoot),
 				SESSION_DEP_NAME: sessionDep.name,
+				// O3 (D-handle-registry-enforcement): a Python boolean LITERAL ("True"/"False",
+				// capitalized) -- render()'s plain String(value) would produce JS-style lowercase
+				// "true"/"false", invalid Python syntax.
+				ENFORCE_REGISTRY: enforceRegistry ? 'True' : 'False',
 			}),
 		});
 	}
