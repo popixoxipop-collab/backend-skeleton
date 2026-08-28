@@ -8541,3 +8541,207 @@ Cross-references: the `macos`/W7 jobs' own `install ripgrep` precedent (`D-macst
 the same regression class this item's Run 1 failure repeats in a new workflow file); `D-fixture-corpus`
 (P3, `test/package-manifest.test.mjs`'s own original P1/`D-npm-packaging` authoring, the `files`
 allowlist this item's tests still guard, unchanged by this fix).
+
+## D-runtime-conformance-receipts: the first "static contract -> observed reality" loop -- opt-in runtime middleware validates real traffic against the contract, verdict-only, never a payload value
+
+**WHY:** every prior item in this catalog is static analysis -- `scan` infers a contract from real
+code, `contract emit` freezes it, `handles emit` generates code FROM it -- and none of it has ever
+once checked whether a DEPLOYED app's actual runtime behavior matches the contract it was generated
+from. A Codex differentiators consultation (this session) named this gap explicitly as a real,
+buildable next step ("runtime contract-conformance receipts... a powerful 'static contract ->
+observed reality' loop without an LLM"). Before designing it, reproduced the SAME class of bug
+`D-resolver-policy-split` fixed for java-spring against **python-fastapi**, live, to ground the
+decision to build something new rather than just discuss it: hand-wire `check_access()` with a real
+ownership check, then a narrow, real, contract-affecting change (a new query param via
+`--openapi-file`, changing the emitted contract's hash) -- confirmed real: `item.py`'s single
+`conflict` diff bundles the hand-written `check_access()` body together with the `CONTRACT_REF`
+value change; a real `handles emit` (exit 15) leaves the hand-edit intact but `CONTRACT_REF`
+permanently stuck at the pre-change hash forever, feeding `router.py`'s `schema_drift` check a stale
+value indefinitely. Recorded as CONFIRMED (not theorized) in this same DECISIONS.md's
+`D-resolver-policy-split` entry, left unfixed (smaller blast radius than java-spring's own role
+bypass, real well-scoped deferred work, not chosen as the next priority) -- the direction chosen
+instead was to build the genuinely new capability this session's own tool-comparison discussion had
+already surfaced as the natural next axis: runtime observation, not another static-analysis fix.
+
+**Scope, decided and stated plainly:** java-spring provider only (matching O5/
+`D-resolver-policy-split`'s own established single-provider-first precedent) -- python-fastapi and
+typescript-express need materially different middleware mechanisms (FastAPI `Depends`/middleware,
+Express middleware), not a mechanical port, and are named as real deferred scope, not silently
+dropped. v1's checker covers path-parameter presence/pattern, request/response/error body
+presence+scalar-leaf type/pattern (only when `contract emit --openapi-file` projected a real
+schema -- the uncommon case), and documented-status-code membership -- deliberately not full JSON
+Schema semantics; see Decision B below for why.
+
+**Four design decisions, each verified against real code before committing to it, not assumed:**
+
+- **(A) Validation happens INSIDE the deployed Java app; only a verdict is ever logged, never a
+  payload value, redacted or not.** JSON Schema `pattern`/`type`/`enum` checks are checks OF a
+  value -- "redact the value, then check it" is a category error, not a safer version of checking
+  it. O4's `HandleAspect.java.tmpl`'s own `redact()` works because its payload is meant to be READ
+  BACK by `recover()`, a fundamentally different job. A real observed value must never leave the
+  deployed process, structurally, not by convention -- `ContractCheck.Violation.message()` carries
+  only a JSON Pointer + constraint kind (`required`/`type`/`pattern`/`unsupported`/`status`), never
+  an interpolated value. This is the single most safety-critical invariant this item introduces.
+
+- **(B) A hand-rolled structural checker in Java, not a JSON-Schema-validator library dependency.**
+  Confirmed live (`contracts/emit.mjs`): `pathParams` is ALWAYS a narrow, bskel-controlled
+  vocabulary (`type`/`properties`/`required`/`pattern`); `requestBodySchema`/`responseSchema`/
+  `errorSchema` are real, possibly-deep JSON Schema (via `inlineSchema()`) but ONLY present when
+  `contract emit --openapi-file` was used -- the uncommon case. A full validator dependency to
+  cover the uncommon case, unproven by any real need, repeats the exact unjustified-scope pattern
+  this project has repeatedly rejected (`D-resolver-scope`, O5's own EXIT, A7's "lossless slice,
+  not full round trip"). What's checkable is decided ONCE, in JS, at `bskel observe emit` time
+  (`handles/providers/java-spring/observe.mjs`'s `projectBodySchema()`/`projectPathParams()`): a
+  scalar leaf (string/number/integer/boolean with no nested `properties`/`items`/`$ref`/`anyOf`/
+  `allOf`/`oneOf`) is kept as `{type, pattern?}`; anything deeper is marked `unsupported` at its own
+  JSON Pointer, never guessed at. The projection is baked into a classpath JSON resource
+  (`src/main/resources/bskel/<feature-id>.observed-schema.json`) -- `ObserveSchemaLoader.java.tmpl`
+  parses it ONCE at startup into typed records, pre-compiling every `pattern` into a
+  `java.util.regex.Pattern` there too (a `PatternSyntaxException` at load time marks that one field
+  `unsupported` rather than failing app startup or recompiling per request). `ContractCheck` is a
+  pure, static, non-Spring utility that only ever walks this already-simplified structure -- Java is
+  a dumb, mechanical executor of a decided instruction set, never a second independent JSON-Schema
+  interpreter (a real long-term drift risk two independent interpreters of the same schema language
+  would create). One deliberate, bounded exception: matching a REAL observed HTTP status against a
+  documented status key (`"200"`, a range like `"4XX"`, or `"default"` --
+  `contracts/emit.mjs`'s own `sourceResponses` vocabulary,
+  `schemas/feature-contract.schema.json`'s `^(?:[1-5](?:[0-9]{2}|XX)|default)$` pattern) is a
+  bounded, mechanical string comparison that cannot be precomputed in JS (the real status doesn't
+  exist until the request happens) -- doing it in `ContractCheck.statusMatches()` does not
+  reintroduce a second schema interpreter, since it isn't JSON-Schema interpretation.
+
+- **(C) SLF4J-logged JSONL receipts, not a Postgres table.** A receipt is a flat, stateless verdict
+  fact with no "current state" to query live the way O7's handle-registry rows have -- unlike O4's
+  snapshot table, there is no natural row identity here, and a DB round trip on every observed
+  request is real write amplification this v1 opt-in feature would otherwise impose at exactly the
+  high-QPS case named deferred below. Matches `D-config-patch`'s own boundary (never choose a
+  target's log/file delivery path for it): `ContractObservationAspect` logs one JSON line per
+  receipt to a dedicated logger, `bskel.observe.receipts`; a `postEmitNotes` line tells the human to
+  route it wherever they want. **No new `migration.sql` for this feature** -- a real, deliberate
+  consequence of this choice, not an oversight (`observe emit` produces zero DB-schema output).
+
+- **(D) `@ObserveContract(operationId = "...")` + a new `ContractObservationAspect`**, structurally
+  mirroring `@RecordHandleSnapshot`/`HandleAspect.java.tmpl` (explicit per-method opt-in, AOP
+  `@Around`, never blanket-intercepts, reuses the same `spring-boot-starter-aop` dependency O4
+  already asks for -- zero new dependency cost for a repo that already has handles). Narrower than
+  `@RecordHandleSnapshot`: only `operationId()` -- no resource/redact fields, since a value-blind
+  verdict has nothing to redact. New, separate package (`global/observe/`, not `global/handle/`) --
+  runtime conformance checking and UUID-addressable field handles are orthogonal capabilities; both
+  aspects can legally coexist on one method (Spring AOP fires both independently), so nothing is
+  lost by decoupling them. `@ObserveContract` must be applied to the CONCRETE implementation method,
+  not an interface method it overrides -- the identical `AopUtils#getMostSpecificMethod` constraint
+  already documented for `@RecordHandleSnapshot` (cited, not rediscovered). Narrowed further, and
+  named explicitly as v1's real scope boundary: path-parameter and status-code checks only resolve
+  reliably on a Spring MVC `@RequestMapping`-family CONTROLLER method, via
+  `RequestContextHolder`/`HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE` (only populated for a
+  request actually routed through such a handler) -- applying the annotation to a plain service
+  method still runs safely (never throws for that reason) but silently skips those two checks
+  without a real `HttpServletRequest` in scope.
+
+**Mechanism.** New CLI verbs, `bskel observe emit`/`bskel observe import` -- a new top-level noun
+(`bin/bskel.mjs`'s existing noun-then-verb dispatch), not flags bolted onto `handles emit` (already
+6+ flags; observing runtime traffic and generating UUID-addressable field handles are orthogonal
+concerns). `observe emit`'s precondition chain mirrors `cmdHandlesEmit` exactly
+(`requireRepoRoot()`/`requirePreflightPassed()`/`contract` gate must be `pass`), confirms
+`scanReport.adapter === 'java-spring'` directly (no new provider-discovery abstraction for a single
+implementation, same "prove one provider first" reasoning as G4), and routes four new infra
+templates (`ObserveContract.java.tmpl`, `ContractCheck.java.tmpl`, `ObserveSchemaLoader.java.tmpl`,
+`ContractObservationAspect.java.tmpl`) through `emitUnits()` (`handles/_engine.mjs`, reused
+unmodified -- confirmed its signature tolerates `resolverUnits: []`/`orphanScan: null`, which this
+feature has no use for: a human applies `@ObserveContract` directly to arbitrary existing methods,
+there is no per-resource generated file). The projected `<feature-id>.observed-schema.json` is
+regenerated unconditionally every run, like `migration.sql`, and for the identical reason -- nobody
+hand-finishes a generated data file the way they hand-finish a resolver stub, so O2-style conflict
+tracking buys nothing here (`kind: 'spec'`, matching `migration.sql`'s own action-reporting
+convention). `observe emit` does not pass any gate itself -- generating the checking infra is not
+evidence; only real, imported receipts are.
+
+`observe import --feature <id> --receipts <path>` mirrors `contract emit --openapi-file`'s
+"compute+validate everything before writing anything" discipline. A provisional size/line-count cap
+(64MB/200,000 lines, stated as provisional -- no real oracle to measure against yet, unlike A1's own
+measured caps). Two failure classes per line, handled differently: a line that is not valid JSON at
+all is NOISE (a human's log pipeline realistically is not perfectly scoped to just the receipts
+logger) -- counted, warned, not fatal; a line that IS valid JSON but fails
+`schemas/observe-receipt.schema.json` is real CORRUPTION -- abort the whole import loudly, same "a
+bad file must not leave a half-updated state" principle `contract emit --openapi-file` already
+applies. Every receipt's `feature_id`/`feature_uid` must match the target feature's own contract
+exactly (same double-check `contracts/validate.mjs`'s `validateAgainstContract()` already applies to
+agent envelopes, for the identical "reject a stale payload from a renamed/recreated feature" reason)
+-- any mismatch aborts the whole import, never a partial land. Each receipt is bucketed by
+`contract_ref` against the CURRENT contract hash: `matched` vs `stale_contract_ref` (not a hard
+reject -- a real collection window realistically straddles a contract re-emit during a rolling
+deploy; only `matched` receipts count as evidence for the current contract, `stale` ones are kept on
+record for audit/trend purposes). The computed summary is itself schema-validated
+(`validateAgainstSchema`, `lib/schema-validate.mjs`, reused as-is) before being written to
+`specs/<feature>/observe/<feature>.conformance-report.json` (S5 discipline). New 6th gate,
+`conformance` (`lib/gate-definitions.mjs`, `VERIFY_POLICY.REQUIRED_WHEN_PRESENT` like
+`handles`/`stack`), passed on successful STRUCTURAL import, never on "zero violations found" --
+matches `contract`'s own evidence-first-not-verdict-first precedent (a `partial` contract is still
+passable via waiver). Its token covers `contract_hash` + the persisted report's own hash -- both
+already caught by the existing generic `diffInputs()` machinery, no special-casing needed; the
+deeper "was this specific receipt produced against the current contract" question is answered
+per-receipt at import time (the matched/stale bucketing above), not by the gate token, exactly like
+`handles` already separates "did the contract move" (its own token) from "is this specific generated
+file still correct" (O2's own manifest). `gate export`/`lib/verify.mjs`/`bskel status`/`bskel next`
+needed zero code changes beyond the registry entry -- all already iterate `GATE_NAMES` generically,
+the entire point of the existing gate-definitions consolidation.
+
+**Verified.** `npm test`: 1053 pre-existing tests kept passing (three needed updating for the new
+command/gate COUNTS, not their own logic: `test/cli-contract.test.mjs`'s COMMANDS-coverage snapshot,
+`test/gate-export-cli.test.mjs`'s hardcoded "5 gates" become 6, this item's own DECISIONS.md anchor
+satisfying `test/doc-integrity.test.mjs`'s dangling-reference guard). The four hand-written Java
+templates were syntax-checked with a plain `javac` (no Gradle/full classpath available locally,
+matching this session's own established limitation for `scripts/java-compile-smoke.mjs`) against
+rendered output with dummy tokens -- every resulting error was a missing-dependency
+("cannot find symbol"/"package does not exist") error, zero genuine syntax errors, confirming
+grammatical correctness pending CI's real macstudio-runner compile. One real bug this syntax pass
+did NOT catch, found by direct review instead: `ContractObservationAspect.java.tmpl`'s
+`emitReceipt()` initially hardcoded `com.fasterxml.jackson.databind.node.ObjectNode`/`ArrayNode`
+fully-qualified, silently ignoring the `{{JACKSON_PACKAGE}}` token this codebase's own Jackson-2/3
+dual-compatibility convention requires (`D-patch-strategy`'s `detectJacksonPackage()`) -- fixed to
+import `{{JACKSON_PACKAGE}}.node.ObjectNode`/`ArrayNode` properly before this was committed.
+
+**EXIT** (named explicitly, DECISIONS.md house style, not silently dropped):
+- python-fastapi / typescript-express -- prove the mechanism once (java-spring) before
+  generalizing, same G4 discipline; each needs a materially different middleware shape.
+- Sampling/rate-limiting for high-QPS production traffic -- no oracle yet for acceptable overhead; a
+  sampling knob now would be a guess, not a measured decision, same `D-openapi-request-schema`
+  measurement discipline applied to a new axis.
+- Streaming/multipart request bodies -- the checker operates on a fully-materialized `JsonNode`; a
+  streaming body is marked `unsupported` rather than buffered into memory or falsely validated, same
+  posture A8 already established for multipart at the OpenAPI layer.
+- Async return types (`CompletableFuture`/`Mono`/`Flux`/`DeferredResult`) -- `@Around` assumes a
+  synchronous return from `joinPoint.proceed()`, the same unexamined assumption `HandleAspect`/O4
+  already carries; validating an eventual value needs a materially different aspect shape.
+- Full JSON-Schema semantics in Java (deep nesting, `$ref`, `allOf`/`anyOf`/`oneOf`, format
+  keywords) -- the common case (no `--openapi-file`) has nothing deep to check; a full evaluator now
+  would be scope unjustified by any real measurement (Decision B).
+- Cryptographic receipt attestation (signing at emit time, verifying at import) -- v1 trusts
+  `--receipts` at face value once structurally valid; a human can fabricate a receipts file today.
+  Named as a real, accepted gap, not solved. The `conformance` gate's real integrity currently rests
+  entirely on trusting the receipts came from a genuinely running app -- stated plainly, not implied
+  to be stronger than it is.
+- `--fail-on-violation` / CI-blocking on violation content -- v1's gate is evidence-first
+  (Mechanism, above); a policy layer on top is natural v1.1 once real usage shows what threshold
+  matters, not decided speculatively here.
+- A live-query `observe audit` command (mirroring `handles/audit.mjs`) -- not applicable to a JSONL
+  sink; the natural point to add one is if receipts ever move to Postgres, itself deferred.
+- Regex risk in `ContractCheck`'s pattern matching: a baked `pattern` can originate from a real
+  OpenAPI document, bounded by `contracts/openapi.mjs`'s `MAX_PATTERN_LENGTH=300` (sized for payload
+  bounding, not ReDoS specifically). Mitigated by compiling every pattern once at
+  `ObserveSchemaLoader` construction (not per-request) and treating a `PatternSyntaxException` as
+  `unsupported` for that field -- this contains a malformed regex but does NOT fully solve a
+  pathological-but-valid one. Named as a known, not-fully-solved gap, not asserted safe.
+
+Cross-references: `D-resolver-policy-split` (the immediately preceding item, whose live
+reproduction against python-fastapi is this item's own motivating finding, and whose "narrow, safe,
+reuse-existing-machinery" discipline this item follows for its own scope decisions);
+`D-handle-lifecycle` (O4, `HandleAspect.java.tmpl`/`@RecordHandleSnapshot` -- the AOP
+opt-in-per-method pattern this item's own `ContractObservationAspect`/`@ObserveContract` mirror
+structurally, including the `AopUtils#getMostSpecificMethod` constraint and the
+"never-auto-add-a-dependency, use postEmitNotes" boundary); `D-handles-ownership` (O2,
+`emitUnits()`'s conflict/manifest machinery, reused unmodified for the four new infra templates);
+`D-resolver-scope` (the precedent this item's own Decision B reasoning cites -- guessing at/
+over-interpreting a schema shape this checker cannot safely evaluate is worse than an honest
+`unsupported` marker); `D-config-patch` (the "never choose a target's own delivery path" boundary
+Decision C's SLF4J-not-Postgres choice follows).

@@ -9,7 +9,7 @@ import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision, headSha,
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
-import { writeFileAtomic } from '../lib/fsutil.mjs';
+import { writeFileAtomic, sha256File } from '../lib/fsutil.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath } from '../lib/paths.mjs';
@@ -43,6 +43,8 @@ import { buildOpenApiDocument, pathPrefixCandidates, unreflectedPathPrefixes, ST
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
+import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
+import { emitObserveJavaSpring } from '../handles/providers/java-spring/observe.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
@@ -79,6 +81,8 @@ function usage() {
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
+  bskel observe emit --feature <id> [--force --reason "..."] [--check] [--diff] [--json]
+  bskel observe import --feature <id> --receipts <path> [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
@@ -2136,6 +2140,221 @@ async function cmdHandlesAudit(args) {
 	process.exit(0);
 }
 
+// D-runtime-conformance-receipts: mirrors cmdHandlesEmit's own precondition chain and
+// blocked/--check reporting shape closely -- same "contract must be pass first" gate dependency,
+// same O2-style conflict machinery via emitUnits() (reused unmodified inside
+// emitObserveJavaSpring), same --check/--diff/--force/--reason semantics. Does not pass any gate
+// itself -- only `observe import` (real receipts imported) represents evidence worth gating on.
+function cmdObserveEmit(args) {
+	const flags = parseCommand('observe emit', args);
+	if (flags.help) { console.log(renderCommandHelp('observe emit')); process.exit(0); }
+	setContext('observe emit', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	if (flags.force && (!flags.reason || !flags.reason.trim())) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel observe emit --force requires --reason "..." -- every overwrite of diverged generated code must be auditable');
+	}
+
+	const contractResult = requireNamedGate(root, 'contract', flags.feature);
+	if (contractResult.code !== EXIT.PASS) {
+		const hint = contractResult.status === 'awaiting_disposition'
+			? `resolve it first -- \`bskel contract waive --feature ${flags.feature} --code <CODE> (--subject "..."|--all) --reason "..."\`, or \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if intentional.`
+			: `run \`bskel contract emit --feature ${flags.feature}\` first.`;
+		fail(contractResult.code, gateReasonForCode(contractResult.code), `blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- ${hint}`, {
+			next_actions: [{ command: `bskel contract emit --feature ${flags.feature}`, reason: 'the contract gate has not passed yet', mutating: true }],
+		});
+	}
+
+	const scanReport = loadScanReportOrExit(root, flags.feature);
+	if (scanReport.adapter !== 'java-spring') {
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel observe emit is java-spring-only for now (this feature's scan used "${scanReport.adapter}")`);
+	}
+
+	const contract = loadContract(root, flags.feature);
+
+	let basePackage;
+	try {
+		basePackage = detectBasePackage(root);
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	}
+	if (!basePackage) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', 'could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+	}
+
+	const dryRun = flags.check || flags.diff;
+	let result;
+	try {
+		result = emitObserveJavaSpring({ repoRoot: root, featureId: flags.feature, contract, basePackage, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	}
+	const { written, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = result;
+	const wouldChange = actions.some((a) => a.action !== 'unchanged' && a.action !== 'adopt-unchanged');
+	const allNotes = [...notes];
+	if (flags.force && forced.length === 0 && conflicts.length === 0) allNotes.push('--force had no effect: 0 conflicts found in this run\'s scope');
+	else if (flags.force && forced.length > 0) allNotes.push(`--force overwrote ${forced.length} diverged file(s): ${forced.join(', ')}`);
+
+	if (blocked) {
+		if (flags.json) {
+			console.log(JSON.stringify({ written, conflicts, orphans, forced, notes: allNotes, actions, blocked: true, check: dryRun }, null, 2));
+		} else {
+			const verb = dryRun ? 'would be blocked' : 'blocked';
+			console.error(`${verb}: ${conflicts.length} generated file(s) diverged from what backend-skeleton last wrote -- ${dryRun ? 'a real run would refuse to overwrite them' : 'refusing to overwrite'} without --force:`);
+			for (const c of conflicts) console.error(`  ${c.path} (${c.kind})\n    ${c.reason}`);
+			if (written.length > 0) {
+				console.error(`\n${written.length} other file(s) ${dryRun ? 'would still be written' : 'were still written this run'}:`);
+				for (const w of written) console.error(`  ${w}`);
+			}
+			if (!dryRun) console.error(`\nre-run with: bskel observe emit --feature ${flags.feature} --force --reason "..."`);
+			if (dryRun) console.error(`\n${renderFileActions(actions)}`);
+		}
+		// D-process-exit-audit: same shape/reasoning as `handles emit`'s own blocked path -- reused
+		// exit code, not a new one (D-cli-contract: numbers are a public contract, not renumbered).
+		process.exit(EXIT_CODES.HANDLES_CONFLICT);
+	}
+
+	if (flags.json) {
+		console.log(JSON.stringify({ written, conflicts, orphans, forced, notes: allNotes, actions, blocked: false, check: dryRun, postEmitNotes }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`${dryRun ? 'would write' : 'wrote'} ${written.length} file(s):`);
+		for (const w of written) console.log(`  ${w}`);
+		if (allNotes.length > 0) {
+			console.log('\nnotes:');
+			for (const n of allNotes) console.log(`  - ${n}`);
+		}
+		if (dryRun) {
+			console.log(`\n${renderFileActions(actions)}`);
+		} else {
+			for (const n of postEmitNotes) console.log(`\n${n}`);
+		}
+	}
+	if (dryRun) process.exit(wouldChange ? EXIT_CODES.CHECK_FAILED : EXIT_CODES.OK);
+	process.exit(0);
+}
+
+// D-runtime-conformance-receipts: validation order mirrors `contract emit --openapi-file`'s
+// "compute+validate everything before writing anything" discipline. Two failure classes on a
+// per-line basis, handled differently -- a line that is not valid JSON at all is NOISE (a human's
+// log pipeline realistically is not perfectly scoped to just the receipts logger), counted and
+// warned, not fatal; a line that IS valid JSON but fails observe-receipt.schema.json is real
+// CORRUPTION -- abort the whole import loudly, same "a bad file must not leave a half-updated
+// state" principle `contract emit --openapi-file` already applies.
+const MAX_RECEIPTS_BYTES = 64 * 1024 * 1024; // provisional -- no real oracle to measure against yet, unlike A1's own measured caps (stated explicitly, not pretended-measured)
+const MAX_RECEIPTS_LINES = 200_000;
+
+function cmdObserveImport(args) {
+	const flags = parseCommand('observe import', args);
+	if (flags.help) { console.log(renderCommandHelp('observe import')); process.exit(0); }
+	setContext('observe import', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+
+	const contractResult = requireNamedGate(root, 'contract', flags.feature);
+	if (contractResult.code !== EXIT.PASS) {
+		fail(contractResult.code, gateReasonForCode(contractResult.code), `blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- receipts are only meaningful against an established contract. Run \`bskel contract emit --feature ${flags.feature}\` first.`);
+	}
+	const contract = loadContract(root, flags.feature);
+
+	let stat;
+	try {
+		stat = fs.statSync(flags.receipts);
+	} catch {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no readable file at ${flags.receipts}`);
+	}
+	if (!stat.isFile()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `${flags.receipts} is not a regular file`);
+	}
+	if (stat.size > MAX_RECEIPTS_BYTES) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `${flags.receipts} is ${stat.size} bytes, over the provisional ${MAX_RECEIPTS_BYTES}-byte cap`);
+	}
+
+	const rawLines = fs.readFileSync(flags.receipts, 'utf8').split('\n').filter((l) => l.trim().length > 0);
+	if (rawLines.length > MAX_RECEIPTS_LINES) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `${flags.receipts} has ${rawLines.length} non-empty lines, over the provisional ${MAX_RECEIPTS_LINES}-line cap`);
+	}
+
+	let noiseLines = 0;
+	const receipts = [];
+	for (const line of rawLines) {
+		let parsed;
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			noiseLines++;
+			continue;
+		}
+		const { ok, errors } = validateAgainstSchema('observe-receipt.schema.json', parsed);
+		if (!ok) {
+			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${flags.receipts}: a line is valid JSON but not a valid receipt -- ${formatSchemaErrors(errors).join('; ')}. Aborting the whole import (a corrupted receipts file must not partially land).`);
+		}
+		receipts.push(parsed);
+	}
+
+	for (const r of receipts) {
+		if (r.feature_id !== flags.feature || r.feature_uid !== contract.feature_uid) {
+			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${flags.receipts}: a receipt is for feature "${r.feature_id}" (${r.feature_uid}), not "${flags.feature}" (${contract.feature_uid}) -- aborting the whole import (a receipts file for the wrong feature must never partially land).`);
+		}
+	}
+
+	const currentContractHash = sha256File(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`));
+	let matched = 0;
+	let staleContractRef = 0;
+	let violationCount = 0;
+	let unsupportedCount = 0;
+	const byOperation = {};
+	for (const r of receipts) {
+		const isMatched = r.contract_ref === currentContractHash;
+		if (isMatched) matched++; else staleContractRef++;
+		const opStats = byOperation[r.operation_id] ?? { matched: 0, stale_contract_ref: 0, violations: 0 };
+		if (isMatched) opStats.matched++; else opStats.stale_contract_ref++;
+		for (const v of r.violations ?? []) {
+			if (v.keyword === 'unsupported') unsupportedCount++; else violationCount++;
+			if (isMatched) opStats.violations++;
+		}
+		byOperation[r.operation_id] = opStats;
+	}
+
+	const report = {
+		sbf_conformance_report: '1',
+		feature_id: flags.feature,
+		feature_uid: contract.feature_uid,
+		generated_at: new Date().toISOString(),
+		source: describeSourceFile(root, flags.receipts),
+		counts: {
+			receipt_lines: receipts.length,
+			noise_lines: noiseLines,
+			matched, stale_contract_ref: staleContractRef,
+			violations: violationCount,
+			unsupported: unsupportedCount,
+		},
+		by_operation: byOperation,
+	};
+	const { ok: reportOk, errors: reportErrors } = validateAgainstSchema('conformance-report.schema.json', report);
+	if (!reportOk) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `internal error: the computed conformance report failed its own schema -- ${formatSchemaErrors(reportErrors).join('; ')}`);
+	}
+
+	const reportPath = specPath(root, flags.feature, 'observe', `${flags.feature}.conformance-report.json`);
+	writeFileAtomic(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+
+	// Evidence-first, not verdict-first (same as `contract`'s own precedent: a `partial` contract
+	// is still passable via waiver) -- passes on a successful STRUCTURAL import, never on "zero
+	// violations found". Whether violation counts should block CI is a policy question for whoever
+	// reads the report, deliberately not decided here -- see DECISIONS.md's own deferred list.
+	const gateState = passNamedGate(root, 'conformance', flags.feature, { receipt_count: receipts.length, matched, violations: violationCount });
+
+	if (flags.json) {
+		console.log(JSON.stringify({ report, noise_lines: noiseLines, gate: gateState.gates.conformance }, null, 2));
+	} else {
+		console.log(`imported ${receipts.length} receipt(s) (${matched} matched the current contract, ${staleContractRef} stale, ${noiseLines} noise line(s) skipped)`);
+		console.log(`${violationCount} violation(s), ${unsupportedCount} unsupported field(s) across matched receipts`);
+		console.log(`wrote ${path.relative(root, reportPath)}`);
+		console.log(`gate: conformance -> ${gateState.gates.conformance.status}`);
+	}
+	process.exit(0);
+}
+
 // S2: "stale" alone sends a human/agent re-running steps until one happens to stick. Name the
 // input that actually moved, using the exact reason requireGate()'s explainStaleness() reports.
 function describeStale(g) {
@@ -2625,6 +2844,13 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'emit') return cmdHandlesEmit(rest.slice(1));
 			if (rest[0] === 'patch' && rest[1] === 'approve') return cmdHandlesPatchApprove(rest.slice(2));
 			if (rest[0] === 'audit') return await cmdHandlesAudit(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'observe': {
+			if (rest[0] === 'emit') return cmdObserveEmit(rest.slice(1));
+			if (rest[0] === 'import') return cmdObserveImport(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

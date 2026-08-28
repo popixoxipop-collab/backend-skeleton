@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:observe-receipt:1",
+  "title": "backend-skeleton runtime contract-conformance receipt",
+  "description": "One JSONL line ContractObservationAspect logs per @ObserveContract-annotated call. Verdict-only, by design -- never carries an observed request/response VALUE, only pointers + constraint kinds. See DECISIONS.md D-runtime-conformance-receipts. `bskel observe import --receipts <path>` reads a stream of these.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["feature_id", "feature_uid", "operation_id", "contract_ref", "verb", "recorded_at", "violations"],
+  "properties": {
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "operation_id": { "type": "string" },
+    "contract_ref": { "type": "string" },
+    "verb": { "type": "string" },
+    "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+    "error_class": { "type": "string" },
+    "recorded_at": { "type": "string", "format": "date-time" },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pointer", "keyword", "message"],
+        "properties": {
+          "pointer": { "type": "string" },
+          "keyword": { "enum": ["required", "type", "pattern", "status", "unsupported"] },
+          "message": { "type": "string", "maxLength": 300 }
+        }
+      }
+    }
+  }
+}

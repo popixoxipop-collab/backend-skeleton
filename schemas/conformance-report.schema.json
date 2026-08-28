@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:conformance-report:1",
+  "title": "backend-skeleton runtime contract-conformance report",
+  "description": "The persisted, committed aggregate `bskel observe import` writes to specs/<feature_id>/observe/<feature_id>.conformance-report.json, summarizing a stream of observe-receipt.schema.json lines. Backs the `conformance` gate (lib/gate-definitions.mjs). Evidence-first: passing the gate means the import was structurally valid, not that zero violations were found -- see violation_count. See DECISIONS.md D-runtime-conformance-receipts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf_conformance_report", "feature_id", "feature_uid", "generated_at", "source", "counts"],
+  "properties": {
+    "sbf_conformance_report": { "const": "1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file"],
+      "properties": {
+        "file": { "type": "string" },
+        "outsideRepo": { "type": "boolean" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_lines", "noise_lines", "matched", "stale_contract_ref", "violations", "unsupported"],
+      "properties": {
+        "receipt_lines": { "type": "integer", "minimum": 0 },
+        "noise_lines": { "type": "integer", "minimum": 0, "description": "lines in --receipts that were not valid JSON at all -- counted and warned about, not fatal (a log pipeline realistically is not perfectly scoped to just this logger)." },
+        "matched": { "type": "integer", "minimum": 0, "description": "receipts whose contract_ref equals the CURRENT contract hash -- these count as evidence for the current contract." },
+        "stale_contract_ref": { "type": "integer", "minimum": 0, "description": "receipts recorded against a contract_ref that no longer matches -- kept on record for audit/trend purposes, not counted as current evidence." },
+        "violations": { "type": "integer", "minimum": 0 },
+        "unsupported": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "by_operation": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "matched": { "type": "integer", "minimum": 0 },
+          "stale_contract_ref": { "type": "integer", "minimum": 0 },
+          "violations": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
