@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { lineNumberAt } from '../text-util.mjs';
+import { lineNumberAt, listRgFiles as sharedListRgFiles, byShallowestThenName } from '../text-util.mjs';
 
 const PROJECT_FILE_GLOBS = ['pyproject.toml', 'requirements*.txt'];
 const EXCLUDE_GLOBS = ['!**/.venv/**', '!**/site-packages/**', '!**/node_modules/**', '!**/__pycache__/**'];
@@ -28,18 +28,7 @@ const CLASS_RE = /^class\s+(\w+)\s*\(([^)]*)\)\s*:/gm;
 const INCLUDE_ROUTER_RE = /include_router\s*\(/g;
 
 function listRgFiles(dir, globs) {
-	try {
-		const out = execFileSync('rg', ['--files', ...globs.flatMap((g) => ['-g', g]), ...EXCLUDE_GLOBS.flatMap((g) => ['-g', g]), dir], { encoding: 'utf8' });
-		return out.split('\n').filter(Boolean).sort(); // O6: rg --files order isn't guaranteed -- see java-spring.mjs's listJavaFiles.
-	} catch {
-		return []; // rg exits 1 on "no files matched" -- not an error, just nothing to report
-	}
-}
-
-function byShallowestThenName(a, b) {
-	const depthA = a.split(path.sep).length;
-	const depthB = b.split(path.sep).length;
-	return depthA !== depthB ? depthA - depthB : a.localeCompare(b);
+	return sharedListRgFiles(dir, globs, EXCLUDE_GLOBS);
 }
 
 function listCandidateProjectFiles(repoRoot) {

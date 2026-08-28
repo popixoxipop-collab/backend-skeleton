@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { listRgFiles as sharedListRgFiles, byShallowestThenName } from '../text-util.mjs';
 
 export const EXCLUDE_GLOBS = ['!**/node_modules/**', '!**/dist/**', '!**/build/**'];
 export const VERBS = ['get', 'post', 'put', 'patch', 'delete'];
@@ -24,13 +25,13 @@ export const VERBS = ['get', 'post', 'put', 'patch', 'delete'];
 // plain path with no interpolation, not a regular string.
 export const STRING_LITERAL_RE = /^\s*["'`]([^"'`]*)["'`]/;
 
+// D-cross-adapter-root-detection: listRgFiles/byShallowestThenName themselves now live in
+// scanners/text-util.mjs (shared with python-fastapi.mjs/java-spring.mjs too) -- this file keeps
+// its own thin wrapper so every existing call site here keeps passing just (dir, globs), with
+// EXCLUDE_GLOBS applied automatically the same way it always was.
+export { byShallowestThenName };
 export function listRgFiles(dir, globs) {
-	try {
-		const out = execFileSync('rg', ['--files', ...globs.flatMap((g) => ['-g', g]), ...EXCLUDE_GLOBS.flatMap((g) => ['-g', g]), dir], { encoding: 'utf8' });
-		return out.split('\n').filter(Boolean).sort(); // O6: rg --files order isn't guaranteed.
-	} catch {
-		return []; // rg exits 1 on "no files matched" -- not an error, just nothing to report
-	}
+	return sharedListRgFiles(dir, globs, EXCLUDE_GLOBS);
 }
 
 // `rg -l -e <pattern> -g <glob>...` -- the "which source files even mention this" pass both
@@ -45,12 +46,6 @@ export function rgFilesMatching(pattern, globs, dir) {
 	} catch {
 		return [];
 	}
-}
-
-export function byShallowestThenName(a, b) {
-	const depthA = a.split(path.sep).length;
-	const depthB = b.split(path.sep).length;
-	return depthA !== depthB ? depthA - depthB : a.localeCompare(b);
 }
 
 export function listCandidatePackageFiles(repoRoot) {

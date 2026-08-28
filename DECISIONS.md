@@ -8251,3 +8251,88 @@ boundary and `.env`/PATH precedent this item extended rather than re-derived); `
 (P3, the original reasoning for why `test`/`java-compile` ran on `ubuntu-latest` at all, and why
 `macOS` was originally excluded from the Node matrix on cost grounds -- self-hosted execution is
 what changes that cost calculus).
+
+## D-cross-adapter-root-detection (B3): the one adapter that never learned the other three's own fix for the exact same problem
+
+**WHY:** "B3" -- named in PR #44's own merge note ("O3/O5/B3 remain explicitly deferred to a future
+session") but never actually defined anywhere on disk. Its supposed origin, a Codex "differentiators
+analysis" consultation, was searched for exhaustively (every `~/.codex/sessions/` transcript, every
+`codex-companion` job log, this project's own Claude Code session transcripts, every `~/.claude/plans/`
+file) and found to have genuinely never completed -- the one session that ever ran that exact prompt
+(`01a04418`, 2026-08-27) hit `usage_limit_exceeded` before producing any output at all
+(`last_agent_message: null`). The short label "cross-adapter compatibility check" that survived
+several rounds of session-compaction summaries was accurate in spirit but ungrounded in specifics --
+exactly the class of stale-premise risk this project's own house rules warn about, corrected here by
+re-investigating from the real code instead of trusting the inherited label.
+
+**What real investigation found, instead:** comparing all 4 real adapters' `detect()` functions
+directly (not assumed from any prior description) found a genuine, previously-undocumented asymmetry.
+`python-fastapi.mjs`/`typescript-express.mjs`/`javascript-express.mjs` each already walk the WHOLE
+repo for their own project marker file (python-fastapi.mjs's own comment names the exact reason: "a
+real target [oracle] is a monorepo whose FastAPI project lives under `backend/`"). `java-spring.mjs`
+alone required its build file (`build.gradle`/`build.gradle.kts`/`pom.xml`) to sit directly at
+`repoRoot` (`fs.existsSync(path.join(repoRoot, f))`, no recursive search) -- a real Spring Boot
+project nested under a subdirectory (e.g. `backend-java/build.gradle`, an entirely ordinary polyglot-
+monorepo shape) was invisible to this one adapter while being correctly found by every other real
+one. Consequence, confirmed by reading `scanners/index.mjs`'s arbitration logic directly: if no other
+adapter's markers happened to exist either, `runScan()` fell through to `generic-grep` (specificity 0,
+the unconditional, no-codegen last resort) SILENTLY -- no error, no warning, a real Spring Boot
+backend simply misreported as "no framework detected."
+
+This is a genuinely different gap from the one `python-fastapi.mjs`'s own specificity comment already
+documents and handles (java-spring=100, python-fastapi=90 *deliberately* below it, specifically so a
+repo where BOTH adapters' markers exist at the same level resolves deterministically rather than
+hitting `runScan()`'s ambiguous-selection hard error). That mechanism was already correct and remains
+unchanged -- this item's bug was the OTHER failure mode: a real Spring project not being detected AT
+ALL, not two adapters tying.
+
+**Mechanism.** `detectJavaSpringRoot()` now searches the whole repo for build-file candidates (reusing
+`listRgFiles`, sorted shallowest-first via `byShallowestThenName`) and tries each in turn until one has
+a sibling `src/main/java` -- not just the shallowest candidate (unlike `python-fastapi.mjs`'s own
+single-candidate check), because a real multi-module Gradle project's ROOT `build.gradle` is routinely
+just an aggregator (`subprojects { ... }`) with no source of its own; the actual project lives under a
+child module's own `build.gradle`. Same two-signal bar as before either way (build file AND
+`src/main/java`, both required) -- only the search SCOPE changed. Two other places in the same file had
+independently re-derived `path.join(repoRoot, 'src', 'main', 'java')` rather than reusing
+`detectJavaSpringRoot()`'s own result (`detectGlobalPathPrefixSignals()`, `diagnostics()`) -- both were
+carrying the identical repoRoot-only assumption, found alongside the primary bug by reading every
+caller, not just the one originally suspected. Both now call `detectJavaSpringRoot()` directly instead
+of maintaining a second, driftable copy of the same signal.
+
+`listRgFiles`/`byShallowestThenName` themselves move to `scanners/text-util.mjs` -- the same
+extraction this file's own `lineNumberAt` already went through under `D-scanner-evidence` ("extracted
+from python-fastapi.mjs/generic-grep.mjs, which each had their own copy... java-spring.mjs needs the
+same thing now"), one adapter-generation later: `python-fastapi.mjs` and
+`scanners/adapters/_express-shared.mjs` (shared by the two Express adapters) each already had their
+OWN private copy of both functions -- with genuinely different `excludeGlobs` (Python's excludes
+`.venv`/`site-packages`/`__pycache__`; the Express one excludes `dist`/`build`), which is why the
+shared version takes `excludeGlobs` as a parameter rather than baking either caller's assumption in.
+Both existing adapters were refactored to call the shared version through a thin same-signature local
+wrapper, so no other call site in either file needed to change.
+
+**Verified for real**, not just unit-level: `test/java-spring-nested-root.test.mjs` copies the real,
+existing `test/fixtures/java-spring/` corpus into a temp `backend-java/` subdirectory (not a synthetic
+minimal stub) and proves `scanJavaSpring()` against the nested root finds the exact same modules,
+operation counts, and path-prefix signals as the root-level fixture -- and that `runScan()` itself
+picks `java-spring`, not `generic-grep`, against the nested layout (the actual previously-silent
+failure mode, not just the isolated `detect()` function). Also covers: the root-aggregator-with-no-
+own-src case, `diagnostics()`'s two distinguishable messages (`no-build-file` vs `no-src-main-java`)
+staying correct and recursive, and the unchanged root-level case regressing to nothing.
+
+**EXIT**: no attempt was made to make `runScan()` itself select MULTIPLE adapters for a genuinely
+polyglot repo (e.g. both a nested Java service and a nested Python service) -- that remains
+winner-take-all by specificity, unchanged and still correct for what it already handles (two adapters
+detecting the SAME level deterministically). This item only fixes ONE adapter FAILING to detect a real
+project that no other adapter would have claimed either; a repo that genuinely wants bskel to scan
+multiple stacks in one invocation is a materially different, larger feature (multiple simultaneous
+`scan` results, not a single `report.adapter` string) with no evidence of real demand yet, not
+addressed here.
+
+Cross-references: `D-adapter-registry` (G1, `scanners/index.mjs`'s specificity-based arbitration this
+item's own comment distinguishes itself from); `D-fastapi-adapter` (G2, the original "walks the WHOLE
+repo... a real target is a monorepo" design this item brings java-spring.mjs up to parity with);
+`D-scanner-evidence` (D3, the `lineNumberAt` extraction to `scanners/text-util.mjs` this item's own
+`listRgFiles`/`byShallowestThenName` extraction directly mirrors); `D-javascript-express-adapter` (G6,
+`_express-shared.mjs`'s own "deliberately narrow, byte-identical only" scoping rule this item respects
+by moving the genuinely-shared-across-THREE-adapters pieces out to `text-util.mjs` rather than
+widening `_express-shared.mjs` itself to cover a non-Express adapter).
