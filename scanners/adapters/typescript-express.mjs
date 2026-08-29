@@ -32,6 +32,15 @@ const VERB_CALL_RE = new RegExp(`\\brouter\\.(${VERBS.join('|')})\\s*\\(`, 'gi')
 const ROUTER_USE_RE = /\brouter\.use\s*\(/g;
 const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*export\s+class\s+(\w+)/g;
 
+// D-gate-precision (Continued, part 3): a pure PATH-CONVENTION heuristic, mirroring java-spring's
+// own identical solution to the identical problem (`.../presentation/dto/`) rather than inventing
+// syntactic DTO detection this ecosystem doesn't have a reliable single marker for -- plain
+// `interface`, `type` aliases, class-validator classes, Zod schemas, and undecorated classes are
+// all real conventions, and this adapter's own `api.request-shape: false` capability already names
+// why no such regex is attempted here. One entry per FILE under a `dto/` directory, not per
+// exported symbol -- same file-level granularity java's own DTO tracking already settled for.
+const DTO_DIR_SEGMENT = `${path.sep}dto${path.sep}`;
+
 // Two independent signals required, mirroring java-spring's "build file AND src layout" /
 // python-fastapi's "dependency declared AND source-confirmed" combined bar: (a) package.json
 // declares express, (b) at least one .ts file actually imports Router from 'express' and calls
@@ -220,6 +229,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	};
 
 	const allEntities = [];
+	const allDtos = [];
 	for (const file of files) {
 		const text = fileTexts.get(file);
 		// G6: `\bRouter\s*\(` -- see detectTypeScriptExpressRoot above. Same widening for the same
@@ -235,6 +245,9 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 				moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
 			}
 		}
+		if (file.includes(DTO_DIR_SEGMENT)) {
+			allDtos.push({ className: path.basename(file, '.ts'), file }); // no `line` -- path-based, no content parsed
+		}
 		allEntities.push(...extractTableEntities(text, file));
 	}
 
@@ -246,6 +259,19 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		const candidates = new Set([lower, `${lower}s`]);
 		const targetModule = [...modules.keys()].find((name) => candidates.has(name));
 		moduleEntry(targetModule ?? '_models').entities.push(entity);
+	}
+
+	// DTO -> module assignment: same narrow name-match as entities, with a trailing literal
+	// `Dto`/`DTO` stripped first -- the one near-definitional, cross-project-safe TS DTO marker (a
+	// DTO's own name almost universally contains it). An action-prefixed name (`CreateUserDto.ts`,
+	// a common real-world shape) still will NOT exact-match after stripping ("createuser" !=
+	// "user"/"users") and lands in `_dtos` -- honestly uncovered rather than guessed at (see
+	// D-gate-precision "Continued (part 3)" in DECISIONS.md).
+	for (const dto of allDtos) {
+		const lower = dto.className.replace(/Dto$/i, '').toLowerCase();
+		const candidates = new Set([lower, `${lower}s`]);
+		const targetModule = [...modules.keys()].find((name) => candidates.has(name));
+		moduleEntry(targetModule ?? '_dtos').dtos.push(dto);
 	}
 
 	return {

@@ -1668,6 +1668,73 @@ What remains open, named explicitly rather than silently: DTO file paths (no `.f
 `scanJavaSpring()`'s DTO extraction), and the new-file-in-an-already-disposed-module latency
 tradeoff above.
 
+### Continued (part 3): DTO file paths, closed for all three adapters -- and a live finding that one of them was already incidentally covered
+
+**WHY**: Part 1/Part 2's own EXIT above named "DTO file paths" as a separate, still-open gap. Traced
+live, not assumed, across all three adapters before building anything:
+
+- **java-spring**: DTOs were already detected (`file.includes('.../presentation/dto/...')`) but
+  pushed as a bare filename STRING, no `.file` -- `contract.recompute()` explicitly excluded
+  `mod?.dtos` because of exactly this shape gap. A mechanical fix: push `{className, file}` instead
+  (same shape controllers/entities/enums already use), then stop excluding `mod?.dtos`.
+- **python-fastapi**: no DTO detection existed at all. A DTO in this ecosystem's own real convention
+  (confirmed against the real oracle, `fastapi/full-stack-fastapi-template`, and this repo's own
+  committed fixture) is a SQLModel-family class WITHOUT `table=True` -- `ItemPublic(ItemBase)` next
+  to `Item(ItemBase, table=True)`. **A genuine finding, not assumed going in**: this common shape is
+  usually co-located with its entity in the SAME file (`models.py`), which means it was already
+  INCIDENTALLY covered by the entity's own tracked `.file` hash -- editing `ItemPublic`'s body
+  already changed `models.py`'s bytes, which `contract.recompute()` already hashed via `Item`'s own
+  entry, with zero new code. Building `extractDtoClasses()` therefore adds **zero marginal gate-
+  staleness coverage** for the co-located case specifically. The real, non-incidental gap is
+  specifically the separate `schemas.py`/`dto.py` convention (a DTO with no co-located table
+  entity) -- genuinely invisible to `contract.recompute()` before this fix, no matter what, and
+  that's what this slice actually closes. Verified by a real regression test using a schemas.py with
+  no co-located entity (reusing `models.py` alone would have trivially passed even with zero new
+  code, since the incidental coverage above already applies there).
+- **typescript-express**: no DTO detection existed either, and unlike python, this adapter's own
+  fixture already separates entities from everything else -- no co-location precedent to lean on, so
+  this closes the *common* case directly, not an edge case. No reliable single syntactic DTO marker
+  exists in this ecosystem (plain `interface`, `type`, class-validator classes, Zod schemas, and
+  undecorated classes are all real conventions) -- this adapter's own `api.request-shape: false`
+  capability already names exactly this honesty stance. Rather than inventing syntactic detection,
+  DTOs are found the same way java's own DTO detection already works: a pure path-convention
+  (`.../dto/...`), one entry per FILE, not per exported symbol.
+
+**COST**:
+- python-fastapi: `KNOWN_DTO_SUFFIXES` (`Base`/`Create`/`Update`/`Public`/`Read`/`Response`/
+  `Request`/`In`/`Out`) is a bounded, non-exhaustive allowlist validated against exactly one real
+  fixture (this repo's own, itself modeled on the real oracle). A DTO using a different convention
+  (`Schema`, `Payload`) lands in a `_dtos` bucket, untracked by any feature's contract gate --
+  honestly named, not silently dropped. Purely additive to extend later.
+- python-fastapi: one narrow denylist exclusion (`BaseSettings` -- pydantic-settings' own config-
+  class base, not API surface) accepted as a real, concrete false-positive fix; no broader positive
+  allowlist added on top (e.g. requiring `SQLModel`/`BaseModel` literally), since the real oracle's
+  own `ItemPublic(ItemBase)` shape (a DTO extending ANOTHER DTO) would fail such an allowlist --
+  same "prefer false positive over false negative" call this exact mechanism already makes for
+  controllers/entities/enums.
+- typescript-express: only a trailing `Dto`/`DTO` suffix is stripped before module-name matching (no
+  committed TS fixture existed to validate anything broader against). An action-prefixed filename
+  (`CreateUserDto.ts`, arguably the more common real-world shape) still will not exact-match after
+  stripping and lands in `_dtos` -- genuinely weaker coverage than python's, named honestly rather
+  than hidden.
+- Every repo with an already-passed `contract` gate whose disposed module has a DTO now tracked for
+  the first time goes stale exactly once after this ships (the token's input set grew) -- one
+  `contract emit`/`gate force contract` re-run clears it, same one-time cost this entry's own Part 1
+  already accepted for an analogous change.
+
+**EXIT**: what this deliberately did NOT do: a structural/field-level hash of DTO shape (a separate,
+larger, deliberately deferred idea -- this stays file-level, the same mechanism controllers/
+entities/enums already use); cross-file base-class-chain resolution for python (rejected -- trades a
+bounded false positive for a worse false negative against the real oracle's own `ItemPublic(ItemBase)`
+shape); any syntactic TS DTO-construct detection (rejected -- this ecosystem's own
+`api.request-shape: false` capability already names why: no single dominant marker, no fixture to
+validate a regex against). Known, accepted residual gap: any DTO landing in `_dtos`/`_models`
+(unmatched name, either ecosystem) is invisible to every feature's contract gate until a future
+slice either widens the suffix list or builds real per-DTO module correlation. **Verified**: `npm
+test` -- 6 new tests (java-spring: object-shape + narrowing; python-fastapi: suffix-match assignment
++ the separate-schemas.py new-coverage proof; typescript-express: path-match assignment +
+narrowing), all passing alongside the full existing suite, 0 regressions.
+
 ## D-status-next (D1): `bskel status`/`bskel next` are presentation logic on top of gate state that already existed
 
 **WHY**: `bskel verify` already computes everything a human/agent needs to know where a feature

@@ -70,7 +70,7 @@ export function renderScanMarkdown(report) {
 				lines.push(`- Enum \`${en.name}\`: ${en.constants.join(', ')}`);
 			}
 			if (mod.dtos.length > 0) {
-				lines.push(`- DTOs: ${mod.dtos.join(', ')}`);
+				lines.push(`- DTOs: ${mod.dtos.map((d) => d.className).join(', ')}`);
 			}
 			lines.push('');
 		}

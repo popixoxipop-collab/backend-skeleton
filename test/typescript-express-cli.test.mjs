@@ -31,7 +31,10 @@ function run(args, cwd) {
 // router.get(path, [middlewares], handler)'s own arg list), a barrel re-export
 // (controllers/users/index.ts: export * from './show'), and one entity with a UUID PK plus one
 // column deliberately excluded from the handler's own select allow-list.
-function buildFixtureRepo() {
+// D-gate-precision (Continued, part 3): `includeDto` (default false, zero behavior change for
+// every existing call site) opts in to also writing a src/dto/UserDto.ts -- the path-convention
+// this adapter's own DTO drift-detection now keys on, mirroring java-spring's identical convention.
+function buildFixtureRepo({ includeDto = false } = {}) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-typescript-express-fixture-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -142,6 +145,17 @@ export class User {
 }
 `);
 
+	if (includeDto) {
+		fs.mkdirSync(path.join(backendDir, 'src', 'dto'), { recursive: true });
+		fs.writeFileSync(path.join(backendDir, 'src', 'dto', 'UserDto.ts'), `
+export interface UserDto {
+  id: string;
+  email: string;
+  username: string;
+}
+`);
+	}
+
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
@@ -198,6 +212,38 @@ test('entity extraction: User table/idField/idFieldIsUuid extracted from @Entity
 	assert.equal(userEntity.table, 'users');
 	assert.equal(userEntity.idField, 'id');
 	assert.equal(userEntity.idFieldIsUuid, true);
+});
+
+// D-gate-precision (Continued, part 3): DTOs are detected via a pure path-convention (`.../dto/`),
+// mirroring java-spring's own identical solution -- no syntactic interface/class/Zod parsing.
+test('dto extraction: a file under src/dto/ attaches to the "users" module via Dto-suffix-stripped name-match', () => {
+	const root = buildFixtureRepo({ includeDto: true });
+	const scan = run(['scan', '--terms', 'user', '--json'], root);
+	const report = JSON.parse(scan.stdout);
+	const usersModule = report.related_modules.find((m) => m.module === 'users');
+	assert.ok(usersModule, 'expected a "users" module');
+	const dto = usersModule.dtos.find((d) => d.className === 'UserDto');
+	assert.ok(dto, 'expected UserDto attached to the users module');
+	assert.equal(typeof dto.file, 'string');
+	assert.ok(dto.file.endsWith(path.join('dto', 'UserDto.ts')));
+});
+
+// D-gate-precision (Continued, part 3): the actual new-coverage proof -- this ecosystem never
+// tracked DTO files at all before this fix. Uses this file's own established `gate force contract`
+// convention (no real OpenAPI oracle for typescript-express) -- forceGate() still records the
+// current inputs as the token baseline, so a later edit correctly shows up as drift.
+test('editing the disposed module\'s own DTO stales the contract gate, naming the module_file key', () => {
+	const root = buildFixtureRepo({ includeDto: true });
+	runWorkflowThroughScan(root, '001-user-management', 'user');
+	assert.equal(run(['gate', 'force', 'contract', '--feature', '001-user-management', '--reason', 'no OpenAPI oracle for this ecosystem'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-user-management'], root).code, 0);
+
+	fs.appendFileSync(path.join(root, 'backend', 'src', 'dto', 'UserDto.ts'), '\n// uncommitted edit to the DISPOSED module\'s DTO\n');
+
+	const stale = run(['gate', 'require', 'contract', '--feature', '001-user-management', '--json'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.ok(record.changed_inputs.some((k) => k.startsWith('module_file:') && k.includes('UserDto.ts')));
 });
 
 test('capabilities declared honestly: api.operations/api.request-shape false, resource.fetch/codegen.handles true, and doctor detects this fixture', () => {

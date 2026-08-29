@@ -66,6 +66,20 @@ test('scanning the fixture for "organization" finds OrganizationController (10 o
 	assert.deepEqual(statusEnum.constants, ['ACTIVE', 'SUSPENDED', 'DELETION_PENDING', 'DELETED']);
 });
 
+// D-gate-precision (Continued, part 3): dtos are now {className, file} objects (previously bare
+// filename strings with no `.file`, which is why lib/gate-definitions.mjs's contract.recompute()
+// used to exclude them from its tracked file set entirely).
+test('dtos are {className, file} objects, not bare strings -- OrganizationDto is found under the organization module', () => {
+	const report = runScan({ repoRoot: FIXTURE_ROOT, terms: ['organization'] });
+	const orgModule = report.related_modules.find((m) => m.module === 'organization');
+	assert.ok(orgModule, 'expected an "organization" related module');
+
+	const dto = orgModule.dtos.find((d) => d.className === 'OrganizationDto');
+	assert.ok(dto, 'expected OrganizationDto to be found');
+	assert.equal(typeof dto.file, 'string', 'dto must carry a .file path (unlike the old bare-string shape)');
+	assert.ok(dto.file.endsWith(path.join('presentation', 'dto', 'OrganizationDto.java')));
+});
+
 test('the fixture\'s own global-path-prefix signals: configurePathMatch + springdoc.paths-to-match, no context-path', () => {
 	const report = runScan({ repoRoot: FIXTURE_ROOT, terms: ['organization'] });
 	const byKind = Object.fromEntries(report.path_prefix_signals.map((s) => [s.kind, s]));

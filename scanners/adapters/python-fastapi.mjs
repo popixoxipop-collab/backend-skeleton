@@ -160,6 +160,42 @@ function extractTableEntities(text, file) {
 	return entities;
 }
 
+// D-gate-precision (Continued, part 3): the DTO/request-response-shape counterpart to
+// extractTableEntities() -- a SQLModel-family class WITHOUT `table=True` (`ItemBase(SQLModel)`,
+// `ItemPublic(ItemBase)`, `ItemCreate(ItemBase)`), the real convention confirmed against this
+// project's own committed fixture and the real oracle it mirrors (fastapi/full-stack-fastapi-
+// template). Deliberately a separate function, not merged into extractTableEntities() -- zero
+// regression risk to existing entity extraction. One narrow, named exclusion beyond "not
+// table=True": `class Settings(BaseSettings):` (pydantic-settings' own well-known config-class
+// base) is not API request/response surface -- excluding it is a concrete, common false-positive
+// fix, not a hypothetical one. No broader positive allowlist (e.g. requiring `SQLModel`/`BaseModel`
+// literally in the base list) is layered on top: the real oracle's own `ItemPublic(ItemBase)` shape
+// (a DTO extending ANOTHER DTO, not SQLModel/BaseModel directly) would fail such an allowlist,
+// trading a bounded, low-cost false positive for a worse false negative (a missed real DTO change)
+// -- the same "prefer false positive over false negative" call this exact drift-detection mechanism
+// already makes for controllers/entities/enums.
+function extractDtoClasses(text, file) {
+	const dtos = [];
+	for (const m of text.matchAll(CLASS_RE)) {
+		if (/table\s*=\s*True/.test(m[2])) continue; // has its own entity extractor above
+		if (/\bBaseSettings\b/.test(m[2])) continue; // pydantic-settings config, not API surface
+		dtos.push({ className: m[1], file, line: lineNumberAt(text, m.index) });
+	}
+	return dtos;
+}
+
+// Bounded, non-exhaustive allowlist of DTO class-name suffixes -- validated against this project's
+// own committed fixture (ItemBase/ItemCreate/ItemPublic/ItemsPublic, all correctly stripping to
+// "item"/"items", the real "items" module). A DTO whose class name uses a different convention
+// (Schema, Payload, Out) lands in the `_dtos` bucket below instead -- named, accepted, untracked,
+// same shape as an unmatched entity's `_models` fallback. Purely additive to extend: a future
+// suffix added here can only ever gain coverage, never lose it.
+const KNOWN_DTO_SUFFIXES = ['Base', 'Create', 'Update', 'Public', 'Read', 'Response', 'Request', 'In', 'Out'];
+function stripKnownDtoSuffix(className) {
+	const suffix = KNOWN_DTO_SUFFIXES.find((s) => className.length > s.length && className.endsWith(s));
+	return suffix ? className.slice(0, -suffix.length) : className;
+}
+
 // A1 §7 equivalent for FastAPI: `include_router(router, prefix=X)` applies a prefix the
 // per-router-file scan above cannot see (each file is read independently, with no idea another
 // file mounts it under a further prefix). Two-step resolution when X is a variable/attribute
@@ -224,6 +260,7 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 	};
 
 	const allEntities = [];
+	const allDtos = [];
 	for (const file of files) {
 		const text = fs.readFileSync(file, 'utf8');
 
@@ -240,6 +277,7 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 		}
 
 		allEntities.push(...extractTableEntities(text, file));
+		allDtos.push(...extractDtoClasses(text, file));
 	}
 
 	// Entity -> module assignment: this repo's real layout has no domain/<module>/ folder (all
@@ -253,6 +291,18 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 		const candidates = new Set([lower, `${lower}s`]);
 		const targetModule = [...modules.keys()].find((name) => candidates.has(name));
 		moduleEntry(targetModule ?? '_models').entities.push(entity);
+	}
+
+	// DTO -> module assignment: same narrow name-match as entities, suffix-stripped first via the
+	// bounded allowlist above (ItemPublic -> "item" -> matches "items"). Unmatched (unlisted suffix,
+	// or no correlation at all) lands in a separate `_dtos` bucket -- not merged into entities' own
+	// `_models` -- and is therefore NOT tracked by any feature's contract gate; a real, named,
+	// accepted limitation (see D-gate-precision "Continued (part 3)" in DECISIONS.md).
+	for (const dto of allDtos) {
+		const lower = stripKnownDtoSuffix(dto.className).toLowerCase();
+		const candidates = new Set([lower, `${lower}s`]);
+		const targetModule = [...modules.keys()].find((name) => candidates.has(name));
+		moduleEntry(targetModule ?? '_dtos').dtos.push(dto);
 	}
 
 	return {

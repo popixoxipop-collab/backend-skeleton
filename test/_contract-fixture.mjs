@@ -88,6 +88,23 @@ export function widgetControllerPath(root) {
 	return path.join(root, 'src', 'main', 'java', 'com', 'example', 'domain', 'widget', 'presentation', 'WidgetController.java');
 }
 
+// D-gate-precision (Continued, part 3): DTO drift-detection fixture -- lives under
+// `.../widget/presentation/dto/`, the same path-convention scannerJavaSpring() already keys DTO
+// detection on. Content is irrelevant (detection is purely path-based, no parsing), so this is a
+// minimal but real-looking Java source file, not an empty placeholder.
+export function widgetDtoPath(root) {
+	return path.join(root, 'src', 'main', 'java', 'com', 'example', 'domain', 'widget', 'presentation', 'dto', 'WidgetDto.java');
+}
+
+export function widgetDtoSource() {
+	return `
+package com.example.domain.widget.presentation.dto;
+
+public record WidgetDto(String widgetId, String name) {
+}
+`;
+}
+
 // `coverage: 'complete'` (default) -- 3/3 endpoints annotated, matches the pre-A5 fixture
 // exactly. `coverage: 'partial'` adds 2 unannotated endpoints (DELETE, PATCH), producing
 // completeness: partial with exactly 2 CONTRACT_UNMATCHED_ENDPOINT warnings.

@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import {
 	run, runCapturingStderr, widgetControllerSource, widgetControllerPath, buildFixtureRepo,
 	initThroughScanDisposition, contractSchemaPath, contractResolutionPath, contractSnapshotPath,
-	widgetOpenApiDoc, writeOpenApiFixture,
+	widgetOpenApiDoc, writeOpenApiFixture, widgetDtoPath, widgetDtoSource,
 } from './_contract-fixture.mjs';
 import { BARE_UUID_PATTERN } from '../contracts/emit.mjs';
 
@@ -936,6 +936,8 @@ function buildTwoModuleFixtureRepo() {
 
 	fs.mkdirSync(path.dirname(widgetControllerPath(root)), { recursive: true });
 	fs.writeFileSync(widgetControllerPath(root), widgetControllerSource());
+	fs.mkdirSync(path.dirname(widgetDtoPath(root)), { recursive: true });
+	fs.writeFileSync(widgetDtoPath(root), widgetDtoSource());
 	const otherControllerPath = path.join(root, 'src/main/java/com/example/domain/other/presentation/OtherController.java');
 	fs.mkdirSync(path.dirname(otherControllerPath), { recursive: true });
 	fs.writeFileSync(otherControllerPath, otherControllerSource());
@@ -1015,6 +1017,26 @@ test('editing the disposed module\'s own controller stales the contract gate, na
 	assert.equal(stale.code, 4);
 	const record = JSON.parse(stale.stdout);
 	assert.ok(record.changed_inputs.some((k) => k.startsWith('module_file:') && k.includes('WidgetController.java')));
+});
+
+// D-gate-precision (Continued, part 3): same proof, for a DTO instead of a controller -- DTOs were
+// previously excluded from contract.recompute()'s tracked file set entirely (bare class-name
+// strings, no `.file`). Confirms the fix actually wires DTOs into the same narrowing mechanism.
+test('editing the disposed module\'s own DTO stales the contract gate, naming the module_file key', () => {
+	const { root } = buildTwoModuleFixtureRepo();
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget,other'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--module', 'widget', '--note', 'x'], root);
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-widget-management'], root).code, 0);
+
+	fs.appendFileSync(widgetDtoPath(root), '\n// uncommitted edit to the DISPOSED module\'s DTO\n');
+
+	const stale = run(['gate', 'require', 'contract', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.ok(record.changed_inputs.some((k) => k.startsWith('module_file:') && k.includes('WidgetDto.java')));
 });
 
 // An unrelated commit (nothing in either module) must not stale contract either -- the other

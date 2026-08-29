@@ -25,7 +25,7 @@
           "controllers": { "type": "array" },
           "entities": { "type": "array" },
           "enums": { "type": "array" },
-          "dtos": { "type": "array", "items": { "type": "string" } },
+          "dtos": { "type": "array" },
           "evidence": {
             "description": "D-scanner-evidence: every {signal, term, value, weight, file, line} match that contributed to `score` -- capped per signal type AT COLLECTION TIME (not filtered afterward), so this array's size stays bounded regardless of repo size. See `capped_signals` for which signal types actually hit that cap.",
             "type": "array",

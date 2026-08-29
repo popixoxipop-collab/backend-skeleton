@@ -257,7 +257,7 @@ export function scanJavaSpring(repoRoot) {
 			if (en) moduleEntry(mod).enums.push(en);
 		}
 		if (mod && file.includes(`${path.sep}presentation${path.sep}dto${path.sep}`)) {
-			moduleEntry(mod).dtos.push(path.basename(file, '.java'));
+			moduleEntry(mod).dtos.push({ className: path.basename(file, '.java'), file });
 		}
 	}
 

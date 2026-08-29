@@ -25,7 +25,12 @@ function run(args, cwd) {
 	}
 }
 
-function buildFixtureRepo() {
+// D-gate-precision (Continued, part 3): `includeSeparateSchemas` (default false, zero behavior
+// change for every existing call site) opts in to also writing a schemas.py with a DTO that has NO
+// co-located table entity -- the one real, non-incidental gap this item's own DTO drift-detection
+// fix targets. Reusing models.py alone would trivially pass a staleness test even with zero new
+// code, since Item's own already-tracked entity file hash incidentally covers that file already.
+function buildFixtureRepo({ includeSeparateSchemas = false } = {}) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-fastapi-fixture-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -158,6 +163,19 @@ class OrphanConfig(SQLModel, table=True):
     key: str = Field(primary_key=True)
 `);
 
+	if (includeSeparateSchemas) {
+		// ItemResponse -- strips to "Item" via the Response suffix, matching the "items" module by
+		// name, same as models.py's own DTOs do. No co-located table entity in THIS file (unlike
+		// models.py's Item), which is exactly the shape that today has zero .file tracking anywhere.
+		fs.writeFileSync(path.join(root, 'backend', 'app', 'schemas.py'), `
+from sqlmodel import SQLModel
+
+
+class ItemResponse(SQLModel):
+    total: int
+`);
+	}
+
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
@@ -250,6 +268,40 @@ test('entities: table/idField extracted and cross-checked, Item attaches to the 
 	const orphanModule = report.related_modules.find((m) => m.module === '_models');
 	assert.ok(orphanModule, 'a table entity with no matching route module must land in _models, not be dropped');
 	assert.ok(orphanModule.entities.some((e) => e.className === 'OrphanConfig' && e.table === 'orphanconfig' && e.idField === 'key'));
+});
+
+// D-gate-precision (Continued, part 3): dtos: ItemBase/ItemCreate/ItemPublic/ItemsPublic all
+// attach to the "items" module by suffix-stripped name-match (KNOWN_DTO_SUFFIXES).
+test('dtos: ItemBase/ItemCreate/ItemPublic/ItemsPublic attach to the "items" module by suffix-stripped name-match', () => {
+	const root = buildFixtureRepo();
+	const scan = run(['scan', '--terms', 'item,orphan,config', '--json'], root);
+	const report = JSON.parse(scan.stdout);
+	const itemsModule = report.related_modules.find((m) => m.module === 'items');
+	assert.ok(itemsModule, 'expected an "items" related module');
+
+	const dtoNames = itemsModule.dtos.map((d) => d.className).sort();
+	assert.deepEqual(dtoNames, ['ItemBase', 'ItemCreate', 'ItemPublic', 'ItemsPublic']);
+	assert.ok(itemsModule.dtos.every((d) => typeof d.file === 'string' && d.file.endsWith('models.py')));
+});
+
+// D-gate-precision (Continued, part 3): the actual new-coverage proof -- a DTO in a SEPARATE
+// schemas.py, with NO co-located table entity, was previously invisible to contract.recompute()
+// no matter what (no .file tracked anywhere for it). Reusing models.py alone would NOT prove this,
+// since Item's own already-tracked entity file hash incidentally covers models.py regardless of
+// whether DTO tracking exists at all.
+test('a DTO in a separate schemas.py (no co-located table entity) is tracked: editing it stales the contract gate', () => {
+	const root = buildFixtureRepo({ includeSeparateSchemas: true });
+	runWorkflowThroughScan(root, '001-item-management', 'item');
+	const docPath = writeOpenApiDoc(root);
+	assert.equal(run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', docPath, '--path-prefix', '/api/v1'], root).code, 0);
+	assert.equal(run(['gate', 'require', 'contract', '--feature', '001-item-management'], root).code, 0);
+
+	fs.appendFileSync(path.join(root, 'backend', 'app', 'schemas.py'), '\n# uncommitted edit to a DTO with no co-located entity\n');
+
+	const stale = run(['gate', 'require', 'contract', '--feature', '001-item-management', '--json'], root);
+	assert.equal(stale.code, 4);
+	const record = JSON.parse(stale.stdout);
+	assert.ok(record.changed_inputs.some((k) => k.startsWith('module_file:') && k.includes('schemas.py')));
 });
 
 test('path-prefix signal (two-step include_router(prefix=settings.API_V1_STR) resolution) and apiSurfaceSource override', () => {
