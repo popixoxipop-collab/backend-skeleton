@@ -1,6 +1,11 @@
 node_modules/
 .DS_Store
 *.log
+# D-runtime-conformance-receipts: a local `python3 -m py_compile`/`ast.parse` syntax check run
+# directly against handles/providers/python-fastapi/templates/*.py.tmpl (a real, useful local
+# verification step for hand-written Python codegen templates) leaves this behind next to the
+# files it compiled -- never a real artifact, must never be committed.
+__pycache__/
 # Ephemeral per-repo gate state this skill writes into a TARGET repo, not into this skill's own
 # repo -- listed here only in case a manual test run leaves one behind under examples/ or test/.
 .sbf/

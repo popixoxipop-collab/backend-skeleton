@@ -8787,3 +8787,106 @@ structurally, including the `AopUtils#getMostSpecificMethod` constraint and the
 over-interpreting a schema shape this checker cannot safely evaluate is worse than an honest
 `unsupported` marker); `D-config-patch` (the "never choose a target's own delivery path" boundary
 Decision C's SLF4J-not-Postgres choice follows).
+
+**Update (python-fastapi port, closing this entry's own named deferred scope):** built, not just
+mechanically ported -- a Plan agent design pass against the real current code found a genuinely
+new, more severe risk java's v1 never had to consider.
+
+**Headline finding: async route handlers required a real fix, not a deferred item.**
+`record_snapshot.py.tmpl`'s existing decorator (the closest prior-art precedent, O4/G4 follow-up)
+has a sync-only wrapper -- `def wrapper(*args, **kwargs): ... result = fn(*args, **kwargs)`. If
+applied to an `async def` handler (FastAPI's common shape, including this project's own fixture
+conventions), `fn(*args, **kwargs)` without `await` returns an unawaited coroutine object instead of
+running the function -- FastAPI would then try to serialize that coroutine as the response. This is
+a real production-traffic-corrupting bug, not a missed check, and categorically worse than java's
+own v1 gap (java's `@Around` on an async method returns the SAME `CompletableFuture` the framework
+already expects, unmodified -- it fails to *inspect* the eventual value, but never corrupts the
+call). python's own `observe_contract` therefore CANNOT defer async support the way java did:
+`observe_contract()` detects `inspect.iscoroutinefunction(fn)` at DECORATION time and dispatches to
+a genuinely separate `async def wrapper` (`await fn(...)`) vs. sync `def wrapper` (`fn(...)`), never
+one wrapper trying to handle both. (This is also a latent, pre-existing landmine in
+`record_snapshot.py.tmpl` itself -- currently safe only because this project's own oracle
+service-layer convention is sync SQLModel sessions -- named here as a known issue in already-shipped
+code, not fixed as part of this item.) **Verified live**: `scripts/python-import-smoke.mjs`'s
+extended driver decorates a real `async def` probe function with the generated `@observe_contract`
+and asserts `asyncio.run(...)` returns the genuine awaited value (not a coroutine object) -- this
+would have failed loudly with the naive single-wrapper shape before the fix.
+
+**Mechanism, matching this item's own established design one language later:** three new templates
+(not four -- `record_snapshot.py.tmpl`'s own precedent explicitly rejects Java's marker+interceptor
+file split as "cargo-culting Java's file count," Python decorators natively ARE the interception
+mechanism, so `observe_contract.py.tmpl` combines both roles into one decorator).
+`contract_check.py.tmpl` stays its own separate, pure, stdlib-only file for a different reason than
+the marker/interceptor split -- it's "the only place a real observed value is ever looked at"
+(Decision A), kept small and undiluted so that invariant stays easy to verify in isolation.
+`observed_schema.py.tmpl` loads/merges every `<feature-id>.observed-schema.json` under a plain
+`observe/schemas/` data directory (no `importlib.resources` -- this ecosystem only ever runs from
+source, never an installed wheel; a named, bounded forward gap if that changes) at MODULE IMPORT
+time, pre-compiling every `pattern` into a real `re.Pattern` once, matching java's own
+`ObserveSchemaLoader` load-time-compilation discipline exactly. `@observe_contract(*, operation_id,
+body_param=None)`: `body_param` is the one new, python-specific, deliberately EXPLICIT (never
+guessed, `D-resolver-scope`) parameter -- Python has no `@RequestBody`-equivalent unambiguous marker
+the way Java's annotation does, so a human names which argument is the body; path-parameter NAMES
+need no config at all, since FastAPI's own routing structurally guarantees a handler's parameter
+name matches its route's `{name}` template segment (Python is *simpler* than Java here, not harder
+-- no live-request introspection needed the way `HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE`
+was). Status-code detection matches java's own honest boundary exactly (200 assumed on a normal
+return, real status from a caught `fastapi.HTTPException`/`starlette.exceptions.HTTPException`,
+unresolved otherwise) -- confirmed equally accurate, not a regression, since java's own aspect is
+equally blind to a method-level `@ResponseStatus` on a plain return. Deliberately does NOT check the
+projected `error` schema against `exc.detail` in v1, for the identical shape-ambiguity reason java's
+own aspect never consults `op.error()` in its catch branch either -- the final client-visible error
+JSON shape is produced by exception-handling middleware outside the wrapped function's own return
+path, which codegen cannot know without guessing.
+
+The five pure projection functions (`isScalarLeaf`/`projectBodySchema`/`projectPathParams`/
+`projectStatuses`/`projectOperation`) were extracted out of `handles/providers/java-spring/
+observe.mjs` into a new shared `handles/observe-schema-projection.mjs` once a second provider needed
+them verbatim -- confirmed nothing java-specific about them (pure functions over the contract's own
+JSON-schema-shaped fields), and confirmed safe to extract by checking no test imports them directly
+(all coverage goes through the CLI end-to-end, so the pure code-move preserves every
+currently-passing assertion by construction).
+
+`cmdObserveEmit`'s dispatch became an explicit two-branch (`java-spring` / `python-fastapi` /
+else-fail), deliberately NOT adopting `handles/registry.mjs`'s own provider mechanism -- that
+registry's schema/loader (a closed `plan`+`emit` verb pair) is specifically shaped for the HANDLES
+feature's own per-resource resolver units; observe has no `plan` verb and operates directly on
+`contract.operations`. Matches this project's own established precedent for a
+single-other-provider feature (`cmdHandlesPlan`'s `--ast` flag: a bare adapter check, no registry
+involved) and the registry module's own comment that it was only built once a real second provider
+FORCED the abstraction -- the right-sized response to a second observe provider is a narrow
+explicit dispatch, not premature adoption of a mechanism built for an unrelated concern.
+
+**Real, load-bearing consequence, named explicitly, not an oversight**: python's own package-root
+detection needs a `module` to anchor itself (unlike java's `detectBasePackage()`, which needs no
+module/feature context at all) -- `observe emit` gained a NEW `--module <name>` flag that java's own
+`observe emit` has never needed, a genuine CLI-surface asymmetry between the two providers.
+
+**Deferred scope, new and inherited, named explicitly:** inherited from java's own EXIT list
+(typescript-express -- still deferred, now doubly true given python's own port needed a real
+async-wrapper fix java never had to think about, underscoring "different middleware shape" per
+provider; sampling/rate-limiting; streaming/multipart bodies; full JSON-Schema semantics). New,
+python-specific: error-body schema checking against `exc.detail` (loaded/projected, never consulted
+at runtime, per the shape-ambiguity reasoning above); wheel-packaging of `observe/schemas/*.json` as
+real `package_data` (fine for this ecosystem's only real mode today -- run from source); non-
+`HTTPException` exceptions caught by a target app's own global `@app.exception_handler` still
+resolve to unresolved status (confirmed parity with java's "any other exception is unresolved," not
+a new gap).
+
+**Verified.** `npm test` 1070 -> **1075** (5 new: `test/observe-emit-python-cli.test.mjs`, mirroring
+`test/observe-emit-cli.test.mjs`'s own structure -- blocked-before-contract-gate, writes-expected-
+files, idempotent re-emit, hand-edit-conflict, `--check --diff`). `scripts/python-import-smoke.mjs`
+extended and re-run for real: `observe emit --module items` against a real python-fastapi fixture,
+real pip-install of `fastapi`+`sqlmodel` into a throwaway venv, real import of all three generated
+observe modules, the async-wrapper proof above, and a property-style battery (mirroring java's own
+named invariant) asserting `check_object`/`check_path_params` never embed a supplied marker string
+in any violation `.message` across a battery of adversarial inputs -- all PASS. One real bug found
+and fixed during this verification pass, not in generated code but in the smoke script's own test
+battery: an early draft passed a raw regex STRING as a property's `pattern` field, when the real
+generated `observed_schema.py` always hands `contract_check.py` an already-COMPILED `re.Pattern`
+object -- caught immediately by a real `AttributeError` ('str' object has no attribute 'match') the
+first time the script actually ran, not a silent pass. A stray `__pycache__/` directory left by a
+local `py_compile` syntax check (run directly against the hand-written `.py.tmpl` files during
+review, the same syntax-only verification precedent `java-compile-smoke.mjs`'s own limitation
+established) was caught by `test/package-manifest.test.mjs`'s own npm-pack-manifest cross-check and
+added to `.gitignore` -- the check did exactly the job it exists for.
