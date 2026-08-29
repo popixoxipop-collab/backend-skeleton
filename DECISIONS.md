@@ -8267,10 +8267,11 @@ compiles and a real Spring context boots with it.
 
 **EXIT**: no attempt was made to build tooling that auto-migrates an already-hand-finished
 Resolver.java across the shape change this item introduces -- the named rollout risk above is
-accepted as a one-time cost, not solved. If python-fastapi or typescript-express are ever given
-handles the same production weight java-spring has here, their smaller versions of this same
-mixing problem become real, separate items to pick up then -- not spuriously ported in now
-without a proven need for that scope, matching O5's own java-spring-only precedent.
+accepted as a one-time cost, not solved. typescript-express's own smaller version of this same
+mixing problem (no `CONTRACT_REF`/`FEATURE_UID`/authority value baked in at all) remains deferred,
+untouched -- not spuriously ported in without a proven need for that scope, matching O5's own
+java-spring-only precedent. (python-fastapi's own version, named deferred here originally, was
+closed in a follow-up -- see the Update note immediately below.)
 
 Cross-references: `D-handles-ownership` (O2, the per-file conflict-detection machinery this item
 reuses entirely unchanged -- `classifyFile()`'s "provably untouched" branch is what makes a new
@@ -8278,6 +8279,47 @@ always-safe-to-regenerate file work with zero new code); `D-resolver-authorizati
 (O5, `requiredAuthorityForPatch()`, one of the five values that moves into the new Policy file);
 `D-resolver-scope` (the precedent this item's own rejected-alternative reasoning cites -- guessing
 at/auto-merging hand-written code is worse than an honest conflict).
+
+**Update (python-fastapi port, closing this entry's own named deferred scope):** confirmed LIVE
+earlier in this same session (see the note above about the python-fastapi reproduction) that
+the identical bug class was real there too -- `resolver.py.tmpl` baked `CONTRACT_REF`/`FEATURE_UID`
+into the same file as hand-editable `check_access()`/`patch_field()`, feeding `router.py`'s
+`schema_drift` check a value that could get stuck stale forever behind a legitimate hand-edit's own
+conflict. Fixed with the identical mechanism: new `resolver_policy.py.tmpl` (module-level
+`type`/`CONTRACT_REF`/`FEATURE_UID` constants, imported by `resolver.py.tmpl` via
+`from .{{RESOURCE_TYPE_SNAKE}}_policy import CONTRACT_REF, FEATURE_UID` -- an import statement
+whose TEXT never changes when the underlying VALUE does, same property the Java delegate methods
+achieve differently). `emit.mjs`'s `resolverUnits` build converted from `.map()` to `.flatMap()`,
+mirroring java's own already-shipped pattern almost verbatim; `handles/_engine.mjs`'s
+`resolverStubs` dedup fix (already shipped for java) turned out to be fully provider-agnostic and
+needed zero further changes; `orphanScan`/`registry.py.tmpl`'s `ResourceResolver` Protocol also
+needed zero changes (both confirmed content-based/structural-typing already, not filename- or
+Java-shape-specific). **One genuinely NEW risk this item's own java version cannot have, found
+during design review, named not engineered around**: java's suffix anchors after "Resolver"
+(`{Type}Resolver.java`/`{Type}ResolverPolicy.java`), so only a resource literally named ending in
+"Resolver" could collide with its own policy file. Python's PRIMARY resolver filename has no
+"resolver" token at all (`{snake(type)}.py`), so `{snake(type)}_policy.py` collides head-on with
+any resource type whose own name is `"{X}Policy"` -- e.g. resources `Organization` and
+`OrganizationPolicy` in the same module would both target `organization_policy.py`. Accepted as a
+named edge case (same class as the pre-existing filename-ambiguity comment already in
+`orphanScan.resourceTypeOf`'s own code) -- no evidence this shape exists in any real repo, and
+building collision detection for an unproven case would repeat exactly the speculative-infra
+mistake this whole item's own EXIT already rejects for typescript-express. Same rollout-risk cost
+applies here too (first emit after this ships conflicts on every already-hand-finished
+`resolver.py`, purely from the template-shape diff), same low current stakes (no real production
+python-fastapi handles deployment either). **Verified**: `npm test` 1069 -> **1070** (one new
+permanent regression test in `test/python-fastapi-handles.test.mjs`, mirroring java's own test (h)
+exactly -- hand-finish `check_access()`, change the contract via a re-emitted `--openapi-file`
+[confirmed REQUIRED, not optional: python-fastapi's scanned `operationId` is always `null`, so
+`contract emit` without `--openapi-file` is blocked outright by the `api.operations:false`
+capability gate], `handles emit --check --diff --json` proves `item.py` stays `conflict` while
+`item_policy.py` alone shows the `CONTRACT_REF` diff, then a REAL `handles emit --json` with no
+`--force` proves the new `CONTRACT_REF` actually lands on `item_policy.py`'s disk content despite
+the overall run reporting blocked). `npm run test:python-import`
+(`scripts/python-import-smoke.mjs`, real pip-install + `TestClient`, the one check that could catch
+a real Python import/circular-import mistake no `node:test` assertion can) re-run and passes --
+every generated module, including the new `item_policy.py` and `item.py`'s new relative import,
+imports cleanly against real `fastapi`+`sqlmodel`.
 
 ## D-macstudio-ci-runners (W7): a billing outage the ubuntu-latest jobs couldn't see past, and two GitHub Actions limitations the plan itself got wrong until real execution proved otherwise
 
