@@ -4,6 +4,11 @@ Auto-imports every sibling module in this package so each resolver's own `regist
 import time runs exactly once. Keeps this file itself feature-independent (its content never
 depends on which resolvers exist), which is what lets `bskel handles emit` treat it as repo-owned
 infra rather than needing to regenerate it per feature.
+
+D-resolver-policy-split: this loop also directly imports each `*_policy.py` companion module as a
+standalone top-level import (it doesn't start with `_`), in addition to the resolver module's own
+`from .<x>_policy import ...`. Harmless -- a policy module has no `register()` call and no side
+effects, and Python's import cache makes the double-import/ordering irrelevant either way.
 """
 import importlib
 import pkgutil

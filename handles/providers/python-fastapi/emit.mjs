@@ -9,6 +9,11 @@ import { loadFeatureFile } from '../../../lib/featurelifecycle.mjs';
 const PROVIDER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(PROVIDER_ROOT, 'templates');
 const RESOLVER_TEMPLATE = path.join(TEMPLATES_DIR, 'resolver.py.tmpl');
+// D-resolver-policy-split: a resource's live-derived values (CONTRACT_REF/FEATURE_UID) are
+// generated into this separate, always-safe-to-regenerate companion module rather than the same
+// file as the hand-editable check_access()/patch_field() body -- see the template's own docstring
+// and DECISIONS.md.
+const POLICY_TEMPLATE = path.join(TEMPLATES_DIR, 'resolver_policy.py.tmpl');
 const MIGRATION_TEMPLATE = path.join(TEMPLATES_DIR, 'migration.sql.tmpl');
 
 function writeUnit(target, content) {
@@ -91,39 +96,60 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 
 	const resolverUnits = plan.resources
 		.filter((r) => r.willGenerateResolver)
-		.map((resource) => {
+		.flatMap((resource) => {
+			// D-resolver-policy-split: CONTRACT_REF/FEATURE_UID no longer appear in the resolver's
+			// own vars -- they move to policyVars below, into a separate generated module, so a
+			// hand-edited check_access()/patch_field() (which stales THIS file's own template
+			// render) can never block one of those values from updating.
 			const vars = {
 				FEATURE_ID: featureId,
 				RESOURCE_TYPE: resource.type,
+				RESOURCE_TYPE_SNAKE: snakeCase(resource.type),
 				MODEL: resource.type,
 				PUBLIC_MODEL: resource.publicModel,
 				MODEL_IMPORT: resource.modelImport,
 				PKG: plan.topPackage,
 				FETCH_ROUTE_FILE: resource.fetchRoute ? path.relative(repoRoot, resource.fetchRoute.file) : '(unknown)',
 				FETCH_ROUTE_LINE: resource.fetchRoute ? resource.fetchRoute.line : '',
+			};
+			const policyVars = {
+				FEATURE_ID: featureId,
+				RESOURCE_TYPE: resource.type,
 				CONTRACT_REF: contractRef,
 				FEATURE_UID: featureUid,
 			};
-			return {
-				id: 'resolver.py.tmpl',
-				resourceType: resource.type,
-				module: plan.module,
-				templatePath: RESOLVER_TEMPLATE,
-				targetAbs: path.join(resolversDir, `${snakeCase(resource.type)}.py`),
-				rendered: render(RESOLVER_TEMPLATE, vars),
-				// FEATURE_ID/CONTRACT_REF/FEATURE_UID all change between features -- deliberately NOT
-				// reused verbatim for a DIFFERENT owner (see java-spring/emit.mjs's own identical
-				// comment): O2's cross-feature adoption check re-renders using the ORIGINAL owner's
-				// feature_id specifically, so baking in the CURRENT run's own contract_ref/feature_uid
-				// there would compare disk content against the wrong feature's values and manufacture a
-				// false conflict for an untouched file.
-				pristineRenderFor: (ownerId) => render(RESOLVER_TEMPLATE, {
-					...vars,
-					FEATURE_ID: ownerId,
-					CONTRACT_REF: ownerId === featureId ? contractRef : contractRefFor(ownerId),
-					FEATURE_UID: ownerId === featureId ? featureUid : featureUidFor(ownerId),
-				}),
-			};
+			return [
+				{
+					id: 'resolver.py.tmpl',
+					resourceType: resource.type,
+					module: plan.module,
+					templatePath: RESOLVER_TEMPLATE,
+					targetAbs: path.join(resolversDir, `${snakeCase(resource.type)}.py`),
+					rendered: render(RESOLVER_TEMPLATE, vars),
+					// Only FEATURE_ID varies by owner now -- CONTRACT_REF/FEATURE_UID no longer live here.
+					pristineRenderFor: (ownerId) => render(RESOLVER_TEMPLATE, { ...vars, FEATURE_ID: ownerId }),
+				},
+				{
+					id: 'resolver_policy.py.tmpl',
+					resourceType: resource.type,
+					module: plan.module,
+					templatePath: POLICY_TEMPLATE,
+					targetAbs: path.join(resolversDir, `${snakeCase(resource.type)}_policy.py`),
+					rendered: render(POLICY_TEMPLATE, policyVars),
+					// FEATURE_ID/CONTRACT_REF/FEATURE_UID all change between features -- deliberately NOT
+					// reused verbatim for a DIFFERENT owner (see java-spring/emit.mjs's own identical
+					// comment): O2's cross-feature adoption check re-renders using the ORIGINAL owner's
+					// feature_id specifically, so baking in the CURRENT run's own contract_ref/feature_uid
+					// there would compare disk content against the wrong feature's values and manufacture a
+					// false conflict for an untouched file.
+					pristineRenderFor: (ownerId) => render(POLICY_TEMPLATE, {
+						...policyVars,
+						FEATURE_ID: ownerId,
+						CONTRACT_REF: ownerId === featureId ? contractRef : contractRefFor(ownerId),
+						FEATURE_UID: ownerId === featureId ? featureUid : featureUidFor(ownerId),
+					}),
+				},
+			];
 		});
 
 	const orphanScan = (!resourceFilter && plan.module) ? {

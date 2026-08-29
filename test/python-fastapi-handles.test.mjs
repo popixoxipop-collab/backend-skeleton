@@ -331,6 +331,8 @@ test('e2e: handles emit writes exactly the expected files, no .java, including a
 	const written = result.written.sort();
 	// G4 follow-up (D-handles-providers): tables.py/handle_service.py/record_snapshot.py (new
 	// infra) + migration.sql (new spec output) join the pre-existing file set.
+	// D-resolver-policy-split: item_policy.py (CONTRACT_REF/FEATURE_UID's own always-safe-regen
+	// companion module) joins item.py.
 	assert.deepEqual(written, [
 		'backend/app/handles/__init__.py',
 		'backend/app/handles/codec.py',
@@ -339,6 +341,7 @@ test('e2e: handles emit writes exactly the expected files, no .java, including a
 		'backend/app/handles/registry.py',
 		'backend/app/handles/resolvers/__init__.py',
 		'backend/app/handles/resolvers/item.py',
+		'backend/app/handles/resolvers/item_policy.py',
 		'backend/app/handles/router.py',
 		'backend/app/handles/tables.py',
 		'specs/001-item-management/handles/migration.sql',
@@ -400,4 +403,155 @@ test('e2e: hand-editing a generated resolver then re-running exits 15 and leaves
 	const second = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items'], root);
 	assert.equal(second.code, 15);
 	assert.equal(fs.readFileSync(resolverPath, 'utf8'), edited);
+});
+
+// D-resolver-policy-split: permanent regression for the exact live reproduction that found this
+// gap in python-fastapi (documented as CONFIRMED, not theorized, in DECISIONS.md's own entry).
+// Before the split, CONTRACT_REF lived in the SAME file as check_access()/patch_field(), so a
+// hand-finished check_access() (a legitimate, expected divergence -- see the test above) blocked a
+// narrow, unrelated, contract-derived value from ever applying, indefinitely -- CONTRACT_REF feeds
+// router.py's schema_drift check. `--openapi-file` is required here (not the simpler
+// buildE2eFixtureRepo()/`gate force contract` shortcut used above): python-fastapi's scanned
+// operationId is always null (D-fastapi-adapter), so a real, evolving `contract emit` -- the only
+// way to change CONTRACT_REF's own hash for real -- needs a real OpenAPI source document. Fixture
+// shape copied from test/handles-check-cli.test.mjs's own buildPythonFixtureRepo().
+function buildOpenApiFixtureRepo() {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-handles-policy-split-'));
+	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
+	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
+
+	fs.mkdirSync(path.join(root, 'backend', 'app', 'api', 'routes'), { recursive: true });
+	fs.mkdirSync(path.join(root, 'backend', 'app', 'core'), { recursive: true });
+	fs.writeFileSync(path.join(root, 'backend', 'app', '__init__.py'), '');
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', '__init__.py'), '');
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'routes', '__init__.py'), '');
+	fs.writeFileSync(path.join(root, 'backend', 'pyproject.toml'), '[project]\nname = "fixture-backend"\ndependencies = ["fastapi[standard]>=0.141.1,<1.0.0", "sqlmodel>=0.0.24"]\n');
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'core', 'config.py'), 'class Settings:\n    API_V1_STR: str = "/api/v1"\n\nsettings = Settings()\n');
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'deps.py'), `
+from typing import Annotated
+from fastapi import Depends
+from sqlmodel import Session
+
+
+def get_db():
+    pass
+
+
+SessionDep = Annotated[Session, Depends(get_db)]
+`);
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'main.py'), `
+from fastapi import FastAPI
+from app.api.main import api_router
+from app.core.config import settings
+
+app = FastAPI()
+app.include_router(api_router, prefix=settings.API_V1_STR)
+`);
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'routes', 'items.py'), `
+from fastapi import APIRouter
+from app.models import Item, ItemPublic
+
+router = APIRouter(prefix="/items", tags=["items"])
+
+
+@router.get("/{id}", response_model=ItemPublic)
+async def read_item(session: SessionDep, id: str):
+    pass
+`);
+	fs.writeFileSync(path.join(root, 'backend', 'app', 'models.py'), `
+from sqlmodel import Field, SQLModel
+import uuid
+
+
+class ItemBase(SQLModel):
+    title: str
+
+
+class Item(ItemBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+
+
+class ItemPublic(ItemBase):
+    id: uuid.UUID
+`);
+	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-handles-policy-split-origin-'));
+	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
+	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+	return root;
+}
+
+test('a hand-finished check_access() blocks item.py but must NOT block an unrelated contract change from reaching item_policy.py', () => {
+	const root = buildOpenApiFixtureRepo();
+	const openApiPath = path.join(root, 'openapi.json');
+
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'item-management'], root);
+	run(['scan', '--feature', '001-item-management', '--terms', 'item', '--json'], root);
+	run(['scan', 'disposition', '--feature', '001-item-management', '--mode', 'extend', '--note', 'test'], root);
+	// D-cli-contract convention (matching test/handles-check-cli.test.mjs's own python fixture):
+	// openapi.json is written AFTER preflight, not before -- an untracked file at repo root would
+	// otherwise make preflight's own dirty-tree check fail; contract emit only re-checks scan/
+	// disposition, not preflight's own gate.
+	fs.writeFileSync(openApiPath, JSON.stringify({
+		openapi: '3.1.0',
+		paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } },
+	}));
+	assert.equal(run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'], root).code, 0);
+	assert.equal(run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items'], root).code, 0);
+
+	const resolverPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item.py');
+	const policyPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item_policy.py');
+	assert.ok(fs.existsSync(policyPath), 'expected the new always-safe-regen companion module to exist');
+	const contractRefBefore = fs.readFileSync(policyPath, 'utf8').match(/CONTRACT_REF = "([^"]+)"/)[1];
+
+	// Simulate a human finishing the generated check_access() stub -- same style as the hand-edit
+	// test above, a legitimate divergence that must keep blocking item.py's own regeneration forever.
+	const handEdited = fs.readFileSync(resolverPath, 'utf8').replace(
+		'raise HTTPException(status_code=403, detail="access check not yet implemented for Item")',
+		'if getattr(obj, "owner_id", None) is not None:\n            pass  # hand-completed: real ownership check reviewed and approved\n        raise HTTPException(status_code=403, detail="access check not yet implemented for Item")',
+	);
+	fs.writeFileSync(resolverPath, handEdited);
+
+	// A real, narrow, contract-affecting change -- a new query parameter -- via a re-emitted
+	// --openapi-file, the only way to change CONTRACT_REF's own hash for real here.
+	fs.writeFileSync(openApiPath, JSON.stringify({
+		openapi: '3.1.0',
+		paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', parameters: [{ name: 'verbose', in: 'query', schema: { type: 'boolean' } }], responses: {} } } },
+	}));
+	assert.equal(run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'], root).code, 0);
+
+	const check = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--check', '--diff', '--json'], root);
+	assert.equal(check.code, 15, 'the hand-finished check_access() must still block item.py');
+	const checkBody = JSON.parse(check.stdout);
+	assert.equal(checkBody.blocked, true);
+	assert.equal(checkBody.conflicts.length, 1);
+	assert.ok(checkBody.conflicts[0].path.endsWith('resolvers/item.py'));
+
+	const resolverAction = checkBody.actions.find((a) => a.path.endsWith('resolvers/item.py'));
+	assert.equal(resolverAction.action, 'conflict', 'item.py: hand-finished check_access() correctly still conflicts');
+
+	const policyAction = checkBody.actions.find((a) => a.path.endsWith('resolvers/item_policy.py'));
+	assert.equal(policyAction.action, 'update', 'item_policy.py: no hand-edit here, so the contract change is free to apply');
+	assert.match(policyAction.diff, new RegExp(`-CONTRACT_REF = "${contractRefBefore}"`));
+	assert.match(policyAction.diff, /\+CONTRACT_REF = "[0-9a-f]{64}"/);
+
+	// The real, non---check emit: still blocked overall (exit 15, item.py's conflict is real and
+	// must not be silently discarded) -- but resolver units are independent per file, so the
+	// policy module's update is NOT held hostage by the sibling conflict. This on-disk assertion is
+	// exactly the one that would have failed before D-resolver-policy-split: the contract change
+	// would never have reached disk at all, silently, for as long as the hand-edit remained.
+	const real = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json'], root);
+	assert.equal(real.code, 15);
+	const realBody = JSON.parse(real.stdout);
+	assert.equal(realBody.blocked, true);
+	assert.equal(realBody.conflicts.length, 1);
+
+	assert.equal(fs.readFileSync(resolverPath, 'utf8'), handEdited, 'item.py must remain byte-for-byte untouched, hand-edit intact');
+	const contractRefAfter = fs.readFileSync(policyPath, 'utf8').match(/CONTRACT_REF = "([^"]+)"/)[1];
+	assert.notEqual(contractRefAfter, contractRefBefore, 'item_policy.py must actually carry the new CONTRACT_REF on disk despite the overall run reporting blocked');
 });
