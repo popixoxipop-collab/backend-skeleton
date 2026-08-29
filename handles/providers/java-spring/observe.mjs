@@ -10,6 +10,7 @@ import { emitUnits, unifiedDiff } from '../../_engine.mjs';
 import { sha256File } from '../../../lib/fsutil.mjs';
 import { specPath } from '../../../lib/paths.mjs';
 import { detectJacksonPackage } from './emit.mjs';
+import { projectOperation } from '../../observe-schema-projection.mjs';
 
 const PROVIDER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(PROVIDER_ROOT, 'templates');
@@ -38,89 +39,9 @@ function writeUnit(target, content) {
 	fs.writeFileSync(target, content);
 }
 
-// A property this project's own contracts already fully control the generation of when there's
-// nothing deeper than a directly-checkable value -- string/number/integer/boolean with no nested
-// properties/items/$ref/anyOf/allOf/oneOf. See DECISIONS.md D-runtime-conformance-receipts,
-// Decision B: what's checkable is decided ONCE here, in JS, at `observe emit` time -- the Java
-// side (ContractCheck.java.tmpl) is a dumb, mechanical executor of an already-simplified
-// instruction set, never a second independent JSON-Schema interpreter.
-const SCALAR_TYPES = new Set(['string', 'number', 'integer', 'boolean']);
-
-function isScalarLeaf(schema) {
-	if (!schema || typeof schema !== 'object') return false;
-	if (schema.properties || schema.items || schema.$ref || schema.anyOf || schema.allOf || schema.oneOf) return false;
-	return typeof schema.type === 'string' && SCALAR_TYPES.has(schema.type);
-}
-
-// Projects a real (possibly arbitrarily deep) JSON Schema object -- contract.operations[id]'s own
-// requestBodySchema/responseSchema/errorSchema, present only when `contract emit --openapi-file`
-// was used and something resolved (contracts/emit.mjs) -- down to the bounded, checkable-only
-// shape ContractCheck.java.tmpl understands: top-level `required`, scalar-leaf `properties` kept
-// as {type, pattern?}, everything else marked `unsupported` at its own JSON Pointer rather than
-// silently treated as pass. A non-object root (anyOf/allOf/oneOf/$ref/any non-'object' type -- the
-// real shape a multi-status-unioned responseSchema can take) is marked unsupported at the root
-// pointer "" wholesale, rather than guessed into a partial projection.
-function projectBodySchema(schema) {
-	if (!schema || typeof schema !== 'object') return null;
-	if (schema.anyOf || schema.allOf || schema.oneOf || schema.$ref || schema.type !== 'object') {
-		return { required: [], properties: {}, unsupported: [''] };
-	}
-	const required = Array.isArray(schema.required) ? schema.required.filter((r) => typeof r === 'string') : [];
-	const properties = {};
-	const unsupported = [];
-	for (const [key, propSchema] of Object.entries(schema.properties ?? {})) {
-		if (isScalarLeaf(propSchema)) {
-			properties[key] = { type: propSchema.type, ...(typeof propSchema.pattern === 'string' ? { pattern: propSchema.pattern } : {}) };
-		} else {
-			unsupported.push(`/${key}`);
-		}
-	}
-	return { required, properties, unsupported };
-}
-
-// pathParams is ALWAYS the narrow, bskel-controlled vocabulary contracts/emit.mjs's own
-// pathParamsSchema() produces (type:'object', additionalProperties:false, properties/required,
-// each property {type:'string', pattern?}) -- passed through structurally rather than re-derived,
-// but still routed through the same scalar-leaf check as body properties, defensively, in case a
-// hand-edited contract ever puts something deeper there.
-function projectPathParams(pathParamsSchema) {
-	const required = Array.isArray(pathParamsSchema?.required) ? pathParamsSchema.required.filter((r) => typeof r === 'string') : [];
-	const properties = {};
-	const unsupported = [];
-	for (const [key, propSchema] of Object.entries(pathParamsSchema?.properties ?? {})) {
-		if (isScalarLeaf(propSchema)) {
-			properties[key] = { type: propSchema.type, ...(typeof propSchema.pattern === 'string' ? { pattern: propSchema.pattern } : {}) };
-		} else {
-			unsupported.push(`/${key}`);
-		}
-	}
-	return { required, properties, unsupported };
-}
-
-// A8: sourceResponses' own keys are literal status codes/ranges/"default" straight from a real
-// source document (schemas/feature-contract.schema.json's own propertyNames pattern), never
-// re-bucketed here -- matching status against them at runtime (a real observed code against
-// "4XX"/"default") is a bounded, mechanical string comparison, not JSON-Schema interpretation, so
-// doing it in Java (ContractCheck) doesn't violate Decision B's "one interpreter" boundary.
-function projectStatuses(sourceResponses) {
-	return sourceResponses ? Object.keys(sourceResponses) : null;
-}
-
-function projectOperation(opContract) {
-	return {
-		verb: opContract.verb,
-		path: opContract.path,
-		pathParams: projectPathParams(opContract.pathParams),
-		// Normalized to always a JSON string ("true"/"false"/"unknown") -- opContract.body is a
-		// true|false|'unknown' tri-state (mixed boolean/string), awkward for the Java side to parse
-		// unambiguously; String() keeps this file's own schema uniformly typed.
-		body: String(opContract.body),
-		request: opContract.body === false ? null : projectBodySchema(opContract.requestBodySchema),
-		response: projectBodySchema(opContract.responseSchema),
-		error: projectBodySchema(opContract.errorSchema),
-		statuses: projectStatuses(opContract.sourceResponses),
-	};
-}
+// isScalarLeaf/projectBodySchema/projectPathParams/projectStatuses/projectOperation moved to
+// handles/observe-schema-projection.mjs (D-runtime-conformance-receipts) -- pure contract-shape
+// logic shared verbatim with python-fastapi/observe.mjs, nothing java-specific about it.
 
 // See DECISIONS.md D-runtime-conformance-receipts. `contract` is the already-loaded, already
 // schema-validated feature contract (bin/bskel.mjs's loadContract) -- this function does not read

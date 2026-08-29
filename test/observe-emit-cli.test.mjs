@@ -129,7 +129,7 @@ test('observe emit writes the four infra templates plus the projected observed-s
 	assert.deepEqual(schema.operations.findWidget.pathParams.required, ['widgetId']);
 });
 
-test('observe emit fails cleanly for a non-java-spring adapter', () => {
+test('observe emit fails cleanly for an unsupported adapter (java-spring and python-fastapi only)', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-emit-ts-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -155,7 +155,7 @@ test('observe emit fails cleanly for a non-java-spring adapter', () => {
 
 	const result = run(['observe', 'emit', '--feature', '001-x-management'], root);
 	assert.equal(result.code, 17); // EXIT_CODES.MISSING_CAPABILITY
-	assert.match(result.stderr, /java-spring-only/);
+	assert.match(result.stderr, /does not support the "typescript-express" adapter yet \(supported: java-spring, python-fastapi\)/);
 });
 
 test('observe emit is idempotent -- re-running rewrites nothing except the always-regenerated observed-schema.json (same byte-identical content)', () => {

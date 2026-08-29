@@ -45,6 +45,8 @@ import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/regist
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
 import { emitObserveJavaSpring } from '../handles/providers/java-spring/observe.mjs';
+import { plan as planPythonFastApi } from '../handles/providers/python-fastapi/plan.mjs';
+import { emitObservePythonFastApi } from '../handles/providers/python-fastapi/observe.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
@@ -81,7 +83,7 @@ function usage() {
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
-  bskel observe emit --feature <id> [--force --reason "..."] [--check] [--diff] [--json]
+  bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
   bskel observe import --feature <id> --receipts <path> [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   bskel status [--feature <id>] [--json]
@@ -2166,28 +2168,49 @@ function cmdObserveEmit(args) {
 	}
 
 	const scanReport = loadScanReportOrExit(root, flags.feature);
-	if (scanReport.adapter !== 'java-spring') {
-		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel observe emit is java-spring-only for now (this feature's scan used "${scanReport.adapter}")`);
-	}
-
 	const contract = loadContract(root, flags.feature);
-
-	let basePackage;
-	try {
-		basePackage = detectBasePackage(root);
-	} catch (err) {
-		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
-	}
-	if (!basePackage) {
-		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', 'could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
-	}
-
 	const dryRun = flags.check || flags.diff;
+
+	// D-runtime-conformance-receipts: explicit two-branch dispatch, not handles/registry.mjs's own
+	// provider mechanism -- that registry's schema/loader (a closed plan+emit verb pair) is
+	// specifically shaped for the HANDLES feature (per-resource resolver units); observe has no
+	// `plan` verb and operates directly on contract.operations. Matches this project's own
+	// established precedent for a single-other-provider feature (cmdHandlesPlan's --ast flag: a
+	// bare adapter check, no registry involved) rather than adopting a mechanism built for a
+	// different, unrelated concern.
 	let result;
-	try {
-		result = emitObserveJavaSpring({ repoRoot: root, featureId: flags.feature, contract, basePackage, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
-	} catch (err) {
-		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	if (scanReport.adapter === 'java-spring') {
+		let basePackage;
+		try {
+			basePackage = detectBasePackage(root);
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		if (!basePackage) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', 'could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+		}
+		try {
+			result = emitObserveJavaSpring({ repoRoot: root, featureId: flags.feature, contract, basePackage, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+	} else if (scanReport.adapter === 'python-fastapi') {
+		// python's own package-root detection needs a module to anchor itself (unlike java's
+		// detectBasePackage(), which needs no module/feature context at all) -- a genuine
+		// CLI-surface asymmetry between the two providers, not an oversight. See DECISIONS.md.
+		let fastApiPlan;
+		try {
+			fastApiPlan = planPythonFastApi({ repoRoot: root, scanReport, module: flags.module, resourceFilter: null });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		try {
+			result = emitObservePythonFastApi({ repoRoot: root, featureId: flags.feature, contract, plan: fastApiPlan, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+	} else {
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel observe emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring, python-fastapi)`);
 	}
 	const { written, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = result;
 	const wouldChange = actions.some((a) => a.action !== 'unchanged' && a.action !== 'adopt-unchanged');
@@ -2206,7 +2229,7 @@ function cmdObserveEmit(args) {
 				console.error(`\n${written.length} other file(s) ${dryRun ? 'would still be written' : 'were still written this run'}:`);
 				for (const w of written) console.error(`  ${w}`);
 			}
-			if (!dryRun) console.error(`\nre-run with: bskel observe emit --feature ${flags.feature} --force --reason "..."`);
+			if (!dryRun) console.error(`\nre-run with: bskel observe emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''} --force --reason "..."`);
 			if (dryRun) console.error(`\n${renderFileActions(actions)}`);
 		}
 		// D-process-exit-audit: same shape/reasoning as `handles emit`'s own blocked path -- reused
