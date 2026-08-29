@@ -5,11 +5,19 @@
 [![node](https://img.shields.io/node/v/backend-skeleton.svg)](https://www.npmjs.com/package/backend-skeleton)
 [![GitHub release](https://img.shields.io/github/v/release/popixoxipop-collab/backend-skeleton?include_prereleases&label=release)](https://github.com/popixoxipop-collab/backend-skeleton/releases)
 
-Spec-driven backend scaffolding for brownfield (and greenfield) Java/Spring Boot, Python/FastAPI,
-and TypeScript/JavaScript Express repos: a brownfield-collision gate before any spec/plan step,
+`bskel` is a deterministic gate layer for AI-assisted (and human) backend work: before a change is
+allowed to count as done, `bskel` checks it against disk — not against what an agent or a person
+claims. Is this branch actually based on the real default branch? Does this "new" module collide
+with one that already exists elsewhere in the codebase? Does the emitted contract still match the
+source it claims to describe? Did a hand-finished file just get silently overwritten? Every one of
+those is a gate backed by a `content-hash` on disk, not a prompt instruction a future session could
+ignore, forget, or talk itself past.
+
+Scaffolding codegen — Java/Spring Boot, Python/FastAPI, and TypeScript/JavaScript Express repos,
 feature_id-scoped machine-readable contracts, UUID-addressable field handles, and stack-choice
-(e.g. ngrok) wiring — all enforced by disk `content-hash` gates, not prompt instructions a future
-session could ignore.
+(e.g. ngrok) wiring — rides on top of that same gate machinery. It's useful on its own, but the
+reason the gates exist first is what makes the codegen safe to trust in a brownfield repo, instead
+of just another thing to double-check by hand.
 
 `bskel` exists because a previous ad-hoc agent-driven scaffolding attempt branched a worktree 658
 commits behind the real default branch and never noticed. Every gate in this tool is a regression
@@ -231,10 +239,10 @@ audited, never silent.
 ## Security model
 
 `bskel` generates code that runs in production, so it was put through an adversarial security
-review (Codex, security-only lens, independent of the build process) — 8 findings, all fixed, each
-with an inline `D-security-N` comment at its exact location in the code. Highlights (full record,
-including 3 additional defensive-hardening items, in `DECISIONS.md`'s "Security hardening pass"
-section):
+review (Codex, security-only lens, independent of the build process) — 10 numbered items, all
+fixed, each with an inline `D-security-N` comment at its exact location in the code (the last item
+bundles three additional lower-priority fixes from Codex's own broader "other things worth
+checking" pass). Highlights (full record in `DECISIONS.md`'s "Security hardening pass" section):
 
 - **Prototype-pollution guards** everywhere a user-controlled string indexes a plain object
   (`operation_id` values like `"constructor"`/`"__proto__"` are rejected, not silently resolved via

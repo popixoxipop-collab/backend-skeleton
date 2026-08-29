@@ -1137,11 +1137,14 @@ User-confirmed choices, recorded in the approved plan
 **WHY**: v1.0.0 was built and pressure-tested (see D-pressure-test above) for whether the
 *intended* workflow gets followed by a cold agent, not for whether the tool is safe against an
 *adversarial* one — different question. Asked Codex to review the whole codebase independently,
-security-only lens (no context from this build process). It returned 8 findings with file:line
-citations and, for several, an actual reproducing payload — re-verified each by reading the
-cited code directly before touching anything, then fixed all 8 plus 3 lower-priority items from
-its "other things worth checking" pass, in the order below. Each fix has an inline `D-security-N`
-comment at its exact location; this section is the index, not a duplicate of the reasoning.
+security-only lens (no context from this build process). It returned a set of findings with
+file:line citations and, for several, an actual reproducing payload — re-verified each by reading
+the cited code directly before touching anything, then fixed all of them plus a batch of
+lower-priority items from its "other things worth checking" pass. Recorded below as 10 numbered
+items; the last one bundles three of those lower-priority fixes into a single entry rather than
+three separate ones, so 10 items on the list covers 12 individual fixes. Each fix has an inline
+`D-security-N` comment at its exact location; this section is the index, not a duplicate of the
+reasoning.
 
 1. **`contracts/validate.mjs` — prototype chain lookup** (Low). `contract.operations[operation_id]`
    on a plain object let `operation_id: "constructor"` resolve to an inherited property instead
