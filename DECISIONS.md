@@ -8890,3 +8890,32 @@ local `py_compile` syntax check (run directly against the hand-written `.py.tmpl
 review, the same syntax-only verification precedent `java-compile-smoke.mjs`'s own limitation
 established) was caught by `test/package-manifest.test.mjs`'s own npm-pack-manifest cross-check and
 added to `.gitignore` -- the check did exactly the job it exists for.
+
+**typescript-express feasibility check (investigated, not built -- held on explicit user call):**
+unlike `D-resolver-policy-split`'s own typescript-express check (nothing to port -- the underlying
+live-derived value doesn't exist in `resolver.ts` at all), this one is NOT a "doesn't apply" case.
+Confirmed live against the real code: `scanners/adapters/typescript-express.mjs:280` declares
+`api.operations: false`, but that alone doesn't block this the way it might look -- python-fastapi
+declared the identical `false` and was closed above via `--openapi-file`, and `contracts/emit.mjs`
+carries no typescript-express-specific gating (grepped; only a java-only `detectRequestBody()` regex
+is adapter-specific) -- `contract emit --openapi-file ...` produces real `contract.operations` data
+for this adapter exactly the way it does for python. `handles/providers/typescript-express/
+plan.mjs:152`'s existing `plan()` already yields `projectRoot`/`srcRoot`, the same anchoring role
+python's `importRoot`/`topPackage` plays -- an `observe/` package has a real place to land. The
+interception point is architecturally sound too: `router.ts.tmpl` registers handlers as inline
+arrow functions passed directly to `router.get(path, handler)`, so an Express middleware inserted as
+a second argument (`router.get(path, observeContract('op-id'), handler)`) is a smaller, more
+idiomatic edit than python's decorator-above-function or java's annotation lookup -- and Express
+middleware chains via `next()` regardless of whether the wrapped handler is sync or async, so the
+headline async/sync dispatch bug this item's own python port had to fix structurally cannot occur
+here. The real added cost instead: response-body capture has no direct equivalent to java's
+`@Around` return-value interception or python's `return await fn(...)` -- it requires monkey-
+patching `res.json`/`res.send` (or an `res.on('finish', ...)` listener), a more indirect, more
+invasive pattern than either existing provider needed. **Verdict presented to the user as a real
+build-or-hold decision (not "nothing to port"), and held**: no blocking technical gap found, but
+this is a third full provider slice (~6 new files: `observe.mjs`, a middleware template, a
+`contract_check` equivalent, a CLI test file, `DECISIONS.md`/`CATALOG.md` updates) on a provider this
+project's own `registry.ts.tmpl` already documents as behind java-spring/python-fastapi on other
+lifecycle features (no recover()/snapshot equivalent) -- scope the user chose not to open right now.
+Revisit this note, not `D-resolver-policy-split`'s, if `O8`-for-typescript-express comes up again --
+the "nothing to port" framing does not apply here.
