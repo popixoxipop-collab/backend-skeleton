@@ -2638,6 +2638,51 @@ precedent both `detectBasePackage` and this item's own `detectImportRoot` follow
 `D-resolver-scope` (the reason `patch_field()` is always a stub, carried over identically),
 `D-config-patch` (the "a human adds two lines" precedent this item's router-wiring note follows).
 
+### Continued: `@record_snapshot`'s own async-wrapper gap, found live while doing unrelated work, closed in a later session pass
+
+**WHY**: `handles/providers/python-fastapi/templates/observe_contract.py.tmpl`
+(`D-runtime-conformance-receipts`) already established the correct pattern for this exact problem --
+detect `inspect.iscoroutinefunction(fn)` at decoration time and dispatch to a genuinely separate
+`async def wrapper` (awaiting the call) vs. a sync one -- with its own docstring calling this
+"CRITICAL, python-specific... not optional/deferred." `record_snapshot.py.tmpl`, this item's own
+file, never got the same treatment: its single `def wrapper(*args, **kwargs)` always called
+`fn(*args, **kwargs)` directly, which for an `async def` service function just constructs a
+coroutine object without running its body. This was found and self-documented as a real, still-open
+gap while doing unrelated Slice-1-of-Phase-2 work in a later session, then closed here.
+
+**Real severity, confirmed live, not just reasoned about**: running the unfixed decorator against a
+real `async def` service function and a real Postgres `sbf_handle_snapshot` (a JSONB payload column)
+did not merely drop the "response" snapshot silently -- `psycopg2` raised
+`TypeError: Object of type coroutine is not JSON serializable` mid-flush, which SQLAlchemy escalated
+into a `PendingRollbackError` that poisoned the whole enclosing `Session`, crashing the calling code
+outright rather than degrading gracefully. The wrapped business call itself still completed correctly
+in this specific reproduction (the caller's own later `await`/`asyncio.run()` on the returned,
+never-awaited-by-the-wrapper coroutine still ran its body) -- but the decorator's own error path was
+structurally unreachable for async functions the whole time: calling an async function never raises
+synchronously, so the `try/except` around `fn(*args, **kwargs)` could never see an exception an async
+service method actually raised, meaning no "error" snapshot was ever recorded for one, silently,
+regardless of what the real call eventually did once awaited.
+
+**Fix**: ported `observe_contract.py.tmpl`'s exact dual-wrapper shape -- `if
+inspect.iscoroutinefunction(fn): async def wrapper(...): ... await fn(...) ... else: def
+wrapper(...): ... fn(...) ...` -- rather than trying to share the per-call body via extracted
+closures across both branches (kept the wrapper bodies duplicated, matching the sibling file's own
+choice, not a cleverer abstraction).
+
+**Verified with a real before/after against a real Postgres, not just a static template read**:
+`test/fixtures/python-fastapi/backend/app/services/item_service.py` gained an `async def
+update_item_async(...)` twin of the existing sync fixture function, and
+`scripts/python-integration-smoke.mjs` gained two new scenarios (a success case checking the
+recorded "response" snapshot's payload is the real result, not a serialized coroutine; an error case
+checking an "error" snapshot now gets recorded for an async function's real exception) -- run
+against the OLD unfixed template first (confirmed to crash exactly as described above), then against
+the fix (all 15 checks, including the 6 new ones, pass).
+
+**COST**: none new -- this was already this decorator's own stated contract ("best-effort
+observability, never allowed to fail the real business call it wraps"); the fix makes the
+implementation actually match that contract for async functions, it does not change the contract
+itself.
+
 ## D-typescript-express-provider (G5): a third scanner adapter + handles provider, and the ecosystem with no framework-maintained reference to verify against
 
 **WHY**: slice 3 of 4 the user picked from G4's own "Explicitly NOT built" list, after slices 1-2

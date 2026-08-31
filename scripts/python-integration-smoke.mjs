@@ -147,7 +147,7 @@ try {
 // java-integration-smoke.mjs's own @SpringBootTest suite proves: (1) full lifecycle, (2)
 // schema_drift, (3) field-level fetch, (4) persistence-layer redaction.
 const DRIVER_SOURCE = `
-import sys, uuid
+import asyncio, sys, uuid
 from sqlalchemy import create_engine
 from sqlmodel import Session, select
 from fastapi import FastAPI
@@ -158,7 +158,7 @@ import app.handles.codec as codec
 import app.handles.tables as tables
 from app.handles.router import router as handles_router
 from app.handles.resolvers.item import ItemResolver
-from app.services.item_service import update_item
+from app.services.item_service import update_item, update_item_async
 from app.models import Item
 from app.api.deps import get_db
 
@@ -207,6 +207,61 @@ check("recover(): 200", recover_resp.status_code == 200)
 body = recover_resp.json() if recover_resp.status_code == 200 else {}
 check("recover(): payload.title reflects the real update", body.get("payload", {}).get("title") == "Updated Title")
 check("recover(): schema_drift is false (no contract change happened)", body.get("schema_drift") is False)
+
+# --- Scenario 1b: the async-wrapper fix (record_snapshot.py's dual sync/async dispatch) -- calls
+# an ASYNC service function through the SAME decorator via a real asyncio.run(), not a static
+# template read. Before this fix, calling an async fn from a sync-only wrapper returns an
+# un-awaited coroutine object as "result": the business write still happens once THIS script's own
+# asyncio.run() eventually runs that coroutine (so the DB write and the return value look fine
+# either way), but the decorator's own "response" snapshot recorded the coroutine OBJECT itself --
+# not JSON-serializable, so the write silently failed inside record_snapshot.py's own best-effort
+# _safely() and no "response" row was ever stored. That's the real, narrow, previously-silent gap
+# this scenario proves is closed: a real "response" HandleSnapshot row exists with the REAL title.
+item_id_async = uuid.uuid4()
+with Session(engine) as session:
+    session.add(Item(id=item_id_async, title="Original Async Title", internal_note="do not leak this either"))
+    session.commit()
+with Session(engine) as session:
+    async_result = asyncio.run(update_item_async(session, item_id_async, {"title": "Updated Async Title", "internal_note": "do not leak this either"}))
+    async_result_title = async_result.title
+check("async lifecycle: update_item_async() returns the updated row (not a coroutine)", async_result_title == "Updated Async Title")
+
+async_handle_uid = uuid.UUID(codec.derive_handle_uid("r", "Item", str(item_id_async), None))
+with Session(engine) as session:
+    async_response_snapshot = session.exec(
+        select(tables.HandleSnapshot)
+        .where(tables.HandleSnapshot.handle_uid == async_handle_uid, tables.HandleSnapshot.envelope_dir == "response")
+        .order_by(tables.HandleSnapshot.recorded_at.desc())
+    ).first()
+    async_response_payload = async_response_snapshot.payload if async_response_snapshot is not None else None
+check("async lifecycle: a real 'response' snapshot was recorded (not silently dropped)", async_response_snapshot is not None)
+if async_response_payload is not None:
+    check("async lifecycle: the recorded response payload is the REAL result, not a serialized coroutine", async_response_payload.get("title") == "Updated Async Title")
+    check("async lifecycle: /internal_note is redacted in the async response's stored payload too", async_response_payload.get("internal_note") == "***REDACTED***")
+
+# --- Scenario 1c: the async ERROR path -- before the fix, calling an async fn synchronously never
+# raises (it only constructs a coroutine), so the decorator's own try/except around \`fn(...)\`
+# could never observe an exception from an async service function at all: no "error" snapshot was
+# ever recorded, no matter what the real call eventually raised once awaited. The real business
+# exception still propagates to the caller either way (proven below); what's new is that the
+# decorator itself now also records it.
+missing_item_id = uuid.uuid4()  # never seeded -- session.get() returns None, item.title raises AttributeError
+async_error_handle_uid = uuid.UUID(codec.derive_handle_uid("r", "Item", str(missing_item_id), None))
+async_raised = None
+with Session(engine) as session:
+    try:
+        asyncio.run(update_item_async(session, missing_item_id, {"title": "unreachable"}))
+    except AttributeError as exc:
+        async_raised = exc
+check("async error path: the real business exception still propagates to the caller", async_raised is not None)
+
+with Session(engine) as session:
+    async_error_snapshot = session.exec(
+        select(tables.HandleSnapshot)
+        .where(tables.HandleSnapshot.handle_uid == async_error_handle_uid, tables.HandleSnapshot.envelope_dir == "error")
+        .order_by(tables.HandleSnapshot.recorded_at.desc())
+    ).first()
+check("async error path: an 'error' snapshot was recorded (previously unreachable for async fns)", async_error_snapshot is not None)
 
 # --- Scenario 2: schema_drift -- directly mutate the registry row's contract_ref (same
 # direct-DB-row technique java-integration-smoke.mjs's own test uses, avoiding a real

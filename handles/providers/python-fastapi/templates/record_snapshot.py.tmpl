@@ -23,6 +23,16 @@ Requires nothing extra installed (unlike Java's spring-boot-starter-aop) -- Pyth
 no framework support -- but still requires a human to apply it to their own code; codegen never
 touches an existing business logic file.
 
+CRITICAL, python-specific correctness requirement (see DECISIONS.md D-runtime-conformance-receipts's
+own async-wrapper note, and observe_contract.py's identical dual-wrapper shape in this same
+directory): detects whether the wrapped function is a coroutine function
+(`inspect.iscoroutinefunction`) at DECORATION time and dispatches to a genuinely separate async
+wrapper (awaiting the wrapped call) vs. sync wrapper (calling it directly). A single wrapper naively
+calling an async function without awaiting it would return an unawaited coroutine object as the
+"result" -- the "response" snapshot would then record that coroutine object instead of the real
+result, and the "error" snapshot path would never fire even when the real async call later raises
+(calling an async function does not raise synchronously; only awaiting it does).
+
 Example:
     @record_snapshot(resource_type="Organization", operation_id="update_organization",
                       resource_uid_param="organization_id", session_param="session",
@@ -110,45 +120,97 @@ def record_snapshot(*, resource_type: str, operation_id: str, resource_uid_param
     def decorator(fn):
         signature = inspect.signature(fn)
 
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            bound = signature.bind(*args, **kwargs)
-            bound.apply_defaults()
+        # CRITICAL, python-specific correctness requirement (see DECISIONS.md
+        # D-runtime-conformance-receipts's own async-wrapper note, ported here for the same reason):
+        # detects whether the wrapped function is a coroutine function (inspect.iscoroutinefunction)
+        # at DECORATION time and dispatches to a genuinely separate async wrapper (awaiting the
+        # wrapped call) vs. sync wrapper (calling it directly). A single wrapper naively calling an
+        # async function without awaiting it returns an unawaited coroutine object as "result" --
+        # the "response" snapshot then records that coroutine object instead of the real result, and
+        # the "error" snapshot path never fires even when the real async call later raises (calling
+        # an async function does not raise synchronously; only awaiting it does). This mirrors
+        # observe_contract.py's own dual-wrapper shape exactly, deliberately, so both decorators in
+        # this file handle async the same way.
+        if inspect.iscoroutinefunction(fn):
+            @functools.wraps(fn)
+            async def wrapper(*args, **kwargs):
+                bound = signature.bind(*args, **kwargs)
+                bound.apply_defaults()
 
-            resolver = resolver_for(resource_type)
-            if resolver is None:
-                logger.warning('record_snapshot: no resolver registered for resource_type "%s" on %s -- skipping snapshot recording, the wrapped call proceeds unaffected', resource_type, fn.__qualname__)
-                return fn(*args, **kwargs)
+                resolver = resolver_for(resource_type)
+                if resolver is None:
+                    logger.warning('record_snapshot: no resolver registered for resource_type "%s" on %s -- skipping snapshot recording, the wrapped call proceeds unaffected', resource_type, fn.__qualname__)
+                    return await fn(*args, **kwargs)
 
-            resource_uid = bound.arguments.get(resource_uid_param)
-            if not isinstance(resource_uid, uuid.UUID):
-                logger.warning('record_snapshot: resource_uid_param "%s" on %s does not resolve to a UUID argument -- skipping snapshot recording, the wrapped call proceeds unaffected', resource_uid_param, fn.__qualname__)
-                return fn(*args, **kwargs)
+                resource_uid = bound.arguments.get(resource_uid_param)
+                if not isinstance(resource_uid, uuid.UUID):
+                    logger.warning('record_snapshot: resource_uid_param "%s" on %s does not resolve to a UUID argument -- skipping snapshot recording, the wrapped call proceeds unaffected', resource_uid_param, fn.__qualname__)
+                    return await fn(*args, **kwargs)
 
-            session = bound.arguments.get(session_param)
-            handle_uid = uuid.UUID(derive_handle_uid("r", resource_type, str(resource_uid), None))
-            contract_ref = resolver.contract_ref
+                session = bound.arguments.get(session_param)
+                handle_uid = uuid.UUID(derive_handle_uid("r", resource_type, str(resource_uid), None))
+                contract_ref = resolver.contract_ref
 
-            def _register_and_record(envelope_dir, payload):
-                handle_service.register(session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
-                handle_service.record_snapshot(session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
+                def _register_and_record(envelope_dir, payload):
+                    handle_service.register(session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
+                    handle_service.record_snapshot(session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
 
-            def _record(envelope_dir, payload):
-                if isinstance(payload, (dict, list)):
-                    for pointer in redact:
-                        _redact(payload, pointer)
-                _safely(lambda: _register_and_record(envelope_dir, payload), handle_uid, envelope_dir)
+                def _record(envelope_dir, payload):
+                    if isinstance(payload, (dict, list)):
+                        for pointer in redact:
+                            _redact(payload, pointer)
+                    _safely(lambda: _register_and_record(envelope_dir, payload), handle_uid, envelope_dir)
 
-            request_payload = _request_payload(bound, resource_uid_param, session_param)
-            _record("request", request_payload)
+                request_payload = _request_payload(bound, resource_uid_param, session_param)
+                _record("request", request_payload)
 
-            try:
-                result = fn(*args, **kwargs)
-            except Exception as exc:
-                _record("error", {"message": str(exc)})
-                raise
-            _record("response", _to_jsonable(result))
-            return result
+                try:
+                    result = await fn(*args, **kwargs)
+                except Exception as exc:
+                    _record("error", {"message": str(exc)})
+                    raise
+                _record("response", _to_jsonable(result))
+                return result
+        else:
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                bound = signature.bind(*args, **kwargs)
+                bound.apply_defaults()
+
+                resolver = resolver_for(resource_type)
+                if resolver is None:
+                    logger.warning('record_snapshot: no resolver registered for resource_type "%s" on %s -- skipping snapshot recording, the wrapped call proceeds unaffected', resource_type, fn.__qualname__)
+                    return fn(*args, **kwargs)
+
+                resource_uid = bound.arguments.get(resource_uid_param)
+                if not isinstance(resource_uid, uuid.UUID):
+                    logger.warning('record_snapshot: resource_uid_param "%s" on %s does not resolve to a UUID argument -- skipping snapshot recording, the wrapped call proceeds unaffected', resource_uid_param, fn.__qualname__)
+                    return fn(*args, **kwargs)
+
+                session = bound.arguments.get(session_param)
+                handle_uid = uuid.UUID(derive_handle_uid("r", resource_type, str(resource_uid), None))
+                contract_ref = resolver.contract_ref
+
+                def _register_and_record(envelope_dir, payload):
+                    handle_service.register(session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
+                    handle_service.record_snapshot(session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
+
+                def _record(envelope_dir, payload):
+                    if isinstance(payload, (dict, list)):
+                        for pointer in redact:
+                            _redact(payload, pointer)
+                    _safely(lambda: _register_and_record(envelope_dir, payload), handle_uid, envelope_dir)
+
+                request_payload = _request_payload(bound, resource_uid_param, session_param)
+                _record("request", request_payload)
+
+                try:
+                    result = fn(*args, **kwargs)
+                except Exception as exc:
+                    _record("error", {"message": str(exc)})
+                    raise
+                _record("response", _to_jsonable(result))
+                return result
 
         return wrapper
 
