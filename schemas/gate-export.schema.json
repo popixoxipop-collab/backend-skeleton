@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gate-export:1",
+  "title": "backend-skeleton gate export report (bskel gate export)",
+  "description": "D-gate-attestation-signing: this schema was written FROM cmdGateExport's real, already-shipped report shape (bin/bskel.mjs) -- it did not exist before this item and the report itself is unchanged by adding it. `current` mirrors schemas/state.schema.json's own per-gate record shape exactly (the same raw, stored record getGate() returns -- status is constrained to the 3 values ever WRITTEN to disk, never the read-time-derived not_run/stale/pass (forced)). `additionalProperties` is intentionally open on `gates` itself (keyed by gate name) so this schema never needs editing when a new gate is added -- GATE_NAMES in lib/gate-definitions.mjs is the one place that list lives.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "generated_at", "git", "gates"],
+  "properties": {
+    "schema": { "const": "sbf.gate-export/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "head_sha", "dirty"],
+      "properties": {
+        "branch": { "type": ["string", "null"], "description": "lib/repo.mjs's currentBranch() -- null on failure, or the literal string \"HEAD\" for a detached HEAD (not a real branch name)." },
+        "head_sha": { "type": "string" },
+        "dirty": { "type": ["boolean", "null"], "description": "lib/repo.mjs's isDirty() -- null on failure. true covers BOTH modified tracked files and untracked files (git status --porcelain, no -uno)." }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "current", "history"],
+        "properties": {
+          "scope": { "type": "string", "description": "the resolved scope id this gate was read from -- REPO_GATE_ID (\"_repo\") for a repo-scoped gate, or the feature_id itself." },
+          "current": {
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["status", "token", "at"],
+                "properties": {
+                  "status": { "enum": ["pass", "awaiting_disposition", "revoked"] },
+                  "token": { "type": "string" },
+                  "at": { "type": "string" },
+                  "forced": { "type": "boolean" },
+                  "reason": { "type": "string" },
+                  "evidence": { "type": "object" },
+                  "inputs": { "type": "object" }
+                }
+              }
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

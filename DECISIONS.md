@@ -9776,8 +9776,124 @@ collaterally reformat an unrelated line).
 - Multi-target atomic cross-file transactions -- Slice 1's `target` is a single scalar file; a real
   multi-file all-or-nothing transaction (the original Codex proposal's literal "feature-wide"
   framing) is future scope once a second single-target kind exists to generalize from.
-- `bskel patch list` -- an easy, deliberately-omitted read-only convenience (mirrors `dependency
-  list`/`contract history`), kept out to keep this slice's CLI surface disciplined.
 - The infra/resolver write-loop's own mid-crash manifest-desync gap, and `stack apply`'s own lack of
   any preimage hash for its `static.files`/`.env.example` writes -- both real gaps this item's own
   research surfaced, neither touched by this item (Slice 1 is scoped to `config_check` alone).
+
+### Continued: `bskel patch list`, closing this item's own smallest deferred EXIT item
+
+The one item on the EXIT list above that was actually easy: `bskel patch list --feature <id>
+[--json]`, a pure reader over `listTransactions()` (already existed, already exported) -- mirrors
+`dependency list`/`contract history`'s own gate-independent, read-only posture exactly. No new
+lib-level logic; the whole addition is a `cmdPatchList` CLI wrapper. **Verified**: 1 new e2e test
+(`test/patch-config-apply-cli.test.mjs`) covering both the empty ("(none proposed)") and populated
+cases; manually smoke-tested against a real fixture first.
+
+## D-gate-attestation-signing: cryptographically signed gate attestations (Codex growth idea Part B #1) -- `bskel gate export --sign` + offline `bskel attest verify`, closing a real canonicalization gap found while designing it
+
+**WHY**: Codex's differentiators consultation (Part B #1) proposed extending `bskel gate export`
+into a canonical, detached-signed attestation, verifiable offline -- "this exact report was
+produced by whoever holds the signing key," without needing network access to check. This is the
+last Codex Part B growth idea attempted this round; the remaining one (delegatable capability-scoped
+handles) is explicitly deferred per Codex's own note that it should follow a real production handles
+pilot, not precede one.
+
+**Two real, concrete facts grounded this design before anything was written** (a live Explore pass
+over `cmdGateExport`, `lib/repo.mjs`, `lib/gates.mjs`, and every persistence convention in this
+codebase, not assumed):
+1. `cmdGateExport`'s report had **zero schema validation** -- confirmed by a full search,
+   `schemas/gate-export.schema.json` did not exist. Signing an unvalidated document is a weaker
+   guarantee than it should be; this item closes the gap with a real schema written FROM the
+   already-shipped report shape, not an idealized one.
+2. The report was only **"accidentally deterministic."** Gate `inputs` were already deep-sorted
+   before hashing (`lib/gates.mjs`'s private `sortKeysDeep`, reused by every gate's own token), but
+   the OUTER report object (git info, per-gate `evidence`) relied purely on V8's stable
+   insertion-order guarantee for `JSON.stringify` -- there was no code-enforced canonicalization of
+   the FULL exported document. For something a human is meant to cryptographically trust, "happens
+   to be stable today" is not the same guarantee as "provably always produces the same bytes for the
+   same content." `sortKeysDeep` was exported (no behavior change to any existing caller) and reused
+   by the new `lib/attest.mjs`'s `canonicalize()` to sort the ENTIRE payload, not just `inputs`,
+   before it is ever signed or verified -- confirmed live that a payload built with keys in a
+   different insertion order still produces an identical signature.
+
+**One tempting shortcut was checked and ruled out**: this repo's existing npm OIDC
+trusted-publishing flow (`D-npm-publish-oidc`) turned out to be entirely remote/registry-side -- the
+token exchange and signing happen inside `npm publish --provenance` itself, with zero local
+signature-verification code anywhere in this repo to build on. Confirmed by reading
+`.github/workflows/publish.yml` in full. This is genuinely new territory for the codebase, not a
+reuse of an existing mechanism under a new name.
+
+**Key custody -- the one genuinely hard fork, named as such by Codex's own risk note** ("key
+custody, OIDC integration... are the hard parts"). This codebase has **zero existing
+home-directory persistence** anywhere (confirmed by a fresh search; no `postinstall`/`prepare`
+script either) -- introducing a `~/.bskel/`-style convention for key storage would have been a real,
+first-of-its-kind architectural decision with its own permissions/multi-user/backup questions,
+larger than "add signing." Presented to the user as an explicit fork (auto-generate-on-first-use in
+a new home-directory location, vs. fully explicit `--key-file` everywhere) -- **the user chose the
+fully-explicit model**, mirroring `git commit -S`/`cosign`'s own philosophy: this tool never decides
+where a signing key lives, the human does. This kept the slice's actual new surface area to
+"canonicalize + sign + verify," not "also invent a key storage/rotation system."
+
+**Primitives**, `lib/attest.mjs` (new) -- Node's built-in `crypto` module only (Ed25519,
+`crypto.generateKeyPairSync('ed25519')`/`crypto.sign`/`crypto.verify`, all confirmed live against
+this project's own `>=18` Node floor), **zero new dependencies**: `generateKeypair()`,
+`canonicalize(value)` (deep-sorted, whitespace-free JSON via the newly-exported `sortKeysDeep`),
+`signPayload(payload, privateKeyPem)`, `verifyPayload(payload, signatureB64, publicKeyPem)` (returns
+a plain boolean, never throws on a malformed key/signature -- a corrupt signature is exactly as
+"not valid" as a mismatched one, not a distinct error class a caller needs to special-case).
+
+**CLI**: `bskel attest keygen --out <dir> [--force] [--json]` writes `attest-private.pem` (mode
+`0600` from its VERY FIRST write, not a `chmod()` called after the fact -- `lib/fsutil.mjs`'s
+`writeFileAtomic()` gained an additive, optional third `mode` parameter for exactly this, so the
+private key is never briefly world/group-readable on disk during the write) and
+`attest-public.pem`, refusing to overwrite either without `--force` (silently regenerating a
+keypair would orphan every attestation already signed with the old key -- the same class of care
+this project gives every other overwrite). `bskel gate export --sign --key <privateKeyPath>`
+extends the EXISTING command: builds the identical report as always (now schema-validated
+unconditionally, signed or not), then canonicalizes + signs it into a combined envelope
+`{schema: 'sbf.gate-attestation/1', report, signature: {algorithm: 'ed25519', value: <base64>}}`
+(new `schemas/gate-attestation.schema.json`). `--sign` without `--key` and `--key` without `--sign`
+are both refused outright (`BAD_ARGS`) -- a silently-ignored flag is a worse failure mode than a
+clear refusal, matching this project's universal strict-parsing philosophy (D-cli-contract).
+`bskel attest verify --file <path> --pubkey <path>` is deliberately **repo-independent** (no
+`requireRepoRoot()` -- verifying someone else's previously-exported attestation, possibly from a
+different machine, has nothing to do with the current directory's own git state) and its exit code
+reflects **signature validity only**. Whether the gates INSIDE the report actually passed is printed
+alongside as a separate summary, never folded into the exit code -- a legitimately-signed
+"everything is currently failing" attestation must not look like a tool error; conflating "is this
+authentic" with "did it pass" would make those two genuinely different questions indistinguishable
+from the exit code alone.
+
+**No new gate**: this is a read/export/sign layer over EXISTING gate state (mirrors `gate export`
+itself exactly), not a new human workflow step -- no `GATE_NAMES` entry, no `lib/workflow.mjs`
+changes needed.
+
+**Verified**: `npm test` -- 0 regressions, plus 17 new tests across 2 files: `test/attest.test.mjs`
+(9 unit tests -- canonicalization is insertion-order-independent, keypair generation is real and
+non-deterministic across calls, sign/verify round-trips, tamper detection on any real payload
+change, wrong-public-key detection, malformed-signature handling never throws) and
+`test/attest-cli.test.mjs` (8 e2e tests -- `keygen` writes both files with real `0600` perms on the
+private key and refuses to overwrite without `--force`, `--force` genuinely regenerates rather than
+no-op'ing, `--sign`/`--key` cross-validation, unsigned `gate export` is unchanged and now
+schema-valid, a full sign->verify round-trip reports VALID, a hand-tampered report reports INVALID,
+the wrong public key reports INVALID, a malformed file is refused outright). Also manually verified
+end-to-end against a real fixture repo before any formal test existed: `keygen` producing real
+`0600`/PEM files, `gate export --sign` producing a real verifiable envelope, `attest verify`
+correctly reporting VALID/INVALID for the genuine file, a hand-tampered copy, and an unrelated
+second keypair's public key.
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- Any default/home-directory key location, or a `keygen`-on-first-use convenience flow -- the user
+  explicitly chose fully-explicit `--key-file` for this slice; revisiting this is a real, separate
+  future decision, not an oversight.
+- Key rotation, multiple valid signers, or a revocation list -- this slice is single-keypair,
+  single-signature. A rotated/compromised key has no built-in "no longer trust this" mechanism
+  beyond a human simply no longer distributing that public key.
+- Keyless/OIDC-style signing (sigstore/cosign-shaped, tied to a CI identity) -- Codex's own note
+  calls this "an optional network-dependent layer, not part of offline verification"; genuinely out
+  of scope for a tool whose whole differentiator is offline, deterministic operation.
+- Timestamping or a transparency log (proving WHEN a signature was made, beyond the report's own
+  self-reported `generated_at`) -- no TSA/Rekor-style anchoring.
+- Correlating a signed attestation to a specific historical CI run or PR -- the same rejected-
+  approach precedent `D-contract-history` already established for a different feature; provenance
+  here stays capture-time-only, never a claimed commit<->CI-run correlation.

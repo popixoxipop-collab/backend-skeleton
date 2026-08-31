@@ -170,3 +170,18 @@ test('e2e: propose refuses outright when applying the edit would collaterally re
 	assert.match(propose.stderr, /would also change line\(s\).*outside the target key/);
 	assert.equal(targetContent(root), `${ORIGINAL_APPLICATION_YAML}flow-list: [a, b, c]   \n`, 'a refused propose must never write anything');
 });
+
+test('e2e: patch list reports "(none proposed)" for a feature with no transactions, then the real transaction once one exists', () => {
+	const root = buildFixtureRepo();
+	initFeature(root);
+
+	const empty = run(['patch', 'list', '--feature', '001-widget-management'], root);
+	assert.equal(empty.code, 0);
+	assert.match(empty.stdout, /\(none proposed\)/);
+
+	const txn = JSON.parse(run(['patch', 'propose', '--feature', '001-widget-management', '--choice', 'ngrok', '--target', APPLICATION_YAML_REL, '--json'], root).stdout);
+	const withOne = JSON.parse(run(['patch', 'list', '--feature', '001-widget-management', '--json'], root).stdout);
+	assert.equal(withOne.transactions.length, 1);
+	assert.equal(withOne.transactions[0].transaction_id, txn.transaction_id);
+	assert.equal(withOne.transactions[0].status, 'proposed');
+});

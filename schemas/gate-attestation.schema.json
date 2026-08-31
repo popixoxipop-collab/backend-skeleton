@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gate-attestation:1",
+  "title": "backend-skeleton signed gate attestation (bskel gate export --sign / bskel attest verify)",
+  "description": "D-gate-attestation-signing: the combined envelope `bskel gate export --sign` writes -- a gate-export report (schemas/gate-export.schema.json's own shape) plus a detached Ed25519 signature over that report's canonical (deep-key-sorted, whitespace-free) JSON serialization. Signature validity is the ONLY thing `bskel attest verify`'s exit code reflects -- whether the gates inside `report` themselves passed is a separate, printed-but-not-exit-code-driving question (a legitimately-signed, all-failing report must not look like a tool error).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "report", "signature"],
+  "properties": {
+    "schema": { "const": "sbf.gate-attestation/1" },
+    "report": { "type": "object" },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "value": { "type": "string", "description": "base64-encoded raw Ed25519 signature bytes over canonicalize(report)." }
+      }
+    }
+  }
+}

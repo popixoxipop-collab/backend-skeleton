@@ -30,7 +30,8 @@ import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contrac
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
-import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction } from '../lib/patch-transactions.mjs';
+import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction, listTransactions } from '../lib/patch-transactions.mjs';
+import { generateKeypair, signPayload, verifyPayload } from '../lib/attest.mjs';
 import { planConfigApply } from '../stack/config-apply.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
 import { createHttpServer } from '../lib/http-server.mjs';
@@ -103,6 +104,7 @@ function usage() {
   bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
   bskel patch apply --feature <id> --transaction <id> [--json]
   bskel patch rollback --feature <id> --transaction <id> --reason "..." [--force] [--json]
+  bskel patch list --feature <id> [--json]
   bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
   bskel observe import --feature <id> --receipts <path> [--fail-on-violation] [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
@@ -113,7 +115,9 @@ function usage() {
   bskel gate revoke <name> --reason "..." [--feature <id>]
   bskel gate history <name> [--feature <id>] [--json]
   bskel gate show [<name>] [--feature <id>]
-  bskel gate export --feature <id> [--out <path>] [--json]
+  bskel gate export --feature <id> [--out <path>] [--sign --key <privateKeyPath>] [--json]
+  bskel attest keygen --out <dir> [--force] [--json]
+  bskel attest verify --file <path> --pubkey <path> [--json]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
   bskel serve [--port N] [--host <addr>] [--json]
 `);
@@ -405,6 +409,12 @@ function cmdGateExport(args) {
 	setContext('gate export', flags);
 	const root = requireRepoRoot();
 	requireValidFeatureId(flags.feature);
+	if (flags.sign && !flags.key) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel gate export --sign requires --key <privateKeyPath>');
+	}
+	if (flags.key && !flags.sign) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--key only has an effect together with --sign');
+	}
 
 	const gates = {};
 	for (const name of GATE_NAMES) {
@@ -419,19 +429,122 @@ function cmdGateExport(args) {
 		git: { branch: currentBranch(root), head_sha: headSha(root), dirty: isDirty(root) },
 		gates,
 	};
-	const rendered = `${JSON.stringify(report, null, 2)}\n`;
+	// D-gate-attestation-signing: validated unconditionally, signed or not -- a document that can
+	// be exported unsigned should be exactly as trustworthy in shape as one that gets signed later.
+	{
+		const { ok, errors } = validateAgainstSchema('gate-export.schema.json', report);
+		if (!ok) {
+			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `internal error: the computed gate-export report failed its own schema -- ${formatSchemaErrors(errors).join('; ')}`);
+		}
+	}
+
+	let payload = report;
+	if (flags.sign) {
+		let privateKeyPem;
+		try {
+			privateKeyPem = fs.readFileSync(path.resolve(process.cwd(), flags.key), 'utf8');
+		} catch (err) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read --key "${flags.key}": ${err.message}`);
+		}
+		let signatureValue;
+		try {
+			signatureValue = signPayload(report, privateKeyPem);
+		} catch (err) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--key "${flags.key}" is not a usable Ed25519 private key: ${err.message}`);
+		}
+		const attestation = { schema: 'sbf.gate-attestation/1', report, signature: { algorithm: 'ed25519', value: signatureValue } };
+		const { ok, errors } = validateAgainstSchema('gate-attestation.schema.json', attestation);
+		if (!ok) {
+			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `internal error: the computed gate attestation failed its own schema -- ${formatSchemaErrors(errors).join('; ')}`);
+		}
+		payload = attestation;
+	}
+	const rendered = `${JSON.stringify(payload, null, 2)}\n`;
 
 	if (flags.out) {
 		const outPath = path.resolve(process.cwd(), flags.out);
 		writeFileAtomic(outPath, rendered);
 		if (!flags.quiet) {
 			const passCount = GATE_NAMES.filter((n) => gates[n].current?.status === 'pass').length;
-			console.log(`wrote ${flags.out} -- ${passCount}/${GATE_NAMES.length} gate(s) currently passing, ${report.git.branch}@${report.git.head_sha?.slice(0, 12) ?? '(unknown)'}${report.git.dirty ? ' (dirty)' : ''}`);
+			const signedNote = flags.sign ? ' (signed)' : '';
+			console.log(`wrote ${flags.out}${signedNote} -- ${passCount}/${GATE_NAMES.length} gate(s) currently passing, ${report.git.branch}@${report.git.head_sha?.slice(0, 12) ?? '(unknown)'}${report.git.dirty ? ' (dirty)' : ''}`);
 		}
 	} else {
 		console.log(rendered);
 	}
 	process.exit(0);
+}
+
+// D-gate-attestation-signing: --out is always required, never a default/home-directory location --
+// this codebase has zero existing home-directory persistence convention anywhere, and inventing
+// one is explicitly out of scope for this slice (a real fork the user weighed and decided, see
+// DECISIONS.md). Repo-independent -- does not require a git repo at all, matching `attest verify`'s
+// own posture below (both operate purely on files the caller names).
+function cmdAttestKeygen(args) {
+	const flags = parseCommand('attest keygen', args);
+	if (flags.help) { console.log(renderCommandHelp('attest keygen')); process.exit(0); }
+	setContext('attest keygen', flags);
+	const outDir = path.resolve(process.cwd(), flags.out);
+	const privatePath = path.join(outDir, 'attest-private.pem');
+	const publicPath = path.join(outDir, 'attest-public.pem');
+	if (!flags.force) {
+		const existing = [privatePath, publicPath].filter((p) => fs.existsSync(p));
+		if (existing.length > 0) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `refusing to overwrite existing key file(s) without --force: ${existing.join(', ')} -- regenerating would orphan any attestation already signed with the old key`);
+		}
+	}
+	const { publicKeyPem, privateKeyPem } = generateKeypair();
+	// Restrictive mode (owner read/write only) from the very first write -- see the
+	// `D-gate-attestation-signing` entry's own note in `lib/fsutil.mjs` on why this is a
+	// `writeFileAtomic` parameter, not a chmod() called after the fact.
+	writeFileAtomic(privatePath, privateKeyPem, 0o600);
+	writeFileAtomic(publicPath, publicKeyPem);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ private_key: privatePath, public_key: publicPath }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`wrote ${privatePath} (0600) and ${publicPath}`);
+	}
+	process.exit(0);
+}
+
+// Deliberately repo-independent (no requireRepoRoot()) -- verifying a previously-exported
+// attestation has nothing to do with the current directory's own git state; the whole point is to
+// check a document someone else produced, possibly on a different machine, offline. Exit code is
+// driven ONLY by signature validity -- whether the gates INSIDE the report passed is a separate,
+// printed question (see DECISIONS.md for why conflating the two would be actively misleading).
+function cmdAttestVerify(args) {
+	const flags = parseCommand('attest verify', args);
+	if (flags.help) { console.log(renderCommandHelp('attest verify')); process.exit(0); }
+	setContext('attest verify', flags);
+
+	let attestation;
+	try {
+		attestation = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), flags.file), 'utf8'));
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read/parse --file "${flags.file}": ${err.message}`);
+	}
+	const { ok: schemaOk, errors: schemaErrors } = validateAgainstSchema('gate-attestation.schema.json', attestation);
+	if (!schemaOk) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.file}" is not a valid gate attestation: ${formatSchemaErrors(schemaErrors).join('; ')}`);
+	}
+	let publicKeyPem;
+	try {
+		publicKeyPem = fs.readFileSync(path.resolve(process.cwd(), flags.pubkey), 'utf8');
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read --pubkey "${flags.pubkey}": ${err.message}`);
+	}
+
+	const valid = verifyPayload(attestation.report, attestation.signature.value, publicKeyPem);
+	const passCount = GATE_NAMES.filter((n) => attestation.report.gates[n]?.current?.status === 'pass').length;
+
+	if (flags.json) {
+		console.log(JSON.stringify({ valid, report_summary: { feature_id: attestation.report.feature_id, generated_at: attestation.report.generated_at, gates_passing: `${passCount}/${GATE_NAMES.length}` } }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(valid ? 'VALID: this attestation was genuinely signed by the holder of the matching private key' : 'INVALID: signature does not match this report + public key');
+		console.log(`report says: feature ${attestation.report.feature_id}, ${passCount}/${GATE_NAMES.length} gate(s) passing, generated ${attestation.report.generated_at}`);
+	}
+	process.exit(valid ? EXIT_CODES.OK : EXIT_CODES.CHECK_FAILED);
 }
 
 // Structural enforcement of "preflight blocks everything below it" (see the workflow table in
@@ -2488,6 +2601,29 @@ function cmdPatchRollback(args) {
 	process.exit(0);
 }
 
+// A deliberately-omitted-until-now, easy read-only convenience (D-patch-transactions' own EXIT
+// list named it explicitly) -- mirrors `dependency list`/`contract history`'s own pure-reader
+// posture, gate-independent like both.
+function cmdPatchList(args) {
+	const flags = parseCommand('patch list', args);
+	if (flags.help) { console.log(renderCommandHelp('patch list')); process.exit(0); }
+	setContext('patch list', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	const transactions = listTransactions(root, flags.feature);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ feature: flags.feature, transactions }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`patch transactions -- feature ${flags.feature}`);
+		for (const t of transactions) {
+			console.log(`  ${t.transaction_id} [${t.status}] ${t.target.file} @ ${t.target.key_path.join('.')}: "${t.current_value}" -> "${t.proposed_value}"`);
+		}
+		if (transactions.length === 0) console.log('  (none proposed)');
+	}
+	process.exit(0);
+}
+
 // O7 (D-handle-audit-report): a pure reader, deliberately gate-independent -- matches
 // D-contract-history/D-gate-export's own posture, not `handles plan`/`handles emit`'s capability
 // gating. It never touches adapter-specific codegen (the query is over `feature_uid` alone, the
@@ -3334,6 +3470,7 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'approve') return cmdPatchApprove(rest.slice(1));
 			if (rest[0] === 'apply') return cmdPatchApply(rest.slice(1));
 			if (rest[0] === 'rollback') return cmdPatchRollback(rest.slice(1));
+			if (rest[0] === 'list') return cmdPatchList(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;
@@ -3378,6 +3515,13 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'history') return cmdGateHistory(subArgs);
 			if (sub === 'show') return cmdGateShow(subArgs);
 			if (sub === 'export') return cmdGateExport(subArgs);
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'attest': {
+			if (rest[0] === 'keygen') return cmdAttestKeygen(rest.slice(1));
+			if (rest[0] === 'verify') return cmdAttestVerify(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;
