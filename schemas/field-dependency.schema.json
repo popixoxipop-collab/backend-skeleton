@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:field-dependency:1",
+  "title": "backend-skeleton field-dependency declarations",
+  "description": "Validates specs/<feature_id>/dependencies.json, written by `bskel dependency declare`/`bskel dependency remove` -- see D-field-dependency in DECISIONS.md. Each entry declares that ONE field on this feature's own resource is derived from a field on some (possibly the same) feature's resource. Deliberately no synthetic id: an entry is addressed by its own natural compound key (target.resourceType/fieldName + source.feature/resourceType/fieldName), matching contract-resolution.schema.json's {code,subject} and patch-approvals.schema.json's {resource,field} precedent. This is a data-model-only slice -- nothing yet reads this file to generate code; the `dependencies` gate (lib/gate-definitions.mjs) only tracks whether it and what it points at have moved.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "dependencies"],
+  "properties": {
+    "schema": { "const": "sbf.field-dependency/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "dependencies": {
+      "description": "One entry per declared edge. `target` is always a resource on THIS file's own feature_id (never repeated per-entry); `source` names its own feature explicitly since it may differ (cross-feature) or be the same (same-feature dependencies are supported by construction, not a special case).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "source", "reason", "at"],
+        "properties": {
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resourceType", "fieldName"],
+            "properties": {
+              "resourceType": { "type": "string", "minLength": 1 },
+              "fieldName": { "type": "string", "minLength": 1 }
+            }
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["feature", "resourceType", "fieldName"],
+            "properties": {
+              "feature": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+              "resourceType": { "type": "string", "minLength": 1 },
+              "fieldName": { "type": "string", "minLength": 1 }
+            }
+          },
+          "reason": { "type": "string" },
+          "memo": {
+            "description": "Optional free-text intent, e.g. captured from a future UI's own resolve-decision flow. Inert documentation only in this slice -- nothing reads it yet.",
+            "type": "string"
+          },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

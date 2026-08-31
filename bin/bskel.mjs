@@ -31,6 +31,7 @@ import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
+import { loadFieldDependencies, saveFieldDependencies, dependencyKey, resolveClassFile } from '../lib/field-dependencies.mjs';
 import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
@@ -77,6 +78,9 @@ function usage() {
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..." [--expires <Nd>]
+  bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
+  bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
+  bskel dependency list --feature <id> [--json]
   bskel stack apply --choice <id> [--apply] [--port N] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
@@ -1361,6 +1365,174 @@ function cmdContractWaive(args) {
 		}
 	}
 	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
+}
+
+// D-field-dependency: shared error-message builder for resolveClassFile()'s own failure reasons --
+// used by both declare (target and source resolution) so the two error paths never phrase the same
+// underlying failure differently. Mirrors requireWarningCode's "known codes: ..." naming convention
+// for the one case (class_not_found) where naming the real alternatives is actionable.
+function describeResolutionFailure(featureId, resourceType, resolution) {
+	switch (resolution.reason) {
+		case 'no_scan_report':
+			return `no brownfield-scan.json for feature "${featureId}" -- run \`bskel scan --feature ${featureId} --terms <a,b,c>\` first`;
+		case 'no_disposition':
+			return `feature "${featureId}" has no scan disposition yet -- run \`bskel scan disposition --feature ${featureId} --mode reuse|extend|replace|parallel --note "..."\` first`;
+		case 'module_not_found':
+			return `feature "${featureId}"'s disposed module no longer appears in its own scan report -- re-run \`bskel scan\`/\`bskel scan disposition\``;
+		case 'class_not_found':
+			return `no resource type "${resourceType}" found in feature "${featureId}"'s disposed module -- known classes: ${resolution.knownClasses?.join(', ') || '(none)'}`;
+		default:
+			return `could not resolve "${resourceType}" on feature "${featureId}"`;
+	}
+}
+
+function cmdDependencyDeclare(args) {
+	const flags = parseCommand('dependency declare', args);
+	if (flags.help) { console.log(renderCommandHelp('dependency declare')); process.exit(0); }
+	setContext('dependency declare', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	requireValidFeatureId(flags['source-feature']); // path-injection defense, same as every --feature flag (D-security-3)
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel dependency declare requires --reason "..." -- every dependency must be auditable');
+	}
+	if (flags.feature === flags['source-feature'] && flags.resource === flags['source-resource'] && flags.field === flags['source-field']) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.resource}.${flags.field}" cannot depend on itself`);
+	}
+
+	const target = resolveClassFile(root, flags.feature, flags.resource);
+	if (!target.file) {
+		fail(target.reason === 'no_scan_report' ? EXIT_CODES.NOT_PASSED : EXIT_CODES.BAD_ARGS,
+			target.reason === 'no_scan_report' ? 'MISSING_ARTIFACT' : 'BAD_ARGS',
+			describeResolutionFailure(flags.feature, flags.resource, target));
+	}
+	const source = resolveClassFile(root, flags['source-feature'], flags['source-resource']);
+	if (!source.file) {
+		fail(source.reason === 'no_scan_report' ? EXIT_CODES.NOT_PASSED : EXIT_CODES.BAD_ARGS,
+			source.reason === 'no_scan_report' ? 'MISSING_ARTIFACT' : 'BAD_ARGS',
+			describeResolutionFailure(flags['source-feature'], flags['source-resource'], source));
+	}
+
+	const dep = {
+		target: { resourceType: flags.resource, fieldName: flags.field },
+		source: { feature: flags['source-feature'], resourceType: flags['source-resource'], fieldName: flags['source-field'] },
+		reason: flags.reason,
+		...(flags.memo ? { memo: flags.memo } : {}),
+		at: new Date().toISOString(),
+	};
+
+	// S5 (D-persistence-integrity): same load-modify-save-under-one-lock shape cmdContractWaive
+	// already uses, for the identical reason -- closes the lost-update race between this
+	// function's own load and its save.
+	const updated = withLockSync(root, 'state', () => {
+		const current = loadFieldDependencies(root, flags.feature);
+		const key = dependencyKey(dep);
+		const next = {
+			schema: 'sbf.field-dependency/1',
+			feature_id: flags.feature,
+			dependencies: [...current.dependencies.filter((d) => dependencyKey(d) !== key), dep],
+		};
+		saveFieldDependencies(root, flags.feature, next);
+		return next;
+	});
+	const gateState = passNamedGate(root, 'dependencies', flags.feature, { dependency_count: updated.dependencies.length });
+
+	if (flags.json) {
+		console.log(JSON.stringify({ dependency: dep, gate: gateState.gates.dependencies }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`declared: ${flags.resource}.${flags.field} <- ${flags['source-feature']}/${flags['source-resource']}.${flags['source-field']}`);
+		console.log(`gate: dependencies -> ${gateState.gates.dependencies.status}`);
+	}
+	process.exit(EXIT.PASS);
+}
+
+function cmdDependencyRemove(args) {
+	const flags = parseCommand('dependency remove', args);
+	if (flags.help) { console.log(renderCommandHelp('dependency remove')); process.exit(0); }
+	setContext('dependency remove', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	requireValidFeatureId(flags['source-feature']);
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel dependency remove requires --reason "..." -- every removal must be auditable');
+	}
+
+	const targetKey = dependencyKey({
+		target: { resourceType: flags.resource, fieldName: flags.field },
+		source: { feature: flags['source-feature'], resourceType: flags['source-resource'], fieldName: flags['source-field'] },
+	});
+
+	const updated = withLockSync(root, 'state', () => {
+		const current = loadFieldDependencies(root, flags.feature);
+		const match = current.dependencies.find((d) => dependencyKey(d) === targetKey);
+		if (!match) {
+			const known = current.dependencies.map((d) => `${d.target.resourceType}.${d.target.fieldName} <- ${d.source.feature}/${d.source.resourceType}.${d.source.fieldName}`);
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no declared dependency matches "${flags.resource}.${flags.field} <- ${flags['source-feature']}/${flags['source-resource']}.${flags['source-field']}" -- currently declared: ${known.join('; ') || '(none)'}`);
+		}
+		const next = {
+			schema: 'sbf.field-dependency/1',
+			feature_id: flags.feature,
+			dependencies: current.dependencies.filter((d) => dependencyKey(d) !== targetKey),
+		};
+		saveFieldDependencies(root, flags.feature, next);
+		return next;
+	});
+	const gateState = passNamedGate(root, 'dependencies', flags.feature, { dependency_count: updated.dependencies.length });
+
+	if (flags.json) {
+		console.log(JSON.stringify({ removed: true, gate: gateState.gates.dependencies }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`removed: ${flags.resource}.${flags.field} <- ${flags['source-feature']}/${flags['source-resource']}.${flags['source-field']}`);
+		console.log(`gate: dependencies -> ${gateState.gates.dependencies.status}`);
+	}
+	process.exit(EXIT.PASS);
+}
+
+// Read-only report, gate-independent like cmdHandlesAudit -- always resolves current state (even
+// past whatever token the gate itself last stored) so a diverged dependency is visible here
+// immediately, not only after the next explicit `gate require`.
+function cmdDependencyList(args) {
+	const flags = parseCommand('dependency list', args);
+	if (flags.help) { console.log(renderCommandHelp('dependency list')); process.exit(0); }
+	setContext('dependency list', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	loadFeatureRecord(root, flags.feature); // friendly "no such feature" before an empty-list false-negative
+	const doc = loadFieldDependencies(root, flags.feature);
+
+	const rows = doc.dependencies.map((dep) => {
+		const t = resolveClassFile(root, flags.feature, dep.target.resourceType);
+		const s = resolveClassFile(root, dep.source.feature, dep.source.resourceType);
+		return {
+			...dep,
+			target_resolved: Boolean(t.file),
+			target_file: t.file ? path.relative(root, t.file) : null,
+			target_unresolved_reason: t.reason,
+			source_resolved: Boolean(s.file),
+			source_file: s.file ? path.relative(root, s.file) : null,
+			source_unresolved_reason: s.reason,
+		};
+	});
+	const gateResult = requireNamedGate(root, 'dependencies', flags.feature);
+
+	const report = {
+		schema: 'sbf.dependency-list/1',
+		feature_id: flags.feature,
+		dependencies: rows,
+		gate: { status: gateResult.status, code: gateResult.code, changed_inputs: gateResult.changed_inputs ?? null },
+	};
+	if (flags.json) {
+		console.log(JSON.stringify(report, null, 2));
+	} else {
+		console.log(`dependencies -- feature ${flags.feature} (gate: ${gateResult.status})`);
+		for (const r of rows) {
+			const tNote = r.target_resolved ? 'ok' : `UNRESOLVED:${r.target_unresolved_reason}`;
+			const sNote = r.source_resolved ? 'ok' : `UNRESOLVED:${r.source_unresolved_reason}`;
+			console.log(`  ${r.target.resourceType}.${r.target.fieldName} [${tNote}] <- ${r.source.feature}/${r.source.resourceType}.${r.source.fieldName} [${sNote}]`);
+		}
+		if (rows.length === 0) console.log('  (none declared)');
+	}
+	process.exit(0);
 }
 
 // D-contract-history: a derived VIEW over the contract file's own git history in whatever repo
@@ -2846,6 +3018,16 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
 			if (sub === 'waive') return cmdContractWaive(subArgs);
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'dependency': {
+			const sub = rest[0];
+			const subArgs = rest.slice(1);
+			if (sub === 'declare') return cmdDependencyDeclare(subArgs);
+			if (sub === 'remove') return cmdDependencyRemove(subArgs);
+			if (sub === 'list') return cmdDependencyList(subArgs);
 			usage();
 			process.exit(14);
 			break;

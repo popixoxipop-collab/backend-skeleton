@@ -620,6 +620,29 @@ bskel contract tool-schema --feature <id> --operation <operationId>
   #    contracts/openapi.mjs's inlineSchema() guarantees this), usable directly as an Anthropic
   #    tool-use tool definition.
 
+bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
+  # -> D-field-dependency: declares that ONE field on this feature's own resource is derived from a
+  #    field on some (possibly the same) feature's resource -- the data-model backend for the
+  #    Fieldwire wire-based UI concept. `--resource`/`--source-resource` are validated against real
+  #    scan-report state (refuses with known classes named); `--field`/`--source-field` are trusted
+  #    free text -- a typo persists silently, a named accepted gap, not hidden. Self-reference
+  #    (identical resource+field on both sides) refused. Persisted at
+  #    specs/<id>/dependencies.json, addressed by its own natural compound key (no synthetic id) --
+  #    re-declaring an identical tuple replaces it in place. Passes the `dependencies` gate
+  #    (`REQUIRED_WHEN_PRESENT` -- most features will never declare one, and that's fine).
+
+bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
+  # -> the inverse of `declare` -- refuses (exit 14) an unknown tuple, naming every currently-
+  #    declared dependency on this feature so the real one is easy to copy-paste.
+
+bskel dependency list --feature <id> [--json]
+  # -> read-only, gate-independent (like `handles audit`) -- resolves every declared dependency's
+  #    CURRENT target/source file live, so a diverged dependency is visible immediately, not only
+  #    after the next explicit `gate require`. Also reports the real `dependencies` gate status.
+  #    A resolved source/target that's since been renamed/deleted reports
+  #    `{source_resolved: false, source_unresolved_reason: "class_not_found"}` (or
+  #    `no_scan_report`/`no_disposition`/`module_not_found`) rather than a bare failure.
+
 bskel stack apply --choice ngrok                # dry-run (default): prints the plan, writes nothing
 bskel stack apply --choice ngrok --apply        # actually writes; always idempotent to re-run
 bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run on 8080

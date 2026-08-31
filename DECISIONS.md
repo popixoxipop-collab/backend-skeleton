@@ -9059,3 +9059,109 @@ project's own `registry.ts.tmpl` already documents as behind java-spring/python-
 lifecycle features (no recover()/snapshot equivalent) -- scope the user chose not to open right now.
 Revisit this note, not `D-resolver-policy-split`'s, if `O8`-for-typescript-express comes up again --
 the "nothing to port" framing does not apply here.
+
+## D-field-dependency: declaring "field A is derived from field B" via the same disk-hash gate mechanism every other gate uses -- data model + gate only, no codegen propagation yet
+
+**WHY**: a standalone UI mockup (Fieldwire -- a wire-based, ArgoCD-style editor, not part of this
+repo) demonstrated the concept of declaring a dependency between two fields, possibly across
+different features, and visualizing whether that dependency is currently in sync or stale. This
+item is Phase 2 slice 1 of attaching a real backend to that concept: a persisted declaration, a new
+gate that tracks whether the SOURCE side has moved since the dependency was last resolved, and CLI
+commands to declare/remove/list. Deliberately NOT this slice's job: actually changing generated code
+when a dependency exists (codegen propagation), or serving this data to any UI over HTTP (`bskel`
+has no HTTP server) -- both named, explicit, later slices.
+
+**A real architectural decision made explicitly, not assumed**: this is CODEGEN-TIME propagation (a
+declared dependency stales a gate, resolved by re-running the relevant `bskel` command), never
+RUNTIME reactivity (a live data-binding framework running inside the deployed target app). The
+latter would contradict this entire project's foundational principle -- deterministic disk-state
+gates, no runtime magic, `bskel` never runs inside a target app in production.
+
+**Mechanism, and why it needed zero new source-scanning logic**: contracts in this project are
+entirely OPERATION-centric (`schemas/feature-contract.schema.json` --
+`operations.<id>.{requestBodySchema,...}`, everything fully inlined with no `$ref` reuse) -- there is
+no separate, canonical "this resource's own field shape independent of any specific operation"
+representation to hang a dependency off of. But `D-gate-precision`'s own "Continued (part 3)" (commit
+`a8d647b`) already gives every adapter's SCAN REPORT a consistent, resource-centric `{className,
+file}` shape on `report.related_modules[].{entities,dtos}` -- exactly the addressing the Fieldwire UI
+mockup already assumed (`Organization.taxRate`, not an operation+JSON-pointer). A field dependency is
+therefore addressed as `{feature, resourceType, fieldName}` on each side, resolved to an owning FILE
+via `lib/field-dependencies.mjs`'s `resolveClassFile()` -- the exact same lookup
+`lib/gate-definitions.mjs`'s `contract.recompute()` already does for its own `module_file:` tokens,
+just resolved across features instead of within one, then hashed with the same `sha256File()` every
+other gate already uses. `resolveClassFile()` is the ONE function both `bskel dependency declare`'s
+validation and the new `dependencies` gate's `recompute()` call, so the token that gets passed and
+the token later required can never diverge.
+
+**Schema** (`schemas/field-dependency.schema.json`, `sbf.field-dependency/1`), persisted at
+`specs/<feature_id>/dependencies.json`, one file per feature, a flat list -- matches
+`contract-resolution.schema.json`/`patch-approvals.schema.json`'s own precedent (a human decision
+made in the context of one feature's own actual need, not a repo-wide file-safety fact). No synthetic
+id -- an entry is addressed by its own natural compound key (`target.resourceType/fieldName` +
+`source.feature/resourceType/fieldName`), matching every other decision-record in this codebase
+having no id either. No `expires_at` (a dependency is a structural fact, not a temporary override
+with a grace period). `memo` (optional free text) is included; the propagation-classification enum
+the UI mockup's own "which side needs to change" multi-select captures is deliberately NOT included
+in this slice -- nothing here reads it yet, and its real shape belongs to the not-yet-designed
+propagation slice; adding it later is a non-breaking additive change, not a migration.
+
+**Gate**: `dependencies`, `scope: FEATURE`, `verifyPolicy: REQUIRED_WHEN_PRESENT`, inserted into
+`GATE_NAMES` between `contract` and `handles` (a real, considered placement -- conceptually groups
+with `contract` as "structural facts about this feature's fields," ahead of the codegen-artifact
+gates, which also happens to be the right position for the deferred propagation slice to read
+`dependencies.json` before generating `handles`). A resolved source/target file gets its real content
+hash; an UNRESOLVABLE one gets a labeled sentinel string (`unresolved:class_not_found`, etc.) instead
+of a bare `null` -- unlike `contract.recompute()`'s own bare-null precedent (safe there only because
+the path itself is always deterministic via `specPath()`), here "no file resolves at all" is a
+distinct failure mode from "a known file was deleted" (also a legitimate null from `sha256File()`),
+and a human reading `changed_inputs` deserves to know which. Both are equally fail-closed: neither
+can coincide with a previously-stored good hash.
+
+**Validation posture at declare time**: `resourceType` is validated against real scan-report state
+(refuses with known classes named, matching `requireWarningCode`'s own "known codes: ..." error
+convention) -- `fieldName` is trusted free text, checked only for non-emptiness. Building a real
+per-adapter field enumerator to validate `fieldName` would require new, adapter-specific scanning
+logic (the kind `handles/providers/java-spring/plan.mjs`'s DTO-field classifier already has, but
+coupled to patch-strategy classification, a different concern) -- reusing it here would silently
+reintroduce the provider-specific coupling this whole design was built to avoid. Named as an accepted
+gap (a typo'd field name persists silently), not hidden.
+
+**Self-reference and cross-feature cycles**: an identical tuple on both sides (a field depending on
+itself) is refused at declare time. Full cross-feature CYCLE detection (A->B->A across the whole
+dependency graph) is NOT built -- no consumer needs a global graph view yet (that's the deferred
+UI-serving slice's job), and walking every feature's `dependencies.json` in the repo is real,
+uncosted machinery this slice doesn't need. Same-feature dependencies (target and source in the same
+feature) work by construction -- nothing in the schema or `resolveClassFile()` treats
+`source.feature === feature_id` specially.
+
+**A real, previously-latent bug found and fixed as part of this item, not deferred**:
+`lib/workflow.mjs`'s `ESTABLISH_COMMAND` map had no fallback -- `bskel next` on a STALE
+`REQUIRED_WHEN_PRESENT` gate calls `ESTABLISH_COMMAND[gateName](featureId)` directly. No existing
+gate had ever gone stale-after-passing while being optional at the same time in a way `next` was
+tested against, so this was never caught. The first real stale `dependencies` gate would have crashed
+`bskel next` with a raw `TypeError` instead of a clean stale report. Fixed by adding
+`ESTABLISH_COMMAND.dependencies` -- and, found live while fixing this one, `conformance` was ALSO
+missing an entry (the identical bug, pre-existing, never exercised either) -- fixed together, same
+commit, since it's the same bug class sitting immediately adjacent. `MUTATING_PREFIXES` gained
+`'bskel dependency declare'`/`'bskel dependency remove'`; `optionalNotRun` was deliberately NOT
+extended to mention `dependencies` -- most features will legitimately never declare one (unlike
+handles/stack, which are near-universal), so nudging every feature about it would be noise, not
+signal.
+
+**COST**: `lib/field-dependencies.mjs`/`lib/gate-definitions.mjs` needed zero new fields on the scan
+report shape -- `{className, file}` on `entities`/`dtos` already existed on every adapter before this
+item. A separate, still-open, NOT closed by this item: `lib/workflow.mjs`'s `MUTATING_PREFIXES` is
+also missing `bskel observe emit`/`bskel observe import` (the identical class of gap, found live
+while fixing this file, out of scope for this item -- named here rather than silently left
+undiscovered for a future session).
+
+**EXIT**: what this deliberately did NOT do: codegen-side propagation (how `contract emit`/`handles
+emit` would actually reflect a derived field in generated code, per adapter -- a separate, real
+design question each provider needs its own answer to); any HTTP server exposing this data to a UI
+(`bskel` has none today); full cross-feature cycle detection; `fieldName` validation against real
+source. All named, not silently dropped.
+
+**Verified**: `npm test` -- new `test/dependency-cli.test.mjs`/`test/field-dependencies.test.mjs`
+alongside the full existing suite, 0 regressions. `test/gate-definitions.test.mjs`'s hardcoded gate-
+name-list regex and `test/doc-integrity.test.mjs`'s usage()/COMMANDS/dispatch-switch/anchor checks
+all updated and passing.
