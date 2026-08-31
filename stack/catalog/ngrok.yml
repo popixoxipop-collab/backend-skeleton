@@ -39,8 +39,14 @@ static:
       note: >
         allowed-origins must be environment-variable-driven for the tunnel URL to actually take
         effect (e.g. `allowed-origins: ${AUTH_LOGIN_ALLOWED_ORIGINS:default-value}`). If this
-        check reports needs-manual-patch, add that yourself -- backend-skeleton deliberately
-        does not auto-edit application config files (see D-config-patch in DECISIONS.md).
+        check reports needs-manual-patch, run `bskel patch propose --feature <id> --choice ngrok
+        --target src/main/resources/application.yaml` for a machine-applicable fix (see
+        D-patch-transactions in DECISIONS.md), or add it yourself -- backend-skeleton never
+        auto-edits an application config file without an explicit propose/approve/apply sequence
+        (see D-config-patch in DECISIONS.md).
+      apply:
+        key_path: [auth, login, allowed-origins]
+        value_template: "${AUTH_LOGIN_ALLOWED_ORIGINS:{{CURRENT}}}"
 
 runtime:
   script: scripts/dev-tunnel.sh

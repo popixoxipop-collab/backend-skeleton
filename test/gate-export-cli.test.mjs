@@ -60,8 +60,8 @@ test('--out writes the report to a file and prints a summary line with a real pa
 
 	const result = run(['gate', 'export', '--feature', FEATURE, '--out', 'evidence.json'], root);
 	assert.equal(result.code, 0);
-	// D-cross-feature-collision: 8 gates now (preflight/scan/cross_feature/contract/dependencies/handles/stack/conformance).
-	assert.match(result.stdout, /wrote evidence\.json -- \d\/8 gate\(s\) currently passing/);
+	// D-patch-transactions: 9 gates now (preflight/scan/cross_feature/contract/dependencies/handles/stack/patch_transactions/conformance).
+	assert.match(result.stdout, /wrote evidence\.json -- \d\/9 gate\(s\) currently passing/);
 
 	const written = JSON.parse(fs.readFileSync(path.join(root, 'evidence.json'), 'utf8'));
 	assert.equal(written.schema, 'sbf.gate-export/1');

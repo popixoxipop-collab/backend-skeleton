@@ -5,11 +5,16 @@
 // D-handles-providers (G4) in DECISIONS.md. `handles/providers/java-spring/emit.mjs` is the
 // reference caller to compare against if this file's behavior is ever in question.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { sha256File, sha256String } from '../lib/fsutil.mjs';
 import { loadManifest, saveManifest, classifyFile, extractResolverOwnerFeatureId, BSKEL_GENERATED_MARKER } from '../lib/handles-manifest.mjs';
+// D-patch-transactions: unifiedDiff() moved to lib/diff.mjs (stack/config-apply.mjs needs the
+// identical mechanism for its own collateral-diff safety gate) -- re-exported here so every
+// existing caller in this file keeps working unchanged.
+import { unifiedDiff } from '../lib/diff.mjs';
+
+export { unifiedDiff };
 
 function readIfExists(target) {
 	return fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null;
@@ -18,33 +23,6 @@ function readIfExists(target) {
 function writeUnit(target, content) {
 	fs.mkdirSync(path.dirname(target), { recursive: true });
 	fs.writeFileSync(target, content);
-}
-
-// D4 (D-handles-dryrun): a real unified diff via `git diff --no-index`, not a hand-rolled diff
-// algorithm -- `git` is already a hard dependency (isDirtyOrUntracked below already shells out to
-// it on every emit), so this adds zero new dependencies. `cwd: tmpDir` + relative `a/<relPath>`/
-// `b/<relPath>` paths (rather than absolute temp paths) keep the diff header clean and
-// reproducible -- the random tmpdir name never leaks into the output. `git diff --no-index` exits
-// 1 when the two sides differ (the expected, common case here, not a failure) -- only a status
-// other than 0/1 is a genuine error worth throwing.
-export function unifiedDiff(relPath, before, after) {
-	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-diff-'));
-	try {
-		const beforeAbs = path.join(tmpDir, 'a', relPath);
-		const afterAbs = path.join(tmpDir, 'b', relPath);
-		fs.mkdirSync(path.dirname(beforeAbs), { recursive: true });
-		fs.mkdirSync(path.dirname(afterAbs), { recursive: true });
-		fs.writeFileSync(beforeAbs, before ?? '');
-		fs.writeFileSync(afterAbs, after ?? '');
-		try {
-			return execFileSync('git', ['diff', '--no-index', '--no-color', '--', `a/${relPath}`, `b/${relPath}`], { cwd: tmpDir, encoding: 'utf8' });
-		} catch (err) {
-			if (err.status === 1 && typeof err.stdout === 'string') return err.stdout;
-			throw err;
-		}
-	} finally {
-		fs.rmSync(tmpDir, { recursive: true, force: true });
-	}
 }
 
 const DIFFABLE_ACTIONS = new Set(['update', 'conflict', 'adopt-update']);

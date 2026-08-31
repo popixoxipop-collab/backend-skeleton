@@ -50,11 +50,22 @@
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["target", "externalized_pattern", "note"],
             "properties": {
               "target": { "type": "string" },
               "externalized_pattern": { "type": "string" },
-              "note": { "type": "string" }
+              "note": { "type": "string" },
+              "apply": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key_path", "value_template"],
+                "description": "D-patch-transactions: optional, additive -- a catalog entry without this still behaves exactly as before (config_check reports needs-manual-patch only, `bskel patch propose` refuses naming this note). key_path addresses a plain scalar value via YAML.Document#getIn(); value_template's one literal token, {{CURRENT}}, is replaced with the value's current string content -- deliberately NOT lib/template.mjs's own {{PORT}} renderer, a different, unrelated templating purpose.",
+                "properties": {
+                  "key_path": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+                  "value_template": { "type": "string" }
+                }
+              }
             }
           }
         }

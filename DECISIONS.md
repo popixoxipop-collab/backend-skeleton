@@ -9612,3 +9612,172 @@ reproduce every step of that manual run.
   identity collisions (same string, different features), not "feature B's table references feature A's
   table via FK." That would need live DB introspection correlation across features (Plane C), a
   materially larger, separate signal, out of scope here.
+
+## D-patch-transactions: content-addressed patch transactions -- generalizing A3's per-field patch approval into a real propose/approve/apply/rollback lifecycle, closing D-config-patch's own EXIT item as Slice 1
+
+**WHY**: Codex's own growth-idea consultation (Part B #2) proposed generalizing the project's
+existing narrow field-level patch-approval mechanism (`lib/patch-approvals.mjs`, A3/
+`D-patch-strategy`) into a "feature-wide edit transaction": every proposed source/config/migration
+change carries target identity, preimage hash, semantic postcondition, approval, and rollback
+material, applied only if every preimage still matches. The user explicitly chose to pursue this in
+its full, broad form (a genuine arbitrary-source-edit capability), rejecting a narrower "just wrap
+existing writes, no new AST-editing capability" scoping this session first proposed.
+
+Two research passes grounded the design before anything was written. A write-surface inventory
+(every place this CLI writes to a pre-existing brownfield file) confirmed rollback is completely
+absent from the codebase (`grep -rn "rollback|undo|revert"` = 0 real hits), and surfaced three
+concrete, already-real safety gaps this item does NOT close (named explicitly below, not silently
+folded in): `migration.sql` is unconditionally overwritten on every `handles emit` with zero
+conflict detection or `--force` gate; `stack apply` persists no preimage hash and silently clobbers
+hand-edited applied files on re-apply; the handles infra/resolver write loop saves its manifest once
+at the end, so a mid-loop crash can desync manifest state from disk. An AST/parsing infra survey
+confirmed this codebase has **zero precedent for editing inside an existing hand-written file**
+(every current write is either a brand-new file or a whole-file template regeneration) and **zero
+precedent for sub-region content hashing** (`classifyFile()`/`matchesPristineRender` are both
+whole-file granularity). Java has real byte-offset primitives
+(`scanners/adapters/_java-spring-analyzer.mjs`'s `findMappingAnnotations`/`matchMethodSignatureAfter`)
+that could support in-file source splicing LATER; Python and TypeScript have none today.
+
+Given that, and given this project's own universal precedent for staging XL items (A2 Phase 1→2, A3
+Tier 2/3, G1→G2→G5→G6 one-ecosystem-at-a-time, `D-patch-strategy`'s own permanent
+`fetch-merge-submit`-stays-manual boundary), this item ships the single, already-explicitly-named
+first real target rather than attempting all ecosystems/edit-kinds at once. `D-config-patch`'s own
+EXIT section states verbatim: *"if a safe, comment-preserving patcher is built later (the `yaml`
+package's Document API supports this), `config_check` could gain an `apply` action -- not built now
+because the real target doesn't need it... so there's no concrete case to validate a patcher against
+yet."* This closes exactly that gap: the general transaction primitive as the engine,
+`config_check -> config_apply` as its first, safest real consumer.
+
+**Two empirical findings from directly exercising `yaml@2.9.0`'s Document API** (already a
+dependency, `package.json`) shaped the design, confirmed live (`node -e` against the real package,
+not assumed from documentation) before a single line of `stack/config-apply.mjs` was written:
+1. It does **not** byte-for-byte round-trip untouched lines elsewhere in the same document when
+   `setIn()` edits ANY key -- confirmed live: comment spacing before `#` collapses from two spaces
+   to one, flow-collection spacing normalizes (`[a, b, c]` -> `[ a, b, c ]`), trailing whitespace on
+   an untouched line strips. A postcondition-only check (does `externalized_pattern` now match)
+   would have silently shipped this cosmetic reformatting of a hand-tuned config file on every
+   `config_apply` -- exactly the failure mode `D-config-patch`'s own WHY was written to avoid ("a
+   wrong automatic edit there is a worse failure mode than asking a human to add one line"). The
+   **collateral-diff check** (`stack/config-apply.mjs`'s `assertNoCollateralChanges()`) is the direct
+   fix, not an afterthought: every line that differs between before/after must fall within the
+   target key's own line span, or the whole propose is refused outright with the real diff printed.
+2. `doc.getIn(keyPath, true)` and a mapping pair's `.key`/`.value` nodes carry real byte-offset
+   `.range` tuples today -- the exact "preimage hash of the specific target region" primitive this
+   feature needs, with zero prior codebase precedent for using it this way.
+
+**A real off-by-one bug in the collateral-diff check itself, found by directly exercising the
+refusal path, not by code review**: the first implementation computed the target's own line range
+as `[lineIndexAt(regionStart), lineIndexAt(regionEnd)]`, but `regionEnd` (`pair.value.range[2]`)
+includes the target line's OWN trailing newline whenever the value carries a line comment --
+confirmed live that `lineIndexAt()` then counted that newline as already passed, shifting the
+computed end-line one line too far and silently exempting the FOLLOWING line from the collateral
+check entirely. Reproduced directly: a `flow-list: [a, b, c]` line immediately after the target key
+got reformatted and the check never fired. Fixed with `lineIndexAt(text, Math.max(regionStart,
+regionEnd - 1))` -- the check was re-run against the same reproduction and correctly refused after
+the fix, with the mitigation captured as a permanent regression test
+(`test/config-apply.test.mjs`'s own "refuses when an UNRELATED line would be collaterally
+reformatted" case), not just a design-time note.
+
+**General primitive**, `lib/patch-transactions.mjs` (new) -- kind-agnostic (Slice 1 wires exactly
+one kind, `"config-apply"`; a later slice can add a second kind without touching this state machine
+at all). One file per transaction (`specs/<featureId>/patch-transactions/<transaction_id>.json`,
+schema `sbf.patch-transaction/1`, mirrors `patch-approvals.schema.json`'s validate-at-read-and-write
+shape) plus content-addressed rollback blobs (`specs/<featureId>/patch-transactions/blobs/<sha256>.
+blob` -- the ORIGINAL file's full bytes, saved BEFORE any edit is ever applied, deduping
+automatically since identical preimages produce the identical blob filename). Every load-modify-save
+transition is wrapped in `withLockSync(root, 'state', ...)`, matching `cmdContractWaive`/
+`cmdHandlesPatchApprove`'s existing convention. Lifecycle: `proposeTransaction` writes the blob and
+a `status: 'proposed'` record from a kind-specific plan; `approveTransaction` requires `--reason`
+and re-verifies the CURRENT `region_hash` still matches what was recorded at propose-time, refusing
+("re-propose") if the target moved since; `applyTransaction` re-verifies `region_hash` again (a
+final check right before the write, since the file could move between approve and apply too) --
+**no `--force` escape**, mirroring `cmdHandlesPatchApprove`'s permanent "a stale approval is
+rejected outright, never bypassed" precedent, because a stale FORWARD edit's collateral effects
+have never been re-verified; `rollbackTransaction` requires `status: 'applied'` and `--reason`,
+refuses unless the file's current hash still equals the recorded `postimage_file_hash` UNLESS
+`--force` is given -- the one place this feature DOES allow an override, since reverting to a
+known-good, git-recoverable prior state is a materially lower-risk action than forcing a forward
+edit whose effects were never re-checked.
+
+**Kind planner**, `stack/config-apply.mjs`'s `planConfigApply(repoRoot, catalogEntry, targetPath)`
+-- looks up the matching `config_check` entry's new, additive `apply` block, resolves `key_path` via
+`doc.getIn(path, true)` (refusing cleanly on a missing key or a non-scalar node -- both real,
+confirmed edge cases, not hypothetical), computes `region_hash` from the exact `key: value #
+comment` byte span, applies `doc.setIn(...)`, then runs the collateral-diff check and a
+postcondition re-test of `externalized_pattern` before ever returning a usable plan.
+`propose`/`approve`/`apply` in `bin/bskel.mjs` all call this planner **fresh** every time -- never
+trusting a stored render -- which is what makes "re-verify preimage at every step" real rather than
+assumed. `lib/diff.mjs` (new) is `unifiedDiff()` promoted verbatim out of `handles/_engine.mjs`
+(pure code motion, zero behavior change, re-verified via the full existing handles test suite) --
+this kind planner needed the identical mechanism for its own collateral-diff refusal messages, and
+there was no existing `stack <-> handles` import in either direction to introduce by leaving it
+where it was.
+
+**Catalog schema extension**: `schemas/stack-choice.schema.json`'s `config_check` items gain an
+optional, additive `apply: {key_path: string[], value_template: string}` (existing catalog entries
+without it keep behaving exactly as today -- `patch propose` refuses, naming the entry's own
+`note`). `value_template` uses one literal token `{{CURRENT}}`, deliberately NOT routed through
+`lib/template.mjs`'s renderer (that's tied to a different, fixed `{{PORT}}` templating purpose --
+reusing the same syntax for an unrelated purpose risks catalog-author confusion). Also tightened
+`config_check` items to `additionalProperties: false` (previously absent, meaning an extra key would
+have silently validated) since this was the exact object being extended. Real fixture: `stack/
+catalog/ngrok.yml`'s existing `config_check` entry gained a real `apply` block
+(`key_path: [auth, login, allowed-origins]`) -- the exact, already-real case `D-config-patch` names,
+no synthetic catalog entry needed for either the design or its e2e test.
+
+**Gate**: new `patch_transactions` gate (`lib/gate-definitions.mjs`, `SCOPE.FEATURE`,
+`REQUIRED_WHEN_PRESENT`, inserted in `GATE_NAMES` right after `stack`). Deliberately does NOT reuse
+`stack`'s own `.sbf/stack.json` record -- confirmed live that `cmdStackApply` treats `applied_files`
+as "this choice's FULL file set in this repo" and overwrites it wholesale on every
+`stack apply --apply` (`bin/bskel.mjs`'s own comment on that line), so a `config_apply`'d file
+appended there would silently vanish from tracking on the next ordinary `stack apply`. This gate
+owns its own, separate record instead, hashing only `status: 'applied'` transactions' current target
+content + the transaction record itself (a deleted/changed target or a hand-edited record both
+correctly go stale). `lib/workflow.mjs` gained `ESTABLISH_COMMAND.patch_transactions` and the four
+`bskel patch *` verbs in `MUTATING_PREFIXES` in this SAME commit -- per this session's own
+`D-cross-feature-collision` entry's explicit warning that this exact gap was already found live
+twice for other gates before it could recur a third time here.
+
+**CLI**: `bskel patch propose|approve|apply|rollback --feature <id> ...` -- four new `cmdPatch*`
+functions in `bin/bskel.mjs`, matching `lib/cli.mjs`'s existing `COMMANDS` table conventions.
+`apply`/`rollback` call `requirePreflightPassed` (mirrors `cmdStackApply`/`cmdHandlesEmit` -- both
+"write to the real repo" commands); `propose`/`approve` do not (mirrors `handles plan`/
+`cmdHandlesPatchApprove` -- both only touch `specs/`). No git-dirty gate on `apply` -- the
+region-level preimage hash is strictly more precise than a whole-repo dirty check.
+
+**Verified**: `npm test` -- 0 regressions, plus 3 new test files: `test/patch-transactions.test.mjs`
+(14 unit tests -- blob CAS dedup, schema round-trip refusal, the full lifecycle, and all 3
+fail-closed refusals: stale-at-approve, stale-at-apply, diverged-at-rollback without `--force`, plus
+the `--force` override path), `test/config-apply.test.mjs` (10 unit tests -- the real `yaml`
+round-trip collateral-damage hazard and the off-by-one fix above, both captured as permanent
+regression assertions; every `planConfigApply()` refusal path with a hand-built fixture each),
+`test/patch-config-apply-cli.test.mjs` (7 e2e tests against the REAL, unmodified `ngrok.yml` catalog
+entry and a real Spring `application.yaml`-shaped fixture -- `stack apply` reporting
+`needs-manual-patch` before any transaction exists, propose writing nothing to the real file,
+approve refusing without `--reason`, a REAL hand-edited-file TOCTOU race between approve and apply
+correctly refusing apply with the file left exactly as the human left it, the full
+propose->approve->apply sequence with the target file correctly edited and an unrelated key
+surviving untouched, the REAL unmodified `stack apply` then reporting `already-externalized`,
+rollback restoring the file byte-identical to the original, `bskel verify` reflecting the
+`patch_transactions` gate correctly at every stage via the already-generic
+`collectGateStatuses`/`isBlockingGateResult` machinery with zero changes needed to `cmdVerify`
+itself, double-rollback refused, and propose itself refusing outright when the edit would
+collaterally reformat an unrelated line).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- Java/Python/TypeScript in-file source splicing (method bodies, field values) -- a separate, later,
+  per-ecosystem slice, mirroring G2/G5's own one-ecosystem-at-a-time rollout. Java has real
+  byte-offset primitives that make this directly buildable later; Python/TypeScript have no AST
+  infra at all today. Each ecosystem is its own slice with its own risk profile.
+- `migration.sql` "safe apply" -- a materially different, higher-risk domain; `D-migration-scope`'s
+  existing "never opens a live DB connection" boundary is not reversed by this item.
+- TypeScript resolvers-barrel unconditional-overwrite gap (`resolvers_index.ts`) -- same class of
+  gap as `migration.sql`, not touched here.
+- Multi-target atomic cross-file transactions -- Slice 1's `target` is a single scalar file; a real
+  multi-file all-or-nothing transaction (the original Codex proposal's literal "feature-wide"
+  framing) is future scope once a second single-target kind exists to generalize from.
+- `bskel patch list` -- an easy, deliberately-omitted read-only convenience (mirrors `dependency
+  list`/`contract history`), kept out to keep this slice's CLI surface disciplined.
+- The infra/resolver write-loop's own mid-crash manifest-desync gap, and `stack apply`'s own lack of
+  any preimage hash for its `static.files`/`.env.example` writes -- both real gaps this item's own
+  research surfaced, neither touched by this item (Slice 1 is scoped to `config_check` alone).

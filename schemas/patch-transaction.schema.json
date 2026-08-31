@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:patch-transaction:1",
+  "title": "backend-skeleton content-addressed patch transaction (specs/<feature_id>/patch-transactions/<transaction_id>.json)",
+  "description": "D-patch-transactions: generalizes A3/D-patch-strategy's per-{resource,field} patch-approvals.json shape into a kind-agnostic propose/approve/apply/rollback transaction. One file per transaction (not one growing array) -- each record carries a lifecycle with real state transitions and references a content-addressed rollback blob under this same feature's patch-transactions/blobs/ directory.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "transaction_id", "feature_id", "kind", "source", "target", "preimage", "proposed_value", "postcondition", "status", "created_at"],
+  "properties": {
+    "schema": { "const": "sbf.patch-transaction/1" },
+    "transaction_id": { "type": "string", "pattern": "^pt-[0-9a-f-]{36}$" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "kind": { "enum": ["config-apply"] },
+    "source": {
+      "type": "object",
+      "description": "Kind-specific opaque context needed to re-plan this transaction fresh at approve/apply time -- for kind config-apply, the stack catalog choice id the target/apply block came from (the record's own target.file alone is not enough to re-locate it).",
+      "additionalProperties": false,
+      "required": ["choice"],
+      "properties": {
+        "choice": { "type": "string" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "key_path"],
+      "properties": {
+        "file": { "type": "string" },
+        "key_path": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "preimage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["region_hash", "file_hash"],
+      "properties": {
+        "region_hash": { "type": "string" },
+        "file_hash": { "type": "string" }
+      }
+    },
+    "current_value": { "type": "string" },
+    "proposed_value": { "type": "string" },
+    "postcondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "pattern"],
+      "properties": {
+        "kind": { "const": "regex-match" },
+        "pattern": { "type": "string" }
+      }
+    },
+    "status": { "enum": ["proposed", "approved", "applied", "rolled_back"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "at"],
+      "properties": {
+        "reason": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "apply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "postimage_file_hash"],
+      "properties": {
+        "at": { "type": "string", "format": "date-time" },
+        "postimage_file_hash": { "type": "string" }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "at"],
+      "properties": {
+        "reason": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" },
+        "forced": { "type": "boolean" }
+      }
+    }
+  }
+}

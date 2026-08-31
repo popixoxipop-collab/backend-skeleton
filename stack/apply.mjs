@@ -27,7 +27,10 @@ export function listCatalogChoices() {
 // paths (must stay under STACK_ROOT) and generated-file target paths (must stay under the
 // caller's repoRoot). A catalog entry is data (currently only ships with this skill, but the
 // mechanism doesn't assume that), so every path it names is treated as untrusted input.
-function assertContained(root, target, label) {
+// D-patch-transactions: exported once stack/config-apply.mjs (a second real consumer, checking
+// the SAME catalog-declared config_check.target path) needed the identical containment check --
+// previously only used inside this file.
+export function assertContained(root, target, label) {
 	const resolvedRoot = path.resolve(root);
 	const resolvedTarget = path.resolve(target);
 	const rel = path.relative(resolvedRoot, resolvedTarget);

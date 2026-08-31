@@ -30,6 +30,8 @@ import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contrac
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
+import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction } from '../lib/patch-transactions.mjs';
+import { planConfigApply } from '../stack/config-apply.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
 import { createHttpServer } from '../lib/http-server.mjs';
 import {
@@ -97,6 +99,10 @@ function usage() {
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
+  bskel patch propose --feature <id> --choice <stackChoiceId> --target <config_check target path> [--json]
+  bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
+  bskel patch apply --feature <id> --transaction <id> [--json]
+  bskel patch rollback --feature <id> --transaction <id> --reason "..." [--force] [--json]
   bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
   bskel observe import --feature <id> --receipts <path> [--fail-on-violation] [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
@@ -2358,6 +2364,130 @@ function cmdHandlesPatchApprove(args) {
 	process.exit(0);
 }
 
+// D-patch-transactions: Slice 1 (config_check -> config_apply). All four commands only touch
+// specs/<featureId>/patch-transactions/ except `apply`/`rollback`, which write to the real target
+// file too -- matching D4's own "propose/approve are specs/-only, apply/rollback touch the repo"
+// distinction cmdHandlesEmit/cmdHandlesPlan already draw for --check vs a real emit.
+function cmdPatchPropose(args) {
+	const flags = parseCommand('patch propose', args);
+	if (flags.help) { console.log(renderCommandHelp('patch propose')); process.exit(0); }
+	setContext('patch propose', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	let entry;
+	try {
+		entry = loadCatalogEntry(flags.choice);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	let plan;
+	try {
+		plan = planConfigApply(root, entry, flags.target);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	const txn = proposeTransaction(root, flags.feature, 'config-apply', plan, { choice: flags.choice });
+
+	if (flags.json) {
+		console.log(JSON.stringify(txn, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`proposed: ${txn.transaction_id}`);
+		console.log(`  ${txn.target.file} @ ${txn.target.key_path.join('.')}: "${txn.current_value}" -> "${txn.proposed_value}"`);
+		console.log(`next: bskel patch approve --feature ${flags.feature} --transaction ${txn.transaction_id} --reason "..."`);
+	}
+	process.exit(0);
+}
+
+// Re-runs planConfigApply() fresh from the transaction's own recorded `source`/`target` -- never
+// trusts the stored plan -- so a stale preimage (the target moved since propose) is caught here
+// too, not just inside approveTransaction()'s own region_hash comparison; the two checks cover
+// two different things (this one also re-validates the catalog entry/postcondition still resolve
+// at all, in case the catalog itself changed).
+function replanFromTransaction(root, txn) {
+	const entry = loadCatalogEntry(txn.source.choice);
+	return planConfigApply(root, entry, txn.target.file);
+}
+
+function requireTransactionOrExit(root, featureId, transactionId) {
+	const txn = loadTransaction(root, featureId, transactionId);
+	if (!txn) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no patch transaction "${transactionId}" for feature "${featureId}"`);
+	}
+	return txn;
+}
+
+function cmdPatchApprove(args) {
+	const flags = parseCommand('patch approve', args);
+	if (flags.help) { console.log(renderCommandHelp('patch approve')); process.exit(0); }
+	setContext('patch approve', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch approve requires --reason "..." -- every approval must be auditable');
+	}
+	const txn = requireTransactionOrExit(root, flags.feature, flags.transaction);
+
+	let freshPlan;
+	try {
+		freshPlan = replanFromTransaction(root, txn);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	const updated = approveTransaction(root, flags.feature, flags.transaction, flags.reason, freshPlan);
+
+	console.log(flags.json ? JSON.stringify(updated, null, 2) : `approved: ${flags.transaction}`);
+	process.exit(0);
+}
+
+function cmdPatchApply(args) {
+	const flags = parseCommand('patch apply', args);
+	if (flags.help) { console.log(renderCommandHelp('patch apply')); process.exit(0); }
+	setContext('patch apply', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	requireValidFeatureId(flags.feature);
+	const txn = requireTransactionOrExit(root, flags.feature, flags.transaction);
+
+	let freshPlan;
+	try {
+		freshPlan = replanFromTransaction(root, txn);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	const updated = applyTransaction(root, flags.feature, flags.transaction, freshPlan);
+
+	const evidence = { transaction_id: updated.transaction_id, target: updated.target.file, applied_at: updated.apply.at };
+	const gateState = passNamedGate(root, 'patch_transactions', flags.feature, evidence);
+
+	console.log(flags.json ? JSON.stringify({ transaction: updated, gate: gateState.gates.patch_transactions }, null, 2) : `applied: ${flags.transaction} -> ${updated.target.file}`);
+	process.exit(0);
+}
+
+function cmdPatchRollback(args) {
+	const flags = parseCommand('patch rollback', args);
+	if (flags.help) { console.log(renderCommandHelp('patch rollback')); process.exit(0); }
+	setContext('patch rollback', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	requireValidFeatureId(flags.feature);
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch rollback requires --reason "..." -- every rollback must be auditable');
+	}
+	const updated = rollbackTransaction(root, flags.feature, flags.transaction, flags.reason, { force: flags.force });
+
+	// Re-passing (not revoking) mirrors cmdScanCrossFeatureWaive's own precedent for this exact
+	// situation -- recompute() only loops status:'applied' transactions, so a rolled-back one
+	// naturally drops out of the gate's own input set on the next pass; a fresh pass here reflects
+	// "still fine, just smaller" immediately rather than leaving the gate to be reactively
+	// discovered stale by the next `bskel verify`.
+	const evidence = { transaction_id: updated.transaction_id, target: updated.target.file, rolled_back_at: updated.rollback.at };
+	const gateState = passNamedGate(root, 'patch_transactions', flags.feature, evidence);
+
+	console.log(flags.json ? JSON.stringify({ transaction: updated, gate: gateState.gates.patch_transactions }, null, 2) : `rolled back: ${flags.transaction} -> ${updated.target.file} restored`);
+	process.exit(0);
+}
+
 // O7 (D-handle-audit-report): a pure reader, deliberately gate-independent -- matches
 // D-contract-history/D-gate-export's own posture, not `handles plan`/`handles emit`'s capability
 // gating. It never touches adapter-specific codegen (the query is over `feature_uid` alone, the
@@ -3195,6 +3325,15 @@ async function dispatchCommand(cmd, rest) {
 		}
 		case 'stack': {
 			if (rest[0] === 'apply') return cmdStackApply(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'patch': {
+			if (rest[0] === 'propose') return cmdPatchPropose(rest.slice(1));
+			if (rest[0] === 'approve') return cmdPatchApprove(rest.slice(1));
+			if (rest[0] === 'apply') return cmdPatchApply(rest.slice(1));
+			if (rest[0] === 'rollback') return cmdPatchRollback(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;
