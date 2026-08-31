@@ -255,7 +255,7 @@ bskel preflight --max-age-minutes N     # how long this pass stays fresh before 
                               #    30, data-derived -- see D-preflight-freshness). 0 disables it.
 bskel preflight --fetch-timeout-seconds N   # bound the fetch itself (default: 60)
 
-bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale (name must be one of: preflight|scan|contract|handles|stack -- an unknown name exits 14, it does not report not-run)
+bskel gate require preflight   # exit 0 pass / 2 not-run / 3 awaiting-disposition / 4 stale (name must be one of: preflight|scan|cross_feature|contract|dependencies|handles|stack|patch_transactions|conformance -- an unknown name exits 14, it does not report not-run)
   #    S2: a `stale` result also carries `changed_inputs` (the exact input keys that moved, e.g.
   #    "resolution_hash" or "applied_file:scripts/dev-tunnel.sh") and `stale_reason`. A gate record
   #    written before S2 shipped has no snapshot to diff, so it reports `stale_reason:
@@ -267,7 +267,9 @@ bskel gate show                # dump the full gate-state JSON for this repo -- 
   #    the gate is CURRENTLY satisfied.
 bskel gate show stack          # or just one gate's own record (optional <name> positional arg)
 bskel gate export --feature <id> [--out <path>] [--json]
-  #    D-gate-export: a standalone report of current state + full history for all 5 gates, plus
+  #    D-gate-export: a standalone report of current state + full history for all 9 gates
+  #    (preflight/scan/cross_feature/contract/dependencies/handles/stack/patch_transactions/
+  #    conformance), plus
   #    git provenance (branch/HEAD/dirty) at capture time -- the CI-independent answer to "what
   #    did this actually get verified against." Pure reader, never mutates a gate. Deliberately
   #    does NOT try to correlate a specific git commit to a specific historical gate-pass event
