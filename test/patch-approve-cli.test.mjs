@@ -104,6 +104,7 @@ function runWorkflowThroughContract(root) {
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
 	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 }
 
 test('handles plan reports the classified patchable fields for Widget (patch-wrapper + null-means-unchanged + fetch-merge-submit)', () => {

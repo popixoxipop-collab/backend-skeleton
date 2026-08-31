@@ -233,6 +233,7 @@ test('generic-grep-scanned feature: `handles emit` is blocked by the capability 
 	run(['feature', 'init', '--slug', 'widget-management'], root);
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget', '--accept-low-confidence', '--json'], root);
 	run(['gate', 'force', 'contract', '--feature', '001-widget-management', '--reason', 'test: force past a capability-blocked contract'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root); // D-cross-feature-collision: single-feature fixture, always passes -- must run so the capability check below is what actually blocks
 
 	const result = run(['handles', 'emit', '--feature', '001-widget-management'], root);
 	assert.equal(result.code, 17);

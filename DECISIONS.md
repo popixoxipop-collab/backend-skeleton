@@ -9476,3 +9476,139 @@ a concrete assertion, malformed `:id` rejected with 400, default bind address) p
 alongside the full existing suite. Manually run against a real fixture repo with `curl` and a real
 browser, confirming the bundled UI page actually renders live data and its POST form actually
 declares a dependency -- grounded in real observed HTTP behavior, not just passing tests.
+
+## D-cross-feature-collision: NAME-identity collisions between features -- resourceType/table/operationId, confidence-labeled, and a mandatory-in-practice disposition before `handles emit`
+
+**WHY**: Codex's own growth-idea list (an earlier session review) proposed a "cross-feature impact
+graph and mandatory dispositions." The user picked this as the next slice, explicitly choosing the
+FULLER scope (resourceType + DB table name + operationId together) over a narrower resourceType-only
+first cut this session had itself recommended.
+
+A research pass grounded this in the real, current code before designing anything, and found
+something more urgent than a nice-to-have: the runtime handle-resolver dispatch system already
+implicitly assumes `resourceType` is unique across an entire target repo, and nothing anywhere
+detected or protected against that assumption being silently violated. Confirmed live in all three
+codegen languages:
+- Python (`registry.py.tmpl`): a single process-global `dict` keyed only by `type` --
+  `_RESOLVERS[resolver.type] = resolver` silently last-write-wins overwrites on a collision.
+- TypeScript (`registry.ts.tmpl`): identical shape, `RESOLVERS.set(resolver.type, resolver)`.
+- Java (`HandleController.java.tmpl`): `.filter(r -> r.type().equals(type)).findFirst()` --
+  non-deterministic which bean wins on a collision.
+
+`handles/_engine.mjs`'s existing "ownership transfer" note (via `matchesPristineRender`) only covers
+the SAME-resource-re-scanned-by-a-different-feature case (byte-identical render); two UNRELATED
+features whose classes happen to share a resourceType name with DIFFERING content fall through to the
+generic "diverged... may be expected after a template upgrade" conflict message -- actively misleading
+for this specific root cause. Separately confirmed: `operationId` has zero repo-wide uniqueness
+enforcement (`contracts/emit.mjs`'s own duplicate check is per-feature, first-occurrence-wins). DB
+table-name matching is the noisiest signal of the three -- java-spring's `entity.table` is `null`
+whenever there's no explicit `@Table(name=...)` (an honest, non-guessing signal), but python-fastapi
+and typescript-express ALWAYS populate `table` via a lowercased-classname fallback even absent an
+explicit annotation -- a real false-match risk this design must not silently hide.
+
+**Confidence-labeled, not uniform**: `resourceType`/`operationId` matches are always `high` confidence
+(copied verbatim from source annotations on every adapter). `table` matches are `high` only when BOTH
+sides' entity had an EXPLICIT `@Table`/`__tablename__`-equivalent annotation; `medium` when either
+side's table name was INFERRED (adapter fallback guess). Each adapter's entity extraction gained a
+`tableSource: 'explicit' | 'inferred' | null` field: java-spring never guesses (`tableMatch ?
+'explicit' : null`, unchanged behavior otherwise); python-fastapi gained real `__tablename__`
+detection (`'explicit'` when found, `'inferred'` for the pre-existing classname-lowercase fallback);
+typescript-express's `tableSource` reuses `ENTITY_CLASS_RE`'s own captured `@Entity('table_name')`
+literal (`'explicit'` when present, `'inferred'` otherwise). Additive-only field -- nothing downstream
+broke, verified live via `node --test test/scan-fixture.test.mjs test/contract-cli.test.mjs
+test/python-fastapi-cli.test.mjs test/typescript-express-cli.test.mjs` (89/89 passed) immediately
+after the three adapter edits.
+
+**New module** `lib/cross-feature-collisions.mjs`: `findCollisions(root, featureId)` reads THIS
+feature's own disposed module (`brownfield-scan.json`, entities+dtos) and, for every OTHER active
+feature (`listFeatures()` -- excludes archived, same reasoning `D-dependency-propagation-notice`'s own
+`listDownstreamDependents()` already established), compares className/table/operationId. Table names
+are compared case-folded, matching `computeDbDrift()`'s own established convention (the one other
+place in this codebase that already case-folds a `.table` value before comparing it). `operationId`
+comparison only works once BOTH features have an emitted contract (`contracts/<id>.schema.json`) --
+named as a real, honest limitation (pre-emit, there is nothing repo-wide-comparable to check yet), not
+silently pretended to work. `evaluateCrossFeatureFindings(findings, resolution)` mirrors
+`contracts/completeness.mjs`'s own `evaluateResolution()` shape exactly, on a different axis: there
+the split is warning SEVERITY (error vs warn); here it's finding CONFIDENCE (high vs medium) -- only a
+`high`-confidence, unwaived finding blocks. A stale waiver (no longer matching any current finding) is
+reported, never silently dropped, same discipline `contract waive`'s own resolution-staleness handling
+already established.
+
+**Gate + disposition, mirroring `contract`'s own established two-file pattern exactly** -- not a novel
+mechanism, the `contract`/`contract waive` shape applied to a different data source:
+- `bskel scan cross-feature-check --feature <id> [--json]` -- always writes
+  `specs/<id>/cross-feature-report.json` (new schema `sbf.cross-feature-report/1`), then
+  passes/awaits the new `cross_feature` gate depending on whether any HIGH-confidence finding remains
+  unwaived. A `medium`-confidence table match is reported but never blocks on its own -- the concrete
+  mitigation for the adapter table-name-guessing false-match risk named above.
+- `bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id --identifier
+  <name> --other-feature <id> --reason "..."` -- resolves ONE specific finding, mirroring `contract
+  waive`'s per-item `{code, subject}` shape (never a whole-gate blanket accept). Validates against the
+  PERSISTED report from the last check (`loadCrossFeatureReport`), never a live re-computation --
+  the same precedent `contract waive` already establishes against `loadContract`; refuses and names
+  every current finding when the given `{signal, identifier, other-feature}` doesn't match one.
+  Writes `specs/<id>/cross-feature-resolution.json` (new schema `sbf.cross-feature-resolution/1`)
+  under `withLockSync`.
+
+**New gate**, `cross_feature` (`lib/gate-definitions.mjs`): `SCOPE.FEATURE`,
+`VERIFY_POLICY.REQUIRED_WHEN_PRESENT` -- matching the precedent for every gate added this session
+(`dependencies`/`handles`/`stack`/`conformance`), specifically to avoid retroactively breaking every
+already-passing feature's `bskel verify` the moment this shipped. Inserted in `GATE_NAMES` between
+`scan` and `contract` (checking cross-feature identity before investing in contract emission).
+`recompute()` hashes the report + resolution files, plus one `other_feature_scan:<id>` and
+`other_feature_contract:<id>` hash PER other feature named in the persisted report -- so the gate goes
+stale the moment any feature it was compared against changes, not just when this feature's own files
+do. `lib/workflow.mjs`'s `ESTABLISH_COMMAND.cross_feature` and `awaitingDispositionCommand()`'s
+`cross_feature` branch, plus a live-verified (not assumed) confirmation that no `MUTATING_PREFIXES`
+change was needed -- the existing `'bskel scan'` prefix already covers both new subcommands -- were
+added in the SAME commit as the gate itself, closing the exact ESTABLISH_COMMAND/MUTATING_PREFIXES gap
+class found live twice earlier this session (`dependencies`/`conformance`) before it could recur a
+third time.
+
+**Making "mandatory" actually mandatory, not just available**: `REQUIRED_WHEN_PRESENT` alone would let
+a human skip `cross-feature-check` entirely and go straight to `handles emit` -- exactly the step that
+generates the colliding runtime resolver code -- without ever being blocked, which would make
+"mandatory disposition" a name, not a fact. `cmdHandlesEmit` already hard-requires the `contract` gate
+before proceeding (`requireNamedGate(root, 'contract', ...)`); this adds the IDENTICAL prerequisite
+check for `cross_feature`, immediately after it -- not_run OR unresolved-high-confidence-collision both
+block, naming `bskel scan cross-feature-check --feature <id>` (not_run) or `bskel scan
+cross-feature-waive`/`bskel gate force cross_feature` (awaiting_disposition) as the remediation. This
+is a new INSTANCE of an existing pattern, not a new mechanism. The gate's own formal `verifyPolicy`
+stays `REQUIRED_WHEN_PRESENT` so `bskel verify`/`bskel next` do not retroactively fail or nag every
+already-passing feature that never touches handles at all (e.g. a contract-only feature) -- confirmed
+live (`test/cross-feature-check-cli.test.mjs`'s own "next stays quiet" test) that `bskel next` correctly
+recommends plain `bskel verify` when `cross_feature` is merely not_run and nothing else blocks, exactly
+matching `isBlockingGateResult`'s pre-existing "not_run on a required-when-present gate isn't blocking"
+rule already governing `dependencies`/`conformance`.
+
+**A real deviation from the plan's own literal wording, found during implementation, not before**:
+the plan text said "`cmdHandlesPlan`/`cmdHandlesEmit` gain..." -- but reading `cmdHandlesPlan`'s actual
+code during implementation showed it does NOT check the `contract` gate at all (it is dryRun-only,
+never writes, so the plan's own precedent doesn't apply to it either). `cross_feature` was correctly
+NOT added to `cmdHandlesPlan`, matching its existing, deliberate gate-independence rather than the
+plan's literal text -- confirmed by a passing test (`'handles plan is unaffected by an unresolved
+cross-feature collision'`) that `handles plan` still succeeds with a real, unresolved collision present.
+
+**Verified**: `npm test` -- 0 regressions across the full existing suite, plus two new test files:
+`test/cross-feature-collisions.test.mjs` (17 unit tests: `findCollisions`/`evaluateCrossFeatureFindings`/
+`waiverKey`/resolution load-save, hand-built scan-report/contract/feature.json fixtures covering all 3
+signals, the explicit/inferred table-confidence split, case-insensitive table matching, archived-feature
+exclusion, and schema-refusal on save) and `test/cross-feature-check-cli.test.mjs` (13 e2e tests against
+a real two-feature Java fixture with a genuinely duplicated `@Entity @Table(name="item")` class: no-
+collision baseline, a real collision detected+blocking, symmetric detection from either feature,
+waiving an unknown finding refused by name, per-item partial-waive still blocking, full-waive passing,
+`handles plan` unaffected, `handles emit` blocked pre-check/post-check/partial-waive and finally
+succeeding post-full-waive with real files written, `bskel verify` showing the gate PASS, and `bskel
+next`'s two correct behaviors above). Also manually smoke-tested end-to-end against a live fixture
+before any formal test existed (script name `xfc-cli-smoke3`, not checked in) -- the formal tests above
+reproduce every step of that manual run.
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- Auto-fixing a collision (renaming a resourceType/table) -- a human decision, never automated, same
+  "this needs a human, not codegen" precedent `patchField()`'s own permanent stub already established.
+- `operationId` collision detection only works once a contract has been emitted for BOTH features being
+  compared -- pre-emit, there is nothing repo-wide-comparable to check yet.
+- No cross-feature DB *foreign-key* or dependency-direction inference -- this item only detects NAME-
+  identity collisions (same string, different features), not "feature B's table references feature A's
+  table via FK." That would need live DB introspection correlation across features (Plane C), a
+  materially larger, separate signal, out of scope here.

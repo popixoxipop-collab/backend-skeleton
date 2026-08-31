@@ -247,7 +247,7 @@ test('gate require/force/show reject an unknown gate name, and no state file is 
 	const requireResult = run(['gate', 'require', 'bogus-gate'], root);
 	assert.equal(requireResult.code, 14);
 	assert.match(requireResult.stderr, /unknown gate "bogus-gate"/);
-	assert.match(requireResult.stderr, /preflight, scan, contract, dependencies, handles, stack/);
+	assert.match(requireResult.stderr, /preflight, scan, cross_feature, contract, dependencies, handles, stack, conformance/);
 
 	const forceResult = run(['gate', 'force', 'bogus-gate', '--reason', 'x'], root);
 	assert.equal(forceResult.code, 14);

@@ -155,7 +155,15 @@ function extractTableEntities(text, file) {
 		const bodyEnd = i + 1 < classMatches.length ? classMatches[i + 1].index : text.length;
 		const body = text.slice(bodyStart, bodyEnd);
 		const idMatch = body.match(/(\w+)\s*:[^=\n]+=\s*Field\([^)]*primary_key\s*=\s*True/);
-		entities.push({ className: m[1], table: m[1].toLowerCase(), idField: idMatch ? idMatch[1] : null, file, line: lineNumberAt(text, m.index) });
+		// D-cross-feature-collision: a real `__tablename__ = "..."` override, previously never
+		// checked at all -- `table` fell back to the lowercased class name unconditionally, which
+		// silently mis-derives the real table name whenever a class overrides it. Cross-feature
+		// collision detection needs to know which case this was: 'explicit' (the real, trustworthy
+		// name) vs 'inferred' (a guess that could be wrong), not just a bare string either way.
+		const tablenameMatch = body.match(/__tablename__\s*(?::\s*\w+\s*)?=\s*["']([^"']+)["']/);
+		const table = tablenameMatch ? tablenameMatch[1] : m[1].toLowerCase();
+		const tableSource = tablenameMatch ? 'explicit' : 'inferred';
+		entities.push({ className: m[1], table, tableSource, idField: idMatch ? idMatch[1] : null, file, line: lineNumberAt(text, m.index) });
 	}
 	return entities;
 }

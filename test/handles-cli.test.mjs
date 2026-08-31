@@ -81,6 +81,11 @@ function runWorkflowThroughContract(root) {
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
 	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	// D-cross-feature-collision: `handles emit` now hard-requires this gate too (mirrors the
+	// pre-existing `contract` gate check immediately above) -- a single-feature fixture like this
+	// one has nothing to collide with, so the check always passes with 0 findings, but it must
+	// still have RUN at least once.
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root);
 }
 
 test('handles emit is blocked before the contract gate has passed', () => {

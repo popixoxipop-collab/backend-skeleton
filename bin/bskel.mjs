@@ -36,6 +36,10 @@ import {
 	resolveClassFile, listDownstreamDependents, DependencyOperationError,
 	declareDependency, removeDependency, buildDependencyListReport,
 } from '../lib/field-dependencies.mjs';
+import {
+	findCollisions, evaluateCrossFeatureFindings, waiverKey,
+	crossFeatureReportPath, loadCrossFeatureReport, loadCrossFeatureResolution, saveCrossFeatureResolution,
+} from '../lib/cross-feature-collisions.mjs';
 import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
@@ -70,6 +74,8 @@ function usage() {
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
+  bskel scan cross-feature-check --feature <id> [--json]
+  bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id --identifier <name> --other-feature <id> --reason "..."
   bskel feature init --slug <name>
   bskel feature list [--all] [--json]
   bskel feature show <id> [--json]
@@ -632,6 +638,128 @@ function cmdScanExplain(args) {
 		console.log(renderScanExplain(mod));
 	}
 	process.exit(0);
+}
+
+// D-cross-feature-collision: mirrors cmdContractEmit's own "always write the artifact, gate
+// blocks only if unresolved issues remain" shape exactly, for a different data source (NAME-
+// identity collisions against every OTHER feature, not this feature's own contract completeness).
+function cmdScanCrossFeatureCheck(args) {
+	const flags = parseCommand('scan cross-feature-check', args);
+	if (flags.help) { console.log(renderCommandHelp('scan cross-feature-check')); process.exit(0); }
+	setContext('scan cross-feature-check', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	const findings = findCollisions(root, flags.feature);
+	const report = {
+		schema: 'sbf.cross-feature-report/1',
+		feature_id: flags.feature,
+		generated_at: new Date().toISOString(),
+		findings,
+	};
+	const { ok, errors } = validateAgainstSchema('cross-feature-report.schema.json', report);
+	if (!ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `internal error: the computed cross-feature report failed its own schema -- ${formatSchemaErrors(errors).join('; ')}`);
+	}
+	writeFileAtomic(crossFeatureReportPath(root, flags.feature), `${JSON.stringify(report, null, 2)}\n`);
+
+	const resolution = loadCrossFeatureResolution(root, flags.feature);
+	const evaluation = evaluateCrossFeatureFindings(findings, resolution);
+	const evidence = {
+		finding_count: findings.length,
+		high_confidence_count: findings.filter((f) => f.confidence === 'high').length,
+		waived_count: evaluation.waived.length,
+		stale_waivers: evaluation.staleWaivers.length,
+	};
+	const gateState = evaluation.blocking
+		? awaitNamedGateDisposition(root, 'cross_feature', flags.feature, { ...evidence, unwaived: evaluation.unwaived })
+		: passNamedGate(root, 'cross_feature', flags.feature, evidence);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ report, gate: gateState.gates.cross_feature }, null, 2));
+	} else {
+		if (!flags.quiet) {
+			const otherCount = new Set(findings.map((f) => f.other_feature)).size;
+			console.log(`${findings.length} finding(s) (${evidence.high_confidence_count} high-confidence) across ${otherCount} other feature(s)`);
+			for (const f of findings) console.log(`  [${f.confidence}] ${f.signal}: "${f.identifier}" also declared by ${f.other_feature}`);
+			console.log(`gate: cross_feature -> ${gateState.gates.cross_feature.status}`);
+		}
+		if (evaluation.staleWaivers.length > 0) {
+			console.error(`\nnote: ${evaluation.staleWaivers.length} recorded waiver(s) no longer match any current finding (kept as-is, not auto-removed):`);
+			for (const w of evaluation.staleWaivers) console.error(`  ${w.signal} "${w.identifier}" (${w.other_feature})`);
+		}
+		if (evaluation.blocking) {
+			console.error(`\nblocked: ${evaluation.unwaived.length} unresolved high-confidence collision(s):`);
+			for (const f of evaluation.unwaived) {
+				console.error(`  bskel scan cross-feature-waive --feature ${flags.feature} --signal ${f.signal} --identifier "${f.identifier}" --other-feature ${f.other_feature} --reason "..."`);
+			}
+		}
+	}
+	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
+}
+
+const CROSS_FEATURE_SIGNALS = ['resource_type', 'table', 'operation_id'];
+
+// Validates against the PERSISTED report from the last `cross-feature-check` run, never a live
+// re-computation -- same precedent `contract waive` already establishes against `loadContract`
+// (contracts/completeness.mjs). If reality moved since that check, the gate's own staleness token
+// (which covers every OTHER feature named in the report) is what surfaces that, not a silent
+// re-check inside this command.
+function cmdScanCrossFeatureWaive(args) {
+	const flags = parseCommand('scan cross-feature-waive', args);
+	if (flags.help) { console.log(renderCommandHelp('scan cross-feature-waive')); process.exit(0); }
+	setContext('scan cross-feature-waive', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	requireValidFeatureId(flags['other-feature']);
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel scan cross-feature-waive requires --reason "..." -- every waiver must be auditable');
+	}
+	if (!CROSS_FEATURE_SIGNALS.includes(flags.signal)) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--signal must be one of: ${CROSS_FEATURE_SIGNALS.join(', ')}`);
+	}
+
+	const report = loadCrossFeatureReport(root, flags.feature);
+	if (!report) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no cross-feature-report.json for feature "${flags.feature}" -- run \`bskel scan cross-feature-check --feature ${flags.feature}\` first`);
+	}
+	const match = report.findings.find((f) => f.signal === flags.signal && f.identifier === flags.identifier && f.other_feature === flags['other-feature']);
+	if (!match) {
+		const known = report.findings.map((f) => `${f.signal} "${f.identifier}" (${f.other_feature})`);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no current finding matches --signal ${flags.signal} --identifier "${flags.identifier}" --other-feature ${flags['other-feature']} -- current findings: ${known.join('; ') || '(none)'}`);
+	}
+
+	const updated = withLockSync(root, 'state', () => {
+		const resolution = loadCrossFeatureResolution(root, flags.feature);
+		const key = waiverKey({ signal: flags.signal, identifier: flags.identifier, other_feature: flags['other-feature'] });
+		const entry = { signal: flags.signal, identifier: flags.identifier, other_feature: flags['other-feature'], reason: flags.reason, at: new Date().toISOString() };
+		const next = {
+			schema: 'sbf.cross-feature-resolution/1',
+			feature_id: flags.feature,
+			waivers: [...resolution.waivers.filter((w) => waiverKey(w) !== key), entry],
+		};
+		saveCrossFeatureResolution(root, flags.feature, next);
+		return next;
+	});
+
+	const evaluation = evaluateCrossFeatureFindings(report.findings, updated);
+	const evidence = {
+		finding_count: report.findings.length,
+		high_confidence_count: report.findings.filter((f) => f.confidence === 'high').length,
+		waived_count: evaluation.waived.length,
+		stale_waivers: evaluation.staleWaivers.length,
+	};
+	const gateState = evaluation.blocking
+		? awaitNamedGateDisposition(root, 'cross_feature', flags.feature, { ...evidence, unwaived: evaluation.unwaived })
+		: passNamedGate(root, 'cross_feature', flags.feature, evidence);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ waived: true, gate: gateState.gates.cross_feature }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`waived: ${flags.signal} "${flags.identifier}" (${flags['other-feature']})`);
+		console.log(`gate: cross_feature -> ${gateState.gates.cross_feature.status}`);
+	}
+	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
 // D6 (D-feature-lifecycle): the whole read-specs/->compute-NNN->write-feature.json->
@@ -2036,6 +2164,25 @@ function cmdHandlesEmit(args) {
 		});
 	}
 
+	// D-cross-feature-collision: making "mandatory disposition" actually mandatory, not just
+	// available -- `handles emit` is specifically the step that generates the runtime resolver
+	// code every codegen provider's own resourceType-keyed dispatch (Java/Python/TS, all three)
+	// already implicitly assumes is repo-unique. `cross_feature`'s own gate `verifyPolicy` stays
+	// REQUIRED_WHEN_PRESENT (so `bskel verify` doesn't retroactively fail a contract-only feature
+	// that never touches handles at all) -- this hard-requires it ONLY here, the one command where
+	// the real risk actually lives, mirroring the `contract` gate check immediately above exactly.
+	// Deliberately NOT added to `cmdHandlesPlan` -- that command never writes (dryRun always),
+	// same reasoning it already gives for skipping the `contract` gate entirely.
+	const crossFeatureResult = requireNamedGate(root, 'cross_feature', flags.feature);
+	if (crossFeatureResult.code !== EXIT.PASS) {
+		const cfHint = crossFeatureResult.status === 'awaiting_disposition'
+			? `resolve it first -- \`bskel scan cross-feature-waive --feature ${flags.feature} --signal resource_type|table|operation_id --identifier <name> --other-feature <id> --reason "..."\`, or \`bskel gate force cross_feature --feature ${flags.feature} --reason "..."\` if intentional.`
+			: `run \`bskel scan cross-feature-check --feature ${flags.feature}\` first.`;
+		fail(crossFeatureResult.code, gateReasonForCode(crossFeatureResult.code), `blocked: \`cross_feature\` gate for ${flags.feature} is ${crossFeatureResult.status} -- ${cfHint}`, {
+			next_actions: [{ command: `bskel scan cross-feature-check --feature ${flags.feature}`, reason: 'the cross_feature gate has not passed yet', mutating: true }],
+		});
+	}
+
 	const scanReport = loadScanReportOrExit(root, flags.feature);
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	requireCapabilitiesOrExit(scanReport, 'handles emit', { featureId: flags.feature, scanReportPath });
@@ -3007,6 +3154,8 @@ async function dispatchCommand(cmd, rest) {
 		case 'scan': {
 			if (rest[0] === 'disposition') return cmdScanDisposition(rest.slice(1));
 			if (rest[0] === 'explain') return cmdScanExplain(rest.slice(1));
+			if (rest[0] === 'cross-feature-check') return cmdScanCrossFeatureCheck(rest.slice(1));
+			if (rest[0] === 'cross-feature-waive') return cmdScanCrossFeatureWaive(rest.slice(1));
 			await cmdScan(rest);
 			break;
 		}

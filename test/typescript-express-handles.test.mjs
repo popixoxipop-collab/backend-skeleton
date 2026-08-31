@@ -251,6 +251,7 @@ function runToHandlesEmit(root) {
 	run(['scan', '--feature', '001-user-management', '--terms', 'user', '--json'], root);
 	run(['scan', 'disposition', '--feature', '001-user-management', '--mode', 'extend', '--note', 'test'], root);
 	run(['gate', 'force', 'contract', '--feature', '001-user-management', '--reason', 'handles-only test, no OpenAPI oracle for this ecosystem'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-user-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 	return run(['handles', 'emit', '--feature', '001-user-management', '--module', 'users', '--json'], root);
 }
 

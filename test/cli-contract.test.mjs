@@ -138,14 +138,14 @@ for (const [name, expected] of Object.entries(EXPECTED_DEFAULTS)) {
 
 // Commands with `required` fields: empty argv must throw (this itself proves the migration was
 // lossless for the "missing required flag" behavior class too).
-for (const name of ['scan disposition', 'scan explain', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'verify', 'dependency declare', 'dependency remove', 'dependency list']) {
+for (const name of ['scan disposition', 'scan explain', 'scan cross-feature-check', 'scan cross-feature-waive', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'verify', 'dependency declare', 'dependency remove', 'dependency list']) {
 	test(`parseCommand("${name}", []) throws CliUsageError (required field missing)`, () => {
 		assert.throws(() => parseCommand(name, []), CliUsageError);
 	});
 }
 
 test('every command in COMMANDS is exercised by the default-value snapshot or the required-field test above', () => {
-	const covered = new Set([...Object.keys(EXPECTED_DEFAULTS), 'scan disposition', 'scan explain', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'verify', 'dependency declare', 'dependency remove', 'dependency list']);
+	const covered = new Set([...Object.keys(EXPECTED_DEFAULTS), 'scan disposition', 'scan explain', 'scan cross-feature-check', 'scan cross-feature-waive', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'verify', 'dependency declare', 'dependency remove', 'dependency list']);
 	assert.deepEqual([...covered].sort(), Object.keys(COMMANDS).sort());
 });
 

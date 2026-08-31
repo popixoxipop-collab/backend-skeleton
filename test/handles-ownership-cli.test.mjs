@@ -94,6 +94,12 @@ function runWorkflowThroughContract(root, featureId, slug) {
 	run(['scan', '--feature', featureId, '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', featureId, '--mode', 'reuse', '--note', 'x'], root);
 	run(['contract', 'emit', '--feature', featureId], root);
+	// D-cross-feature-collision: `handles emit` now hard-requires this gate too. For the SECOND
+	// feature in test (e) below, this genuinely finds real resource_type/table findings against
+	// 001-widget-management (both features intentionally scan the SAME physical Widget resource,
+	// on purpose, to exercise ownership transfer) -- that test waives them explicitly afterward.
+	// For every single-feature caller of this helper, the check finds nothing and passes outright.
+	run(['scan', 'cross-feature-check', '--feature', featureId], root);
 }
 
 function setupFirstFeature(root) {
@@ -255,6 +261,14 @@ test('(e) a second feature touching the same resource type takes over ownership 
 	run(['handles', 'emit', '--feature', '001-widget-management'], root);
 
 	runWorkflowThroughContract(root, '002-widget-extras', 'widget-extras');
+	// D-cross-feature-collision: 002 scans the SAME physical Widget resource as 001 (the whole
+	// point of this test), so its own cross-feature-check genuinely finds a real resource_type +
+	// table collision against 001 -- a human must explicitly confirm this is the SAME resource on
+	// purpose (exactly what the ownership-transfer note below is about), distinct from the
+	// resolver-level ownership-transfer mechanism this test otherwise exercises.
+	assert.equal(run(['scan', 'cross-feature-waive', '--feature', '002-widget-extras', '--signal', 'resource_type', '--identifier', 'Widget', '--other-feature', '001-widget-management', '--reason', 'same physical resource, intentional ownership transfer'], root).code, 3);
+	assert.equal(run(['scan', 'cross-feature-waive', '--feature', '002-widget-extras', '--signal', 'table', '--identifier', 'widget', '--other-feature', '001-widget-management', '--reason', 'same physical resource, intentional ownership transfer'], root).code, 3);
+	assert.equal(run(['scan', 'cross-feature-waive', '--feature', '002-widget-extras', '--signal', 'operation_id', '--identifier', 'findWidget', '--other-feature', '001-widget-management', '--reason', 'same physical resource, intentional ownership transfer'], root).code, 0);
 	const emit2 = run(['handles', 'emit', '--feature', '002-widget-extras', '--json'], root);
 	assert.equal(emit2.code, 0);
 	const emit2Json = JSON.parse(emit2.stdout);
@@ -416,6 +430,7 @@ test('(h) a hand-finished patchField() blocks Resolver.java but must NOT block a
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
 	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root); // D-cross-feature-collision: single-feature fixture, always passes -- see runWorkflowThroughContract's own comment above
 	assert.equal(run(['handles', 'patch', 'approve', '--feature', '001-widget-management', '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'trusted mapping'], root).code, 0);
 	assert.equal(run(['handles', 'emit', '--feature', '001-widget-management'], root).code, 0);
 

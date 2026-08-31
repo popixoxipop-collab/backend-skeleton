@@ -44,7 +44,7 @@ test('gateScopeId: repo-scoped gates always resolve to REPO_GATE_ID, feature-sco
 test('getGateDefinition returns null and requireGateDefinition throws for an unknown gate name', () => {
 	assert.equal(getGateDefinition('bogus-gate'), null);
 	assert.throws(() => requireGateDefinition('bogus-gate'), /unknown gate "bogus-gate"/);
-	assert.throws(() => requireGateDefinition('bogus-gate'), /preflight, scan, contract, dependencies, handles, stack/);
+	assert.throws(() => requireGateDefinition('bogus-gate'), /preflight, scan, cross_feature, contract, dependencies, handles, stack, conformance/);
 });
 
 // D-security-3-shaped defense: `constructor`/`__proto__`/`toString` must not resolve to

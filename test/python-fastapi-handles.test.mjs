@@ -320,6 +320,7 @@ function runToHandlesEmit(root, extraArgs = []) {
 	// The fixture's operationId is always null (D-fastapi-adapter) -- contract emit is out of
 	// scope here, force past it since this suite's focus is handles codegen, not contracts.
 	run(['gate', 'force', 'contract', '--feature', '001-item-management', '--reason', 'handles-only test, contract covered elsewhere'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-item-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 	return run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json', ...extraArgs], root);
 }
 
@@ -544,6 +545,7 @@ test('a hand-finished check_access() blocks item.py but must NOT block an unrela
 		paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } },
 	}));
 	assert.equal(run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'], root).code, 0);
+	run(['scan', 'cross-feature-check', '--feature', '001-item-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 	assert.equal(run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items'], root).code, 0);
 
 	const resolverPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item.py');

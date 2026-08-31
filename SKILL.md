@@ -280,6 +280,17 @@ bskel scan --feature <id> --terms ... --accept-low-confidence   # required when 
 bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel --note "..."
                                                         # required before anything downstream can pass the `scan` gate
                                                         # for a feature whose verdict was collision/adjacent
+
+bskel scan cross-feature-check --feature <id> [--json]
+                                                        # writes specs/<id>/cross-feature-report.json, sets the `cross_feature` gate.
+                                                        # detects a resourceType/DB table/operationId this feature shares with another
+                                                        # ACTIVE feature (see D-cross-feature-collision) -- required before `handles emit`
+                                                        # (not `handles plan`) will proceed, even though the gate itself is only
+                                                        # required-when-present for `bskel verify`.
+bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id --identifier <name> --other-feature <id> --reason "..."
+                                                        # resolves ONE finding from the last cross-feature-check run (per-item, never a
+                                                        # whole-gate blanket accept) -- refuses, naming every current finding, if the
+                                                        # given signal/identifier/other-feature doesn't match one
 ```
 
 `scan`'s verdict: `greenfield` (no related code found -- gate auto-passes), `adjacent` (weak

@@ -86,6 +86,11 @@ function runWorkflowThroughContract(root) {
 	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
 	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	// D-cross-feature-collision: single-feature fixture, always passes with 0 findings -- its token
+	// only depends on cross-feature-report.json/resolution.json's own content (no `other_feature`
+	// entries for a solo feature), so it stays passed through every later re-scan/re-contract-emit
+	// this file's own tests perform (neither touches these two files).
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root);
 }
 
 const RESOLVER_REL = 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java';
@@ -345,6 +350,7 @@ test('handles emit --check for python-fastapi (real outputs.spec, G4 follow-up) 
 	const docPath = path.join(root, 'openapi.json');
 	fs.writeFileSync(docPath, JSON.stringify({ openapi: '3.1.0', paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } } }));
 	run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', docPath, '--path-prefix', '/api/v1'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-item-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 
 	const fresh = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--check', '--json'], root);
 	assert.equal(fresh.code, 1);

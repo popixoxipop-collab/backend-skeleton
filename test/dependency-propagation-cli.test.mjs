@@ -62,6 +62,7 @@ test('handles plan + handles emit --json for the SOURCE feature includes the sam
 	editWidgetAndReestablishSourceFeature(root);
 	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 0);
 	assert.equal(run(['handles', 'plan', '--feature', '001-widget-management'], root).code, 0);
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root); // D-cross-feature-collision: WidgetDto/OrganizationDto never collide -- always passes
 
 	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--json'], root);
 	assert.equal(emit.code, 0);

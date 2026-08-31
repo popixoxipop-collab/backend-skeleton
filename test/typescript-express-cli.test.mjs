@@ -270,6 +270,7 @@ test('handles plan/emit against a typescript-express-scanned feature dispatches 
 	const root = buildFixtureRepo();
 	runWorkflowThroughScan(root, '001-user-management', 'user');
 	run(['gate', 'force', 'contract', '--feature', '001-user-management', '--reason', 'handles-only test, no OpenAPI oracle for this ecosystem'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-user-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 
 	const plan = run(['handles', 'plan', '--feature', '001-user-management', '--module', 'users', '--json'], root);
 	assert.equal(plan.code, 0);

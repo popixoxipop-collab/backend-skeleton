@@ -195,6 +195,12 @@ function extractTableEntities(text, file) {
 		entities.push({
 			className,
 			table: m[1] || className.toLowerCase(),
+			// D-cross-feature-collision: m[1] is ENTITY_CLASS_RE's own captured explicit
+			// `@Entity('table_name')` literal argument -- already extracted above, just never
+			// separately flagged as the confidence signal it actually is (vs. the lowercased-
+			// classname fallback on the same line, which is a guess TypeORM's own real default-
+			// naming convention happens to often match, but not always).
+			tableSource: m[1] ? 'explicit' : 'inferred',
 			idField: idMatch ? idMatch[2] : null,
 			idFieldIsUuid: idMatch ? /['"]uuid['"]/.test(idMatch[1]) : false,
 			file,

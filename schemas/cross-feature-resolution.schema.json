@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:cross-feature-resolution:1",
+  "title": "backend-skeleton cross-feature collision waiver resolution",
+  "description": "Documentation only, like contract-resolution.schema.json -- nothing loads this at runtime beyond a direct JSON parse (see the analogous contracts/completeness.mjs's loadResolution). Validates specs/<feature_id>/cross-feature-resolution.json, written by `bskel scan cross-feature-waive`. Deliberately separate from cross-feature-report.schema.json's own artifact, mirroring D-contract-completeness's own reasoning for keeping waivers out of the report they apply to. Each waiver is a specific {signal, identifier, other_feature} triple, never a wildcard -- a collision that doesn't exist yet is never silently covered, same discipline contract-resolution.schema.json's own {code, subject} waivers already establish.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "waivers"],
+  "properties": {
+    "schema": { "const": "sbf.cross-feature-resolution/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "waivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signal", "identifier", "other_feature", "reason", "at"],
+        "properties": {
+          "signal": { "enum": ["resource_type", "table", "operation_id"] },
+          "identifier": { "type": "string" },
+          "other_feature": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+          "reason": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

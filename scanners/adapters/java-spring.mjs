@@ -141,6 +141,12 @@ function extractEntity(text, filePath) {
 	return {
 		className: classDecl ? classDecl.name : path.basename(filePath, '.java'),
 		table: tableMatch ? tableMatch[1] : null,
+		// D-cross-feature-collision: this adapter never GUESSES a table name -- `table: null` above
+		// already means "no explicit @Table(name=...)", so tableSource is 'explicit' whenever
+		// `table` is non-null and null otherwise. Added only for a consistent field shape with the
+		// two adapters that DO guess (python-fastapi/typescript-express) -- cross-feature collision
+		// detection reads this field, not each adapter's own null-vs-guessed convention.
+		tableSource: tableMatch ? 'explicit' : null,
 		idField: idFieldMatch ? idFieldMatch[1] : null,
 		file: filePath,
 		line: classDecl ? lineNumberAt(text, classDecl.index) : null,

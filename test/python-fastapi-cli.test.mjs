@@ -400,6 +400,7 @@ test('handles plan/emit against a python-fastapi-scanned feature dispatches to t
 	runWorkflowThroughScan(root, '001-item-management', 'item');
 	const docPath = writeOpenApiDoc(root);
 	run(['contract', 'emit', '--feature', '001-item-management', '--module', 'items', '--openapi-file', docPath, '--path-prefix', '/api/v1'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-item-management'], root); // D-cross-feature-collision: single-feature fixture, always passes
 
 	const plan = run(['handles', 'plan', '--feature', '001-item-management', '--module', 'items', '--json'], root);
 	assert.equal(plan.code, 0);

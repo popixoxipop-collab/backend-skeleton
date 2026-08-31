@@ -78,6 +78,7 @@ function runWorkflowThroughHandlesEmit(root, featureId, slug) {
 	run(['scan', '--feature', featureId, '--terms', 'widget'], root);
 	run(['scan', 'disposition', '--feature', featureId, '--mode', 'reuse', '--note', 'x'], root);
 	run(['contract', 'emit', '--feature', featureId], root);
+	run(['scan', 'cross-feature-check', '--feature', featureId], root); // D-cross-feature-collision: single-feature fixture, always passes
 	run(['handles', 'emit', '--feature', featureId], root);
 }
 
