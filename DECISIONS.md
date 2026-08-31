@@ -9105,6 +9105,61 @@ lifecycle features (no recover()/snapshot equivalent) -- scope the user chose no
 Revisit this note, not `D-resolver-policy-split`'s, if `O8`-for-typescript-express comes up again --
 the "nothing to port" framing does not apply here.
 
+### Continued: `--fail-on-violation`, the v1.1 policy layer this item's own EXIT section named
+
+**WHY**: this item's own original EXIT list named it explicitly: *"`--fail-on-violation` / CI-
+blocking on violation content -- v1's gate is evidence-first... a policy layer on top is natural
+v1.1 once real usage shows what threshold matters, not decided speculatively here."* Until this,
+`bskel observe import` unconditionally called `passNamedGate` regardless of how many violations a
+receipt import found -- real observed traffic could contradict the documented contract and `bskel
+verify`/`bskel status` would still report a clean `[PASS] conformance`. The static-contract ->
+observed-reality loop existed but had no teeth. The user picked this exact deferred item as the next
+slice to close.
+
+**Mechanism -- deliberately the smallest change that closes the gap, not a speculative universal
+policy**: one new opt-in flag, `bskel observe import --fail-on-violation` (default `false`, matching
+this project's own "safe default, explicit override" convention -- existing behavior is completely
+unchanged for anyone not passing it). When passed AND the import found at least one violation,
+`cmdObserveImport` calls `awaitNamedGateDisposition(root, 'conformance', ...)` instead of
+`passNamedGate(...)` -- the EXACT SAME disposition mechanism `contract` already uses for "evidence
+exists but isn't good enough to pass silently" (`cmdContractEmit`'s own `partial`/`blocked` handling).
+Zero violations, or the flag omitted, behaves exactly as before.
+
+**Grounded before designing anything, not assumed**: tracing the real code first showed this needed
+almost NO new infrastructure. `bskel gate force <name> --reason "..."` (`cmdGateForce`) is already
+fully generic -- any gate name, no per-gate special-casing -- so it already worked as the resolution
+path for a stuck `conformance` gate with zero code changes. `lib/workflow.mjs`'s
+`awaitingDispositionCommand()` already falls back to exactly this generic command for any gate name
+it doesn't special-case (only `scan`/`contract` get bespoke text), so `bskel next`'s own
+recommendation for a stuck conformance gate was ALREADY correct before this item, unverified until
+now (a new regression test proves it, rather than continuing to just assume it). `cmdVerify`'s
+overall verdict (`gates.every((g) => !g.blocking)`) and `isBlockingGateResult`'s policy matrix
+(`awaiting_disposition` always blocks a `REQUIRED_WHEN_PRESENT` gate) are both already fully
+generic -- flipping `bskel verify`'s overall verdict to FAIL needed zero changes to `cmdVerify`
+itself. The one real gap: `renderVerifyReport`'s per-gate line had a `contract`-specific inline
+`completenessNote` but nothing equivalent for `conformance` -- fixed with a `conformanceNote`
+mirroring that exact precedent (`N violation(s), M/T matched`), firing for both `pass` and
+`awaiting_disposition` states so a human sees the count even when `--fail-on-violation` wasn't used.
+
+**No new CLI verb, no schema change, no new gate.** `schemas/conformance-report.schema.json` and
+`lib/gate-definitions.mjs`'s `conformance` gate definition are both untouched -- this item is
+entirely about which of two already-existing gate-write functions `cmdObserveImport` calls, plus one
+new flag and one new report line.
+
+**COST**: none new -- the original item's own EXIT text already named this exact policy layer as
+"natural v1.1," not a scope surprise being introduced now.
+
+**Verified**: `npm test` -- `test/observe-import-cli.test.mjs` gained 6 new cases (violations +
+`--fail-on-violation` -> `awaiting_disposition` + exit 3 + the blocked note's exact text; the
+identical violating receipts WITHOUT the flag still pass, proving the default is unchanged; zero
+violations WITH the flag still pass; `bskel verify --json`'s `pass`/`gates[].blocking` correctly flip
+to FAIL with the violation count inline in the text report; `bskel gate force conformance --reason
+"..."` genuinely resolves it back to a real pass, not just assumed to work because the mechanism is
+generic; `bskel next --json` genuinely recommends the real gate-force text for conformance
+specifically, not just assumed from `awaitingDispositionCommand()`'s own fallback logic) --
+`test/status-next-cli.test.mjs`/`test/verify-cli.test.mjs`/`test/doc-integrity.test.mjs` all re-run
+unchanged, 0 regressions.
+
 ## D-field-dependency: declaring "field A is derived from field B" via the same disk-hash gate mechanism every other gate uses -- data model + gate only, no codegen propagation yet
 
 **WHY**: a standalone UI mockup (Fieldwire -- a wire-based, ArgoCD-style editor, not part of this

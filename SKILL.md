@@ -822,16 +822,50 @@ bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,t
   #    own (see O3/O5 for revocation enforcement/authorization contracts), and a snapshot's absence
   #    never means a handle was never used, only that recording was never opted into for that path.
 
+bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
+  # -> D-runtime-conformance-receipts: generates opt-in runtime middleware (java-spring: an
+  #    `@Around` aspect + a request/response conformance checker against the projected contract
+  #    schema; python-fastapi: a `@observe_contract` decorator, dual sync/async-aware) that a human
+  #    applies to their own code -- codegen never touches existing business logic. When applied and
+  #    run in a real environment, every observed call is checked against the baked contract and
+  #    written as a JSONL "receipt" (feature/operation/contract_ref/violations), verdict-only --
+  #    never a request/response payload value, so this cannot become a new PII/secret sink.
+  #    Requires the `contract` gate to have passed. `--force`/dry-run/--diff mirror `handles emit`'s
+  #    own O2 ownership-conflict semantics exactly (same manifest-tracked generated-file safety).
+
+bskel observe import --feature <id> --receipts <path> [--fail-on-violation] [--json]
+  # -> reads a JSONL receipts file (produced by a target app running the middleware from
+  #    `observe emit`, or hand-assembled for testing), buckets each receipt as `matched` (its
+  #    `contract_ref` equals the CURRENT contract's hash) or `stale_contract_ref` (collected before
+  #    the last re-emit -- reported, never treated as an error, since any real collection window
+  #    straddles a re-emit), and writes specs/<id>/observe/<id>.conformance-report.json. A line
+  #    that isn't valid JSON at all is counted as noise and skipped (a log pipeline realistically
+  #    isn't perfectly scoped to just this logger); a line that IS valid JSON but fails the receipt
+  #    schema is real corruption -- aborts the WHOLE import, writes nothing (a corrupted receipts
+  #    file must never partially land), same as a receipt for the wrong feature_id/feature_uid.
+  #
+  #    By DEFAULT (no flag) this is evidence-first, not verdict-first, same as `contract`'s own
+  #    waiver precedent: the `conformance` gate passes on a successful STRUCTURAL import regardless
+  #    of how many violations were found -- the report is written either way, so real observed
+  #    drift from the contract is always visible, just not blocking by default.
+  #    `--fail-on-violation` (D-runtime-conformance-receipts, Continued) opts into the stricter v1.1
+  #    policy: when violations are found WITH this flag, the `conformance` gate goes
+  #    `awaiting_disposition` instead of passing -- exactly the same disposition `contract` already
+  #    uses for a `partial` contract -- which correctly flips `bskel verify`'s overall verdict to
+  #    FAIL and `bskel next` to recommend resolving it. No new CLI verb for resolution: the
+  #    already-generic `bskel gate force conformance --feature <id> --reason "..."` (see `bskel gate
+  #    force` above) works here with zero special-casing, exactly as it does for any other gate.
+
 bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
-  # -> aggregates all 5 gates (lib/gate-definitions.mjs is the single source both this and every
+  # -> aggregates all 7 gates (lib/gate-definitions.mjs is the single source both this and every
   #    gate-writing command consume) via the same machinery every other command uses, plus
   #    artifact existence checks: the contract file, the handles migration if applicable, and
   #    (S2) every generated handle file this feature owns plus repo-owned global/handle/* infra,
   #    tracked via .sbf/handles-manifest.json (D-handles-ownership) -- existence-only, by design:
   #    hand-finishing patchField() must never fail this, only the file being GONE does. Each gate
   #    carries a verifyPolicy: `required` (preflight/scan/contract -- not_run or stale always
-  #    fails overall) or `required-when-present` (handles/stack -- not_run does NOT fail overall,
-  #    but a gate that HAS run and is stale/awaiting_disposition still does -- "optional" means
+  #    fails overall) or `required-when-present` (dependencies/handles/stack/conformance -- not_run
+  #    does NOT fail overall, but a gate that HAS run and is stale/awaiting_disposition still does -- "optional" means
   #    "not every feature needs this", not "once run, correctness stops mattering"). Each gate's
   #    JSON entry reports `scope`/`policy`/`blocking`/`ran` alongside its status, and (S2) when
   #    stale, `changed_inputs`/`stale_reason` -- the non-JSON report shows this inline too, e.g.

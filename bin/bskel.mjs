@@ -92,7 +92,7 @@ function usage() {
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
   bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
-  bskel observe import --feature <id> --receipts <path> [--json]
+  bskel observe import --feature <id> --receipts <path> [--fail-on-violation] [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
@@ -2493,11 +2493,20 @@ function cmdObserveImport(args) {
 	const reportPath = specPath(root, flags.feature, 'observe', `${flags.feature}.conformance-report.json`);
 	writeFileAtomic(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 
-	// Evidence-first, not verdict-first (same as `contract`'s own precedent: a `partial` contract
-	// is still passable via waiver) -- passes on a successful STRUCTURAL import, never on "zero
-	// violations found". Whether violation counts should block CI is a policy question for whoever
-	// reads the report, deliberately not decided here -- see DECISIONS.md's own deferred list.
-	const gateState = passNamedGate(root, 'conformance', flags.feature, { receipt_count: receipts.length, matched, violations: violationCount });
+	// Evidence-first, not verdict-first by DEFAULT (same as `contract`'s own precedent: a `partial`
+	// contract is still passable via waiver) -- passes on a successful STRUCTURAL import, never on
+	// "zero violations found", unless --fail-on-violation opts into the stricter behavior. Whether
+	// violation counts should block CI was a policy question deliberately left undecided in v1 --
+	// this is that v1.1 layer, see D-runtime-conformance-receipts's own "Continued" entry in
+	// DECISIONS.md. `awaitNamedGateDisposition` is the EXACT same disposition mechanism `contract`
+	// already uses for "evidence exists but isn't good enough to pass silently" -- resolved by the
+	// already-generic `bskel gate force conformance --feature <id> --reason "..."` (no new CLI verb
+	// needed; `bskel next`'s own generic awaitingDispositionCommand() fallback already names it).
+	const evidence = { receipt_count: receipts.length, matched, violations: violationCount };
+	const blocking = flags['fail-on-violation'] && violationCount > 0;
+	const gateState = blocking
+		? awaitNamedGateDisposition(root, 'conformance', flags.feature, evidence)
+		: passNamedGate(root, 'conformance', flags.feature, evidence);
 
 	if (flags.json) {
 		console.log(JSON.stringify({ report, noise_lines: noiseLines, gate: gateState.gates.conformance }, null, 2));
@@ -2506,8 +2515,11 @@ function cmdObserveImport(args) {
 		console.log(`${violationCount} violation(s), ${unsupportedCount} unsupported field(s) across matched receipts`);
 		console.log(`wrote ${path.relative(root, reportPath)}`);
 		console.log(`gate: conformance -> ${gateState.gates.conformance.status}`);
+		if (blocking) {
+			console.error(`\nblocked: ${violationCount} violation(s) found (--fail-on-violation) -- review ${path.relative(root, reportPath)}, then \`bskel gate force conformance --feature ${flags.feature} --reason "..."\` once accounted for.`);
+		}
 	}
-	process.exit(0);
+	process.exit(blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
 // S2: "stale" alone sends a human/agent re-running steps until one happens to stick. Name the
@@ -2532,10 +2544,17 @@ function renderVerifyReport({ featureId, gates, artifacts, conflicts, build, all
 		const completenessNote = g.gate === 'contract' && evidence?.completeness
 			? ` (${evidence.completeness}${evidence.waived_count ? `: ${evidence.waived_count} waived` : ''})`
 			: '';
+		// D-runtime-conformance-receipts (Continued, --fail-on-violation): same "surface the evidence
+		// right in the verify report" precedent as `completenessNote` above -- fires for both `pass`
+		// and `awaiting_disposition` states, since a human should see the count even when it didn't
+		// end up blocking (i.e. --fail-on-violation wasn't used at import time).
+		const conformanceNote = g.gate === 'conformance' && evidence?.violations
+			? ` (${evidence.violations} violation(s), ${evidence.matched}/${evidence.receipt_count} matched)`
+			: '';
 		// S4 (D-gate-history): a revoked gate's reason is exactly the kind of "why is this
 		// blocking" detail describeStale() already surfaces for stale gates -- same treatment here.
 		const revokedNote = g.status === 'revoked' && g.record?.reason ? ` (revoked: ${g.record.reason})` : '';
-		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}${describeStale(g)}${revokedNote}`);
+		lines.push(`- [${marker}] ${g.gate}${suffix}${completenessNote}${conformanceNote}${describeStale(g)}${revokedNote}`);
 	}
 	lines.push('', '## Artifacts');
 	for (const a of artifacts) lines.push(`- [${a.exists ? 'OK' : 'MISSING'}] ${a.artifact}: ${a.path}`);

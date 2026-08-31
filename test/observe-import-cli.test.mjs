@@ -246,3 +246,103 @@ test('re-importing after the contract changes stales the conformance gate (contr
 	const staleResult = run(['gate', 'require', 'conformance', '--feature', FEATURE_ID], root);
 	assert.equal(staleResult.code, 4, 'the conformance gate must go stale once the contract it was evidence FOR has moved');
 });
+
+// D-runtime-conformance-receipts (Continued): --fail-on-violation, the v1.1 policy layer the
+// original item's own EXIT section named as deliberately deferred. Default behavior (no flag) stays
+// evidence-first -- the tests above already prove that; these cover the opt-in stricter path.
+
+test('--fail-on-violation with real violations sends the conformance gate to awaiting_disposition, not a silent pass', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [
+		JSON.stringify(makeReceipt(root, { violations: [{ pointer: '/pathParams/widgetId', keyword: 'pattern', message: 'does not match the required pattern' }] })),
+	]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--fail-on-violation', '--json'], root);
+	assert.equal(result.code, 3, 'AWAITING_DISPOSITION, matching every other gate that lands there');
+	const body = JSON.parse(result.stdout);
+	assert.equal(body.gate.status, 'awaiting_disposition');
+
+	// The `blocked: ...` note is text-mode only, matching `cmdContractEmit`'s own identical
+	// precedent (--json is "one execution, one JSON document", no stderr side-channel) -- a
+	// SEPARATE, non-JSON run against a fresh receipts import proves the note's own text.
+	const textResult = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--fail-on-violation'], root);
+	assert.match(textResult.stderr, /blocked: 1 violation\(s\) found \(--fail-on-violation\)/);
+	assert.match(textResult.stderr, /bskel gate force conformance --feature 001-widget-management --reason/);
+
+	const gateResult = run(['gate', 'require', 'conformance', '--feature', FEATURE_ID], root);
+	assert.equal(gateResult.code, 3);
+});
+
+test('the exact same violating receipts WITHOUT --fail-on-violation still pass -- the default is unchanged', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [
+		JSON.stringify(makeReceipt(root, { violations: [{ pointer: '/pathParams/widgetId', keyword: 'pattern', message: 'does not match the required pattern' }] })),
+	]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	assert.equal(JSON.parse(result.stdout).gate.status, 'pass');
+});
+
+test('--fail-on-violation with ZERO violations still passes -- the flag only matters when there is something to block on', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(makeReceipt(root))]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--fail-on-violation', '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	assert.equal(JSON.parse(result.stdout).gate.status, 'pass');
+});
+
+test('an awaiting_disposition conformance gate correctly fails bskel verify overall, and the report shows the violation count inline', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [
+		JSON.stringify(makeReceipt(root, { violations: [{ pointer: '/pathParams/widgetId', keyword: 'pattern', message: 'x' }, { pointer: '/pathParams/widgetId', keyword: 'pattern', message: 'y' }] })),
+	]);
+	run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--fail-on-violation'], root);
+
+	const verifyJson = run(['verify', '--feature', FEATURE_ID, '--json'], root);
+	assert.equal(verifyJson.code, 1, 'bskel verify\'s own generic gatesOk/blocking machinery must flip overall FAIL, with zero conformance-specific code in cmdVerify itself');
+	const verifyBody = JSON.parse(verifyJson.stdout);
+	assert.equal(verifyBody.pass, false);
+	const conformanceGate = verifyBody.gates.find((g) => g.gate === 'conformance');
+	assert.equal(conformanceGate.blocking, true);
+
+	const verifyText = run(['verify', '--feature', FEATURE_ID], root);
+	assert.match(verifyText.stdout, /\[FAIL\] conformance .*\(2 violation\(s\), 1\/1 matched\)/);
+});
+
+test('bskel gate force conformance -- the ALREADY-GENERIC command, no new CLI verb -- resolves an awaiting_disposition conformance gate back to a real pass', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [
+		JSON.stringify(makeReceipt(root, { violations: [{ pointer: '/pathParams/widgetId', keyword: 'pattern', message: 'x' }] })),
+	]);
+	run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--fail-on-violation'], root);
+	assert.equal(run(['gate', 'require', 'conformance', '--feature', FEATURE_ID], root).code, 3);
+
+	const forceResult = run(['gate', 'force', 'conformance', '--feature', FEATURE_ID, '--reason', 'reviewed, accepted for now'], root);
+	assert.equal(forceResult.code, 0, forceResult.stderr);
+
+	assert.equal(run(['gate', 'require', 'conformance', '--feature', FEATURE_ID], root).code, 0);
+	assert.equal(run(['verify', '--feature', FEATURE_ID, '--json'], root).code, 0);
+});
+
+test('bskel next recommends the real, already-generic gate-force command for a stuck conformance gate', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [
+		JSON.stringify(makeReceipt(root, { violations: [{ pointer: '/pathParams/widgetId', keyword: 'pattern', message: 'x' }] })),
+	]);
+	run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--fail-on-violation'], root);
+
+	const nextResult = run(['next', '--feature', FEATURE_ID, '--json'], root);
+	assert.equal(nextResult.code, 0, nextResult.stderr);
+	const nextBody = JSON.parse(nextResult.stdout);
+	assert.deepEqual(nextBody.blocked_by, ['conformance']);
+	assert.equal(nextBody.next_actions[0].command, `bskel gate force conformance --feature ${FEATURE_ID} --reason "..."`);
+	assert.equal(nextBody.next_actions[0].mutating, true);
+});
