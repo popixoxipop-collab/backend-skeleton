@@ -7,12 +7,11 @@
 // emit`/`handles plan`/`handles emit`) -- "organization" has no controller of its own and can't pass
 // those end to end, so it would be the wrong side to test emit-time behavior FROM.
 import fs from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
 	run, runCapturingStderr,
-	buildTwoFeatureFixtureRepo, initBothFeatures, widgetDtoPath, declareArgs,
+	buildTwoFeatureFixtureRepo, initBothFeatures, widgetDtoPath, declareArgs, buildThirdModuleFixture,
 } from './_contract-fixture.mjs';
 
 // 002 declares that ITS OWN OrganizationDto.taxRate is derived from 001's WidgetDto.name -- the
@@ -100,19 +99,11 @@ test('re-declaring the dependency against the new content closes the loop -- the
 
 // D-dependency-propagation-notice: the whole reason describeDownstreamImpact() cross-checks
 // `changed_inputs` against a `source_field_file:<featureId>:` prefix instead of just trusting "the
-// dependent's gate is stale" -- a THIRD feature (003-product-management, a second, independent
-// module) is also depended on by 002, via a DIFFERENT target field. 002's `dependencies` gate is
-// stale for BOTH reasons at once; emitting 001 must surface only the widget-attributable entry, and
-// emitting 003 must surface only the product-attributable entry.
-function buildThirdModuleFixture(root) {
-	const productDtoPath = path.join(root, 'src/main/java/com/example/domain/product/presentation/dto/ProductDto.java');
-	fs.mkdirSync(path.dirname(productDtoPath), { recursive: true });
-	fs.writeFileSync(productDtoPath, 'package com.example.domain.product.presentation.dto;\n\npublic record ProductDto(String productId, String price) {}\n');
-	assert.equal(run(['feature', 'init', '--slug', 'product-management'], root).code, 0);
-	run(['scan', '--feature', '003-product-management', '--terms', 'product'], root); // exits 3 (awaiting_disposition), see editWidgetAndReestablishSourceFeature's comment
-	assert.equal(run(['scan', 'disposition', '--feature', '003-product-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
-	return productDtoPath;
-}
+// dependent's gate is stale" -- buildThirdModuleFixture() (test/_contract-fixture.mjs) adds a THIRD
+// feature (003-product-management, a second, independent module) also depended on by 002, via a
+// DIFFERENT target field. 002's `dependencies` gate is stale for BOTH reasons at once; emitting 001
+// must surface only the widget-attributable entry, and emitting 003 must surface only the
+// product-attributable entry.
 
 test('attribution precision: a dependent stale for two unrelated reasons only surfaces the reason that matches the feature being emitted', () => {
 	const root = buildTwoFeatureFixtureRepo();

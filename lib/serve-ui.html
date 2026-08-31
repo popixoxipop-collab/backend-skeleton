@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>bskel serve</title>
+<style>
+	:root { color-scheme: light dark; }
+	body { font-family: ui-monospace, Menlo, Consolas, monospace; max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.4; }
+	h1 { font-size: 1.1rem; }
+	h2 { font-size: 1rem; margin-top: 2rem; }
+	table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+	th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #8884; font-size: 0.85rem; }
+	.resolution-synced { color: #2a2; }
+	.resolution-stale { color: #c90; }
+	.resolution-unresolved { color: #d33; }
+	form { margin-top: 0.5rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; max-width: 720px; }
+	form label { display: flex; flex-direction: column; font-size: 0.75rem; gap: 0.15rem; }
+	form input { font: inherit; padding: 0.25rem; }
+	form button { grid-column: 1 / -1; padding: 0.4rem; font: inherit; cursor: pointer; }
+	#formStatus { font-size: 0.85rem; margin-top: 0.4rem; }
+	.muted { opacity: 0.6; }
+</style>
+</head>
+<body>
+<h1>bskel serve -- functionality check</h1>
+<p class="muted">Not a redesign of the original Fieldwire mockup -- this exists to prove the API actually works, nothing more.</p>
+
+<h2>Nodes</h2>
+<table id="nodesTable"><thead><tr><th>feature</th><th>resourceType</th><th>file</th><th>resolved</th></tr></thead><tbody></tbody></table>
+
+<h2>Wires</h2>
+<table id="wiresTable"><thead><tr><th>target</th><th>source</th><th>resolution</th><th>memo</th></tr></thead><tbody></tbody></table>
+
+<h2>Declare a new dependency</h2>
+<form id="declareForm">
+	<label>feature <input name="feature" required></label>
+	<label>resource <input name="resource" required></label>
+	<label>field <input name="field" required></label>
+	<label>source feature <input name="sourceFeature" required></label>
+	<label>source resource <input name="sourceResource" required></label>
+	<label>source field <input name="sourceField" required></label>
+	<label style="grid-column: 1 / -1">reason <input name="reason" required></label>
+	<button type="submit">Declare</button>
+</form>
+<div id="formStatus"></div>
+
+<script>
+// D-http-serving-layer: `reason`/`memo` (and every other string field) are free text a human types
+// via `bskel dependency declare --reason/--memo` or this page's own POST form -- never assumed safe
+// to inject as markup. Every cell here is built via textContent, never innerHTML/insertAdjacentHTML,
+// so a value like `<script>...` or `<img onerror=...>` renders as inert text, not executes.
+function td(text) {
+	const cell = document.createElement('td');
+	cell.textContent = text;
+	return cell;
+}
+
+async function loadGraph() {
+	const res = await fetch('/api/graph');
+	const graph = await res.json();
+
+	const nodesBody = document.querySelector('#nodesTable tbody');
+	nodesBody.replaceChildren();
+	for (const n of graph.nodes) {
+		const tr = document.createElement('tr');
+		tr.append(td(n.feature), td(n.resourceType), td(n.file ?? '(unresolved)'), td(String(n.resolved)));
+		nodesBody.appendChild(tr);
+	}
+
+	const wiresBody = document.querySelector('#wiresTable tbody');
+	wiresBody.replaceChildren();
+	for (const w of graph.wires) {
+		const tr = document.createElement('tr');
+		const target = `${w.feature}/${w.target.resourceType}.${w.target.fieldName}`;
+		const source = `${w.source.feature}/${w.source.resourceType}.${w.source.fieldName}`;
+		const resolutionCell = td(`${w.resolution}${w.unresolvedReason ? ` (${w.unresolvedReason})` : ''}`);
+		resolutionCell.className = `resolution-${w.resolution}`;
+		tr.append(td(target), td(source), resolutionCell, td(w.hasMemo ? w.memo : ''));
+		wiresBody.appendChild(tr);
+	}
+}
+
+document.getElementById('declareForm').addEventListener('submit', async (ev) => {
+	ev.preventDefault();
+	const form = new FormData(ev.target);
+	const feature = form.get('feature');
+	const statusEl = document.getElementById('formStatus');
+	statusEl.textContent = 'declaring...';
+	try {
+		const res = await fetch(`/api/features/${encodeURIComponent(feature)}/dependencies`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				resource: form.get('resource'), field: form.get('field'),
+				sourceFeature: form.get('sourceFeature'), sourceResource: form.get('sourceResource'), sourceField: form.get('sourceField'),
+				reason: form.get('reason'),
+			}),
+		});
+		const body = await res.json();
+		if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+		statusEl.textContent = `declared, gate: ${body.gate.status}`;
+		ev.target.reset();
+		await loadGraph();
+	} catch (err) {
+		statusEl.textContent = `error: ${err.message}`;
+	}
+});
+
+loadGraph().catch((err) => {
+	const p = document.createElement('p');
+	p.style.color = '#d33';
+	p.textContent = `failed to load /api/graph: ${err.message}`;
+	document.body.appendChild(p);
+});
+</script>
+</body>
+</html>

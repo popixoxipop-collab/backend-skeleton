@@ -196,6 +196,50 @@ bskel doctor [--workflow scan|handles|stack] [--json]
                               #    was this adapter's own codegen ever checked against real code":
                               #    official-reference/production-repo/community-sample/
                               #    synthetic-only/not-applicable -- see per-adapter values below.
+
+bskel serve [--port N] [--host <addr>] [--json]
+  # -> D-http-serving-layer: a real, long-running HTTP server (native node:http, zero new
+  #    dependencies) exposing the field-dependency data model over JSON. Requires only a repo
+  #    (`requireRepoRoot()`) -- no gate needs to have passed. Default `--host 127.0.0.1` (loopback
+  #    only; explicit opt-in required to expose beyond it), default `--port 4747` (unlike `stack
+  #    apply --port`, this command's own numeric range allows `--port 0` -- the standard "let the OS
+  #    pick a free ephemeral port" sentinel). Every route handler calls straight into the SAME lib/
+  #    functions the CLI commands themselves use (declareDependency/removeDependency/
+  #    buildDependencyListReport/listFeatures/computeWorkflowState) -- there is no second copy of
+  #    any business logic in the HTTP layer.
+  #
+  #    Endpoints:
+  #      GET    /api/health                          -> {status, repo}
+  #      GET    /api/features                         -> listFeatures() (archived excluded)
+  #      GET    /api/features/:id/status               -> computeWorkflowState()
+  #      GET    /api/features/:id/dependencies         -> same shape as `dependency list --json`
+  #      POST   /api/features/:id/dependencies         -> body {resource, field, sourceFeature,
+  #                                                         sourceResource, sourceField, reason,
+  #                                                         memo?} -- same as `dependency declare`
+  #      DELETE /api/features/:id/dependencies         -> body {resource, field, sourceFeature,
+  #                                                         sourceResource, sourceField, reason} --
+  #                                                         same as `dependency remove`
+  #      GET    /api/graph                             -> repo-wide {nodes, wires} aggregate --
+  #                                                         every wire carries a `resolution` of
+  #                                                         'synced'/'stale'/'unresolved' (a
+  #                                                         deliberately honest 3-value vocabulary,
+  #                                                         not the original Fieldwire UI mockup's
+  #                                                         4-state one -- see DECISIONS.md)
+  #      GET    /                                      -> a bundled, minimal static UI page (a
+  #                                                         functionality check only, not a redesign
+  #                                                         of the Fieldwire mockup)
+  #
+  #    CORS is method-aware, not blanket: GET/HEAD responses (and their own OPTIONS preflight) carry
+  #    `Access-Control-Allow-Origin: *`; POST/DELETE responses (and THEIR preflight) never do --
+  #    an unrestricted wildcard on a mutating route would let any website a user's browser has open
+  #    silently mutate their repo via a background fetch. The bundled UI page is served BY this same
+  #    server, so its own writes are same-origin and completely unaffected (CORS only ever applies
+  #    cross-origin). Every `:id` path segment is validated with the same `isValidFeatureId()` check
+  #    the CLI uses before it ever reaches a filesystem path (D-security-3's threat class, arriving
+  #    over HTTP instead of argv). Request bodies are capped at 1MB and must be a plain JSON object.
+  #    No authentication, no HTTPS/TLS, no rate limiting -- accepted gaps for a local, single-user,
+  #    loopback-default dev tool, not hidden. Stops on Ctrl+C (SIGINT) or SIGTERM.
+
 bskel preflight               # fetches origin first (fails closed if that fails -- see --offline
                               #    below), then does the 3-way default-branch cross-check +
                               #    behind/ahead + worktree provenance

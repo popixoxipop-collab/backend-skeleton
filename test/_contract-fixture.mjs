@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -365,4 +366,21 @@ export function removeArgs({
 	if (reason !== null) args.push('--reason', reason);
 	if (json) args.push('--json');
 	return args;
+}
+
+// D-dependency-propagation-notice / D-http-serving-layer: a THIRD, independent Java module
+// ("product") added to an already-built buildTwoFeatureFixtureRepo() root -- lets a test declare a
+// second, unrelated dependency onto a different source feature (003-product-management), so a
+// dependent feature can be made stale for two independent, distinguishable reasons at once. Feature
+// numbering assumes buildTwoFeatureFixtureRepo() + initBothFeatures() already ran (001/002 taken),
+// so this becomes 003. Originally lived only in test/dependency-propagation-cli.test.mjs; promoted
+// here once test/http-server.test.mjs needed the identical fixture shape.
+export function buildThirdModuleFixture(root) {
+	const productDtoPath = path.join(root, 'src/main/java/com/example/domain/product/presentation/dto/ProductDto.java');
+	fs.mkdirSync(path.dirname(productDtoPath), { recursive: true });
+	fs.writeFileSync(productDtoPath, 'package com.example.domain.product.presentation.dto;\n\npublic record ProductDto(String productId, String price) {}\n');
+	assert.equal(run(['feature', 'init', '--slug', 'product-management'], root).code, 0);
+	run(['scan', '--feature', '003-product-management', '--terms', 'product'], root); // exits 3 (awaiting_disposition) -- see initBothFeatures's own scan calls, same reason
+	assert.equal(run(['scan', 'disposition', '--feature', '003-product-management', '--mode', 'reuse', '--note', 'x'], root).code, 0);
+	return productDtoPath;
 }

@@ -31,7 +31,11 @@ import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
-import { loadFieldDependencies, saveFieldDependencies, dependencyKey, resolveClassFile, listDownstreamDependents } from '../lib/field-dependencies.mjs';
+import { createHttpServer } from '../lib/http-server.mjs';
+import {
+	resolveClassFile, listDownstreamDependents, DependencyOperationError,
+	declareDependency, removeDependency, buildDependencyListReport,
+} from '../lib/field-dependencies.mjs';
 import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
@@ -99,6 +103,7 @@ function usage() {
   bskel gate show [<name>] [--feature <id>]
   bskel gate export --feature <id> [--out <path>] [--json]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
+  bskel serve [--port N] [--host <addr>] [--json]
 `);
 }
 
@@ -1368,25 +1373,6 @@ function cmdContractWaive(args) {
 	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
-// D-field-dependency: shared error-message builder for resolveClassFile()'s own failure reasons --
-// used by both declare (target and source resolution) so the two error paths never phrase the same
-// underlying failure differently. Mirrors requireWarningCode's "known codes: ..." naming convention
-// for the one case (class_not_found) where naming the real alternatives is actionable.
-function describeResolutionFailure(featureId, resourceType, resolution) {
-	switch (resolution.reason) {
-		case 'no_scan_report':
-			return `no brownfield-scan.json for feature "${featureId}" -- run \`bskel scan --feature ${featureId} --terms <a,b,c>\` first`;
-		case 'no_disposition':
-			return `feature "${featureId}" has no scan disposition yet -- run \`bskel scan disposition --feature ${featureId} --mode reuse|extend|replace|parallel --note "..."\` first`;
-		case 'module_not_found':
-			return `feature "${featureId}"'s disposed module no longer appears in its own scan report -- re-run \`bskel scan\`/\`bskel scan disposition\``;
-		case 'class_not_found':
-			return `no resource type "${resourceType}" found in feature "${featureId}"'s disposed module -- known classes: ${resolution.knownClasses?.join(', ') || '(none)'}`;
-		default:
-			return `could not resolve "${resourceType}" on feature "${featureId}"`;
-	}
-}
-
 // D-dependency-propagation-notice: called from cmdContractEmit/cmdHandlesEmit to warn a SOURCE
 // feature, at the moment its own generated artifacts are refreshed, that other features declared a
 // dependency on one of its fields. Only surfaces a note when the dependent's OWN `dependencies` gate
@@ -1418,62 +1404,35 @@ function describeDownstreamImpact(root, featureId) {
 	return notes;
 }
 
+// D-http-serving-layer: cmdDependencyDeclare/Remove/List are now thin CLI wrappers over
+// lib/field-dependencies.mjs's declareDependency/removeDependency/buildDependencyListReport --
+// lib/http-server.mjs's POST/DELETE/GET handlers call the SAME functions, so the CLI and HTTP
+// surfaces can never diverge on what these operations actually do. A thrown DependencyOperationError
+// carries the exact (exitCode, reasonCode) this CLI path always used -- fail() is called with those
+// verbatim, so this refactor is behavior-preserving (verified: test/dependency-cli.test.mjs, written
+// before this refactor existed, passes unchanged).
 function cmdDependencyDeclare(args) {
 	const flags = parseCommand('dependency declare', args);
 	if (flags.help) { console.log(renderCommandHelp('dependency declare')); process.exit(0); }
 	setContext('dependency declare', flags);
 	const root = requireRepoRoot();
-	requireValidFeatureId(flags.feature);
-	requireValidFeatureId(flags['source-feature']); // path-injection defense, same as every --feature flag (D-security-3)
-	if (!flags.reason || !flags.reason.trim()) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel dependency declare requires --reason "..." -- every dependency must be auditable');
+	let result;
+	try {
+		result = declareDependency(root, {
+			feature: flags.feature, resource: flags.resource, field: flags.field,
+			sourceFeature: flags['source-feature'], sourceResource: flags['source-resource'], sourceField: flags['source-field'],
+			reason: flags.reason, memo: flags.memo,
+		});
+	} catch (err) {
+		if (err instanceof DependencyOperationError) fail(err.exitCode, err.reasonCode, err.message);
+		throw err;
 	}
-	if (flags.feature === flags['source-feature'] && flags.resource === flags['source-resource'] && flags.field === flags['source-field']) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags.resource}.${flags.field}" cannot depend on itself`);
-	}
-
-	const target = resolveClassFile(root, flags.feature, flags.resource);
-	if (!target.file) {
-		fail(target.reason === 'no_scan_report' ? EXIT_CODES.NOT_PASSED : EXIT_CODES.BAD_ARGS,
-			target.reason === 'no_scan_report' ? 'MISSING_ARTIFACT' : 'BAD_ARGS',
-			describeResolutionFailure(flags.feature, flags.resource, target));
-	}
-	const source = resolveClassFile(root, flags['source-feature'], flags['source-resource']);
-	if (!source.file) {
-		fail(source.reason === 'no_scan_report' ? EXIT_CODES.NOT_PASSED : EXIT_CODES.BAD_ARGS,
-			source.reason === 'no_scan_report' ? 'MISSING_ARTIFACT' : 'BAD_ARGS',
-			describeResolutionFailure(flags['source-feature'], flags['source-resource'], source));
-	}
-
-	const dep = {
-		target: { resourceType: flags.resource, fieldName: flags.field },
-		source: { feature: flags['source-feature'], resourceType: flags['source-resource'], fieldName: flags['source-field'] },
-		reason: flags.reason,
-		...(flags.memo ? { memo: flags.memo } : {}),
-		at: new Date().toISOString(),
-	};
-
-	// S5 (D-persistence-integrity): same load-modify-save-under-one-lock shape cmdContractWaive
-	// already uses, for the identical reason -- closes the lost-update race between this
-	// function's own load and its save.
-	const updated = withLockSync(root, 'state', () => {
-		const current = loadFieldDependencies(root, flags.feature);
-		const key = dependencyKey(dep);
-		const next = {
-			schema: 'sbf.field-dependency/1',
-			feature_id: flags.feature,
-			dependencies: [...current.dependencies.filter((d) => dependencyKey(d) !== key), dep],
-		};
-		saveFieldDependencies(root, flags.feature, next);
-		return next;
-	});
-	const gateState = passNamedGate(root, 'dependencies', flags.feature, { dependency_count: updated.dependencies.length });
 
 	if (flags.json) {
-		console.log(JSON.stringify({ dependency: dep, gate: gateState.gates.dependencies }, null, 2));
+		console.log(JSON.stringify(result, null, 2));
 	} else if (!flags.quiet) {
 		console.log(`declared: ${flags.resource}.${flags.field} <- ${flags['source-feature']}/${flags['source-resource']}.${flags['source-field']}`);
-		console.log(`gate: dependencies -> ${gateState.gates.dependencies.status}`);
+		console.log(`gate: dependencies -> ${result.gate.status}`);
 	}
 	process.exit(EXIT.PASS);
 }
@@ -1483,86 +1442,50 @@ function cmdDependencyRemove(args) {
 	if (flags.help) { console.log(renderCommandHelp('dependency remove')); process.exit(0); }
 	setContext('dependency remove', flags);
 	const root = requireRepoRoot();
-	requireValidFeatureId(flags.feature);
-	requireValidFeatureId(flags['source-feature']);
-	if (!flags.reason || !flags.reason.trim()) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel dependency remove requires --reason "..." -- every removal must be auditable');
+	let result;
+	try {
+		result = removeDependency(root, {
+			feature: flags.feature, resource: flags.resource, field: flags.field,
+			sourceFeature: flags['source-feature'], sourceResource: flags['source-resource'], sourceField: flags['source-field'],
+			reason: flags.reason,
+		});
+	} catch (err) {
+		if (err instanceof DependencyOperationError) fail(err.exitCode, err.reasonCode, err.message);
+		throw err;
 	}
 
-	const targetKey = dependencyKey({
-		target: { resourceType: flags.resource, fieldName: flags.field },
-		source: { feature: flags['source-feature'], resourceType: flags['source-resource'], fieldName: flags['source-field'] },
-	});
-
-	const updated = withLockSync(root, 'state', () => {
-		const current = loadFieldDependencies(root, flags.feature);
-		const match = current.dependencies.find((d) => dependencyKey(d) === targetKey);
-		if (!match) {
-			const known = current.dependencies.map((d) => `${d.target.resourceType}.${d.target.fieldName} <- ${d.source.feature}/${d.source.resourceType}.${d.source.fieldName}`);
-			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no declared dependency matches "${flags.resource}.${flags.field} <- ${flags['source-feature']}/${flags['source-resource']}.${flags['source-field']}" -- currently declared: ${known.join('; ') || '(none)'}`);
-		}
-		const next = {
-			schema: 'sbf.field-dependency/1',
-			feature_id: flags.feature,
-			dependencies: current.dependencies.filter((d) => dependencyKey(d) !== targetKey),
-		};
-		saveFieldDependencies(root, flags.feature, next);
-		return next;
-	});
-	const gateState = passNamedGate(root, 'dependencies', flags.feature, { dependency_count: updated.dependencies.length });
-
 	if (flags.json) {
-		console.log(JSON.stringify({ removed: true, gate: gateState.gates.dependencies }, null, 2));
+		console.log(JSON.stringify(result, null, 2));
 	} else if (!flags.quiet) {
 		console.log(`removed: ${flags.resource}.${flags.field} <- ${flags['source-feature']}/${flags['source-resource']}.${flags['source-field']}`);
-		console.log(`gate: dependencies -> ${gateState.gates.dependencies.status}`);
+		console.log(`gate: dependencies -> ${result.gate.status}`);
 	}
 	process.exit(EXIT.PASS);
 }
 
-// Read-only report, gate-independent like cmdHandlesAudit -- always resolves current state (even
-// past whatever token the gate itself last stored) so a diverged dependency is visible here
-// immediately, not only after the next explicit `gate require`.
 function cmdDependencyList(args) {
 	const flags = parseCommand('dependency list', args);
 	if (flags.help) { console.log(renderCommandHelp('dependency list')); process.exit(0); }
 	setContext('dependency list', flags);
 	const root = requireRepoRoot();
-	requireValidFeatureId(flags.feature);
-	loadFeatureRecord(root, flags.feature); // friendly "no such feature" before an empty-list false-negative
-	const doc = loadFieldDependencies(root, flags.feature);
+	let report;
+	try {
+		report = buildDependencyListReport(root, flags.feature);
+	} catch (err) {
+		if (err instanceof DependencyOperationError) fail(err.exitCode, err.reasonCode, err.message);
+		throw err;
+	}
 
-	const rows = doc.dependencies.map((dep) => {
-		const t = resolveClassFile(root, flags.feature, dep.target.resourceType);
-		const s = resolveClassFile(root, dep.source.feature, dep.source.resourceType);
-		return {
-			...dep,
-			target_resolved: Boolean(t.file),
-			target_file: t.file ? path.relative(root, t.file) : null,
-			target_unresolved_reason: t.reason,
-			source_resolved: Boolean(s.file),
-			source_file: s.file ? path.relative(root, s.file) : null,
-			source_unresolved_reason: s.reason,
-		};
-	});
-	const gateResult = requireNamedGate(root, 'dependencies', flags.feature);
-
-	const report = {
-		schema: 'sbf.dependency-list/1',
-		feature_id: flags.feature,
-		dependencies: rows,
-		gate: { status: gateResult.status, code: gateResult.code, changed_inputs: gateResult.changed_inputs ?? null },
-	};
 	if (flags.json) {
 		console.log(JSON.stringify(report, null, 2));
 	} else {
-		console.log(`dependencies -- feature ${flags.feature} (gate: ${gateResult.status})`);
-		for (const r of rows) {
+		console.log(`dependencies -- feature ${flags.feature} (gate: ${report.gate.status})`);
+		for (const r of report.dependencies) {
 			const tNote = r.target_resolved ? 'ok' : `UNRESOLVED:${r.target_unresolved_reason}`;
 			const sNote = r.source_resolved ? 'ok' : `UNRESOLVED:${r.source_unresolved_reason}`;
 			console.log(`  ${r.target.resourceType}.${r.target.fieldName} [${tNote}] <- ${r.source.feature}/${r.source.resourceType}.${r.source.fieldName} [${sNote}]`);
 		}
-		if (rows.length === 0) console.log('  (none declared)');
+		if (report.dependencies.length === 0) console.log('  (none declared)');
 	}
 	process.exit(0);
 }
@@ -2812,6 +2735,39 @@ function cmdDoctor(args) {
 	process.exit(allOk ? 0 : 1);
 }
 
+// D-http-serving-layer: starts a real, long-running HTTP server (lib/http-server.mjs) -- unlike
+// every other command in this file, success here does NOT process.exit(); the server's own open
+// socket keeps the event loop alive until Ctrl+C (SIGINT) or SIGTERM. Every route handler calls
+// straight into the same lib/ functions the CLI commands use -- no separate business logic lives in
+// the HTTP layer itself.
+async function cmdServe(args) {
+	const flags = parseCommand('serve', args);
+	if (flags.help) { console.log(renderCommandHelp('serve')); process.exit(0); }
+	setContext('serve', flags);
+	const root = requireRepoRoot();
+	const port = Number.parseInt(flags.port, 10);
+
+	let started;
+	try {
+		started = await createHttpServer(root, { host: flags.host, port });
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not start server: ${err.message}`);
+	}
+
+	if (flags.json) {
+		console.log(JSON.stringify({ listening: started.url, host: started.host, port: started.port, repo: root }));
+	} else if (!flags.quiet) {
+		console.log(`bskel serve -- listening on ${started.url}`);
+		console.log(`  UI:  ${started.url}/`);
+		console.log(`  API: ${started.url}/api/...`);
+		console.log('press Ctrl+C to stop');
+	}
+
+	const shutdown = () => started.server.close(() => process.exit(0));
+	process.on('SIGINT', shutdown);
+	process.on('SIGTERM', shutdown);
+}
+
 // P2 (D-greenfield-bootstrap): the one path into this tool that doesn't require an existing git
 // repo (contrast requireRepoRoot(), used by nearly everything else) -- `bskel new` is what CREATES
 // one. `--stack`'s two choices come from new/index.mjs's plain dispatch map, not a dynamic
@@ -3122,6 +3078,8 @@ async function dispatchCommand(cmd, rest) {
 		case 'doctor':
 			cmdDoctor(rest);
 			break;
+		case 'serve':
+			return cmdServe(rest);
 		case 'new':
 			return cmdNew(rest);
 		default:

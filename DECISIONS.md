@@ -9248,3 +9248,129 @@ be pure duplication, not new value); any HTTP-serving layer (still Slice 3, stil
 including the dedicated attribution-precision test) and new unit tests in
 `test/field-dependencies.test.mjs` for `listDownstreamDependents` (self-exclusion, no-dependents,
 archived-feature exclusion, cross-feature correctness), alongside the full existing suite.
+
+## D-http-serving-layer: a native HTTP server exposing the field-dependency data model to a UI, read and write, over a repo-scoped, loopback-default REST-ish JSON API
+
+**WHY**: both `D-field-dependency`'s and `D-dependency-propagation-notice`'s own EXIT sections named
+the same explicit follow-up -- "any HTTP server exposing this data to a UI (`bskel` has none today)"
+-- as Slice 3 of the field-dependency backend. The original Fieldwire UI mockup (a wire-based,
+ArgoCD-style editor) demonstrated the concept; this item is the real backend it would need to show
+live repo state instead of hardcoded mock data. A research pass confirmed this repo had **zero** HTTP
+server code before this item (only a test-only mock standing in for ngrok's own API, and a smoke test
+that boots *generated target-app* code to prove it compiles) and **zero** web-framework dependency.
+
+**Scope, decided explicitly with the user before design, not assumed**: (1) write endpoints
+(declare/remove a dependency via HTTP) are included, not read-only; (2) `Access-Control-Allow-Origin:
+*` is allowed for GET only; (3) a minimal, functionality-check-only static UI page is bundled (not
+full Fieldwire-mockup fidelity -- the previously-published Fieldwire Claude Artifact is gone, and
+Claude's Artifact CSP blocks fetching a local HTTP server from an Artifact anyway, so a real UI
+reconnection there was never possible).
+
+**A real security consequence of decision (1), resolved during design**: mutating endpoints do NOT
+inherit GET's wildcard CORS -- an unrestricted `Access-Control-Allow-Origin: *` on POST/DELETE would
+let ANY website a user's browser has open silently mutate their repo state via a background fetch
+(CORS-misconfiguration CSRF, the same vulnerability class this project's own numbered security-pass
+already exist to prevent elsewhere). The bundled sanity-check UI is served BY `bskel serve` itself,
+so its own writes are same-origin and completely unaffected -- CORS only ever applies cross-origin.
+Mechanically: POST/DELETE responses, and their own `OPTIONS` preflight, never get
+`Access-Control-Allow-Origin` at all -- browsers refuse to complete a cross-origin write without it,
+while same-origin writes (the bundled UI calling its own server) are untouched by CORS entirely.
+
+**Zero new dependencies** -- native `node:http` + `URL`, matching this package's existing minimal-
+footprint posture (a globally-installed CLI with no `devDependencies` at all before this item).
+
+**Shared-primitive refactor, required first, not optional**: `cmdDependencyDeclare`/
+`cmdDependencyRemove`/`cmdDependencyList` in `bin/bskel.mjs` used to inline their own validation +
+mutation + gate logic. Three functions were extracted into `lib/field-dependencies.mjs`
+(`declareDependency`, `removeDependency`, `buildDependencyListReport`) so the CLI and the new HTTP
+handlers call the IDENTICAL code -- never two copies that could drift, the same principle
+`resolveClassFile()`'s own header comment already established for itself. All three throw a new
+`DependencyOperationError(message, {httpStatus, exitCode, reasonCode})` instead of calling `fail()`
+directly (`fail()` calls `process.exit()`, so it can't be shared between a CLI path and an HTTP
+path). `requireValidFeatureId()` itself still throws a plain `Error` (a low-level primitive shared by
+many other commands, deliberately left unchanged) -- a new `requireValidFeatureIdOr400()` wraps it at
+each of the three functions' own call sites so an uncaught plain Error never reaches the HTTP layer
+as a misleading 500. This refactor is verified behavior-preserving: `test/dependency-cli.test.mjs`,
+written before this item existed, passes completely unchanged.
+
+**A real circular-import risk, investigated empirically, not just reasoned about**: `lib/
+gate-definitions.mjs` already imports `resolveClassFile`/`dependenciesPath` FROM `lib/
+field-dependencies.mjs` (since `D-field-dependency`). The new mutation/aggregate functions need
+`passNamedGate`/`requireNamedGate` FROM `lib/gates.mjs`, which itself imports FROM `lib/
+gate-definitions.mjs` -- a graph cycle on paper. Rather than assume this breaks (or assume it's fine),
+it was tested directly: the import was added, the full existing `dependencies`-gate-exercising test
+suite (which necessarily runs the whole cycle at runtime) was re-run, and it passed cleanly. ESM
+circular imports of hoisted function declarations (never a top-level const evaluated during the
+cycle) are safe in practice -- confirmed live in this codebase, not assumed from spec reading.
+
+**New aggregate**, `buildDependencyGraph(root)`: walks every active feature's `dependencies.json` and
+returns `{nodes, wires}` -- `nodes` are the union of every `{feature, resourceType}` pair
+participating in ANY declared dependency repo-wide (a resource is only "on the graph" because it has
+a real wire, not an independent "list every scanned class" feature nothing asks for); `wires` carry a
+deliberately HONEST 3-value `resolution` (`'synced'`/`'stale'`/`'unresolved'`) grounded in what's
+actually computable, reusing the SAME `changed_inputs`-prefix attribution precision
+`D-dependency-propagation-notice`'s `describeDownstreamImpact()` already established (a feature stale
+for one dependency's reason never marks an unrelated dependency `'stale'` too). This deliberately does
+NOT recreate the original Fieldwire mockup's 4-state vocabulary -- its `'conflict'` state meant a
+type-mismatch/propagation decision this backend has no data for; forcing that vocabulary onto data
+that can't support it would be dishonest, not a UI-fidelity nicety.
+
+**Endpoints** (`lib/http-server.mjs`): `GET /api/health`, `GET /api/features`, `GET /api/features/:id/
+status` (wraps `computeWorkflowState`, unchanged), `GET /api/features/:id/dependencies` (wraps
+`buildDependencyListReport`), `GET /api/graph`, `POST` and `DELETE /api/features/:id/dependencies`
+(wrap `declareDependency`/`removeDependency`), `GET /` (the bundled static UI). Every `:id` path
+segment is validated with `isValidFeatureId()` before it ever reaches a filesystem path -- an HTTP
+path/query param reaching `path.join()` unvalidated is exactly the same threat class `D-security-3`
+already fixed for `gate require/force/show`'s `--feature` flag, just arriving over HTTP instead of
+argv.
+
+**Default bind is `127.0.0.1`, not `0.0.0.0`** -- `--host` is an explicit opt-in required to expose
+beyond loopback, matching this project's established "safe default, explicit override" convention
+(e.g. `--enforce-registry`). `--port` defaults to `4747`; unlike `stack apply --port`'s `min:1`, this
+command's own numeric range is `min:0` -- `0` is the standard "let the OS pick a free ephemeral port"
+sentinel, genuinely useful both for tests (`test/http-server.test.mjs` uses it to avoid port-collision
+flakiness) and for a user who doesn't care which port they get, not merely a testing convenience.
+
+**Concurrency**: verified directly (read `lib/lock.mjs` live) that `withLockSync` is fully synchronous
+(`fs.mkdirSync` + a blocking retry loop, `fn()` called with no `await` anywhere inside) -- combined
+with Node's single-threaded event loop, a mutating HTTP request runs to completion without ever
+yielding to a second, concurrently-arriving request. The same lock also still correctly serializes
+against a separate `bskel dependency declare` CLI invocation run from a terminal while the server is
+live, a real, legitimate scenario this item didn't have to build anything new to handle.
+
+**Request-body handling**: `readJsonBody()` bounds a single request to 1MB (a local, single-user dev
+server still shouldn't let an unbounded body exhaust process memory) and requires the parsed body be
+a plain JSON object (rejecting arrays/primitives/null before they'd otherwise spread strangely into
+`declareDependency`'s params object).
+
+**Output escaping in the bundled UI**: `reason`/`memo` (and every other string field the API
+returns) are free text a human types via `--reason`/`--memo` or the UI's own POST form -- never
+assumed safe to inject as markup. `lib/serve-ui.html` builds every table cell via `textContent`
+(never `innerHTML`/`insertAdjacentHTML` with interpolated API data), so a value containing
+`<script>`/`<img onerror=...>` renders as inert text instead of executing -- a real stored-XSS class
+this local server would otherwise expose to anyone who can view the bundled page after a malicious
+`reason`/`memo` was declared (caught by an automated security review during this item's own
+implementation, fixed the same session, not shipped and fixed later).
+
+**COST**: no authentication/token, no HTTPS/TLS, no rate limiting -- all deliberately accepted gaps
+for a local, single-user, loopback-default dev tool, not hidden. The primary defense is the loopback-
+only default bind (an attacker must already be running code on the same machine); the secondary
+defense is the CORS asymmetry above (blocking passive drive-by CSRF from a malicious page open in
+another tab). This matches how comparable local dev tools (e.g. bundler dev servers) are commonly
+secured, and was judged proportionate to a single-user local CLI's actual threat model rather than a
+public-facing API's.
+
+**EXIT**: what this deliberately did NOT do: wire cross-origin writes for a hypothetical richer,
+separately-hosted UI (the bundled UI is same-origin and unaffected; a real cross-origin-write story
+would need its own explicit auth mechanism, a separate future decision, not bundled in here);
+authentication of any kind; recreating the original Fieldwire mockup's full node/wire visual fidelity
+(the bundled UI is a functionality check only, per explicit user decision); full cross-feature cycle/
+graph traversal (still deferred, per `D-field-dependency`'s own original non-goal).
+
+**Verified**: `npm test` -- new `test/http-server.test.mjs` (spawn-based end-to-end coverage: health,
+features, status, dependencies GET/POST/DELETE, `/api/graph` resolution states, the CORS asymmetry as
+a concrete assertion, malformed `:id` rejected with 400, default bind address) plus
+`test/dependency-cli.test.mjs` re-run completely unchanged as the refactor's own regression proof,
+alongside the full existing suite. Manually run against a real fixture repo with `curl` and a real
+browser, confirming the bundled UI page actually renders live data and its POST form actually
+declares a dependency -- grounded in real observed HTTP behavior, not just passing tests.
