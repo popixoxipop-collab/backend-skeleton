@@ -380,3 +380,47 @@ test('handles plan still works when multiple *Application.java files share the s
 	const plan = JSON.parse(result.stdout);
 	assert.ok(plan.resources.find((r) => r.type === 'Widget'));
 });
+
+// O3 follow-up (D-handle-registry-enforcement, "Continued"): the bootstrapping-trap warning --
+// the fixture's real WidgetService.java (above) carries no @RecordHandleSnapshot, so turning
+// enforcement on should warn specifically about Widget, naming the service file.
+test('handles emit --enforce-registry on warns per-resource when @RecordHandleSnapshot is absent from the resource\'s own service file', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on', '--json'], root);
+	assert.equal(emit.code, 0, emit.stderr);
+	const emitJson = JSON.parse(emit.stdout);
+	assert.ok(emitJson.postEmitNotes.some((n) => n.startsWith('Widget:') && n.includes('no @RecordHandleSnapshot(...)') && n.includes('WidgetService.java')));
+});
+
+test('handles emit --enforce-registry on does not warn once @RecordHandleSnapshot is applied to the resource\'s own service file', () => {
+	const root = buildFixtureRepo();
+	const servicePath = path.join(root, 'src/main/java/com/example/domain/widget/application/WidgetService.java');
+	fs.writeFileSync(servicePath, `
+package com.example.domain.widget.application;
+public interface WidgetService {
+	Object findWidget(java.util.UUID id);
+
+	@RecordHandleSnapshot(resourceType = "Widget", operationId = "createWidget", resourceUidParam = 0)
+	Object createWidget(java.util.UUID id);
+}
+`);
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'apply @RecordHandleSnapshot to WidgetService'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	runWorkflowThroughContract(root);
+	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on', '--json'], root);
+	assert.equal(emit.code, 0, emit.stderr);
+	const emitJson = JSON.parse(emit.stdout);
+	assert.ok(!emitJson.postEmitNotes.some((n) => n.includes('no @RecordHandleSnapshot')));
+});
+
+test('handles emit without --enforce-registry (the default, off) never emits a per-resource registration warning', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(emit.code, 0, emit.stderr);
+	const emitJson = JSON.parse(emit.stdout);
+	assert.ok(!emitJson.postEmitNotes.some((n) => n.includes('no @RecordHandleSnapshot')));
+});

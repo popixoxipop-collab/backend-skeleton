@@ -312,7 +312,7 @@ class ItemPublic(SQLModel):
 	return root;
 }
 
-function runToHandlesEmit(root) {
+function runToHandlesEmit(root, extraArgs = []) {
 	run(['preflight'], root);
 	run(['feature', 'init', '--slug', 'item-management'], root);
 	run(['scan', '--feature', '001-item-management', '--terms', 'item', '--json'], root);
@@ -320,7 +320,7 @@ function runToHandlesEmit(root) {
 	// The fixture's operationId is always null (D-fastapi-adapter) -- contract emit is out of
 	// scope here, force past it since this suite's focus is handles codegen, not contracts.
 	run(['gate', 'force', 'contract', '--feature', '001-item-management', '--reason', 'handles-only test, contract covered elsewhere'], root);
-	return run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json'], root);
+	return run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json', ...extraArgs], root);
 }
 
 test('e2e: handles emit writes exactly the expected files, no .java, including a real migration.sql', () => {
@@ -352,6 +352,48 @@ test('e2e: handles emit writes exactly the expected files, no .java, including a
 	assert.ok(result.postEmitNotes.some((n) => n.includes('include_router')));
 	assert.ok(result.postEmitNotes.some((n) => n.includes('migration.sql')));
 	assert.ok(result.postEmitNotes.some((n) => n.includes('record_snapshot')));
+});
+
+// O3 follow-up (D-handle-registry-enforcement, "Continued"): the bootstrapping-trap warning --
+// the fixture's real items.py (above) carries no @record_snapshot, so turning enforcement on
+// should warn specifically about Item, naming the route file.
+test('e2e: --enforce-registry on warns that Item has no @record_snapshot anywhere in its own route file', () => {
+	const root = buildE2eFixtureRepo();
+	const emit = runToHandlesEmit(root, ['--enforce-registry', 'on']);
+	assert.equal(emit.code, 0, emit.stderr);
+	const result = JSON.parse(emit.stdout);
+	assert.ok(result.postEmitNotes.some((n) => n.startsWith('Item:') && n.includes('no @record_snapshot(...)') && n.includes('items.py')));
+});
+
+test('e2e: --enforce-registry on does not warn once @record_snapshot is already present in Item\'s own route file', () => {
+	const root = buildE2eFixtureRepo();
+	const itemsPath = path.join(root, 'backend', 'app', 'api', 'items.py');
+	fs.writeFileSync(itemsPath, `
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/items", tags=["items"])
+
+@record_snapshot(resource_type="Item", operation_id="read_item", resource_uid_param="id", session_param="session")
+@router.get("/{id}", response_model=ItemPublic)
+def read_item(session: SessionDep, id: str):
+    pass
+`);
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'apply record_snapshot to items.py'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	const emit = runToHandlesEmit(root, ['--enforce-registry', 'on']);
+	assert.equal(emit.code, 0, emit.stderr);
+	const result = JSON.parse(emit.stdout);
+	assert.ok(!result.postEmitNotes.some((n) => n.includes('no @record_snapshot')));
+});
+
+test('e2e: without --enforce-registry (the default, off) no per-resource registration warning is emitted', () => {
+	const root = buildE2eFixtureRepo();
+	const emit = runToHandlesEmit(root);
+	assert.equal(emit.code, 0, emit.stderr);
+	const result = JSON.parse(emit.stdout);
+	assert.ok(!result.postEmitNotes.some((n) => n.includes('no @record_snapshot')));
 });
 
 test('e2e: check_access always denies (403), patch_field always 501, hashed_password never referenced by the resolver', () => {

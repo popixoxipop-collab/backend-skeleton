@@ -40,6 +40,16 @@ function dottedModulePath(file, importRoot) {
 	return rel.split(path.sep).join('.');
 }
 
+// O3 follow-up (D-handle-registry-enforcement, "Continued"): same static, coarse, per-resource
+// presence check as java-spring's own -- see that file's identical comment for the false-
+// positive/false-negative bias reasoning (unchanged here).
+const RECORD_SNAPSHOT_RE = /@record_snapshot\s*\(/;
+
+function hasRecordSnapshot(routeFilePath) {
+	if (!routeFilePath || !fs.existsSync(routeFilePath)) return false;
+	return RECORD_SNAPSHOT_RE.test(fs.readFileSync(routeFilePath, 'utf8'));
+}
+
 // See DECISIONS.md D-handles-providers. G4 follow-up: migration.sql + a real recover() lifecycle
 // (tables.py/handle_service.py/record_snapshot.py) are now generated, mirroring java-spring's own
 // O4 work -- the EXCLUDED section's original "even Java hasn't got O4" reasoning is stale, see
@@ -196,6 +206,19 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 	// framework support -- but still requires a human to apply it to their own code, same "review
 	// and apply yourself" boundary as the migration note above.
 	postEmitNotes.push('NOT done automatically: applying @record_snapshot (handles/record_snapshot.py) to any of your own service functions. Codegen never touches existing business logic files.');
+
+	// O3 follow-up (D-handle-registry-enforcement, "Continued"): per-resource, conditional on
+	// enforceRegistry.
+	if (enforceRegistry) {
+		for (const resource of plan.resources) {
+			if (!resource.willGenerateResolver) continue;
+			if (hasRecordSnapshot(resource.fetchRoute.file)) continue;
+			const relRouteFile = path.relative(repoRoot, resource.fetchRoute.file);
+			postEmitNotes.push(
+				`${resource.type}: --enforce-registry is on, but no @record_snapshot(...) was found anywhere in ${relRouteFile} -- this resource may never get its first registry row, and every fetch/patch call against it will 404 until something registers it. Apply @record_snapshot to its own create-flow route function (or call handle_service.register() by hand at least once per resource), then re-emit. See D-handle-registry-enforcement in DECISIONS.md for the full bootstrapping explanation.`,
+			);
+		}
+	}
 
 	return { ...result, postEmitNotes };
 }

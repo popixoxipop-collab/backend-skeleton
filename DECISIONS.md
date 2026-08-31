@@ -8128,6 +8128,76 @@ unit" framing its persistence logic relies on); `D-handle-audit-report` (O7, the
 precedent and the honest "this reports what was opted into" posture this item's own bootstrapping
 requirement echoes).
 
+### Continued: a static, emit-time, per-resource warning when the bootstrapping trap is about to be shipped blind
+
+**WHY**: this item's own EXIT above named "no automatic way to detect this resource has never
+been registered and warn proactively" as a real, deliberately deferred gap -- and was explicit
+that closing it FOR REAL (an already-empty registry, detected at `doctor`/`handles audit` time)
+would need live target-app database access, a larger scope than this item's own. **This is
+deliberately NOT that.** This closes a narrower, purely static, emit-time, source-code-only proxy
+instead: at `handles emit --enforce-registry on` time, for each resource with
+`willGenerateResolver: true`, check whether `@RecordHandleSnapshot`/`@record_snapshot` appears
+anywhere in that resource's own service file (java-spring: `resource.service.file`, already
+resolved by `plan.mjs`'s `findServiceFile()`) or route file (python-fastapi:
+`resource.fetchRoute.file`, already resolved by `findFetchRoute()`) -- if not, append a specific,
+resource-named warning to `postEmitNotes`. Detection-and-warn only, never a fix: consistent with
+`D-resolver-scope`'s "never guess-modify hand-written code" boundary, `bskel` still never touches
+the target app's own business-logic files. The live-database version of this problem (an
+already-empty registry at `doctor`/O7-audit time) remains a named, open, larger-scope gap,
+unchanged by this item.
+
+**Mechanism**: a plain regex presence check per provider -- `/@RecordHandleSnapshot\s*\(/`
+(java-spring), `/@record_snapshot\s*\(/` (python-fastapi) -- requiring the opening `(` so a bare
+comment/javadoc mention of the annotation's own name (`RecordHandleSnapshot.java.tmpl` carries one,
+in its own `@code` example) doesn't count as "found." File-level, not method-level -- the same
+"good-enough regex, not a real parser" precedent this codebase already uses throughout
+(`detectJacksonPackage()` in this exact file, `D-gate-precision (part 3)`'s DTO
+file-level-not-symbol-level convention). No `resourceType=`/`resource_type=` argument correlation
+is attempted: the file itself is already the correlation (`<Type>Service.java` is per-entity in
+java-spring; the router file holds one resource's whole CRUD surface in python-fastapi, confirmed
+against `test/python-fastapi-cli.test.mjs`'s own `items.py` fixture, where `read_item`/`create_item`
+both live in the same file).
+
+Gated entirely on `enforceRegistry` (java-spring's `postEmitNotes` moved from a static array
+literal to a computed one for this reason) -- `--enforce-registry off` (the default) executes zero
+new code, byte-identical output to before this item. A resource whose file DOES carry the
+decorator produces no per-resource note at all, same generic two notes as before.
+
+**A real asymmetry decided explicitly, not left implicit**: a false POSITIVE here (this check
+warns about a resource that is actually registered some other way it can't see -- a hand-written
+`HandleService.register()`/`handle_service.register()` call with no decorator at all, or the
+decorator applied somewhere other than the one canonical file) costs a maintainer one line of
+`postEmitNotes` to read and dismiss -- bounded, cheap, and this feature never blocks emit or fails
+a gate. A false NEGATIVE (silence for a resource that really is never registered anywhere)
+reproduces exactly the production trap this item's own parent entry already found and documented
+-- fetch/patch 404ing, discovered live instead of at emit time -- which is the whole reason this
+feature exists. **Deliberately biased toward false positives**: no attempt is made to widen
+"found" by also scanning for `register()` calls or additional files -- every such widening would
+only grow the false-negative surface for a check whose entire value depends on staying on the
+safe side of that asymmetry. Same overall "prefer false positive over false negative" instinct
+`D-gate-precision (part 3)`'s DTO work used, but for a different underlying reason: there, a false
+negative meant a stale gate silently passing (a staleness-detection miss); here, a false negative
+means silently endorsing a resource that will 404 in production the first time someone hits it
+under enforcement.
+
+**COST**: python-fastapi and java-spring `plan.mjs` needed zero new fields -- both target files
+(`resource.service.file`, `resource.fetchRoute.file`) already existed on the resource object
+before this item; `resource.fetchRoute.file` was judged sufficient for python-fastapi without
+adding `entity.file` (the raw SQLModel table file is architecturally further from "where a
+create-flow decorator would go" than the router file already is). No schema change --
+`postEmitNotes` was never schema-constrained.
+
+**EXIT**: unchanged from this item's own original EXIT -- a live-database check (an already-empty
+registry, detected at `doctor`/O7-audit time against a real target-app connection) remains a
+separate, larger, still-open gap this item does not attempt. This slice's own known, accepted
+residual gap: a resource registered via a hand-written `register()` call, or via the decorator
+applied somewhere other than the one canonical file this check reads, produces a (deliberately
+accepted) nuisance false-positive warning, never a false-negative silence.
+
+**Verified**: `npm test` 1081 -> **1087** (6 new -- 3 per provider in `test/handles-cli.test.mjs`/
+`test/python-fastapi-handles.test.mjs`, covering: warns when absent, silent when present, silent
+when `--enforce-registry` is off/omitted).
+
 ## D-resolver-authorization-action-aware (O5): fetch and patch can require genuinely different roles, and until now only fetch's was ever checked
 
 **WHY:** O5's own catalog "What" says "make resolver authorization action- and resource-aware" --

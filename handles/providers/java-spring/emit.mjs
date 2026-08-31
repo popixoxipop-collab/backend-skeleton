@@ -104,6 +104,22 @@ function writeUnit(target, content) {
 	fs.writeFileSync(target, content);
 }
 
+// O3 follow-up (D-handle-registry-enforcement, "Continued"): a coarse, per-resource, emit-time,
+// source-only proxy for "has this resource's own create-flow ever been wired to register a
+// HandleRegistry row" -- see DECISIONS.md for why this stays static and never queries a live
+// target-app database (that's a separate, harder, still-open gap, not this). Requires the opening
+// "(" so a bare comment/javadoc mention of the annotation's name (RecordHandleSnapshot.java.tmpl's
+// own javadoc has one) doesn't count as "found". Deliberately biased toward a false-positive
+// WARNING (nagging a resource that's actually registered some other way, e.g. a hand-written
+// HandleService.register() call with no annotation) over a false-negative SILENCE (saying nothing
+// about a resource that really can never bootstrap its first PATCH) -- see DECISIONS.md.
+const RECORD_HANDLE_SNAPSHOT_RE = /@RecordHandleSnapshot\s*\(/;
+
+function hasRecordHandleSnapshot(serviceFilePath) {
+	if (!serviceFilePath || !fs.existsSync(serviceFilePath)) return false;
+	return RECORD_HANDLE_SNAPSHOT_RE.test(fs.readFileSync(serviceFilePath, 'utf8'));
+}
+
 // See DECISIONS.md D-handles-ownership for the full design; the conflict/manifest/force/orphan
 // logic itself now lives in handles/_engine.mjs (D-handles-providers, G4) -- this function's job
 // is purely to compute java-spring's own render/paths and hand them to emitUnits(). `force`/
@@ -249,15 +265,26 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 	if (computeDiff && migrationAction === 'update') migrationActionEntry.diff = unifiedDiff(migrationRelPath, migrationDiskContent, migrationContent);
 	result.actions.push(migrationActionEntry);
 
-	return {
-		...result,
-		postEmitNotes: [
-			'NOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.',
-			// O4 (D-handle-lifecycle): HandleAspect.java only actually intercepts anything once a
-			// human applies @RecordHandleSnapshot to a real service method AND the target repo has
-			// this dependency -- never auto-added to build.gradle, same "review and apply yourself"
-			// boundary as the migration note above.
-			'NOT done automatically: HandleAspect.java requires spring-boot-starter-aop on your own build.gradle classpath (Spring AOP is not enabled by any other starter). Add it yourself before applying @RecordHandleSnapshot to any service method.',
-		],
-	};
+	const postEmitNotes = [
+		'NOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.',
+		// O4 (D-handle-lifecycle): HandleAspect.java only actually intercepts anything once a
+		// human applies @RecordHandleSnapshot to a real service method AND the target repo has
+		// this dependency -- never auto-added to build.gradle, same "review and apply yourself"
+		// boundary as the migration note above.
+		'NOT done automatically: HandleAspect.java requires spring-boot-starter-aop on your own build.gradle classpath (Spring AOP is not enabled by any other starter). Add it yourself before applying @RecordHandleSnapshot to any service method.',
+	];
+	// O3 follow-up (D-handle-registry-enforcement, "Continued"): per-resource, conditional on
+	// enforceRegistry actually being on -- see hasRecordHandleSnapshot() above.
+	if (enforceRegistry) {
+		for (const resource of plan.resources) {
+			if (!resource.willGenerateResolver) continue;
+			if (hasRecordHandleSnapshot(resource.service.file)) continue;
+			const relServiceFile = path.relative(repoRoot, resource.service.file);
+			postEmitNotes.push(
+				`${resource.type}: --enforce-registry is on, but no @RecordHandleSnapshot(...) was found anywhere in ${relServiceFile} -- this resource may never get its first HandleRegistry row, and every fetch()/patch() call against it will 404 until something registers it. Apply @RecordHandleSnapshot to ${resource.service.serviceType}'s own create-flow method (or call HandleService.register() by hand at least once per resource), then re-emit. See D-handle-registry-enforcement in DECISIONS.md for the full bootstrapping explanation.`,
+			);
+		}
+	}
+
+	return { ...result, postEmitNotes };
 }
