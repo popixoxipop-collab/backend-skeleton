@@ -9672,6 +9672,20 @@ pre-push convenience, matching this project's own long-standing "explicit, not a
 on anything that isn't a disk-checked gate. Whether to add a lightweight pre-push hook recommending
 it is a separate, future decision, not decided here.
 
+### Continued: `README.md`'s own Quickstart was silently broken by this item too, found by literally following it
+
+The exact same class of gap as the CI scripts above, in a different place: `README.md`'s Quickstart
+`bash` block -- the copy-pasteable command sequence a brand-new user is meant to follow verbatim --
+never gained a `cross-feature-check` step either. Confirmed live, not assumed: built a fresh fixture
+repo and ran the Quickstart's own commands in order; `handles emit` failed with the identical
+`cross_feature`-not-run message a real first-time user would have hit. Fixed by inserting the missing
+step into the Quickstart block itself, then re-running the CORRECTED sequence end-to-end against a
+second fresh fixture to confirm `bskel verify --feature ... --build` now reports `VERIFY: PASS` the
+way the README already implies it should. Also added two new `### ... (optional)` sections (`bskel
+patch propose/approve/apply/rollback/list` and `bskel gate export --sign`/`bskel attest verify`/
+`bskel attest keygen`) -- `README.md` had zero mentions of either subsystem before this, confirmed by
+`grep -c` returning 0 for both.
+
 ## D-patch-transactions: content-addressed patch transactions -- generalizing A3's per-field patch approval into a real propose/approve/apply/rollback lifecycle, closing D-config-patch's own EXIT item as Slice 1
 
 **WHY**: Codex's own growth-idea consultation (Part B #2) proposed generalizing the project's

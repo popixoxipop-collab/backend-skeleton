@@ -66,6 +66,9 @@ bskel scan disposition --feature 001-organization-management --mode reuse --note
 
 bskel contract emit --feature 001-organization-management
                                    # feature_id-scoped JSON Schema contract, from real source annotations
+bskel scan cross-feature-check --feature 001-organization-management
+                                   # refuses to proceed if this feature's resourceType/table/operationId
+                                   #   collides with another feature -- required before handles emit
 bskel handles plan --feature 001-organization-management
 bskel handles emit --feature 001-organization-management
                                    # UUID-addressable field handles + generated resolver code
@@ -171,6 +174,42 @@ Add `--database-url-env <NAME>` (naming an environment variable you've already e
 read from `.env`) for live, read-only Postgres introspection (`information_schema`/`pg_catalog`,
 inside a `BEGIN TRANSACTION READ ONLY`) and a source-vs-live drift report. Both are informational
 additions to the scan report — neither blocks any gate. See `D-db-schema-plane` in `DECISIONS.md`.
+
+### Patching a config file (optional)
+
+`bskel stack apply`'s `config_check` sometimes reports `needs-manual-patch` — a target file exists
+but isn't wired up the way the chosen stack (e.g. `ngrok`) needs. `bskel patch propose/approve/
+apply/rollback` closes that gap for the catalog entries that declare a machine-applicable fix,
+using a comment-preserving edit with a content-addressed preimage check (refuses to apply if the
+target changed since you approved it) and a real rollback:
+
+```bash
+bskel patch propose --feature 001-organization-management --choice ngrok \
+  --target src/main/resources/application.yaml
+bskel patch approve --feature 001-organization-management --transaction <id> --reason "..."
+bskel patch apply --feature 001-organization-management --transaction <id>
+# ...or, to undo: bskel patch rollback --feature 001-organization-management --transaction <id> --reason "..."
+```
+
+`bskel patch list --feature <id>` shows every transaction and its status. See
+`D-patch-transactions` in `DECISIONS.md`.
+
+### Signed gate attestations (optional)
+
+`bskel gate export` already produces a CI-independent report of every gate's current status. Add
+`--sign --key <privateKeyPath>` to detached-sign it (Ed25519, via Node's own `crypto` module — no
+new dependency), then verify it offline, on any machine, without network access or trusting
+whatever produced it:
+
+```bash
+bskel attest keygen --out ~/.bskel-keys        # writes attest-private.pem (0600) + attest-public.pem
+bskel gate export --feature 001-organization-management \
+  --sign --key ~/.bskel-keys/attest-private.pem --out attestation.json
+bskel attest verify --file attestation.json --pubkey ~/.bskel-keys/attest-public.pem
+```
+
+`attest verify`'s exit code reflects signature validity only — whether the gates inside actually
+passed is a separate, printed summary. See `D-gate-attestation-signing` in `DECISIONS.md`.
 
 Every command is read-only until you explicitly run one of the mutating steps above — `bskel
 status`/`bskel next` (no arguments needed) tell you which gate is next and print the exact
