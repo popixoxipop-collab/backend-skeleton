@@ -18,6 +18,16 @@ export const COMPLETENESS = Object.freeze({ COMPLETE: 'complete', PARTIAL: 'part
 // CONTRACT_EMPTY both mean the endpoint loop in buildContract() never ran at all) -- so gating
 // waivers on `completeness === 'blocked'` in cmdContractWaive is sufficient to keep them
 // unwaivable; there is no case where either fires with operations > 0.
+//
+// `waivable` only has functional meaning for ERROR-severity codes -- `bin/bskel.mjs`'s
+// `cmdContractWaive` filters to `severity === 'error'` before anything else, and
+// `evaluateResolution()` below only ever considers ERROR-severity warnings when computing
+// `unwaived`/`blocking` in the first place, by design (a WARN never blocks completeness, waived
+// or not). Every WARN-severity code below is marked `waivable: true` anyway -- read that as "this
+// finding is conceptually the kind of thing a human might choose to acknowledge," not as "this can
+// currently be passed to `bskel contract waive`" -- it can't, and isn't meant to. This is
+// deliberate (`test/contract-completeness.test.mjs` asserts the exact shape below, repeatedly,
+// across every OpenAPI-passthrough item that's added a WARN code), not an unnoticed inconsistency.
 export const WARNING_CODES = Object.freeze({
 	CONTRACT_NO_MODULE: { severity: SEVERITY.ERROR, waivable: false },
 	CONTRACT_EMPTY: { severity: SEVERITY.ERROR, waivable: false },
