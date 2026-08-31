@@ -9165,3 +9165,86 @@ source. All named, not silently dropped.
 alongside the full existing suite, 0 regressions. `test/gate-definitions.test.mjs`'s hardcoded gate-
 name-list regex and `test/doc-integrity.test.mjs`'s usage()/COMMANDS/dispatch-switch/anchor checks
 all updated and passing.
+
+## D-dependency-propagation-notice: warning the SOURCE side of a field dependency, at codegen time, that other features rely on what it's about to re-derive
+
+**WHY**: `D-field-dependency`'s `dependencies` gate already tells a DEPENDENT feature "the field you
+declared a dependency on has changed since you last checked" -- but only when that dependent feature
+is itself the one being inspected (`bskel verify`/`bskel status`/`gate require dependencies`).
+Nothing told the SOURCE side "N other features depend on the field you just changed." A human
+re-emitting `contract`/`handles` for a resource had no way to know, at that moment, who else relies
+on it -- exactly the blind spot the original Fieldwire UI mockup's wires were meant to make visible.
+This is Slice 2 of the field-dependency backend: **codegen-time propagation notices only** -- purely
+read-only and informational, never blocking, never mutating any generated or hand-written file.
+
+**A real, deliberately-preserved boundary**: this project already has an explicit, load-bearing
+principle for exactly this ("Codegen never touches existing business logic files" --
+`handles/providers/python-fastapi/emit.mjs`). This item stays firmly on the safe side of that line --
+it never rewrites a field, a DTO, or any generated artifact on anyone's behalf. All it does is print a
+pointer at the moment a human is already looking at the relevant command's own output.
+
+**Mechanism**: `lib/field-dependencies.mjs`'s new `listDownstreamDependents(root, featureId)` is the
+literal reverse of `resolveClassFile()` -- "who else declared a dependency ON this feature" instead of
+"what does this feature's dependency point at." It walks every OTHER active feature (via
+`lib/featurelifecycle.mjs`'s schema-validated, archived-filtering `listFeatures()` -- an archived
+feature's stale dependency isn't worth nagging a human about) and returns every `{dependentFeature,
+dep}` pair whose `dep.source.feature` equals the queried `featureId`. One level only, matching this
+whole feature's own explicit non-goal of full cross-feature cycle detection.
+
+`bin/bskel.mjs`'s new `describeDownstreamImpact(root, featureId)` turns that into ready-to-print
+notes: it groups the dependents, and for each one calls the already-existing `requireNamedGate(root,
+'dependencies', dependentFeature)`. A note only fires when that dependent's OWN gate is genuinely
+`stale` **and** its `changed_inputs` contains a `source_field_file:<featureId>:` key -- i.e. the
+staleness is attributable to THIS feature's own change, not some other, unrelated dependency the same
+dependent happens to also have gone stale on. This attribution check is not decorative: a dependent
+feature can have MULTIPLE declared dependencies on different source features, and the gate's own
+staleness token is a single aggregate over all of them -- without the prefix check, emitting an
+unrelated source feature would misleadingly surface a note that has nothing to do with it (verified
+directly: `test/dependency-propagation-cli.test.mjs`'s "attribution precision" test builds a
+dependent stale for two independent reasons at once and confirms each source feature's own emit only
+ever surfaces its own attributable entry). When `changed_inputs` can't explain the staleness
+(`NO_RECORDED_INPUTS`/`RECORDED_INPUTS_MISMATCH`), the note is silently skipped rather than guessed --
+a false negative here is the safe failure direction, since this is a best-effort nudge, never the
+source of truth (`bskel verify`/`bskel status` on the dependent feature itself remain that).
+
+**Two injection points, both additive, no new flags, no schema/gate-definition change**:
+- `cmdContractEmit` -- appended to the existing text-mode-only, `console.error`-based note block
+  (the same shape as the stale-openapi-snapshot note and the expired/stale-waiver notes already in
+  that function), unconditional on `evaluation.blocking`, never appears in `--json` (matches every
+  other note there -- `contract emit --json` is the raw, schema-validated contract object with no
+  side channel to add one to without touching the gate-hashed artifact itself).
+- `cmdHandlesEmit` -- appended directly into the existing `postEmitNotes` array AFTER the `blocked`
+  early-return, so it inherits the exact same `--json`-visible, dry-run-computed-but-text-mode-
+  suppressed behavior every provider-authored postEmitNote already has. Appended centrally in
+  `bin/bskel.mjs` itself, not inside any of the 3 providers' own `emit.mjs` -- applies uniformly
+  regardless of which provider ran, zero provider-file changes needed.
+
+**Deliberately NOT wired into `bskel dependency declare`/`remove`**: declaring a new edge doesn't
+change the SOURCE feature's own field shape -- there's nothing to "just changed" yet at that moment.
+Only `contract emit`/`handles emit` (the two commands this project's own vocabulary calls "codegen")
+are genuine "this feature's derived artifacts were just refreshed from source" moments.
+
+**A real test-fixture side-effect found while grounding the attribution-precision test**: `scan`'s own
+gate hashes the WHOLE adapter read-set (D-gate-precision part 1, by design -- any Java file anywhere
+is a potential new collision candidate), not narrowed per module the way `contract`'s gate is. Editing
+TWO different modules' files and re-scanning one BEFORE editing the other re-staled the first one's
+already-just-repassed scan gate. The fix was in the test only (make both edits before either
+re-scan/re-disposition) -- not a product bug, but a real, previously-undemonstrated consequence of
+`scan`'s own established whole-tree sensitivity worth recording here since Slice 2 is the first thing
+in this codebase to touch two independent modules' source in the same test run.
+
+**COST**: `describeDownstreamImpact()` calls `requireNamedGate` once per distinct dependent feature
+found -- bounded by however many OTHER features declared a dependency on the one being emitted,
+consistent with every other unbounded-but-small `listFeatures()`-driven loop already in this codebase
+(`feature list`, etc.). No caching, no batching -- not needed at this scale.
+
+**EXIT**: what this deliberately did NOT do: any actual code mutation on either side (still strictly
+forbidden); full cross-feature cycle/graph traversal; wiring the notice into `dependency declare`/
+`remove`; a target-side "your OWN dependency went stale" notice inside `contract emit`/`handles
+emit` (already fully covered, generically, by `bskel verify`/`bskel status` -- adding it here would
+be pure duplication, not new value); any HTTP-serving layer (still Slice 3, still not started).
+
+**Verified**: `npm test` -- new `test/dependency-propagation-cli.test.mjs` (5 CLI-level tests,
+including the dedicated attribution-precision test) and new unit tests in
+`test/field-dependencies.test.mjs` for `listDownstreamDependents` (self-exclusion, no-dependents,
+archived-feature exclusion, cross-feature correctness), alongside the full existing suite.

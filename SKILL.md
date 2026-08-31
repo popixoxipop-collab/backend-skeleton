@@ -493,6 +493,12 @@ bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <p
   #    `examples`, `externalDocs`, `xml`, `deprecated` stay unconditionally dropped either way (0
   #    real occurrences measured against the Team-IZ-Backend oracle) -- permanently unbuilt, not
   #    just deferred.
+  #
+  #    D-dependency-propagation-notice: if any OTHER feature declared (`bskel dependency declare`)
+  #    that one of ITS OWN fields is derived from a field on THIS feature, and that dependency has
+  #    since gone stale, prints a `downstream impact: feature "..." depends on ...` note (stderr,
+  #    text mode only -- never `--json`) naming which feature to go check. Purely informational,
+  #    never blocks, never touches any generated file.
 
 bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   # -> A6: the inverse of `--openapi-file`. Renders an already-emitted contract as a standalone
@@ -749,6 +755,10 @@ bskel handles emit --feature <id> [--module <name>] [--resource Type1,Type2] [--
   #    registration only happens as a side effect of a call the registry check itself gates.
   #    Verified against a genuinely running @SpringBootTest app + real disposable Postgres, not
   #    just structurally -- see D-handle-registry-enforcement in DECISIONS.md.
+  #
+  #    D-dependency-propagation-notice: same downstream-impact note `contract emit` prints (see
+  #    above), appended into `postEmitNotes` -- visible in both `--json` and text mode here, unlike
+  #    `contract emit`.
 
 bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
   #    O7 (D-handle-audit-report): a live, read-only query over sbf_handle/sbf_handle_snapshot --

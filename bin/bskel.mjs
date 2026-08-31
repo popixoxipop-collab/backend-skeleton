@@ -31,7 +31,7 @@ import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
-import { loadFieldDependencies, saveFieldDependencies, dependencyKey, resolveClassFile } from '../lib/field-dependencies.mjs';
+import { loadFieldDependencies, saveFieldDependencies, dependencyKey, resolveClassFile, listDownstreamDependents } from '../lib/field-dependencies.mjs';
 import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
@@ -1059,6 +1059,7 @@ function cmdContractEmit(args) {
 			console.error(`\nnote: ${evaluation.staleWaivers.length} recorded waiver(s) no longer match any current warning (kept as-is, not auto-removed):`);
 			for (const w of evaluation.staleWaivers) console.error(`  ${w.code} (${w.subject ?? '*'})`);
 		}
+		for (const n of describeDownstreamImpact(root, flags.feature)) console.error(`\nnote: ${n}`);
 		if (evaluation.blocking) {
 			if (evaluation.status === 'blocked') {
 				console.error(`\nblocked: this contract has zero operations and cannot be waived -- fix --module/--terms, or run \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if this module genuinely has no HTTP surface (yet).`);
@@ -1384,6 +1385,37 @@ function describeResolutionFailure(featureId, resourceType, resolution) {
 		default:
 			return `could not resolve "${resourceType}" on feature "${featureId}"`;
 	}
+}
+
+// D-dependency-propagation-notice: called from cmdContractEmit/cmdHandlesEmit to warn a SOURCE
+// feature, at the moment its own generated artifacts are refreshed, that other features declared a
+// dependency on one of its fields. Only surfaces a note when the dependent's OWN `dependencies` gate
+// is actually stale AND that staleness is attributable to THIS featureId specifically (a
+// `source_field_file:<featureId>:` key in its changed_inputs) -- a dependent that's stale for some
+// OTHER, unrelated reason must not be misattributed to this feature's own change. When
+// changed_inputs can't explain the staleness (NO_RECORDED_INPUTS/RECORDED_INPUTS_MISMATCH), the note
+// is skipped rather than guessed -- this is a best-effort nudge, never the source of truth for
+// whether something is actually stale (bskel verify/status on the dependent feature itself remains
+// that source of truth).
+function describeDownstreamImpact(root, featureId) {
+	const byDependent = new Map();
+	for (const { dependentFeature, dep } of listDownstreamDependents(root, featureId)) {
+		if (!byDependent.has(dependentFeature)) byDependent.set(dependentFeature, []);
+		byDependent.get(dependentFeature).push(dep);
+	}
+	const notes = [];
+	const prefix = `source_field_file:${featureId}:`;
+	for (const [dependentFeature, deps] of byDependent) {
+		const gate = requireNamedGate(root, 'dependencies', dependentFeature);
+		if (gate.status !== 'stale') continue;
+		if (!(gate.changed_inputs ?? []).some((k) => k.startsWith(prefix))) continue;
+		const list = deps.map((d) => `${d.target.resourceType}.${d.target.fieldName} <- ${d.source.resourceType}.${d.source.fieldName}`).join('; ');
+		notes.push(
+			`downstream impact: feature "${dependentFeature}" depends on this feature's field(s) (${list}), and that dependency just went stale -- ` +
+			`review with \`bskel dependency list --feature ${dependentFeature} --json\`, then re-run \`bskel dependency declare ...\` once the change is accounted for.`,
+		);
+	}
+	return notes;
 }
 
 function cmdDependencyDeclare(args) {
@@ -2161,6 +2193,11 @@ function cmdHandlesEmit(args) {
 
 	// D4: dryRun never marks the gate passed -- nothing real happened this run.
 	const gateState = dryRun ? null : passNamedGate(root, 'handles', flags.feature, { resolverStubs });
+
+	// D-dependency-propagation-notice: appended here (not inside any provider's own emit.mjs) so it
+	// applies uniformly regardless of which provider ran -- inherits the same --json/text-mode
+	// visibility every provider-authored postEmitNote already has, no special-casing needed.
+	postEmitNotes.push(...describeDownstreamImpact(root, flags.feature));
 
 	if (flags.json) {
 		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, blocked: false, gate: gateState?.gates.handles ?? null, check: dryRun, postEmitNotes }, null, 2));

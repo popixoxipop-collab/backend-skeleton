@@ -270,3 +270,99 @@ export function writeOpenApiFixture(root, doc) {
 	fs.writeFileSync(file, JSON.stringify(doc));
 	return file;
 }
+
+// D-field-dependency / D-dependency-propagation-notice: a second, independent Java module
+// ("organization", DTO only -- no controller needed, since scoreModule() scores module_name against
+// --terms alone, see scanners/index.mjs's collectEvidence()) plus a two-feature repo bootstrap, so a
+// cross-feature dependency has two real resolvable resource types to point at. Originally lived only
+// in test/dependency-cli.test.mjs; promoted here (same rationale as this file's own header comment)
+// once test/dependency-propagation-cli.test.mjs needed the identical fixture -- one harness, imported
+// by both, rather than a second copy that could drift.
+export function organizationDtoPath(root) {
+	return path.join(root, 'src/main/java/com/example/domain/organization/presentation/dto/OrganizationDto.java');
+}
+
+export function organizationDtoSource() {
+	return `
+package com.example.domain.organization.presentation.dto;
+
+public record OrganizationDto(String organizationId, String taxRate) {
+}
+`;
+}
+
+export function buildTwoFeatureFixtureRepo() {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-dependency-cli-fixture-'));
+	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
+	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
+	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture\n');
+
+	fs.mkdirSync(path.dirname(widgetControllerPath(root)), { recursive: true });
+	fs.writeFileSync(widgetControllerPath(root), widgetControllerSource());
+	fs.mkdirSync(path.dirname(widgetDtoPath(root)), { recursive: true });
+	fs.writeFileSync(widgetDtoPath(root), widgetDtoSource());
+
+	fs.mkdirSync(path.dirname(organizationDtoPath(root)), { recursive: true });
+	fs.writeFileSync(organizationDtoPath(root), organizationDtoSource());
+
+	// D-dependency-propagation-notice: needed for `handles plan`/`handles emit` to detect the base
+	// package (detectBasePackage() looks for a *Application.java under src/main/java) -- unused by
+	// the contract-only tests this fixture originally served, but required once
+	// test/dependency-propagation-cli.test.mjs exercises `handles emit` through the same fixture.
+	fs.mkdirSync(path.join(root, 'src/main/java/com/example'), { recursive: true });
+	fs.writeFileSync(path.join(root, 'src/main/java/com/example/ExampleApplication.java'), 'package com.example;\npublic class ExampleApplication {}\n');
+
+	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'chore: two-feature dependency fixture'], { cwd: root });
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-dependency-cli-origin-'));
+	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
+	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+	return root;
+}
+
+// 001-widget-management (module "widget") and 002-organization-management (module
+// "organization") -- both disposed, so every test using this fixture starts from a state where the
+// target and source resource types are already resolvable.
+export function initBothFeatures(root) {
+	run(['preflight'], root);
+	run(['feature', 'init', '--slug', 'widget-management'], root);
+	run(['scan', '--feature', '001-widget-management', '--terms', 'widget'], root);
+	run(['scan', 'disposition', '--feature', '001-widget-management', '--mode', 'reuse', '--note', 'x'], root);
+	run(['feature', 'init', '--slug', 'organization-management'], root);
+	run(['scan', '--feature', '002-organization-management', '--terms', 'organization'], root);
+	run(['scan', 'disposition', '--feature', '002-organization-management', '--mode', 'reuse', '--note', 'x'], root);
+}
+
+export function declareArgs({
+	feature = '001-widget-management', resource = 'WidgetDto', field = 'name',
+	sourceFeature = '002-organization-management', sourceResource = 'OrganizationDto', sourceField = 'taxRate',
+	reason = 'name is derived from the organization tax rate', memo = null, json = false,
+} = {}) {
+	const args = [
+		'dependency', 'declare',
+		'--feature', feature, '--resource', resource, '--field', field,
+		'--source-feature', sourceFeature, '--source-resource', sourceResource, '--source-field', sourceField,
+	];
+	if (reason !== null) args.push('--reason', reason);
+	if (memo !== null) args.push('--memo', memo);
+	if (json) args.push('--json');
+	return args;
+}
+
+export function removeArgs({
+	feature = '001-widget-management', resource = 'WidgetDto', field = 'name',
+	sourceFeature = '002-organization-management', sourceResource = 'OrganizationDto', sourceField = 'taxRate',
+	reason = 'no longer needed', json = false,
+} = {}) {
+	const args = [
+		'dependency', 'remove',
+		'--feature', feature, '--resource', resource, '--field', field,
+		'--source-feature', sourceFeature, '--source-resource', sourceResource, '--source-field', sourceField,
+	];
+	if (reason !== null) args.push('--reason', reason);
+	if (json) args.push('--json');
+	return args;
+}

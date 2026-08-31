@@ -9,10 +9,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
 	dependenciesPath, loadFieldDependencies, saveFieldDependencies, dependencyKey, resolveClassFile,
+	listDownstreamDependents,
 } from '../lib/field-dependencies.mjs';
 
 function tmpRoot() {
 	return fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-field-dependencies-unit-'));
+}
+
+// D-dependency-propagation-notice: listDownstreamDependents() reads feature records via
+// lib/featurelifecycle.mjs's listFeatures(), which requires a real, schema-valid feature.json --
+// unlike writeScanReport() below, a hand-built minimal object won't do.
+function writeFeatureRecord(root, featureId, uid) {
+	const dir = path.join(root, 'specs', featureId);
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'feature.json'), JSON.stringify({
+		schema: 'sbf.feature/1', feature_id: featureId, feature_uid: uid, created_at: '2026-08-31T00:00:00.000Z',
+	}, null, 2));
 }
 
 function writeScanReport(root, featureId, report) {
@@ -179,4 +191,73 @@ test('dependencyKey: differs when any one of the 5 addressing fields differs', (
 	];
 	const baseKey = dependencyKey(base);
 	for (const v of variants) assert.notEqual(dependencyKey(v), baseKey);
+});
+
+// D-dependency-propagation-notice
+function fieldDependencyDoc(featureId, target, source) {
+	return {
+		schema: 'sbf.field-dependency/1',
+		feature_id: featureId,
+		dependencies: [{ target, source, reason: 'unit test fixture', at: '2026-08-31T00:00:00.000Z' }],
+	};
+}
+
+test('listDownstreamDependents: returns the one OTHER feature that declares a dependency on this featureId, excludes an unrelated third feature', () => {
+	const root = tmpRoot();
+	writeFeatureRecord(root, '001-source-feature', '11111111-1111-4111-8111-111111111111');
+	writeFeatureRecord(root, '002-dependent-feature', '22222222-2222-4222-8222-222222222222');
+	writeFeatureRecord(root, '003-unrelated-feature', '33333333-3333-4333-8333-333333333333');
+
+	saveFieldDependencies(root, '002-dependent-feature', fieldDependencyDoc(
+		'002-dependent-feature',
+		{ resourceType: 'InvoiceLine', fieldName: 'totalWithTax' },
+		{ feature: '001-source-feature', resourceType: 'Organization', fieldName: 'taxRate' },
+	));
+	// 003 declares a dependency on something else entirely -- must never be attributed to 001.
+	saveFieldDependencies(root, '003-unrelated-feature', fieldDependencyDoc(
+		'003-unrelated-feature',
+		{ resourceType: 'Whatever', fieldName: 'x' },
+		{ feature: '002-dependent-feature', resourceType: 'InvoiceLine', fieldName: 'totalWithTax' },
+	));
+
+	const result = listDownstreamDependents(root, '001-source-feature');
+	assert.equal(result.length, 1);
+	assert.equal(result[0].dependentFeature, '002-dependent-feature');
+	assert.equal(result[0].dep.source.feature, '001-source-feature');
+	assert.equal(result[0].dep.target.resourceType, 'InvoiceLine');
+});
+
+test('listDownstreamDependents: never includes the queried feature itself, even if it points at its own field', () => {
+	const root = tmpRoot();
+	writeFeatureRecord(root, '001-self-feature', '11111111-1111-4111-8111-111111111111');
+	saveFieldDependencies(root, '001-self-feature', fieldDependencyDoc(
+		'001-self-feature',
+		{ resourceType: 'WidgetDto', fieldName: 'name' },
+		{ feature: '001-self-feature', resourceType: 'WidgetDto', fieldName: 'widgetId' },
+	));
+	assert.deepEqual(listDownstreamDependents(root, '001-self-feature'), []);
+});
+
+test('listDownstreamDependents: returns an empty array when no feature depends on it', () => {
+	const root = tmpRoot();
+	writeFeatureRecord(root, '001-lonely-feature', '11111111-1111-4111-8111-111111111111');
+	writeFeatureRecord(root, '002-other-feature', '22222222-2222-4222-8222-222222222222');
+	assert.deepEqual(listDownstreamDependents(root, '001-lonely-feature'), []);
+});
+
+test('listDownstreamDependents: excludes an archived dependent feature', () => {
+	const root = tmpRoot();
+	writeFeatureRecord(root, '001-source-feature', '11111111-1111-4111-8111-111111111111');
+	const dir = path.join(root, 'specs', '002-archived-dependent');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'feature.json'), JSON.stringify({
+		schema: 'sbf.feature/1', feature_id: '002-archived-dependent', feature_uid: '22222222-2222-4222-8222-222222222222',
+		created_at: '2026-08-01T00:00:00.000Z', archived_at: '2026-08-15T00:00:00.000Z', archived_reason: 'superseded',
+	}, null, 2));
+	saveFieldDependencies(root, '002-archived-dependent', fieldDependencyDoc(
+		'002-archived-dependent',
+		{ resourceType: 'InvoiceLine', fieldName: 'totalWithTax' },
+		{ feature: '001-source-feature', resourceType: 'Organization', fieldName: 'taxRate' },
+	));
+	assert.deepEqual(listDownstreamDependents(root, '001-source-feature'), []);
 });
