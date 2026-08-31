@@ -23,31 +23,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { bskel, makeFail, establishThroughContract, REPO_ROOT } from './_smoke-lib.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'python-fastapi');
-const CLI = path.join(REPO_ROOT, 'bin', 'bskel.mjs');
 const FEATURE_ID = '001-item-management';
 
 function sh(cmd, args, cwd, opts = {}) {
 	return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts });
 }
 
-function bskel(args, cwd) {
-	try {
-		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
-		return { code: 0, stdout };
-	} catch (err) {
-		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
-	}
-}
-
-function fail(message) {
-	console.error(`python-import-smoke: FAIL -- ${message}`);
-	process.exit(1);
-}
+const fail = makeFail('python-import-smoke');
 
 console.log('python-import-smoke: copying fixture to a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-import-smoke-'));
@@ -83,38 +68,26 @@ sh('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], bareOrigin,
 sh('git', ['remote', 'add', 'origin', bareOrigin], scratch, { quiet: true });
 sh('git', ['push', '--quiet', 'origin', 'develop'], scratch, { quiet: true });
 
-console.log('python-import-smoke: preflight -> feature init -> scan -> disposition -> handles emit...');
-let r = bskel(['preflight'], scratch);
-if (r.code !== 0) fail(`preflight: ${r.stderr || r.stdout}`);
-
-r = bskel(['feature', 'init', '--slug', 'item-management'], scratch);
-if (r.code !== 0) fail(`feature init: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', '--feature', FEATURE_ID, '--terms', 'item'], scratch);
-if (![0, 3].includes(r.code)) fail(`scan: exit ${r.code}: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'extend', '--note', 'python-import-smoke'], scratch);
-if (r.code !== 0) fail(`scan disposition: ${r.stderr || r.stdout}`);
-
+console.log('python-import-smoke: preflight -> feature init -> scan -> disposition -> contract emit -> cross-feature-check -> handles emit...');
 // D-runtime-conformance-receipts: a real contract (not just a force-passed gate) is required here
 // -- unlike `handles emit` (which only needs plan(), not contract.operations), `observe emit` calls
 // loadContract() directly. D-fastapi-adapter: this scanner's operationId is always null, so a real
 // --openapi-file is the only way to get one, matching test/python-fastapi-handles.test.mjs's own
 // D-resolver-policy-split regression test.
 const openApiPath = path.join(scratch, 'openapi.json');
-fs.writeFileSync(openApiPath, JSON.stringify({
-	openapi: '3.1.0',
-	paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } },
-}));
-r = bskel(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'], scratch);
-if (r.code !== 0) fail(`contract emit: ${r.stderr || r.stdout}`);
+establishThroughContract(scratch, fail, {
+	featureId: FEATURE_ID, slug: 'item-management', terms: 'item', mode: 'extend', note: 'python-import-smoke',
+	// D-cli-contract convention: openapi.json is written AFTER preflight, not before -- an
+	// untracked file at repo root would otherwise make preflight's own dirty-tree check fail.
+	// establishThroughContract's beforeContractStep hook exists for exactly this ordering need.
+	beforeContractStep: () => fs.writeFileSync(openApiPath, JSON.stringify({
+		openapi: '3.1.0',
+		paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } },
+	})),
+	contractStep: { kind: 'emit', args: ['--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'] },
+});
 
-// D-cross-feature-collision: see java-compile-smoke.mjs's own identical note -- `handles emit`
-// hard-requires this gate; missed here because this script isn't part of `npm test`'s glob.
-r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
-if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
-
-r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--json'], scratch);
+let r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--json'], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 let emitResult;
 try {

@@ -17,31 +17,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { bskel, makeFail, establishThroughContract, REPO_ROOT } from './_smoke-lib.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'typescript-express');
-const CLI = path.join(REPO_ROOT, 'bin', 'bskel.mjs');
 const FEATURE_ID = '001-user-management';
 
 function sh(cmd, args, cwd, opts = {}) {
 	return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts });
 }
 
-function bskel(args, cwd) {
-	try {
-		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
-		return { code: 0, stdout };
-	} catch (err) {
-		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
-	}
-}
-
-function fail(message) {
-	console.error(`typescript-typecheck-smoke: FAIL -- ${message}`);
-	process.exit(1);
-}
+const fail = makeFail('typescript-typecheck-smoke');
 
 console.log('typescript-typecheck-smoke: copying fixture to a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-typescript-typecheck-smoke-'));
@@ -58,31 +43,16 @@ sh('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], bareOrigin,
 sh('git', ['remote', 'add', 'origin', bareOrigin], scratch, { quiet: true });
 sh('git', ['push', '--quiet', 'origin', 'develop'], scratch, { quiet: true });
 
-console.log('typescript-typecheck-smoke: preflight -> feature init -> scan -> disposition -> handles emit...');
-let r = bskel(['preflight'], scratch);
-if (r.code !== 0) fail(`preflight: ${r.stderr || r.stdout}`);
-
-r = bskel(['feature', 'init', '--slug', 'user-management'], scratch);
-if (r.code !== 0) fail(`feature init: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', '--feature', FEATURE_ID, '--terms', 'user'], scratch);
-if (![0, 3].includes(r.code)) fail(`scan: exit ${r.code}: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'extend', '--note', 'typescript-typecheck-smoke'], scratch);
-if (r.code !== 0) fail(`scan disposition: ${r.stderr || r.stdout}`);
-
+console.log('typescript-typecheck-smoke: preflight -> feature init -> scan -> disposition -> cross-feature-check -> handles emit...');
 // No OpenAPI oracle exists for plain Express (D-typescript-express-provider) -- contract emit is
 // out of scope for this smoke script, same as test/typescript-express-handles.test.mjs's own e2e
 // fixture forces past it. This script's only concern is real type-checking of generated codegen.
-r = bskel(['gate', 'force', 'contract', '--feature', FEATURE_ID, '--reason', 'handles-only smoke test, no OpenAPI oracle for this ecosystem'], scratch);
-if (r.code !== 0) fail(`gate force contract: ${r.stderr || r.stdout}`);
+establishThroughContract(scratch, fail, {
+	featureId: FEATURE_ID, slug: 'user-management', terms: 'user', mode: 'extend', note: 'typescript-typecheck-smoke',
+	contractStep: { kind: 'force', reason: 'handles-only smoke test, no OpenAPI oracle for this ecosystem' },
+});
 
-// D-cross-feature-collision: see java-compile-smoke.mjs's own identical note -- `handles emit`
-// hard-requires this gate; missed here because this script isn't part of `npm test`'s glob.
-r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
-if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
-
-r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--json'], scratch);
+let r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--json'], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 let emitResult;
 try {

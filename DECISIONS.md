@@ -9613,6 +9613,65 @@ reproduce every step of that manual run.
   table via FK." That would need live DB introspection correlation across features (Plane C), a
   materially larger, separate signal, out of scope here.
 
+### Continued: a real, live incident -- this item's own `handles emit` hard-prerequisite broke `main`'s CI for hours because the fix landed in every `node --test` file but 5 CI-only smoke scripts outside `npm test`'s own glob
+
+**WHY**: on 2026-08-31, 09:48, the commit that shipped this gate's `cmdHandlesEmit` hard-prerequisite
+made every push to `main` fail CI -- confirmed directly via `gh run view` against the real, live
+workflow runs, not assumed: `java-compile`, `java-integration`, `python-import`, `python-integration`,
+and `typescript-compile` all failed with the identical message,
+`` blocked: `cross_feature` gate for 001-widget-management is not_run -- run `bskel scan
+cross-feature-check --feature 001-widget-management` first`` `` . Root cause: this project's own
+established fix (call `bskel scan cross-feature-check` before any `handles emit`) was applied to
+every affected `node --test test/*.test.mjs` file (~15 of them) the same day the gate shipped, but
+`scripts/{java-compile,java-integration,python-import,python-integration,typescript-typecheck}-smoke.
+mjs` are CI-only scripts invoked via separate `npm run test:*` entries -- `npm test`'s own glob never
+covers `scripts/`, so nobody's local verification loop that day ever exercised them. Discovered only
+because an unrelated Codex re-consultation attempt failed (an account/model configuration error, not
+a repo problem) and the user asked for the SAME consultation directly instead -- the resulting
+research fork independently queried real CI run history and found the live breakage; a subsequent
+cross-check against the actual CI job list (by hand, not by trusting the fork's own count) found the
+fork's own list of 4 affected scripts was itself incomplete -- `java-integration-smoke.mjs` had the
+identical bug and was missed. **Lesson generalized as its own memory entry (not project-specific):
+a research subagent's individual findings can each be fully accurate while its "found every instance"
+claim is still incomplete -- cross-check completeness against an independently-obtained total, not
+just spot-check individual claims for correctness.**
+
+Fixed the same day: all 5 scripts patched with the identical one-line `cross-feature-check` insertion
+already proven correct in every `node --test` file, verified live against real toolchains for every
+one of them (real Gradle compile, real `tsc --noEmit`, real Python import, real Postgres integration
+for both the Python and Java lifecycle scripts) -- not just re-reading the diff. Confirmed the actual
+fix by watching the real, subsequent GitHub Actions run (33400718542, commit `2284a18`) reach
+`conclusion: success` across all 11 jobs.
+
+**Then closed the underlying gap class, not just this one instance** -- extracted `scripts/
+_smoke-lib.mjs` (new; `_`-prefixed, matching this codebase's existing `_`-prefixed shared-internal-
+module convention: `scanners/adapters/_java-spring-analyzer.mjs`, `test/_contract-fixture.mjs`).
+Confirmed live, before extracting anything, that all 5 scripts' `bskel()`/`fail()` wrapper functions
+were BYTE-FOR-BYTE identical, and that every script's own preflight -> feature-init -> scan ->
+disposition -> (contract-established) -> cross-feature-check sequence differed only in plain DATA
+(feature id/slug/terms/disposition-mode/note, and whether contract establishment is a real `contract
+emit` or a `gate force contract`) -- genuine, provable duplication, not a premature abstraction over
+things that only looked similar. `establishThroughContract()` is now the ONE place a future new
+mandatory pre-`handles emit` gate needs to be added for these 5 scripts, not a five-script hunt again.
+A real bug was found refactoring this in, not assumed correct on the first attempt:
+`python-import-smoke.mjs`'s own `openapi.json` fixture write MUST happen after `preflight`'s own
+dirty-tree check but before `contract emit` reads it -- moving that write to before the (now-shared)
+`establishThroughContract()` call broke `preflight` itself (`FAIL (DIRTY): working tree is not
+clean`), caught only by actually running the refactored script, not by reading the diff. Fixed with
+an optional `beforeContractStep` hook run at exactly the right point in the shared sequence.
+
+Also added `npm run test:all-smoke` (aggregates `npm test` + every CI-relevant `test:*` script in
+one command, deliberately EXCLUDING `test:spring-initializr-canary` -- that one already has its own
+documented, deliberate "never blocks push/PR, hits a live external service" rule in `ci.yml`, and
+`test:all-smoke` must not silently violate a rule the CI workflow itself already enforces). Verified
+by actually running it end-to-end against a real throwaway Postgres, not just adding the script and
+assuming the `&&` chain works.
+
+**EXIT**: `test:all-smoke` is not wired into any git hook or CI gate itself -- it is a human's own
+pre-push convenience, matching this project's own long-standing "explicit, not auto-enforced" stance
+on anything that isn't a disk-checked gate. Whether to add a lightweight pre-push hook recommending
+it is a separate, future decision, not decided here.
+
 ## D-patch-transactions: content-addressed patch transactions -- generalizing A3's per-field patch approval into a real propose/approve/apply/rollback lifecycle, closing D-config-patch's own EXIT item as Slice 1
 
 **WHY**: Codex's own growth-idea consultation (Part B #2) proposed generalizing the project's

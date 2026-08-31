@@ -13,30 +13,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { bskel, makeFail, establishThroughContract, REPO_ROOT } from './_smoke-lib.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'java-compile');
-const CLI = path.join(REPO_ROOT, 'bin', 'bskel.mjs');
 
 function sh(cmd, args, cwd, opts = {}) {
 	return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts });
 }
 
-function bskel(args, cwd) {
-	try {
-		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
-		return { code: 0, stdout };
-	} catch (err) {
-		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
-	}
-}
-
-function fail(message) {
-	console.error(`java-compile-smoke: FAIL -- ${message}`);
-	process.exit(1);
-}
+const fail = makeFail('java-compile-smoke');
 
 console.log('java-compile-smoke: copying fixture to a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-compile-smoke-'));
@@ -68,38 +53,21 @@ try {
 
 const FEATURE_ID = '001-widget-management';
 
-console.log('java-compile-smoke: preflight -> feature init -> scan -> disposition -> contract emit -> handles emit...');
-let r = bskel(['preflight'], scratch);
-if (r.code !== 0) fail(`preflight: ${r.stderr || r.stdout}`);
-
-r = bskel(['feature', 'init', '--slug', 'widget-management'], scratch);
-if (r.code !== 0) fail(`feature init: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', '--feature', FEATURE_ID, '--terms', 'widget'], scratch);
-if (![0, 3].includes(r.code)) fail(`scan: exit ${r.code}: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'reuse', '--note', 'java-compile-smoke'], scratch);
-if (r.code !== 0) fail(`scan disposition: ${r.stderr || r.stdout}`);
-
-r = bskel(['contract', 'emit', '--feature', FEATURE_ID], scratch);
-if (r.code !== 0) fail(`contract emit: ${r.stderr || r.stdout}`);
+console.log('java-compile-smoke: preflight -> feature init -> scan -> disposition -> contract emit -> cross-feature-check -> handles emit...');
+establishThroughContract(scratch, fail, {
+	featureId: FEATURE_ID, slug: 'widget-management', terms: 'widget', mode: 'reuse', note: 'java-compile-smoke',
+	contractStep: { kind: 'emit', args: [] },
+});
 
 // A3 (D-patch-strategy): approves Widget's two codegen-eligible fields (see
 // test/fixtures/java-compile/.../dto/UpdateWidgetRequest.java) BEFORE handles emit, so this smoke
 // test proves the real generated switch-case (Validator + ObjectMapper.convertValue + the
 // service's real update method) compiles -- not just the "classified but not approved" stub path,
 // which every other resource in this corpus already exercises implicitly.
-r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'java-compile-smoke'], scratch);
+let r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'java-compile-smoke'], scratch);
 if (r.code !== 0) fail(`handles patch approve (label): ${r.stderr || r.stdout}`);
 r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'capacity', '--strategy', 'null-means-unchanged', '--reason', 'java-compile-smoke'], scratch);
 if (r.code !== 0) fail(`handles patch approve (capacity): ${r.stderr || r.stdout}`);
-
-// D-cross-feature-collision: `handles emit` now hard-requires this gate too -- single-feature
-// fixture, always passes with 0 findings. Same fix already applied to ~15 `node --test` files this
-// session; missed here because this script runs via `npm run test:java-compile`, not `npm test`'s
-// own `node --test test/*.test.mjs` glob -- the exact gap CI caught that local verification didn't.
-r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
-if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
 
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);

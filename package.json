@@ -42,7 +42,8 @@
     "test:java-ast": "node scripts/java-ast-smoke.mjs",
     "test:python-integration": "node scripts/python-integration-smoke.mjs",
     "test:typescript-compile": "node scripts/typescript-typecheck-smoke.mjs",
-    "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs"
+    "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs",
+    "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:java-ast && npm run test:typescript-compile"
   },
   "dependencies": {
     "ajv": "^8.20.0",

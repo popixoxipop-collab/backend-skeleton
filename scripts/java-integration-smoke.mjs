@@ -14,14 +14,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { bskel, makeFail, establishThroughContract, REPO_ROOT } from './_smoke-lib.mjs';
 
 const { Client } = pg;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'java-compile');
-const CLI = path.join(REPO_ROOT, 'bin', 'bskel.mjs');
 const FEATURE_ID = '001-widget-management';
 const DB_URL_ENV_NAME = 'BSKEL_TEST_DATABASE_URL';
 
@@ -29,19 +26,7 @@ function sh(cmd, args, cwd, opts = {}) {
 	return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts });
 }
 
-function bskel(args, cwd) {
-	try {
-		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
-		return { code: 0, stdout };
-	} catch (err) {
-		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
-	}
-}
-
-function fail(message) {
-	console.error(`java-integration-smoke: FAIL -- ${message}`);
-	process.exit(1);
-}
+const fail = makeFail('java-integration-smoke');
 
 const connectionString = process.env[DB_URL_ENV_NAME];
 if (!connectionString) {
@@ -74,32 +59,18 @@ try {
 	fail(`could not generate the Gradle wrapper -- is \`gradle\` on PATH? (${err.message})`);
 }
 
-console.log('java-integration-smoke: preflight -> feature init -> scan -> disposition -> contract emit -> handles patch approve -> handles emit...');
-let r = bskel(['preflight'], scratch);
-if (r.code !== 0) fail(`preflight: ${r.stderr || r.stdout}`);
+console.log('java-integration-smoke: preflight -> feature init -> scan -> disposition -> contract emit -> cross-feature-check -> handles patch approve -> handles emit...');
+establishThroughContract(scratch, fail, {
+	featureId: FEATURE_ID, slug: 'widget-management', terms: 'widget', mode: 'reuse', note: 'java-integration-smoke',
+	contractStep: { kind: 'emit', args: [] },
+});
+// Only needed once -- the later --enforce-registry re-emit below reuses this same already-passed
+// cross_feature gate (nothing about the target/other-feature state changes between the two emits).
 
-r = bskel(['feature', 'init', '--slug', 'widget-management'], scratch);
-if (r.code !== 0) fail(`feature init: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', '--feature', FEATURE_ID, '--terms', 'widget'], scratch);
-if (![0, 3].includes(r.code)) fail(`scan: exit ${r.code}: ${r.stderr || r.stdout}`);
-
-r = bskel(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'reuse', '--note', 'java-integration-smoke'], scratch);
-if (r.code !== 0) fail(`scan disposition: ${r.stderr || r.stdout}`);
-
-r = bskel(['contract', 'emit', '--feature', FEATURE_ID], scratch);
-if (r.code !== 0) fail(`contract emit: ${r.stderr || r.stdout}`);
-
-r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'java-integration-smoke'], scratch);
+let r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'java-integration-smoke'], scratch);
 if (r.code !== 0) fail(`handles patch approve (label): ${r.stderr || r.stdout}`);
 r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'capacity', '--strategy', 'null-means-unchanged', '--reason', 'java-integration-smoke'], scratch);
 if (r.code !== 0) fail(`handles patch approve (capacity): ${r.stderr || r.stdout}`);
-
-// D-cross-feature-collision: see java-compile-smoke.mjs's own identical note -- `handles emit`
-// hard-requires this gate; missed here because this script isn't part of `npm test`'s glob. Only
-// needed once -- the later --enforce-registry re-emit below reuses the same already-passed gate.
-r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
-if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
 
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
