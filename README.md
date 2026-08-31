@@ -175,6 +175,32 @@ read from `.env`) for live, read-only Postgres introspection (`information_schem
 inside a `BEGIN TRANSACTION READ ONLY`) and a source-vs-live drift report. Both are informational
 additions to the scan report — neither blocks any gate. See `D-db-schema-plane` in `DECISIONS.md`.
 
+### Declaring field-to-field dependencies (optional)
+
+When one feature's data actually depends on another feature's (e.g. a `WidgetDto.name` that's
+populated from `OrganizationDto.taxRate`), `bskel dependency declare` records that link and passes
+the `dependencies` gate for it. Declaring a dependency also warns the *source* feature next time
+someone re-runs `bskel status`/`bskel next` there, so a downstream consumer doesn't silently break:
+
+```bash
+bskel dependency declare --feature 001-widget-management --resource WidgetDto --field name \
+  --source-feature 002-organization-management --source-resource OrganizationDto --source-field taxRate \
+  --reason "widget display name mirrors the owning org's rate tier" [--memo "..."]
+bskel dependency list --feature 001-widget-management --json
+bskel dependency remove --feature 001-widget-management --resource WidgetDto --field name \
+  --source-feature 002-organization-management --source-resource OrganizationDto --source-field taxRate \
+  --reason "no longer coupled"
+```
+
+`bskel serve [--port N] [--host <addr>]` starts a small local HTTP server (loopback-only by
+default, matching this project's "safe default, explicit override" convention) that serves a
+read-only browser UI at `/` for the whole repo's dependency graph, backed by `GET /api/graph`. The
+UI's own POST/DELETE calls to `/api/features/:id/dependencies` go through the exact same
+`declareDependency`/`removeDependency` functions the CLI above uses — nothing is duplicated
+between the two — and, like every other mutating command in this project, both take a JSON body,
+not query parameters. `GET`/`HEAD` responses carry `Access-Control-Allow-Origin: *`; the mutating
+routes never do, so only same-origin requests (the bundled UI itself) can write.
+
 ### Patching a config file (optional)
 
 `bskel stack apply`'s `config_check` sometimes reports `needs-manual-patch` — a target file exists
