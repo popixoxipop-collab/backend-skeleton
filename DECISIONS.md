@@ -9150,10 +9150,12 @@ signal.
 
 **COST**: `lib/field-dependencies.mjs`/`lib/gate-definitions.mjs` needed zero new fields on the scan
 report shape -- `{className, file}` on `entities`/`dtos` already existed on every adapter before this
-item. A separate, still-open, NOT closed by this item: `lib/workflow.mjs`'s `MUTATING_PREFIXES` is
-also missing `bskel observe emit`/`bskel observe import` (the identical class of gap, found live
-while fixing this file, out of scope for this item -- named here rather than silently left
-undiscovered for a future session).
+item. A separate gap named here as still-open at the time -- `lib/workflow.mjs`'s `MUTATING_PREFIXES`
+was also missing `bskel observe emit`/`bskel observe import` (the identical class of gap, found live
+while fixing this file, out of scope for this item at the time) -- was closed in a later session pass:
+both prefixes were added, and the inline `MUTATING_PREFIXES.some(...)` check was extracted into an
+exported `isMutatingCommand()` so this classification has a direct unit test instead of only being
+reachable through a full fixture that drives a feature all the way to a stale `conformance` gate.
 
 **EXIT**: what this deliberately did NOT do: codegen-side propagation (how `contract emit`/`handles
 emit` would actually reflect a derived field in generated code, per adapter -- a separate, real

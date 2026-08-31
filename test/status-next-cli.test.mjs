@@ -188,3 +188,21 @@ test('bskel next without --json prints exactly one command on stdout, with the r
 	assert.equal(result.stdout.trim().split('\n').length, 1, 'stdout must be exactly one line -- safe for $(bskel next)');
 	assert.equal(result.stdout.trim(), 'bskel preflight');
 });
+
+// D-field-dependency's COST section named `bskel observe emit`/`bskel observe import` as missing
+// from MUTATING_PREFIXES, closed in a later pass. A unit test against the exported
+// isMutatingCommand() directly, rather than a full fixture that drives a feature all the way to a
+// stale `conformance` gate just to observe next_actions[0].mutating once -- see lib/workflow.mjs.
+test('isMutatingCommand: bskel observe emit/import are classified as mutating', async () => {
+	const { isMutatingCommand } = await import('../lib/workflow.mjs');
+	assert.equal(isMutatingCommand('bskel observe emit --feature 001-x'), true);
+	assert.equal(isMutatingCommand('bskel observe import --feature 001-x --receipts <path>'), true);
+	// The real ESTABLISH_COMMAND.conformance shape -- a compound string embedding both verbs --
+	// must classify as mutating via its own leading "bskel observe emit" prefix.
+	assert.equal(
+		isMutatingCommand('bskel observe emit --feature 001-x   # then: run the target app, then bskel observe import --feature 001-x --receipts <path>'),
+		true,
+	);
+	assert.equal(isMutatingCommand('bskel verify --feature 001-x'), false);
+	assert.equal(isMutatingCommand('bskel status --feature 001-x'), false);
+});
