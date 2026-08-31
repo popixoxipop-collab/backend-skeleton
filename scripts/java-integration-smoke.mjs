@@ -95,6 +95,12 @@ if (r.code !== 0) fail(`handles patch approve (label): ${r.stderr || r.stdout}`)
 r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'capacity', '--strategy', 'null-means-unchanged', '--reason', 'java-integration-smoke'], scratch);
 if (r.code !== 0) fail(`handles patch approve (capacity): ${r.stderr || r.stdout}`);
 
+// D-cross-feature-collision: see java-compile-smoke.mjs's own identical note -- `handles emit`
+// hard-requires this gate; missed here because this script isn't part of `npm test`'s glob. Only
+// needed once -- the later --enforce-registry re-emit below reuses the same already-passed gate.
+r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
+
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 

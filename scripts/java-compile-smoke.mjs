@@ -94,6 +94,13 @@ if (r.code !== 0) fail(`handles patch approve (label): ${r.stderr || r.stdout}`)
 r = bskel(['handles', 'patch', 'approve', '--feature', FEATURE_ID, '--resource', 'Widget', '--field', 'capacity', '--strategy', 'null-means-unchanged', '--reason', 'java-compile-smoke'], scratch);
 if (r.code !== 0) fail(`handles patch approve (capacity): ${r.stderr || r.stdout}`);
 
+// D-cross-feature-collision: `handles emit` now hard-requires this gate too -- single-feature
+// fixture, always passes with 0 findings. Same fix already applied to ~15 `node --test` files this
+// session; missed here because this script runs via `npm run test:java-compile`, not `npm test`'s
+// own `node --test test/*.test.mjs` glob -- the exact gap CI caught that local verification didn't.
+r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
+
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 

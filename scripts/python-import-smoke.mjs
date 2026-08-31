@@ -109,6 +109,11 @@ fs.writeFileSync(openApiPath, JSON.stringify({
 r = bskel(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'], scratch);
 if (r.code !== 0) fail(`contract emit: ${r.stderr || r.stdout}`);
 
+// D-cross-feature-collision: see java-compile-smoke.mjs's own identical note -- `handles emit`
+// hard-requires this gate; missed here because this script isn't part of `npm test`'s glob.
+r = bskel(['scan', 'cross-feature-check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`scan cross-feature-check: ${r.stderr || r.stdout}`);
+
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--json'], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 let emitResult;
