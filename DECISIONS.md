@@ -9926,6 +9926,52 @@ lib-level logic; the whole addition is a `cmdPatchList` CLI wrapper. **Verified*
 (`test/patch-config-apply-cli.test.mjs`) covering both the empty ("(none proposed)") and populated
 cases; manually smoke-tested against a real fixture first.
 
+### Continued: the resolvers-barrel unconditional-overwrite gap, closing this item's own named EXIT gap
+
+`resolvers_index.ts` (typescript-express's barrel that `import`s every resolver so they
+self-register) was written OUTSIDE `emitUnits()` entirely, with no `--force` gate, no manifest
+tracking, and no dirty-tree guard -- unlike every other generated file in this codebase. Unlike
+`migration.sql` (this item's OTHER named EXIT gap, still deferred -- a materially different,
+higher-risk domain per `D-migration-scope`), this one had no structural reason to stay
+unconditional: it just needed a way to defer its own `rendered` computation until AFTER
+`emitUnits()`'s resolver loop had finished writing this run's own resolver files, since its correct
+content depends on the resolvers directory's REAL final on-disk listing (including an orphaned
+resolver from a different feature -- O2's "never delete, only report" policy leaves those on disk,
+and they still need their own `register(...)` import).
+
+Closed with one new, additive-only `emitUnits()` parameter, `postResolverUnit: { id, templatePath,
+targetAbs, render } | null` (`handles/_engine.mjs`). `render()` is a closure, called by the engine
+itself immediately after the resolver loop (not earlier, so it observes this run's own writes),
+reusing `classifyFile()`/`isDirtyOrUntracked()`/the same manifest-entry shape the infra loop
+already uses. `kind: 'infra'` was not an arbitrary pick: `lib/verify.mjs`'s
+`handlesManifestChecks()` does `artifact: e.kind === 'infra' ? 'handles infra' : 'handles
+resolver'` -- a binary ternary, not a generic pass-through -- so anything other than `'infra'` would
+have mislabeled a repo-owned file as a resolver in `bskel verify` output. Defaults to `null`;
+java-spring/python-fastapi never pass it, so this is zero behavior change for them -- confirmed via
+every existing `emitUnits(` call site. `typescript-express/emit.mjs`'s own ~20-line manual
+mkdir/readdir/compare/write block collapses into constructing this one parameter.
+
+A real side-fix, not a separate item: the barrel's action entries used to carry `kind: 'spec'`,
+which `bin/bskel.mjs`'s CLI display logic keys off to print `' [spec-owned: always regenerated on a
+real run, not conflict-tracked]'` -- a note that would have become factually false the moment this
+file became conflict-tracked. Resolved automatically by deleting the old manual
+`result.actions.push({..., kind: 'spec', ...})` line as part of removing the manual block; no
+`bin/bskel.mjs` edit was needed, confirmed via `grep -n "kind: 'spec'"` returning nothing in the
+provider file afterward.
+
+**Verified**: 7 new e2e tests in `test/typescript-express-handles.test.mjs` (content parity with
+before this item; a real manifest entry with `kind: 'infra', ownership: 'repo', owner: '_repo'`; a
+hand-edited barrel blocking re-emit with exit 15, byte-for-byte untouched; `--force --reason`
+overwriting a COMMITTED diverged barrel and recording `last_force`; `--force --reason` refusing an
+UNCOMMITTED diverged barrel, matching every other generated file's dirty-tree guard; `--check
+--diff` attaching a real diff with `kind: 'infra'`, never `'spec'`, and never writing; orphan-scan
+never treating the barrel as its own orphan) -- all passing against a real `bskel` CLI run, not
+just direct function calls. `npm test` 1241 -> **1248** (7 new). A separate manual run (real
+`preflight` -> `feature init` -> `scan` -> `disposition` -> `gate force contract` -> `scan
+cross-feature-check` -> `handles emit` -> `bskel verify --json` against a fresh fixture) confirmed
+the barrel appears under `handles infra` artifacts with `exists: true`, matching codec.ts/
+registry.ts/router.ts exactly. `migration.sql`'s own still-deferred gap is untouched by this item.
+
 ## D-gate-attestation-signing: cryptographically signed gate attestations (Codex growth idea Part B #1) -- `bskel gate export --sign` + offline `bskel attest verify`, closing a real canonicalization gap found while designing it
 
 **WHY**: Codex's differentiators consultation (Part B #1) proposed extending `bskel gate export`

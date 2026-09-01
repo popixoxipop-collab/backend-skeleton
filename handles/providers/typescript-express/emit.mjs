@@ -95,29 +95,29 @@ export function emitTypeScriptExpress({ repoRoot, featureId, plan, resourceFilte
 		},
 	} : null;
 
-	const result = emitUnits({ repoRoot, featureId, provider: 'typescript-express', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff });
-
-	// The resolvers barrel's own import list is regenerated from the resolvers directory's REAL
-	// current contents (not just this run's own resolverUnits) -- an orphaned resolver from a
-	// different feature/module (O2's "never delete, only report" policy leaves it on disk) still
-	// needs its own `register(...)` call imported, or that resource type silently stops being
-	// servable. Unconditional, like migration.sql is for java-spring -- never manifest-tracked.
-	if (!dryRun) {
-		fs.mkdirSync(resolversDir, { recursive: true });
-	}
-	const currentResolverFiles = fs.existsSync(resolversDir)
-		? fs.readdirSync(resolversDir).filter((f) => f.endsWith('.ts') && f !== 'resolvers_index.ts').sort()
-		: [];
-	const imports = currentResolverFiles.map((f) => `import './${f.replace(/\.ts$/, '')}';`).join('\n');
-	const resolversIndexContent = render(RESOLVERS_INDEX_TEMPLATE, { IMPORTS: imports });
-	const resolversIndexRelPath = path.relative(repoRoot, resolversIndexPath);
-	const resolversIndexDiskContent = fs.existsSync(resolversIndexPath) ? fs.readFileSync(resolversIndexPath, 'utf8') : null;
-	const resolversIndexAction = resolversIndexDiskContent === null ? 'create' : (resolversIndexDiskContent === resolversIndexContent ? 'unchanged' : 'update');
-	if (!dryRun && resolversIndexAction !== 'unchanged') {
-		fs.writeFileSync(resolversIndexPath, resolversIndexContent);
-		result.written.push(resolversIndexRelPath);
-	}
-	result.actions.push({ path: resolversIndexRelPath, kind: 'spec', action: resolversIndexAction });
+	const result = emitUnits({
+		repoRoot, featureId, provider: 'typescript-express', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff,
+		// D-patch-transactions (Continued): the resolvers barrel's own import list is regenerated
+		// from the resolvers directory's REAL current contents (not just this run's own
+		// resolverUnits) -- an orphaned resolver from a different feature/module (O2's "never
+		// delete, only report" policy leaves it on disk) still needs its own `register(...)` call
+		// imported, or that resource type silently stops being servable. `render()` is called by
+		// emitUnits() itself AFTER its resolver loop writes this run's own files, so this always
+		// sees the final on-disk listing -- now conflict-safe/manifest-tracked like every other
+		// generated file, no longer unconditional (unlike migration.sql, which stays that way).
+		postResolverUnit: {
+			id: 'resolvers_index.ts.tmpl',
+			templatePath: RESOLVERS_INDEX_TEMPLATE,
+			targetAbs: resolversIndexPath,
+			render: () => {
+				const currentResolverFiles = fs.existsSync(resolversDir)
+					? fs.readdirSync(resolversDir).filter((f) => f.endsWith('.ts') && f !== 'resolvers_index.ts').sort()
+					: [];
+				const imports = currentResolverFiles.map((f) => `import './${f.replace(/\.ts$/, '')}';`).join('\n');
+				return render(RESOLVERS_INDEX_TEMPLATE, { IMPORTS: imports });
+			},
+		},
+	});
 
 	return {
 		...result,

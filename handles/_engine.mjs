@@ -57,7 +57,17 @@ function isDirtyOrUntracked(repoRoot, absPath) {
 //   computeDiff:   D4 -- when true, attaches a real unified diff (git diff --no-index) to every
 //                  'update'/'conflict'/'adopt-update' action -- the only 3 where content actually
 //                  differs. Off by default since it shells out to git per diffable file.
-export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan, dryRun = false, computeDiff = false }) {
+//   postResolverUnit: D-patch-transactions (Continued) -- an OPTIONAL single unit, { id,
+//                  templatePath, targetAbs, render() => string }, whose correct content can only
+//                  be computed AFTER resolverUnits above have been written (e.g. typescript-
+//                  express's resolvers_index.ts barrel -- its import list must reflect the
+//                  resolvers directory's REAL final on-disk listing, including this run's own
+//                  just-written resolver files, not just this run's own resolverUnits -- a 4th
+//                  infraUnits entry can't do this, since infra is processed BEFORE resolvers).
+//                  Reuses the exact same classify/conflict/force/manifest logic the infra loop
+//                  above already implements, applied to exactly one repo-owned (kind: 'infra')
+//                  unit. null (the default) is a true no-op.
+export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan, dryRun = false, computeDiff = false, postResolverUnit = null }) {
 	const manifest = loadManifest(repoRoot);
 	const nowIso = new Date().toISOString();
 
@@ -221,6 +231,68 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 			}
 		}
 		recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
+	}
+
+	// ---- post-resolver unit: an OPTIONAL single unit whose correct content can only be computed
+	// AFTER the resolver loop above has finished writing (e.g. typescript-express's
+	// resolvers_index.ts barrel -- its import list must reflect the resolvers directory's REAL
+	// on-disk listing, including THIS run's own just-written resolver files, not just this run's
+	// own resolverUnits). Reuses the EXACT SAME classify/conflict/force/manifest logic the infra
+	// loop above already implements, applied to exactly one unit. `render()` is called HERE, not
+	// earlier, precisely so it observes this run's own writes. null (the default) is a true no-op
+	// -- java-spring/python-fastapi never pass this, so this block never executes for them. See
+	// D-patch-transactions (Continued) in DECISIONS.md for why this couldn't just be a 4th
+	// infraUnits entry. ----
+	if (postResolverUnit) {
+		const u = postResolverUnit;
+		const rendered = u.render();
+		const relPath = path.relative(repoRoot, u.targetAbs);
+		const diskContent = readIfExists(u.targetAbs);
+		const exists = diskContent !== null;
+		const diskHash = exists ? sha256String(diskContent) : null;
+		const freshRenderHash = sha256String(rendered);
+		const entry = manifest.files[relPath];
+		const matchesPristineRender = exists && diskContent === rendered;
+		const action = classifyFile({ exists, diskHash, manifestEntryHash: entry?.generated_hash ?? null, freshRenderHash, matchesPristineRender });
+
+		if (action === 'conflict' && !force) {
+			conflicts.push({ path: relPath, kind: 'infra', reason: 'diverged from the last content backend-skeleton generated -- see notes for remediation' });
+			recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+		} else if (action === 'conflict') {
+			if (isDirtyOrUntracked(repoRoot, u.targetAbs)) {
+				conflicts.push({ path: relPath, kind: 'infra', reason: 'refusing --force: this file has uncommitted/untracked changes -- commit or stash it first so the overwrite is recoverable' });
+				recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+			} else {
+				if (!dryRun) {
+					manifest.files[relPath] = {
+						kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
+						template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
+						updated_at: nowIso, last_force: { reason, at: nowIso },
+					};
+					manifestChanged = true;
+					writeUnit(u.targetAbs, rendered);
+				}
+				written.push(relPath);
+				forced.push(relPath);
+				recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+			}
+		} else if (action === 'unchanged') {
+			recordAction({ relPath, kind: 'infra', action });
+		} else {
+			if (action !== 'adopt-unchanged') {
+				if (!dryRun) writeUnit(u.targetAbs, rendered);
+				written.push(relPath);
+			}
+			if (!dryRun) {
+				manifest.files[relPath] = {
+					kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
+					template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
+					updated_at: nowIso,
+				};
+				manifestChanged = true;
+			}
+			recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+		}
 	}
 
 	// ---- orphan detection: a resolver this feature's CURRENT plan no longer generates, left

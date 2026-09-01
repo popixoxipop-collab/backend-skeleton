@@ -320,3 +320,108 @@ test('e2e: hand-editing a generated resolver then re-running exits 15 and leaves
 	assert.equal(second.code, 15);
 	assert.equal(fs.readFileSync(resolverPath, 'utf8'), edited);
 });
+
+// D-patch-transactions (Continued): resolvers_index.ts used to be written OUTSIDE emitUnits()
+// entirely -- no --force gate, no manifest tracking, no dirty-tree guard, unlike every other
+// generated file. The following tests prove it now gets the exact same conflict-safe treatment
+// infra files (codec.ts/registry.ts/router.ts) already get, via emitUnits()'s new postResolverUnit.
+const BARREL_REL_PATH = 'backend/src/handles/resolvers/resolvers_index.ts';
+const MANIFEST_REL_PATH = '.sbf/handles-manifest.json';
+
+function reestablishThroughContract(root) {
+	// Mirrors runToHandlesEmit's own preflight->...->cross-feature-check chain -- needed again
+	// after a hand-edit + commit advances HEAD, which stales the head_sha-based preflight gate.
+	run(['preflight'], root);
+	run(['scan', '--feature', '001-user-management', '--terms', 'user', '--json'], root);
+	run(['scan', 'disposition', '--feature', '001-user-management', '--mode', 'extend', '--note', 'test'], root);
+	run(['gate', 'force', 'contract', '--feature', '001-user-management', '--reason', 'handles-only test, no OpenAPI oracle for this ecosystem'], root);
+	run(['scan', 'cross-feature-check', '--feature', '001-user-management'], root);
+}
+
+test('e2e: resolvers_index.ts content is unchanged from before this item -- still a real barrel importing every resolver', () => {
+	const root = buildE2eFixtureRepo();
+	runToHandlesEmit(root);
+	const barrelContent = fs.readFileSync(path.join(root, BARREL_REL_PATH), 'utf8');
+	assert.match(barrelContent, /import '\.\/user';/);
+});
+
+test('e2e: resolvers_index.ts gains a real, infra-shaped manifest entry after emit (previously never manifest-tracked at all)', () => {
+	const root = buildE2eFixtureRepo();
+	runToHandlesEmit(root);
+	const manifest = JSON.parse(fs.readFileSync(path.join(root, MANIFEST_REL_PATH), 'utf8'));
+	const entry = manifest.files[BARREL_REL_PATH];
+	assert.ok(entry, 'expected a manifest entry for resolvers_index.ts');
+	assert.equal(entry.kind, 'infra', 'must be kind: infra (repo-owned) -- lib/verify.mjs labels anything else "handles resolver"');
+	assert.equal(entry.ownership, 'repo');
+	assert.equal(entry.owner, '_repo');
+});
+
+test('e2e: a hand-edited resolvers_index.ts blocks re-emit with exit 15 and is left byte-for-byte untouched (previously: silently clobbered)', () => {
+	const root = buildE2eFixtureRepo();
+	runToHandlesEmit(root);
+	const barrelPath = path.join(root, BARREL_REL_PATH);
+	const edited = `${fs.readFileSync(barrelPath, 'utf8')}\n// hand-added import by a human\n`;
+	fs.writeFileSync(barrelPath, edited);
+
+	const second = run(['handles', 'emit', '--feature', '001-user-management', '--module', 'users', '--json'], root);
+	assert.equal(second.code, 15);
+	assert.equal(fs.readFileSync(barrelPath, 'utf8'), edited);
+	const body = JSON.parse(second.stdout);
+	assert.ok(body.conflicts.some((c) => c.path === BARREL_REL_PATH && c.kind === 'infra'), `expected an infra conflict for the barrel, got: ${JSON.stringify(body.conflicts)}`);
+});
+
+test('e2e: --force --reason overwrites a COMMITTED diverged resolvers_index.ts, records last_force in the manifest', () => {
+	const root = buildE2eFixtureRepo();
+	runToHandlesEmit(root);
+	const barrelPath = path.join(root, BARREL_REL_PATH);
+	fs.writeFileSync(barrelPath, `${fs.readFileSync(barrelPath, 'utf8')}\n// hand-added import by a human\n`);
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'hand edit barrel'], { cwd: root });
+	reestablishThroughContract(root);
+
+	const forced = run(['handles', 'emit', '--feature', '001-user-management', '--module', 'users', '--force', '--reason', 'intentional overwrite for test', '--json'], root);
+	assert.equal(forced.code, 0, forced.stderr);
+	const forcedJson = JSON.parse(forced.stdout);
+	assert.ok(forcedJson.forced.includes(BARREL_REL_PATH), `expected ${BARREL_REL_PATH} in forced, got: ${JSON.stringify(forcedJson.forced)}`);
+	assert.ok(!fs.readFileSync(barrelPath, 'utf8').includes('hand-added import'), 'the hand edit must be gone after a successful force');
+
+	const manifest = JSON.parse(fs.readFileSync(path.join(root, MANIFEST_REL_PATH), 'utf8'));
+	assert.equal(manifest.files[BARREL_REL_PATH].last_force.reason, 'intentional overwrite for test');
+});
+
+test('e2e: --force --reason refuses an UNCOMMITTED diverged resolvers_index.ts -- overwrite must stay recoverable', () => {
+	const root = buildE2eFixtureRepo();
+	runToHandlesEmit(root);
+	const barrelPath = path.join(root, BARREL_REL_PATH);
+	const edited = `${fs.readFileSync(barrelPath, 'utf8')}\n// uncommitted hand edit\n`;
+	fs.writeFileSync(barrelPath, edited);
+	// deliberately NOT committed
+
+	const forced = run(['handles', 'emit', '--feature', '001-user-management', '--module', 'users', '--force', '--reason', 'try anyway'], root);
+	assert.equal(forced.code, 15, 'a refused --force must still report as blocked, not silently succeed');
+	assert.equal(fs.readFileSync(barrelPath, 'utf8'), edited, 'file must remain untouched when --force is refused for being uncommitted');
+});
+
+test('e2e: handles emit --check --diff reports a real diff for a diverged resolvers_index.ts without writing it', () => {
+	const root = buildE2eFixtureRepo();
+	runToHandlesEmit(root);
+	const barrelPath = path.join(root, BARREL_REL_PATH);
+	const edited = `${fs.readFileSync(barrelPath, 'utf8')}\n// hand-added import by a human\n`;
+	fs.writeFileSync(barrelPath, edited);
+
+	const check = run(['handles', 'emit', '--feature', '001-user-management', '--module', 'users', '--check', '--diff', '--json'], root);
+	assert.equal(check.code, 15);
+	assert.equal(fs.readFileSync(barrelPath, 'utf8'), edited, '--check must never write');
+	const body = JSON.parse(check.stdout);
+	const action = body.actions.find((a) => a.path === BARREL_REL_PATH);
+	assert.ok(action, 'expected an action entry for the barrel');
+	assert.equal(action.kind, 'infra', 'regression guard: must never be kind "spec" again -- that label is now factually false once conflict-tracked');
+	assert.ok(action.diff && action.diff.length > 0, 'expected a real unified diff attached');
+});
+
+test('e2e: no orphan is ever reported for resolvers_index.ts itself', () => {
+	const root = buildE2eFixtureRepo();
+	const emit = runToHandlesEmit(root);
+	const body = JSON.parse(emit.stdout);
+	assert.ok(!body.orphans.some((o) => o.path === BARREL_REL_PATH), `resolvers_index.ts must never appear as its own orphan, got: ${JSON.stringify(body.orphans)}`);
+});
