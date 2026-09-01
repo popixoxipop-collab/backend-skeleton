@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sbf:patch-transaction:1",
   "title": "backend-skeleton content-addressed patch transaction (specs/<feature_id>/patch-transactions/<transaction_id>.json)",
-  "description": "D-patch-transactions: generalizes A3/D-patch-strategy's per-{resource,field} patch-approvals.json shape into a kind-agnostic propose/approve/apply/rollback transaction. One file per transaction (not one growing array) -- each record carries a lifecycle with real state transitions and references a content-addressed rollback blob under this same feature's patch-transactions/blobs/ directory.",
+  "description": "D-patch-transactions: generalizes A3/D-patch-strategy's per-{resource,field} patch-approvals.json shape into a kind-agnostic propose/approve/apply/rollback transaction. One file per transaction (not one growing array) -- each record carries a lifecycle with real state transitions and references a content-addressed rollback blob under this same feature's patch-transactions/blobs/ directory. D-ddl-apply added a second kind ('ddl-apply') -- kind-specific source/target/postcondition/apply shapes are enforced by the allOf/if-then branches below, keyed on `kind`. The config-apply branch is byte-identical to this schema's pre-D-ddl-apply shape (existing config-apply records validate unchanged).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "transaction_id", "feature_id", "kind", "source", "target", "preimage", "proposed_value", "postcondition", "status", "created_at"],
@@ -10,24 +10,14 @@
     "schema": { "const": "sbf.patch-transaction/1" },
     "transaction_id": { "type": "string", "pattern": "^pt-[0-9a-f-]{36}$" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
-    "kind": { "enum": ["config-apply"] },
+    "kind": { "enum": ["config-apply", "ddl-apply"] },
     "source": {
       "type": "object",
-      "description": "Kind-specific opaque context needed to re-plan this transaction fresh at approve/apply time -- for kind config-apply, the stack catalog choice id the target/apply block came from (the record's own target.file alone is not enough to re-locate it).",
-      "additionalProperties": false,
-      "required": ["choice"],
-      "properties": {
-        "choice": { "type": "string" }
-      }
+      "description": "Kind-specific opaque context needed to re-plan this transaction fresh at approve/apply time. Shape enforced per-kind by the allOf/if-then branches below."
     },
     "target": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["file", "key_path"],
-      "properties": {
-        "file": { "type": "string" },
-        "key_path": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-      }
+      "description": "Kind-specific description of what this transaction acts on. Shape enforced per-kind by the allOf/if-then branches below."
     },
     "preimage": {
       "type": "object",
@@ -42,12 +32,7 @@
     "proposed_value": { "type": "string" },
     "postcondition": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "pattern"],
-      "properties": {
-        "kind": { "const": "regex-match" },
-        "pattern": { "type": "string" }
-      }
+      "description": "Kind-specific re-check applied before the record is allowed to transition to 'applied'. Shape enforced per-kind by the allOf/if-then branches below."
     },
     "status": { "enum": ["proposed", "approved", "applied", "rolled_back"] },
     "created_at": { "type": "string", "format": "date-time" },
@@ -62,12 +47,7 @@
     },
     "apply": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["at", "postimage_file_hash"],
-      "properties": {
-        "at": { "type": "string", "format": "date-time" },
-        "postimage_file_hash": { "type": "string" }
-      }
+      "description": "Kind-specific record of what actually happened at apply time. Shape enforced per-kind by the allOf/if-then branches below."
     },
     "rollback": {
       "type": "object",
@@ -79,5 +59,98 @@
         "forced": { "type": "boolean" }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "config-apply" } } },
+      "then": {
+        "properties": {
+          "source": {
+            "additionalProperties": false,
+            "required": ["choice"],
+            "properties": {
+              "choice": { "type": "string" }
+            }
+          },
+          "target": {
+            "additionalProperties": false,
+            "required": ["file", "key_path"],
+            "properties": {
+              "file": { "type": "string" },
+              "key_path": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            }
+          },
+          "postcondition": {
+            "additionalProperties": false,
+            "required": ["kind", "pattern"],
+            "properties": {
+              "kind": { "const": "regex-match" },
+              "pattern": { "type": "string" }
+            }
+          },
+          "apply": {
+            "additionalProperties": false,
+            "required": ["at", "postimage_file_hash"],
+            "properties": {
+              "at": { "type": "string", "format": "date-time" },
+              "postimage_file_hash": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "ddl-apply" } } },
+      "then": {
+        "properties": {
+          "source": {
+            "additionalProperties": false,
+            "required": ["database_url_env", "schema"],
+            "properties": {
+              "database_url_env": { "type": "string" },
+              "schema": { "type": "string" }
+            }
+          },
+          "target": {
+            "additionalProperties": false,
+            "required": ["database_url_env", "schema", "sql_text"],
+            "properties": {
+              "database_url_env": { "type": "string" },
+              "schema": { "type": "string" },
+              "sql_text": { "type": "string" }
+            }
+          },
+          "postcondition": {
+            "additionalProperties": false,
+            "required": ["kind", "schema", "expected_tables"],
+            "properties": {
+              "kind": { "const": "db-schema-diff" },
+              "schema": { "type": "string" },
+              "expected_tables": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "expect"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "expect": { "enum": ["present", "absent"] }
+                  }
+                }
+              }
+            }
+          },
+          "apply": {
+            "additionalProperties": false,
+            "required": ["at", "postimage_schema_hash", "executed_statements"],
+            "properties": {
+              "at": { "type": "string", "format": "date-time" },
+              "postimage_schema_hash": { "type": "string" },
+              "executed_statements": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

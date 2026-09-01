@@ -16,9 +16,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseDocument, isScalar } from 'yaml';
-import { sha256String } from '../lib/fsutil.mjs';
+import { sha256File, sha256String } from '../lib/fsutil.mjs';
 import { unifiedDiff } from '../lib/diff.mjs';
 import { assertContained } from './apply.mjs';
+import { readBlob } from '../lib/patch-transactions.mjs';
 
 class ConfigApplyPlanError extends Error {}
 
@@ -139,4 +140,29 @@ export function planConfigApply(repoRoot, catalogEntry, targetPath) {
 		originalContent: text,
 		renderedContent,
 	};
+}
+
+// D-ddl-apply: the "config-apply" kind's apply/rollback executors, injected into
+// lib/patch-transactions.mjs's applyTransaction()/rollbackTransaction() via lib/patch-kinds.mjs.
+// Bodies are moved verbatim from what used to live directly inside applyTransaction()/
+// rollbackTransaction() -- a pure refactor, not a behavior change (both event this project's own
+// existing patch-transactions.test.mjs / patch-config-apply-cli.test.mjs suites re-verify pass
+// unchanged).
+export async function executeConfigApply(root, featureId, txn, freshKindPlan) {
+	const targetAbs = path.join(root, txn.target.file);
+	fs.writeFileSync(targetAbs, freshKindPlan.renderedContent);
+	return { postimage_file_hash: sha256String(freshKindPlan.renderedContent) };
+}
+
+export async function executeConfigRollback(root, featureId, txn, { force = false } = {}) {
+	const targetAbs = path.join(root, txn.target.file);
+	const currentHash = sha256File(targetAbs);
+	if (currentHash !== txn.apply.postimage_file_hash && !force) {
+		throw new Error(
+			`"${txn.target.file}" has changed since transaction "${txn.transaction_id}" applied -- rolling back would silently clobber that change; pass --force --reason if intentional`,
+		);
+	}
+	const original = readBlob(root, featureId, txn.preimage.file_hash);
+	fs.writeFileSync(targetAbs, original);
+	return {};
 }

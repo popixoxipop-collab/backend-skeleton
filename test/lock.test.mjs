@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { withLockSync } from '../lib/lock.mjs';
+import { withLockSync, withLockAsync } from '../lib/lock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOCK_MODULE = path.join(__dirname, '..', 'lib', 'lock.mjs');
@@ -116,4 +116,44 @@ test('withLockSync: times out with a message naming the exact stale-lock path to
 			return true;
 		},
 	);
+});
+
+// D-ddl-apply: withLockAsync exists specifically because withLockSync's own `finally { rmSync }`
+// releases the lock the instant a callback RETURNS, not once a returned Promise RESOLVES -- a
+// naive async executor (e.g. a live DDL apply) passed through withLockSync unchanged would release
+// the lock before the actual write finished. Tested in-process (unlike withLockSync's own
+// subprocess-based tests above) because async/await CAN interleave within a single process --
+// that's exactly the failure mode being closed here.
+test('withLockAsync: runs an async fn and releases the lock afterward (success path)', async () => {
+	const root = scratchRepo();
+	const result = await withLockAsync(root, 'test', async () => 'done');
+	assert.equal(result, 'done');
+	assert.equal(fs.existsSync(path.join(root, '.sbf', '.locks', 'test.lock')), false);
+});
+
+test('withLockAsync: releases the lock even when the async fn rejects', async () => {
+	const root = scratchRepo();
+	await assert.rejects(withLockAsync(root, 'test', async () => { throw new Error('boom'); }), /boom/);
+	assert.equal(fs.existsSync(path.join(root, '.sbf', '.locks', 'test.lock')), false);
+});
+
+test('withLockAsync: a second caller genuinely blocks until the first awaited callback resolves, not just until it returns', async () => {
+	const root = scratchRepo();
+	const events = [];
+	const first = withLockAsync(root, 'shared', async () => {
+		events.push('first-enter');
+		await new Promise((resolve) => setTimeout(resolve, 80));
+		events.push('first-exit');
+		return 'first';
+	});
+	// give `first` a moment to actually acquire the lock before racing it
+	await new Promise((resolve) => setTimeout(resolve, 10));
+	const second = withLockAsync(root, 'shared', async () => {
+		events.push('second-enter');
+		return 'second';
+	});
+	const [firstResult, secondResult] = await Promise.all([first, second]);
+	assert.equal(firstResult, 'first');
+	assert.equal(secondResult, 'second');
+	assert.deepEqual(events, ['first-enter', 'first-exit', 'second-enter'], `expected second-enter strictly after first-exit -- got ${JSON.stringify(events)}`);
 });

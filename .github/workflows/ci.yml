@@ -262,6 +262,45 @@ jobs:
         if: always()
         run: docker rm -f bskel-pg-a4
 
+  # D-ddl-apply: the first automated, real-Postgres proof of the `ddl-apply` patch-transaction kind
+  # (propose/approve/apply/confirm, a TOCTOU race, a rollback refusal, a CONCURRENTLY refusal, all
+  # over both the real CLI and a real HTTP round trip against `bskel serve --database-url-env`).
+  # Own container name/DB name/host port (`bskel-pg-ddl-apply`/`bskel_ddl_apply_test`/5433) --
+  # deliberately distinct from db-introspect's own (`bskel-pg-a4`/`bskel_a4_test`/5432) so the two
+  # jobs never collide even if ever run in parallel on the same self-hosted runner. Same
+  # runs-on/manual-docker-lifecycle shape as db-introspect above -- see that job's own comment for
+  # why services: isn't used (macOS-incompatible). No ripgrep install here -- unlike
+  # db-introspect-smoke.mjs, this script never calls `bskel scan`.
+  ddl-apply:
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: start postgres
+        run: |
+          docker run -d --name bskel-pg-ddl-apply \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=bskel_ddl_apply_test \
+            -p 5433:5432 \
+            postgres:16
+      - name: wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker exec bskel-pg-ddl-apply pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready in time" >&2
+          exit 1
+      - run: npm ci
+      - run: npm run test:ddl-apply
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5433/bskel_ddl_apply_test
+      - name: stop postgres
+        if: always()
+        run: docker rm -f bskel-pg-ddl-apply
+
   # G4 follow-up (D-handles-providers): the first automated proof that python-fastapi's own
   # handle read/snapshot lifecycle (register -> a decorated service function -> a real HTTP GET
   # recover) actually works against a real, disposable Postgres -- the Python-ecosystem

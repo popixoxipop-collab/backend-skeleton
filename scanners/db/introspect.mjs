@@ -60,49 +60,59 @@ export function describeConnectionError(err) {
 	return err.code ?? String(err);
 }
 
+// D-ddl-apply: split out of introspectSchema() so scanners/db/ddl-apply.mjs's write path can
+// re-introspect using the SAME open, uncommitted `pg.Client`/transaction its DDL just ran in --
+// observing the not-yet-committed effect of its own statements, without a second connection and
+// without ever exposing a way to introspect outside of a transaction. Callers own connect()/
+// BEGIN.../COMMIT/ROLLBACK/end() -- this function only ever runs the six read queries and shapes
+// the result, identically regardless of which transaction mode the caller opened.
+export async function introspectWithClient(client, schema = 'public') {
+	// Sequential, not Promise.all -- a single pg.Client processes one query at a time over one
+	// connection; issuing several concurrently on the same client is deprecated (pg queues them
+	// internally today, but warns, and that queuing behavior is going away in pg 9). A Pool
+	// would allow real concurrency, but this is a one-shot CLI invocation, not a long-lived
+	// server -- the simplicity of one client, one connection, sequential queries is the right
+	// trade-off here, not premature optimization for concurrency nothing needs.
+	const tablesRes = await client.query(TABLES_SQL, [schema]);
+	const columnsRes = await client.query(COLUMNS_SQL, [schema]);
+	const pkRes = await client.query(PRIMARY_KEYS_SQL, [schema]);
+	const fkRes = await client.query(FOREIGN_KEYS_SQL, [schema]);
+	const indexesRes = await client.query(INDEXES_SQL, [schema]);
+	const policiesRes = await client.query(RLS_POLICIES_SQL, [schema]);
+
+	const columnsByTable = groupByTable(columnsRes.rows);
+	const pkByTable = groupByTable(pkRes.rows);
+	const fkByTable = groupByTable(fkRes.rows);
+	const indexesByTable = groupByTable(indexesRes.rows);
+	const policiesByTable = groupByTable(policiesRes.rows);
+
+	const tables = tablesRes.rows.map(({ table_name: name }) => ({
+		name,
+		columns: (columnsByTable.get(name) ?? []).map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable === 'YES' })),
+		primary_key: (pkByTable.get(name) ?? []).map((r) => r.column_name),
+		foreign_keys: (fkByTable.get(name) ?? []).map((r) => ({ column: r.column_name, references_table: r.foreign_table_name, references_column: r.foreign_column_name })),
+		indexes: (indexesByTable.get(name) ?? []).map((r) => r.index_name),
+		rls_policies: (policiesByTable.get(name) ?? []).map((r) => r.policy_name),
+	}));
+
+	return { schema, tables, schema_hash: sha256String(JSON.stringify(tables)) };
+}
+
 // Entry point. `connectionString` is whatever `process.env[databaseUrlEnv]` resolved to -- the
 // caller (scanners/index.mjs) owns reading that env var and failing loudly if it's unset; this
 // function only ever receives an already-resolved string. `BEGIN TRANSACTION READ ONLY` is
 // structural defense-in-depth -- every query here is already a SELECT, but a read-only
 // transaction means the database itself refuses any write this connection could ever attempt,
-// not just "we didn't write any queries that would".
+// not just "we didn't write any queries that would". A thin connect/BEGIN-READ-ONLY/COMMIT/end
+// wrapper around introspectWithClient() -- the query/shaping logic itself lives there now.
 export async function introspectSchema({ connectionString, schema = 'public' }) {
 	const client = new Client({ connectionString });
 	await client.connect();
 	try {
 		await client.query('BEGIN TRANSACTION READ ONLY');
-
-		// Sequential, not Promise.all -- a single pg.Client processes one query at a time over one
-		// connection; issuing several concurrently on the same client is deprecated (pg queues them
-		// internally today, but warns, and that queuing behavior is going away in pg 9). A Pool
-		// would allow real concurrency, but this is a one-shot CLI invocation, not a long-lived
-		// server -- the simplicity of one client, one connection, sequential queries is the right
-		// trade-off here, not premature optimization for concurrency nothing needs.
-		const tablesRes = await client.query(TABLES_SQL, [schema]);
-		const columnsRes = await client.query(COLUMNS_SQL, [schema]);
-		const pkRes = await client.query(PRIMARY_KEYS_SQL, [schema]);
-		const fkRes = await client.query(FOREIGN_KEYS_SQL, [schema]);
-		const indexesRes = await client.query(INDEXES_SQL, [schema]);
-		const policiesRes = await client.query(RLS_POLICIES_SQL, [schema]);
-
+		const result = await introspectWithClient(client, schema);
 		await client.query('COMMIT');
-
-		const columnsByTable = groupByTable(columnsRes.rows);
-		const pkByTable = groupByTable(pkRes.rows);
-		const fkByTable = groupByTable(fkRes.rows);
-		const indexesByTable = groupByTable(indexesRes.rows);
-		const policiesByTable = groupByTable(policiesRes.rows);
-
-		const tables = tablesRes.rows.map(({ table_name: name }) => ({
-			name,
-			columns: (columnsByTable.get(name) ?? []).map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable === 'YES' })),
-			primary_key: (pkByTable.get(name) ?? []).map((r) => r.column_name),
-			foreign_keys: (fkByTable.get(name) ?? []).map((r) => ({ column: r.column_name, references_table: r.foreign_table_name, references_column: r.foreign_column_name })),
-			indexes: (indexesByTable.get(name) ?? []).map((r) => r.index_name),
-			rls_policies: (policiesByTable.get(name) ?? []).map((r) => r.policy_name),
-		}));
-
-		return { schema, tables, schema_hash: sha256String(JSON.stringify(tables)) };
+		return result;
 	} finally {
 		await client.end();
 	}

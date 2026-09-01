@@ -123,7 +123,7 @@ const EXPECTED_DEFAULTS = {
 	status: { _: [], feature: null, json: false, quiet: false, help: false },
 	next: { _: [], feature: null, json: false, quiet: false, help: false },
 	doctor: { _: [], workflow: null, json: false, quiet: false, help: false },
-	serve: { _: [], port: '4747', host: '127.0.0.1', json: false, quiet: false, help: false },
+	serve: { _: [], port: '4747', host: '127.0.0.1', 'database-url-env': null, schema: 'public', 'sign-key': null, json: false, quiet: false, help: false },
 	'feature list': { _: [], all: false, json: false, quiet: false, help: false },
 	'feature show': { _: [], json: false, quiet: false, help: false },
 	'feature link': { _: [], reason: '', json: false, quiet: false, help: false },

@@ -31,8 +31,8 @@ import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction, listTransactions } from '../lib/patch-transactions.mjs';
+import { getPatchKind, replanTransaction, PATCH_KIND_NAMES } from '../lib/patch-kinds.mjs';
 import { generateKeypair, signPayload, verifyPayload } from '../lib/attest.mjs';
-import { planConfigApply } from '../stack/config-apply.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
 import { createHttpServer } from '../lib/http-server.mjs';
 import {
@@ -102,9 +102,9 @@ function usage() {
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
-  bskel patch propose --feature <id> --choice <stackChoiceId> --target <config_check target path> [--json]
+  bskel patch propose --feature <id> [--kind config-apply|ddl-apply] --choice <stackChoiceId> --target <config_check target path> --database-url-env <NAME> --schema <name> --sql-file <path> [--json]
   bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
-  bskel patch apply --feature <id> --transaction <id> [--json]
+  bskel patch apply --feature <id> --transaction <id> [--confirm <id>] [--json]
   bskel patch rollback --feature <id> --transaction <id> --reason "..." [--force] [--json]
   bskel patch list --feature <id> [--json]
   bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
@@ -121,7 +121,7 @@ function usage() {
   bskel attest keygen --out <dir> [--force] [--json]
   bskel attest verify --file <path> --pubkey <path> [--json]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
-  bskel serve [--port N] [--host <addr>] [--json]
+  bskel serve [--port N] [--host <addr>] [--database-url-env <NAME>] [--schema <name>] [--sign-key <path>] [--json]
 `);
 }
 
@@ -2483,45 +2483,70 @@ function cmdHandlesPatchApprove(args) {
 // specs/<featureId>/patch-transactions/ except `apply`/`rollback`, which write to the real target
 // file too -- matching D4's own "propose/approve are specs/-only, apply/rollback touch the repo"
 // distinction cmdHandlesEmit/cmdHandlesPlan already draw for --check vs a real emit.
-function cmdPatchPropose(args) {
+// D-ddl-apply: `--kind` picks which patch-transaction kind to propose (default 'config-apply',
+// fully backward compatible -- every existing call site/script that never passed --kind gets the
+// exact prior behavior). Kind-specific params are validated by hand here (not via COMMANDS'
+// declarative `required: true`, which is unconditional per-flag) -- matches this file's own
+// existing convention for kind-conditional requirements (e.g. --reason on approve/rollback).
+async function cmdPatchPropose(args) {
 	const flags = parseCommand('patch propose', args);
 	if (flags.help) { console.log(renderCommandHelp('patch propose')); process.exit(0); }
 	setContext('patch propose', flags);
 	const root = requireRepoRoot();
 	requireValidFeatureId(flags.feature);
-
-	let entry;
-	try {
-		entry = loadCatalogEntry(flags.choice);
-	} catch (err) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	const kind = flags.kind || 'config-apply';
+	if (!PATCH_KIND_NAMES.includes(kind)) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--kind must be one of: ${PATCH_KIND_NAMES.join(', ')}`);
 	}
+
+	let params;
+	let source;
+	if (kind === 'config-apply') {
+		if (!flags.choice || !flags.target) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch propose --kind config-apply requires --choice <stackChoiceId> --target <config_check target path>');
+		}
+		params = { choice: flags.choice, target: flags.target };
+		source = { choice: flags.choice };
+	} else {
+		if (!flags['database-url-env'] || !flags['sql-file']) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch propose --kind ddl-apply requires --database-url-env <NAME> --sql-file <path>');
+		}
+		let sqlText;
+		try {
+			sqlText = fs.readFileSync(flags['sql-file'], 'utf8');
+		} catch (err) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read --sql-file "${flags['sql-file']}": ${err.message}`);
+		}
+		params = { databaseUrlEnv: flags['database-url-env'], schema: flags.schema, sqlText };
+		source = { database_url_env: flags['database-url-env'], schema: flags.schema };
+	}
+
 	let plan;
 	try {
-		plan = planConfigApply(root, entry, flags.target);
+		plan = await getPatchKind(kind).planFresh(root, params);
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
-	const txn = proposeTransaction(root, flags.feature, 'config-apply', plan, { choice: flags.choice });
+	const txn = proposeTransaction(root, flags.feature, kind, plan, source);
 
 	if (flags.json) {
 		console.log(JSON.stringify(txn, null, 2));
 	} else if (!flags.quiet) {
 		console.log(`proposed: ${txn.transaction_id}`);
-		console.log(`  ${txn.target.file} @ ${txn.target.key_path.join('.')}: "${txn.current_value}" -> "${txn.proposed_value}"`);
+		console.log(`  ${describePatchTransaction(txn)}`);
 		console.log(`next: bskel patch approve --feature ${flags.feature} --transaction ${txn.transaction_id} --reason "..."`);
 	}
 	process.exit(0);
 }
 
-// Re-runs planConfigApply() fresh from the transaction's own recorded `source`/`target` -- never
-// trusts the stored plan -- so a stale preimage (the target moved since propose) is caught here
-// too, not just inside approveTransaction()'s own region_hash comparison; the two checks cover
-// two different things (this one also re-validates the catalog entry/postcondition still resolve
-// at all, in case the catalog itself changed).
-function replanFromTransaction(root, txn) {
-	const entry = loadCatalogEntry(txn.source.choice);
-	return planConfigApply(root, entry, txn.target.file);
+// Kind-aware one-line summary, reused by propose/list's human-readable output -- config-apply's
+// target is a file+key_path, ddl-apply's is raw SQL text (truncated for a terminal line).
+function describePatchTransaction(txn) {
+	if (txn.kind === 'config-apply') {
+		return `${txn.target.file} @ ${txn.target.key_path.join('.')}: "${txn.current_value}" -> "${txn.proposed_value}"`;
+	}
+	const sql = txn.target.sql_text.replace(/\s+/g, ' ').trim();
+	return `[${txn.kind}] ${txn.target.database_url_env}/${txn.target.schema}: ${sql.slice(0, 100)}${sql.length > 100 ? '...' : ''}`;
 }
 
 function requireTransactionOrExit(root, featureId, transactionId) {
@@ -2532,7 +2557,7 @@ function requireTransactionOrExit(root, featureId, transactionId) {
 	return txn;
 }
 
-function cmdPatchApprove(args) {
+async function cmdPatchApprove(args) {
 	const flags = parseCommand('patch approve', args);
 	if (flags.help) { console.log(renderCommandHelp('patch approve')); process.exit(0); }
 	setContext('patch approve', flags);
@@ -2545,7 +2570,7 @@ function cmdPatchApprove(args) {
 
 	let freshPlan;
 	try {
-		freshPlan = replanFromTransaction(root, txn);
+		freshPlan = await replanTransaction(root, txn);
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
@@ -2555,7 +2580,12 @@ function cmdPatchApprove(args) {
 	process.exit(0);
 }
 
-function cmdPatchApply(args) {
+// D-ddl-apply: --confirm is required (and must exactly equal --transaction) for any kind other
+// than 'config-apply' -- deliberately checked here, at the CLI boundary, before applyTransaction()
+// is ever called, as human-factors friction layered ON TOP of the engine's own load-bearing
+// preimage-hash TOCTOU check (this check does not replace it). Optional/ignored for config-apply,
+// zero behavior change for that kind.
+async function cmdPatchApply(args) {
 	const flags = parseCommand('patch apply', args);
 	if (flags.help) { console.log(renderCommandHelp('patch apply')); process.exit(0); }
 	setContext('patch apply', flags);
@@ -2564,22 +2594,26 @@ function cmdPatchApply(args) {
 	requireValidFeatureId(flags.feature);
 	const txn = requireTransactionOrExit(root, flags.feature, flags.transaction);
 
+	if (txn.kind !== 'config-apply' && flags.confirm !== flags.transaction) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `bskel patch apply --kind ${txn.kind} requires --confirm <transaction id>, matching --transaction exactly -- pass --confirm ${flags.transaction} once you've reviewed this transaction`);
+	}
+
 	let freshPlan;
 	try {
-		freshPlan = replanFromTransaction(root, txn);
+		freshPlan = await replanTransaction(root, txn);
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
-	const updated = applyTransaction(root, flags.feature, flags.transaction, freshPlan);
+	const updated = await applyTransaction(root, flags.feature, flags.transaction, freshPlan, getPatchKind(txn.kind).apply);
 
-	const evidence = { transaction_id: updated.transaction_id, target: updated.target.file, applied_at: updated.apply.at };
+	const evidence = { transaction_id: updated.transaction_id, kind: updated.kind, applied_at: updated.apply.at };
 	const gateState = passNamedGate(root, 'patch_transactions', flags.feature, evidence);
 
-	console.log(flags.json ? JSON.stringify({ transaction: updated, gate: gateState.gates.patch_transactions }, null, 2) : `applied: ${flags.transaction} -> ${updated.target.file}`);
+	console.log(flags.json ? JSON.stringify({ transaction: updated, gate: gateState.gates.patch_transactions }, null, 2) : `applied: ${flags.transaction} [${updated.kind}]`);
 	process.exit(0);
 }
 
-function cmdPatchRollback(args) {
+async function cmdPatchRollback(args) {
 	const flags = parseCommand('patch rollback', args);
 	if (flags.help) { console.log(renderCommandHelp('patch rollback')); process.exit(0); }
 	setContext('patch rollback', flags);
@@ -2589,17 +2623,18 @@ function cmdPatchRollback(args) {
 	if (!flags.reason || !flags.reason.trim()) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch rollback requires --reason "..." -- every rollback must be auditable');
 	}
-	const updated = rollbackTransaction(root, flags.feature, flags.transaction, flags.reason, { force: flags.force });
+	const txn = requireTransactionOrExit(root, flags.feature, flags.transaction);
+	const updated = await rollbackTransaction(root, flags.feature, flags.transaction, flags.reason, { force: flags.force }, getPatchKind(txn.kind).rollback);
 
 	// Re-passing (not revoking) mirrors cmdScanCrossFeatureWaive's own precedent for this exact
 	// situation -- recompute() only loops status:'applied' transactions, so a rolled-back one
 	// naturally drops out of the gate's own input set on the next pass; a fresh pass here reflects
 	// "still fine, just smaller" immediately rather than leaving the gate to be reactively
 	// discovered stale by the next `bskel verify`.
-	const evidence = { transaction_id: updated.transaction_id, target: updated.target.file, rolled_back_at: updated.rollback.at };
+	const evidence = { transaction_id: updated.transaction_id, kind: updated.kind, rolled_back_at: updated.rollback.at };
 	const gateState = passNamedGate(root, 'patch_transactions', flags.feature, evidence);
 
-	console.log(flags.json ? JSON.stringify({ transaction: updated, gate: gateState.gates.patch_transactions }, null, 2) : `rolled back: ${flags.transaction} -> ${updated.target.file} restored`);
+	console.log(flags.json ? JSON.stringify({ transaction: updated, gate: gateState.gates.patch_transactions }, null, 2) : `rolled back: ${flags.transaction} [${updated.kind}]`);
 	process.exit(0);
 }
 
@@ -2619,7 +2654,7 @@ function cmdPatchList(args) {
 	} else if (!flags.quiet) {
 		console.log(`patch transactions -- feature ${flags.feature}`);
 		for (const t of transactions) {
-			console.log(`  ${t.transaction_id} [${t.status}] ${t.target.file} @ ${t.target.key_path.join('.')}: "${t.current_value}" -> "${t.proposed_value}"`);
+			console.log(`  ${t.transaction_id} [${t.status}] ${describePatchTransaction(t)}`);
 		}
 		if (transactions.length === 0) console.log('  (none proposed)');
 	}
@@ -3196,19 +3231,38 @@ async function cmdServe(args) {
 	const root = requireRepoRoot();
 	const port = Number.parseInt(flags.port, 10);
 
+	// D-ddl-apply: eagerly checked here, at startup -- the DB-touching routes must not silently
+	// 404 forever because of a typo'd env var name; missing/unset is BAD_ARGS at the CLI boundary,
+	// same convention as resolveDbSchemaOrExit's own `bskel scan --db` handling. The live
+	// connection itself still only ever opens lazily, per-request (no eager connect-at-startup, no
+	// pool) -- a transient DB outage must not block the unrelated, DB-independent parts of the UI.
+	let dbConfig = null;
+	if (flags['database-url-env']) {
+		if (!process.env[flags['database-url-env']]) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--database-url-env ${flags['database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
+		}
+		dbConfig = { databaseUrlEnv: flags['database-url-env'], schema: flags.schema, signKeyPath: flags['sign-key'] };
+	}
+
 	let started;
 	try {
-		started = await createHttpServer(root, { host: flags.host, port });
+		started = await createHttpServer(root, { host: flags.host, port, dbConfig });
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not start server: ${err.message}`);
 	}
 
 	if (flags.json) {
-		console.log(JSON.stringify({ listening: started.url, host: started.host, port: started.port, repo: root }));
+		console.log(JSON.stringify({ listening: started.url, host: started.host, port: started.port, repo: root, ddlApplyEnabled: Boolean(dbConfig) }));
 	} else if (!flags.quiet) {
 		console.log(`bskel serve -- listening on ${started.url}`);
 		console.log(`  UI:  ${started.url}/`);
 		console.log(`  API: ${started.url}/api/...`);
+		if (dbConfig) {
+			console.log(`  DDL apply routes: ENABLED (schema "${dbConfig.schema}", connection from $${dbConfig.databaseUrlEnv})`);
+			if (!dbConfig.signKeyPath) {
+				console.log('  WARNING: no --sign-key given -- every propose/approve/apply is recorded in specs/ but NOT cryptographically attested. Pass --sign-key <path> to change this.');
+			}
+		}
 		console.log('press Ctrl+C to stop');
 	}
 

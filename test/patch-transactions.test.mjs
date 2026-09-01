@@ -15,6 +15,11 @@ import {
 	loadTransaction, saveTransaction, listTransactions,
 	proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction,
 } from '../lib/patch-transactions.mjs';
+// D-ddl-apply: applyTransaction()/rollbackTransaction() now take an injected, kind-specific
+// executor -- config-apply's is the exact pre-D-ddl-apply body, moved verbatim into
+// stack/config-apply.mjs, reused here rather than a third parallel "write file"/"restore blob"
+// reimplementation just for this test file.
+import { executeConfigApply, executeConfigRollback } from '../stack/config-apply.mjs';
 
 const FEATURE_ID = '001-widget-management';
 const TARGET_REL = 'config/app.yaml';
@@ -66,7 +71,7 @@ test('listTransactions returns an empty array when the directory was never creat
 	assert.deepEqual(listTransactions(root, FEATURE_ID), []);
 });
 
-test('full lifecycle: propose -> approve -> apply -> rollback, each stage advancing status and writing the expected side effects', () => {
+test('full lifecycle: propose -> approve -> apply -> rollback, each stage advancing status and writing the expected side effects', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'original content\n');
 	const plan = fakeKindPlan('original content\n', 'edited content\n');
@@ -81,12 +86,12 @@ test('full lifecycle: propose -> approve -> apply -> rollback, each stage advanc
 	assert.equal(approved.status, 'approved');
 	assert.deepEqual(approved.approval.reason, 'because');
 
-	const applied = applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan);
+	const applied = await applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan, executeConfigApply);
 	assert.equal(applied.status, 'applied');
 	assert.equal(fs.readFileSync(path.join(root, TARGET_REL), 'utf8'), 'edited content\n');
 	assert.equal(applied.apply.postimage_file_hash, sha256String('edited content\n'));
 
-	const rolledBack = rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'undo');
+	const rolledBack = await rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'undo', {}, executeConfigRollback);
 	assert.equal(rolledBack.status, 'rolled_back');
 	assert.equal(fs.readFileSync(path.join(root, TARGET_REL), 'utf8'), 'original content\n', 'rollback must restore the file byte-for-byte');
 
@@ -103,14 +108,14 @@ test('approve requires a reason', () => {
 	assert.throws(() => approveTransaction(root, FEATURE_ID, proposed.transaction_id, '   ', plan), /requires a reason/);
 });
 
-test('rollback requires a reason', () => {
+test('rollback requires a reason', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'x\n');
 	const plan = fakeKindPlan('x\n', 'y\n');
 	const proposed = proposeTransaction(root, FEATURE_ID, 'config-apply', plan, { choice: 'ngrok' });
 	approveTransaction(root, FEATURE_ID, proposed.transaction_id, 'ok', plan);
-	applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan);
-	assert.throws(() => rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, ''), /requires a reason/);
+	await applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan, executeConfigApply);
+	await assert.rejects(rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, '', {}, executeConfigRollback), /requires a reason/);
 });
 
 // Fail-closed #1: the target changed between propose and approve.
@@ -128,7 +133,7 @@ test('approve refuses (and does not advance status) when the target has changed 
 // Fail-closed #2: the target changed between approve and apply (the TOCTOU case this whole design
 // exists to close) -- confirmed here at the pure-function level; test/patch-config-apply-cli.test.
 // mjs proves the identical thing through the real CLI against a real hand-edited file.
-test('apply refuses (and never writes the target) when the target has changed since approve', () => {
+test('apply refuses (and never writes the target) when the target has changed since approve', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'original\n');
 	const plan = fakeKindPlan('original\n', 'edited\n');
@@ -137,55 +142,55 @@ test('apply refuses (and never writes the target) when the target has changed si
 
 	fs.writeFileSync(path.join(root, TARGET_REL), 'someone changed this between approve and apply\n');
 	const driftedPlan = fakeKindPlan('someone changed this between approve and apply\n', 'edited\n');
-	assert.throws(() => applyTransaction(root, FEATURE_ID, proposed.transaction_id, driftedPlan), /has changed since it was proposed/);
+	await assert.rejects(applyTransaction(root, FEATURE_ID, proposed.transaction_id, driftedPlan, executeConfigApply), /has changed since it was proposed/);
 	assert.equal(fs.readFileSync(path.join(root, TARGET_REL), 'utf8'), 'someone changed this between approve and apply\n', 'a refused apply must leave the file exactly as the human left it');
 	assert.equal(loadTransaction(root, FEATURE_ID, proposed.transaction_id).status, 'approved', 'a refused apply must not silently advance the status');
 });
 
-test('apply refuses a transaction that was never approved', () => {
+test('apply refuses a transaction that was never approved', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'x\n');
 	const plan = fakeKindPlan('x\n', 'y\n');
 	const proposed = proposeTransaction(root, FEATURE_ID, 'config-apply', plan, { choice: 'ngrok' });
-	assert.throws(() => applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan), /is "proposed", not "approved"/);
+	await assert.rejects(applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan, executeConfigApply), /is "proposed", not "approved"/);
 });
 
 // Fail-closed #3: the target changed AFTER a successful apply, before rollback was requested.
-test('rollback refuses (without --force) when the file has changed since apply, and never touches it', () => {
+test('rollback refuses (without --force) when the file has changed since apply, and never touches it', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'original\n');
 	const plan = fakeKindPlan('original\n', 'edited\n');
 	const proposed = proposeTransaction(root, FEATURE_ID, 'config-apply', plan, { choice: 'ngrok' });
 	approveTransaction(root, FEATURE_ID, proposed.transaction_id, 'ok', plan);
-	applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan);
+	await applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan, executeConfigApply);
 
 	fs.writeFileSync(path.join(root, TARGET_REL), 'a human edited the applied file afterward\n');
-	assert.throws(() => rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'undo'), /has changed since transaction .* applied/);
+	await assert.rejects(rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'undo', {}, executeConfigRollback), /has changed since transaction .* applied/);
 	assert.equal(fs.readFileSync(path.join(root, TARGET_REL), 'utf8'), 'a human edited the applied file afterward\n');
 	assert.equal(loadTransaction(root, FEATURE_ID, proposed.transaction_id).status, 'applied');
 });
 
-test('rollback --force overrides the diverged-file refusal, restores the original anyway, and records forced:true', () => {
+test('rollback --force overrides the diverged-file refusal, restores the original anyway, and records forced:true', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'original\n');
 	const plan = fakeKindPlan('original\n', 'edited\n');
 	const proposed = proposeTransaction(root, FEATURE_ID, 'config-apply', plan, { choice: 'ngrok' });
 	approveTransaction(root, FEATURE_ID, proposed.transaction_id, 'ok', plan);
-	applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan);
+	await applyTransaction(root, FEATURE_ID, proposed.transaction_id, plan, executeConfigApply);
 
 	fs.writeFileSync(path.join(root, TARGET_REL), 'a human edited the applied file afterward\n');
-	const rolledBack = rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'forced undo', { force: true });
+	const rolledBack = await rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'forced undo', { force: true }, executeConfigRollback);
 	assert.equal(rolledBack.status, 'rolled_back');
 	assert.equal(rolledBack.rollback.forced, true);
 	assert.equal(fs.readFileSync(path.join(root, TARGET_REL), 'utf8'), 'original\n');
 });
 
-test('rollback refuses a transaction that was never applied', () => {
+test('rollback refuses a transaction that was never applied', async () => {
 	const root = tmpRoot();
 	writeTarget(root, 'x\n');
 	const plan = fakeKindPlan('x\n', 'y\n');
 	const proposed = proposeTransaction(root, FEATURE_ID, 'config-apply', plan, { choice: 'ngrok' });
-	assert.throws(() => rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'undo'), /is "proposed", not "applied"/);
+	await assert.rejects(rollbackTransaction(root, FEATURE_ID, proposed.transaction_id, 'undo', {}, executeConfigRollback), /is "proposed", not "applied"/);
 });
 
 test('transactionPath/blobPath stay within specs/<featureId>/patch-transactions/', () => {

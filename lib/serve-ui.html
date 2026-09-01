@@ -44,6 +44,34 @@
 </form>
 <div id="formStatus"></div>
 
+<h2>Live DB schema</h2>
+<div id="dbSchemaPanel">
+	<p class="muted" id="dbSchemaNote">loading...</p>
+	<table id="dbSchemaTable" hidden><thead><tr><th>table</th><th>columns</th><th>primary key</th><th>foreign keys</th><th>indexes</th></tr></thead><tbody></tbody></table>
+</div>
+
+<h2>DDL patch transactions</h2>
+<div id="ddlPanel">
+	<form id="ddlFeatureForm" style="grid-template-columns: 1fr auto;">
+		<label>feature <input name="feature" id="ddlFeatureInput" required></label>
+		<button type="submit">Load transactions</button>
+	</form>
+	<table id="ddlTable"><thead><tr><th>transaction</th><th>kind</th><th>status</th><th>sql</th><th>created</th><th>action</th></tr></thead><tbody></tbody></table>
+	<div id="ddlActionStatus"></div>
+
+	<h3 style="font-size: 0.9rem; margin-top: 1.2rem;">Propose a DDL change</h3>
+	<form id="ddlProposeForm">
+		<label>feature <input name="feature" id="ddlProposeFeature" required></label>
+		<label>database_url_env <input name="databaseUrlEnv" placeholder="e.g. BSKEL_DDL_DATABASE_URL" required></label>
+		<label>schema <input name="schema" value="public" required></label>
+		<label style="grid-column: 1 / -1">sql_text
+			<textarea name="sqlText" rows="4" required style="font: inherit; padding: 0.4rem;" placeholder="CREATE TABLE widgets (id uuid PRIMARY KEY);"></textarea>
+		</label>
+		<button type="submit">Propose</button>
+	</form>
+	<div id="ddlProposeStatus"></div>
+</div>
+
 <script>
 // D-http-serving-layer: `reason`/`memo` (and every other string field) are free text a human types
 // via `bskel dependency declare --reason/--memo` or this page's own POST form -- never assumed safe
@@ -105,6 +133,174 @@ document.getElementById('declareForm').addEventListener('submit', async (ev) => 
 		statusEl.textContent = `error: ${err.message}`;
 	}
 });
+
+// D-ddl-apply: mirrors td()'s own comment above -- every value rendered here (table/column names,
+// raw sql_text, error messages) is free text this tool never assumes is safe to inject as markup.
+// All via td()/textContent, never innerHTML.
+function tdList(items) {
+	return td(items.length ? items.join(', ') : '(none)');
+}
+
+async function loadDbSchema() {
+	const note = document.getElementById('dbSchemaNote');
+	const table = document.getElementById('dbSchemaTable');
+	try {
+		const res = await fetch('/api/db/schema');
+		if (res.status === 404) {
+			note.hidden = false;
+			note.textContent = 'DDL features are disabled -- start `bskel serve --database-url-env NAME` to enable them.';
+			table.hidden = true;
+			return;
+		}
+		const body = await res.json();
+		if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+		note.hidden = true;
+		table.hidden = false;
+		const tbody = table.querySelector('tbody');
+		tbody.replaceChildren();
+		for (const t of body.tables) {
+			const tr = document.createElement('tr');
+			tr.append(
+				td(t.name),
+				td(t.columns.map((c) => `${c.name} ${c.type}${c.nullable ? '' : ' NOT NULL'}`).join(', ') || '(none)'),
+				tdList(t.primary_key),
+				td(t.foreign_keys.map((f) => `${f.column} -> ${f.references_table}.${f.references_column}`).join(', ') || '(none)'),
+				tdList(t.indexes),
+			);
+			tbody.appendChild(tr);
+		}
+		if (body.tables.length === 0) {
+			const tr = document.createElement('tr');
+			tr.appendChild(td('(no tables)'));
+			tbody.appendChild(tr);
+		}
+	} catch (err) {
+		note.hidden = false;
+		note.textContent = `failed to load /api/db/schema: ${err.message}`;
+		table.hidden = true;
+	}
+}
+
+async function loadDdlTransactions(feature) {
+	const tbody = document.querySelector('#ddlTable tbody');
+	tbody.replaceChildren();
+	if (!feature) return;
+	const res = await fetch(`/api/features/${encodeURIComponent(feature)}/patch-transactions`);
+	const body = await res.json();
+	if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+	for (const t of body.transactions) {
+		const tr = document.createElement('tr');
+		const sqlOrTarget = t.kind === 'ddl-apply' ? t.target.sql_text : `${t.target.file} @ ${(t.target.key_path || []).join('.')}`;
+		tr.append(td(t.transaction_id), td(t.kind), td(t.status), td(sqlOrTarget), td(t.created_at));
+
+		const actionCell = document.createElement('td');
+		if (t.status === 'proposed') {
+			const form = document.createElement('form');
+			form.style.gridTemplateColumns = 'none';
+			form.style.display = 'flex';
+			form.style.gap = '0.3rem';
+			const reasonInput = document.createElement('input');
+			reasonInput.placeholder = 'reason';
+			reasonInput.required = true;
+			const btn = document.createElement('button');
+			btn.type = 'submit';
+			btn.textContent = 'Approve';
+			form.append(reasonInput, btn);
+			form.addEventListener('submit', async (ev) => {
+				ev.preventDefault();
+				await runDdlAction(feature, t.transaction_id, 'approve', { reason: reasonInput.value });
+			});
+			actionCell.appendChild(form);
+		} else if (t.status === 'approved') {
+			const form = document.createElement('form');
+			form.style.gridTemplateColumns = 'none';
+			form.style.display = 'flex';
+			form.style.gap = '0.3rem';
+			const confirmInput = document.createElement('input');
+			// Deliberately starts EMPTY, never pre-filled -- a pre-filled confirm field would let a
+			// click submit this whole flow (applying a live DDL change) without the human actually
+			// re-reading/re-typing anything, defeating the entire point of this friction.
+			confirmInput.placeholder = `type "${t.transaction_id}" to confirm`;
+			confirmInput.required = true;
+			const btn = document.createElement('button');
+			btn.type = 'submit';
+			btn.textContent = 'Apply';
+			form.append(confirmInput, btn);
+			form.addEventListener('submit', async (ev) => {
+				ev.preventDefault();
+				await runDdlAction(feature, t.transaction_id, 'apply', { confirm: confirmInput.value });
+			});
+			actionCell.appendChild(form);
+		} else {
+			actionCell.textContent = '(none)';
+		}
+		tr.appendChild(actionCell);
+		tbody.appendChild(tr);
+	}
+	if (body.transactions.length === 0) {
+		const tr = document.createElement('tr');
+		tr.appendChild(td('(none proposed)'));
+		tbody.appendChild(tr);
+	}
+}
+
+async function runDdlAction(feature, transactionId, action, body) {
+	const statusEl = document.getElementById('ddlActionStatus');
+	statusEl.textContent = `${action}ing...`;
+	try {
+		const res = await fetch(`/api/features/${encodeURIComponent(feature)}/patch-transactions/${encodeURIComponent(transactionId)}/${action}`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+		const responseBody = await res.json();
+		if (!res.ok) throw new Error(responseBody.error ?? `HTTP ${res.status}`);
+		statusEl.textContent = `${action} succeeded: ${transactionId} -> ${responseBody.status}`;
+		await loadDdlTransactions(feature);
+	} catch (err) {
+		statusEl.textContent = `error: ${err.message}`;
+	}
+}
+
+document.getElementById('ddlFeatureForm').addEventListener('submit', async (ev) => {
+	ev.preventDefault();
+	const feature = document.getElementById('ddlFeatureInput').value;
+	try {
+		await loadDdlTransactions(feature);
+	} catch (err) {
+		document.getElementById('ddlActionStatus').textContent = `error: ${err.message}`;
+	}
+});
+
+document.getElementById('ddlProposeForm').addEventListener('submit', async (ev) => {
+	ev.preventDefault();
+	const form = new FormData(ev.target);
+	const feature = form.get('feature');
+	const statusEl = document.getElementById('ddlProposeStatus');
+	statusEl.textContent = 'proposing...';
+	try {
+		const res = await fetch(`/api/features/${encodeURIComponent(feature)}/patch-transactions/propose`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				kind: 'ddl-apply',
+				databaseUrlEnv: form.get('databaseUrlEnv'),
+				schema: form.get('schema'),
+				sqlText: form.get('sqlText'),
+			}),
+		});
+		const body = await res.json();
+		if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+		statusEl.textContent = `proposed: ${body.transaction_id}`;
+		ev.target.reset();
+		document.getElementById('ddlFeatureInput').value = feature;
+		await loadDdlTransactions(feature);
+	} catch (err) {
+		statusEl.textContent = `error: ${err.message}`;
+	}
+});
+
+loadDbSchema();
 
 loadGraph().catch((err) => {
 	const p = document.createElement('p');

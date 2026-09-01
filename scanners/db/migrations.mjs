@@ -59,7 +59,11 @@ const ALTER_ADD_COLUMN_RE = /ALTER\s+TABLE\s+"?(\w+)"?\s+ADD\s+COLUMN\s+(?:IF\s+
 const CONSTRAINT_LEAD_RE = /^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|CONSTRAINT)\b/i;
 const COLUMN_NAME_RE = /^"?(\w+)"?/;
 
-function extractTablesFromSql(sqlText, sourceFile) {
+// D-ddl-apply: exported (was module-private) so scanners/db/ddl-apply.mjs's postcondition check
+// can reuse this exact extraction instead of a second copy -- it needs to know which table
+// name(s) a proposed CREATE TABLE/ALTER TABLE ADD COLUMN statement declares, to assert the live,
+// re-introspected schema actually reflects them after apply.
+export function extractTablesFromSql(sqlText, sourceFile) {
 	const tables = new Map(); // name -> Set<column>
 
 	CREATE_TABLE_RE.lastIndex = 0;

@@ -10317,3 +10317,170 @@ second keypair's public key.
 - Correlating a signed attestation to a specific historical CI run or PR -- the same rejected-
   approach precedent `D-contract-history` already established for a different feature; provenance
   here stays capture-time-only, never a claimed commit<->CI-run correlation.
+
+## D-ddl-apply: `ddl-apply`, a second `lib/patch-transactions.mjs` kind that proposes, approves, and applies DDL against a REAL live Postgres database via `bskel serve` -- this tool's first live-DB WRITE path
+
+**WHY**: the user explicitly asked to expand `bskel serve`'s web UI (`D-http-serving-layer`, field-
+dependency-graph-only until now) into DB-management territory, and after narrowing scope
+(propose/approve/apply UI, not a read-only viewer) explicitly, deliberately chose REAL DB execution
+over file-only staging -- verbatim: "실제 DB에 실행 -- 이 프로젝트의 첫 쓰기 경로" (execute against the
+real DB -- this project's first write path).
+
+This crosses `D-migration-scope` (line 299): "`bskel handles emit` never applies its own SQL
+migration, and this session never opened a live DB connection." `D-patch-transactions`' own EXIT
+list reaffirmed that boundary as "not reversed" by anything shipped since. `D-migration-scope`'s
+two original reasons were (1) no existing safe-apply convention to hook into (no Flyway/Liquibase in
+target repos), and (2) no live DB had been tested against without explicit sign-off. Reason (2) no
+longer applies -- `D-db-schema-plane` already opened a live READ connection with sign-off, and this
+item is the same sign-off extended to a WRITE. Reason (1) is answered head-on, not dismissed: this
+item builds the tool's own safe-apply convention, by generalizing the one mechanism this project
+already trusts for consequential, re-verified-at-every-step edits -- `D-patch-transactions`' own
+propose/approve/apply/rollback lifecycle -- into a second kind, rather than inventing a new,
+separate write path with a weaker safety story.
+
+**Design, concretely**:
+- **New kind, `scanners/db/ddl-apply.mjs`**: `planDdlApply()` mirrors `planConfigApply()`'s exact
+  five-field contract (target/preimage/postcondition/originalContent/renderedContent), reusing
+  `scanners/db/introspect.mjs`'s `introspectSchema()`/`introspectWithClient()` (Plane C, unchanged)
+  as the preimage/postcondition basis. `region_hash`/`file_hash` are honestly the SAME value in
+  Slice 1 -- there is no sub-schema "region" concept for DDL the way config-apply has a single-key
+  span within one file; both are the whole live schema's own `schema_hash`.
+- **Allowlist, not a parser**: `/^\s*(CREATE|ALTER|DROP)\s+(TABLE|INDEX|UNIQUE\s+INDEX|SCHEMA)\b/i`
+  per `;`-separated statement -- same "good-enough regex, not a real SQL parser" restraint
+  `scanners/db/migrations.mjs`'s own header already names as this project's established restraint
+  for SQL text. `CONCURRENTLY` forms never match (refused at PROPOSE time, before any write
+  connection opens -- Postgres itself refuses those forms inside a transaction block).
+- **Real Postgres transaction wrapping**: `executeDdlApply()` opens one read-write `pg.Client`,
+  `BEGIN`s, runs every statement, re-introspects using the SAME open, uncommitted transaction
+  (`introspectWithClient()`, newly split out of `introspectSchema()` -- additive, `introspectSchema()`
+  itself is now a thin connect/BEGIN-READ-ONLY/COMMIT/end wrapper around it, verified byte-identical
+  behavior via the existing test/smoke suites passing unchanged), checks the postcondition
+  (schema_hash must have changed at all; for CREATE TABLE/ALTER TABLE ADD COLUMN/DROP TABLE
+  specifically, reuses `scanners/db/migrations.mjs`'s existing `extractTablesFromSql` -- made
+  `export`, additive -- to assert the named table now exists/doesn't exist), and only `COMMIT`s if
+  it holds -- `ROLLBACK`s (the SQL never takes effect at all) and throws otherwise, leaving the
+  patch-transaction record `approved`, unchanged. `CREATE/DROP INDEX`/`CREATE/DROP SCHEMA` (and any
+  ALTER TABLE form other than ADD COLUMN) only get the coarser schema-hash-changed check -- named
+  explicitly as a real Slice 1 gap below, not hidden.
+- **Rollback of an APPLIED `ddl-apply` transaction is explicitly OUT of scope for Slice 1** --
+  config-apply's "restore exact original bytes from a blob" has no live-DB equivalent (a dropped
+  table's rows are gone; reversing `ALTER COLUMN TYPE` can lose precision), and auto-generating
+  reverse DDL is itself a lossy, risky guess this project has repeatedly refused to ship elsewhere
+  (`patchField()`'s permanent manual stub, `D-config-patch`'s own "a wrong automatic edit is worse
+  than asking a human" framing). `executeDdlRollback()` refuses immediately and always, naming the
+  real mitigation: propose a NEW forward `ddl-apply` transaction with the reverse DDL, through the
+  same propose/approve/apply/confirm discipline.
+- **Engine change, `lib/patch-transactions.mjs`**: `applyTransaction()`/`rollbackTransaction()` now
+  take an INJECTED, kind-specific async executor instead of hardcoding the file-write mutation
+  themselves -- the engine still never imports a kind-specific module or branches on `kind`, so its
+  own "kind-agnostic" framing stays literally true (dependency injection, not a switch statement).
+  This also required a new `lib/lock.mjs` export, `withLockAsync` -- `withLockSync`'s own
+  `try { return fn() } finally { rmSync }` releases the lock the instant a callback RETURNS, not
+  once a returned Promise RESOLVES; passing an async executor through `withLockSync` unchanged would
+  have released the lock before a live DB write actually finished, a real correctness bug caught
+  during design (confirmed live by reading `lib/lock.mjs`'s own header comment before writing any
+  code) and fixed structurally, not by convention. `withLockSync` itself is untouched.
+- **Dispatch, `lib/patch-kinds.mjs` (new)**: before this module existed, `bin/bskel.mjs`'s
+  `cmdPatchPropose`/`replanFromTransaction` both hardcoded a direct call to `planConfigApply()`.
+  This generalizes that into one shared lookup table, imported by BOTH `bin/bskel.mjs` (CLI) and
+  `lib/http-server.mjs` (the new HTTP routes) -- matching `D-http-serving-layer`'s own "no second
+  copy of business logic" rule. `replanFromTransaction` (bin/bskel.mjs) was deleted in favor of the
+  shared `replanTransaction()`.
+- **Schema, `schemas/patch-transaction.schema.json`**: `kind`'s enum extended to
+  `["config-apply", "ddl-apply"]`; `source`/`target`/`postcondition`/`apply` loosened to bare
+  objects at the base, then re-tightened per-kind via two `allOf`/`if-then` branches. The
+  `config-apply` branch is BYTE-IDENTICAL to the pre-this-item shape -- existing `config-apply`
+  transaction records validate unchanged, verified by the full existing test suite passing with
+  zero modifications to its own assertions.
+- **`bskel serve`, new opt-in, new friction beyond `D-http-serving-layer`'s existing posture**:
+  `cmdServe` gains `--database-url-env <NAME>` (mirrors `bskel scan --db` exactly), `--schema`,
+  `--sign-key`. EVERY new DB/patch-transaction route -- reads included -- is gated behind this one
+  flag: a plain `bskel serve` stays byte-identical to today, those paths simply don't exist (404,
+  not 403), mirroring `--host`'s own "safe default, explicit override" convention. Three pieces of
+  friction deliberately go BEYOND what `D-http-serving-layer` already established, because that
+  entry's own "loopback + CORS asymmetry, no auth, judged proportionate to a single-user local
+  CLI's threat model" reasoning was scoped entirely against git-tracked, revertible repo-file
+  mutations (declaring/removing a field-dependency record) -- its own language does not claim to
+  extend to a live external DB write, and there is no prior art in this codebase for what
+  "proportionate" looks like once that boundary is crossed:
+  1. **CORS withheld on every DB/patch-transaction route, GET included** -- a named deviation from
+     `CORS_METHODS`' plain-GET-gets-wildcard convention. Live schema/table names and raw SQL text
+     are not the same sensitivity class as the git-tracked JSON dependency record that convention
+     was scoped against.
+  2. **Type-to-confirm on apply**: for any kind other than `config-apply`, the apply request
+     requires a `confirm` field that must exactly equal the transaction id, checked at the
+     CLI/HTTP boundary BEFORE `applyTransaction()` is ever called -- layered ON TOP of (never
+     instead of) the engine's own preimage-hash TOCTOU re-check. The bundled UI's confirm input
+     starts EMPTY, never pre-filled -- a pre-filled field would let a click submit the whole flow
+     without the human actually re-reading/re-typing anything, defeating the entire point of this
+     friction (a design flaw the first draft had, caught and fixed during implementation, not
+     shipped-then-fixed).
+  3. **`requirePreflightPassed` enforced over HTTP too** for apply/rollback, mirroring the CLI's
+     own existing `cmdPatchApply`/`cmdPatchRollback` behavior.
+- **Audit trail, optional**: when `--sign-key <path>` is given at `bskel serve` startup, every
+  propose/approve/apply/rollback-refusal touching a `ddl-apply` transaction is signed (canonical
+  payload: `{transaction_id, feature_id, kind, status, sql_text, schema_hash, reason, at}`) via
+  `lib/attest.mjs`'s EXISTING `signPayload()` -- zero changes needed to `attest.mjs` itself, it was
+  already genuinely payload-shape-agnostic. Written to a sibling `<transactionId>.<step>.sig.json`
+  file, verifiable via the existing `bskel attest verify`. Deliberately OPTIONAL, not mandatory --
+  mirrors `D-gate-attestation-signing`'s own precedent (fully explicit `--key-file`, never a forced
+  default) and `D-db-schema-plane`'s "detect and warn, never hard-require" posture. When omitted,
+  `bskel serve` prints a startup banner and the UI shows the same warning, so the gap is visible.
+- **Gate**: `patch_transactions`' `recompute()` (`lib/gate-definitions.mjs`) now branches on
+  `txn.kind` -- `config-apply` unchanged (hashes both the applied target file and the transaction
+  record); `ddl-apply` contributes ONLY the transaction-record hash, never re-touching the live DB.
+  Reuses `D-db-schema-plane`'s own already-established "a gate that can only ever be satisfied with
+  a live DB connection is a different risk/availability class -- detect and warn, never gate on
+  live state" precedent, at the honestly-accepted cost that this gate cannot detect someone
+  reverting DDL by hand outside this tool (see EXIT below).
+
+**COST**: `region_hash === file_hash` for `ddl-apply` (no sub-schema region concept -- coarser
+staleness detection than config-apply's single-key granularity, though still whole-schema-accurate).
+Postcondition checking is fine-grained only for `CREATE TABLE`/`ALTER TABLE ADD COLUMN`/`DROP
+TABLE`; `CREATE/DROP INDEX`/`CREATE/DROP SCHEMA`/other ALTER forms only get the coarser
+hash-changed check. This item deliberately does NOT verify a real `--sign-key` round trip against a
+literal browser session (no browser automation in this repo's test suite) -- signing itself is
+proven correct via `lib/attest.mjs`'s own existing, unmodified test suite, and the new HTTP-layer
+signing call sites are proven via unit tests with a fake key.
+
+**Verified**: `npm test` (full suite, before/after count recorded in the commit); new unit tests for
+the allowlist, the schema's `if-then` branching (including EVERY existing `config-apply` fixture
+re-validated unchanged), `applyTransaction`/`rollbackTransaction`'s executor-injection contract
+(including a real concurrency proof that `withLockAsync` genuinely blocks a second caller until the
+first `await` resolves, not just until it returns), HTTP route presence/absence keyed on
+`dbConfig`, CORS-off assertion on every new route, confirm-mismatch refusal; a real, CI-wired
+`scripts/ddl-apply-smoke.mjs` (mirrors `scripts/db-introspect-smoke.mjs`'s disposable-`postgres:16`-
+container shape) exercising a real CLI propose->approve->apply against a real database, independently
+re-verified via a raw `pg.Client` query (not trusting the tool's own report), a real TOCTOU race, a
+real rollback refusal, a real confirm-mismatch refusal, a real `CONCURRENTLY` refusal at propose
+time, and the identical sequence again over a real HTTP round trip against `bskel serve
+--database-url-env ... --port 0` using real `fetch()` calls.
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- Rollback of an applied `ddl-apply` transaction -- refused outright, always; the mitigation is a
+  new forward transaction with hand-written reverse DDL, never an automated revert.
+- `CREATE/DROP INDEX CONCURRENTLY` and any DDL form that cannot run inside a transaction block --
+  structurally excluded by the allowlist, not attempted with a different, non-transactional safety
+  story.
+- Non-`TABLE`/`INDEX`/`SCHEMA` DDL (functions, triggers, views, roles/grants, RLS policy DDL,
+  despite Plane C already introspecting policies read-only) -- out of the allowlist entirely.
+- Fine-grained postcondition checks beyond `CREATE TABLE`/`ALTER TABLE ADD COLUMN`/`DROP TABLE`.
+- A DROP-specific stronger confirmation tier (e.g. retype the exact table name) -- DROP-class DDL
+  goes through the same type-to-confirm-the-transaction-id flow as everything else, for now.
+- Connection pooling under `bskel serve` -- one fresh `pg.Client` per propose/apply call, matching
+  `introspectSchema()`'s existing one-shot-per-call shape; acceptable for the expected human-
+  click-through usage pattern.
+- Mandatory signing (`--require-sign-key`) -- optional in Slice 1, a named, cheap, well-justified
+  near-term addition, not required to ship this item.
+- Non-Postgres databases -- this entire item is Postgres-only, matching Plane C's own existing scope.
+- Production safety rails (connection-string denylists, environment-name allowlisting,
+  production-vs-staging labeling) -- genuinely out of scope; `--database-url-env` is trusted exactly
+  as much as `bskel scan --db` already trusts it today, no new judgment is added about what a human
+  points it at.
+- The gate's own inability to detect someone reverting `ddl-apply`'s DDL by hand outside this tool
+  (see the gate design note above) -- an honestly-accepted, permanent gap, not solvable without
+  reintroducing the live-DB-dependent-gate problem `D-db-schema-plane` already rejected once.
+- `D-migration-scope`'s boundary around the Flyway/Liquibase-file `migration.sql` output path stays
+  exactly where it was -- this item only lifts the boundary for hand-authored, human-approved DDL
+  going through this new, explicit, confirm-gated pipeline, never for `handles emit`'s
+  auto-generated migration file.
