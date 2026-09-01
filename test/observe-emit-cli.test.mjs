@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { CONTRACT_SCHEMA_VERSION } from '../contracts/emit.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
@@ -129,33 +130,59 @@ test('observe emit writes the four infra templates plus the projected observed-s
 	assert.deepEqual(schema.operations.findWidget.pathParams.required, ['widgetId']);
 });
 
-test('observe emit fails cleanly for an unsupported adapter (java-spring and python-fastapi only)', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-emit-ts-'));
+test('observe emit fails cleanly for an unsupported adapter (generic-grep, the only remaining adapter with a scanner but no handles/observe provider)', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-emit-generic-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
 	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
-	fs.mkdirSync(path.join(root, 'backend', 'src'), { recursive: true });
-	fs.writeFileSync(path.join(root, 'backend', 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { express: '^4.0.0', typescript: '^5.0.0' } }));
-	fs.writeFileSync(path.join(root, 'backend', 'tsconfig.json'), '{}');
-	fs.writeFileSync(path.join(root, 'backend', 'src', 'index.ts'), 'export {};\n');
+	// No build.gradle/src/main/java, no tsconfig.json, no pyproject.toml -- every real adapter's
+	// own detect() fails, so runScan() falls through to generic-grep (mirrors
+	// test/generic-grep-cli.test.mjs's own buildFixtureRepo()).
+	fs.writeFileSync(path.join(root, 'package.json'), '{"name": "fixture"}\n');
+	fs.mkdirSync(path.join(root, 'routes'), { recursive: true });
+	fs.writeFileSync(path.join(root, 'routes', 'x.js'), `
+const express = require('express');
+const router = express.Router();
+router.get('/x', getX);
+module.exports = router;
+`);
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
-	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-emit-ts-origin-'));
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-emit-generic-origin-'));
 	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
 	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
 	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
 
 	run(['preflight'], root);
-	run(['feature', 'init', '--slug', 'x-management'], root);
-	const scan = run(['scan', '--feature', '001-x-management', '--terms', 'x', '--json'], root);
-	if (JSON.parse(scan.stdout).adapter !== 'typescript-express') return; // adapter-selection heuristic is out of scope for this test
+	const featureInit = run(['feature', 'init', '--slug', 'x-management'], root);
+	const scan = run(['scan', '--feature', '001-x-management', '--terms', 'x', '--accept-low-confidence', '--json'], root);
+	if (JSON.parse(scan.stdout).adapter !== 'generic-grep') return; // adapter-selection heuristic is out of scope for this test
 	run(['scan', 'disposition', '--feature', '001-x-management', '--mode', 'reuse', '--note', 'x'], root);
+	// generic-grep declares api.operations:false, so a real `contract emit` refuses outright and
+	// never writes a contract file (confirmed live) -- `gate force contract` alone doesn't create
+	// one either (it only forces the gate TOKEN, never touches specs/). observe emit's own
+	// loadContract() needs a real file on disk regardless of the gate's forced status, so this test
+	// hand-writes a minimal, schema-valid contract first -- exactly the documented workaround
+	// `contract emit`'s own refusal message names ("hand-write the required artifact against its
+	// schema yourself, then `bskel gate force contract` ... if you're confident it's correct").
+	const featureUid = JSON.parse(featureInit.stdout).feature_uid;
+	const contractDir = path.join(root, 'specs', '001-x-management', 'contracts');
+	fs.mkdirSync(contractDir, { recursive: true });
+	fs.writeFileSync(path.join(contractDir, '001-x-management.schema.json'), JSON.stringify({
+		sbf_contract: CONTRACT_SCHEMA_VERSION,
+		feature_id: '001-x-management',
+		feature_uid: featureUid,
+		source: { adapter: 'generic-grep', module: '_generic', provenance: 'scan' },
+		operations: {},
+		warnings: [],
+		completeness: { status: 'blocked', operation_count: 0, endpoint_count: 1 },
+	}));
 	run(['gate', 'force', 'contract', '--feature', '001-x-management', '--reason', 'test'], root);
 
 	const result = run(['observe', 'emit', '--feature', '001-x-management'], root);
 	assert.equal(result.code, 17); // EXIT_CODES.MISSING_CAPABILITY
-	assert.match(result.stderr, /does not support the "typescript-express" adapter yet \(supported: java-spring, python-fastapi\)/);
+	assert.match(result.stderr, /does not support the "generic-grep" adapter yet \(supported: java-spring, python-fastapi, typescript-express\)/);
 });
 
 test('observe emit is idempotent -- re-running rewrites nothing except the always-regenerated observed-schema.json (same byte-identical content)', () => {

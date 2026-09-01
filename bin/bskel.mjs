@@ -59,6 +59,8 @@ import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
 import { emitObserveJavaSpring } from '../handles/providers/java-spring/observe.mjs';
 import { plan as planPythonFastApi } from '../handles/providers/python-fastapi/plan.mjs';
 import { emitObservePythonFastApi } from '../handles/providers/python-fastapi/observe.mjs';
+import { plan as planTypeScriptExpress } from '../handles/providers/typescript-express/plan.mjs';
+import { emitObserveTypeScriptExpress } from '../handles/providers/typescript-express/observe.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
@@ -2754,8 +2756,23 @@ function cmdObserveEmit(args) {
 		} catch (err) {
 			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 		}
+	} else if (scanReport.adapter === 'typescript-express') {
+		// typescript-express's own project-root detection needs a module to anchor itself too (same
+		// reasoning as python-fastapi's own --module dependency) -- plan.mjs's detectProjectRoot()
+		// walks up from the module's own scanned files.
+		let tsPlan;
+		try {
+			tsPlan = planTypeScriptExpress({ repoRoot: root, scanReport, module: flags.module, resourceFilter: null });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		try {
+			result = emitObserveTypeScriptExpress({ repoRoot: root, featureId: flags.feature, contract, plan: tsPlan, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
 	} else {
-		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel observe emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring, python-fastapi)`);
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel observe emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring, python-fastapi, typescript-express)`);
 	}
 	const { written, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = result;
 	const wouldChange = actions.some((a) => a.action !== 'unchanged' && a.action !== 'adopt-unchanged');

@@ -170,6 +170,199 @@ try {
 	fail(`real HTTP pointer-walk round trip failed:\n${err.stdout || err.stderr || err.message}`);
 }
 
-console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, and the emitted router\'s GET pointer-walk works against a real HTTP round trip.');
+console.log('typescript-typecheck-smoke: HANDLES phase PASSED (type-check + GET pointer-walk round trip).');
+
+// D-runtime-conformance-receipts (typescript-express port): the real HTTP-execution proof for the
+// response-body-capture design (res.json patch + res.on('finish', ...) status read) -- this
+// project's own established discipline of verifying via real execution, not just reading source.
+// Reuses the SAME scratch repo/node_modules as the handles phase above (a deliberate, more
+// thorough choice than a second fresh checkout -- it also proves observe and handles genuinely
+// coexist in one real repo, matching D-runtime-conformance-receipts's own "orthogonal capabilities"
+// framing) rather than paying a second `npm install`.
+console.log('typescript-typecheck-smoke: contract emit --openapi-file -> observe emit...');
+// The literal Express-colon-syntax path key, not OpenAPI-standard {id} -- contracts/openapi.mjs's
+// reconciliation is pure exact-string matching with zero :id <-> {id} translation (confirmed
+// live), so a standards-shaped document would never match this scanned route at all. A real
+// `responses.200` schema (not empty) is required to get a non-trivial `response`/`statuses`
+// projection to actually exercise below -- an empty `responses: {}` (as used by the CLI test file,
+// which only needs written-file-shape assertions) would make every response check vacuously pass.
+const openApiPath = path.join(scratch, 'openapi.json');
+fs.writeFileSync(openApiPath, JSON.stringify({
+	openapi: '3.1.0',
+	paths: {
+		'/v1/users/:id([0-9]+)': {
+			get: {
+				operationId: 'users-show',
+				responses: {
+					200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', required: ['id', 'name'], properties: { id: { type: 'string' }, name: { type: 'string' } } } } } },
+				},
+			},
+		},
+	},
+}));
+// Re-run scan/disposition before contract emit -- the scan gate goes stale between the handles
+// phase above and here (found live, not assumed: `bskel contract emit` refused with "scan gate is
+// stale" the first time this was run without this re-check), matching the same re-establish
+// pattern this project's own D-security-7 test / test/handles-plan-fixture.test.mjs's resolvers_
+// index.ts tests already use after an intervening write.
+r = bskel(['scan', '--feature', FEATURE_ID, '--terms', 'user'], scratch);
+if (![0, 3].includes(r.code)) fail(`re-scan: exit ${r.code}: ${r.stderr || r.stdout}`);
+r = bskel(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'extend', '--note', 'observe-phase'], scratch);
+if (r.code !== 0) fail(`re-disposition: ${r.stderr || r.stdout}`);
+
+r = bskel(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--openapi-file', openApiPath, '--path-prefix', '/v1'], scratch);
+if (r.code !== 0) fail(`contract emit --openapi-file: ${r.stderr || r.stdout}`);
+
+r = bskel(['observe', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--json'], scratch);
+if (r.code !== 0) fail(`observe emit: ${r.stderr || r.stdout}`);
+let observeResult;
+try {
+	observeResult = JSON.parse(r.stdout);
+} catch {
+	fail(`observe emit produced no parseable JSON: ${r.stdout}`);
+}
+const expectedObserveFiles = ['backend/src/observe/contractCheck.ts', 'backend/src/observe/observedSchema.ts', 'backend/src/observe/observeContract.ts', 'backend/src/observe/schemas/001-user-management.observed-schema.json'];
+for (const f of expectedObserveFiles) {
+	if (!observeResult.written.includes(f)) fail(`observe emit: expected ${f} in written, got ${JSON.stringify(observeResult.written)}`);
+}
+if (!fs.existsSync(path.join(backendDir, 'src', 'handles', 'router.ts'))) {
+	fail('observe emit must never remove/touch anything handles emit owns -- backend/src/handles/router.ts is gone');
+}
+
+// Real, structural, pre-existing gap this port surfaced but does not fix (out of scope --
+// contracts/emit.mjs's own pathParamsSchema() is shared by all 3 adapters, only recognizes
+// OpenAPI-style {name} segments, never Express's own :name syntax): pathParams.required is always
+// empty for a real typescript-express contract, so a "bad path param" violation scenario is not
+// achievable here -- see the Update note in D-runtime-conformance-receipts in DECISIONS.md.
+const observedSchemaPath = path.join(backendDir, 'src', 'observe', 'schemas', '001-user-management.observed-schema.json');
+const observedSchema = JSON.parse(fs.readFileSync(observedSchemaPath, 'utf8'));
+if (!observedSchema.operations['users-show'] || observedSchema.operations['users-show'].response.required.join(',') !== 'id,name') {
+	fail(`observe emit: expected users-show.response.required = [id, name], got ${JSON.stringify(observedSchema.operations['users-show'])}`);
+}
+
+// D-runtime-conformance-receipts: the actual HTTP round trip -- builds a real Express app using
+// the REAL generated observeContract('users-show') middleware, captures receipts via
+// setReceiptSink instead of the default process.stdout.write, and proves: (1) a conformant
+// response produces zero violations; (2) a response missing a required field is delivered to the
+// client COMPLETELY UNALTERED (best-effort, non-interference) while the receipt correctly flags
+// it, and the raw payload never appears substring-wise in any violation message (Decision A, the
+// TS equivalent of java's/python's own adversarial-battery proof); (3) an undocumented status
+// (404, not in the observed ["200"]) produces a /status violation; (4) a handler that calls
+// res.send(<string>) instead of res.json(...) still gets a receipt with the real captured status,
+// but ZERO response-body violations -- proving "uncaptured, not guessed" for real, not just by
+// reading source.
+const OBSERVE_HTTP_DRIVER_SOURCE = `
+import express from 'express';
+import http from 'node:http';
+import { observeContract, setReceiptSink } from './observeContract';
+
+async function main() {
+  const receipts: any[] = [];
+  setReceiptSink((line: string) => { receipts.push(JSON.parse(line)); });
+
+  const app = express();
+  app.use(express.json());
+  app.get('/v1/users/conformant', observeContract('users-show'), (req, res) => {
+    res.json({ id: 'u-1', name: 'Ann' });
+  });
+  app.get('/v1/users/missing-field', observeContract('users-show'), (req, res) => {
+    res.json({ id: 'u-2' }); // missing "name", the required field
+  });
+  app.get('/v1/users/bad-status', observeContract('users-show'), (req, res) => {
+    res.status(404).json({ id: 'u-3', name: 'Ghost' });
+  });
+  app.get('/v1/users/raw-string', observeContract('users-show'), (req, res) => {
+    res.send('a raw string response, never JSON');
+  });
+
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+  const base = \`http://127.0.0.1:\${port}\`;
+
+  async function waitForReceipt(before: number): Promise<any> {
+    for (let i = 0; i < 50; i++) {
+      if (receipts.length > before) return receipts[receipts.length - 1];
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error('no receipt observed within 500ms -- res.on(finish) never fired?');
+  }
+
+  // (1) conformant
+  {
+    const before = receipts.length;
+    const res = await fetch(\`\${base}/v1/users/conformant\`);
+    const body = await res.json();
+    if (res.status !== 200 || body.name !== 'Ann') throw new Error(\`conformant: unexpected response \${res.status} \${JSON.stringify(body)}\`);
+    const receipt = await waitForReceipt(before);
+    if (receipt.violations.length !== 0) throw new Error(\`conformant: expected zero violations, got \${JSON.stringify(receipt.violations)}\`);
+  }
+
+  // (2) missing required field -- client unaffected, receipt flags it, no leaked value
+  {
+    const before = receipts.length;
+    const res = await fetch(\`\${base}/v1/users/missing-field\`);
+    const body = await res.json();
+    if (res.status !== 200 || body.id !== 'u-2' || 'name' in body) throw new Error(\`missing-field: client response was altered -- \${res.status} \${JSON.stringify(body)}\`);
+    const receipt = await waitForReceipt(before);
+    const hit = receipt.violations.find((v: any) => v.pointer === '/body/name' && v.keyword === 'required');
+    if (!hit) throw new Error(\`missing-field: expected a /body/name required violation, got \${JSON.stringify(receipt.violations)}\`);
+    for (const v of receipt.violations) {
+      if (JSON.stringify(v).includes('u-2')) throw new Error(\`Decision A violation: an observed value leaked into a violation message -- \${JSON.stringify(v)}\`);
+    }
+  }
+
+  // (3) undocumented status
+  {
+    const before = receipts.length;
+    const res = await fetch(\`\${base}/v1/users/bad-status\`);
+    if (res.status !== 404) throw new Error(\`bad-status: expected client to see real 404, got \${res.status}\`);
+    const receipt = await waitForReceipt(before);
+    const hit = receipt.violations.find((v: any) => v.pointer === '/status' && v.keyword === 'status');
+    if (!hit) throw new Error(\`bad-status: expected a /status violation, got \${JSON.stringify(receipt.violations)}\`);
+  }
+
+  // (4) res.send(<string>) -- response body never captured, never guessed
+  {
+    const before = receipts.length;
+    const res = await fetch(\`\${base}/v1/users/raw-string\`);
+    const text = await res.text();
+    if (text !== 'a raw string response, never JSON') throw new Error(\`raw-string: client response was altered -- \${JSON.stringify(text)}\`);
+    const receipt = await waitForReceipt(before);
+    if (receipt.status !== 200) throw new Error(\`raw-string: expected the real captured status 200, got \${receipt.status}\`);
+    const bodyViolations = receipt.violations.filter((v: any) => v.pointer.startsWith('/body'));
+    if (bodyViolations.length !== 0) throw new Error(\`raw-string: expected zero response-body violations (uncaptured, not guessed), got \${JSON.stringify(bodyViolations)}\`);
+  }
+
+  server.close();
+  console.log('typescript-typecheck-smoke: real observeContract HTTP round trip PASSED (conformant / missing-field / bad-status / raw-string-uncaptured)');
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
+`;
+
+const observeHttpDriverPath = path.join(backendDir, 'src', 'observe', 'http-test-driver.ts');
+fs.writeFileSync(observeHttpDriverPath, OBSERVE_HTTP_DRIVER_SOURCE);
+try {
+	sh('npx', ['tsc', '--outDir', distDir, '--noEmit', 'false'], backendDir, { quiet: true });
+} catch (err) {
+	fail(`real tsc compile (for the observe HTTP round trip) failed:\n${err.stdout || err.stderr || err.message}`);
+}
+// Real bug found live, not assumed: tsc only compiles .ts files -- it never copies plain data
+// files into --outDir, so observedSchema.ts's own runtime discovery (relative to its OWN compiled
+// location, __dirname) finds nothing under dist/observe/schemas/ unless a build's own asset-copy
+// step puts it there. Mirrors what a real target app's own build script would need to do --
+// confirmed this is a genuine, not-tsc-specific-to-this-repo packaging step by reproducing the
+// exact "no observed schema loaded" failure first, then fixing it, rather than assuming it away.
+// observe.mjs's own postEmitNotes now name this explicitly for a real adopter.
+fs.cpSync(path.join(backendDir, 'src', 'observe', 'schemas'), path.join(distDir, 'observe', 'schemas'), { recursive: true });
+try {
+	sh('node', [path.join(distDir, 'observe', 'http-test-driver.js')], backendDir, { quiet: true });
+} catch (err) {
+	fail(`real observeContract HTTP round trip failed:\n${err.stdout || err.stderr || err.message}`);
+}
+
+console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, the emitted handles router\'s GET pointer-walk works against a real HTTP round trip, and the emitted observeContract middleware correctly intercepts real traffic (conformant / missing-field / bad-status / raw-string-uncaptured).');
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });

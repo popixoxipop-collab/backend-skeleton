@@ -9224,6 +9224,131 @@ specifically, not just assumed from `awaitingDispositionCommand()`'s own fallbac
 `test/status-next-cli.test.mjs`/`test/verify-cli.test.mjs`/`test/doc-integrity.test.mjs` all re-run
 unchanged, 0 regressions.
 
+**Update (typescript-express port, closing this entry's own named deferred scope, and the
+feasibility-check note above):** built, per explicit user call to open the scope the feasibility
+check had held. Confirmed the feasibility note's core claim (no blocking technical gap) while
+finding three real things beyond it, two structural and one a pre-existing latent test bug.
+
+**Response-body capture, resolved concretely, not deferred:** Express middleware runs BEFORE the
+handler and never receives a return value, so there is no `joinPoint.proceed()`/`await fn(...)`
+equivalent. Resolved by patching `res.json` on the per-request `res` instance and reading the real
+`res.statusCode` inside `res.on('finish', ...)` (fires exactly once regardless of success/throw/
+default-error-handling). Verified against the real pinned `express@4.18.2` source: `res.send(<plain
+object>)` itself delegates to `this.json(...)`, so one patch point covers both call styles;
+`res.send(<string>)`/`res.end(...)`/Express's own generic error handler never touch it, and the
+response check is silently skipped for those, never guessed. Status detection is honestly MORE
+accurate than java's/python's own v1 (each assumes 200 on a normal return) since `res.statusCode`
+at `finish` time is the real, final sent value. `error_class` is NEVER populated in this provider
+(always omitted, not attempted) -- a structural fact, not a deferred implementation gap: by the
+time a handler throws, this middleware's own call frame has already returned, with no
+catch-equivalent position available. Request-body checking is fully automatic here (no
+python-style explicit `body_param`) -- `req.body` is Express's own unambiguous body once
+body-parsing middleware has run, closer to java's real `@RequestBody` marker than python's
+no-marker problem.
+
+**Finding 1, beyond the feasibility note: OpenAPI path-syntax mismatch.** Re-read
+`contracts/openapi.mjs` directly (`normalizeRoute()`, `reconcileModule()`): zero `:id` <-> `{id}`
+translation exists anywhere in the codebase. Since this adapter's scan always sets `operationId:
+null` (`api.operations: false`), matching is pure exact-string `index.byRoute.get()` lookup.
+python-fastapi's own reconciliation "just works" only because FastAPI's native `/{id}` route syntax
+already IS OpenAPI's own template syntax; Express's `:id`/`:id([0-9]+)` is not, so a real,
+standards-compliant OpenAPI document will not match a scanned Express route unless its own path key
+happens to already read that way -- confirmed live by writing the test fixture's `openapi.json`
+with the literal colon-syntax path as its own key. Not a blocker, but a materially worse practical
+hit-rate than python enjoys for free.
+
+**Finding 2, found only by actually running `contract emit` against the real fixture, not
+assumed: `pathParams.required` is structurally ALWAYS empty for typescript-express, even on a
+successful match.** `contracts/emit.mjs`'s shared `pathParamsSchema(routePath, ...)` -- used by
+ALL THREE adapters -- extracts param names via `routePath.matchAll(/\{(\w+)\}/g)`, which only
+recognizes OpenAPI-style `{name}` segments. The `route` value it's called with is always the
+SCAN's own path string (`path: route` in the same function, confirmed by reading the call site),
+which for typescript-express is always Express colon syntax -- REGARDLESS of what the OpenAPI
+document declares, even after a successful adopt. `checkPathParams()`/`contractCheck.ts` is
+generic and correct; there is simply nothing for it to check yet for this provider. Out of scope
+to fix here: `contracts/emit.mjs` is shared by all 3 adapters, and doing this properly means
+solving it alongside Finding 1's own `:id`<->`{id}` gap, not as an incidental fix inside a
+provider-specific observe port. Named explicitly in the new CLI test's own assertion and comment,
+not silently asserted-around.
+
+**Finding 3, a pre-existing latent bug in `test/observe-emit-cli.test.mjs`'s own negative-adapter
+test, discovered while fixing it for the new supported-adapter list.** That test's own fixture
+(`backend/package.json` + `backend/tsconfig.json` declaring `express`/`typescript` dependencies,
+but an EMPTY `index.ts` with no real Router()/route usage) does not actually detect as
+`typescript-express` at all -- confirmed live, it detects as `generic-grep` -- so the test's own
+`if (adapter !== 'typescript-express') return;` guard has ALWAYS fired, silently skipping every
+assertion in the test body since it was written. This test has never actually verified its own
+claimed behavior. Retargeted at `generic-grep` (confirmed the only remaining adapter with a
+scanner but no handles/observe provider) with a fixture that genuinely lands there. A second,
+separate issue surfaced fixing this: `gate force contract` never writes a contract file (it only
+forces the gate TOKEN), and `generic-grep` cannot run a real `contract emit` at all (refuses
+outright, `api.operations` capability missing) -- so `observe emit`'s own `loadContract()` would
+always fail with "no contract" before ever reaching the adapter dispatch this test means to prove.
+Fixed by hand-writing a minimal, schema-valid contract file first (the exact documented workaround
+`contract emit`'s own refusal message names), importing `CONTRACT_SCHEMA_VERSION` from
+`contracts/emit.mjs` rather than hardcoding the version string. This test now genuinely exercises
+the path it always claimed to.
+
+**A fourth real bug, found only by actually running the new smoke-script phase, not by reading the
+generated code:** `tsc` never copies plain data files into `--outDir` -- only `.ts` files. The
+compiled `observedSchema.js` discovers its schemas relative to its OWN compiled location
+(`__dirname`) at runtime, so a real `tsc --outDir dist` build leaves `dist/observe/schemas/` empty
+unless something explicitly copies it there; reproduced live (`observeContract: no observed schema
+loaded`) before being understood, not assumed. This is a genuine, not-tsc-specific-to-this-repo
+packaging step any real adopter using a separate `dist/` output would hit. `observe.mjs`'s own
+`postEmitNotes` now name this explicitly; the smoke script mirrors the same fix a real build would
+need (`fs.cpSync` the schemas directory into the compiled output before running).
+
+**Mechanism, matching this item's own established design a language later:** three new templates
+(not four -- matching python's own "decorator/middleware natively combines marker+interceptor"
+reasoning; TS additionally needs no fourth `__init__`-equivalent file, since a plain relative-import
+directory needs no package marker the way Python's does). `contractCheck.ts.tmpl` stays its own
+separate, dependency-free file for the same "only place a real observed value is looked at" reason
+as both other providers. `observedSchema.ts.tmpl` glob-loads `observe/schemas/*.observed-schema.json`
+at MODULE LOAD time via `fs.readdirSync`/`__dirname` (CommonJS -- this generated tree's own
+`tsconfig.json` pins `module: "commonjs"`, so `import.meta.url` is not legal syntax here and was
+not used). `observeContract.ts.tmpl` exports `observeContract(operationId): RequestHandler` plus a
+`setReceiptSink()` function (deliberately NOT a mutable exported `let receiptSink`, an earlier draft
+of this design -- under CommonJS output, an external consumer reassigning an imported `let`
+property does not reliably write back to the module's own internal closure variable; an explicit
+setter function is the standard-safe pattern regardless of module target) -- the zero-new-dependency
+TS analogue of java's named SLF4J logger / python's named `logging.getLogger`, matching
+`D-config-patch`'s "never choose a target's delivery path" boundary without inventing a
+pseudo-logging-framework dependency.
+
+`cmdObserveEmit`'s dispatch became a three-branch (`java-spring`/`python-fastapi`/
+`typescript-express`/else-fail), still deliberately not adopting `handles/registry.mjs`'s own
+provider mechanism, for the same reason already stated for python.
+
+**Deferred scope, inherited and new:** inherited (sampling/rate-limiting, streaming/multipart
+bodies, full JSON-Schema semantics, cryptographic receipt attestation -- all already
+provider-agnostic v1.1+ items). New, TS-specific: `error_class` never populated (structural, not
+planned); non-object response bodies (`res.send(<string>)`, `res.end(...)`) and error-handler-
+produced responses are uncaptured; a 4-arg Express error-handling middleware for `error_class`
+capture, requiring a second separate human-wired insertion point, named as real v1.1 scope, not
+attempted; the OpenAPI path-syntax mismatch (Finding 1) and the resulting always-empty `pathParams`
+(Finding 2), both unsolved here -- a `:id`<->`{id}` normalization layer affecting all non-Java
+providers' reconciliation, out of scope for this port alone.
+
+**Verified.** `npm test` 1248 -> **1253** (5 new in `test/observe-emit-typescript-cli.test.mjs`;
+`test/observe-emit-cli.test.mjs`'s own retargeted negative test stays net-zero). Real execution
+throughout, not just static assertions: every CLI test above ran the real `bskel` binary against a
+real git-backed fixture; `scripts/typescript-typecheck-smoke.mjs` extended with a second phase
+(reusing the same scratch repo/`node_modules` as the existing handles phase, rather than a second
+fresh checkout -- a deliberate choice, since it also proves observe and handles genuinely coexist
+in one real repo) that runs a real `contract emit --openapi-file` (using the literal-colon-path
+`openapi.json` Finding 1 required), a real `observe emit`, a real `tsc` compile of a hand-written
+HTTP driver using the ACTUAL generated `observeContract` middleware, and real `fetch()` round trips
+against a real running Express server proving: a conformant response produces zero violations; a
+response missing a required field reaches the client completely unaltered while the receipt
+correctly flags it, with the raw payload never appearing substring-wise in any violation message
+(the Decision A proof, this port's equivalent of java's/python's own adversarial-battery test); an
+undocumented status (404, not in the observed `["200"]`) produces a `/status` violation; a handler
+calling `res.send(<string>)` instead of `res.json(...)` still produces a receipt with the real
+captured status but zero response-body violations, proving "uncaptured, not guessed" for real. All
+four bugs above (the scan-gate staleness needing a re-scan before the real `contract emit`, and the
+`tsc`-doesn't-copy-JSON packaging gap) were found by this real execution, not by reading the diff.
+
 ## D-field-dependency: declaring "field A is derived from field B" via the same disk-hash gate mechanism every other gate uses -- data model + gate only, no codegen propagation yet
 
 **WHY**: a standalone UI mockup (Fieldwire -- a wire-based, ArgoCD-style editor, not part of this
