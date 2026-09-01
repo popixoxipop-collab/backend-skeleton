@@ -329,6 +329,32 @@ export function normalizeRoute(routePath) {
 	return normalized;
 }
 
+// A1/Finding-1 fix (D-openapi-reconciliation, closing D-runtime-conformance-receipts' own
+// Finding 1, 0047e85): a route MATCH KEY collapses every parameter segment -- both OpenAPI/
+// Spring/FastAPI-style `{name}` and Express's own `:name`/`:name(...)` -- to the identical
+// placeholder, reusing the EXACT SAME two-alternative regex `contracts/emit.mjs`'s
+// pathParamsSchema() already added for the sibling problem (A9, D-openapi-path-params: PARAM-NAME
+// extraction from the scan's own route string). This is for MATCHING two route STRINGS as the same
+// shape, not for naming a parameter -- the name is always discarded (":param" regardless of which
+// name), unlike pathParamsSchema()'s own capture-group use of the same regex. Only ever used to
+// build/read a `byRoute` MAP KEY -- the document's own raw path string (its own `{name}`/`:name`
+// syntax, verbatim) is always what's stored/returned as `entry.path`/`docEntry.path`; no
+// downstream consumer ever sees a literal ":param" segment.
+//
+// Additive-only for java-spring/python-fastapi's existing {name}-only matching: two `{name}`-syntax
+// paths that were string-equal under the old normalizeRoute()-only key stay equal here (every
+// {anyName} collapses to the same placeholder regardless of name); two that were string-UNEQUAL
+// (different LITERAL segments) stay unequal (only parameter segments are touched). The one new
+// theoretical collision -- two really-different real params at the exact same position/verb --
+// was already an inherent REST-design conflict before this fix (no two real routes can coexist
+// that way), and the existing `hits.length > 1 -> kind: 'ambiguous'` handling (reconcileModule,
+// below) already covers a same-key collision safely, never silently picking one -- confirmed no
+// existing fixture in test/contract-openapi.test.mjs or test/contract-cli.test.mjs relies on the
+// opposite.
+export function canonicalRouteShape(routePath) {
+	return normalizeRoute(routePath.replace(/\{(\w+)\}|:(\w+)(?:\([^)]*\))?/g, ':param'));
+}
+
 // Reads and parses exactly once. Every failure mode returns {ok:false, error}, never throws --
 // this is the one function in the module that touches the filesystem, so it's the one place that
 // has to be defensive about a file that's huge, unreadable, not JSON, or JSON-but-not-an-object.
@@ -446,7 +472,7 @@ export function indexOpenApiDocument(doc) {
 			continue;
 		}
 		stats.path_count++;
-		const normalizedRoute = normalizeRoute(routeKey);
+		const routeShape = canonicalRouteShape(routeKey);
 
 		for (const methodKey of Object.keys(pathItem)) {
 			const verbLower = methodKey.toLowerCase();
@@ -498,7 +524,7 @@ export function indexOpenApiDocument(doc) {
 			const description = typeof operation.description === 'string' ? operation.description : null;
 			const entry = { verb, path: routeKey, operationId, requestBody, responses, parameters, security, summary, tags, description };
 
-			const routeMatchKey = `${verb} ${normalizedRoute}`;
+			const routeMatchKey = `${verb} ${routeShape}`;
 			const existingRoute = byRoute.get(routeMatchKey);
 			if (existingRoute) existingRoute.push(entry); else byRoute.set(routeMatchKey, [entry]);
 
@@ -1475,7 +1501,7 @@ export function reconcileModule({ index, module, pathPrefix = null, includeDescr
 				stats.unresolved++;
 			} else {
 				const candidates = prefix.value === '' ? [ep.path] : [...new Set([prefix.value + ep.path, ep.path])];
-				const hits = candidates.flatMap((c) => index.byRoute.get(`${ep.verb} ${normalizeRoute(c)}`) ?? []);
+				const hits = candidates.flatMap((c) => index.byRoute.get(`${ep.verb} ${canonicalRouteShape(c)}`) ?? []);
 				if (hits.length === 0) {
 					result = { kind: 'unresolved', reason: 'no-candidate', scanVerb: ep.verb, scanPath: ep.path };
 					stats.unresolved++;

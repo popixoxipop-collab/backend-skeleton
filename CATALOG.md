@@ -87,6 +87,7 @@ TypeORM, added after this catalog's own original scope -- see G5 below) are all 
 - **Scope/Effort:** **L** — new ingestion plane, normalized IR, diff classifier, and fixtures.
 - **Concrete approach:** Normalize OpenAPI 3.0/3.1 operations into the contract IR, resolve internal `$ref`s with cycle protection, preserve source/hash provenance, and classify source-scan versus OpenAPI disagreements as breaking, additive, or metadata-only. Require a disposition for conflicting paths or operation IDs instead of silently choosing one source.
 - **[IMPLEMENTED as A1, `27fdc81`]**
+- **Update (typescript-express, D-openapi-reconciliation):** closed a gap the O8 typescript-express port's own Update note named as out-of-scope (Finding 1). New `canonicalRouteShape()` collapses both OpenAPI/Spring/FastAPI `{name}` and Express `:name`/`:name(...)` segments to the same placeholder before building/reading `reconcileModule()`'s route-match key -- additive-only for java-spring/python-fastapi (confirmed via full `npm test` re-run, zero regression). See the Update note in D-openapi-reconciliation in DECISIONS.md.
 
 ### A2. A staged Java analyzer rather than immediately replacing regex with JavaParser
 

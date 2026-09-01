@@ -180,17 +180,17 @@ console.log('typescript-typecheck-smoke: HANDLES phase PASSED (type-check + GET 
 // coexist in one real repo, matching D-runtime-conformance-receipts's own "orthogonal capabilities"
 // framing) rather than paying a second `npm install`.
 console.log('typescript-typecheck-smoke: contract emit --openapi-file -> observe emit...');
-// The literal Express-colon-syntax path key, not OpenAPI-standard {id} -- contracts/openapi.mjs's
-// reconciliation is pure exact-string matching with zero :id <-> {id} translation (confirmed
-// live), so a standards-shaped document would never match this scanned route at all. A real
-// `responses.200` schema (not empty) is required to get a non-trivial `response`/`statuses`
-// projection to actually exercise below -- an empty `responses: {}` (as used by the CLI test file,
-// which only needs written-file-shape assertions) would make every response check vacuously pass.
+// The real, standards-compliant {id} path key -- contracts/openapi.mjs's canonicalRouteShape()
+// now matches this against the scanned Express :id([0-9]+) route (D-openapi-reconciliation,
+// closing D-runtime-conformance-receipts' own Finding 1). A real `responses.200` schema (not
+// empty) is required to get a non-trivial `response`/`statuses` projection to actually exercise
+// below -- an empty `responses: {}` (as used by the CLI test file, which only needs
+// written-file-shape assertions) would make every response check vacuously pass.
 const openApiPath = path.join(scratch, 'openapi.json');
 fs.writeFileSync(openApiPath, JSON.stringify({
 	openapi: '3.1.0',
 	paths: {
-		'/v1/users/:id([0-9]+)': {
+		'/v1/users/{id}': {
 			get: {
 				operationId: 'users-show',
 				responses: {
@@ -229,11 +229,10 @@ if (!fs.existsSync(path.join(backendDir, 'src', 'handles', 'router.ts'))) {
 	fail('observe emit must never remove/touch anything handles emit owns -- backend/src/handles/router.ts is gone');
 }
 
-// Real, structural, pre-existing gap this port surfaced but does not fix (out of scope --
-// contracts/emit.mjs's own pathParamsSchema() is shared by all 3 adapters, only recognizes
-// OpenAPI-style {name} segments, never Express's own :name syntax): pathParams.required is always
-// empty for a real typescript-express contract, so a "bad path param" violation scenario is not
-// achievable here -- see the Update note in D-runtime-conformance-receipts in DECISIONS.md.
+// D-openapi-path-params (A9, 59b3602) taught pathParamsSchema() to recognize Express's own :name
+// syntax too, and D-openapi-reconciliation (this item) taught canonicalRouteShape() to match a
+// real {id}-keyed OpenAPI document against a scanned :id([0-9]+) route -- together, path-param
+// checking is now genuinely live for typescript-express, exercised by the "bad-param" scenario below.
 const observedSchemaPath = path.join(backendDir, 'src', 'observe', 'schemas', '001-user-management.observed-schema.json');
 const observedSchema = JSON.parse(fs.readFileSync(observedSchemaPath, 'utf8'));
 if (!observedSchema.operations['users-show'] || observedSchema.operations['users-show'].response.required.join(',') !== 'id,name') {

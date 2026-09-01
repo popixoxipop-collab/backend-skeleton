@@ -7,11 +7,10 @@
 // leaving contract.operations empty), this file runs a REAL `contract emit --openapi-file` so
 // observe emit has real operations to project -- otherwise this whole test file would be vacuous.
 //
-// The openapi.json below is deliberately keyed by the LITERAL Express-colon-syntax path
-// (`/v1/users/:id([0-9]+)`), not the OpenAPI-standard `{id}` form -- contracts/openapi.mjs's own
-// reconciliation is pure exact-string matching with zero `:id` <-> `{id}` translation (confirmed
-// live), so a standards-shaped document would never match this scanned route at all. See the
-// Update note in D-runtime-conformance-receipts in DECISIONS.md.
+// The openapi.json below is keyed by the real, standards-compliant `/v1/users/{id}` path --
+// `contracts/openapi.mjs`'s `canonicalRouteShape()` now matches this against the scanned Express
+// `:id([0-9]+)` route (D-openapi-reconciliation, closing D-runtime-conformance-receipts' own
+// Finding 1). See the Update note in D-openapi-reconciliation in DECISIONS.md.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -61,7 +60,7 @@ function runWorkflowThroughContract(root) {
 	const openApiPath = path.join(root, 'openapi.json');
 	fs.writeFileSync(openApiPath, JSON.stringify({
 		openapi: '3.1.0',
-		paths: { '/v1/users/:id([0-9]+)': { get: { operationId: 'users-show', responses: {} } } },
+		paths: { '/v1/users/{id}': { get: { operationId: 'users-show', responses: {} } } },
 	}));
 	// A non-empty --path-prefix is required by the CLI's own validation (empty string is rejected
 	// outright) -- its actual VALUE is irrelevant to whether this fixture's route matches, since

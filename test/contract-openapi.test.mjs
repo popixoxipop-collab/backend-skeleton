@@ -8,7 +8,7 @@ import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import {
 	loadOpenApiDocument, indexOpenApiDocument, inferPathPrefix, reconcileModule,
-	normalizeRoute, OPERATION_ID_RE, PATH_PREFIX_RE,
+	normalizeRoute, canonicalRouteShape, OPERATION_ID_RE, PATH_PREFIX_RE,
 	inlineSchema, COMPONENT_SCHEMA_NAME_RE, SCHEMA_PROPERTY_NAME_RE,
 	snapshotFromReconciliation, hasBskelExportMarker, BSKEL_PASSTHROUGH_EXTENSION, BSKEL_GENERATED_EXTENSION,
 	RESPONSE_STATUS_KEY_RE, MEDIA_TYPE_RE, PER_STATUS_NO_DESCRIPTION_STANDIN,
@@ -159,6 +159,38 @@ test('adopted: unmatched endpoint resolves to a single OpenAPI operation that HA
 	assert.equal(result.operationId, 'createWidget');
 });
 
+// D-openapi-reconciliation (A1), Finding-1 fix (D-runtime-conformance-receipts): an Express
+// :name-syntax scanned route now matches a standards-compliant {name}-keyed OpenAPI document --
+// previously pure exact-string matching meant these could never match at all.
+test('adopted: an Express :name-syntax scanned route matches a standards-compliant {name}-keyed OpenAPI document', () => {
+	const doc = { paths: { '/api/v0/widgets/{id}': { post: { operationId: 'createWidget' } } } };
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'POST', path: '/widgets/:id', operationId: null, method: 'createWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	const result = recon.byEndpoint.get('0:0');
+	assert.equal(result.kind, 'adopted');
+	assert.equal(result.operationId, 'createWidget');
+	// the emitted path stays the DOCUMENT's own {name} syntax, not rewritten to :id -- entry.path
+	// is never touched by this fix, only the byRoute lookup key is
+	assert.equal(result.path, '/api/v0/widgets/{id}');
+});
+
+test('adopted: an Express :name([0-9]+) regex-constrained scanned segment still matches a {name}-keyed OpenAPI document', () => {
+	const doc = { paths: { '/api/v0/widgets/{id}': { get: { operationId: 'findWidget' } } } };
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/:id([0-9]+)', operationId: null, method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	assert.equal(recon.byEndpoint.get('0:0').kind, 'adopted');
+});
+
+test('adopted: a non-standard, literally colon-keyed OpenAPI document still matches an Express-syntax scan -- canonicalization does not regress this pre-existing tolerance', () => {
+	const doc = { paths: { '/api/v0/widgets/:id': { get: { operationId: 'findWidget' } } } };
+	const indexed = indexOpenApiDocument(doc);
+	const module = oneControllerModule([{ verb: 'GET', path: '/widgets/:id', operationId: null, method: 'findWidget' }]);
+	const recon = reconcileModule({ index: indexed, module, pathPrefix: '/api/v0' });
+	assert.equal(recon.byEndpoint.get('0:0').kind, 'adopted');
+});
+
 test('unresolved(document-missing-operation-id): single route match, but that OpenAPI operation has no operationId itself', () => {
 	const doc = { paths: { '/api/v0/gadgets': { post: {} } } };
 	const indexed = indexOpenApiDocument(doc);
@@ -272,6 +304,14 @@ test('normalizeRoute collapses repeated slashes and strips a trailing slash (but
 	assert.equal(normalizeRoute('/a//b/'), '/a/b');
 	assert.equal(normalizeRoute('/'), '/');
 	assert.equal(normalizeRoute('/a'), '/a');
+});
+
+test('canonicalRouteShape collapses both {name} and :name(...) segments to the same shape, regardless of the literal parameter name', () => {
+	assert.equal(canonicalRouteShape('/v1/users/{id}'), '/v1/users/:param');
+	assert.equal(canonicalRouteShape('/v1/users/{id}'), canonicalRouteShape('/v1/users/:id([0-9]+)'));
+	assert.equal(canonicalRouteShape('/orgs/{orgId}/users/{userId}'), canonicalRouteShape('/orgs/:orgId/users/:userId'));
+	// literal (non-parameter) segments still distinguish two routes -- only parameter segments collapse
+	assert.notEqual(canonicalRouteShape('/widgets/{id}'), canonicalRouteShape('/gadgets/{id}'));
 });
 
 // ===== A2: request body JSON Schema projection =====

@@ -682,6 +682,55 @@ regex-based signal in this codebase.
 place to add a new signal pattern; `runScan()`'s `unknowns` note is the single place the
 human-readable warning text lives.
 
+**Update (Express `:name`/`{name}` route-shape matching, closing D-runtime-conformance-receipts'
+own Finding 1):** `reconcileModule()`'s no-operationId branch, and `indexOpenApiDocument()`'s
+`byRoute` index, both built their match key from `normalizeRoute()` alone -- pure slash-collapsing,
+zero `:id`<->`{id}` translation. Since typescript-express's scan always sets `operationId: null`,
+every one of its endpoints hits this exact-string path, so a real, standards-compliant `{id}`-keyed
+OpenAPI document never matched a scanned `:id`/`:id([0-9]+)` Express route. Found and documented as
+explicitly out-of-scope while porting O8 to typescript-express (`0047e85`) -- this closes it. New
+`canonicalRouteShape()` collapses both `{name}` and Express's own `:name`/`:name(...)` segments to
+an identical `:param` placeholder before building/reading the `byRoute` key -- reusing the exact
+regex `D-openapi-path-params` (A9) already added to `contracts/emit.mjs`'s `pathParamsSchema()` for
+the sibling name-extraction problem. `entry.path`/`docEntry.path` (what's actually stored/returned,
+and what `contracts/emit.mjs`'s `route` ends up as for `matched`/`adopted`, confirmed by re-reading
+`buildContract()` directly -- `route = res.path` at both `case 'matched'` and `case 'adopted'`) is
+untouched -- only the lookup key changes, so a matched/adopted typescript-express operation's
+`path` now correctly reads the document's own `{name}` syntax, and A9's own `pathParamsSchema()`
+`{name}` branch (present before A9 too) handles it without needing its own `:name` branch at all
+for this case; A9's `:name` branch remains necessary for `drift`/`missing`/`unresolved`/`ambiguous`
+(still the scan's own colon-syntax path) and for a document-less/non-standard-document
+`contract emit`.
+
+**Additive-only for java-spring/python-fastapi's existing `{name}`-only matching**: two `{name}`-
+syntax paths that were string-equal under the old key stay equal (every `{anyName}` collapses to
+the same placeholder); two with different LITERAL segments stay unequal (only parameter segments
+are touched). Confirmed, not just reasoned: `test/contract-openapi.test.mjs`/`test/contract-cli.
+test.mjs` grepped for any fixture pairing two same-verb, same-literal-structure routes differing
+only by parameter name -- none exists; the one theoretical new collision class (two really-
+different params at the exact same position/verb) was already an inherent REST-design conflict,
+and the pre-existing `hits.length > 1 -> kind: 'ambiguous'` handling already covers a same-key
+collision safely, never silently picking one.
+
+`test/observe-emit-typescript-cli.test.mjs` and `scripts/typescript-typecheck-smoke.mjs` both moved
+their own `openapi.json` fixture from the literal-colon-path workaround key (`/v1/users/:id([0-9]+)`)
+to the real, standards-compliant `/v1/users/{id}` -- more honest coverage of the shape a real
+document actually uses, now that it works.
+
+**Named, not fixed here**: `contracts/export.mjs`'s `buildPathParameters()` extracts param names
+via a `{name}`-only regex when building an EXPORTED OpenAPI document -- for a typescript-express
+contract with any `drift`/`missing`/`unresolved`/`ambiguous` operation (still colon-syntax
+`op.path`), `contract export` would still emit an invalid OpenAPI path key with no path parameters
+listed. A different function, a different direction (export, not import/match) -- out of scope for
+this item, flagged for a future one.
+
+**Verified.** `npm test` 1253 -> **1257** (4 new in `test/contract-openapi.test.mjs`). Full re-run
+confirms zero regression across all 1253 pre-existing cases, including `test/contract-cli.test.mjs`'s
+56 java-spring reconciliation tests. `scripts/typescript-typecheck-smoke.mjs` re-run for real
+against the updated `{id}`-keyed fixture: the same 5 observe-phase HTTP scenarios pass unchanged,
+now exercising the standards-compliant document path end-to-end (confirmed live: the reconciliation
+warning text itself now reads `GET /v1/users/{id}`, not the old colon-syntax path).
+
 ## D-openapi-request-schema (A2): a contract that says "some object" isn't a contract
 
 **WHY**: A1's own DECISIONS.md entry explicitly deferred "full request/response schema projection"
@@ -9287,7 +9336,9 @@ already IS OpenAPI's own template syntax; Express's `:id`/`:id([0-9]+)` is not, 
 standards-compliant OpenAPI document will not match a scanned Express route unless its own path key
 happens to already read that way -- confirmed live by writing the test fixture's `openapi.json`
 with the literal colon-syntax path as its own key. Not a blocker, but a materially worse practical
-hit-rate than python enjoys for free.
+hit-rate than python enjoys for free. **Closed separately**: see the Update note in
+`D-openapi-reconciliation` (A1) -- `canonicalRouteShape()` now recognizes both syntaxes when
+matching a route, closing this gap.
 
 **Finding 2, found only by actually running `contract emit` against the real fixture, not
 assumed: `pathParams.required` is structurally ALWAYS empty for typescript-express, even on a
