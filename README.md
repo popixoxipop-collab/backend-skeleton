@@ -176,6 +176,43 @@ read from `.env`) for live, read-only Postgres introspection (`information_schem
 inside a `BEGIN TRANSACTION READ ONLY`) and a source-vs-live drift report. Both are informational
 additions to the scan report — neither blocks any gate. See `D-db-schema-plane` in `DECISIONS.md`.
 
+The same `--db`/`--database-url-env` flags, passed to `bskel scan cross-feature-check`, add a 4th
+collision signal: a real live (or migration-file-derived) Postgres foreign-key edge whose two
+tables are declared by two *different* features surfaces as a `db_foreign_key` finding, direction-
+and confidence-scored the same way the existing NAME-identity signals are. Every `fk_check` in the
+report also carries `generated_at` — when the underlying data was actually captured, so a
+`persisted`/`migrations`-mode correlation (reused from an earlier scan, not a fresh connection) can
+be judged for staleness rather than trusted blindly. See `D-cross-feature-fk-inference` in
+`DECISIONS.md`.
+
+### Applying DDL to a live database (optional)
+
+`bskel patch propose --kind ddl-apply` extends the same propose/approve/apply/rollback lifecycle
+`config_apply` uses to a second kind: hand-authored `CREATE`/`ALTER`/`DROP TABLE`/`INDEX`/`SCHEMA`
+statements, run inside a real Postgres transaction and only `COMMIT`ted once the introspected
+schema actually matches the declared postcondition — anything else `ROLLBACK`s automatically, never
+partially applies:
+
+```bash
+bskel patch propose --feature 001-organization-management --kind ddl-apply \
+  --database-url-env BSKEL_DB_URL --sql-file migrations/add_tax_rate.sql --schema public
+bskel patch approve --feature 001-organization-management --transaction <id> --reason "..."
+bskel patch apply --feature 001-organization-management --transaction <id>
+# a transaction that DROPs one or more tables requires retyping the sorted, comma-joined table
+# name(s) as --confirm instead of the transaction id -- the same "type the resource name to
+# delete" pattern GitHub uses for its own irreversible actions
+```
+
+Rollback of an *applied* `ddl-apply` transaction is refused outright by design — the only path back
+is a new, forward transaction with hand-written reverse DDL, never an automated revert. The
+allowlist structurally excludes anything that can't run inside a transaction block (e.g. `CREATE
+INDEX CONCURRENTLY`) and anything outside `TABLE`/`INDEX`/`SCHEMA` DDL. `bskel serve
+--database-url-env <NAME> [--sign-key <path>] [--require-sign-key]` exposes the same lifecycle
+through the browser UI's own propose/approve/apply routes; `--require-sign-key` refuses to start
+the DDL surface at all unless a signing key was also given. See `D-ddl-apply` in `DECISIONS.md` for
+the full design and every explicitly-deferred boundary (non-Postgres databases, connection
+pooling, production safety rails).
+
 ### Declaring field-to-field dependencies (optional)
 
 When one feature's data actually depends on another feature's (e.g. a `WidgetDto.name` that's
