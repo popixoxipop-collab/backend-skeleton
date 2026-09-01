@@ -200,12 +200,16 @@ public class HandleController {
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no active registration for this handle"));
 	}
 
-	private void requireAuthority(String requiredRole) {
+	// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): a plain equality check --
+	// the ROLE_ prefix Spring Security implicitly applies for hasRole('X') (but not hasAuthority('X'))
+	// is already baked into requiredAuthority by plan.mjs's extractPreAuthorize() at handles-plan
+	// time, so this method never needs to know which source annotation shape produced the value.
+	private void requireAuthority(String requiredAuthority) {
 		boolean granted = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
 				.map(GrantedAuthority::getAuthority)
-				.anyMatch(authority -> authority.equals("ROLE_" + requiredRole));
+				.anyMatch(authority -> authority.equals(requiredAuthority));
 		if (!granted) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "requires role " + requiredRole);
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "requires authority " + requiredAuthority);
 		}
 	}
 }

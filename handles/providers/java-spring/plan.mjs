@@ -121,6 +121,7 @@ function planPatchable({ javaSrcRoot, module: moduleName, controllers, entityCla
 // below already consumes -- findRequiredAuthority()/extractPreAuthorize()/classBodyStart() are
 // completely unchanged, D-security-7's own region-carving logic untouched.
 const HAS_ROLE_RE = /@PreAuthorize\(\s*"hasRole\('([^']+)'\)"\s*\)/;
+const HAS_AUTHORITY_RE = /@PreAuthorize\(\s*"hasAuthority\('([^']+)'\)"\s*\)/;
 const PRE_AUTH_RE = /@PreAuthorize\(/;
 
 function methodMappingBoundaries(text) {
@@ -138,14 +139,26 @@ function classBodyStart(text) {
 }
 
 // Returns { authority, unsupported } for an @PreAuthorize search over one region of source text.
-// `unsupported: true` means an @PreAuthorize annotation IS present but isn't the simple
-// hasRole('X') shape this regex-based scanner understands (hasAnyRole, SpEL, etc.) -- the caller
-// must fail closed (TODO_ROLE) rather than silently treating it as "no authority found" and
-// falling back to a weaker/wrong source.
+// `unsupported: true` means an @PreAuthorize annotation IS present but isn't one of the two
+// simple shapes this regex-based scanner understands (hasAnyRole, hasAnyAuthority, SpEL, etc.) --
+// the caller must fail closed (TODO_ROLE) rather than silently treating it as "no authority
+// found" and falling back to a weaker/wrong source.
+//
+// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): hasRole('X') and
+// hasAuthority('X') are NOT interchangeable at the Spring Security level -- hasRole('X') checks
+// for the granted authority "ROLE_X" (an implicit prefix Spring itself applies), hasAuthority('X')
+// checks for "X" verbatim. The returned `authority` string is the LITERAL granted-authority value
+// the generated code must match, decided HERE (plan time), not left for the template to re-derive
+// -- HandleController.java.tmpl's requireAuthority() does one plain equality check regardless of
+// which shape produced the value. This is the real discriminant this item's own EXIT note named:
+// widening the regex alone, without this prefix decision, would generate an incorrect check.
 function extractPreAuthorize(region) {
 	if (!PRE_AUTH_RE.test(region)) return null;
 	const hasRoleMatch = region.match(HAS_ROLE_RE);
-	return hasRoleMatch ? { authority: hasRoleMatch[1], unsupported: false } : { authority: null, unsupported: true };
+	if (hasRoleMatch) return { authority: `ROLE_${hasRoleMatch[1]}`, unsupported: false };
+	const hasAuthorityMatch = region.match(HAS_AUTHORITY_RE);
+	if (hasAuthorityMatch) return { authority: hasAuthorityMatch[1], unsupported: false };
+	return { authority: null, unsupported: true };
 }
 
 // D-security-7: a controller with more than one method can require DIFFERENT roles per method --
@@ -253,14 +266,14 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 		if (!fetchOp) {
 			notes.push(`${entity.className}: no single-resource GET endpoint found on a controller whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
 		} else if (authorityResult.unsupported) {
-			notes.push(`${entity.className}: @PreAuthorize found on ${fetchOp.controllerClassName}.${fetchOp.method} (or its class) but not in the simple hasRole('X') shape this scanner understands (e.g. hasAnyRole/SpEL) -- requiredAuthority() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
+			notes.push(`${entity.className}: @PreAuthorize found on ${fetchOp.controllerClassName}.${fetchOp.method} (or its class) but not in the simple hasRole('X')/hasAuthority('X') shape this scanner understands (e.g. hasAnyRole/SpEL) -- requiredAuthority() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
 		} else if (!requiredAuthority) {
-			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)) found for ${fetchOp.controllerClassName}.${fetchOp.method} -- requiredAuthority() defaults to "TODO_ROLE", fix before relying on it`);
+			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)/hasAuthority(...)) found for ${fetchOp.controllerClassName}.${fetchOp.method} -- requiredAuthority() defaults to "TODO_ROLE", fix before relying on it`);
 		}
 		if (updateOpForAuthority && patchAuthorityResult.unsupported) {
-			notes.push(`${entity.className}: @PreAuthorize found on ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} (or its class) but not in the simple hasRole('X') shape this scanner understands -- requiredAuthorityForPatch() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
+			notes.push(`${entity.className}: @PreAuthorize found on ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} (or its class) but not in the simple hasRole('X')/hasAuthority('X') shape this scanner understands -- requiredAuthorityForPatch() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
 		} else if (updateOpForAuthority && !requiredAuthorityForPatch) {
-			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)) found for ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} -- requiredAuthorityForPatch() defaults to "TODO_ROLE", fix before relying on it`);
+			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)/hasAuthority(...)) found for ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} -- requiredAuthorityForPatch() defaults to "TODO_ROLE", fix before relying on it`);
 		}
 		if (!service) {
 			notes.push(`${entity.className}: no ${entity.className}Service found under domain/${targetModule.module}/application/ -- resolver NOT generated for this entity (would produce a broken import). Emit it by hand once the right service is identified.`);

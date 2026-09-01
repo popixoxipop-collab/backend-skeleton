@@ -218,10 +218,10 @@ test('handles emit --check --diff shows a real unified diff for a live-derived v
 
 	const policyAction = body.actions.find((a) => a.path === POLICY_REL);
 	assert.equal(policyAction.action, 'update');
-	assert.match(policyAction.diff, /-\t*return "SUPER_ADMIN";/);
-	assert.match(policyAction.diff, /\+\t*return "WIDGET_ADMIN";/);
+	assert.match(policyAction.diff, /-\t*return "ROLE_SUPER_ADMIN";/);
+	assert.match(policyAction.diff, /\+\t*return "ROLE_WIDGET_ADMIN";/);
 
-	assert.match(fs.readFileSync(path.join(root, POLICY_REL), 'utf8'), /SUPER_ADMIN/, '--check --diff must not write the policy file, even though it computed what the new content would be');
+	assert.match(fs.readFileSync(path.join(root, POLICY_REL), 'utf8'), /ROLE_SUPER_ADMIN/, '--check --diff must not write the policy file, even though it computed what the new content would be');
 
 	// handles plan --diff must show the identical diff without ever running emit.
 	const planResult = run(['handles', 'plan', '--feature', '001-widget-management', '--diff', '--json'], root);

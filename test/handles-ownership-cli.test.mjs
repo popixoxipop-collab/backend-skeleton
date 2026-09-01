@@ -460,8 +460,8 @@ test('(h) a hand-finished patchField() blocks Resolver.java but must NOT block a
 
 	const policyAction = checkBody.actions.find((a) => a.path === POLICY_REL_PATH);
 	assert.equal(policyAction.action, 'update', 'Policy.java: no hand-edit here, so the role change is free to apply');
-	assert.match(policyAction.diff, /-\t*return "WIDGET_EDITOR";/);
-	assert.match(policyAction.diff, /\+\t*return "WIDGET_ADMIN";/);
+	assert.match(policyAction.diff, /-\t*return "ROLE_WIDGET_EDITOR";/);
+	assert.match(policyAction.diff, /\+\t*return "ROLE_WIDGET_ADMIN";/);
 
 	// The real, non---check emit: still blocked overall (exit 15, Resolver.java's conflict is real
 	// and must not be silently discarded) -- but resolver units are independent per file, so the
@@ -477,6 +477,6 @@ test('(h) a hand-finished patchField() blocks Resolver.java but must NOT block a
 
 	assert.equal(fs.readFileSync(resolverPath, 'utf8'), handEdited, 'Resolver.java must remain byte-for-byte untouched, hand-edit intact');
 	const policyContent = fs.readFileSync(path.join(root, POLICY_REL_PATH), 'utf8');
-	assert.match(policyContent, /return "WIDGET_ADMIN";/, 'Policy.java must actually carry the new role on disk despite the overall run reporting blocked');
-	assert.doesNotMatch(policyContent, /WIDGET_EDITOR/, 'the stale role must be gone, not just the new one added alongside it');
+	assert.match(policyContent, /return "ROLE_WIDGET_ADMIN";/, 'Policy.java must actually carry the new role on disk despite the overall run reporting blocked');
+	assert.doesNotMatch(policyContent, /ROLE_WIDGET_EDITOR/, 'the stale role must be gone, not just the new one added alongside it');
 });

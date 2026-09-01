@@ -8340,6 +8340,70 @@ reinterpreted `requiredAuthority` follows); `D-handle-uid-type-binding`/`D-handl
 sequence, and the shared "investigate for real, name what's deferred" discipline this item
 continues).
 
+**Update (hasAuthority('X') recognition, closing this entry's own named deferred scope):** this
+entry's own EXIT explicitly deferred `hasAuthority('X')` recognition because it "needs the
+generated check to know whether to apply Spring Security's implicit `ROLE_` prefix -- `hasRole`
+does, `hasAuthority` doesn't -- a real discriminant, not just a wider regex." Confirmed by reading
+the real code, not assumed: `extractPreAuthorize()` (`handles/providers/java-spring/plan.mjs`)
+matched only `hasRole('X')`; `HandleController.java.tmpl`'s `requireAuthority()` unconditionally
+prepended `"ROLE_"` before comparing against the real `GrantedAuthority` strings -- correct for
+`hasRole` semantics, but would have generated an incorrect (over- or under-restrictive) check had
+a naive wider regex fed a `hasAuthority('X')` match through that same pipeline unchanged.
+
+**The discriminant, resolved at plan time, not template time**: a new `HAS_AUTHORITY_RE` alongside
+`HAS_ROLE_RE`; on a `hasRole('X')` match, `extractPreAuthorize()` now stores `authority =
+'ROLE_' + X` (baking in what the template used to do); on a `hasAuthority('X')` match, it stores
+`authority = X` verbatim. `requireAuthority()` in `HandleController.java.tmpl` simplifies to one
+plain equality check (`authority.equals(requiredAuthority)`) -- it no longer needs to know which
+source annotation shape produced the value, since the correct prefix (or lack of one) is already
+baked in. This keeps the `{authority, unsupported}` contract and
+`schemas/handles-plan.schema.json`'s plain-string shape completely unchanged -- confirmed via a
+full-repo grep that nothing besides this one template consumed `requiredAuthority`/
+`requiredAuthorityForPatch` expecting a bare, unprefixed value. Anything that isn't exactly
+`hasRole('X')` or `hasAuthority('X')` -- `hasAnyRole(...)`, `hasAnyAuthority(...)`, SpEL, etc. --
+still fails closed to `TODO_ROLE`, unchanged; a new regression test proves `hasAnyAuthority(...)`
+specifically (the list-shape sibling of the already-tested `hasAnyRole(...)`) still falls into the
+fail-closed path, so the new regex didn't accidentally loosen that net.
+
+**A small, deliberate, user-visible side effect, named not hidden**: the generated 403 response
+body's message text for a `hasRole`-derived resource changes from `"requires role SUPER_ADMIN"` to
+`"requires authority ROLE_SUPER_ADMIN"` (the `requireAuthority()` parameter is now always the
+literal granted-authority string, so the error message reports that string directly rather than
+re-deriving a "role" framing for it).
+
+**Blast radius, confirmed by grep + manual read, not assumed to be contained**: baking `ROLE_` into
+the plan-time value changes the value for every EXISTING `hasRole`-derived fixture across the
+suite, not just one file -- 5 test files' bare-role assertions were updated to the `ROLE_`-prefixed
+form (`test/handles-plan-fixture.test.mjs`, `test/handles-plan.test.mjs`, `test/handles-cli.test.mjs`,
+`test/handles-check-cli.test.mjs`, `test/handles-ownership-cli.test.mjs`); 4 more files use
+`hasRole(...)` fixtures but were confirmed to assert nothing on the literal role string, left
+untouched. Proven behavior-equivalent, not just hand-waved: the live `@SpringBootTest` integration
+fixture (`test/fixtures/java-compile`'s `WidgetController.java` uses `hasRole('ADMIN')`;
+`TestSecurityConfig.java` stamps a literal `ROLE_ADMIN` granted authority) only exercises the
+`hasRole` path -- under the new design `requiredAuthority` becomes `'ROLE_ADMIN'` at plan time
+instead of at template-eval time, and the template does `"ROLE_ADMIN".equals("ROLE_ADMIN")` --
+the identical pass/fail outcome as before, re-confirmed by a real `node scripts/java-compile-smoke.mjs`
+run against this fixture (not just hand-traced) before this item was considered done.
+
+**New fixture, matching the existing method-vs-class-level proof convention**: a fifth security
+fixture, `Epsilon` (following Alpha/Beta/Gamma/Delta), with `@PreAuthorize("hasAuthority('EPSILON_ADMIN')")`
+at method level -- proves the new shape resolves correctly through the exact same D-security-7
+method-vs-class search logic Alpha (class-level) and Beta (method-level, multi-method) already
+exercise for `hasRole`. A dedicated `handles-plan.test.mjs` regression additionally proves the
+discriminant is applied per-annotation-shape, not per-file: a single controller with `hasRole(...)`
+on GET and `hasAuthority(...)` on PATCH produces a `ROLE_`-prefixed `requiredAuthority` and an
+unprefixed `requiredAuthorityForPatch`, independently, from the same source file.
+
+**Still deferred, unchanged from this entry's original EXIT**: `hasAnyRole(...)`/
+`hasAnyAuthority(...)` recognition (needs the single-string contract to become a list -- a
+materially different interface shape, not addressed by this item); ownership/organization-
+membership/service-layer policy awareness and "block the controller bean from activating until a
+human wires a real policy" (large and speculative, no evidence a stronger mechanism is needed yet).
+Verification for this item stayed at the same static-assertion/unit-test level this entry's own
+original fix established for this bug class (codegen-value-selection, not runtime-enforcement-
+mechanism) -- no new live `@SpringBootTest` integration test class was built for the `hasAuthority`
+path itself, matching the proportionality this entry already reasoned about above.
+
 ## D-resolver-policy-split: a hand-finished patchField() used to also block an unrelated, security-relevant authority change from ever applying
 
 **WHY:** a live, end-to-end reproduction (real `bskel` pipeline against an isolated git repo, not a

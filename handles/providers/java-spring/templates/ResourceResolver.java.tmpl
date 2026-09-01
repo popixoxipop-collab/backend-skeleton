@@ -33,12 +33,18 @@ public interface ResourceResolver {
 	void patchField(UUID resourceUid, String pointer, Object value);
 
 	/**
-	 * Spring Security role name (no "ROLE_" prefix) required to {@code fetch}/{@code recover}
-	 * this resource type via a handle. O5 (D-resolver-authorization-action-aware): derived from
-	 * the entity's FETCH (GET) endpoint's own {@code @PreAuthorize} -- deliberately NOT reused
-	 * for {@link #patchField}, which has its own {@link #requiredAuthorityForPatch()} derived
-	 * from the entity's real UPDATE endpoint instead, since a real app's GET and PATCH endpoints
-	 * can (and often do) require genuinely different roles.
+	 * The literal Spring Security granted-authority string required to {@code fetch}/{@code
+	 * recover} this resource type via a handle -- e.g. {@code "ROLE_ADMIN"} when the source
+	 * {@code @PreAuthorize} was {@code hasRole('ADMIN')} (Spring implicitly applies the
+	 * {@code ROLE_} prefix), or a bare value like {@code "ADMIN"} when the source was
+	 * {@code hasAuthority('ADMIN')} (no prefix). This distinction is decided once, at
+	 * {@code bskel handles plan} time, by {@code extractPreAuthorize()} -- callers of this method
+	 * never need to know which source annotation shape produced the value; they compare it
+	 * verbatim against a granted authority. O5 (D-resolver-authorization-action-aware): derived
+	 * from the entity's FETCH (GET) endpoint's own {@code @PreAuthorize} -- deliberately NOT
+	 * reused for {@link #patchField}, which has its own {@link #requiredAuthorityForPatch()}
+	 * derived from the entity's real UPDATE endpoint instead, since a real app's GET and PATCH
+	 * endpoints can (and often do) require genuinely different roles.
 	 */
 	String requiredAuthority();
 

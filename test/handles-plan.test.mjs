@@ -148,7 +148,7 @@ public class WidgetController {
 	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
 	const widget = plan.resources.find((r) => r.type === 'Widget');
 	assert.equal(widget.fetchOperation.operationId, 'findWidget');
-	assert.equal(widget.requiredAuthority, 'SUPER_ADMIN', 'must use the fetch method\'s own role, not the first method in the file');
+	assert.equal(widget.requiredAuthority, 'ROLE_SUPER_ADMIN', 'must use the fetch method\'s own role, not the first method in the file');
 });
 
 // D-security-7 regression: an @PreAuthorize present but not in the simple hasRole('X') shape
@@ -245,8 +245,8 @@ public class WidgetController {
 
 	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
 	const widget = plan.resources.find((r) => r.type === 'Widget');
-	assert.equal(widget.requiredAuthority, 'WIDGET_VIEWER', 'fetch/recover authority must come from the GET endpoint');
-	assert.equal(widget.requiredAuthorityForPatch, 'WIDGET_EDITOR', 'patch authority must come from the PATCH endpoint, not be copied from GET');
+	assert.equal(widget.requiredAuthority, 'ROLE_WIDGET_VIEWER', 'fetch/recover authority must come from the GET endpoint');
+	assert.equal(widget.requiredAuthorityForPatch, 'ROLE_WIDGET_EDITOR', 'patch authority must come from the PATCH endpoint, not be copied from GET');
 });
 
 // O5: no discoverable UPDATE endpoint at all must fail closed to TODO_ROLE for the patch
@@ -289,7 +289,7 @@ public class WidgetController {
 
 	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
 	const widget = plan.resources.find((r) => r.type === 'Widget');
-	assert.equal(widget.requiredAuthority, 'WIDGET_VIEWER');
+	assert.equal(widget.requiredAuthority, 'ROLE_WIDGET_VIEWER');
 	assert.equal(widget.requiredAuthorityForPatch, 'TODO_ROLE', 'must fail closed when there is no update endpoint to derive a patch authority from');
 });
 
@@ -467,4 +467,143 @@ test('A3: no PATCH/PUT endpoint at all leaves patchable empty with an explanator
 	assert.equal(widget.updateOperation, null);
 	assert.deepEqual(widget.patchable, []);
 	assert.ok(plan.notes.some((n) => n.includes('no PATCH/PUT single-resource endpoint found')));
+});
+
+// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): hasAuthority('X') is
+// recognized and returned VERBATIM -- unlike hasRole('X'), Spring Security does not implicitly
+// prepend ROLE_ for hasAuthority checks, so the plan-time value must not either.
+test('hasAuthority(\'X\') is recognized, and returned verbatim with no implicit ROLE_ prefix', () => {
+	const javaSrcRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-'));
+	const controllerDir = path.join(javaSrcRoot, 'domain', 'widget', 'presentation');
+	fs.mkdirSync(controllerDir, { recursive: true });
+	const controllerFile = path.join(controllerDir, 'WidgetController.java');
+	fs.writeFileSync(controllerFile, `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+
+	@PreAuthorize("hasAuthority('WIDGET_READ')")
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+}
+`);
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: controllerFile,
+				endpoints: [{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.requiredAuthority, 'WIDGET_READ', 'hasAuthority(\'X\') must NOT get the ROLE_ prefix hasRole(\'X\') gets');
+});
+
+// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): a single controller mixing
+// hasRole on GET and hasAuthority on PATCH proves the discriminant is applied PER ANNOTATION
+// SHAPE, not per file or per controller -- requiredAuthority and requiredAuthorityForPatch must
+// diverge (one prefixed, one not) even though both come from the exact same source file.
+test('a controller mixing hasRole (GET) and hasAuthority (PATCH) applies the prefix discriminant independently for each', () => {
+	const javaSrcRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-'));
+	const controllerDir = path.join(javaSrcRoot, 'domain', 'widget', 'presentation');
+	fs.mkdirSync(controllerDir, { recursive: true });
+	const controllerFile = path.join(controllerDir, 'WidgetController.java');
+	fs.writeFileSync(controllerFile, `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+
+	@PreAuthorize("hasRole('WIDGET_VIEWER')")
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+
+	@PreAuthorize("hasAuthority('WIDGET_WRITE')")
+	@PutMapping("/{widgetId}")
+	public String updateWidget(@PathVariable String widgetId, @RequestBody UpdateWidgetRequest request) { return "ok"; }
+}
+`);
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: controllerFile,
+				endpoints: [
+					{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' },
+					{ verb: 'PUT', path: '/widgets/{widgetId}', operationId: 'updateWidget', method: 'updateWidget' },
+				],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.requiredAuthority, 'ROLE_WIDGET_VIEWER', 'GET uses hasRole -- ROLE_ prefix baked in');
+	assert.equal(widget.requiredAuthorityForPatch, 'WIDGET_WRITE', 'PATCH uses hasAuthority -- no prefix, even on the SAME controller as a prefixed GET');
+});
+
+// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): hasAnyAuthority(...) -- the
+// list-shape sibling of hasAnyRole(...) -- must still fail closed to TODO_ROLE, proving the new
+// hasAuthority('X') regex didn't accidentally widen the fail-closed net for this unsupported shape.
+test('hasAnyAuthority(...) still fails closed to TODO_ROLE, same as hasAnyRole(...)', () => {
+	const javaSrcRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-'));
+	const controllerDir = path.join(javaSrcRoot, 'domain', 'widget', 'presentation');
+	fs.mkdirSync(controllerDir, { recursive: true });
+	const controllerFile = path.join(controllerDir, 'WidgetController.java');
+	fs.writeFileSync(controllerFile, `
+package com.example.domain.widget.presentation;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+@RestController
+@RequestMapping(value = "/widgets")
+public class WidgetController {
+
+	@PreAuthorize("hasAnyAuthority('WIDGET_READ', 'WIDGET_ADMIN')")
+	@GetMapping("/{widgetId}")
+	public String findWidget(@PathVariable String widgetId) { return "ok"; }
+}
+`);
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetController',
+				basePath: '/widgets',
+				file: controllerFile,
+				endpoints: [{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.requiredAuthority, 'TODO_ROLE', 'hasAnyAuthority(...) is not one of the two recognized shapes -- must fail closed, not silently match nothing');
+	assert.ok(plan.notes.some((n) => n.includes('not in the simple hasRole') && n.includes('hasAuthority')));
 });

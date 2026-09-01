@@ -106,7 +106,7 @@ test('handles plan finds the Widget entity, its fetch operation, and its service
 	const widget = planJson.resources.find((r) => r.type === 'Widget');
 	assert.ok(widget);
 	assert.equal(widget.fetchOperation.operationId, 'findWidget');
-	assert.equal(widget.requiredAuthority, 'SUPER_ADMIN');
+	assert.equal(widget.requiredAuthority, 'ROLE_SUPER_ADMIN');
 	assert.equal(widget.willGenerateResolver, true);
 
 	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--json'], root);
@@ -128,7 +128,7 @@ test('handles plan finds the Widget entity, its fetch operation, and its service
 	assert.ok(fs.existsSync(policyPath));
 	const policyContent = fs.readFileSync(policyPath, 'utf8');
 	assert.match(policyContent, /class WidgetResolverPolicy/);
-	assert.match(policyContent, /return "SUPER_ADMIN";/);
+	assert.match(policyContent, /return "ROLE_SUPER_ADMIN";/);
 
 	assert.ok(fs.existsSync(path.join(root, 'src/main/java/com/example/global/handle/HandleCodec.java')));
 	assert.ok(fs.existsSync(path.join(root, 'specs/001-widget-management/handles/migration.sql')));
@@ -236,7 +236,7 @@ test('handles emit writes a patch() that checks the PATCH-specific authority, no
 
 	const widgetPolicyPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolverPolicy.java');
 	const widgetPolicyContent = fs.readFileSync(widgetPolicyPath, 'utf8');
-	assert.match(widgetPolicyContent, /static String requiredAuthority\(\)\s*\{\s*return "SUPER_ADMIN";/);
+	assert.match(widgetPolicyContent, /static String requiredAuthority\(\)\s*\{\s*return "ROLE_SUPER_ADMIN";/);
 	assert.match(widgetPolicyContent, /static String requiredAuthorityForPatch\(\)\s*\{\s*return "TODO_ROLE";/, 'no PATCH endpoint exists on this fixture controller, so the patch authority must fail closed independently of the fetch one');
 });
 

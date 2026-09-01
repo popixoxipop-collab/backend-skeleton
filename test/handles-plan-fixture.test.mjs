@@ -45,15 +45,17 @@ test('security: all three @PreAuthorize branches resolve correctly against real 
 	const byType = Object.fromEntries(plan.resources.map((r) => [r.type, r]));
 
 	// Class-level fallback: no method-level @PreAuthorize anywhere in AlphaController, so the
-	// search falls back to the class-level annotation.
-	assert.equal(byType.Alpha.requiredAuthority, 'ALPHA_ADMIN');
+	// search falls back to the class-level annotation. hasRole('X') bakes in Spring Security's own
+	// implicit ROLE_ prefix at plan time (O5 hasAuthority follow-up) -- 'ALPHA_ADMIN' in source
+	// becomes the granted-authority string 'ROLE_ALPHA_ADMIN'.
+	assert.equal(byType.Alpha.requiredAuthority, 'ROLE_ALPHA_ADMIN');
 	assert.equal(byType.Alpha.willGenerateResolver, true);
 
 	// Method-level, and specifically NOT the first method's role -- BetaController.findBetas has
 	// "BETA_VIEWER", findBeta (the actual fetch operation) has its own "BETA_ADMIN". Getting this
 	// wrong (falling back to the file's first @PreAuthorize match) was the exact bug the Codex
 	// security review found and D-security-7 fixed.
-	assert.equal(byType.Beta.requiredAuthority, 'BETA_ADMIN');
+	assert.equal(byType.Beta.requiredAuthority, 'ROLE_BETA_ADMIN');
 	assert.equal(byType.Beta.willGenerateResolver, true);
 
 	// Unsupported shape (hasAnyRole, not hasRole) -- fails closed to TODO_ROLE, resolver is still
@@ -73,6 +75,13 @@ test('security: all three @PreAuthorize branches resolve correctly against real 
 	assert.equal(byType.Delta.service, null);
 	assert.equal(byType.Delta.willGenerateResolver, false);
 	assert.ok(plan.notes.some((n) => n.includes('Delta') && n.includes('no DeltaService found')));
+
+	// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): method-level
+	// @PreAuthorize(hasAuthority('X')) -- the real proof point of this item. Unlike hasRole, Spring
+	// Security checks hasAuthority('X') against the granted authority 'X' VERBATIM, no implicit
+	// ROLE_ prefix -- so requiredAuthority must come back unprefixed here, unlike Alpha/Beta above.
+	assert.equal(byType.Epsilon.requiredAuthority, 'EPSILON_ADMIN');
+	assert.equal(byType.Epsilon.willGenerateResolver, true);
 });
 
 test('a module with no matching entities for the given --resource filter plans nothing, with an explicit note', () => {
