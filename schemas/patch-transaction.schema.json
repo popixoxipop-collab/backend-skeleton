@@ -137,6 +137,32 @@
                     "expect": { "enum": ["present", "absent"] }
                   }
                 }
+              },
+              "expected_indexes": {
+                "description": "D-ddl-apply (INDEX/SCHEMA postcondition precision): optional, not required -- absent on any ddl-apply record persisted before this field existed, and empty for a statement batch with no CREATE/DROP INDEX in it.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "expect"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "expect": { "enum": ["present", "absent"] }
+                  }
+                }
+              },
+              "expected_schemas": {
+                "description": "D-ddl-apply (INDEX/SCHEMA postcondition precision): optional, not required -- same reasoning as expected_indexes, for CREATE/DROP SCHEMA.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "expect"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "expect": { "enum": ["present", "absent"] }
+                  }
+                }
               }
             }
           },

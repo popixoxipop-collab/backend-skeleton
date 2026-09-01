@@ -10484,3 +10484,47 @@ time, and the identical sequence again over a real HTTP round trip against `bske
   exactly where it was -- this item only lifts the boundary for hand-authored, human-approved DDL
   going through this new, explicit, confirm-gated pipeline, never for `handles emit`'s
   auto-generated migration file.
+
+**Update (DROP-TABLE-specific confirmation + INDEX/SCHEMA postcondition precision):** closes two of
+this entry's own named EXIT items -- the "DROP-specific stronger confirmation tier" bullet and the
+"fine-grained postcondition checks beyond `CREATE TABLE`/`ALTER TABLE ADD COLUMN`/`DROP TABLE`"
+bullet above (both bullets are now historical -- the transaction-id-only confirm and the
+table-only postcondition check they describe no longer reflect current behavior). Requested
+next, by the user, immediately after this item's own first slice shipped, ranked highest-ROI
+of four real EXIT-list candidates (the other three: `--require-sign-key`, cross-feature FK
+inference via Plane C, and a materially larger design was judged lower-ROI for now).
+
+New `requiredConfirmValue(txn)` (`scanners/db/ddl-apply.mjs`) generalizes the confirm check from
+"always the transaction id" to a per-transaction required value: a non-drop `ddl-apply` transaction
+is unchanged (confirm = transaction id); a transaction whose SQL drops one or more tables now
+requires retyping the sorted, comma-joined dropped-table name(s) instead -- the "type the resource
+name to delete" pattern (GitHub-style), a materially stronger attention check for the one statement
+type in the Slice 1 allowlist that causes real, irreversible data loss. `lib/patch-kinds.mjs`'s
+dispatch table gained a fourth per-kind field, `requiredConfirmValue` (`config-apply`'s is `() =>
+null`, meaning "never required," unchanged), consulted identically by both `bin/bskel.mjs`'s
+`cmdPatchApply` and `lib/http-server.mjs`'s apply route rather than either hardcoding the check --
+same "no second copy of business logic" discipline this whole feature already followed.
+
+Fine-grained postcondition checks were extended to `CREATE`/`DROP INDEX` (straightforward -- reuses
+`introspectWithClient()`'s existing per-table `indexes` data, flattened across every table) and
+`CREATE`/`DROP SCHEMA` (a real complication found while implementing this, not assumed: a `CREATE
+SCHEMA X` statement creates a schema that is NOT the `schema` parameter every existing Plane C query
+is scoped to, so none of them could ever observe "does schema X now exist" -- closed with one new,
+additive, non-schema-scoped query against `information_schema.schemata`,
+`scanners/db/introspect.mjs`'s new `listSchemaNames(client)`). `planDdlApply()`'s postcondition
+gained two new, optional fields (`expected_indexes`/`expected_schemas`, same `{name, expect}` shape
+as the existing `expected_tables`); `schemas/patch-transaction.schema.json`'s `ddl-apply`
+postcondition branch was extended additively (both new fields optional, not required -- no real
+`ddl-apply` records existed anywhere before this same session, so backward compatibility wasn't a
+practical concern, but making them optional was still the more conservative, always-safe choice).
+
+**Verified**: `npm test` before/after (count delta recorded in the commit); new unit tests for
+`requiredConfirmValue()` (non-drop, single-drop, multi-drop sorted-and-joined, mixed create+drop
+batch), `classifyIndexExpectations()`, `classifySchemaExpectations()`; a new HTTP e2e test proving a
+DROP-TABLE transaction's apply now refuses a transaction-id-shaped confirm and requires the real
+table name. `scripts/ddl-apply-smoke.mjs` extended with a real DROP TABLE apply (confirmed by
+retyping the exact table name, independently re-verified live that the table is genuinely gone) and
+a real `CREATE INDEX` + `CREATE SCHEMA` apply in one batch, independently re-verified via raw
+`pg.Client` queries against `pg_indexes`/`information_schema.schemata` (not trusting the tool's own
+report) -- run for real against a local disposable `postgres:16` container before this update was
+committed, not just unit-tested.

@@ -237,6 +237,24 @@ test('apply for a ddl-apply transaction requires {confirm} to exactly equal the 
 	assert.equal(loadTransaction(root, FEATURE_ID, proposed.transaction_id).status, 'approved');
 });
 
+test('apply for a DROP-TABLE ddl-apply transaction requires retyping the dropped table name, not the transaction id', async () => {
+	const root = buildTwoFeatureFixtureRepo();
+	initBothFeatures(root);
+	const plan = fakeDdlPlan(sha256String('some schema state'), 'DROP TABLE widgets;', [{ name: 'widgets', expect: 'absent' }]);
+	const proposed = proposeTransaction(root, FEATURE_ID, 'ddl-apply', plan, { database_url_env: FAKE_DB_ENV, schema: 'public' });
+	approveTransaction(root, FEATURE_ID, proposed.transaction_id, 'looks fine', plan);
+
+	await withDbServer(root, async (base) => {
+		// the transaction id -- correct for a non-drop transaction, but no longer correct for THIS one
+		const wrongConfirm = await fetch(`${base}/api/features/${FEATURE_ID}/patch-transactions/${proposed.transaction_id}/apply`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: proposed.transaction_id }),
+		});
+		assert.equal(wrongConfirm.status, 400);
+		assert.match((await wrongConfirm.json()).error, /requires \{confirm\} to exactly equal "widgets"/);
+	});
+	assert.equal(loadTransaction(root, FEATURE_ID, proposed.transaction_id).status, 'approved', 'a refused confirm check must never advance status');
+});
+
 test('rollback of a ddl-apply transaction always refuses, over HTTP, naming the real mitigation', async () => {
 	const root = buildTwoFeatureFixtureRepo();
 	initBothFeatures(root);

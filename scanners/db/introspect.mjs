@@ -36,6 +36,12 @@ const FOREIGN_KEYS_SQL = `
 	ORDER BY tc.table_name, kcu.column_name`;
 const INDEXES_SQL = `SELECT tablename AS table_name, indexname AS index_name FROM pg_indexes WHERE schemaname = $1 ORDER BY tablename, indexname`;
 const RLS_POLICIES_SQL = `SELECT tablename AS table_name, policyname AS policy_name FROM pg_policies WHERE schemaname = $1 ORDER BY tablename, policyname`;
+// D-ddl-apply (INDEX/SCHEMA postcondition precision): NOT schema-scoped, deliberately -- a
+// `CREATE SCHEMA X` statement creates a schema that is NOT the `schema` param every query above is
+// scoped to (typically `public`), so none of those queries can ever observe "does schema X now
+// exist". information_schema.schemata lists every schema in the database, which is exactly what's
+// needed here.
+const SCHEMA_NAMES_SQL = `SELECT schema_name FROM information_schema.schemata`;
 
 function groupByTable(rows, tableKey = 'table_name') {
 	const map = new Map();
@@ -58,6 +64,15 @@ export function describeConnectionError(err) {
 		return err.errors.map((e) => e.message).join('; ');
 	}
 	return err.code ?? String(err);
+}
+
+// D-ddl-apply (INDEX/SCHEMA postcondition precision): used by executeDdlApply() to verify a
+// CREATE/DROP SCHEMA statement's real effect against a live re-introspection -- the same open,
+// uncommitted client/transaction its DDL just ran in, mirroring introspectWithClient()'s own
+// contract exactly (caller owns connect/BEGIN/COMMIT/ROLLBACK/end).
+export async function listSchemaNames(client) {
+	const res = await client.query(SCHEMA_NAMES_SQL);
+	return new Set(res.rows.map((r) => r.schema_name));
 }
 
 // D-ddl-apply: split out of introspectSchema() so scanners/db/ddl-apply.mjs's write path can

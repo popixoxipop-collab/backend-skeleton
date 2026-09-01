@@ -13,7 +13,7 @@
 // as-is -- Plane C's read machinery, extended here to a write.
 import pg from 'pg';
 import { sha256String } from '../../lib/fsutil.mjs';
-import { introspectSchema, introspectWithClient, describeConnectionError } from './introspect.mjs';
+import { introspectSchema, introspectWithClient, describeConnectionError, listSchemaNames } from './introspect.mjs';
 import { extractTablesFromSql } from './migrations.mjs';
 
 const { Client } = pg;
@@ -34,6 +34,13 @@ const ALLOWED_STATEMENT_RE = /^\s*(CREATE|ALTER|DROP)\s+(TABLE|INDEX|UNIQUE\s+IN
 // is the actual enforcement.
 const CONCURRENTLY_RE = /\bCONCURRENTLY\b/i;
 const DROP_TABLE_RE = /^\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?"?(\w+)"?/i;
+// Fine-grained postcondition precision for INDEX/SCHEMA DDL (closing the gap D-ddl-apply's own
+// EXIT list named -- these two forms previously only got the coarser "did schema_hash change at
+// all" check, unlike TABLE's exact per-name verification).
+const CREATE_INDEX_RE = /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?/i;
+const DROP_INDEX_RE = /^\s*DROP\s+INDEX\s+(?:IF\s+EXISTS\s+)?"?(\w+)"?/i;
+const CREATE_SCHEMA_RE = /^\s*CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?/i;
+const DROP_SCHEMA_RE = /^\s*DROP\s+SCHEMA\s+(?:IF\s+EXISTS\s+)?"?(\w+)"?/i;
 
 export function splitStatements(sqlText) {
 	return sqlText.split(';').map((s) => s.trim()).filter(Boolean);
@@ -83,6 +90,46 @@ export function classifyTableExpectations(statements) {
 	return [...expectations.entries()].map(([name, expect]) => ({ name, expect })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// Same shape and reasoning as classifyTableExpectations(), for CREATE/DROP INDEX statements.
+export function classifyIndexExpectations(statements) {
+	const expectations = new Map();
+	for (const stmt of statements) {
+		const dropMatch = stmt.match(DROP_INDEX_RE);
+		if (dropMatch) { expectations.set(dropMatch[1], 'absent'); continue; }
+		const createMatch = stmt.match(CREATE_INDEX_RE);
+		if (createMatch) expectations.set(createMatch[1], 'present');
+	}
+	return [...expectations.entries()].map(([name, expect]) => ({ name, expect })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Same shape and reasoning as classifyTableExpectations(), for CREATE/DROP SCHEMA statements.
+export function classifySchemaExpectations(statements) {
+	const expectations = new Map();
+	for (const stmt of statements) {
+		const dropMatch = stmt.match(DROP_SCHEMA_RE);
+		if (dropMatch) { expectations.set(dropMatch[1], 'absent'); continue; }
+		const createMatch = stmt.match(CREATE_SCHEMA_RE);
+		if (createMatch) expectations.set(createMatch[1], 'present');
+	}
+	return [...expectations.entries()].map(([name, expect]) => ({ name, expect })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// D-ddl-apply (DROP-TABLE-specific confirmation): a non-drop ddl-apply transaction keeps the
+// original design (confirm = transaction id). Any transaction whose SQL drops one or more tables
+// requires retyping the sorted, comma-joined dropped-table name(s) instead -- a materially
+// stronger attention check than a random-looking UUID for the one statement type in the Slice 1
+// allowlist that causes real, irreversible data loss. Consulted by both bin/bskel.mjs's
+// cmdPatchApply and lib/http-server.mjs's apply route via lib/patch-kinds.mjs's dispatch table --
+// neither hardcodes this logic itself.
+export function requiredConfirmValue(txn) {
+	const droppedTables = (txn.postcondition.expected_tables ?? [])
+		.filter((t) => t.expect === 'absent')
+		.map((t) => t.name)
+		.sort();
+	if (droppedTables.length > 0) return droppedTables.join(',');
+	return txn.transaction_id;
+}
+
 // Planner. Mirrors planConfigApply(root, catalogEntry, targetPath)'s contract exactly. Opens a
 // READ-ONLY introspection connection (introspectSchema(), unchanged) purely to compute the
 // preimage -- this function itself never writes to the database; the actual DDL execution only
@@ -108,7 +155,13 @@ export async function planDdlApply(root, { databaseUrlEnv, schema = 'public', sq
 		preimage: { region_hash: live.schema_hash, file_hash: sha256String(originalContent) },
 		current_value: `schema_hash ${live.schema_hash.slice(0, 12)}...`,
 		proposed_value: sqlText,
-		postcondition: { kind: 'db-schema-diff', schema, expected_tables: classifyTableExpectations(statements) },
+		postcondition: {
+			kind: 'db-schema-diff',
+			schema,
+			expected_tables: classifyTableExpectations(statements),
+			expected_indexes: classifyIndexExpectations(statements),
+			expected_schemas: classifySchemaExpectations(statements),
+		},
 		originalContent,
 		renderedContent: sqlText,
 	};
@@ -139,14 +192,39 @@ export async function executeDdlApply(root, featureId, txn, freshKindPlan) {
 				throw new DdlApplyExecutionError('the proposed DDL executed without error, but the live schema is byte-identical to before -- refusing to report this transaction as applied when nothing observably changed (this usually means the statement(s) were already no-ops, e.g. re-running an idempotent IF NOT EXISTS against a schema that already has it)');
 			}
 
-			const liveNames = new Set(after.tables.map((t) => t.name));
+			const liveTableNames = new Set(after.tables.map((t) => t.name));
 			for (const { name, expect } of txn.postcondition.expected_tables ?? []) {
-				const present = liveNames.has(name);
+				const present = liveTableNames.has(name);
 				if (expect === 'present' && !present) {
 					throw new DdlApplyExecutionError(`postcondition failed: table "${name}" does not exist live after execution`);
 				}
 				if (expect === 'absent' && present) {
 					throw new DdlApplyExecutionError(`postcondition failed: table "${name}" was targeted by a DROP TABLE statement but still exists live after execution`);
+				}
+			}
+
+			const liveIndexNames = new Set(after.tables.flatMap((t) => t.indexes));
+			for (const { name, expect } of txn.postcondition.expected_indexes ?? []) {
+				const present = liveIndexNames.has(name);
+				if (expect === 'present' && !present) {
+					throw new DdlApplyExecutionError(`postcondition failed: index "${name}" does not exist live after execution`);
+				}
+				if (expect === 'absent' && present) {
+					throw new DdlApplyExecutionError(`postcondition failed: index "${name}" was targeted by a DROP INDEX statement but still exists live after execution`);
+				}
+			}
+
+			const expectedSchemas = txn.postcondition.expected_schemas ?? [];
+			if (expectedSchemas.length > 0) {
+				const liveSchemaNames = await listSchemaNames(client);
+				for (const { name, expect } of expectedSchemas) {
+					const present = liveSchemaNames.has(name);
+					if (expect === 'present' && !present) {
+						throw new DdlApplyExecutionError(`postcondition failed: schema "${name}" does not exist live after execution`);
+					}
+					if (expect === 'absent' && present) {
+						throw new DdlApplyExecutionError(`postcondition failed: schema "${name}" was targeted by a DROP SCHEMA statement but still exists live after execution`);
+					}
 				}
 			}
 

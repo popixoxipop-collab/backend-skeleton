@@ -6,7 +6,10 @@
 // smoke script for the established precedent).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitStatements, assertLooksLikeDdl, classifyTableExpectations, DdlApplyPlanError } from '../scanners/db/ddl-apply.mjs';
+import {
+	splitStatements, assertLooksLikeDdl, classifyTableExpectations, classifyIndexExpectations,
+	classifySchemaExpectations, requiredConfirmValue, DdlApplyPlanError,
+} from '../scanners/db/ddl-apply.mjs';
 
 test('splitStatements: splits on `;`, trims, and drops empty segments (including a trailing `;`)', () => {
 	assert.deepEqual(splitStatements('CREATE TABLE a (id uuid);'), ['CREATE TABLE a (id uuid)']);
@@ -78,11 +81,66 @@ test('classifyTableExpectations: DROP TABLE expects the table to be absent after
 	assert.deepEqual(classifyTableExpectations(['DROP TABLE IF EXISTS widgets']), [{ name: 'widgets', expect: 'absent' }]);
 });
 
-test('classifyTableExpectations: CREATE/DROP INDEX and CREATE/DROP SCHEMA contribute no table expectations -- Slice 1 only checks their effect via the coarser schema-hash-changed check', () => {
+test('classifyTableExpectations: CREATE/DROP INDEX and CREATE/DROP SCHEMA contribute no TABLE expectations (they have their own classifiers -- see below)', () => {
 	assert.deepEqual(classifyTableExpectations(['CREATE INDEX idx_x ON widgets (name)']), []);
 	assert.deepEqual(classifyTableExpectations(['DROP INDEX idx_x']), []);
 	assert.deepEqual(classifyTableExpectations(['CREATE SCHEMA billing']), []);
 	assert.deepEqual(classifyTableExpectations(['DROP SCHEMA billing']), []);
+});
+
+test('classifyIndexExpectations: CREATE INDEX (plain and UNIQUE) expect the index to be present afterward', () => {
+	assert.deepEqual(classifyIndexExpectations(['CREATE INDEX idx_widgets_name ON widgets (name)']), [{ name: 'idx_widgets_name', expect: 'present' }]);
+	assert.deepEqual(classifyIndexExpectations(['CREATE UNIQUE INDEX idx_widgets_name ON widgets (name)']), [{ name: 'idx_widgets_name', expect: 'present' }]);
+	assert.deepEqual(classifyIndexExpectations(['CREATE INDEX IF NOT EXISTS idx_widgets_name ON widgets (name)']), [{ name: 'idx_widgets_name', expect: 'present' }]);
+});
+
+test('classifyIndexExpectations: DROP INDEX expects the index to be absent afterward', () => {
+	assert.deepEqual(classifyIndexExpectations(['DROP INDEX idx_widgets_name']), [{ name: 'idx_widgets_name', expect: 'absent' }]);
+	assert.deepEqual(classifyIndexExpectations(['DROP INDEX IF EXISTS idx_widgets_name']), [{ name: 'idx_widgets_name', expect: 'absent' }]);
+});
+
+test('classifyIndexExpectations: CREATE/DROP TABLE/SCHEMA contribute no index expectations', () => {
+	assert.deepEqual(classifyIndexExpectations(['CREATE TABLE widgets (id uuid)']), []);
+	assert.deepEqual(classifyIndexExpectations(['CREATE SCHEMA billing']), []);
+});
+
+test('classifySchemaExpectations: CREATE SCHEMA expects the schema to be present afterward; DROP SCHEMA expects absent', () => {
+	assert.deepEqual(classifySchemaExpectations(['CREATE SCHEMA billing']), [{ name: 'billing', expect: 'present' }]);
+	assert.deepEqual(classifySchemaExpectations(['CREATE SCHEMA IF NOT EXISTS billing']), [{ name: 'billing', expect: 'present' }]);
+	assert.deepEqual(classifySchemaExpectations(['DROP SCHEMA billing']), [{ name: 'billing', expect: 'absent' }]);
+	assert.deepEqual(classifySchemaExpectations(['DROP SCHEMA IF EXISTS billing']), [{ name: 'billing', expect: 'absent' }]);
+});
+
+test('classifySchemaExpectations: CREATE/DROP TABLE/INDEX contribute no schema expectations', () => {
+	assert.deepEqual(classifySchemaExpectations(['CREATE TABLE widgets (id uuid)']), []);
+	assert.deepEqual(classifySchemaExpectations(['CREATE INDEX idx_x ON widgets (name)']), []);
+});
+
+function fakeDdlTxn(transactionId, expectedTables) {
+	return { transaction_id: transactionId, postcondition: { expected_tables: expectedTables } };
+}
+
+test('requiredConfirmValue: a non-drop transaction requires the transaction id, unchanged', () => {
+	assert.equal(requiredConfirmValue(fakeDdlTxn('pt-abc', [{ name: 'widgets', expect: 'present' }])), 'pt-abc');
+	assert.equal(requiredConfirmValue(fakeDdlTxn('pt-abc', [])), 'pt-abc');
+});
+
+test('requiredConfirmValue: a transaction that drops a table requires retyping that table\'s name instead', () => {
+	assert.equal(requiredConfirmValue(fakeDdlTxn('pt-abc', [{ name: 'widgets', expect: 'absent' }])), 'widgets');
+});
+
+test('requiredConfirmValue: dropping multiple tables requires the sorted, comma-joined list of all of them', () => {
+	assert.equal(
+		requiredConfirmValue(fakeDdlTxn('pt-abc', [{ name: 'zebras', expect: 'absent' }, { name: 'apples', expect: 'absent' }])),
+		'apples,zebras',
+	);
+});
+
+test('requiredConfirmValue: a mixed batch (some tables created, one dropped) still requires the dropped table name(s), not the transaction id', () => {
+	assert.equal(
+		requiredConfirmValue(fakeDdlTxn('pt-abc', [{ name: 'gadgets', expect: 'present' }, { name: 'widgets', expect: 'absent' }])),
+		'widgets',
+	);
 });
 
 test('classifyTableExpectations: the same table named by multiple statements collapses to one entry (last classification wins)', () => {

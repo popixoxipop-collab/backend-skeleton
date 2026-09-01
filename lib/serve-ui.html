@@ -141,6 +141,19 @@ function tdList(items) {
 	return td(items.length ? items.join(', ') : '(none)');
 }
 
+// D-ddl-apply (DROP-TABLE-specific confirmation): mirrors scanners/db/ddl-apply.mjs's own
+// requiredConfirmValue() exactly -- the transaction id for a non-drop transaction, or the sorted,
+// comma-joined dropped-table name(s) for one that drops a table. Computed here purely so the
+// placeholder can SHOW the human what to type; the server independently re-derives and enforces
+// the same value, this is not the source of truth.
+function requiredConfirmValue(t) {
+	const droppedTables = (t.postcondition?.expected_tables ?? [])
+		.filter((x) => x.expect === 'absent')
+		.map((x) => x.name)
+		.sort();
+	return droppedTables.length > 0 ? droppedTables.join(',') : t.transaction_id;
+}
+
 async function loadDbSchema() {
 	const note = document.getElementById('dbSchemaNote');
 	const table = document.getElementById('dbSchemaTable');
@@ -219,8 +232,10 @@ async function loadDdlTransactions(feature) {
 			const confirmInput = document.createElement('input');
 			// Deliberately starts EMPTY, never pre-filled -- a pre-filled confirm field would let a
 			// click submit this whole flow (applying a live DDL change) without the human actually
-			// re-reading/re-typing anything, defeating the entire point of this friction.
-			confirmInput.placeholder = `type "${t.transaction_id}" to confirm`;
+			// re-reading/re-typing anything, defeating the entire point of this friction. The
+			// placeholder names the REQUIRED value -- the dropped table name(s), not the opaque
+			// transaction id, when this transaction drops a table (see requiredConfirmValue() above).
+			confirmInput.placeholder = `type "${requiredConfirmValue(t)}" to confirm`;
 			confirmInput.required = true;
 			const btn = document.createElement('button');
 			btn.type = 'submit';

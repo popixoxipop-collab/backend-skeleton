@@ -104,7 +104,7 @@ function usage() {
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
   bskel patch propose --feature <id> [--kind config-apply|ddl-apply] --choice <stackChoiceId> --target <config_check target path> --database-url-env <NAME> --schema <name> --sql-file <path> [--json]
   bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
-  bskel patch apply --feature <id> --transaction <id> [--confirm <id>] [--json]
+  bskel patch apply --feature <id> --transaction <id> [--confirm <id-or-dropped-table-name>] [--json]
   bskel patch rollback --feature <id> --transaction <id> --reason "..." [--force] [--json]
   bskel patch list --feature <id> [--json]
   bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
@@ -2594,8 +2594,9 @@ async function cmdPatchApply(args) {
 	requireValidFeatureId(flags.feature);
 	const txn = requireTransactionOrExit(root, flags.feature, flags.transaction);
 
-	if (txn.kind !== 'config-apply' && flags.confirm !== flags.transaction) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `bskel patch apply --kind ${txn.kind} requires --confirm <transaction id>, matching --transaction exactly -- pass --confirm ${flags.transaction} once you've reviewed this transaction`);
+	const requiredConfirm = getPatchKind(txn.kind).requiredConfirmValue(txn);
+	if (requiredConfirm !== null && flags.confirm !== requiredConfirm) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `bskel patch apply --kind ${txn.kind} requires --confirm ${JSON.stringify(requiredConfirm)} exactly -- pass --confirm ${requiredConfirm} once you've reviewed this transaction`);
 	}
 
 	let freshPlan;

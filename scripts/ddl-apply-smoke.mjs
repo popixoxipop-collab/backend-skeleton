@@ -83,7 +83,8 @@ if (!connectionString) {
 }
 
 console.log('ddl-apply-smoke: cleaning any leftover tables from a prior run...');
-await rawQuery(connectionString, 'DROP TABLE IF EXISTS widgets, gadgets, unrelated_race_table');
+await rawQuery(connectionString, 'DROP TABLE IF EXISTS widgets, gadgets, unrelated_race_table, index_target');
+await rawQuery(connectionString, 'DROP SCHEMA IF EXISTS smoke_test_schema');
 
 console.log('ddl-apply-smoke: setting up a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-ddl-apply-smoke-'));
@@ -153,6 +154,57 @@ if (r.code === 0) fail('expected rollback of an applied ddl-apply transaction to
 if (!/rollback is not supported for kind "ddl-apply"/.test(r.stderr)) fail(`expected the real refusal message, got: ${r.stderr}`);
 ok('PASS -- rollback correctly refused, naming the real mitigation');
 
+console.log('ddl-apply-smoke: a DROP TABLE transaction (TXN D) requires retyping the dropped table name, not the transaction id...');
+const dropWidgetsSql = writeSqlFile(scratch, 'drop-widgets.sql', 'DROP TABLE widgets;');
+r = bskel(['patch', 'propose', '--feature', FEATURE_ID, '--kind', 'ddl-apply', '--database-url-env', DB_URL_ENV_NAME, '--sql-file', dropWidgetsSql, '--json'], scratch);
+if (r.code !== 0) fail(`propose (TXN D): ${r.stderr || r.stdout}`);
+const txnD = JSON.parse(r.stdout);
+r = bskel(['patch', 'approve', '--feature', FEATURE_ID, '--transaction', txnD.transaction_id, '--reason', 'smoke test', '--json'], scratch);
+if (r.code !== 0) fail(`approve (TXN D): ${r.stderr || r.stdout}`);
+
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnD.transaction_id, '--confirm', txnD.transaction_id, '--json'], scratch);
+if (r.code === 0) fail('expected apply (TXN D) confirmed with the TRANSACTION ID to be refused -- a DROP TABLE now requires the table name instead, but it succeeded');
+ok('PASS -- the transaction id is no longer accepted as --confirm for a DROP TABLE transaction');
+
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnD.transaction_id, '--confirm', 'widgets', '--json'], scratch);
+if (r.code !== 0) fail(`apply (TXN D, correct table-name --confirm): ${r.stderr || r.stdout}`);
+if (await liveTableExists(connectionString, 'widgets')) fail('expected the widgets table to no longer exist live after a real DROP TABLE apply');
+ok('PASS -- a real DROP TABLE apply, confirmed by retyping the exact table name, genuinely dropped the table');
+
+console.log('ddl-apply-smoke: fine-grained INDEX/SCHEMA postcondition checks (TXN E, TXN F)...');
+const createIndexTargetSql = writeSqlFile(scratch, 'index-target.sql', 'CREATE TABLE index_target (id uuid PRIMARY KEY, name text);');
+r = bskel(['patch', 'propose', '--feature', FEATURE_ID, '--kind', 'ddl-apply', '--database-url-env', DB_URL_ENV_NAME, '--sql-file', createIndexTargetSql, '--json'], scratch);
+if (r.code !== 0) fail(`propose (TXN E): ${r.stderr || r.stdout}`);
+const txnE = JSON.parse(r.stdout);
+r = bskel(['patch', 'approve', '--feature', FEATURE_ID, '--transaction', txnE.transaction_id, '--reason', 'smoke test', '--json'], scratch);
+if (r.code !== 0) fail(`approve (TXN E): ${r.stderr || r.stdout}`);
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnE.transaction_id, '--confirm', txnE.transaction_id, '--json'], scratch);
+if (r.code !== 0) fail(`apply (TXN E): ${r.stderr || r.stdout}`);
+
+const indexAndSchemaSql = writeSqlFile(
+	scratch, 'index-and-schema.sql',
+	'CREATE INDEX idx_index_target_name ON index_target (name); CREATE SCHEMA smoke_test_schema;',
+);
+r = bskel(['patch', 'propose', '--feature', FEATURE_ID, '--kind', 'ddl-apply', '--database-url-env', DB_URL_ENV_NAME, '--sql-file', indexAndSchemaSql, '--json'], scratch);
+if (r.code !== 0) fail(`propose (TXN F): ${r.stderr || r.stdout}`);
+const txnF = JSON.parse(r.stdout);
+if (JSON.stringify(txnF.postcondition.expected_indexes) !== JSON.stringify([{ name: 'idx_index_target_name', expect: 'present' }])) {
+	fail(`expected TXN F's postcondition.expected_indexes to name idx_index_target_name, got: ${JSON.stringify(txnF.postcondition.expected_indexes)}`);
+}
+if (JSON.stringify(txnF.postcondition.expected_schemas) !== JSON.stringify([{ name: 'smoke_test_schema', expect: 'present' }])) {
+	fail(`expected TXN F's postcondition.expected_schemas to name smoke_test_schema, got: ${JSON.stringify(txnF.postcondition.expected_schemas)}`);
+}
+r = bskel(['patch', 'approve', '--feature', FEATURE_ID, '--transaction', txnF.transaction_id, '--reason', 'smoke test', '--json'], scratch);
+if (r.code !== 0) fail(`approve (TXN F): ${r.stderr || r.stdout}`);
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnF.transaction_id, '--confirm', txnF.transaction_id, '--json'], scratch);
+if (r.code !== 0) fail(`apply (TXN F): ${r.stderr || r.stdout}`);
+
+const liveIndexes = (await rawQuery(connectionString, "SELECT indexname FROM pg_indexes WHERE indexname = 'idx_index_target_name'")).rows;
+if (liveIndexes.length !== 1) fail(`expected idx_index_target_name to exist live after apply -- independently re-verified via a raw pg.Client, got: ${JSON.stringify(liveIndexes)}`);
+const liveSchemas = (await rawQuery(connectionString, "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'smoke_test_schema'")).rows;
+if (liveSchemas.length !== 1) fail(`expected smoke_test_schema to exist live after apply -- independently re-verified via a raw pg.Client, got: ${JSON.stringify(liveSchemas)}`);
+ok('PASS -- a real CREATE INDEX + CREATE SCHEMA apply was verified against a live re-introspection, not just the coarser schema-hash-changed check, and independently re-confirmed via a raw pg.Client');
+
 // --- HTTP path ------------------------------------------------------------------------------
 
 console.log('ddl-apply-smoke: the identical propose->approve->apply sequence again, over a real HTTP round trip against `bskel serve`...');
@@ -211,6 +263,7 @@ try {
 console.log('ddl-apply-smoke: ALL CHECKS PASSED.');
 
 console.log('ddl-apply-smoke: cleaning up...');
-await rawQuery(connectionString, 'DROP TABLE IF EXISTS widgets, gadgets, unrelated_race_table');
+await rawQuery(connectionString, 'DROP TABLE IF EXISTS widgets, gadgets, unrelated_race_table, index_target');
+await rawQuery(connectionString, 'DROP SCHEMA IF EXISTS smoke_test_schema');
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });
