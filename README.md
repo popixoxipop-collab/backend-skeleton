@@ -23,10 +23,20 @@ of just another thing to double-check by hand.
 commits behind the real default branch and never noticed. Every gate in this tool is a regression
 check for a specific failure mode found the same way — see `DECISIONS.md` for the full record.
 
-## Status: beta
+## Status: 1.0.0
 
-This is the first public release, and it's deliberately labeled a beta rather than `1.0.0`
-stable. Split by actual maturity, not by feature list:
+As of `1.0.0`, this project makes an explicit API-stability promise: **`bskel`'s CLI surface --
+command/flag names and their meaning, every `--json` output shape (all schemas under `schemas/`),
+gate names and pass/fail semantics, and exit codes -- is stable.** A change that breaks any of
+those requires a major version bump, never a patch or minor release; a new command, a new optional
+flag, or a new additive field on an existing JSON shape is always minor-version-safe (every schema
+under `schemas/` is `additionalProperties: false` specifically so a genuinely new field shows up as
+a real, visible schema change rather than something an existing consumer could silently miss). See
+`D-stable-api-contract` in `DECISIONS.md` for the full policy and what's explicitly excluded from
+it.
+
+That promise is about the *interface*, not a claim that every subsystem has been proven in
+production -- which still splits the same way it always has:
 
 - **`scan`, `contract` (including `export`), and `new`** are the most exercised paths — real,
   measured verification against a real production Spring Boot repo (see `DECISIONS.md`), plus a
@@ -45,13 +55,10 @@ stable. Split by actual maturity, not by feature list:
   handle table at all. Treat `handles emit`'s output as a scaffold to finish by hand, not a
   production-ready subsystem, until a real deployment happens.
 
-Version numbers, install instructions, and a real feedback path will firm up as this gets used
-against more real repos.
-
 ## Quickstart
 
 ```bash
-npm install -g backend-skeleton@beta   # or: npx backend-skeleton@beta <command>
+npm install -g backend-skeleton   # or: npx backend-skeleton <command>
 cd <target-repo>                  # must be a git repository
 
 bskel doctor                      # what's on PATH, which scanner adapter detects this repo, and why

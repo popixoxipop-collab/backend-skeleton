@@ -10780,3 +10780,77 @@ all). Also verified by hand against a real fixture repo before writing the tests
 (refuse, start-with-key, no-op-without-db-flag) reproduced exactly as designed via a real
 `bskel serve` invocation, not just inferred from the test suite. `npm test` count delta recorded in
 the commit.
+
+## D-stable-api-contract: `1.0.0` -- an API-stability commitment, not a maturity claim
+
+**WHY**: by this point `CATALOG.md` is fully closed -- every `A`/`G`/`D`/`S`/`P`/`O` item is
+`[IMPLEMENTED...]` except three deliberately-deferred, pilot-gated items (`O3`/`O5`'s remaining
+authorization-policy scope, delegatable capability-scoped handles), all explicitly conditioned on
+"a real production deployment happening first," never on more engineering time. Asked to pick the
+next real work, the user was offered a choice between preparing that production pilot and shipping
+`1.0.0` -- and picked shipping `1.0.0` as its own, separate track, confirming the stable release
+should not be blocked on production evidence this session cannot produce.
+
+Three framings for what `1.0.0` could mean were presented explicitly, mirroring this project's own
+established precedent for surfacing a real fork rather than picking silently (the same shape
+`D-gate-attestation-signing`'s own key-custody choice used):
+1. **API-stability**: the CLI's *interface* -- commands, flags, JSON output shapes, gate
+   semantics, exit codes -- becomes a stable contract; breaking it needs a major bump. Says
+   nothing about any one subsystem's real-world maturity.
+2. **Catalog-completion**: drop the beta label because every non-deferred catalog item is done,
+   reframing the whole package as "feature complete" while keeping `handles`' own caveat.
+3. **Production-proven**: block `1.0.0` on the O3/O5 pilot actually happening -- rejected outright,
+   since the user had just separately chosen not to pursue that pilot this session.
+
+The user picked **(1), API-stability**. This deliberately does NOT change any of the substance
+README already disclosed about `handles`' own maturity (never deployed to a real production repo,
+registry enforcement opt-in, `hasAnyRole`/`hasAnyAuthority`/ownership/tenant policy still
+unaddressed) -- that paragraph is kept byte-for-byte, just no longer framed as "why this is still
+beta." `1.0.0` is a promise about the shape of the tool, not a claim that every corner of it has
+been battle-tested.
+
+**What the promise covers**, concretely:
+- Every CLI command and flag name, and what it means (a flag being removed, renamed, or having its
+  effect silently redefined is breaking).
+- Every `--json` output shape -- all schemas under `schemas/` (`additionalProperties: false`
+  throughout, deliberately, so a genuinely new field is always a visible schema change, never
+  something an existing consumer could silently miss).
+- Every gate's name and pass/fail semantics (`preflight`, `scan`, `contract`, `cross_feature`,
+  `dependencies`, `handles`, `stack`, `conformance`).
+- Every documented exit code's meaning (`EXIT_CODES` in `bin/bskel.mjs`).
+
+**What it explicitly does NOT cover**:
+- Any individual subsystem's own real-world maturity -- `handles`' "never deployed to production"
+  status is entirely unchanged by this version bump; the three still-deferred catalog items remain
+  exactly as deferred as they were before.
+- Adapter-internal heuristics (regex patterns, table-name inference, mount-graph walking) improving
+  or being corrected over time -- these affect scan ACCURACY, not the shape of the interface.
+- New adapters, new stack-catalog entries, or new optional capabilities being added -- additive by
+  construction, never a break to what already exists.
+
+**Versioning policy going forward**: patch = bug fixes; minor = new commands, new optional flags,
+new additive schema fields, new adapters; major = anything that breaks a surface named above.
+
+**Concrete changes**: `package.json`'s `version` drops its `-beta.N` prerelease suffix
+(`1.0.0-beta.9` -> `1.0.0`), its own dedicated `chore(release)` commit, matching this repo's
+existing convention of every prior version bump (`git log -- package.json`) touching that file
+alone. `README.md`'s `## Status: beta` section is rewritten to `## Status: 1.0.0`, opening with the
+stability promise above before the existing (otherwise-untouched) scan/contract/new vs. handles
+maturity paragraph; the Quickstart's `npm install -g backend-skeleton@beta` drops its `@beta` pin
+now that the `latest` dist-tag points at `1.0.0` directly.
+
+**Publishing**: no `.github/workflows/publish.yml` changes needed -- it already accepts an
+arbitrary `tag` input (`workflow_dispatch`, defaulting to `beta`) and has already shipped
+`1.0.0-beta.4` through `1.0.0-beta.9` via npm's OIDC trusted-publishing (see
+`D-npm-publish-oidc`). Publishing `1.0.0` is a **fresh** `npm publish --tag latest`, not the
+already-attempted-and-failed "move `latest` onto an already-published version" (`npm dist-tag add`,
+which `D-npm-publish-oidc` found has no OIDC coverage) -- a fresh publish of a new version is
+exactly the operation OIDC trusted publishing does cover, confirmed by that same entry's own three
+real, already-succeeded `beta.*` runs.
+
+**Verified**: `npm test` 1325/1325 passing (real, re-run count at `1.0.0-beta.9`, immediately before
+the version-bump commit -- no regressions from the docs/version changes this entry describes,
+since none of them touch runtime code). Real `ci.yml` run on the version-bump push and real
+`publish.yml` `workflow_dispatch` run (`tag: latest`) are both recorded in this repo's own GitHub
+Actions history (`gh run list`); post-publish, `npm view backend-skeleton dist-tags` confirmed
+`latest: 1.0.0` live on the registry.
