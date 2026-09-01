@@ -79,8 +79,8 @@ function usage() {
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
-  bskel scan cross-feature-check --feature <id> [--json]
-  bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id --identifier <name> --other-feature <id> --reason "..."
+  bskel scan cross-feature-check --feature <id> [--db [--database-url-env <NAME>] [--schema public]] [--json]
+  bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id|db_foreign_key --identifier <name> --other-feature <id> --reason "..."
   bskel feature init --slug <name>
   bskel feature list [--all] [--json]
   bskel feature show <id> [--json]
@@ -764,19 +764,29 @@ function cmdScanExplain(args) {
 // D-cross-feature-collision: mirrors cmdContractEmit's own "always write the artifact, gate
 // blocks only if unresolved issues remain" shape exactly, for a different data source (NAME-
 // identity collisions against every OTHER feature, not this feature's own contract completeness).
-function cmdScanCrossFeatureCheck(args) {
+//
+// D-cross-feature-fk-inference: async now -- reuses the EXACT same resolveDbSchemaOrExit() helper
+// cmdScan() already calls for `--db [--database-url-env <NAME>] [--schema public]`, so this command
+// gains those same flags with zero new live-DB code path. If `--db` was never given (the existing,
+// unmodified call shape every current caller -- 5 CI smoke scripts, README's Quickstart -- already
+// uses), findCollisions() falls back to a persisted snapshot or reports fk_check:'unavailable';
+// the first 3 signals' findings and blocking behavior are byte-identical to before this item.
+async function cmdScanCrossFeatureCheck(args) {
 	const flags = parseCommand('scan cross-feature-check', args);
 	if (flags.help) { console.log(renderCommandHelp('scan cross-feature-check')); process.exit(0); }
 	setContext('scan cross-feature-check', flags);
 	const root = requireRepoRoot();
 	requireValidFeatureId(flags.feature);
 
-	const findings = findCollisions(root, flags.feature);
+	const liveDbSchema = await resolveDbSchemaOrExit(root, flags);
+	const { findings, fk_check, unknowns } = findCollisions(root, flags.feature, { liveDbSchema });
 	const report = {
 		schema: 'sbf.cross-feature-report/1',
 		feature_id: flags.feature,
 		generated_at: new Date().toISOString(),
 		findings,
+		fk_check,
+		unknowns,
 	};
 	const { ok, errors } = validateAgainstSchema('cross-feature-report.schema.json', report);
 	if (!ok) {
@@ -803,6 +813,8 @@ function cmdScanCrossFeatureCheck(args) {
 			const otherCount = new Set(findings.map((f) => f.other_feature)).size;
 			console.log(`${findings.length} finding(s) (${evidence.high_confidence_count} high-confidence) across ${otherCount} other feature(s)`);
 			for (const f of findings) console.log(`  [${f.confidence}] ${f.signal}: "${f.identifier}" also declared by ${f.other_feature}`);
+			console.log(`fk_check: ${fk_check.mode}${fk_check.source_feature ? ` (from ${fk_check.source_feature}'s own persisted snapshot)` : ''}`);
+			for (const u of unknowns) console.log(`  note: ${u}`);
 			console.log(`gate: cross_feature -> ${gateState.gates.cross_feature.status}`);
 		}
 		if (evaluation.staleWaivers.length > 0) {
@@ -819,7 +831,7 @@ function cmdScanCrossFeatureCheck(args) {
 	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
 
-const CROSS_FEATURE_SIGNALS = ['resource_type', 'table', 'operation_id'];
+const CROSS_FEATURE_SIGNALS = ['resource_type', 'table', 'operation_id', 'db_foreign_key'];
 
 // Validates against the PERSISTED report from the last `cross-feature-check` run, never a live
 // re-computation -- same precedent `contract waive` already establishes against `loadContract`
@@ -2297,7 +2309,7 @@ function cmdHandlesEmit(args) {
 	const crossFeatureResult = requireNamedGate(root, 'cross_feature', flags.feature);
 	if (crossFeatureResult.code !== EXIT.PASS) {
 		const cfHint = crossFeatureResult.status === 'awaiting_disposition'
-			? `resolve it first -- \`bskel scan cross-feature-waive --feature ${flags.feature} --signal resource_type|table|operation_id --identifier <name> --other-feature <id> --reason "..."\`, or \`bskel gate force cross_feature --feature ${flags.feature} --reason "..."\` if intentional.`
+			? `resolve it first -- \`bskel scan cross-feature-waive --feature ${flags.feature} --signal resource_type|table|operation_id|db_foreign_key --identifier <name> --other-feature <id> --reason "..."\`, or \`bskel gate force cross_feature --feature ${flags.feature} --reason "..."\` if intentional.`
 			: `run \`bskel scan cross-feature-check --feature ${flags.feature}\` first.`;
 		fail(crossFeatureResult.code, gateReasonForCode(crossFeatureResult.code), `blocked: \`cross_feature\` gate for ${flags.feature} is ${crossFeatureResult.status} -- ${cfHint}`, {
 			next_actions: [{ command: `bskel scan cross-feature-check --feature ${flags.feature}`, reason: 'the cross_feature gate has not passed yet', mutating: true }],

@@ -9987,6 +9987,121 @@ patch propose/approve/apply/rollback/list` and `bskel gate export --sign`/`bskel
 `bskel attest keygen`) -- `README.md` had zero mentions of either subsystem before this, confirmed by
 `grep -c` returning 0 for both.
 
+## D-cross-feature-fk-inference: a 4th cross-feature signal, `db_foreign_key` -- correlating a REAL live Postgres FK edge (Plane C) against which feature declares each side's table, closing this entry's own named EXIT item
+
+**WHY**: this entry's own EXIT list named the gap explicitly: "No cross-feature DB *foreign-key* or
+dependency-direction inference -- this item only detects NAME-identity collisions (same string,
+different features), not 'feature B's table references feature A's table via FK.' That would need
+live DB introspection correlation across features (Plane C), a materially larger, separate signal,
+out of scope here." The user picked this as the next feature, ranked highest-ROI among the
+remaining real candidates, immediately after `D-ddl-apply` (this tool's first live-DB WRITE path)
+and its own follow-up hardening shipped in the same session.
+
+**Design, concretely**: `bskel scan --db [--database-url-env <NAME>] [--schema public]` already
+introspects the WHOLE live Postgres `--schema` in one call, not scoped to any one feature -- the
+exact same `resolveDbSchemaOrExit()` helper `cmdScan` already calls is reused verbatim by the new
+`cross-feature-check --db [...]` flags, zero new live-DB code path. `findCollisions()`
+(`lib/cross-feature-collisions.mjs`) already loops every OTHER active feature comparing
+`resourceType`/`table`/`operationId` NAME-identity against each one's own
+`related_modules[].{entities,dtos}` -- the new FK signal reuses this SAME per-other-feature loop
+(`ownClasses`/`otherClasses`), not a new subsystem or a persisted "table -> feature" index: for
+each live FK edge (`{table, column, references_table, references_column}`, flattened out of Plane
+C's per-table `foreign_keys[]`), if THIS feature's own tables include one side and the CURRENT
+other-feature iteration's tables include the other side, that's a `db_foreign_key` finding,
+`direction: 'references'`/`'referenced_by'` depending on which side THIS feature owns.
+Self-referencing/same-feature edges never reach the comparison at all (it only ever compares
+`ownClasses` against a DIFFERENT feature's classes). `evaluateCrossFeatureFindings()`, `waiverKey()`,
+the `cross_feature` gate, and `cmdScanCrossFeatureWaive` are all reused completely unchanged --
+confirmed by direct read that `cross_feature.recompute()` derives `otherFeatures` generically from
+`(report?.findings ?? []).map(f => f.other_feature)`, never branching on `f.signal`, so the new
+signal is covered by the exact same per-other-feature staleness hashing with ZERO gate code changes.
+
+**Confidence** reuses the `table` signal's own `tableSource`-based high/medium split unchanged, not
+a variant: `high` only if BOTH sides' owning entity have `tableSource === 'explicit'`; else
+`medium`. The FK edge itself is never in doubt (a live, Postgres-enforced constraint, confirmed by
+definition) -- what's uncertain is exactly the same risk the `table` signal already scores: whether
+each side's source-derived table name was a real annotation or an adapter's guessed
+classname-lowercase fallback.
+
+**Live-vs-persisted resolution, a hybrid** -- `resolveLiveTables()`: if `--db --database-url-env`
+was given, use that fresh, whole-schema snapshot (`fk_check.mode: 'live'`). Else fall back to a
+PERSISTED `db_schema.live` snapshot (only present on disk when that feature previously ran `bskel
+scan --feature <id> --db --database-url-env <NAME>` -- confirmed no code path anywhere in this
+codebase read `db_schema` back out of an already-written scan report before this item): first this
+feature's own, else the first OTHER active feature's (deterministic by `feature_id` sort order,
+`listFeatures()`'s own existing order). Else `fk_check.mode: 'unavailable'` -- zero
+`db_foreign_key` findings, one explicit `unknowns` note naming why and how to get data, matching
+this project's own "no silent caps" discipline. Because Plane C is already schema-wide, there is
+nothing to MERGE across two features' own snapshots -- locating ONE usable snapshot is enough, it
+already contains every table in that schema.
+
+**Gate boundary, explicitly reaffirmed, not silently assumed**: `D-db-schema-plane`'s own "no gate
+requiring live DB connectivity" reasoning is scoped specifically to gate *recomputation* needing a
+live connection. Re-confirmed by direct read that `cross_feature.recompute()` never touches a live
+DB today (pure filesystem hashing over already-persisted JSON) and stays exactly that way
+regardless of whether the report's `db_foreign_key` findings came from `live`, `persisted`, or
+`unavailable` mode -- the mode is just more content inside the same already-hashed report file. No
+new gate was added; `lib/gate-definitions.mjs` needed zero code changes (one comment line only).
+
+**No-regression guarantee, the single highest-risk part of this item**: because `findCollisions()`
+is the exact function `cmdHandlesEmit`'s hard-prerequisite already forces every feature through
+(and 5 CI-only smoke scripts + `README.md`'s Quickstart already call `bskel scan
+cross-feature-check --feature <id>` with NO new flags -- see this entry's own "Continued" incident
+above), this signal runs on every EXISTING call site the moment it ships. Verified with a dedicated
+regression test: an existing `resource_type`/`table` collision fixture, called with zero new
+flags/no persisted `db_schema` anywhere, produces byte-identical findings and `blocking` status,
+plus the new always-present `fk_check: {mode: 'unavailable', ...}`/`unknowns` fields -- a repeat of
+this exact class of gap is what caused the real CI outage this entry's own "Continued" section
+already documents, and is the reason this item's own smoke script (below) reuses
+`scripts/_smoke-lib.mjs`'s `establishThroughContract()` rather than hand-rolling the sequence again.
+
+**Report shape (additive)**: `findings[].signal` gains `'db_foreign_key'`; `findings[].direction`
+(new, optional, only present for this signal); new, always-present, required top-level `fk_check`
+(`{mode, schema, source_feature}`) and `unknowns` (plain-string array) fields on
+`cross-feature-report.json`. `CROSS_FEATURE_SIGNALS` (`bin/bskel.mjs`) and both schemas'
+(`schemas/cross-feature-report.schema.json`, `schemas/cross-feature-resolution.schema.json`)
+`signal` enums gain the new value.
+
+**Verified**: 25 new/updated unit tests in `test/cross-feature-collisions.test.mjs` (both
+directions, both confidence tiers, self-referencing/same-feature exclusion, the unmatched-other-side
+`unknowns` case, all 3 `fk_check` modes including deterministic persisted-mode fallback selection,
+waiver round-trip, and the no-regression proof above), 2 new e2e tests in
+`test/cross-feature-check-cli.test.mjs` (fk_check always present and `'unavailable'` with no new
+flags; `--database-url-env` naming an unset var fails `BAD_ARGS`, matching `scan`'s own existing
+`resolveDbSchemaOrExit()` behavior verbatim). `npm test`: 1305 -> 1315 (real, re-run count -- not a
+pre-estimate). A new, CI-wired
+`scripts/cross-feature-fk-smoke.mjs` (mirrors `scripts/ddl-apply-smoke.mjs`'s real-Postgres shape,
+own disposable container/DB name/port so it never collides with `db-introspect`/`ddl-apply`'s own)
+proves the whole thing end-to-end against a REAL Postgres: two features (java-spring, two separate
+domain modules), two real tables with a real `FOREIGN KEY` constraint between them, a real `bskel
+scan cross-feature-check --feature ... --db --database-url-env ...` reporting the correct
+`db_foreign_key` finding with the correct `other_feature`/`direction`/`confidence`, independently
+re-verified against a raw `pg.Client` query against `information_schema` (not trusting the tool's
+own report) -- run for real, locally, against a disposable `postgres:16` container before this item
+was committed, then wired into `.github/workflows/ci.yml` as a new `cross-feature-fk` job and into
+`package.json`'s `test:all-smoke` chain in the SAME commit (the exact chain this entry's own
+"Continued" incident already names as the failure mode to avoid repeating).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- Plane A (migration-file) FK extraction -- `scanners/db/migrations.mjs`'s regex extraction never
+  parses `FOREIGN KEY`/`REFERENCES` constraints; `--db` alone (no `--database-url-env`) contributes
+  nothing to this signal, documented rather than silently ignored.
+- Cross-schema FK correlation -- Plane C's own same-schema-only boundary (the SQL join structurally
+  cannot cross `--schema` boundaries) is unchanged, not worked around.
+- A staleness/freshness token for `persisted` mode -- `brownfield-scan.json` carries no timestamp
+  field; this item names the snapshot's source feature and mode, but does not attempt to bound its
+  age.
+- Auto-declaring a `lib/field-dependencies.mjs` dependency record from a detected FK -- the same "a
+  human decides, never codegen" precedent this project has repeatedly established elsewhere
+  (`patchField()`'s permanent manual stub, this entry's own "auto-fixing a collision" EXIT item).
+  This item only detects and reports; wiring a detected FK into the separate, existing
+  `dependencies` declaration system is a distinct, larger design question, not decided here.
+- Reconciling disagreement between two features' own, possibly-conflicting persisted snapshots --
+  this item picks one deterministically and reports which; it does not attempt to detect or
+  reconcile disagreement between two persisted snapshots of the same schema.
+- Any new gate, or any change making gate recomputation require a live DB connection --
+  `D-db-schema-plane`'s boundary is reaffirmed, not reopened.
+
 ## D-patch-transactions: content-addressed patch transactions -- generalizing A3's per-field patch approval into a real propose/approve/apply/rollback lifecycle, closing D-config-patch's own EXIT item as Slice 1
 
 **WHY**: Codex's own growth-idea consultation (Part B #2) proposed generalizing the project's

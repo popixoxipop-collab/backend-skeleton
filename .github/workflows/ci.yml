@@ -301,6 +301,47 @@ jobs:
         if: always()
         run: docker rm -f bskel-pg-ddl-apply
 
+  # D-cross-feature-fk-inference: the first automated, real-Postgres proof that the new
+  # `db_foreign_key` cross-feature signal correlates a REAL live FK edge to the two features that
+  # own each side's table. Own container name/DB name/host port (`bskel-pg-cf-fk`/
+  # `bskel_cf_fk_test`/5434) -- distinct from db-introspect's (5432) and ddl-apply's (5433) so none
+  # of the three ever collide even if run in parallel on the same self-hosted runner. Same
+  # runs-on/manual-docker-lifecycle shape as those two jobs -- see db-introspect's own comment above
+  # for why services: isn't used (macOS-incompatible). Ripgrep IS needed here (unlike ddl-apply) --
+  # this smoke script's own establishThroughContract() calls a real `bskel scan`.
+  cross-feature-fk:
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: start postgres
+        run: |
+          docker run -d --name bskel-pg-cf-fk \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=bskel_cf_fk_test \
+            -p 5434:5432 \
+            postgres:16
+      - name: wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker exec bskel-pg-cf-fk pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready in time" >&2
+          exit 1
+      - run: npm ci
+      - run: npm run test:cross-feature-fk
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5434/bskel_cf_fk_test
+      - name: stop postgres
+        if: always()
+        run: docker rm -f bskel-pg-cf-fk
+
   # G4 follow-up (D-handles-providers): the first automated proof that python-fastapi's own
   # handle read/snapshot lifecycle (register -> a decorated service function -> a real HTTP GET
   # recover) actually works against a real, disposable Postgres -- the Python-ecosystem

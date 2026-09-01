@@ -70,6 +70,33 @@ test('cross-feature-check: no collision -- baseline two-feature fixture reports 
 	assert.equal(parsed.gate.status, 'pass');
 });
 
+// D-cross-feature-fk-inference: with no --db flag at all (the exact prior call shape every existing
+// caller -- 5 CI smoke scripts, README's Quickstart -- still uses unmodified), the new fk_check/
+// unknowns fields are always present and land at 'unavailable' -- never a silent omission, and
+// never a change to findings/gate status for any of these no-new-flags callers.
+test('cross-feature-check: without --db, fk_check is always present and lands at "unavailable" -- no regression for existing no-flag callers', () => {
+	const root = buildTwoFeatureFixtureRepo();
+	initBothFeatures(root);
+
+	const check = run(['scan', 'cross-feature-check', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(check.code, 0);
+	const { report } = JSON.parse(check.stdout);
+	assert.deepEqual(report.fk_check, { mode: 'unavailable', schema: null, source_feature: null });
+	assert.equal(report.unknowns.length, 1);
+	assert.match(report.unknowns[0], /no live DB foreign-key data available/);
+});
+
+// --database-url-env naming an unset env var is BAD_ARGS, matching resolveDbSchemaOrExit()'s own
+// existing, unmodified behavior for `bskel scan --db` -- this command reuses that exact helper, so
+// this is a pure wiring proof, not new error-handling logic.
+test('cross-feature-check: --db --database-url-env <unset var> fails BAD_ARGS, matching `scan`\'s own existing resolveDbSchemaOrExit() behavior', () => {
+	const root = buildTwoFeatureFixtureRepo();
+	initBothFeatures(root);
+
+	const check = run(['scan', 'cross-feature-check', '--feature', '001-widget-management', '--db', '--database-url-env', 'BSKEL_DOES_NOT_EXIST_ENV_VAR', '--json'], root);
+	assert.equal(check.code, 14); // BAD_ARGS
+});
+
 test('cross-feature-check: a shared className + table across two features reports both signals, high confidence, and blocks', () => {
 	const root = buildCollisionFixture();
 

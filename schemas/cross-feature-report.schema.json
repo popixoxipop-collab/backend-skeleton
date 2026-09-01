@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sbf:cross-feature-report:1",
   "title": "backend-skeleton cross-feature identity-collision report",
-  "description": "Validates specs/<feature_id>/cross-feature-report.json, written by `bskel scan cross-feature-check`. Mirrors feature-contract.schema.json's own report-artifact precedent (always written, even when it finds nothing) -- see D-cross-feature-collision in DECISIONS.md. `findings` are NAME-identity collisions with other features only -- never a dependency-direction or FK claim (see lib/field-dependencies.mjs's own declared-dependency system for that).",
+  "description": "Validates specs/<feature_id>/cross-feature-report.json, written by `bskel scan cross-feature-check`. Mirrors feature-contract.schema.json's own report-artifact precedent (always written, even when it finds nothing) -- see D-cross-feature-collision in DECISIONS.md. `findings` were originally NAME-identity collisions only; D-cross-feature-fk-inference added a 4th signal, `db_foreign_key`, a REAL live-DB foreign-key edge correlated against declared table ownership (see `fk_check`/`unknowns` below) -- resource_type/table/operation_id remain pure NAME-identity, never a dependency-direction claim (see lib/field-dependencies.mjs's own declared-dependency system for that).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "feature_id", "generated_at", "findings"],
+  "required": ["schema", "feature_id", "generated_at", "findings", "fk_check", "unknowns"],
   "properties": {
     "schema": { "const": "sbf.cross-feature-report/1" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
@@ -17,18 +17,45 @@
         "additionalProperties": false,
         "required": ["signal", "identifier", "other_feature", "confidence"],
         "properties": {
-          "signal": { "enum": ["resource_type", "table", "operation_id"] },
+          "signal": { "enum": ["resource_type", "table", "operation_id", "db_foreign_key"] },
           "identifier": {
-            "description": "The colliding string itself -- a resourceType/DTO className, a DB table name, or an operationId, copied verbatim from whichever side this finding was computed FROM (this feature's own scan report/contract).",
+            "description": "The colliding string itself -- a resourceType/DTO className, a DB table name, an operationId, or (for db_foreign_key) a 'child.column -> parent.column' edge description -- copied verbatim from whichever side this finding was computed FROM (this feature's own scan report/contract/live schema).",
             "type": "string"
           },
           "other_feature": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
           "confidence": {
-            "description": "'high': the identifier was copied verbatim from a real source annotation on both sides (resource_type/operation_id always; table only when BOTH sides had an explicit @Table/__tablename__-equivalent). 'medium': at least one side's table name was INFERRED (an adapter's classname-lowercase fallback guess, not a real annotation) -- reported, but does not by itself block the gate.",
+            "description": "'high': the identifier was copied verbatim from a real source annotation on both sides (resource_type/operation_id always; table/db_foreign_key only when BOTH sides had an explicit @Table/__tablename__-equivalent). 'medium': at least one side's table name was INFERRED (an adapter's classname-lowercase fallback guess, not a real annotation) -- reported, but does not by itself block the gate. For db_foreign_key, the FK edge itself is never in doubt (a live, Postgres-enforced constraint) -- confidence scores only which FEATURE each side was attributed to, the same table-name-inference risk the table signal already scores.",
             "enum": ["high", "medium"]
+          },
+          "direction": {
+            "description": "db_foreign_key only, absent for the other 3 signals. 'references': THIS feature's table has the FK column, pointing at other_feature's table. 'referenced_by': other_feature's table has the FK column, pointing at THIS feature's table.",
+            "enum": ["references", "referenced_by"]
           }
         }
       }
+    },
+    "fk_check": {
+      "description": "D-cross-feature-fk-inference: always present, names how (if at all) live FK data was obtained for this check -- never silent about the difference between a fresh live connection and a possibly-stale persisted snapshot.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "schema", "source_feature"],
+      "properties": {
+        "mode": {
+          "description": "'live': --db --database-url-env <NAME> was given, this run opened a fresh connection. 'persisted': no live connection this run -- reused a db_schema.live snapshot already on disk from a PRIOR `bskel scan --db --database-url-env` run (possibly stale; brownfield-scan.json carries no timestamp to bound how stale). 'unavailable': no live connection and no persisted snapshot found anywhere -- zero db_foreign_key findings are possible this run (see unknowns).",
+          "enum": ["live", "persisted", "unavailable"]
+        },
+        "schema": { "type": ["string", "null"] },
+        "source_feature": {
+          "description": "Which feature's OWN persisted brownfield-scan.json the snapshot came from, when mode is 'persisted'. Null for 'live' (no persisted snapshot was read) and 'unavailable'.",
+          "type": ["string", "null"],
+          "pattern": "^([0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*)?$"
+        }
+      }
+    },
+    "unknowns": {
+      "description": "Plain-string notes for real gaps this check found but could not turn into a finding -- an FK edge whose other side matches no active feature's declared table, or (fk_check.mode === 'unavailable') a single note explaining no live FK data was available at all. Same 'detect and warn, never silently omit' discipline scan-report.schema.json's own unknowns already establishes.",
+      "type": "array",
+      "items": { "type": "string" }
     }
   }
 }

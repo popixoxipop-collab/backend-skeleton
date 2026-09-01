@@ -39,12 +39,13 @@
     "test:python-import": "node scripts/python-import-smoke.mjs",
     "test:db-introspect": "node scripts/db-introspect-smoke.mjs",
     "test:ddl-apply": "node scripts/ddl-apply-smoke.mjs",
+    "test:cross-feature-fk": "node scripts/cross-feature-fk-smoke.mjs",
     "test:java-integration": "node scripts/java-integration-smoke.mjs",
     "test:java-ast": "node scripts/java-ast-smoke.mjs",
     "test:python-integration": "node scripts/python-integration-smoke.mjs",
     "test:typescript-compile": "node scripts/typescript-typecheck-smoke.mjs",
     "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs",
-    "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:ddl-apply && npm run test:java-ast && npm run test:typescript-compile"
+    "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:ddl-apply && npm run test:cross-feature-fk && npm run test:java-ast && npm run test:typescript-compile"
   },
   "dependencies": {
     "ajv": "^8.20.0",

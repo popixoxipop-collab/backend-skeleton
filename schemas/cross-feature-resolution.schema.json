@@ -16,7 +16,7 @@
         "additionalProperties": false,
         "required": ["signal", "identifier", "other_feature", "reason", "at"],
         "properties": {
-          "signal": { "enum": ["resource_type", "table", "operation_id"] },
+          "signal": { "enum": ["resource_type", "table", "operation_id", "db_foreign_key"] },
           "identifier": { "type": "string" },
           "other_feature": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
           "reason": { "type": "string" },
