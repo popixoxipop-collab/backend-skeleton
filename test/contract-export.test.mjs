@@ -4,7 +4,12 @@
 //
 // Everything here goes through the REAL CLI against a real git repo, reusing
 // test/_contract-fixture.mjs -- the same harness test/contract-cli.test.mjs drives, not a second
-// copy.
+// copy. ONE exception (D-openapi-export's typescript-express Update note): the colon-syntax-path
+// coverage below calls `buildOpenApiDocument()` directly with a hand-built contract object --
+// java-spring's own fixture (the only one this file's CLI harness drives) can never produce a
+// colon-syntax `op.path` to exercise, so a pure unit test is the proportionate, cheaper way to
+// cover it, matching contracts/openapi.mjs's own equivalent unit-level coverage for the sibling
+// route-matching fix.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -18,6 +23,7 @@ import {
 	run, runCapturingStderr, buildFixtureRepo, initThroughScanDisposition,
 	contractSchemaPath, widgetControllerPath, widgetOpenApiDoc, writeOpenApiFixture,
 } from './_contract-fixture.mjs';
+import { buildOpenApiDocument } from '../contracts/export.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const META_SCHEMA_PATH = path.join(__dirname, 'fixtures', 'openapi-3.1-meta-schema.json');
@@ -129,6 +135,73 @@ test('an exported document validates against the official 3.1 meta-schema, for a
 	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], rich).code, 0);
 	assertValidOpenApi(exportedDoc(rich).doc, 'an export of a request/response/error-projected contract');
 	assertValidOpenApi(exportedDoc(rich, ['--status-codes', 'literal']).doc, 'an export using literal status codes');
+});
+
+// Update (D-openapi-export, closing the gap named in D-openapi-reconciliation's own Update note):
+// a typescript-express operation that never matched/adopted against an OpenAPI document still
+// carries `op.path` in Express's own colon syntax (`:name`/`:name(...)`) -- an OpenAPI Paths
+// Object key MUST use `{name}` templating (the meta-schema itself enforces this, confirmed by the
+// self-verification test above), so exporting it verbatim would produce an invalid document. A
+// minimal, hand-built contract object -- java-spring's own fixture (the only one this file's CLI
+// harness drives) can never produce a colon-syntax path to exercise this through the real CLI.
+function minimalContract(operations) {
+	return {
+		feature_id: '001-widget-management',
+		feature_uid: '11111111-1111-1111-1111-111111111111',
+		sbf_contract: '8',
+		completeness: { status: 'partial' },
+		operations,
+	};
+}
+
+test('export rewrites an Express :name-syntax op.path into a valid {name} OpenAPI path key, and validates against the real meta-schema', () => {
+	const contract = minimalContract({
+		findWidget: {
+			verb: 'GET',
+			path: '/widgets/:widgetId',
+			body: false,
+			pathParams: { properties: {}, required: ['widgetId'] },
+		},
+	});
+	const result = buildOpenApiDocument({ contract, options: {} });
+	assert.equal(result.ok, true, `export must succeed: ${result.error}`);
+	assert.ok(Object.hasOwn(result.document.paths, '/widgets/{widgetId}'), `expected the {name}-rewritten path key, got: ${Object.keys(result.document.paths)}`);
+	assert.ok(!Object.hasOwn(result.document.paths, '/widgets/:widgetId'), 'the colon-syntax key must not survive into the exported document');
+	const params = result.document.paths['/widgets/{widgetId}'].get.parameters;
+	assert.deepEqual(params, [{ name: 'widgetId', in: 'path', required: true, schema: {} }]);
+	assertValidOpenApi(result.document, 'an export of a colon-syntax typescript-express operation');
+});
+
+test('export rewrites an Express :name([0-9]+) regex-constrained segment the same way, discarding the constraint, keeping the name', () => {
+	const contract = minimalContract({
+		findWidget: {
+			verb: 'GET',
+			path: '/widgets/:widgetId([0-9]+)',
+			body: false,
+			pathParams: { properties: { widgetId: { type: 'string' } }, required: ['widgetId'] },
+		},
+	});
+	const result = buildOpenApiDocument({ contract, options: {} });
+	assert.equal(result.ok, true, `export must succeed: ${result.error}`);
+	assert.ok(Object.hasOwn(result.document.paths, '/widgets/{widgetId}'));
+	const params = result.document.paths['/widgets/{widgetId}'].get.parameters;
+	assert.deepEqual(params, [{ name: 'widgetId', in: 'path', required: true, schema: { type: 'string' } }]);
+	assertValidOpenApi(result.document, 'an export of a regex-constrained colon-syntax operation');
+});
+
+test('export leaves an already-{name}-syntax op.path untouched -- the rewrite is a true no-op for java-spring/python-fastapi', () => {
+	const contract = minimalContract({
+		findWidget: {
+			verb: 'GET',
+			path: '/widgets/{widgetId}',
+			body: false,
+			pathParams: { properties: {}, required: ['widgetId'] },
+		},
+	});
+	const result = buildOpenApiDocument({ contract, options: {} });
+	assert.equal(result.ok, true, `export must succeed: ${result.error}`);
+	assert.ok(Object.hasOwn(result.document.paths, '/widgets/{widgetId}'));
+	assertValidOpenApi(result.document, 'an export of an already-{name}-syntax operation');
 });
 
 // The one narrow, provable round-trip invariant. Deliberately NOT "export then re-import is

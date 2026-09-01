@@ -6545,6 +6545,32 @@ has no effect on its own), before any gate/feature-state work runs. New regressi
 consequential of the two (it changes a real module's completeness verdict); this one is a pure
 CLI-ergonomics fix with no completeness-logic change.
 
+**Update (typescript-express export, closing the gap named in D-openapi-reconciliation's own
+Update note):** `buildOpenApiDocument()` used `op.path` VERBATIM as the exported document's own
+OpenAPI Paths Object key (`const route = String(op.path);`). For a typescript-express operation
+that never matched/adopted against an OpenAPI document (`drift`/`missing`/`unresolved`/
+`ambiguous`, or a document-less scan-only contract), `op.path` is still the scan's own Express
+colon syntax (`:id`/`:id([0-9]+)`) -- a Paths Object key MUST use `{name}` templating (the real 3.1
+meta-schema enforces this, confirmed by this file's own existing self-verification test). New
+`colonPathToBraceSyntax()`, applied once where `route` is computed, rewrites it unconditionally --
+a true no-op for java-spring/python-fastapi (their own paths never contain a colon in this
+position). Separately, `buildPathParameters()` -- a different function, which reads `op.path`
+directly rather than the locally-converted `route` -- only recognized `{name}` via its own
+`/\{([^{}/]+)\}/g`, so it would silently list zero path parameters for a colon-syntax path
+regardless of the fix above; its regex gained a `:name`/`:name(...)` alternative (`\w+` for the
+colon side, Express's own real identifier constraint; the existing, more permissive `[^{}/]+`
+brace-side character class stays byte-identical). The two fixes are independent by design -- neither
+depends on the other running first.
+
+**Verified.** `npm test` 1257 -> **1260** (3 new, pure unit tests calling `buildOpenApiDocument()`
+directly with a hand-built contract object -- java-spring's own fixture, the only one
+`test/contract-export.test.mjs`'s existing CLI harness drives, can never produce a colon-syntax
+path to exercise this through the real CLI). Every new test validates its output against the same
+real, vendored OpenAPI 3.1 meta-schema this file's own suite already uses for every other
+export-shape test -- not just asserted "looks right." Full `test/contract-export.test.mjs` re-run
+unchanged (53 total, 50 pre-existing + 3 new), confirming zero regression for the existing
+java-spring-only export suite.
+
 ## D-openapi-passthrough (A7): copying is not synthesizing -- what a real source document licenses the export to say
 
 **WHY**: A6's whole design is dominated by "never synthesize what the contract does not know" --

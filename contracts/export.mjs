@@ -239,20 +239,37 @@ function renderDescription(contract, omissions, statusCodes) {
 	return lines.join('\n');
 }
 
+// Update (D-openapi-export, closing the gap named in D-openapi-reconciliation's own Update note):
+// rewrites Express's own `:name`/`:name(...)` segments into OpenAPI's `{name}` templating -- an
+// OpenAPI Paths Object key must use `{name}` (verified against the real 3.1 meta-schema), but
+// `op.path` for an unmatched/document-less typescript-express operation is still the scan's own
+// colon syntax. A true no-op for java-spring/python-fastapi (their own paths never contain a colon
+// in this position, confirmed live -- no behavior change).
+function colonPathToBraceSyntax(routePath) {
+	return routePath.replace(/:(\w+)(?:\([^)]*\))?/g, '{$1}');
+}
+
 // Every `{name}` in the path template, in order, deduplicated (OpenAPI forbids two parameters
 // sharing name+location). The schema comes from the contract's own `pathParams.properties`; the
 // `{}` fallback for a name the contract has no property for is "unconstrained", which is both
 // honest and the minimum the 3.1 meta-schema accepts (`$defs.parameter`'s
 // `oneOf: [{required:["schema"]}, {required:["content"]}]` means a parameter MUST carry one or the
 // other -- confirmed by executing the real schema).
+//
+// Update (D-openapi-export, closing the gap named in D-openapi-reconciliation's own Update note):
+// also recognizes Express's own `:name`/`:name(...)` syntax -- `op.path` for a typescript-express
+// operation that never matched/adopted against an OpenAPI document (drift/missing/unresolved/
+// ambiguous, or a document-less scan-only contract) is still the scan's own colon syntax, and this
+// function would otherwise silently list zero path parameters for it. The existing `{name}`
+// branch's own character class (`[^{}/]+`, more permissive than `\w+`) stays untouched.
 function buildPathParameters(op) {
 	const props = op.pathParams && typeof op.pathParams === 'object' && !Array.isArray(op.pathParams)
 		? (op.pathParams.properties ?? {})
 		: {};
 	const seen = new Set();
 	const params = [];
-	for (const match of String(op.path).matchAll(/\{([^{}/]+)\}/g)) {
-		const name = match[1];
+	for (const match of String(op.path).matchAll(/\{([^{}/]+)\}|:(\w+)(?:\([^)]*\))?/g)) {
+		const name = match[1] ?? match[2];
 		if (seen.has(name)) continue;
 		seen.add(name);
 		params.push({
@@ -500,7 +517,13 @@ export function buildOpenApiDocument({ contract, snapshot = null, options = {} }
 
 	for (const operationId of operationIds) {
 		const op = contract.operations[operationId];
-		const route = String(op.path);
+		// Update (D-openapi-export): op.path can still be Express's own colon syntax (a
+		// typescript-express operation that never matched/adopted against an OpenAPI document) --
+		// an OpenAPI Paths Object key must use {name} templating (verified against the real 3.1
+		// meta-schema), so this is rewritten unconditionally here, once, before it becomes both the
+		// document's own path key AND every downstream use of `route` in this loop. A no-op for
+		// java-spring/python-fastapi (their own paths never contain a colon in this position).
+		const route = colonPathToBraceSyntax(String(op.path));
 		if (!route.startsWith('/')) {
 			return { ok: false, error: `operation "${operationId}" has path "${route}", which does not start with "/" -- an OpenAPI Paths Object key must (verified against the official 3.1 meta-schema)` };
 		}
