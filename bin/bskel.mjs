@@ -121,7 +121,7 @@ function usage() {
   bskel attest keygen --out <dir> [--force] [--json]
   bskel attest verify --file <path> --pubkey <path> [--json]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
-  bskel serve [--port N] [--host <addr>] [--database-url-env <NAME>] [--schema <name>] [--sign-key <path>] [--json]
+  bskel serve [--port N] [--host <addr>] [--database-url-env <NAME>] [--schema <name>] [--sign-key <path>] [--require-sign-key] [--json]
 `);
 }
 
@@ -3255,6 +3255,14 @@ async function cmdServe(args) {
 			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--database-url-env ${flags['database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
 		}
 		dbConfig = { databaseUrlEnv: flags['database-url-env'], schema: flags.schema, signKeyPath: flags['sign-key'] };
+		// D-ddl-apply: closes this feature's own named "mandatory signing... cheap, well-justified
+		// near-term addition" EXIT item -- an opt-in-to-MORE-strictness knob, letting a cautious team
+		// enforce mandatory signing for themselves without this tool forcing it on every user. A
+		// no-op when --database-url-env wasn't given at all (this whole block never runs then) --
+		// nothing to enforce on a DDL surface that isn't running.
+		if (flags['require-sign-key'] && !dbConfig.signKeyPath) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--require-sign-key was given but --sign-key was not -- refusing to start the DDL surface without an audit-signing key. Pass --sign-key <path>, or drop --require-sign-key to allow starting unsigned (with a warning).');
+		}
 	}
 
 	let started;

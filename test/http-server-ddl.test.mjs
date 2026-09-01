@@ -12,9 +12,12 @@
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CLI, buildTwoFeatureFixtureRepo, initBothFeatures } from './_contract-fixture.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { CLI, buildTwoFeatureFixtureRepo, initBothFeatures, run } from './_contract-fixture.mjs';
 import { sha256String } from '../lib/fsutil.mjs';
 import { proposeTransaction, approveTransaction, saveTransaction, loadTransaction } from '../lib/patch-transactions.mjs';
+import { generateKeypair } from '../lib/attest.mjs';
 
 const FEATURE_ID = '001-widget-management';
 const FAKE_DB_ENV = 'BSKEL_HTTP_DDL_TEST_FAKE_URL';
@@ -278,4 +281,60 @@ test('rollback of a ddl-apply transaction always refuses, over HTTP, naming the 
 		assert.match(body.error, /rollback is not supported for kind "ddl-apply"/);
 	});
 	assert.equal(loadTransaction(root, FEATURE_ID, proposed.transaction_id).status, 'applied', 'a refused rollback must not silently advance the status');
+});
+
+// D-ddl-apply: `--require-sign-key`, closing this feature's own named "mandatory signing... cheap,
+// well-justified near-term addition" EXIT item -- an opt-in-to-MORE-strictness knob refusing to
+// even start the DDL surface without --sign-key also given.
+
+function writeKeypair(root) {
+	const { publicKeyPem, privateKeyPem } = generateKeypair();
+	const privateKeyPath = path.join(root, 'sign-key.pem');
+	fs.writeFileSync(privateKeyPath, privateKeyPem);
+	fs.writeFileSync(path.join(root, 'sign-key.pub.pem'), publicKeyPem);
+	return privateKeyPath;
+}
+
+test('`--require-sign-key` without `--sign-key` refuses to start the server at all (BAD_ARGS)', () => {
+	const root = buildTwoFeatureFixtureRepo();
+	initBothFeatures(root);
+	// Run synchronously via execFileSync (unlike startServer()'s spawn+wait-for-readiness helper,
+	// deliberately -- a refused server exits immediately, so a synchronous run is both simpler and
+	// correct here; startServer() is built for the SUCCESS path, which never exits on its own).
+	// run() (test/_contract-fixture.mjs) doesn't thread extra env vars through -- FAKE_DB_ENV must
+	// actually be set (to anything) so the earlier, unrelated "--database-url-env names an unset
+	// env var" check doesn't fire first and mask the one this test is isolating.
+	process.env[FAKE_DB_ENV] = 'postgres://127.0.0.1:1/does-not-exist';
+	try {
+		const result = run(['serve', '--port', '0', '--database-url-env', FAKE_DB_ENV, '--require-sign-key', '--json'], root);
+		assert.equal(result.code, 14); // BAD_ARGS
+		assert.match(result.stderr, /--require-sign-key was given but --sign-key was not/);
+	} finally {
+		delete process.env[FAKE_DB_ENV];
+	}
+});
+
+test('`--require-sign-key` WITH `--sign-key` starts the server normally', async () => {
+	const root = buildTwoFeatureFixtureRepo();
+	initBothFeatures(root);
+	const signKeyPath = writeKeypair(root);
+	const { child, listening, ddlApplyEnabled } = await startServer(root, ['--database-url-env', FAKE_DB_ENV, '--require-sign-key', '--sign-key', signKeyPath], { [FAKE_DB_ENV]: 'postgres://127.0.0.1:1/does-not-exist' });
+	try {
+		assert.ok(listening);
+		assert.equal(ddlApplyEnabled, true);
+	} finally {
+		await stopServer(child);
+	}
+});
+
+test('`--require-sign-key` without `--database-url-env` at all is a harmless no-op -- nothing to enforce on a DDL surface that never starts', async () => {
+	const root = buildTwoFeatureFixtureRepo();
+	initBothFeatures(root);
+	const { child, listening, ddlApplyEnabled } = await startServer(root, ['--require-sign-key']);
+	try {
+		assert.ok(listening);
+		assert.equal(ddlApplyEnabled, false);
+	} finally {
+		await stopServer(child);
+	}
 });

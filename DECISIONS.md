@@ -10697,3 +10697,31 @@ a real `CREATE INDEX` + `CREATE SCHEMA` apply in one batch, independently re-ver
 `pg.Client` queries against `pg_indexes`/`information_schema.schemata` (not trusting the tool's own
 report) -- run for real against a local disposable `postgres:16` container before this update was
 committed, not just unit-tested.
+
+**Update (`--require-sign-key`):** closes this entry's own named "Mandatory signing... a named,
+cheap, well-justified near-term addition" EXIT bullet -- the last of the three genuinely actionable
+EXIT-list candidates surveyed this session (the other two, DROP-TABLE confirmation and INDEX/SCHEMA
+postcondition precision, are both closed by the Update above; cross-feature FK inference via Plane
+C and its own Plane A follow-up were split out into `D-cross-feature-fk-inference`).
+
+New boolean flag `--require-sign-key` on `bskel serve`. Inside `cmdServe`'s existing `if
+(flags['database-url-env'])` block, right after `dbConfig` is assigned: if `--require-sign-key` was
+given and `dbConfig.signKeyPath` is falsy, `fail(EXIT_CODES.BAD_ARGS, ...)` -- refuses to start the
+server at all, rather than the existing default behavior of starting anyway with a warning banner.
+An opt-in-to-MORE-strictness knob, mirroring this project's own "safe default + explicit override,
+in either direction, never silently guessed" posture (the same shape `--host`/`--enforce-registry`
+already use) -- lets a cautious team enforce mandatory audit-signing on themselves without this tool
+forcing it on every user. Deliberately a silent no-op when `--database-url-env` wasn't given at all
+(the whole `dbConfig` block never runs then) -- nothing to enforce on a DDL surface that isn't
+running, matching how `--schema`/`--sign-key` themselves are already inert in that same case.
+
+No schema/gate/HTTP-route changes -- pure startup-time CLI validation; `lib/http-server.mjs`/
+`createHttpServer()` are untouched (they already receive `dbConfig.signKeyPath` and already behave
+correctly whether it's null or set).
+
+**Verified**: 3 new e2e tests in `test/http-server-ddl.test.mjs` (refuses without `--sign-key`,
+BAD_ARGS; starts normally with both flags given; a harmless no-op without `--database-url-env` at
+all). Also verified by hand against a real fixture repo before writing the tests: all 3 cases
+(refuse, start-with-key, no-op-without-db-flag) reproduced exactly as designed via a real
+`bskel serve` invocation, not just inferred from the test suite. `npm test` count delta recorded in
+the commit.
