@@ -41,8 +41,8 @@
       "required": ["mode", "schema", "source_feature"],
       "properties": {
         "mode": {
-          "description": "'live': --db --database-url-env <NAME> was given, this run opened a fresh connection. 'persisted': no live connection this run -- reused a db_schema.live snapshot already on disk from a PRIOR `bskel scan --db --database-url-env` run (possibly stale; brownfield-scan.json carries no timestamp to bound how stale). 'unavailable': no live connection and no persisted snapshot found anywhere -- zero db_foreign_key findings are possible this run (see unknowns).",
-          "enum": ["live", "persisted", "unavailable"]
+          "description": "'live': --db --database-url-env <NAME> was given, this run opened a fresh connection. 'persisted': no live connection this run -- reused a db_schema.live snapshot already on disk from a PRIOR `bskel scan --db --database-url-env` run (possibly stale; brownfield-scan.json carries no timestamp to bound how stale). 'migrations': no Plane C (live or persisted) data at all -- fell back to Plane A migration-file-derived FK data (a migration FILE existing is not proof it was ever actually applied, a materially lower-trust source than any live/persisted introspection). 'unavailable': no live connection, no persisted snapshot, and no migration-file data found anywhere -- zero db_foreign_key findings are possible this run (see unknowns).",
+          "enum": ["live", "persisted", "migrations", "unavailable"]
         },
         "schema": { "type": ["string", "null"] },
         "source_feature": {

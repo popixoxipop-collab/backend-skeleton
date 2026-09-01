@@ -10102,6 +10102,60 @@ was committed, then wired into `.github/workflows/ci.yml` as a new `cross-featur
 - Any new gate, or any change making gate recomputation require a live DB connection --
   `D-db-schema-plane`'s boundary is reaffirmed, not reopened.
 
+**Update (Plane A migration-file FK extraction):** closes this entry's own named "Plane A
+(migration-file) FK extraction is out of scope" EXIT bullet, picked next by the user as the
+highest-ROI item remaining once every CATALOG.md item and every other real EXIT-list candidate was
+re-surveyed (`--require-sign-key`, this item, and a staleness/freshness token for `persisted` mode
+were the only 3 genuinely actionable candidates left; the delegatable-capability-scoped-handles
+Codex growth-idea item remains explicitly deferred pending a real production handles pilot).
+
+`scanners/db/migrations.mjs`'s `extractTablesFromSql()` gains 3 new regex forms, same "good-enough
+regex, not a real parser" restraint this module's own header already states, single-column FKs
+only: table-level `FOREIGN KEY (col) REFERENCES other (ocol)` (inside the existing
+`CONSTRAINT_LEAD_RE`-matched branch, which previously only ever `continue`d); inline column-level
+`col REFERENCES other(ocol)` or bare `col REFERENCES other` (a bare reference's `references_column`
+is left `null`, not guessed as `"id"` -- the referenced PK's real column name is genuinely
+unknowable from the migration file alone, and this project has repeatedly refused to ship a
+false-confidence guess elsewhere); and `ALTER TABLE t ADD CONSTRAINT name FOREIGN KEY (col)
+REFERENCES other (ocol)`, a very common Flyway pattern for adding a constraint in a LATER
+migration than the table's own `CREATE TABLE`. Each table's returned shape gains `foreign_keys:
+[{column, references_table, references_column}]` -- the EXACT same shape Plane C's
+`introspectWithClient()` already returns, so `lib/cross-feature-collisions.mjs`'s existing
+`flattenLiveForeignKeys()`/FK-correlation loop needed ZERO changes to also walk Plane A tables.
+
+`resolveLiveTables()` (`lib/cross-feature-collisions.mjs`) grew from a 3-tier to a 4-tier fallback,
+Plane A strictly the LOWEST priority: `liveDbSchema.live` (fresh) -> this feature's own persisted
+`db_schema.live` -> another active feature's persisted `db_schema.live` -> **NEW**
+`liveDbSchema.migrations` (when `--db` was passed without `--database-url-env`) -> this feature's
+own persisted `db_schema.migrations` -> another active feature's persisted `db_schema.migrations`
+-> `unavailable`. Plane A is deliberately never allowed to outrank any available Plane C source --
+a migration FILE existing is not proof it was ever actually applied (`D-migration-scope`'s own
+standing caveat), so live/persisted introspection is always strictly more trustworthy when present;
+verified directly by a dedicated priority-ordering test, not just that each tier individually works
+in isolation. Confidence scoring for a Plane-A-sourced `db_foreign_key` finding is deliberately
+UNCHANGED -- still the existing `tableSource` rule. This scores a genuinely different, independent
+uncertainty axis (did source code correctly name its own table) than Plane A's own "was this file
+ever actually applied" uncertainty; conflating the two into one confidence number would hide, not
+surface, the real distinction -- `fk_check.mode === 'migrations'` is how a human sees that second
+axis, named explicitly rather than silently folded into the same `high`/`medium` scale.
+
+`schemas/cross-feature-report.schema.json`'s `fk_check.mode` enum gains `"migrations"` (additive).
+
+**Verified**: 4 new unit tests in `test/db-migrations.test.mjs` (table-level FK, inline FK with an
+explicit referenced column, bare inline `REFERENCES` leaving `references_column: null`, `ALTER ...
+ADD CONSTRAINT ... FOREIGN KEY`) plus a negative case (a plain `CHECK`/`UNIQUE` constraint is never
+misread as a foreign key) plus the existing fixture's own FK line, now actually asserted rather
+than only its columns; the existing fixture in this same test file already contained a
+`FOREIGN KEY (org_id) REFERENCES organizations(id)` line that no prior test ever checked the
+extraction of, confirmed live before writing new tests, not assumed. 5 new unit tests in
+`test/cross-feature-collisions.test.mjs` (the `migrations`-mode fallback itself, confidence staying
+on the unchanged `tableSource` rule for a migrations-sourced finding, and the priority-ordering
+proof in both directions -- a fresh `liveDbSchema.migrations` never outranks a persisted Plane C
+snapshot, and a fresh live connection never gets shadowed by this feature's own persisted
+migrations data). No smoke-script/CI changes needed -- Plane A is pure, local, file-based regex
+extraction by its own defining property ("always local, never a network call"), fully covered by
+fast unit tests, unlike Plane C. `npm test`: 1315 -> 1322 (real, re-run count).
+
 ## D-patch-transactions: content-addressed patch transactions -- generalizing A3's per-field patch approval into a real propose/approve/apply/rollback lifecycle, closing D-config-patch's own EXIT item as Slice 1
 
 **WHY**: Codex's own growth-idea consultation (Part B #2) proposed generalizing the project's

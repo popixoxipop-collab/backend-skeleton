@@ -39,17 +39,29 @@ function writeFeature(root, featureId, { scanReport = null, contract = null } = 
 	}
 }
 
-function scanReport(moduleName, { entities = [], dtos = [], dbSchema = null } = {}) {
+// D-cross-feature-fk-inference (Plane A FK extraction): `migrationsData` (a Plane A-shaped
+// {tool, files, tables} object, tool !== 'none') is separate from `dbSchema` (Plane C) -- a
+// fixture can carry either, both, or neither, matching how resolveLiveTables()'s own 4-tier
+// fallback needs to distinguish them.
+function scanReport(moduleName, { entities = [], dtos = [], dbSchema = null, migrationsData = null } = {}) {
+	const hasDbSchema = dbSchema || migrationsData;
 	return {
 		disposition: { module: moduleName },
 		related_modules: [{ module: moduleName, entities, dtos }],
-		...(dbSchema ? { db_schema: { migrations: { tool: 'none', files: [], tables: [] }, live: dbSchema } } : {}),
+		...(hasDbSchema ? { db_schema: { migrations: migrationsData ?? { tool: 'none', files: [], tables: [] }, live: dbSchema } } : {}),
 	};
 }
 
 // D-cross-feature-fk-inference: a live-schema fixture, same shape introspectWithClient() returns.
 function liveSchema(tables) {
 	return { schema: 'public', tables, schema_hash: 'fake-hash' };
+}
+
+// D-cross-feature-fk-inference (Plane A FK extraction): a Plane A (scanMigrations()) fixture --
+// `tables[].foreign_keys` uses the identical {column, references_table, references_column} shape
+// scanners/db/migrations.mjs's extractTablesFromSql() now returns.
+function migrationsSchema(tool, tables) {
+	return { tool, files: ['V1__x.sql'], tables };
 }
 
 test('findCollisions: a resourceType shared by two features is a high-confidence finding', () => {
@@ -266,6 +278,61 @@ test('findCollisions: fk_check falls back to another active feature\'s persisted
 
 	const { fk_check } = findCollisions(root, '001-widget-management');
 	assert.deepEqual(fk_check, { mode: 'persisted', schema: 'public', source_feature: '002-organization-management' });
+});
+
+// D-cross-feature-fk-inference (Plane A FK extraction): the new 4th, lowest-priority tier.
+
+test('findCollisions: fk_check falls back to Plane A migration-file data (mode: "migrations") when no Plane C data exists anywhere', () => {
+	const root = tmpRoot();
+	writeFeature(root, '001-widget-management', {
+		scanReport: scanReport('widget', {
+			entities: [{ className: 'Order', table: 'orders', tableSource: 'explicit' }],
+			migrationsData: migrationsSchema('flyway', [{ name: 'orders', columns: ['id', 'org_id'], foreign_keys: [{ column: 'org_id', references_table: 'organizations', references_column: 'id' }], source_file: 'V1__x.sql' }]),
+		}),
+	});
+	writeFeature(root, '002-organization-management', { scanReport: scanReport('organization', { entities: [{ className: 'Organization', table: 'organizations', tableSource: 'explicit' }] }) });
+
+	const { findings, fk_check } = findCollisions(root, '001-widget-management');
+	assert.deepEqual(fk_check, { mode: 'migrations', schema: null, source_feature: '001-widget-management' });
+	const fk = findings.find((f) => f.signal === 'db_foreign_key');
+	assert.equal(fk.other_feature, '002-organization-management');
+	assert.equal(fk.confidence, 'high', 'db_foreign_key confidence still uses the unchanged tableSource rule for a migrations-sourced finding, not a separate scale');
+});
+
+test('findCollisions: fk_check via liveDbSchema.migrations (--db without --database-url-env) takes priority over any persisted snapshot', () => {
+	const root = tmpRoot();
+	writeFeature(root, '001-widget-management', {
+		scanReport: scanReport('widget', {
+			entities: [{ className: 'Order', table: 'orders', tableSource: 'explicit' }],
+			// A stale PERSISTED live snapshot should never win over a freshly-passed liveDbSchema.
+			dbSchema: liveSchema([{ name: 'orders', foreign_keys: [] }]),
+		}),
+	});
+	writeFeature(root, '002-organization-management', { scanReport: scanReport('organization', { entities: [{ className: 'Organization', table: 'organizations', tableSource: 'explicit' }] }) });
+
+	const liveDbSchema = { migrations: migrationsSchema('flyway', [{ name: 'orders', columns: [], foreign_keys: [{ column: 'org_id', references_table: 'organizations', references_column: 'id' }], source_file: 'V1__x.sql' }]), live: null };
+	const { fk_check } = findCollisions(root, '001-widget-management', { liveDbSchema });
+	// The persisted `live` snapshot for THIS feature wins, exactly as designed -- Plane C
+	// (persisted) still outranks Plane A (fresh migrations), confirming the 4-tier PRIORITY order,
+	// not just that each tier individually works.
+	assert.equal(fk_check.mode, 'persisted');
+});
+
+test('findCollisions: Plane A (migrations) never wins when ANY Plane C source (live or persisted) is available', () => {
+	const root = tmpRoot();
+	writeFeature(root, '001-widget-management', {
+		scanReport: scanReport('widget', {
+			entities: [{ className: 'Order', table: 'orders', tableSource: 'explicit' }],
+			migrationsData: migrationsSchema('flyway', [{ name: 'orders', columns: [], foreign_keys: [{ column: 'org_id', references_table: 'organizations', references_column: 'id' }], source_file: 'V1__x.sql' }]),
+		}),
+	});
+	writeFeature(root, '002-organization-management', { scanReport: scanReport('organization', { entities: [{ className: 'Organization', table: 'organizations', tableSource: 'explicit' }] }) });
+
+	const liveDbSchema = { migrations: { tool: 'none', files: [], tables: [] }, live: liveSchema([
+		{ name: 'orders', foreign_keys: [{ column: 'org_id', references_table: 'organizations', references_column: 'id' }] },
+	]) };
+	const { fk_check } = findCollisions(root, '001-widget-management', { liveDbSchema });
+	assert.equal(fk_check.mode, 'live', 'a fresh live connection must always outrank this feature\'s own persisted migrations data');
 });
 
 test('findCollisions: waiving a db_foreign_key finding round-trips through evaluateCrossFeatureFindings/waiverKey correctly', () => {

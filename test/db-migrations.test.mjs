@@ -36,6 +36,48 @@ CREATE TABLE IF NOT EXISTS widgets (
 	assert.equal(result.tool, 'flyway');
 	assert.equal(result.tables.length, 1);
 	assert.deepEqual(result.tables[0].columns, ['id', 'name', 'org_id', 'price']);
+	assert.deepEqual(result.tables[0].foreign_keys, [{ column: 'org_id', references_table: 'organizations', references_column: 'id' }]);
+});
+
+// D-cross-feature-fk-inference (Plane A FK extraction): the 3 new FK forms, plus a negative case
+// proving a plain CHECK/UNIQUE constraint is never misread as one.
+
+test('scanMigrations: inline column-level REFERENCES, with an explicit referenced column', () => {
+	const root = fixtureRoot();
+	const dir = path.join(root, 'src/main/resources/db/migration');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'V1__t.sql'), 'CREATE TABLE widgets (id UUID PRIMARY KEY, organization_id UUID REFERENCES organizations(id));\n');
+	const result = scanMigrations(root);
+	assert.deepEqual(result.tables[0].foreign_keys, [{ column: 'organization_id', references_table: 'organizations', references_column: 'id' }]);
+});
+
+test('scanMigrations: a bare inline REFERENCES (referenced column omitted) leaves references_column null -- never guessed as "id"', () => {
+	const root = fixtureRoot();
+	const dir = path.join(root, 'src/main/resources/db/migration');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'V1__t.sql'), 'CREATE TABLE widgets (id UUID PRIMARY KEY, organization_id UUID REFERENCES organizations);\n');
+	const result = scanMigrations(root);
+	assert.deepEqual(result.tables[0].foreign_keys, [{ column: 'organization_id', references_table: 'organizations', references_column: null }]);
+});
+
+test('scanMigrations: ALTER TABLE ADD CONSTRAINT ... FOREIGN KEY, a common Flyway later-migration pattern, is recorded against the constrained table', () => {
+	const root = fixtureRoot();
+	const dir = path.join(root, 'src/main/resources/db/migration');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'V1__t.sql'), 'CREATE TABLE widgets (id UUID PRIMARY KEY, organization_id UUID);\n');
+	fs.writeFileSync(path.join(dir, 'V2__fk.sql'), 'ALTER TABLE widgets ADD CONSTRAINT fk_widgets_org FOREIGN KEY (organization_id) REFERENCES organizations (id);\n');
+	const result = scanMigrations(root);
+	const v2Table = result.tables.find((t) => t.source_file.endsWith('V2__fk.sql'));
+	assert.deepEqual(v2Table.foreign_keys, [{ column: 'organization_id', references_table: 'organizations', references_column: 'id' }]);
+});
+
+test('scanMigrations: a plain CHECK/UNIQUE constraint is never misread as a foreign key', () => {
+	const root = fixtureRoot();
+	const dir = path.join(root, 'src/main/resources/db/migration');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'V1__t.sql'), 'CREATE TABLE widgets (id UUID PRIMARY KEY, price NUMERIC(10,2) CHECK (price > 0), UNIQUE (id));\n');
+	const result = scanMigrations(root);
+	assert.deepEqual(result.tables[0].foreign_keys, []);
 });
 
 test('scanMigrations: ALTER TABLE ADD COLUMN is recorded against the same table name', () => {

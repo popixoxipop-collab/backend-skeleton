@@ -59,12 +59,38 @@ const ALTER_ADD_COLUMN_RE = /ALTER\s+TABLE\s+"?(\w+)"?\s+ADD\s+COLUMN\s+(?:IF\s+
 const CONSTRAINT_LEAD_RE = /^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|CONSTRAINT)\b/i;
 const COLUMN_NAME_RE = /^"?(\w+)"?/;
 
+// D-cross-feature-fk-inference (Plane A FK extraction): closes this project's own named EXIT item
+// ("Plane A (migration-file) FK extraction is out of scope") -- `--db` alone (no
+// `--database-url-env`) now contributes real FK data to the `db_foreign_key` cross-feature signal
+// via a real, disposable Postgres connection's absence, using nothing but migration-file text.
+// Same "good-enough regex, not a real parser" restraint as everything else in this module --
+// single-column FKs only; a composite `FOREIGN KEY (a, b) REFERENCES ...` segment simply doesn't
+// match either regex below and is silently skipped, the same fail-safe-by-omission behavior
+// CONSTRAINT_LEAD_RE's own unmatched segments already have.
+//
+// Table-level: `FOREIGN KEY (col) REFERENCES other_table (ocol)` -- ocol is optional (references
+// the parent's PK when omitted; genuinely rare in real migrations, still handled).
+const TABLE_LEVEL_FK_RE = /^FOREIGN\s+KEY\s*\(\s*"?(\w+)"?\s*\)\s+REFERENCES\s+"?(\w+)"?\s*(?:\(\s*"?(\w+)"?\s*\))?/i;
+// Inline column-level: applied to a column-definition segment ALREADY matched by COLUMN_NAME_RE --
+// `col_name TYPE ... REFERENCES other_table(ocol)` or bare `REFERENCES other_table`. When ocol is
+// omitted, references_column is left `null` -- the referenced PK's real column name is genuinely
+// unknowable from the migration file alone, and guessing "id" would be a false-confidence
+// fabrication this project has repeatedly refused to ship elsewhere.
+const INLINE_REFERENCES_RE = /REFERENCES\s+"?(\w+)"?\s*(?:\(\s*"?(\w+)"?\s*\))?/i;
+// `ALTER TABLE t ADD CONSTRAINT name FOREIGN KEY (col) REFERENCES other_table (ocol)` -- a very
+// common Flyway pattern for adding a constraint in a LATER migration than the table's own CREATE.
+const ALTER_ADD_FK_RE = /ALTER\s+TABLE\s+"?(\w+)"?\s+ADD\s+CONSTRAINT\s+"?\w+"?\s+FOREIGN\s+KEY\s*\(\s*"?(\w+)"?\s*\)\s+REFERENCES\s+"?(\w+)"?\s*(?:\(\s*"?(\w+)"?\s*\))?/gi;
+
+function newTableEntry() {
+	return { columns: new Set(), foreignKeys: [] };
+}
+
 // D-ddl-apply: exported (was module-private) so scanners/db/ddl-apply.mjs's postcondition check
 // can reuse this exact extraction instead of a second copy -- it needs to know which table
 // name(s) a proposed CREATE TABLE/ALTER TABLE ADD COLUMN statement declares, to assert the live,
 // re-introspected schema actually reflects them after apply.
 export function extractTablesFromSql(sqlText, sourceFile) {
-	const tables = new Map(); // name -> Set<column>
+	const tables = new Map(); // name -> {columns: Set, foreignKeys: Array}
 
 	CREATE_TABLE_RE.lastIndex = 0;
 	let m;
@@ -74,24 +100,46 @@ export function extractTablesFromSql(sqlText, sourceFile) {
 		const closeParen = matchBalancedParens(sqlText, openParen);
 		if (closeParen === -1) continue; // malformed -- skip, don't misattribute
 		const body = sqlText.slice(openParen + 1, closeParen);
-		const columns = new Set();
+		if (!tables.has(tableName)) tables.set(tableName, newTableEntry());
+		const entry = tables.get(tableName);
 		for (const segment of splitTopLevelCommas(body)) {
-			if (CONSTRAINT_LEAD_RE.test(segment)) continue;
+			if (CONSTRAINT_LEAD_RE.test(segment)) {
+				const fkMatch = segment.match(TABLE_LEVEL_FK_RE);
+				if (fkMatch) {
+					entry.foreignKeys.push({ column: fkMatch[1], references_table: fkMatch[2], references_column: fkMatch[3] ?? null });
+				}
+				continue;
+			}
 			const colMatch = segment.match(COLUMN_NAME_RE);
-			if (colMatch) columns.add(colMatch[1]);
+			if (!colMatch) continue;
+			entry.columns.add(colMatch[1]);
+			const inlineMatch = segment.match(INLINE_REFERENCES_RE);
+			if (inlineMatch) {
+				entry.foreignKeys.push({ column: colMatch[1], references_table: inlineMatch[1], references_column: inlineMatch[2] ?? null });
+			}
 		}
-		if (!tables.has(tableName)) tables.set(tableName, new Set());
-		for (const c of columns) tables.get(tableName).add(c);
 	}
 
 	ALTER_ADD_COLUMN_RE.lastIndex = 0;
 	while ((m = ALTER_ADD_COLUMN_RE.exec(sqlText))) {
 		const [, tableName, columnName] = m;
-		if (!tables.has(tableName)) tables.set(tableName, new Set());
-		tables.get(tableName).add(columnName);
+		if (!tables.has(tableName)) tables.set(tableName, newTableEntry());
+		tables.get(tableName).columns.add(columnName);
 	}
 
-	return [...tables.entries()].map(([name, columns]) => ({ name, columns: [...columns].sort(), source_file: sourceFile }));
+	ALTER_ADD_FK_RE.lastIndex = 0;
+	while ((m = ALTER_ADD_FK_RE.exec(sqlText))) {
+		const [, tableName, column, referencesTable, referencesColumn] = m;
+		if (!tables.has(tableName)) tables.set(tableName, newTableEntry());
+		tables.get(tableName).foreignKeys.push({ column, references_table: referencesTable, references_column: referencesColumn ?? null });
+	}
+
+	return [...tables.entries()].map(([name, entry]) => ({
+		name,
+		columns: [...entry.columns].sort(),
+		foreign_keys: entry.foreignKeys,
+		source_file: sourceFile,
+	}));
 }
 
 // Entry point. Returns `{ tool, files, tables }` -- `tool: 'none'` (empty files/tables) is a real,
