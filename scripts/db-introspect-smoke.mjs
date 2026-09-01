@@ -106,6 +106,18 @@ if (!report.unknowns.some((u) => u.includes('orphan_table') && u.includes('no ma
 	fail(`expected an unknowns entry naming the real drift (orphan_table has no matching entity) -- got ${JSON.stringify(report.unknowns)}`);
 }
 
+// D-cross-feature-fk-inference (staleness/freshness token): a REAL Postgres-sourced generated_at,
+// not a fixture -- must be a recent, parseable ISO-8601 timestamp (loosely bounded to the last 5
+// minutes, generous enough for a slow CI runner without being meaningless).
+const generatedAt = report.db_schema.live.generated_at;
+const generatedAtMs = Date.parse(generatedAt ?? '');
+if (!generatedAt || Number.isNaN(generatedAtMs)) {
+	fail(`expected db_schema.live.generated_at to be a parseable ISO-8601 timestamp -- got ${JSON.stringify(generatedAt)}`);
+}
+if (Math.abs(Date.now() - generatedAtMs) > 5 * 60 * 1000) {
+	fail(`expected db_schema.live.generated_at to be recent (within 5 minutes) -- got ${generatedAt}`);
+}
+
 console.log('db-introspect-smoke: PASS -- Plane C introspected a real Postgres and correctly found the real drift.');
 
 console.log('db-introspect-smoke: cleaning up...');

@@ -142,17 +142,20 @@ export function extractTablesFromSql(sqlText, sourceFile) {
 	}));
 }
 
-// Entry point. Returns `{ tool, files, tables }` -- `tool: 'none'` (empty files/tables) is a real,
-// expected, and reported outcome, not an error -- most real repos (including the oracle repo
-// itself) have no migration-file convention at all; their schema lives elsewhere (JPA ddl-auto,
-// or -- the oracle repo's actual case -- entirely outside this repo, in an external Supabase
-// project).
+// Entry point. Returns `{ tool, files, tables, generated_at }` -- `tool: 'none'` (empty
+// files/tables) is a real, expected, and reported outcome, not an error -- most real repos
+// (including the oracle repo itself) have no migration-file convention at all; their schema lives
+// elsewhere (JPA ddl-auto, or -- the oracle repo's actual case -- entirely outside this repo, in
+// an external Supabase project). `generated_at` (D-cross-feature-fk-inference, staleness/freshness
+// token) reflects when THIS scan ran -- stamped once, reused across all 3 return sites below, so a
+// single call always reports one consistent timestamp regardless of which branch it takes.
 export function scanMigrations(repoRoot) {
+	const generatedAt = new Date().toISOString();
 	const flywayFiles = listRgFiles(repoRoot, '**/db/migration/**/*.sql');
 	const liquibaseFiles = listRgFiles(repoRoot, '**/db/changelog/**/*.{xml,yaml,yml,sql}');
 
 	if (flywayFiles.length === 0 && liquibaseFiles.length === 0) {
-		return { tool: 'none', files: [], tables: [] };
+		return { tool: 'none', files: [], tables: [], generated_at: generatedAt };
 	}
 
 	if (flywayFiles.length > 0) {
@@ -161,7 +164,7 @@ export function scanMigrations(repoRoot) {
 			const text = fs.readFileSync(file, 'utf8');
 			tables.push(...extractTablesFromSql(text, path.relative(repoRoot, file)));
 		}
-		return { tool: 'flyway', files: flywayFiles.map((f) => path.relative(repoRoot, f)), tables };
+		return { tool: 'flyway', files: flywayFiles.map((f) => path.relative(repoRoot, f)), tables, generated_at: generatedAt };
 	}
 
 	// Liquibase changelogs are DETECTED (filenames recorded) but not deep-parsed in this first
@@ -174,5 +177,5 @@ export function scanMigrations(repoRoot) {
 		const text = fs.readFileSync(file, 'utf8');
 		tables.push(...extractTablesFromSql(text, path.relative(repoRoot, file)));
 	}
-	return { tool: 'liquibase', files: liquibaseFiles.map((f) => path.relative(repoRoot, f)), tables };
+	return { tool: 'liquibase', files: liquibaseFiles.map((f) => path.relative(repoRoot, f)), tables, generated_at: generatedAt };
 }

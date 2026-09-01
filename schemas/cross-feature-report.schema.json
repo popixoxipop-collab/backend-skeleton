@@ -38,17 +38,22 @@
       "description": "D-cross-feature-fk-inference: always present, names how (if at all) live FK data was obtained for this check -- never silent about the difference between a fresh live connection and a possibly-stale persisted snapshot.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "schema", "source_feature"],
+      "required": ["mode", "schema", "source_feature", "generated_at"],
       "properties": {
         "mode": {
-          "description": "'live': --db --database-url-env <NAME> was given, this run opened a fresh connection. 'persisted': no live connection this run -- reused a db_schema.live snapshot already on disk from a PRIOR `bskel scan --db --database-url-env` run (possibly stale; brownfield-scan.json carries no timestamp to bound how stale). 'migrations': no Plane C (live or persisted) data at all -- fell back to Plane A migration-file-derived FK data (a migration FILE existing is not proof it was ever actually applied, a materially lower-trust source than any live/persisted introspection). 'unavailable': no live connection, no persisted snapshot, and no migration-file data found anywhere -- zero db_foreign_key findings are possible this run (see unknowns).",
+          "description": "'live': --db --database-url-env <NAME> was given, this run opened a fresh connection. 'persisted': no live connection this run -- reused a db_schema.live snapshot already on disk from a PRIOR `bskel scan --db --database-url-env` run (possibly stale -- see generated_at). 'migrations': no Plane C (live or persisted) data at all -- fell back to Plane A migration-file-derived FK data (a migration FILE existing is not proof it was ever actually applied, a materially lower-trust source than any live/persisted introspection). 'unavailable': no live connection, no persisted snapshot, and no migration-file data found anywhere -- zero db_foreign_key findings are possible this run (see unknowns).",
           "enum": ["live", "persisted", "migrations", "unavailable"]
         },
         "schema": { "type": ["string", "null"] },
         "source_feature": {
-          "description": "Which feature's OWN persisted brownfield-scan.json the snapshot came from, when mode is 'persisted'. Null for 'live' (no persisted snapshot was read) and 'unavailable'.",
+          "description": "Which feature's OWN persisted brownfield-scan.json the snapshot came from, when mode is 'persisted' or 'migrations' (sourced from a persisted snapshot rather than a fresh --db pass). Null for 'live' and 'unavailable'.",
           "type": ["string", "null"],
           "pattern": "^([0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*)?$"
+        },
+        "generated_at": {
+          "description": "D-cross-feature-fk-inference (staleness/freshness token): when the underlying Plane A/C data this check used was actually captured -- lets a human bound how stale a 'persisted'/'migrations'-mode correlation is, rather than only knowing WHICH snapshot was used. Null only for 'unavailable'.",
+          "type": ["string", "null"],
+          "format": "date-time"
         }
       }
     },

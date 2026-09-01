@@ -10156,6 +10156,61 @@ migrations data). No smoke-script/CI changes needed -- Plane A is pure, local, f
 extraction by its own defining property ("always local, never a network call"), fully covered by
 fast unit tests, unlike Plane C. `npm test`: 1315 -> 1322 (real, re-run count).
 
+**Update (staleness/freshness token for `persisted` mode):** closes this entry's own last remaining
+named EXIT bullet -- "`brownfield-scan.json` carries no timestamp field; this item names the
+snapshot's source feature and mode, but does not attempt to bound its age." A `persisted`/
+`migrations`-mode `fk_check` could point at a snapshot from any point in the past; `mode`/
+`source_feature` already said WHICH snapshot, but never WHEN it was captured.
+
+Both real sources gain a `generated_at: new Date().toISOString()` field: `scanners/db/
+introspect.mjs`'s `introspectWithClient()` (stamped once, after the queries complete, never part of
+`schema_hash`'s input -- confirmed by direct read that `schema_hash = sha256String(JSON.
+stringify(tables))` hashes `tables` alone) and `scanners/db/migrations.mjs`'s `scanMigrations()`
+(all 3 return sites: none-found, flyway, liquibase). `lib/cross-feature-collisions.mjs`'s
+`resolveLiveTables()` threads it into `fk_check` at every one of its now-7 concrete return sites,
+read from whichever source that tier actually used (`liveDbSchema.live`/`.migrations`.
+`generated_at`, `<report>.db_schema.live`/`.migrations.generated_at`, or `null` for `unavailable`)
+-- `findCollisions()` itself needed zero changes, it already just spreads whatever `fk_check`
+`resolveLiveTables()` returns. `bin/bskel.mjs`'s `cmdScanCrossFeatureCheck` text-mode output now
+shows `captured <timestamp>` in the `fk_check:` line whenever present, not just carrying the field
+silently in `--json` -- the actual point of this item is a human SEEING the staleness, not merely
+the data existing. `schemas/scan-report.schema.json` (`db_schema.migrations`/`.live`, both
+`additionalProperties: false`) and `schemas/cross-feature-report.schema.json` (`fk_check`) both gain
+a required `generated_at` property.
+
+Deliberately still not attempted: bounding staleness (refusing/warning past some age threshold) --
+showing the human the real timestamp and letting them judge is the whole of what this item does; an
+age-threshold policy would be a distinct, separate decision.
+
+**Verified**: the 2 pre-existing tests that did an exact whole-object `deepEqual` against a REAL
+(not hand-built-fixture) `scanMigrations()`/CLI result (`test/db-migrations.test.mjs`,
+`test/db-schema-plane.test.mjs`) updated to destructure `generated_at` out and assert it matches an
+ISO-8601 pattern, then `deepEqual` the rest -- every other existing assertion in both files was
+confirmed unaffected (sub-field checks, or hand-built `dbSchema` fixtures passed straight into
+`runScan()`, which never calls `scanMigrations()`/`introspectSchema()` itself). 8 assertions
+added/updated in `test/cross-feature-collisions.test.mjs`: the `unavailable`-mode fixture-free test
+now also asserts `generated_at: null`; the `live`/`persisted` (own)/`persisted` (other)/`migrations`
+tier tests, plus both priority-ordering tests, now assert `generated_at` threads through from the
+exact source that tier used, using a fixed, deterministic `FAKE_GENERATED_AT` fixture value (not
+`new Date()`, keeping the tests reproducible) baked into the `liveSchema()`/`migrationsSchema()`
+fixture helpers. A third pre-existing exact-`deepEqual` site was found only by actually running the
+full suite, not by the earlier targeted greps: `test/cross-feature-check-cli.test.mjs`'s own
+real-CLI-run "no regression for existing no-flag callers" test asserted the whole `fk_check` object
+too, missed because it lives in a different file than the two already identified -- fixed the same
+way (`generated_at: null` added to the expected object). This project's own precedent, restated:
+`npm test`'s real, re-run count is the only trustworthy signal here, exactly why it caught what
+targeted greps didn't. `npm test`: 1325 -> 1325 (real, re-run count on the clean, pre-update tree,
+via `git stash`, vs. this update applied -- unchanged, because this update only extends assertions
+inside EXISTING tests; zero new `test(...)` cases were added anywhere. The prior entry's own closing
+figure, "1315 -> 1322", is stale by the time of this Update and does not reflect the real count
+verified here).
+
+`scripts/db-introspect-smoke.mjs` and `scripts/cross-feature-fk-smoke.mjs` each gained one added
+assertion confirming a REAL, Postgres-sourced `generated_at` (`report.db_schema.live.generated_at`
+and `report.fk_check.generated_at` respectively) parses as a real ISO-8601 timestamp and falls
+within the last 5 minutes -- both re-run for real, locally, against a disposable `postgres:16`
+container before this update was committed, both PASS.
+
 ## D-patch-transactions: content-addressed patch transactions -- generalizing A3's per-field patch approval into a real propose/approve/apply/rollback lifecycle, closing D-config-patch's own EXIT item as Slice 1
 
 **WHY**: Codex's own growth-idea consultation (Part B #2) proposed generalizing the project's

@@ -813,7 +813,13 @@ async function cmdScanCrossFeatureCheck(args) {
 			const otherCount = new Set(findings.map((f) => f.other_feature)).size;
 			console.log(`${findings.length} finding(s) (${evidence.high_confidence_count} high-confidence) across ${otherCount} other feature(s)`);
 			for (const f of findings) console.log(`  [${f.confidence}] ${f.signal}: "${f.identifier}" also declared by ${f.other_feature}`);
-			console.log(`fk_check: ${fk_check.mode}${fk_check.source_feature ? ` (from ${fk_check.source_feature}'s own persisted snapshot)` : ''}`);
+			// D-cross-feature-fk-inference (staleness/freshness token): the actual point of the field
+			// -- a human SEEING how stale a persisted/migrations-mode correlation is, not just the
+			// JSON carrying it silently.
+			const fkCheckDetails = [];
+			if (fk_check.source_feature) fkCheckDetails.push(`from ${fk_check.source_feature}'s own persisted snapshot`);
+			if (fk_check.generated_at) fkCheckDetails.push(`captured ${fk_check.generated_at}`);
+			console.log(`fk_check: ${fk_check.mode}${fkCheckDetails.length ? ` (${fkCheckDetails.join(', ')})` : ''}`);
 			for (const u of unknowns) console.log(`  note: ${u}`);
 			console.log(`gate: cross_feature -> ${gateState.gates.cross_feature.status}`);
 		}

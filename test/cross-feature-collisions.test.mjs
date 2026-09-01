@@ -52,16 +52,20 @@ function scanReport(moduleName, { entities = [], dtos = [], dbSchema = null, mig
 	};
 }
 
+// D-cross-feature-fk-inference (staleness/freshness token): a fixed, deterministic test value --
+// not `new Date()` -- keeps every test using these fixtures reproducible.
+const FAKE_GENERATED_AT = '2026-01-01T00:00:00.000Z';
+
 // D-cross-feature-fk-inference: a live-schema fixture, same shape introspectWithClient() returns.
-function liveSchema(tables) {
-	return { schema: 'public', tables, schema_hash: 'fake-hash' };
+function liveSchema(tables, generatedAt = FAKE_GENERATED_AT) {
+	return { schema: 'public', tables, schema_hash: 'fake-hash', generated_at: generatedAt };
 }
 
 // D-cross-feature-fk-inference (Plane A FK extraction): a Plane A (scanMigrations()) fixture --
 // `tables[].foreign_keys` uses the identical {column, references_table, references_column} shape
 // scanners/db/migrations.mjs's extractTablesFromSql() now returns.
-function migrationsSchema(tool, tables) {
-	return { tool, files: ['V1__x.sql'], tables };
+function migrationsSchema(tool, tables, generatedAt = FAKE_GENERATED_AT) {
+	return { tool, files: ['V1__x.sql'], tables, generated_at: generatedAt };
 }
 
 test('findCollisions: a resourceType shared by two features is a high-confidence finding', () => {
@@ -72,7 +76,7 @@ test('findCollisions: a resourceType shared by two features is a high-confidence
 	const { findings, fk_check, unknowns } = findCollisions(root, '001-widget-management');
 	assert.equal(findings.length, 1);
 	assert.deepEqual(findings[0], { signal: 'resource_type', identifier: 'Item', other_feature: '002-organization-management', confidence: 'high' });
-	assert.deepEqual(fk_check, { mode: 'unavailable', schema: null, source_feature: null });
+	assert.deepEqual(fk_check, { mode: 'unavailable', schema: null, source_feature: null, generated_at: null });
 	assert.equal(unknowns.length, 1);
 });
 
@@ -181,6 +185,9 @@ test('findCollisions: a live FK edge where the child/parent tables belong to two
 
 	const { findings, fk_check } = findCollisions(root, '001-widget-management', { liveDbSchema });
 	assert.equal(fk_check.mode, 'live');
+	// D-cross-feature-fk-inference (staleness/freshness token): the live tier's generated_at comes
+	// from liveDbSchema.live.generated_at, not any persisted snapshot.
+	assert.equal(fk_check.generated_at, FAKE_GENERATED_AT);
 	const fk = findings.find((f) => f.signal === 'db_foreign_key');
 	assert.deepEqual(fk, {
 		signal: 'db_foreign_key', identifier: 'orders.org_id -> organizations.id',
@@ -262,7 +269,7 @@ test('findCollisions: fk_check falls back to this feature\'s OWN persisted db_sc
 	writeFeature(root, '002-organization-management', { scanReport: scanReport('organization', { entities: [{ className: 'Organization', table: 'organizations', tableSource: 'explicit' }] }) });
 
 	const { findings, fk_check } = findCollisions(root, '001-widget-management');
-	assert.deepEqual(fk_check, { mode: 'persisted', schema: 'public', source_feature: '001-widget-management' });
+	assert.deepEqual(fk_check, { mode: 'persisted', schema: 'public', source_feature: '001-widget-management', generated_at: FAKE_GENERATED_AT });
 	assert.ok(findings.some((f) => f.signal === 'db_foreign_key'));
 });
 
@@ -277,7 +284,7 @@ test('findCollisions: fk_check falls back to another active feature\'s persisted
 	});
 
 	const { fk_check } = findCollisions(root, '001-widget-management');
-	assert.deepEqual(fk_check, { mode: 'persisted', schema: 'public', source_feature: '002-organization-management' });
+	assert.deepEqual(fk_check, { mode: 'persisted', schema: 'public', source_feature: '002-organization-management', generated_at: FAKE_GENERATED_AT });
 });
 
 // D-cross-feature-fk-inference (Plane A FK extraction): the new 4th, lowest-priority tier.
@@ -293,7 +300,7 @@ test('findCollisions: fk_check falls back to Plane A migration-file data (mode: 
 	writeFeature(root, '002-organization-management', { scanReport: scanReport('organization', { entities: [{ className: 'Organization', table: 'organizations', tableSource: 'explicit' }] }) });
 
 	const { findings, fk_check } = findCollisions(root, '001-widget-management');
-	assert.deepEqual(fk_check, { mode: 'migrations', schema: null, source_feature: '001-widget-management' });
+	assert.deepEqual(fk_check, { mode: 'migrations', schema: null, source_feature: '001-widget-management', generated_at: FAKE_GENERATED_AT });
 	const fk = findings.find((f) => f.signal === 'db_foreign_key');
 	assert.equal(fk.other_feature, '002-organization-management');
 	assert.equal(fk.confidence, 'high', 'db_foreign_key confidence still uses the unchanged tableSource rule for a migrations-sourced finding, not a separate scale');
@@ -316,6 +323,10 @@ test('findCollisions: fk_check via liveDbSchema.migrations (--db without --datab
 	// (persisted) still outranks Plane A (fresh migrations), confirming the 4-tier PRIORITY order,
 	// not just that each tier individually works.
 	assert.equal(fk_check.mode, 'persisted');
+	// D-cross-feature-fk-inference (staleness/freshness token): generated_at comes from the
+	// WINNING (persisted) tier's own snapshot, never the liveDbSchema.migrations it was passed but
+	// didn't use.
+	assert.equal(fk_check.generated_at, FAKE_GENERATED_AT);
 });
 
 test('findCollisions: Plane A (migrations) never wins when ANY Plane C source (live or persisted) is available', () => {
@@ -333,6 +344,7 @@ test('findCollisions: Plane A (migrations) never wins when ANY Plane C source (l
 	]) };
 	const { fk_check } = findCollisions(root, '001-widget-management', { liveDbSchema });
 	assert.equal(fk_check.mode, 'live', 'a fresh live connection must always outrank this feature\'s own persisted migrations data');
+	assert.equal(fk_check.generated_at, FAKE_GENERATED_AT);
 });
 
 test('findCollisions: waiving a db_foreign_key finding round-trips through evaluateCrossFeatureFindings/waiverKey correctly', () => {

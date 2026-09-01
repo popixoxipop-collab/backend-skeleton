@@ -67,21 +67,23 @@
         "migrations": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["tool", "files", "tables"],
+          "required": ["tool", "files", "tables", "generated_at"],
           "properties": {
             "tool": { "enum": ["flyway", "liquibase", "none"] },
             "files": { "type": "array", "items": { "type": "string" } },
-            "tables": { "type": "array" }
+            "tables": { "type": "array" },
+            "generated_at": { "description": "D-cross-feature-fk-inference (staleness/freshness token): when this Plane A migration-file scan ran.", "type": "string", "format": "date-time" }
           }
         },
         "live": {
           "type": ["object", "null"],
           "additionalProperties": false,
-          "required": ["schema", "tables", "schema_hash"],
+          "required": ["schema", "tables", "schema_hash", "generated_at"],
           "properties": {
             "schema": { "type": "string" },
             "tables": { "type": "array" },
-            "schema_hash": { "type": "string" }
+            "schema_hash": { "type": "string" },
+            "generated_at": { "description": "D-cross-feature-fk-inference (staleness/freshness token): when this Plane C live introspection ran.", "type": "string", "format": "date-time" }
           }
         }
       }

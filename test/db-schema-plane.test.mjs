@@ -134,7 +134,11 @@ test('bskel scan --db (no --database-url-env): runs Plane A only, never attempts
 	const result = run(['scan', '--terms', 'app', '--db', '--json'], root);
 	assert.equal(result.code, 0);
 	const report = JSON.parse(result.stdout);
-	assert.deepEqual(report.db_schema, { migrations: { tool: 'none', files: [], tables: [] }, live: null });
+	const { generated_at, ...restMigrations } = report.db_schema.migrations;
+	assert.deepEqual({ migrations: restMigrations, live: report.db_schema.live }, { migrations: { tool: 'none', files: [], tables: [] }, live: null });
+	// D-cross-feature-fk-inference (staleness/freshness token): a real ISO-8601 timestamp, not a
+	// literal -- can't be part of the deepEqual above.
+	assert.match(generated_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 });
 
 test('bskel scan (no --db at all): db_schema is absent, byte-identical to pre-A4 behavior', () => {

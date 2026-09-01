@@ -110,7 +110,11 @@ export async function introspectWithClient(client, schema = 'public') {
 		rls_policies: (policiesByTable.get(name) ?? []).map((r) => r.policy_name),
 	}));
 
-	return { schema, tables, schema_hash: sha256String(JSON.stringify(tables)) };
+	// D-cross-feature-fk-inference (staleness/freshness token): stamped AFTER the queries complete,
+	// reflecting when introspection actually ran -- never included in schema_hash's own input (that
+	// hashes `tables` alone), so adding this field cannot change what schema_hash means or perturb
+	// any existing hash-equality check.
+	return { schema, tables, schema_hash: sha256String(JSON.stringify(tables)), generated_at: new Date().toISOString() };
 }
 
 // Entry point. `connectionString` is whatever `process.env[databaseUrlEnv]` resolved to -- the

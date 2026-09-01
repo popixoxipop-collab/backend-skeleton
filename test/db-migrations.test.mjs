@@ -15,8 +15,11 @@ function fixtureRoot() {
 
 test('scanMigrations: a repo with no db/migration or db/changelog directory reports tool:"none" -- the common, expected case (matches the real oracle repo)', () => {
 	const root = fixtureRoot();
-	const result = scanMigrations(root);
-	assert.deepEqual(result, { tool: 'none', files: [], tables: [] });
+	const { generated_at, ...rest } = scanMigrations(root);
+	assert.deepEqual(rest, { tool: 'none', files: [], tables: [] });
+	// D-cross-feature-fk-inference (staleness/freshness token): a real ISO-8601 timestamp, not a
+	// literal -- can't be part of the deepEqual above.
+	assert.match(generated_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 });
 
 test('scanMigrations: extracts CREATE TABLE columns, skipping constraint-only lines (PRIMARY KEY/FOREIGN KEY/CHECK)', () => {

@@ -81,7 +81,7 @@ test('cross-feature-check: without --db, fk_check is always present and lands at
 	const check = run(['scan', 'cross-feature-check', '--feature', '001-widget-management', '--json'], root);
 	assert.equal(check.code, 0);
 	const { report } = JSON.parse(check.stdout);
-	assert.deepEqual(report.fk_check, { mode: 'unavailable', schema: null, source_feature: null });
+	assert.deepEqual(report.fk_check, { mode: 'unavailable', schema: null, source_feature: null, generated_at: null });
 	assert.equal(report.unknowns.length, 1);
 	assert.match(report.unknowns[0], /no live DB foreign-key data available/);
 });

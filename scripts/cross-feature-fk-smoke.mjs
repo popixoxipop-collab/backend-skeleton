@@ -105,6 +105,17 @@ try {
 
 if (report.fk_check.mode !== 'live') fail(`expected fk_check.mode === 'live', got: ${JSON.stringify(report.fk_check)}`);
 
+// D-cross-feature-fk-inference (staleness/freshness token): a REAL Postgres-sourced generated_at,
+// not a fixture -- must be a recent, parseable ISO-8601 timestamp (loosely bounded to the last 5
+// minutes, generous enough for a slow CI runner without being meaningless).
+const fkGeneratedAtMs = Date.parse(report.fk_check.generated_at ?? '');
+if (!report.fk_check.generated_at || Number.isNaN(fkGeneratedAtMs)) {
+	fail(`expected fk_check.generated_at to be a parseable ISO-8601 timestamp -- got ${JSON.stringify(report.fk_check.generated_at)}`);
+}
+if (Math.abs(Date.now() - fkGeneratedAtMs) > 5 * 60 * 1000) {
+	fail(`expected fk_check.generated_at to be recent (within 5 minutes) -- got ${report.fk_check.generated_at}`);
+}
+
 const fkFinding = report.findings.find((f) => f.signal === 'db_foreign_key');
 if (!fkFinding) fail(`expected a real db_foreign_key finding, got findings: ${JSON.stringify(report.findings)}`);
 if (fkFinding.other_feature !== '002-organization-management') fail(`expected the FK finding to attribute 002-organization-management, got: ${JSON.stringify(fkFinding)}`);
