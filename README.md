@@ -38,11 +38,12 @@ stable. Split by actual maturity, not by feature list:
   independently correct roles instead of silently sharing one) are both implemented -- see
   `DECISIONS.md`'s `D-handle-registry-enforcement`/`D-resolver-authorization-action-aware`. Real
   gaps remain and are explicitly still open, not closed: registry enforcement is opt-in, off by
-  default; authorization inference still only recognizes a single `@PreAuthorize(hasRole(...))`
-  shape (`hasAuthority`, role lists, ownership/tenant policy are unaddressed); and Java/Python are
-  the only providers either applies to -- TypeScript Express has no persistent handle table at
-  all. Treat `handles emit`'s output as a scaffold to finish by hand, not a production-ready
-  subsystem, until a real deployment happens.
+  default; authorization inference now recognizes both `@PreAuthorize(hasRole(...))` and
+  `hasAuthority(...)` (see `DECISIONS.md`'s `D-resolver-authorization-action-aware`), but
+  `hasAnyRole`/`hasAnyAuthority` (list-shape), ownership, and tenant policy are still unaddressed;
+  and Java/Python are the only providers either applies to -- TypeScript Express has no persistent
+  handle table at all. Treat `handles emit`'s output as a scaffold to finish by hand, not a
+  production-ready subsystem, until a real deployment happens.
 
 Version numbers, install instructions, and a real feedback path will firm up as this gets used
 against more real repos.
