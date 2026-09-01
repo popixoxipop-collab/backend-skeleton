@@ -31,8 +31,12 @@ export const CONTRACT_SCHEMA_VERSION = '8';
 // item. `pathParamsHeuristic` names every segment that still fell back, so a downstream consumer
 // (contracts/export.mjs's collectOmissions()) can tell, per operation, whether ANY segment is still
 // a guess -- `null` (never `[]`) when every segment was source-resolved or the route has none.
+// Update (D-openapi-path-params, closing the O8 typescript-express port's own Finding 2): the
+// regex also recognizes Express's own `:name`/`:name(...)` segment syntax now, not just OpenAPI/
+// Spring/FastAPI-style `{name}` -- additive-only for java-spring/python-fastapi (their own route
+// strings never contain a colon in this position).
 function pathParamsSchema(routePath, sourcePathParamSchemas = null) {
-	const params = [...routePath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+	const params = [...routePath.matchAll(/\{(\w+)\}|:(\w+)(?:\([^)]*\))?/g)].map((m) => m[1] ?? m[2]);
 	const properties = {};
 	const heuristicNames = [];
 	for (const p of params) {

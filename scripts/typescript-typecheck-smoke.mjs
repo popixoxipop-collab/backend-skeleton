@@ -262,17 +262,26 @@ async function main() {
 
   const app = express();
   app.use(express.json());
-  app.get('/v1/users/conformant', observeContract('users-show'), (req, res) => {
+  // D-openapi-path-params: real :id segments now, matching the fixture's own route
+  // (:id([0-9]+)) -- once path-param names are extracted for real (this item), the observed
+  // schema's heuristic UUID-shape guess for an "id"-suffixed name actually runs, so scenarios
+  // (1)-(4) below pass a real UUID-shaped id to avoid an UNINTENDED /pathParams/id pattern
+  // violation contaminating their own assertions; scenario (5) deliberately passes a non-UUID id
+  // to prove that check fires for real.
+  app.get('/v1/users/:id/conformant', observeContract('users-show'), (req, res) => {
     res.json({ id: 'u-1', name: 'Ann' });
   });
-  app.get('/v1/users/missing-field', observeContract('users-show'), (req, res) => {
+  app.get('/v1/users/:id/missing-field', observeContract('users-show'), (req, res) => {
     res.json({ id: 'u-2' }); // missing "name", the required field
   });
-  app.get('/v1/users/bad-status', observeContract('users-show'), (req, res) => {
+  app.get('/v1/users/:id/bad-status', observeContract('users-show'), (req, res) => {
     res.status(404).json({ id: 'u-3', name: 'Ghost' });
   });
-  app.get('/v1/users/raw-string', observeContract('users-show'), (req, res) => {
+  app.get('/v1/users/:id/raw-string', observeContract('users-show'), (req, res) => {
     res.send('a raw string response, never JSON');
+  });
+  app.get('/v1/users/:id/bad-param', observeContract('users-show'), (req, res) => {
+    res.json({ id: 'u-5', name: 'Bob' });
   });
 
   const server = http.createServer(app);
@@ -280,6 +289,7 @@ async function main() {
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
   const base = \`http://127.0.0.1:\${port}\`;
+  const UUID_ID = '11111111-1111-1111-1111-111111111111';
 
   async function waitForReceipt(before: number): Promise<any> {
     for (let i = 0; i < 50; i++) {
@@ -292,7 +302,7 @@ async function main() {
   // (1) conformant
   {
     const before = receipts.length;
-    const res = await fetch(\`\${base}/v1/users/conformant\`);
+    const res = await fetch(\`\${base}/v1/users/\${UUID_ID}/conformant\`);
     const body = await res.json();
     if (res.status !== 200 || body.name !== 'Ann') throw new Error(\`conformant: unexpected response \${res.status} \${JSON.stringify(body)}\`);
     const receipt = await waitForReceipt(before);
@@ -302,7 +312,7 @@ async function main() {
   // (2) missing required field -- client unaffected, receipt flags it, no leaked value
   {
     const before = receipts.length;
-    const res = await fetch(\`\${base}/v1/users/missing-field\`);
+    const res = await fetch(\`\${base}/v1/users/\${UUID_ID}/missing-field\`);
     const body = await res.json();
     if (res.status !== 200 || body.id !== 'u-2' || 'name' in body) throw new Error(\`missing-field: client response was altered -- \${res.status} \${JSON.stringify(body)}\`);
     const receipt = await waitForReceipt(before);
@@ -316,7 +326,7 @@ async function main() {
   // (3) undocumented status
   {
     const before = receipts.length;
-    const res = await fetch(\`\${base}/v1/users/bad-status\`);
+    const res = await fetch(\`\${base}/v1/users/\${UUID_ID}/bad-status\`);
     if (res.status !== 404) throw new Error(\`bad-status: expected client to see real 404, got \${res.status}\`);
     const receipt = await waitForReceipt(before);
     const hit = receipt.violations.find((v: any) => v.pointer === '/status' && v.keyword === 'status');
@@ -326,7 +336,7 @@ async function main() {
   // (4) res.send(<string>) -- response body never captured, never guessed
   {
     const before = receipts.length;
-    const res = await fetch(\`\${base}/v1/users/raw-string\`);
+    const res = await fetch(\`\${base}/v1/users/\${UUID_ID}/raw-string\`);
     const text = await res.text();
     if (text !== 'a raw string response, never JSON') throw new Error(\`raw-string: client response was altered -- \${JSON.stringify(text)}\`);
     const receipt = await waitForReceipt(before);
@@ -335,8 +345,26 @@ async function main() {
     if (bodyViolations.length !== 0) throw new Error(\`raw-string: expected zero response-body violations (uncaptured, not guessed), got \${JSON.stringify(bodyViolations)}\`);
   }
 
+  // (5) D-openapi-path-params: a bad (non-UUID-shaped) path param -- the observed schema's
+  // heuristic guesses a UUID pattern for any "id"-suffixed param name (contracts/emit.mjs,
+  // pre-existing, deliberately "a heuristic, not a guarantee") -- a plain numeric id (matching the
+  // real fixture route's own :id([0-9]+) constraint) fails that guessed pattern. This is the exact
+  // scenario that was structurally impossible before path-param names were extracted for this
+  // provider at all -- proves the check is now genuinely wired, not just that a violation CAN be
+  // produced some other way.
+  {
+    const before = receipts.length;
+    const res = await fetch(\`\${base}/v1/users/42/bad-param\`);
+    const body = await res.json();
+    if (res.status !== 200 || body.name !== 'Bob') throw new Error(\`bad-param: client response was altered -- \${res.status} \${JSON.stringify(body)}\`);
+    const receipt = await waitForReceipt(before);
+    const hit = receipt.violations.find((v: any) => v.pointer === '/pathParams/id' && v.keyword === 'pattern');
+    if (!hit) throw new Error(\`bad-param: expected a /pathParams/id pattern violation, got \${JSON.stringify(receipt.violations)}\`);
+    if (JSON.stringify(receipt.violations).includes('42')) throw new Error(\`Decision A violation: the observed path-param value leaked into a violation message -- \${JSON.stringify(receipt.violations)}\`);
+  }
+
   server.close();
-  console.log('typescript-typecheck-smoke: real observeContract HTTP round trip PASSED (conformant / missing-field / bad-status / raw-string-uncaptured)');
+  console.log('typescript-typecheck-smoke: real observeContract HTTP round trip PASSED (conformant / missing-field / bad-status / raw-string-uncaptured / bad-path-param)');
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });
@@ -363,6 +391,6 @@ try {
 	fail(`real observeContract HTTP round trip failed:\n${err.stdout || err.stderr || err.message}`);
 }
 
-console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, the emitted handles router\'s GET pointer-walk works against a real HTTP round trip, and the emitted observeContract middleware correctly intercepts real traffic (conformant / missing-field / bad-status / raw-string-uncaptured).');
+console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, the emitted handles router\'s GET pointer-walk works against a real HTTP round trip, and the emitted observeContract middleware correctly intercepts real traffic (conformant / missing-field / bad-status / raw-string-uncaptured / bad-path-param).');
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });

@@ -109,14 +109,11 @@ test('observe emit writes the three TS infra modules plus the projected observed
 	assert.equal(schema.feature_id, FEATURE_ID);
 	assert.ok(schema.operations['users-show']);
 	assert.equal(schema.operations['users-show'].verb, 'GET');
-	// A real, structural, pre-existing gap this port surfaced but does not fix (out of scope --
-	// contracts/emit.mjs's pathParamsSchema() is shared by all 3 adapters): its param-name
-	// extraction regex only recognizes OpenAPI-style {name} segments, never Express's own :name
-	// syntax, so `route` (always the SCAN's own colon-syntax path, confirmed live, regardless of
-	// what the OpenAPI document's own path key looks like) never yields a path-param name here.
-	// checkPathParams() itself is generic and correct -- there is simply nothing for it to check
-	// yet for this provider. See the Update note in D-runtime-conformance-receipts in DECISIONS.md.
-	assert.deepEqual(schema.operations['users-show'].pathParams.required, []);
+	// D-openapi-path-params (A9): contracts/emit.mjs's pathParamsSchema() now recognizes Express's
+	// own :name/:name(...) segment syntax, not just OpenAPI-style {name} -- closes the gap the O8
+	// port's own Finding 2 named as out-of-scope (see the Update note in D-openapi-path-params in
+	// DECISIONS.md). The real fixture route is `:id([0-9]+)`, so `id` is now extracted for real.
+	assert.deepEqual(schema.operations['users-show'].pathParams.required, ['id']);
 });
 
 test('observe emit --module users is idempotent -- re-running rewrites nothing except the always-regenerated observed-schema.json', () => {

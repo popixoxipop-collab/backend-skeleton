@@ -7198,6 +7198,38 @@ through `inlineSchema()`, and the "convergence after one step" round-trip framin
 finding extends); `D-security-1` (the prototype-pollution class `Map`-based `pathParamSchemas`
 sidesteps entirely, the same reasoning `componentSchemas`/`securitySchemes` already established).
 
+**Update (Express `:name` recognition, closing this item's own surfaced-but-deferred gap):**
+`pathParamsSchema()`'s param-name extraction regex matched only OpenAPI/Spring/FastAPI-style
+`{name}` segments -- since it's called with the SCAN's own route string, and typescript-express's
+own routes are always Express colon syntax, `pathParams.required` was structurally always empty
+for every typescript-express operation, even a fully-matched/adopted one. Found and documented as
+explicitly out-of-scope while porting O8 to typescript-express (`0047e85`, Finding 2) -- this
+closes it. The regex now recognizes both: `/\{(\w+)\}|:(\w+)(?:\([^)]*\))?/g` (the `(?:\([^)]*\))?`
+tail discards an Express regex-constrained segment like `:id([0-9]+)`, keeping only the name --
+verified live against all 3 real route shapes, including a hypothetical mixed one that never
+occurs in practice). Additive-only for java-spring/python-fastapi: their own route strings never
+contain a colon in this position, confirmed via `test/contract-cli.test.mjs`'s existing
+`pathParams`/`pathParamsHeuristic` assertions re-running byte-for-byte unchanged.
+
+**A real, newly-surfaced consequence, not a new bug**: this item's own existing UUID-guessing
+heuristic (`/id$/i.test(p) ? BARE_UUID_PATTERN : string`, already documented above as "a
+heuristic, not a guarantee") becomes newly ACTIVE for typescript-express now that path-param names
+exist at all for this adapter. The committed fixture's own route (`:id([0-9]+)`, Express-level-
+constrained to digits) genuinely fails that heuristic's UUID-shaped pattern check for a plain
+numeric id -- an honest, pre-existing limitation (unchanged by this item, only which adapters it
+now runs for changed), not hidden: `scripts/typescript-typecheck-smoke.mjs`'s observe-phase driver
+gained a 5th real scenario proving exactly this (a non-UUID id produces a genuine
+`/pathParams/id pattern` violation, the "bad path param" proof the O8 port's own smoke-script
+verification wanted but had documented as structurally impossible until this item).
+
+**Verified.** `npm test` stays at **1253** (no new `node --test` cases needed -- the fix is
+exercised by `test/observe-emit-typescript-cli.test.mjs`'s existing assertion, updated from `[]`
+to `['id']`, and by the real HTTP round trip below). `test/contract-cli.test.mjs`'s 56 tests re-run
+unchanged, confirming zero java-spring regression. `scripts/typescript-typecheck-smoke.mjs` run
+for real (not just `tsc --noEmit`): all 5 observe-phase scenarios pass against a genuinely running
+Express server, including the new bad-path-param case, whose violation message was itself checked
+to never contain the observed `42` value (Decision A, `D-runtime-conformance-receipts`).
+
 ## D-openapi-description (A10): the one source-backed field that stays opt-in
 
 **WHY:** A7 and A8 each deferred operation-level `description` with the exact same measured
@@ -9269,7 +9301,10 @@ generic and correct; there is simply nothing for it to check yet for this provid
 to fix here: `contracts/emit.mjs` is shared by all 3 adapters, and doing this properly means
 solving it alongside Finding 1's own `:id`<->`{id}` gap, not as an incidental fix inside a
 provider-specific observe port. Named explicitly in the new CLI test's own assertion and comment,
-not silently asserted-around.
+not silently asserted-around. **Closed separately, the very next item this session**: see the
+Update note in `D-openapi-path-params` (A9) -- `pathParamsSchema()` now recognizes Express `:name`
+syntax too; Finding 1's own `:id`<->`{id}` reconciliation gap remains open, unrelated and
+unaffected by that fix.
 
 **Finding 3, a pre-existing latent bug in `test/observe-emit-cli.test.mjs`'s own negative-adapter
 test, discovered while fixing it for the new supported-adapter list.** That test's own fixture
