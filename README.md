@@ -23,6 +23,29 @@ of just another thing to double-check by hand.
 commits behind the real default branch and never noticed. Every gate in this tool is a regression
 check for a specific failure mode found the same way — see `DECISIONS.md` for the full record.
 
+![bskel run against a real fixture repo: preflight, a brownfield collision scan, and a feature status gate table](https://raw.githubusercontent.com/popixoxipop-collab/backend-skeleton/main/docs/demo.gif)
+
+*A real terminal, a real `bskel` binary, a real fixture repo — not a scripted transcript. Source:
+[`docs/demo.tape`](docs/demo.tape), regenerated with [`docs/record-demo.sh`](docs/record-demo.sh).*
+
+## Contents
+
+- [Status: 1.0.0](#status-100)
+- [Quickstart](#quickstart)
+  - [Starting from nothing (greenfield)](#starting-from-nothing-greenfield)
+  - [Publishing a feature's contract as OpenAPI (optional)](#publishing-a-features-contract-as-openapi-optional)
+  - [Database schema (optional)](#database-schema-optional)
+  - [Applying DDL to a live database (optional)](#applying-ddl-to-a-live-database-optional)
+  - [Declaring field-to-field dependencies (optional)](#declaring-field-to-field-dependencies-optional)
+  - [Patching a config file (optional)](#patching-a-config-file-optional)
+  - [Signed gate attestations (optional)](#signed-gate-attestations-optional)
+- [Compatibility](#compatibility)
+- [Generated-file policy](#generated-file-policy)
+- [Security model](#security-model)
+- [Troubleshooting](#troubleshooting)
+- [What ships in the package](#what-ships-in-the-package)
+- [License](#license)
+
 ## Status: 1.0.0
 
 As of `1.0.0`, this project makes an explicit API-stability promise: **`bskel`'s CLI surface --
@@ -85,6 +108,36 @@ bskel verify --feature 001-organization-management --build
                                    # aggregates every gate's current status; --build also runs the
                                    #   target repo's own build wrapper (gradlew/mvnw/npm), if present
 ```
+
+`bskel status`/`bskel next` are what you actually run over and over — real output, captured against
+a fixture repo partway through the flow above, not written by hand:
+
+```text
+$ bskel status --feature 001-organization-management
+# Status: 001-organization-management
+
+## Gates
+- [PASS] preflight
+- [PASS] scan
+- [(not_run)] cross_feature (required-when-present, feature-scoped)
+- [BLOCKING] contract
+- [(not_run)] dependencies (required-when-present, feature-scoped)
+- [(not_run)] handles (required-when-present, feature-scoped)
+- [(not_run)] stack (required-when-present, repo-scoped)
+- [(not_run)] patch_transactions (required-when-present, feature-scoped)
+- [(not_run)] conformance (required-when-present, feature-scoped)
+
+## Artifacts
+- [OK] contract: specs/001-organization-management/contracts/001-organization-management.schema.json
+
+## Next
+- bskel contract waive --feature 001-organization-management --code <CODE> (--subject "..."|--all) --reason "..."   # or: bskel gate force contract --feature 001-organization-management --reason "..." if intentional   # contract gate is awaiting disposition
+
+## Optional, not yet run: handles, stack
+```
+
+Every gate line is a real, disk-verified check — the `Next` line is always the exact command to
+unblock whatever's currently `BLOCKING`, so there's no separate doc to cross-reference mid-workflow.
 
 ### Starting from nothing (greenfield)
 
@@ -245,6 +298,12 @@ UI's own POST/DELETE calls to `/api/features/:id/dependencies` go through the ex
 between the two — and, like every other mutating command in this project, both take a JSON body,
 not query parameters. `GET`/`HEAD` responses carry `Access-Control-Allow-Origin: *`; the mutating
 routes never do, so only same-origin requests (the bundled UI itself) can write.
+
+![bskel serve's dependency-graph UI, showing a real declared field-to-field dependency resolved as synced](https://raw.githubusercontent.com/popixoxipop-collab/backend-skeleton/main/docs/serve-ui.png)
+
+*The page's own header describes it honestly: "Not a redesign of the original Fieldwire mockup --
+this exists to prove the API actually works, nothing more." It's a minimal read-only check page, not
+a polished dashboard — every table on it comes straight from `GET /api/graph`.*
 
 ### Patching a config file (optional)
 
