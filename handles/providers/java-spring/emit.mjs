@@ -56,6 +56,26 @@ function lowerFirst(s) {
 // the primary `ObjectMapper` bean, which is what `@RequiredArgsConstructor` injection needs.
 // Defaults to the classic package when build.gradle/the plugin version can't be found -- covers
 // the far more common Spring Boot <=3.x case, and matches this project's own CI fixture corpus.
+// D-write-safety-phase1 (item 1): a disk-verified grep for `spring-boot-starter-aop`, the ONE
+// dependency `HandleAspect.java` needs to actually intercept anything (Spring AOP is not enabled
+// by any other starter) -- `emit.mjs`'s own postEmitNotes has said so since O4, but only AFTER
+// writing code that silently can't work without it. Checks the same 3 build-file names
+// `scanners/adapters/java-spring.mjs`'s own `JAVA_BUILD_FILE_GLOBS` uses (not re-imported --
+// that constant is scanner-internal; duplicating 3 literal filenames here is simpler than adding
+// a cross-module export for them), since a Kotlin DSL or Maven repo is just as real a target as a
+// Groovy one. A simple substring check, not a real dependency-graph parse -- matches this
+// codebase's own "good-enough regex, not a real parser" convention throughout, and a
+// transitively-pulled-in `spring-boot-starter-aop` (via some other starter) is not a real shape
+// this project's own oracle or fixtures have ever exhibited.
+export function hasSpringAopDependency(repoRoot) {
+	for (const name of ['build.gradle', 'build.gradle.kts', 'pom.xml']) {
+		const buildFilePath = path.join(repoRoot, name);
+		if (!fs.existsSync(buildFilePath)) continue;
+		if (fs.readFileSync(buildFilePath, 'utf8').includes('spring-boot-starter-aop')) return true;
+	}
+	return false;
+}
+
 export function detectJacksonPackage(repoRoot) {
 	const buildGradlePath = path.join(repoRoot, 'build.gradle');
 	if (!fs.existsSync(buildGradlePath)) return 'com.fasterxml.jackson.databind';
@@ -268,16 +288,21 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 	];
 	// O3 follow-up (D-handle-registry-enforcement, "Continued"): per-resource, conditional on
 	// enforceRegistry actually being on -- see hasRecordHandleSnapshot() above.
+	// D-write-safety-phase1 (item 2): now ALSO collected into registrationGaps (a real, structured
+	// array), not just prose -- the postEmitNote stays unconditional (still visible even when
+	// --force acknowledges it) so the CLI layer (bin/bskel.mjs) can decide whether an unacknowledged
+	// gap should block the command, without this function knowing anything about --force itself.
+	const registrationGaps = [];
 	if (enforceRegistry) {
 		for (const resource of plan.resources) {
 			if (!resource.willGenerateResolver) continue;
 			if (hasRecordHandleSnapshot(resource.service.file)) continue;
 			const relServiceFile = path.relative(repoRoot, resource.service.file);
-			postEmitNotes.push(
-				`${resource.type}: --enforce-registry is on, but no @RecordHandleSnapshot(...) was found anywhere in ${relServiceFile} -- this resource may never get its first HandleRegistry row, and every fetch()/patch() call against it will 404 until something registers it. Apply @RecordHandleSnapshot to ${resource.service.serviceType}'s own create-flow method (or call HandleService.register() by hand at least once per resource), then re-emit. See D-handle-registry-enforcement in DECISIONS.md for the full bootstrapping explanation.`,
-			);
+			const note = `${resource.type}: --enforce-registry is on, but no @RecordHandleSnapshot(...) was found anywhere in ${relServiceFile} -- this resource may never get its first HandleRegistry row, and every fetch()/patch() call against it will 404 until something registers it. Apply @RecordHandleSnapshot to ${resource.service.serviceType}'s own create-flow method (or call HandleService.register() by hand at least once per resource), then re-emit. See D-handle-registry-enforcement in DECISIONS.md for the full bootstrapping explanation.`;
+			postEmitNotes.push(note);
+			registrationGaps.push({ resourceType: resource.type, file: relServiceFile, note });
 		}
 	}
 
-	return { ...result, postEmitNotes };
+	return { ...result, postEmitNotes, registrationGaps };
 }

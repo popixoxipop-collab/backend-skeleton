@@ -20,6 +20,8 @@
           "type": { "type": "string" },
           "table": { "type": ["string", "null"] },
           "idField": { "type": ["string", "null"] },
+          "idFieldType": { "type": ["string", "null"], "description": "D-write-safety-phase1 (item 4a): java-spring only -- the primary key's declared Java type (e.g. 'UUID', 'Integer'). null when it couldn't be determined at all (not the same as a confirmed non-UUID type)." },
+          "idFieldIsUuid": { "type": ["boolean", "null"], "description": "D-write-safety-phase1 (item 4a): mirrors typescript-express's own already-established field of the same name. false means a resolver is structurally impossible for this entity (the handles subsystem is UUID-addressable only), independent of whether a service file can be found." },
           "readPath": { "type": ["string", "null"] },
           "requiredAuthority": { "type": "string" },
           "requiredAuthorityForPatch": { "type": "string", "description": "O5 (D-resolver-authorization-action-aware): java-spring only -- derived independently from the entity's UPDATE endpoint, not copied from requiredAuthority (which is fetch/recover's own value)." },

@@ -358,12 +358,19 @@ test('e2e: handles emit writes exactly the expected files, no .java, including a
 // O3 follow-up (D-handle-registry-enforcement, "Continued"): the bootstrapping-trap warning --
 // the fixture's real items.py (above) carries no @record_snapshot, so turning enforcement on
 // should warn specifically about Item, naming the route file.
-test('e2e: --enforce-registry on warns that Item has no @record_snapshot anywhere in its own route file', () => {
+// D-write-safety-phase1 (item 2): mirrors handles-cli.test.mjs's own java-spring version exactly
+// -- this used to exit 0 (silent warning), now blocks (21) unless acknowledged with --force --reason.
+test('e2e: --enforce-registry on blocks (21) because Item has no @record_snapshot anywhere in its own route file, unless --force --reason acknowledges it', () => {
 	const root = buildE2eFixtureRepo();
-	const emit = runToHandlesEmit(root, ['--enforce-registry', 'on']);
-	assert.equal(emit.code, 0, emit.stderr);
-	const result = JSON.parse(emit.stdout);
-	assert.ok(result.postEmitNotes.some((n) => n.startsWith('Item:') && n.includes('no @record_snapshot(...)') && n.includes('items.py')));
+	const blocked = runToHandlesEmit(root, ['--enforce-registry', 'on']);
+	assert.equal(blocked.code, 21);
+	const blockedResult = JSON.parse(blocked.stdout);
+	assert.ok(blockedResult.registrationGaps.some((g) => g.resourceType === 'Item' && g.file.includes('items.py')));
+
+	const forced = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--enforce-registry', 'on', '--force', '--reason', 'acknowledging for this test', '--json'], root);
+	assert.equal(forced.code, 0, forced.stderr);
+	const result = JSON.parse(forced.stdout);
+	assert.ok(result.postEmitNotes.some((n) => n.startsWith('Item:') && n.includes('no @record_snapshot(...)') && n.includes('items.py')), 'the note stays visible even once acknowledged');
 });
 
 test('e2e: --enforce-registry on does not warn once @record_snapshot is already present in Item\'s own route file', () => {

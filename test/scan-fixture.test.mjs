@@ -246,6 +246,54 @@ public class Widget {
 	assert.equal(widget.idField, 'id');
 });
 
+// D-write-safety-phase1 (item 4a): idFieldType/idFieldIsUuid, checked against real fixtures --
+// mirrors typescript-express's own already-established idFieldIsUuid field.
+test('extractEntity(): idFieldIsUuid is true for a fully-qualified java.util.UUID declaration', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-uuid-id-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const dir = path.join(root, 'src/main/java/org/example/app/widget');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'Widget.java'), `
+package org.example.app.widget;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+
+@Entity
+public class Widget {
+	@Id
+	private java.util.UUID id;
+}
+`);
+	const result = scanJavaSpring(root);
+	const widget = result.modules[0].entities.find((e) => e.className === 'Widget');
+	assert.equal(widget.idFieldType, 'java.util.UUID');
+	assert.equal(widget.idFieldIsUuid, true);
+});
+
+test('extractEntity(): idFieldIsUuid is false for an Integer-keyed entity (the real spring-petclinic shape)', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-integer-id-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const dir = path.join(root, 'src/main/java/org/example/app/owner');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'Owner.java'), `
+package org.example.app.owner;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+
+@Entity
+public class Owner {
+	@Id
+	private Integer id;
+}
+`);
+	const result = scanJavaSpring(root);
+	const owner = result.modules[0].entities.find((e) => e.className === 'Owner');
+	assert.equal(owner.idFieldType, 'Integer');
+	assert.equal(owner.idFieldIsUuid, false);
+});
+
 test('extractEntity(): a class extending something outside this source tree (an external library base class) resolves idField to null, not a crash', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-external-base-'));
 	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
@@ -265,6 +313,11 @@ public class Widget extends PanacheEntityBase {
 	const result = scanJavaSpring(root);
 	const widget = result.modules[0].entities.find((e) => e.className === 'Widget');
 	assert.equal(widget.idField, null, 'PanacheEntityBase is not part of this source tree -- must fail closed, never guess');
+	// D-write-safety-phase1 (item 4a): idFieldIsUuid must stay null (unknown), not false -- a
+	// genuinely-undetermined type is a different case from a confirmed non-UUID one, and
+	// planHandles()'s own pkIsNonUuid gate deliberately checks `=== false`, not just falsy.
+	assert.equal(widget.idFieldType, null);
+	assert.equal(widget.idFieldIsUuid, null);
 });
 
 test('the fixture\'s own global-path-prefix signals: configurePathMatch + springdoc.paths-to-match, no context-path', () => {

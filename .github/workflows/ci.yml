@@ -262,6 +262,44 @@ jobs:
         if: always()
         run: docker rm -f bskel-pg-a4
 
+  # D-write-safety-phase1 (item 3): real-Postgres proof that `handles audit --check-registry-coverage`
+  # actually answers "is this resource type registered" against a real database -- same shape as
+  # db-introspect above (no Gradle/Java setup needed, scripts/handles-registry-coverage-smoke.mjs
+  # never compiles anything, only scans + a real `bskel handles emit`), own DB name so it can't
+  # collide with a job running in the same container lifecycle.
+  registry-coverage:
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: start postgres
+        run: |
+          docker run -d --name bskel-pg-registry-coverage \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=bskel_registry_coverage_test \
+            -p 5432:5432 \
+            postgres:16
+      - name: wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker exec bskel-pg-registry-coverage pg_isready -U postgres && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready in time" >&2
+          exit 1
+      - run: npm ci
+      - run: npm run test:registry-coverage
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_registry_coverage_test
+      - name: stop postgres
+        if: always()
+        run: docker rm -f bskel-pg-registry-coverage
+
   # D-ddl-apply: the first automated, real-Postgres proof of the `ddl-apply` patch-transaction kind
   # (propose/approve/apply/confirm, a TOCTOU race, a rollback refusal, a CONCURRENTLY refusal, all
   # over both the real CLI and a real HTTP round trip against `bskel serve --database-url-env`).

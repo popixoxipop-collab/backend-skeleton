@@ -10,4 +10,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// D-write-safety-phase1 (item 1): required for the --enforce-registry on tests in
+	// test/handles-cli.test.mjs -- HandleAspect.java needs this to intercept anything, and
+	// `bskel handles emit` now refuses to proceed without it (see hasSpringAopDependency()).
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
 }

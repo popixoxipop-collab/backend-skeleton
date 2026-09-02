@@ -200,16 +200,19 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 
 	// O3 follow-up (D-handle-registry-enforcement, "Continued"): per-resource, conditional on
 	// enforceRegistry.
+	// D-write-safety-phase1 (item 2): mirrors java-spring/emit.mjs's own registrationGaps exactly --
+	// see that file's comment for the full reasoning.
+	const registrationGaps = [];
 	if (enforceRegistry) {
 		for (const resource of plan.resources) {
 			if (!resource.willGenerateResolver) continue;
 			if (hasRecordSnapshot(resource.fetchRoute.file)) continue;
 			const relRouteFile = path.relative(repoRoot, resource.fetchRoute.file);
-			postEmitNotes.push(
-				`${resource.type}: --enforce-registry is on, but no @record_snapshot(...) was found anywhere in ${relRouteFile} -- this resource may never get its first registry row, and every fetch/patch call against it will 404 until something registers it. Apply @record_snapshot to its own create-flow route function (or call handle_service.register() by hand at least once per resource), then re-emit. See D-handle-registry-enforcement in DECISIONS.md for the full bootstrapping explanation.`,
-			);
+			const note = `${resource.type}: --enforce-registry is on, but no @record_snapshot(...) was found anywhere in ${relRouteFile} -- this resource may never get its first registry row, and every fetch/patch call against it will 404 until something registers it. Apply @record_snapshot to its own create-flow route function (or call handle_service.register() by hand at least once per resource), then re-emit. See D-handle-registry-enforcement in DECISIONS.md for the full bootstrapping explanation.`;
+			postEmitNotes.push(note);
+			registrationGaps.push({ resourceType: resource.type, file: relRouteFile, note });
 		}
 	}
 
-	return { ...result, postEmitNotes };
+	return { ...result, postEmitNotes, registrationGaps };
 }

@@ -144,6 +144,20 @@ Deliverables:
 
 ## Phase 1 — Make `--enforce-registry on` operable end-to-end
 
+**Status: items 1-3 closed as scoped; item 4 closed in a corrected, smaller scope than originally
+written below — see `D-write-safety-phase1` in DECISIONS.md for the full record. Cloning the real
+`spring-projects/spring-petclinic` to verify item 4's own "non-zero resolver count" success
+criterion found it's unsatisfiable by ANY amount of path-fallback or repository-direct-call
+engineering: petclinic's entities are `Integer`-keyed (`BaseEntity.java`), and the whole `handles`
+identity model is UUID-addressable — no amount of engineering on path resolution or a second
+resolver strategy changes that. Repository-direct-call support was explicitly decided against for
+exactly that reason (real effort spent on a case that fails at the PK-type gate regardless). Item 4
+was rescoped mid-implementation to (4a) an honest, specific PK-type diagnostic — confirmed live
+against the real petclinic clone: all four entities now report the accurate reason instead of
+silence — and (4b) a real, smaller, independent path fallback for a different, plausible repo
+shape (UUID-keyed, has a Service layer, just not nested under `domain/`) that does NOT close the
+petclinic gap and was never claimed to.**
+
 **Effort: M. Risk: medium. Depends on: nothing (parallel with Phase 0). Blocks: Phase 4, Phase 6.**
 
 The decision that `--enforce-registry` stays `off` by default is settled and is not reopened here
@@ -207,8 +221,21 @@ that the tool mentions only after the fact, in a `postEmitNotes` line:
    rather than a regex proxy. Effort **S–M**: one query, one flag, reusing an existing connection
    path.
 
-4. **[FIXABLE — and the item the other three are worthless without] De-hardcode the java-spring
-   handles plan layer's path conventions.** This is the largest single finding in this review and
+4. **[CORRECTED mid-implementation — see `D-write-safety-phase1` in DECISIONS.md for the full
+   record.]** The success criterion below ("verified... by asserting a non-zero resolver count"
+   against petclinic) is unsatisfiable — petclinic's entities are `Integer`-keyed
+   (`model/BaseEntity.java`: `private Integer id`), and the whole `handles` identity model is
+   UUID-addressable. No path fix or repository-direct-call engineering changes that. What actually
+   shipped: an honest PK-type diagnostic (`idFieldIsUuid`, mirroring `typescript-express.mjs`'s own
+   already-established field) that fires correctly against the real petclinic clone, replacing
+   silence with a specific reason — plus the real, smaller, independent path fallback described
+   below, which helps a *different* plausible repo shape and was never capable of closing the
+   petclinic gap on its own. The original finding is kept below as the historical record of what
+   was investigated and why it seemed larger than it was; treat the "worthless without" framing and
+   the petclinic success criterion as superseded, not current.
+
+   De-hardcode the java-spring handles plan layer's path conventions (original finding, superseded
+   success criterion above). This is the largest single finding in this review and
    it is not in any prior weakness list. `handles/providers/java-spring/plan.mjs:198-201`:
 
    ```js

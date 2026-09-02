@@ -77,9 +77,18 @@ function findRequestBodyTypeName(controllerFilePath, methodName) {
 // during this item's grounding). A DTO living somewhere else is a documented gap: patchable stays
 // empty for that resource, exactly like findServiceFile()'s own "resolver NOT generated" fallback
 // for a service that can't be found.
+// D-write-safety-phase1 (item 4b): a real, bounded fallback -- after the domain/<module>/
+// presentation/dto/ convention (Team-IZ-Backend's own shape) fails, also try the DTO directly
+// under <module>/ with no domain/presentation/dto middle segments, the natural flat-package
+// variant of the same convention (javaSrcRoot is already base-package-anchored -- see
+// detectBasePackage() -- so this is `<basePackage>/<module>/<Type>.java`, not a second guessed
+// base). Does not attempt any other shape: no second real oracle has ever validated one, and
+// guessing further risks W9-style overfitting to an imagined repo rather than a confirmed one.
 function findUpdateDtoFile(javaSrcRoot, module, dtoTypeName) {
-	const guessedPath = path.join(javaSrcRoot, 'domain', module, 'presentation', 'dto', `${dtoTypeName}.java`);
-	return fs.existsSync(guessedPath) ? guessedPath : null;
+	const conventional = path.join(javaSrcRoot, 'domain', module, 'presentation', 'dto', `${dtoTypeName}.java`);
+	if (fs.existsSync(conventional)) return conventional;
+	const flat = path.join(javaSrcRoot, module, `${dtoTypeName}.java`);
+	return fs.existsSync(flat) ? flat : null;
 }
 
 // The full patchable-field pipeline for one entity: find its update endpoint -> find the
@@ -194,10 +203,20 @@ function findRequiredAuthority(controllerFilePath, methodName) {
 // guaranteed for every entity): <Entity>Service under domain/<module>/application/. Only
 // trusted if the file actually exists -- see D-resolver-scope in DECISIONS.md for why a
 // resolver is only generated when this resolves to a real file, not a guessed import.
+// D-write-safety-phase1 (item 4b): falls back to <module>/<Entity>Service.java directly under
+// javaSrcRoot (no domain/application segments) when the conventional path doesn't exist -- the
+// flat-package variant of the same convention. Confirmed this does NOT close the real-world case
+// that motivated it (spring-projects/spring-petclinic): petclinic has no *Service.java at all
+// (controllers call a Spring Data repository directly), and its entities are Integer-keyed, not
+// UUID (see idFieldIsUuid's own gate in planHandles() below, which fires first regardless). This
+// is a real, independent improvement for a different, plausible shape -- a UUID-keyed entity with
+// a Service layer, just not nested under domain/ -- not a claim that it closes the petclinic gap.
 function findServiceFile(javaSrcRoot, module, entityClassName) {
 	const guessedType = `${entityClassName}Service`;
-	const guessedPath = path.join(javaSrcRoot, 'domain', module, 'application', `${guessedType}.java`);
-	return fs.existsSync(guessedPath) ? { serviceType: guessedType, file: guessedPath } : null;
+	const conventional = path.join(javaSrcRoot, 'domain', module, 'application', `${guessedType}.java`);
+	if (fs.existsSync(conventional)) return { serviceType: guessedType, file: conventional };
+	const flat = path.join(javaSrcRoot, module, `${guessedType}.java`);
+	return fs.existsSync(flat) ? { serviceType: guessedType, file: flat } : null;
 }
 
 // Counts top-level commas in a captured argument list, treating `<...>` (generics) as non-
@@ -246,10 +265,26 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 
 	for (const entity of targetModule.entities) {
 		if (resourceFilter && !resourceFilter.includes(entity.className)) continue;
+
+		// D-write-safety-phase1 (item 4a): a non-UUID primary key disqualifies resolver generation
+		// entirely, independent of whether a Service class can be found -- fetch(UUID resourceUid)
+		// and the sbf1_ handle token format both hard-assume a UUID identity. Checked BEFORE the
+		// service lookup so the note names the real, decisive reason instead of the generic "no
+		// XService found" note below, which would be true but misleading here (implies the fix is
+		// finding/writing a service, when no service could ever make this entity addressable).
+		// `=== false` (not just falsy) deliberately excludes `null` (idField itself was never
+		// found, e.g. inherited from an unindexed superclass) -- that stays the existing, separate
+		// "no XService found" path unchanged, since this scanner genuinely doesn't know the type
+		// there, not that it's confirmed non-UUID.
+		const pkIsNonUuid = entity.idFieldIsUuid === false;
+		if (pkIsNonUuid) {
+			notes.push(`${entity.className}: primary key is declared \`${entity.idFieldType}\`, not UUID -- the handles subsystem only generates UUID-addressable resolvers (fetch(UUID resourceUid); the sbf1_ handle token format encodes a UUID). Resolver NOT generated for this entity, and cannot be regardless of where its service file lives. See D-handle-uid-type-binding in DECISIONS.md.`);
+		}
+
 		const fetchOp = findFetchOperation(targetModule.controllers, entity.className);
 		const authorityResult = findRequiredAuthority(fetchOp?.controllerFile ?? null, fetchOp?.method ?? null);
 		const requiredAuthority = authorityResult.authority;
-		const service = findServiceFile(javaSrcRoot, targetModule.module, entity.className);
+		const service = pkIsNonUuid ? null : findServiceFile(javaSrcRoot, targetModule.module, entity.className);
 		const serviceParamCount = (service && fetchOp) ? countServiceMethodParams(service.file, fetchOp.method) : null;
 
 		// O5 (D-resolver-authorization-action-aware): the SAME extraction, run again against the
@@ -276,7 +311,11 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)/hasAuthority(...)) found for ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} -- requiredAuthorityForPatch() defaults to "TODO_ROLE", fix before relying on it`);
 		}
 		if (!service) {
-			notes.push(`${entity.className}: no ${entity.className}Service found under domain/${targetModule.module}/application/ -- resolver NOT generated for this entity (would produce a broken import). Emit it by hand once the right service is identified.`);
+			// pkIsNonUuid already explained the real reason above -- this note would be true but
+			// redundant (and misleading: it implies finding a service would fix it).
+			if (!pkIsNonUuid) {
+				notes.push(`${entity.className}: no ${entity.className}Service found under domain/${targetModule.module}/application/ or ${targetModule.module}/ -- resolver NOT generated for this entity (would produce a broken import). Emit it by hand once the right service is identified.`);
+			}
 		} else if (fetchOp && serviceParamCount !== 1) {
 			const reason = serviceParamCount === null
 				? `could not find a ${fetchOp.method}(...) method on ${service.serviceType} to confirm its argument count`
@@ -319,6 +358,11 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			type: entity.className,
 			table: entity.table,
 			idField: entity.idField,
+			// D-write-safety-phase1 (item 4a): surfaced in --json output too, not just the note --
+			// null/null when the type genuinely couldn't be determined (not the same as confirmed
+			// non-UUID; see pkIsNonUuid's own `=== false` check above).
+			idFieldType: entity.idFieldType,
+			idFieldIsUuid: entity.idFieldIsUuid,
 			fetchOperation: fetchOp,
 			updateOperation: patchResult.updateOperation,
 			patchable: patchResult.patchable,

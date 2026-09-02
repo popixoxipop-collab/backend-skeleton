@@ -23,7 +23,10 @@ function buildFixtureRepo() {
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
 	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
-	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture\n');
+	// D-write-safety-phase1 (item 1): spring-boot-starter-aop must be present for the
+	// --enforce-registry on tests below to reach the code they're actually testing (hasSpringAopDependency()
+	// now refuses --enforce-registry on without it) -- harmless to every other test in this file.
+	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture\ndependencies {\n\timplementation \'org.springframework.boot:spring-boot-starter-aop\'\n}\n');
 
 	const base = 'com/example';
 	const widgetDomain = path.join(root, 'src/main/java', base, 'domain/widget');
@@ -389,13 +392,21 @@ test('handles plan still works when multiple *Application.java files share the s
 // O3 follow-up (D-handle-registry-enforcement, "Continued"): the bootstrapping-trap warning --
 // the fixture's real WidgetService.java (above) carries no @RecordHandleSnapshot, so turning
 // enforcement on should warn specifically about Widget, naming the service file.
-test('handles emit --enforce-registry on warns per-resource when @RecordHandleSnapshot is absent from the resource\'s own service file', () => {
+// D-write-safety-phase1 (item 2): this used to exit 0 (a silent postEmitNotes-only warning) --
+// now it's a real block (HANDLES_REGISTRATION_GAP, 21) unless acknowledged with --force --reason,
+// the whole point of promoting this check.
+test('handles emit --enforce-registry on blocks (21) per-resource when @RecordHandleSnapshot is absent, unless --force --reason acknowledges it', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);
-	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on', '--json'], root);
-	assert.equal(emit.code, 0, emit.stderr);
-	const emitJson = JSON.parse(emit.stdout);
-	assert.ok(emitJson.postEmitNotes.some((n) => n.startsWith('Widget:') && n.includes('no @RecordHandleSnapshot(...)') && n.includes('WidgetService.java')));
+	const blocked = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on', '--json'], root);
+	assert.equal(blocked.code, 21);
+	const blockedJson = JSON.parse(blocked.stdout);
+	assert.ok(blockedJson.registrationGaps.some((g) => g.resourceType === 'Widget' && g.file.includes('WidgetService.java')));
+
+	const forced = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on', '--force', '--reason', 'acknowledging for this test', '--json'], root);
+	assert.equal(forced.code, 0, forced.stderr);
+	const emitJson = JSON.parse(forced.stdout);
+	assert.ok(emitJson.postEmitNotes.some((n) => n.startsWith('Widget:') && n.includes('no @RecordHandleSnapshot(...)') && n.includes('WidgetService.java')), 'the note stays visible even once acknowledged');
 });
 
 test('handles emit --enforce-registry on does not warn once @RecordHandleSnapshot is applied to the resource\'s own service file', () => {
@@ -419,6 +430,24 @@ public interface WidgetService {
 	assert.equal(emit.code, 0, emit.stderr);
 	const emitJson = JSON.parse(emit.stdout);
 	assert.ok(!emitJson.postEmitNotes.some((n) => n.includes('no @RecordHandleSnapshot')));
+});
+
+// D-write-safety-phase1 (item 1): --enforce-registry on must refuse outright, before writing
+// anything, when the target repo's build file has no spring-boot-starter-aop -- HandleAspect.java
+// cannot intercept anything without it.
+test('handles emit --enforce-registry on refuses with HANDLES_MISSING_DEPENDENCY (20) when spring-boot-starter-aop is absent', () => {
+	const root = buildFixtureRepo();
+	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture, no aop dependency\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'remove spring-boot-starter-aop'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	runWorkflowThroughContract(root);
+	const resolverPath = path.join(root, 'src/main/java/com/example/domain/widget/infrastructure', 'WidgetResolver.java');
+	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on'], root);
+	assert.equal(emit.code, 20);
+	assert.match(emit.stderr, /spring-boot-starter-aop/);
+	assert.ok(!fs.existsSync(resolverPath), 'refusing to enable enforcement must happen before anything is written');
 });
 
 test('handles emit without --enforce-registry (the default, off) never emits a per-resource registration warning', () => {

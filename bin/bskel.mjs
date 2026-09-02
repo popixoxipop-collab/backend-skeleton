@@ -56,6 +56,7 @@ import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../s
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
+import { hasSpringAopDependency } from '../handles/providers/java-spring/emit.mjs';
 import { emitObserveJavaSpring } from '../handles/providers/java-spring/observe.mjs';
 import { plan as planPythonFastApi } from '../handles/providers/python-fastapi/plan.mjs';
 import { emitObservePythonFastApi } from '../handles/providers/python-fastapi/observe.mjs';
@@ -101,7 +102,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
-  bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--json]
+  bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
   bskel patch propose --feature <id> [--kind config-apply|ddl-apply] --choice <stackChoiceId> --target <config_check target path> --database-url-env <NAME> --schema <name> --sql-file <path> [--json]
   bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
   bskel patch apply --feature <id> --transaction <id> [--confirm <id-or-dropped-table-name>] [--json]
@@ -2349,6 +2350,16 @@ function cmdHandlesEmit(args) {
 	requireCapabilitiesOrExit(scanReport, 'handles emit', { featureId: flags.feature, scanReportPath });
 	const provider = selectProviderOrExit(scanReport);
 	requireProviderCapabilitiesOrExit(scanReport, provider, 'handles emit', { featureId: flags.feature, scanReportPath });
+
+	// D-write-safety-phase1 (item 1): HandleAspect.java cannot intercept anything without
+	// spring-boot-starter-aop on the target's own classpath -- refusing here, before any code is
+	// written, rather than letting the operator discover it only after `--enforce-registry on`
+	// silently produces resolvers that will 404 every fetch/patch. java-spring only: python-fastapi's
+	// @record_snapshot decorator needs no extra dependency (see python-fastapi/emit.mjs's own note).
+	if (enforceRegistry && scanReport.adapter === 'java-spring' && !hasSpringAopDependency(root)) {
+		fail(EXIT_CODES.HANDLES_MISSING_DEPENDENCY, 'HANDLES_MISSING_DEPENDENCY', 'bskel handles emit --enforce-registry on requires spring-boot-starter-aop on this repo\'s own build.gradle/build.gradle.kts/pom.xml classpath -- HandleAspect.java (the class that actually intercepts @RecordHandleSnapshot-annotated methods) does nothing without it, and no other Spring starter enables AOP. Add the dependency to your build file, then re-run.');
+	}
+
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;
 
 	let plan;
@@ -2361,7 +2372,7 @@ function cmdHandlesEmit(args) {
 	// a diff" that also means "and actually write it", so --diff forces dryRun the same as --check
 	// does, without requiring both flags together.
 	const dryRun = flags.check || flags.diff;
-	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = provider.emit({
+	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [], registrationGaps = [] } = provider.emit({
 		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff, enforceRegistry,
 	});
 
@@ -2420,6 +2431,25 @@ function cmdHandlesEmit(args) {
 		// same verdict a real run would (exit 15) is the point, not a distinct "check found a
 		// conflict" code.
 		process.exit(EXIT_CODES.HANDLES_CONFLICT);
+	}
+
+	// D-write-safety-phase1 (item 2): a registration gap is checked separately from `blocked`
+	// above (conflicts are already handled and exited by this point) -- semantically different
+	// reason (a hand-written file bskel never touches lacking an annotation it cannot add itself,
+	// not a generated file diverging), so its own dedicated exit code and message. Unlike a
+	// conflict, the resolver files ARE still written either way (there is nothing wrong with their
+	// content) -- only the overall command's reported success, and the `handles` gate passing, are
+	// gated on acknowledging the gap with --force --reason.
+	if (enforceRegistry && registrationGaps.length > 0 && !flags.force) {
+		if (flags.json) {
+			console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, registrationGaps, blocked: true, gate: null, check: dryRun }, null, 2));
+		} else {
+			const verb = dryRun ? 'would refuse to report success' : 'refusing to report success';
+			console.error(`${verb}: ${registrationGaps.length} resource(s) have --enforce-registry on but no static registration path found:`);
+			for (const g of registrationGaps) console.error(`  ${g.resourceType} (${g.file})\n    ${g.note}`);
+			if (!dryRun) console.error(`\nthe resolver file(s) above were still written -- nothing about their content is wrong. Fix the registration gap and re-run, or acknowledge and proceed with: bskel handles emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''}${flags.resource ? ` --resource ${flags.resource}` : ''} --enforce-registry on --force --reason "..."`);
+		}
+		process.exit(EXIT_CODES.HANDLES_REGISTRATION_GAP);
 	}
 
 	// D4: dryRun never marks the gate passed -- nothing real happened this run.
@@ -2740,6 +2770,35 @@ async function cmdHandlesAudit(args) {
 	// D-openapi-extraction-hint's own precedent for "the CLI itself carries this warning, not
 	// just documentation").
 	const caveat = 'this reports what the target application chose to record via @RecordHandleSnapshot / record_snapshot -- it is NOT, and cannot be, a security control on its own (see O3/O5 in CATALOG.md for revocation enforcement and authorization contracts). Absence of a snapshot does not mean a handle was never used, only that recording was never opted into for that call path.';
+
+	// D-write-safety-phase1 (item 3): the live-database closure of D-handle-registry-enforcement's
+	// own named EXIT gap ("an already-empty registry... would need live target-app database
+	// access, a larger scope than this item's own"). Opt-in: resolves the CURRENT plan the same
+	// way `cmdHandlesPlan` does, then cross-references the rows already fetched above against each
+	// resource type the plan will actually generate a resolver for -- a real answer to "will
+	// --enforce-registry on 404 on its very first fetch for this resource", checked against the
+	// live database rather than a static regex proxy.
+	let registryCoverage = null;
+	if (flags['check-registry-coverage']) {
+		const scanReport = loadScanReportOrExit(root, flags.feature);
+		const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
+		requireCapabilitiesOrExit(scanReport, 'handles audit --check-registry-coverage', { featureId: flags.feature, scanReportPath });
+		const provider = selectProviderOrExit(scanReport);
+		requireProviderCapabilitiesOrExit(scanReport, provider, 'handles audit --check-registry-coverage', { featureId: flags.feature, scanReportPath });
+		let plan;
+		try {
+			plan = provider.plan({ repoRoot: root, scanReport, module: flags.module, resourceFilter: resourceTypes });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		registryCoverage = plan.resources
+			.filter((r) => r.willGenerateResolver)
+			.map((r) => ({
+				resourceType: r.type,
+				covered: rows.some((row) => row.resource_type === r.type && row.kind === 'r' && row.revoked_at === null),
+			}));
+	}
+
 	const report = {
 		schema: 'sbf.handle-audit/1',
 		feature_id: flags.feature,
@@ -2747,6 +2806,7 @@ async function cmdHandlesAudit(args) {
 		generated_at: new Date().toISOString(),
 		summary,
 		handles: rows,
+		registry_coverage: registryCoverage,
 		caveat,
 	};
 
@@ -2759,6 +2819,11 @@ async function cmdHandlesAudit(args) {
 			const revokedNote = h.revoked_at ? ` -- REVOKED (${h.revoked_reason ?? 'no reason recorded'})` : '';
 			const pointerNote = h.pointer ? `#${h.pointer}` : '';
 			console.log(`  ${h.kind} ${h.resource_type}/${h.resource_uid}${pointerNote} -- ${h.snapshot_count} snapshot(s), last ${h.last_recorded_at ?? 'never'}${revokedNote}`);
+		}
+		if (registryCoverage) {
+			console.log('\nregistry coverage (would --enforce-registry on 404 on the first fetch for this resource?):');
+			for (const c of registryCoverage) console.log(`  ${c.resourceType}: ${c.covered ? 'covered' : 'NOT COVERED -- no non-revoked kind=r row exists yet'}`);
+			if (registryCoverage.length === 0) console.log('  (no resources in this plan will generate a resolver)');
 		}
 		console.error(`\nnote: ${caveat}`);
 	}

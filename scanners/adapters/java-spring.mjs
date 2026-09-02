@@ -180,13 +180,24 @@ function extendsClauseName(maskedText) {
 // Java can have circular inheritance (it can't) -- same "not expected to trigger, cheap insurance"
 // reasoning javascript-express.mjs's own mount-graph cycle guard (`seen`) already uses for an
 // analogous risk.
+// D-write-safety-phase1 (item 4a): now also captures the declared TYPE, not just the field name --
+// mirrors typescript-express.mjs's own already-established `idFieldIsUuid` precedent
+// (scanners/adapters/typescript-express.mjs:216), which java-spring never had. Returns
+// `{field, type} | null` (was a bare string | null) -- see extractEntity() below for how both
+// existing and new consumers keep working from this.
 function findIdField(text, classIndex, depth = 0) {
-	const direct = text.match(/@Id\b[\s\S]{0,200}?private\s+\S+\s+(\w+)\s*;/);
-	if (direct) return direct[1];
+	const direct = text.match(/@Id\b[\s\S]{0,200}?private\s+(\S+)\s+(\w+)\s*;/);
+	if (direct) return { field: direct[2], type: direct[1] };
 	if (depth >= 10) return null;
 	const superName = extendsClauseName(maskNonCode(text));
 	if (!superName || !classIndex.has(superName)) return null;
 	return findIdField(classIndex.get(superName), classIndex, depth + 1);
+}
+
+// Bare and fully-qualified both count -- a real repo can `import java.util.UUID;` or spell it out
+// inline (`private java.util.UUID id;`), and this is a text-based scan with no import resolution.
+function isUuidType(type) {
+	return type === 'UUID' || type === 'java.util.UUID';
 }
 
 function extractEntity(text, filePath, classIndex) {
@@ -203,7 +214,20 @@ function extractEntity(text, filePath, classIndex) {
 		// two adapters that DO guess (python-fastapi/typescript-express) -- cross-feature collision
 		// detection reads this field, not each adapter's own null-vs-guessed convention.
 		tableSource: tableMatch ? 'explicit' : null,
-		idField: findIdField(text, classIndex),
+		...(() => {
+			const id = findIdField(text, classIndex);
+			return {
+				idField: id?.field ?? null,
+				// D-write-safety-phase1 (item 4a): idFieldIsUuid mirrors typescript-express.mjs's own
+				// field name exactly, for the same reason it exists there -- the handles subsystem's
+				// entire identity model is UUID-addressable (fetch(UUID resourceUid), sbf1_ handle
+				// tokens encode a UUID), so a non-UUID PK means "no resolver, and say why" rather than
+				// silence. idFieldType is the extra, java-spring-specific detail (the actual declared
+				// type string) that lets the diagnostic name it, not just say "not UUID".
+				idFieldType: id?.type ?? null,
+				idFieldIsUuid: id ? isUuidType(id.type) : null,
+			};
+		})(),
 		file: filePath,
 		line: classDecl ? lineNumberAt(text, classDecl.index) : null,
 	};

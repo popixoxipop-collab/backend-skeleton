@@ -6,6 +6,8 @@
 // test/contract-fixture.test.mjs (test/fixtures/java-spring/).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { planHandles } from '../handles/providers/java-spring/plan.mjs';
@@ -89,4 +91,93 @@ test('a module with no matching entities for the given --resource filter plans n
 	const plan = planHandles({ javaSrcRoot: JAVA_SRC_ROOT, scanReport, module: 'security', resourceFilter: ['NoSuchEntity'] });
 	assert.equal(plan.resources.length, 0);
 	assert.ok(plan.notes.some((n) => n.includes('nothing to plan')));
+});
+
+// D-write-safety-phase1 (item 4a/4b): standalone temp fixtures, not the shared one above, so they
+// don't risk affecting any other test that enumerates the shared fixture's own real modules/entities.
+function buildTempJavaFixture(entityJava, controllerJava, moduleName, entityClassName) {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-handles-plan-item4-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const domainDir = path.join(root, 'src/main/java/com/example/app/domain', moduleName, 'domain');
+	const presentationDir = path.join(root, 'src/main/java/com/example/app/domain', moduleName, 'presentation');
+	fs.mkdirSync(domainDir, { recursive: true });
+	fs.mkdirSync(presentationDir, { recursive: true });
+	fs.writeFileSync(path.join(domainDir, `${entityClassName}.java`), entityJava);
+	fs.writeFileSync(path.join(presentationDir, `${entityClassName}Controller.java`), controllerJava);
+	return root;
+}
+
+test('D-write-safety-phase1 (item 4a): a non-UUID primary key blocks resolver generation with a specific note, before even looking for a service file', () => {
+	const root = buildTempJavaFixture(
+		`package com.example.app.domain.owner.domain;
+import jakarta.persistence.*;
+@Entity
+public class Owner {
+	@Id
+	private Integer id;
+}
+`,
+		`package com.example.app.domain.owner.presentation;
+import org.springframework.web.bind.annotation.*;
+@RestController
+@RequestMapping("/owners")
+public class OwnerController {
+	@GetMapping("/{ownerId}")
+	public Object findOwner(@PathVariable Integer ownerId) { return null; }
+}
+`,
+		'owner', 'Owner',
+	);
+	const javaSrcRoot = path.join(root, 'src/main/java/com/example/app');
+	const scanReport = runScan({ repoRoot: root, terms: ['owner'] });
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'owner' });
+	const owner = plan.resources.find((r) => r.type === 'Owner');
+	assert.equal(owner.idFieldType, 'Integer');
+	assert.equal(owner.idFieldIsUuid, false);
+	assert.equal(owner.service, null, 'no service lookup should even happen once the PK is confirmed non-UUID');
+	assert.equal(owner.willGenerateResolver, false);
+	assert.ok(plan.notes.some((n) => n.includes('Owner') && n.includes('primary key is declared `Integer`, not UUID')));
+	assert.ok(!plan.notes.some((n) => n.includes('no OwnerService found')), 'the generic "no service found" note must not ALSO fire -- the PK-type note already explains the real reason');
+});
+
+test('D-write-safety-phase1 (item 4b): a Service class at the flat <module>/<Entity>Service.java path (no domain/application segments) is now found', () => {
+	const root = buildTempJavaFixture(
+		`package com.example.app.domain.owner.domain;
+import jakarta.persistence.*;
+@Entity
+public class Owner {
+	@Id
+	private java.util.UUID id;
+}
+`,
+		`package com.example.app.domain.owner.presentation;
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+@RestController
+@RequestMapping("/owners")
+public class OwnerController {
+	@Operation(operationId = "findOwner")
+	@GetMapping("/{ownerId}")
+	public Object findOwner(@PathVariable java.util.UUID ownerId) { return this.ownerService.findOwner(ownerId); }
+}
+`,
+		'owner', 'Owner',
+	);
+	// The flat shape this item's own fallback targets: <basePackage>/<module>/<Entity>Service.java,
+	// no domain/application segments -- written directly, since buildTempJavaFixture() only builds
+	// the conventional domain/<module>/{domain,presentation}/ layout above.
+	const flatDir = path.join(root, 'src/main/java/com/example/app/owner');
+	fs.mkdirSync(flatDir, { recursive: true });
+	fs.writeFileSync(path.join(flatDir, 'OwnerService.java'), `package com.example.app.owner;
+public interface OwnerService {
+	Object findOwner(java.util.UUID ownerId);
+}
+`);
+	const javaSrcRoot = path.join(root, 'src/main/java/com/example/app');
+	const scanReport = runScan({ repoRoot: root, terms: ['owner'] });
+	const plan = planHandles({ javaSrcRoot, scanReport, module: 'owner' });
+	const owner = plan.resources.find((r) => r.type === 'Owner');
+	assert.ok(owner.service, 'the flat-path fallback should have found OwnerService.java');
+	assert.equal(owner.service.file, path.join(flatDir, 'OwnerService.java'));
+	assert.equal(owner.willGenerateResolver, true);
 });

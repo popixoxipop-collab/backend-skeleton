@@ -11254,3 +11254,126 @@ Phase 0 of `ROADMAP.md` (items 1-3) is closed by this entry. Item 4 (the `waivab
 WARN-severity contract codes) was found, on closer reading of `contracts/completeness.mjs`'s own
 comment, to already be a deliberate, tested design decision rather than an oversight -- see
 `ROADMAP.md`'s own item 4 for the corrected record; not re-litigated here.
+
+## D-write-safety-phase1: making `--enforce-registry on` operable, and a real correction to what ROADMAP.md's own Phase 1 item 4 could ever close
+
+**WHY**: `ROADMAP.md` Phase 1 named four items to make registry enforcement actually usable: an
+undiscoverable `spring-boot-starter-aop` prerequisite, a soft-warn registration check nobody has to
+read, no live confirmation the registry actually has coverage, and a resolver-planning layer that
+silently produces zero resolvers for any repo not shaped like `domain/<module>/application/...`.
+
+### Item 1: `spring-boot-starter-aop` hard-fail
+
+`handles/providers/java-spring/emit.mjs` gained `hasSpringAopDependency(root)`, a grep across
+`build.gradle`/`build.gradle.kts`/`pom.xml` for the one dependency `HandleAspect.java` needs to
+intercept anything. `bin/bskel.mjs`'s `cmdHandlesEmit` calls it right after `enforceRegistry` is
+resolved, before `provider.plan()` even runs: `--enforce-registry on` against a java-spring repo
+missing it now refuses outright with a new, dedicated exit code (`HANDLES_MISSING_DEPENDENCY`, 20 --
+not a reuse of `MISSING_CAPABILITY`(17), which means "the adapter doesn't declare this at all", not
+"this repo is one dependency short"). python-fastapi is exempt: `@record_snapshot` needs no
+framework support, confirmed by its own `emit.mjs` comment. Deliberately does NOT auto-add the
+dependency to the target's build file -- `D-config-patch`'s standing "never auto-edit an application
+file" boundary holds here too; this is a detection gate, the same shape every other gate in this
+tool already is, not a patcher.
+
+**Verified**: `test/fixtures/java-spring/build.gradle` and `test/handles-cli.test.mjs`'s own inline
+fixture builder both needed `spring-boot-starter-aop` added for their existing `--enforce-registry
+on` tests to keep reaching the code they actually test (real regressions caught by re-running the
+suite, not anticipated) -- `test/fixtures/java-compile/build.gradle` already had it, unaffected.
+One new test proves the refusal itself, and that nothing is written before it fires.
+
+### Item 2: the static registration check now blocks, not just warns
+
+Both providers' per-resource `@RecordHandleSnapshot`/`@record_snapshot` presence check now returns
+a real, structured `registrationGaps: [{resourceType, file, note}]` array (previously only pushed
+into `postEmitNotes`, prose no command ever read). `cmdHandlesEmit` blocks on it
+(`HANDLES_REGISTRATION_GAP`, 21) unless `--force --reason` (already-required-together) acknowledges
+it -- checked separately from the existing conflict-`blocked` check just above it (a genuinely
+different failure mode: a hand-written file `bskel` never touches lacking an annotation it cannot
+add itself, not a generated file diverging). Unlike a conflict, the resolver files are still written
+either way -- there's nothing wrong with their content, only the operator's acknowledgment of the
+bootstrapping risk is gated. The postEmitNote itself is unconditional, still visible once forced.
+
+**Verified**: the two existing tests that used to assert `exit 0` with a silent warning
+(`test/handles-cli.test.mjs`, `test/python-fastapi-handles.test.mjs`) now assert the block (21)
+first, then `--force --reason` succeeding with the note still present -- both real regressions this
+item's own change caused, fixed to assert the new, safer behavior rather than the old one.
+
+### Item 3: `bskel handles audit --check-registry-coverage`
+
+Closes `D-handle-registry-enforcement`'s own named EXIT gap ("would need live target-app database
+access... a larger scope than this item's own"). No new SQL: `handles/audit.mjs`'s `auditHandles()`
+already returns every row's `kind`/`resource_type`/`revoked_at`. The new opt-in flag resolves the
+current plan the same way `cmdHandlesPlan` does, then for each resource type the plan will generate
+a resolver for, answers `rows.some(r => r.resource_type === type && r.kind === 'r' && r.revoked_at
+=== null)` -- a real, live-database answer to "will this resource's first fetch() 404", not the
+static regex proxy item 2 still is.
+
+**Verified**: a new, dedicated script (`scripts/handles-registry-coverage-smoke.mjs`,
+`npm run test:registry-coverage`, own CI job `registry-coverage` in `.github/workflows/ci.yml`,
+mirroring `db-introspect`'s exact shape) against a genuinely running, disposable Postgres --
+deliberately lighter than `scripts/java-integration-smoke.mjs` (no Gradle/real Spring Boot app
+boot: that script already proves `HandleAspect`'s own real registration behavior end-to-end; this
+one only needed to prove the new cross-reference logic, so a real emitted `migration.sql` applied
+to a real Postgres plus direct SQL rows is enough). Confirmed live: empty registry -> NOT COVERED,
+a real non-revoked `kind='r'` row inserted -> COVERED, that same row revoked -> NOT COVERED again.
+
+### Item 4 (rescoped mid-implementation): a real, decisive correction to what this item could ever prove
+
+`ROADMAP.md`'s own item 4 said its path-fallback fix should be "verified... by asserting a non-zero
+resolver count" against a real clone of `spring-projects/spring-petclinic`. Cloning it to actually
+check (`git clone --depth 1`) found this claim cannot be satisfied by ANY amount of path-fallback or
+repository-direct-call engineering, for a reason unrelated to file paths: `BaseEntity.java` declares
+`private Integer id`, not `UUID`. The whole `handles` identity model is UUID-addressable
+(`fetch(UUID resourceUid)`; the `sbf1_` handle token format encodes a UUID) -- an `Integer`-keyed
+entity cannot have a coherent UUID-addressable resolver, independent of whether a Service class
+exists or where. (Petclinic also has no `*Service.java` at all -- controllers call a Spring Data
+repository directly -- but that turned out to be the SECONDARY disqualifier, not the decisive one.)
+
+Confirmed with the user twice, as the true scope kept surfacing deeper during implementation:
+repository-direct-call support was explicitly decided AGAINST, since building it would be real
+effort spent on a case that fails at the PK-type gate regardless of how much of it gets built --
+exactly the W9-style overfitting-to-an-unvalidated-shape risk this project's own review already
+named as a standing risk elsewhere. Rescoped instead to two smaller, independently real items:
+
+**4a -- an honest PK-type diagnostic.** `scanners/adapters/java-spring.mjs`'s `findIdField()` now
+captures the declared TYPE alongside the field name (`{field, type}`, was a bare string).
+`extractEntity()` exposes it as `idFieldType` (the raw string, e.g. `"Integer"`) and `idFieldIsUuid`
+(boolean) -- the latter name deliberately mirrors `typescript-express.mjs`'s own already-established
+field of the same name (`scanners/adapters/typescript-express.mjs:216`), a real cross-adapter
+convention java-spring never had until now. `handles/providers/java-spring/plan.mjs`'s
+`planHandles()` checks `idFieldIsUuid === false` (deliberately not just falsy -- `null` means
+genuinely undetermined, e.g. `idField` itself unresolved through an unindexed superclass chain, a
+different, pre-existing case left unchanged) BEFORE attempting `findServiceFile()`, and emits a
+specific note naming the real, decisive reason instead of the generic "no `<Entity>Service` found"
+note, which would still be true but misleading (implies finding a service would fix it, when it
+cannot). Both fields are additive on `schemas/handles-plan.schema.json`'s already-`additionalProperties:
+true` resources shape.
+
+**4b -- a real, bounded path fallback (independent of petclinic, doesn't close it).**
+`findServiceFile()`/`findUpdateDtoFile()` now also try `<module>/<Entity>Service.java`/
+`<module>/<Type>.java` directly under `javaSrcRoot` (no `domain`/`application`/`presentation`/`dto`
+middle segments) after the conventional path fails -- the natural flat-package variant of the exact
+same convention, using `javaSrcRoot` as already base-package-anchored (`detectBasePackage()`,
+pre-existing, unchanged). Deliberately does not attempt any OTHER shape: no second real oracle has
+ever validated one, and guessing further is exactly the inductive risk W9 already names.
+
+**Verified**: `test/scan-fixture.test.mjs` gained direct fixture tests for `idFieldType`/
+`idFieldIsUuid` (a fully-qualified `java.util.UUID` PK, an `Integer` PK matching petclinic's own
+real shape, and the pre-existing external-base-class case confirming both new fields stay `null`,
+not `false`, when genuinely undetermined). `test/handles-plan-fixture.test.mjs` gained two
+standalone-fixture integration tests: the PK-type gate firing end-to-end through `planHandles()`
+with the specific note present and the generic one deliberately absent, and the flat-path fallback
+actually finding a `Service.java` a fresh `handles plan` run previously would not have. Re-ran
+against the real, freshly-cloned `spring-petclinic` directly (not through the CLI's git-dependent
+`preflight`, which a shallow clone complicates for no benefit here -- `runScan`/`planHandles`
+called directly, mirroring the fixture tests' own pattern): all four real entities (`Owner`, `Pet`,
+`PetType`, `Visit`) now report the accurate `idFieldType: "Integer"` diagnostic, replacing the
+previous silent "no resolver, no explanation" -- the honest fix this item could actually deliver.
+
+**EXIT**: repository-direct-call support (a second resolver-generation strategy for a UUID-keyed
+entity with no Service layer) remains explicitly out of scope -- would need a real oracle repo
+shaped that way to validate against, which none of this project's own currently-verified adapters
+are. python-fastapi has no equivalent `idFieldIsUuid`-style gate yet (SQLModel entities could in
+principle have a non-UUID primary key too) -- not touched by this item, named here as a real,
+separate gap for whoever picks it up next.
