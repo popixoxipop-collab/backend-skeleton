@@ -11502,3 +11502,116 @@ exists to validate against. `recordSnapshotWrapper.ts`'s best-effort failure han
 -- this provider has no established structured-logging convention the way Python's `logging` module
 is a real, ubiquitous ecosystem default; wiring a real logger is left to the target app, matching
 this provider's own `checkAccess`/`patchField` "wire it to your own convention" precedent.
+
+## D-handle-identity-contract-freeze: freezing the `sbf1_` token/`handle_uid` contract before any real handle exists (ROADMAP.md Phase 3)
+
+**WHY**: `D-handle-uid-type-binding`'s own EXIT (`DECISIONS.md:8151-8160`) shipped the O3 `type`-
+binding fix without a migration mechanism, correctly, because zero real `sbf_handle` rows exist
+anywhere to orphan. That safety net disappears the moment Phase 4 (the real production pilot)
+registers its first row: from then on, `handles/codec.mjs` and its three template ports become a
+live migration problem for a real database, with — until this entry — no version discriminant to
+hang a migration on. `ROADMAP.md` names this "blocks Phase 4, irreversibly." Read all four codec
+implementations in full before writing anything (`handles/codec.mjs`, `HandleCodec.java.tmpl`,
+`codec.py.tmpl`, `codec.ts.tmpl` — confirmed byte-for-byte identical shape) and all four existing
+codec test files. Finding that shaped this entry: the existing cross-language parity tests
+(`test/handles-java-codec.test.mjs` etc.) only assert the four implementations agree with EACH
+OTHER at test time — a genuine regression-catcher for a language silently drifting from the JS
+reference, but blind to `codec.mjs`'s own algorithm changing, since all four would drift together
+and every existing test would still pass.
+
+**Item 1 — the compatibility-policy decision, stated plainly**: `D-stable-api-contract`
+(`DECISIONS.md:10784`) enumerates exactly what `1.0.0`'s stability promise covers — CLI
+commands/flags, every `--json` output shape, gate names/pass-fail semantics, exit codes — and does
+not mention generated-code token formats at all, deliberately, since that entry's own scope is the
+CLI's interface, not what the CLI writes into someone else's codebase. A token/UID baked into
+generated code running inside an independently-deployed target application's own production
+database is, if anything, a STRONGER commitment than any of those: there is no `bskel upgrade` path
+that reaches into a target repo and fixes up already-written source or already-inserted rows the
+way a CLI-surface break can at least be caught by re-running `bskel` itself. **Decision**: the
+`sbf1_` wire format (`kind:type:uuid[:pointer]`, base64url, `sbf1_`-prefixed) and the
+`deriveHandleUid` UUIDv5 derivation algorithm behind it are frozen as of this entry. Changing
+either for existing `sbf1_` tokens is a breaking change, full stop — not covered by
+`D-stable-api-contract`'s own major-version discipline (that entry's enumerated scope stays exactly
+as written, not silently expanded), but held to the same standard as a distinct, named commitment.
+Any future incompatible change ships under a NEW scheme prefix (`sbf2_`, Phase 6's own delegatable
+capability-scoped handles being the first plausible real consumer), never by silently redefining
+what an `sbf1_` token means.
+
+**Enforcement mechanism for the decision — golden-vector pin tests, one per codec test file**,
+added alongside (not replacing) the existing relative parity tests. Real vectors, computed once by
+actually executing the current `codec.mjs` (`type=Organization`,
+`uuid=e957347e-3794-4c71-92a8-cec75dec1c97`):
+```
+kind=r  token sbf1_cjpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3
+        handle_uid b780c5c9-fc69-5cdd-ae9f-85593a41e700
+kind=f  (/policy/monthlyTokenLimit)
+        token sbf1_ZjpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3Oi9wb2xpY3kvbW9udGhseVRva2VuTGltaXQ
+        handle_uid 5c7bfad5-0ae0-548e-8aeb-afd00bc76bc2
+kind=o  token sbf1_bzpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3
+        handle_uid 00b01a52-291c-5664-879c-c0ad798cd2e1
+```
+If any of these ever need to change, that is itself a deliberate breaking change to the frozen
+contract this entry declares — never "fix the test" without updating this entry first.
+
+**Item 2 — the dual-scheme dispatch hook**: `decodeHandle`/`decode`/`decode_handle` in all four
+implementations refactored from a hardcoded `startsWith('sbf1_')` check into a small scheme-
+dispatch table keyed by the token's prefix before its first `_`, with `'sbf1'` the only registered
+entry today (`handles/codec.mjs`'s `HANDLE_DECODERS`, `HandleCodec.java.tmpl`'s `scheme()` +
+private `decodeSbf1`, `codec.py.tmpl`'s `_HANDLE_DECODERS`, `codec.ts.tmpl`'s
+`HANDLE_DECODERS`/`decodeSbf1Handle`). `encodeHandle`/`encode`/`encode_handle` are unchanged in
+every language — still only ever emit `sbf1_` tokens; only the decode side gained the hook. This
+is "reserve the discriminant, don't build the migration" — the exact move
+`D-handle-uid-type-binding`'s own EXIT explicitly deferred, now closed at ~10-15 lines per
+language, before a real migration scenario exists to justify more. A future `sbf2_` scheme
+registers its own decoder function in the same table; nothing about how an `sbf1_` token decodes
+changes when that happens.
+
+Traced every existing negative-path test against the new dispatch logic before running anything, to
+confirm zero behavior change: `'not-a-handle'` has no `_` → the whole string is the "scheme" → not
+in the table → same `"not an sbf1 handle"` error as before; any `sbf1_...`-prefixed input still
+dispatches straight to the unchanged `decodeSbf1Handle`/`decodeSbf1`/`_decode_sbf1` body, same
+length-check-then-decode ordering as today (an unknown-scheme token skips the length check
+entirely, exactly as the pre-refactor `startsWith` guard already did for any non-`sbf1_` input —
+no new DoS surface). Confirmed by real execution, not just by reading the diff: all four existing
+test files pass byte-for-byte unchanged (15/15 → JS reference, 9/9 → real `javac`-compiled Java,
+11/11 → real `python3`, 10/10 → real `node --experimental-strip-types` TypeScript) before any new
+test was added.
+
+New regression guard, one per codec file: an unknown-scheme token
+(`sbf2_<base64url of a well-formed r:Organization:... payload>`) is rejected cleanly with the same
+`"not an sbf1 handle"` message, not silently mis-decoded as `sbf1` and not a crash — proving the
+hook actually gates on the registered-scheme table rather than falling through to the one decoder
+that happens to exist today.
+
+**Item 3 — pilot redaction/retention checklist [TRADEOFF, documentation only]**: `HandleAspect`'s
+(and Python's/TypeScript's own) `redact` option already exists; `HandleService`'s
+`pruneSnapshotsOlderThan` exists but is "never auto-invoked, retention never auto-scheduled"
+(`CATALOG.md:493`, confirmed still current by direct read). The tool cannot know which of a target
+app's fields are sensitive, and `D-resolver-scope`'s "never guess-modify hand-written code"
+boundary means it must not try to guess one — so the only honest mitigation is procedural, not
+code. A concrete, numbered "Pilot redaction & retention checklist" was added as a new subsection at
+the end of Phase 3 in `ROADMAP.md`, produced now and explicitly flagged as required reading before
+Phase 4 registers its first real resource. No code changes accompany this item — it is a
+[TRADEOFF], reduced by process, never eliminated by a static tool that cannot see a target app's
+own data-sensitivity semantics.
+
+**Verified**: `npm test` clean, full suite, before and after (no other subsystem touched). Every
+codec test file re-run individually first, both before the refactor (confirming the baseline) and
+after (confirming zero regressions) — 8 new tests total (2 per codec file: 1 golden-vector pin, 1
+unknown-scheme rejection), each executed against the real rendered/compiled artifact in its
+language, matching this project's own established discipline rather than trusting the JS reference
+alone. `scripts/typescript-typecheck-smoke.mjs` re-run in full, including its own Phase-2-added
+`--enforce-registry on` re-typecheck phase — a real `npx tsc --noEmit` against real
+`typeorm`/`express`/`typescript` packages compiled the modified `codec.ts.tmpl` (a `Record<string,
+...>` type annotation on the new dispatch table — fully erasable, consistent with this file's own
+"zero non-erasable syntax" header constraint) with zero errors, both postures.
+
+**EXIT**: no `sbf2_` scheme was built — there is nothing yet to migrate to, and building one
+speculatively would be exactly the kind of infra this project has repeatedly measured and rejected
+without a real driving case (`D-handle-uid-type-binding`'s own precedent, restated here rather than
+re-litigated). The pilot checklist's retention item names two acceptable outcomes for Phase 4
+("wire a scheduled `pruneSnapshotsOlderThan` call" or "explicitly document no pruning, accepted
+risk") without picking one — that choice depends on the real pilot's own data-retention
+requirements, unknowable from here. Phase 6's own delegatable capability-scoped handles
+(`CATALOG.md`'s growth-idea #3) remain the first named, plausible real consumer of the `sbf2_`
+discriminant this entry reserves but does not spend.

@@ -311,6 +311,16 @@ Whichever is chosen, `README.md`'s `## Status: 1.0.0` already tells this truth
 
 ## Phase 3 — Freeze the handle-identity contract before any real handle exists
 
+**Status: closed — see `D-handle-identity-contract-freeze` in DECISIONS.md for the full record.**
+**The `sbf1_` wire format and `deriveHandleUid` algorithm are now a frozen, named commitment**
+**(distinct from, not folded into, `D-stable-api-contract`'s own enumerated CLI-surface scope).**
+**All 4 codec implementations gained a dual-scheme decode-dispatch hook (`sbf1` the only entry**
+**today), reserving the discriminant a future `sbf2_` scheme (Phase 6) can register into**
+**additively, verified with 8 new tests (golden-vector pins + unknown-scheme rejection, one pair**
+**per language) executed against the real rendered/compiled artifact in each language, not just**
+**the JS reference. The pilot redaction/retention checklist below (item 3) is produced now for**
+**Phase 4 to consume.**
+
 **Effort: M. Risk: high if skipped. Depends on: nothing. Blocks: Phase 4 (irreversibly).**
 
 This phase exists because of a single sentence in `D-handle-uid-type-binding`'s EXIT
@@ -354,6 +364,28 @@ Deliverables:
    `redact` correctly persists real PII into a table this tool created. The honest mitigation is to
    make the pilot checklist require an explicit redaction decision per resource, not to build
    detection.
+
+### Pilot redaction & retention checklist (produced here, required reading before Phase 4 registers its first real resource)
+
+This is procedural, not code — `bskel` cannot know which of a target app's fields are sensitive,
+and `D-resolver-scope`'s "never guess-modify hand-written code" boundary means it must not try to
+guess. Every item below must be explicitly resolved (not silently skipped) before Phase 4 runs
+`handles emit --enforce-registry on` against a real resource for the first time:
+
+1. **Per-resource redaction decision.** For each resource whose `recordSnapshotWrapper.ts` /
+   `@RecordHandleSnapshot` / `@record_snapshot` registration is being wired in, explicitly decide
+   and record (in `DECISIONS.md`, same as any other pilot finding) the `redact` pointer list for
+   that resource — which fields of the request/response payload must never land in
+   `sbf_handle_snapshot.payload` unredacted. "No fields need redaction" is an acceptable answer,
+   but it must be a stated decision, not an unconsidered default.
+2. **Retention decision.** `HandleService.pruneSnapshotsOlderThan` exists in all three registry-
+   capable providers but is never auto-invoked by anything `bskel` generates. Before real customer
+   data starts accumulating in `sbf_handle_snapshot`, the pilot must explicitly pick one: (a) wire
+   a scheduled call to `pruneSnapshotsOlderThan` with a stated retention window, or (b) document
+   "no automatic pruning, accepted risk" as a deliberate decision, with whoever owns the pilot's
+   data-retention policy signing off. Either is acceptable; silence is not.
+3. **Both decisions are per-resource, not global** — a pilot registering more than one resource
+   type records this checklist once per resource, not once for the whole pilot.
 
 ---
 

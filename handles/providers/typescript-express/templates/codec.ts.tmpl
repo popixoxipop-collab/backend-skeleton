@@ -55,10 +55,20 @@ export function encodeHandle(kind: string, type: string, uuid: string, pointer: 
   return `sbf1_${base64url(Buffer.from(raw, 'utf8'))}`;
 }
 
+// D-handle-identity-contract-freeze (Phase 3): scheme-dispatch table, not a hardcoded 'sbf1_'
+// check -- reserves the discriminant for a future `sbf2_` scheme (Phase 6, capability-scoped
+// handles) to register itself here additively, without ever changing how an existing 'sbf1_'
+// token decodes. encodeHandle() is untouched -- it still only ever emits 'sbf1_' tokens.
+const HANDLE_DECODERS: Record<string, (token: string) => DecodedHandle> = { sbf1: decodeSbf1Handle };
+
 export function decodeHandle(token: string): DecodedHandle {
-  if (typeof token !== 'string' || !token.startsWith('sbf1_')) {
-    throw new Error('not an sbf1 handle (missing "sbf1_" prefix)');
-  }
+  const scheme = typeof token === 'string' && token.includes('_') ? token.slice(0, token.indexOf('_')) : token;
+  const decoder = typeof scheme === 'string' ? HANDLE_DECODERS[scheme] : undefined;
+  if (!decoder) throw new Error('not an sbf1 handle (missing "sbf1_" prefix)');
+  return decoder(token);
+}
+
+function decodeSbf1Handle(token: string): DecodedHandle {
   if (token.length > MAX_HANDLE_TOKEN_LENGTH) {
     throw new Error(`handle token exceeds the maximum length of ${MAX_HANDLE_TOKEN_LENGTH} characters`);
   }

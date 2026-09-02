@@ -63,9 +63,7 @@ class DecodedHandle:
         self.pointer = pointer
 
 
-def decode_handle(token: str) -> DecodedHandle:
-    if not isinstance(token, str) or not token.startswith("sbf1_"):
-        raise ValueError('not an sbf1 handle (missing "sbf1_" prefix)')
+def _decode_sbf1(token: str) -> DecodedHandle:
     if len(token) > MAX_HANDLE_TOKEN_LENGTH:
         raise ValueError(f"handle token exceeds the maximum length of {MAX_HANDLE_TOKEN_LENGTH} characters")
     raw = _base64url_decode(token[len("sbf1_"):]).decode("utf-8")
@@ -74,6 +72,23 @@ def decode_handle(token: str) -> DecodedHandle:
         raise ValueError(f'malformed handle payload after decoding: "{raw}"')
     kind, type_, resource_uuid, pointer = match.groups()
     return DecodedHandle(kind.lower(), type_, resource_uuid.lower(), pointer)
+
+
+# D-handle-identity-contract-freeze (Phase 3): scheme-dispatch table, not a hardcoded "sbf1_"
+# check -- reserves the discriminant for a future "sbf2_" scheme (Phase 6, capability-scoped
+# handles) to register itself here additively, without ever changing how an existing "sbf1_"
+# token decodes. encode_handle() is untouched -- it still only ever emits "sbf1_" tokens.
+_HANDLE_DECODERS = {"sbf1": _decode_sbf1}
+
+
+def decode_handle(token: str) -> DecodedHandle:
+    if not isinstance(token, str):
+        raise ValueError('not an sbf1 handle (missing "sbf1_" prefix)')
+    scheme = token.split("_", 1)[0]
+    decoder = _HANDLE_DECODERS.get(scheme)
+    if decoder is None:
+        raise ValueError('not an sbf1 handle (missing "sbf1_" prefix)')
+    return decoder(token)
 
 
 # O3 (D-handle-uid-type-binding): ALL three kinds hash a "type:uuid[:...]" discriminant through

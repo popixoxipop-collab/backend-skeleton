@@ -171,6 +171,39 @@ test('collision fix: two different resource types sharing the same UUID derive D
 // literal JS port would have gotten wrong -- a present-but-null field must resolve to `null`
 // (200), not be conflated with "path doesn't exist" (404). See resolve_json_pointer's own
 // docstring in codec.py.tmpl for why a naive `None`-as-missing sentinel would regress this.
+// D-handle-identity-contract-freeze (Phase 3, item 1): a literal golden-vector pin against the
+// REAL rendered Python module, not just the JS reference -- see handles-codec.test.mjs's own copy
+// of this test for why a relative cross-language parity check alone can't catch a shared drift.
+test('golden vectors: encode_handle/derive_handle_uid (Python) output is pinned for kind=r, kind=f, and kind=o (sbf1_ contract freeze)', () => {
+	const type_ = 'Organization';
+	const uuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+	const pointer = '/policy/monthlyTokenLimit';
+	const [rEncode, rDerive, fEncode, fDerive, oEncode, oDerive] = runPython([
+		{ op: 'encode', kind: 'r', type: type_, uuid, pointer: null },
+		{ op: 'derive', kind: 'r', type: type_, uuid, pointer: null },
+		{ op: 'encode', kind: 'f', type: type_, uuid, pointer },
+		{ op: 'derive', kind: 'f', type: type_, uuid, pointer },
+		{ op: 'encode', kind: 'o', type: type_, uuid, pointer: null },
+		{ op: 'derive', kind: 'o', type: type_, uuid, pointer: null },
+	]);
+	assert.equal(rEncode.result, 'sbf1_cjpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3');
+	assert.equal(rDerive.result, 'b780c5c9-fc69-5cdd-ae9f-85593a41e700');
+	assert.equal(fEncode.result, 'sbf1_ZjpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3Oi9wb2xpY3kvbW9udGhseVRva2VuTGltaXQ');
+	assert.equal(fDerive.result, '5c7bfad5-0ae0-548e-8aeb-afd00bc76bc2');
+	assert.equal(oEncode.result, 'sbf1_bzpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3');
+	assert.equal(oDerive.result, '00b01a52-291c-5664-879c-c0ad798cd2e1');
+});
+
+// D-handle-identity-contract-freeze (Phase 3, item 2): the dual-scheme dispatch hook fails closed
+// on a scheme it doesn't recognize, in the real rendered Python module -- proves the hook actually
+// gates on the registered-scheme table rather than falling through to the sbf1 decoder.
+test('decode_handle rejects a well-formed but unregistered scheme (e.g. a future sbf2_ token) instead of misdecoding it as sbf1', () => {
+	const notYetRegistered = `sbf2_${Buffer.from('r:Organization:e957347e-3794-4c71-92a8-cec75dec1c97', 'utf8').toString('base64url')}`;
+	const [result] = runPython([{ op: 'decode', token: notYetRegistered }]);
+	assert.equal(result.ok, false);
+	assert.match(result.error, /not an sbf1 handle/);
+});
+
 test('resolve_json_pointer matches handles/codec.mjs\'s resolveJsonPointer exactly, including the null-vs-missing distinction', () => {
 	const obj = { a: { b: [1, 2, { c: null }] }, 'a/b': 'slash-key', 'c~d': 'tilde-key' };
 	const vectors = [

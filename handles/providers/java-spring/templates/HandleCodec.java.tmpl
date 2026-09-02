@@ -64,10 +64,28 @@ public final class HandleCodec {
 		return "sbf1_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
 	}
 
+	/**
+	 * D-handle-identity-contract-freeze (Phase 3): scheme-dispatch, not a hardcoded {@code sbf1_}
+	 * check -- reserves the discriminant for a future {@code sbf2_} scheme (Phase 6,
+	 * capability-scoped handles) to register itself here additively, without ever changing how an
+	 * existing {@code sbf1_} token decodes. {@link #encode} is untouched -- it still only ever
+	 * emits {@code sbf1_} tokens.
+	 */
 	public static Decoded decode(String token) {
-		if (token == null || !token.startsWith("sbf1_")) {
+		String scheme = scheme(token);
+		if (!"sbf1".equals(scheme)) {
 			throw new IllegalArgumentException("not an sbf1 handle (missing \"sbf1_\" prefix)");
 		}
+		return decodeSbf1(token);
+	}
+
+	private static String scheme(String token) {
+		if (token == null) return null;
+		int sep = token.indexOf('_');
+		return sep == -1 ? token : token.substring(0, sep);
+	}
+
+	private static Decoded decodeSbf1(String token) {
 		if (token.length() > MAX_HANDLE_TOKEN_LENGTH) {
 			throw new IllegalArgumentException("handle token exceeds the maximum length of " + MAX_HANDLE_TOKEN_LENGTH + " characters");
 		}

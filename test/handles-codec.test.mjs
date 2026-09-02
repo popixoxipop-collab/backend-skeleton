@@ -108,6 +108,49 @@ test('resolveJsonPointer: root, top-level, and nested paths', () => {
 	assert.equal(resolveJsonPointer(obj, '/nonexistent/path'), undefined);
 });
 
+// D-handle-identity-contract-freeze (Phase 3, item 1): a literal golden-vector pin, not merely a
+// round-trip/self-consistency check. Every other test in this file would still pass if
+// encodeHandle/deriveHandleUid's algorithm silently changed shape (round-trip and cross-language
+// parity are both RELATIVE checks -- they'd drift together). This test hardcodes the real output
+// of the CURRENT implementation, computed once by actually running codec.mjs, so any future
+// unintentional change to the wire format or the UUIDv5 derivation breaks this test directly. If
+// this test ever needs to change, that is a deliberate breaking change to the frozen sbf1_
+// contract (see D-handle-identity-contract-freeze in DECISIONS.md) -- never "fix the test" without
+// reading that entry first.
+test('golden vectors: encodeHandle/deriveHandleUid output is pinned for kind=r, kind=f, and kind=o (sbf1_ contract freeze)', () => {
+	const type = 'Organization';
+	const uuid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+	const pointer = '/policy/monthlyTokenLimit';
+
+	assert.equal(
+		encodeHandle({ kind: 'r', type, uuid }),
+		'sbf1_cjpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3',
+	);
+	assert.equal(deriveHandleUid({ kind: 'r', type, uuid }), 'b780c5c9-fc69-5cdd-ae9f-85593a41e700');
+
+	assert.equal(
+		encodeHandle({ kind: 'f', type, uuid, pointer }),
+		'sbf1_ZjpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3Oi9wb2xpY3kvbW9udGhseVRva2VuTGltaXQ',
+	);
+	assert.equal(deriveHandleUid({ kind: 'f', type, uuid, pointer }), '5c7bfad5-0ae0-548e-8aeb-afd00bc76bc2');
+
+	assert.equal(
+		encodeHandle({ kind: 'o', type, uuid }),
+		'sbf1_bzpPcmdhbml6YXRpb246ZTk1NzM0N2UtMzc5NC00YzcxLTkyYTgtY2VjNzVkZWMxYzk3',
+	);
+	assert.equal(deriveHandleUid({ kind: 'o', type, uuid }), '00b01a52-291c-5664-879c-c0ad798cd2e1');
+});
+
+// D-handle-identity-contract-freeze (Phase 3, item 2): the dual-scheme dispatch hook fails closed
+// on a scheme it doesn't recognize -- proves the hook actually gates on the registered-scheme
+// table rather than, say, falling through to the sbf1 decoder for anything that merely LOOKS
+// token-shaped. A real sbf2_ scheme (Phase 6) would register itself in HANDLE_DECODERS and this
+// exact input would then decode instead of throw -- that's the point of the hook.
+test('decodeHandle rejects a well-formed but unregistered scheme (e.g. a future sbf2_ token) instead of misdecoding it as sbf1', () => {
+	const notYetRegistered = `sbf2_${Buffer.from('r:Organization:e957347e-3794-4c71-92a8-cec75dec1c97', 'utf8').toString('base64url')}`;
+	assert.throws(() => decodeHandle(notYetRegistered), /not an sbf1 handle/);
+});
+
 test('end-to-end: mint a field handle, decode it, and use it to resolve the field from a fetched resource', () => {
 	const resourceUid = 'e957347e-3794-4c71-92a8-cec75dec1c97';
 	const pointer = '/policy/monthlyTokenLimit';
