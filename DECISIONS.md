@@ -10930,3 +10930,44 @@ on the exact real corpus that found it. `npm test`: 1325 -> 1328 (real, re-run c
 - FastAPI/TypeScript/JavaScript-Express adapters were not re-audited for an equivalent
   single-oracle-overfit risk in this pass -- the FastAPI pass above happened to surface none, but
   that is one data point, not a completed audit.
+
+**Update (FastAPI/TypeScript/JavaScript-Express audit, closing this entry's own named EXIT item):**
+closes the "not re-audited" bullet above. Read directly, not re-scanned live against a new corpus
+this time: `python-fastapi.mjs`'s module attribution was ALREADY convention-independent before this
+entry ever existed -- router-file basename for controllers, pure NAME-matching (singular/plural)
+for entities/DTOs, with zero folder-path assumption anywhere (confirmed by re-reading
+`scanPythonFastApi()` in full) -- and had already been empirically re-confirmed correct against a
+real, previously-untouched repo (`tiangolo/full-stack-fastapi-template`) during this same shadow-
+validation pass. `typescript-express.mjs` deliberately reuses that exact same precedent for its own
+module/entity attribution ("same precedent as python-fastapi's own", per its own comment) -- also
+safe. `javascript-express.mjs`'s route module naming is filename-basename-based too
+(`moduleNameFor()`), and this adapter has zero entity/DTO extraction at all (`resource.fetch:
+false`, no ORM), so there is no equivalent surface to audit.
+
+One real, narrower analog WAS found: `typescript-express.mjs`'s DTO detection (unlike its
+module/entity attribution) stayed purely path-convention-based -- `DTO_DIR_SEGMENT` requires a
+literal `dto` folder segment anywhere in the file's path, an explicit, deliberate choice (its own
+comment: "this ecosystem doesn't have a reliable single [content] marker" -- interface/type
+alias/class-validator/Zod/undecorated-class are all real, structurally different DTO conventions,
+so no syntax-based extractor was ever attempted). A real project using flat `UserDto.ts` files or
+NestJS's own common `user.dto.ts` naming, with no `dto/` folder anywhere, had every DTO silently
+invisible -- the same class of gap as `moduleOf()`'s, on the narrower DTO-tracking surface only
+(module/entity/controller extraction is unaffected either way).
+
+**Fix, deliberately NOT reopening the rejected content-detection problem**: a new, independent,
+NAME-only fallback (`DTO_NAME_SUFFIX_RE`, `/dto$/i` against the file's own basename) runs alongside
+the unchanged `dto/`-folder check -- not a syntax/content parser, the same near-definitional
+"Dto"-suffix marker this file's own entity/DTO name-matching step already relies on for MATCHING,
+just applied one step earlier, to DISCOVERY. Catches both `UserDto.ts` (PascalCase) and NestJS's
+`user.dto.ts` (kebab-case, since `path.basename(file, '.ts')` on the latter yields `"user.dto"`,
+which still ends in "dto"). Zero behavior change for any file already inside a `dto/` folder -- that
+check is untouched and still runs unconditionally first.
+
+**Verified**: 3 new unit tests in `test/express-shared.test.mjs` (a `UserDto.ts` with no `dto/`
+folder is found AND correctly attaches to the "users" module via the existing, unchanged
+name-matching step; a kebab-case `user.dto.ts` is found by the new fallback too; a plain, unrelated
+`config.ts` is never misdetected as a DTO), all 16 tests in that file passing including every
+pre-existing one unmodified. All 8 pre-existing tests in `test/typescript-express-cli.test.mjs`
+(including the `dto/`-folder-convention test and the DTO-drift-staleness test) pass unmodified,
+confirming zero regression for the primary, already-working convention. `npm test`: 1328 -> 1331
+(real, re-run count).

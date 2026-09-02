@@ -234,3 +234,65 @@ test('javascript-express: prose quoting an express import in a comment does not 
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
 });
+
+// D-module-attribution-base-package (Update): found by the same shadow-validation pass that fixed
+// java-spring's own moduleOf() -- a real project not using a dto/ folder at all had every DTO silently invisible.
+// This adapter's own DTO detection stayed purely path-convention-based (dto/) since java-spring's
+// identical convention; the fallback here adds a second, independent NAME-only signal (basename
+// ends in "dto"), not a content parser -- see the comment above DTO_NAME_SUFFIX_RE in
+// typescript-express.mjs for why content-based detection is still deliberately not attempted.
+test('typescript-express: a DTO file with no "dto/" folder at all (PascalCase UserDto.ts) is still detected and attached to its module', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/users.ts': [
+			"import { Router } from 'express';",
+			'const router = Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+		'src/UserDto.ts': 'export interface UserDto { name: string; }',
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const usersModule = result.modules.find((m) => m.module === 'users');
+	assert.ok(usersModule, 'expected a "users" module');
+	const dto = usersModule.dtos.find((d) => d.className === 'UserDto');
+	assert.ok(dto, 'expected UserDto to be found and attached to "users", even without a dto/ folder');
+});
+
+test('typescript-express: a DTO file with no "dto/" folder at all (NestJS-style kebab-case user.dto.ts) is still detected', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/users.ts': [
+			"import { Router } from 'express';",
+			'const router = Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+		'src/user.dto.ts': 'export interface UserDto { name: string; }',
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const allDtos = result.modules.flatMap((m) => m.dtos);
+	assert.ok(allDtos.some((d) => d.className === 'user.dto'), 'expected user.dto.ts to be found by its own basename, even kebab-cased');
+});
+
+test('typescript-express: a plain, unrelated .ts file (no dto/ folder, name does not end in "dto") is never misdetected as a DTO', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/users.ts': [
+			"import { Router } from 'express';",
+			'const router = Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+		'src/config.ts': 'export const config = { port: 3000 };',
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const allDtos = result.modules.flatMap((m) => m.dtos);
+	assert.deepEqual(allDtos, [], 'config.ts must never be misdetected as a DTO');
+});

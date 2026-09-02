@@ -41,6 +41,17 @@ const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*ex
 // exported symbol -- same file-level granularity java's own DTO tracking already settled for.
 const DTO_DIR_SEGMENT = `${path.sep}dto${path.sep}`;
 
+// D-module-attribution-base-package (Update): found by the same shadow-validation pass that fixed
+// java-spring's own moduleOf() -- a real project not using a `dto/` folder at all (flat `CreateUserDto.ts` files, or
+// NestJS's own common `create-user.dto.ts` naming) had every DTO silently invisible, the same class
+// of single-convention overfit, just on a narrower surface (DTO tracking only, not module/entity/
+// controller extraction). This does NOT reopen the CONTENT-detection problem the comment above
+// explicitly rejected (interface/type/class-validator/Zod/undecorated class all have different
+// shapes) -- it's an independent, NAME-only signal: the file's own basename ends in "dto"
+// (case-insensitive), the same near-definitional marker this file's own entity-matching step below
+// already leans on for MATCHING. Catches both `CreateUserDto.ts` and `create-user.dto.ts`.
+const DTO_NAME_SUFFIX_RE = /dto$/i;
+
 // Two independent signals required, mirroring java-spring's "build file AND src layout" /
 // python-fastapi's "dependency declared AND source-confirmed" combined bar: (a) package.json
 // declares express, (b) at least one .ts file actually imports Router from 'express' and calls
@@ -251,8 +262,8 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 				moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
 			}
 		}
-		if (file.includes(DTO_DIR_SEGMENT)) {
-			allDtos.push({ className: path.basename(file, '.ts'), file }); // no `line` -- path-based, no content parsed
+		if (file.includes(DTO_DIR_SEGMENT) || DTO_NAME_SUFFIX_RE.test(path.basename(file, '.ts'))) {
+			allDtos.push({ className: path.basename(file, '.ts'), file }); // no `line` -- path/name-based, no content parsed
 		}
 		allEntities.push(...extractTableEntities(text, file));
 	}
