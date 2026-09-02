@@ -45,10 +45,43 @@ function listJavaFiles(srcRoot) {
 	return out.split('\n').filter(Boolean).sort();
 }
 
-function moduleOf(filePath, srcRoot) {
+// D-module-attribution-base-package: found live via a real-world corpus check (spring-projects/
+// spring-petclinic, the canonical public Spring Boot reference app) -- `domain/<module>/...` is
+// Team-IZ-Backend's OWN package convention, not a general Spring Boot one; petclinic's real
+// packages (`org.springframework.samples.petclinic.owner`, `...vet`, `...system`) never contain a
+// `domain` segment at all, so every entity there collapsed into `_unknown`. Finds the app's real
+// base package via its `@SpringBootApplication` class -- the actual framework-defined component-
+// scan root, not a second guessed folder name -- and returns the first path segment immediately
+// below it as a fallback module name. A single targeted `rg` search (not a second full-file read
+// pass), matching this file's own `listJavaFiles()` pattern for rg-invocation-with-graceful-empty-
+// result.
+function findBasePackage(srcRoot) {
+	let out;
+	try {
+		out = execFileSync('rg', ['-l', '--fixed-strings', '@SpringBootApplication', '-g', '*.java', srcRoot], { encoding: 'utf8' });
+	} catch {
+		return null; // rg exits 1 on "no match" -- not an error, just no @SpringBootApplication class found
+	}
+	const file = out.split('\n').filter(Boolean).sort()[0];
+	if (!file) return null;
+	const text = fs.readFileSync(file, 'utf8');
+	const pkg = text.match(/(?:^|\n)\s*package\s+([\w.]+)\s*;/);
+	return pkg ? pkg[1].split('.') : null;
+}
+
+function moduleOf(filePath, srcRoot, basePackageParts) {
 	const parts = path.relative(srcRoot, filePath).split(path.sep);
 	const domainIdx = parts.indexOf('domain');
-	return domainIdx >= 0 && parts[domainIdx + 1] ? parts[domainIdx + 1] : null;
+	if (domainIdx >= 0 && parts[domainIdx + 1]) return parts[domainIdx + 1];
+	// Fallback: the first segment directly under the app's own base package (e.g. petclinic's
+	// `owner`/`vet`/`system`) -- only when that segment is itself a subpackage (a directory), never
+	// the base package's own top-level file (the `@SpringBootApplication` class itself, or any
+	// other file living directly in the base package with no feature module of its own).
+	if (basePackageParts && basePackageParts.length && parts.length > basePackageParts.length + 1) {
+		const matchesBasePackage = basePackageParts.every((seg, i) => parts[i] === seg);
+		if (matchesBasePackage) return parts[basePackageParts.length];
+	}
+	return null;
 }
 
 function extractQuotedOrValue(argsText) {
@@ -239,6 +272,8 @@ export function scanJavaSpring(repoRoot) {
 	const srcRoot = detectJavaSpringRoot(repoRoot);
 	if (!srcRoot) return null;
 
+	const basePackage = findBasePackage(srcRoot);
+
 	const modules = new Map();
 	const moduleEntry = (name) => {
 		const key = name ?? '_unknown';
@@ -248,7 +283,7 @@ export function scanJavaSpring(repoRoot) {
 
 	for (const file of listJavaFiles(srcRoot)) {
 		const text = fs.readFileSync(file, 'utf8');
-		const mod = moduleOf(file, srcRoot);
+		const mod = moduleOf(file, srcRoot, basePackage);
 
 		if (/@RestController\b/.test(text)) {
 			const controller = extractController(text, file);

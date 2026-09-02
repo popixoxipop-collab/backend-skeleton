@@ -10854,3 +10854,79 @@ since none of them touch runtime code). Real `ci.yml` run on the version-bump pu
 `publish.yml` `workflow_dispatch` run (`tag: latest`) are both recorded in this repo's own GitHub
 Actions history (`gh run list`); post-publish, `npm view backend-skeleton dist-tags` confirmed
 `latest: 1.0.0` live on the registry.
+
+## D-module-attribution-base-package: `moduleOf()` only recognized Team-IZ-Backend's own `domain/<module>/...` convention -- found live against the real, canonical Spring Boot reference app, not anticipated
+
+**WHY**: with `1.0.0` shipped and O3/O5/delegatable-handles genuinely blocked on a real production
+deployment this session cannot manufacture, the next actionable direction was a W6-style
+shadow-validation pass -- run real, read-only `scan`/`contract emit` flows against well-known,
+real-world Spring Boot and FastAPI repositories this project has never touched before, recording
+false positives/refusals/unsupported constructs, not just pass/fail (`CATALOG.md`'s own W6
+strategy, proposed by an earlier Codex differentiators consultation and never previously executed
+against anything beyond Team-IZ-Backend/the official FastAPI reference/one Express sample). Two
+repos were picked for their real-world recognizability: `spring-projects/spring-petclinic` (the
+canonical public Spring Boot reference application, widely used by other tools' own test suites for
+exactly this purpose) and `tiangolo/full-stack-fastapi-template` (FastAPI's own creator's
+production-shaped template).
+
+The FastAPI pass surfaced only positive confirmations: correct adapter detection in a real monorepo
+layout (`pyproject.toml` under `backend/`, not repo root), correct module attribution (`items`),
+correct real entity/table extraction, a genuinely useful proactive warning (`include_router`'s own
+`/api/v1` prefix in `main.py`, which source-only extraction cannot see, correctly named with a
+`--openapi-file` remediation), and a correct, honest fail-closed refusal from `contract emit`
+without one (`api.operations: false` for this adapter, exactly as documented).
+
+The Spring pass surfaced one real, previously-invisible defect: every real `@Entity` in petclinic
+(`Owner`, `Pet`, `PetType`, `Visit`, `Specialty`, `Vet`) landed in a single `_unknown` module
+bucket. Root-caused by direct read, not assumed: `moduleOf()` (`scanners/adapters/java-spring.mjs`)
+only ever recognized a literal `domain` path segment (`.../domain/<module>/...`) -- Team-IZ-
+Backend's own package-by-layer-then-feature convention, confirmed via this project's own git
+history to be exactly that: a convention this codebase happened to standardize its OWN fixtures
+around, never verified against any repo that organizes packages differently. Spring's own reference
+app uses the equally common package-by-feature-directly-under-the-base-package convention
+(`org.springframework.samples.petclinic.owner`/`...vet`/`...system`, no `domain` segment anywhere)
+-- a second, real instance of the exact "one-oracle overfitting" risk (W9) this project's own
+earlier grounding pass already named in the abstract, now reproduced concretely rather than left
+theoretical. (`contract emit` returning 0 operations against petclinic is a SEPARATE, correct
+finding, not a bug -- petclinic's controllers are `@Controller` classes returning Thymeleaf view
+names, not a REST API; nothing to extract, and the tool correctly declined to fabricate anything.)
+
+**Design**: `moduleOf()` still checks the `domain/<x>/...` segment FIRST, completely unchanged --
+zero behavior change for every existing fixture/production repo already using that convention
+(confirmed directly: neither `test/fixtures/java-compile`'s nor `test/fixtures/java-spring`'s own
+non-`domain/` files, e.g. `PatchField.java`/`ApiPathConfig.java`, are `@Entity`/`@RestController` in
+the first place, so `moduleOf()`'s return value for them was never actually consumed by
+`moduleEntry()` either before or after this change). Only when no `domain` segment exists does a
+new fallback run: `findBasePackage(srcRoot)` locates the app's own `@SpringBootApplication` class
+via one targeted `rg -l` search (not a second full-file read pass -- matches `listJavaFiles()`'s
+own rg-invocation style) and reads its real `package x.y.z;` declaration -- the actual,
+framework-defined component-scan root, not a second guessed folder name. `moduleOf()` then returns
+the first path segment immediately below that base package, but only when that segment is itself a
+subpackage (a directory) rather than the base package's own top-level file (the application class
+itself, or any other file living directly in the base package with no feature module of its own --
+verified by a dedicated negative test, not just the positive case). A repo with no
+`@SpringBootApplication` class anywhere (`findBasePackage()` returns `null`) falls back to the
+exact pre-existing `_unknown` behavior, unchanged.
+
+**Verified**: 3 new unit tests in `test/scan-fixture.test.mjs` (a synthetic petclinic-shaped
+fixture -- `@SpringBootApplication` + `owner`/`vet` subpackages, no `domain/` segment -- correctly
+attributes both real modules with zero `_unknown`; the application class itself is confirmed never
+attributed a spurious module; a repo with no `@SpringBootApplication` class at all still falls back
+to `_unknown`, proving zero regression for that edge case too), all 16 tests in that file passing
+including every pre-existing one unmodified. Independently re-confirmed against a real, disposable
+clone of `spring-projects/spring-petclinic` itself (not just the synthetic fixture): calling
+`scanJavaSpring()` directly now returns exactly `{owner: [Owner, Pet, PetType, Visit], vet:
+[Specialty, Vet]}`, zero `_unknown` -- the exact real-world gap this entry closes, confirmed closed
+on the exact real corpus that found it. `npm test`: 1325 -> 1328 (real, re-run count).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- The two hardcoded path-substring checks gating enum/DTO extraction (`domain/`, `presentation/
+  dto/`) are a separate, still-Team-IZ-Backend-specific convention this item does not touch --
+  petclinic has neither enums nor a `presentation/dto/` layout to exercise them, so this gap was
+  neither newly introduced nor newly discovered here; named so it isn't mistaken for closed.
+- No attempt to detect or reconcile a repo using BOTH conventions inconsistently across modules --
+  `domain/` always wins wherever present, per-file, which is the correct behavior for a repo
+  migrating between conventions but was not specifically tested for.
+- FastAPI/TypeScript/JavaScript-Express adapters were not re-audited for an equivalent
+  single-oracle-overfit risk in this pass -- the FastAPI pass above happened to surface none, but
+  that is one data point, not a completed audit.

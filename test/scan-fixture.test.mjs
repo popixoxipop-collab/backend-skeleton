@@ -9,6 +9,8 @@
 // the exact corpus that documented the original bugs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runScan } from '../scanners/index.mjs';
@@ -78,6 +80,84 @@ test('dtos are {className, file} objects, not bare strings -- OrganizationDto is
 	assert.ok(dto, 'expected OrganizationDto to be found');
 	assert.equal(typeof dto.file, 'string', 'dto must carry a .file path (unlike the old bare-string shape)');
 	assert.ok(dto.file.endsWith(path.join('presentation', 'dto', 'OrganizationDto.java')));
+});
+
+// D-module-attribution-base-package: found live against a real corpus check (spring-projects/
+// spring-petclinic), not anticipated -- moduleOf() used to key purely on a literal "domain" path
+// segment (Team-IZ-Backend's OWN convention), so a real Spring Boot app that puts feature modules
+// directly under its base package (petclinic's own `org.springframework.samples.petclinic.owner`/
+// `...vet`/`...system`, no "domain" segment anywhere) collapsed every entity into "_unknown".
+function petclinicStyleFixture() {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-base-package-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const base = path.join(root, 'src/main/java/org/example/petlike');
+	fs.mkdirSync(base, { recursive: true });
+	fs.writeFileSync(path.join(base, 'PetLikeApplication.java'), `
+package org.example.petlike;
+
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class PetLikeApplication {}
+`);
+	fs.mkdirSync(path.join(base, 'owner'), { recursive: true });
+	fs.writeFileSync(path.join(base, 'owner', 'Owner.java'), `
+package org.example.petlike.owner;
+
+import jakarta.persistence.Entity;
+
+@Entity
+public class Owner {}
+`);
+	fs.mkdirSync(path.join(base, 'vet'), { recursive: true });
+	fs.writeFileSync(path.join(base, 'vet', 'Vet.java'), `
+package org.example.petlike.vet;
+
+import jakarta.persistence.Entity;
+
+@Entity
+public class Vet {}
+`);
+	return root;
+}
+
+test('moduleOf() base-package fallback: entities under <basePackage>/<module>/... (no "domain" segment) are still correctly attributed, not collapsed into _unknown', () => {
+	const result = scanJavaSpring(petclinicStyleFixture());
+	const ownerModule = result.modules.find((m) => m.module === 'owner');
+	const vetModule = result.modules.find((m) => m.module === 'vet');
+	assert.ok(ownerModule, 'expected a real "owner" module, not everything landing in _unknown');
+	assert.ok(ownerModule.entities.some((e) => e.className === 'Owner'));
+	assert.ok(vetModule, 'expected a real "vet" module');
+	assert.ok(vetModule.entities.some((e) => e.className === 'Vet'));
+	assert.ok(!result.modules.some((m) => m.module === '_unknown'), 'nothing should fall back to _unknown once the base package is known');
+});
+
+test('moduleOf() base-package fallback: a file living directly in the base package (the @SpringBootApplication class itself) is never attributed a spurious module', () => {
+	const root = petclinicStyleFixture();
+	// PetLikeApplication.java has no @Entity/@RestController, so it never reaches moduleEntry() at
+	// all -- confirm this indirectly: only "owner"/"vet" modules exist, nothing named after the
+	// application class or an empty string.
+	const result = scanJavaSpring(root);
+	assert.deepEqual(result.modules.map((m) => m.module).sort(), ['owner', 'vet']);
+});
+
+test('moduleOf() base-package fallback: a repo with no @SpringBootApplication class anywhere falls back to the pre-existing _unknown behavior, unchanged', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-no-app-class-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const dir = path.join(root, 'src/main/java/org/example/nomain/owner');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'Owner.java'), `
+package org.example.nomain.owner;
+
+import jakarta.persistence.Entity;
+
+@Entity
+public class Owner {}
+`);
+	const result = scanJavaSpring(root);
+	const unknownModule = result.modules.find((m) => m.module === '_unknown');
+	assert.ok(unknownModule, 'no @SpringBootApplication class anywhere -- findBasePackage() must return null, preserving the old _unknown fallback');
+	assert.ok(unknownModule.entities.some((e) => e.className === 'Owner'));
 });
 
 test('the fixture\'s own global-path-prefix signals: configurePathMatch + springdoc.paths-to-match, no context-path', () => {
