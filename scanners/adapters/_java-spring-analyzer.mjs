@@ -53,7 +53,15 @@ export function matchBalanced(text, openIndex, openChar, closeChar) {
 	return -1;
 }
 
-const CLASS_OR_RECORD_RE = /(?:public\s+)?(class|record)\s+(\w+)/;
+// D-entity-id-field-inheritance: `\b` before `(class|record)` -- found live, not anticipated,
+// while verifying a real cross-file inheritance walk against `@MappedSuperclass`-annotated Java
+// (spring-petclinic's own `BaseEntity`). Without it, `class`/`record` could match as a SUBSTRING of
+// a preceding identifier that happens to end the same way -- `@MappedSuperclass\npublic class
+// BaseEntity` matched "class" inside "Superclass" itself (no `\w`-to-non-`\w` transition exists
+// between "Super" and "class", so no real word boundary there either way), then captured the next
+// bare word ("public") as if it were the class name. `\s+` alone was never sufficient protection --
+// it only requires whitespace AFTER the match, never a real word start before it.
+const CLASS_OR_RECORD_RE = /(?:public\s+)?\b(class|record)\s+(\w+)/;
 
 // Adds `record` support and makes `public` optional (a package-private class is still a legal
 // Spring bean) in the one place both extractController() and extractEntity() already duplicate

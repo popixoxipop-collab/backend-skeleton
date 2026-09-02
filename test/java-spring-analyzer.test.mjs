@@ -77,6 +77,23 @@ test('findClassOrRecordDeclaration: matches `record`', () => {
 	assert.equal(m.name, 'Foo');
 });
 
+// D-entity-id-field-inheritance: found live, not anticipated, against a real corpus check
+// (spring-petclinic's own `@MappedSuperclass public class BaseEntity implements Serializable`) --
+// `class` used to match as a bare SUBSTRING of a preceding identifier ending the same way, with no
+// real word-boundary transition inside "Superclass" (both the `r` before and the `c` after are
+// `\w` characters, so `\s+` alone -- required only AFTER the match -- was never real protection).
+test('findClassOrRecordDeclaration: "class" is never matched as a substring of a preceding identifier ending in "...class" (e.g. @MappedSuperclass immediately before the real declaration)', () => {
+	const m = findClassOrRecordDeclaration(maskNonCode('@MappedSuperclass\npublic class BaseEntity implements Serializable {'));
+	assert.equal(m.keyword, 'class');
+	assert.equal(m.name, 'BaseEntity', 'must not match "class" inside "Superclass" and capture the next bare word ("public") as the class name');
+});
+
+test('findClassOrRecordDeclaration: the same substring risk for "record" (e.g. a preceding "...record" identifier)', () => {
+	const m = findClassOrRecordDeclaration(maskNonCode('@SomeRecord\npublic record Foo() {'));
+	assert.equal(m.keyword, 'record');
+	assert.equal(m.name, 'Foo');
+});
+
 test('skipAnnotationsAndWhitespace: skips zero, one, and multiple intervening annotations', () => {
 	const masked = maskNonCode('@GetMapping\n@PreAuthorize("hasRole(\'X\')")\n@Deprecated\npublic void foo() {}');
 	const afterFirst = skipAnnotationsAndWhitespace(masked, '@GetMapping'.length);

@@ -165,12 +165,35 @@ function extractController(text, filePath) {
 	return { className, basePath, operationIds, endpoints, file: filePath, line: classLine };
 }
 
-function extractEntity(text, filePath) {
+// D-entity-id-field-inheritance: found live against a real corpus check (spring-projects/
+// spring-petclinic) -- `Owner extends Person extends BaseEntity`, and `@Id` lives on `BaseEntity`
+// (a `@MappedSuperclass`), the standard, textbook JPA pattern for sharing an id/audit-field base
+// across entities. A single-file-only `@Id` search misses it entirely for every entity built this
+// way. `classIndex` (simple class name -> that file's own text, built once per scan in
+// scanJavaSpring()) lets this walk the real `extends` chain instead of guessing.
+function extendsClauseName(maskedText) {
+	const m = maskedText.match(/\bclass\s+\w+\s+extends\s+(\w+)/);
+	return m ? m[1] : null;
+}
+
+// Depth-capped as insurance against a pathological/malformed input, not because real compilable
+// Java can have circular inheritance (it can't) -- same "not expected to trigger, cheap insurance"
+// reasoning javascript-express.mjs's own mount-graph cycle guard (`seen`) already uses for an
+// analogous risk.
+function findIdField(text, classIndex, depth = 0) {
+	const direct = text.match(/@Id\b[\s\S]{0,200}?private\s+\S+\s+(\w+)\s*;/);
+	if (direct) return direct[1];
+	if (depth >= 10) return null;
+	const superName = extendsClauseName(maskNonCode(text));
+	if (!superName || !classIndex.has(superName)) return null;
+	return findIdField(classIndex.get(superName), classIndex, depth + 1);
+}
+
+function extractEntity(text, filePath, classIndex) {
 	if (!/@Entity\b/.test(text)) return null;
 	const masked = maskNonCode(text);
 	const classDecl = findClassOrRecordDeclaration(masked);
 	const tableMatch = text.match(/@Table\(\s*name\s*=\s*"([^"]+)"/);
-	const idFieldMatch = text.match(/@Id\b[\s\S]{0,200}?private\s+\S+\s+(\w+)\s*;/);
 	return {
 		className: classDecl ? classDecl.name : path.basename(filePath, '.java'),
 		table: tableMatch ? tableMatch[1] : null,
@@ -180,7 +203,7 @@ function extractEntity(text, filePath) {
 		// two adapters that DO guess (python-fastapi/typescript-express) -- cross-feature collision
 		// detection reads this field, not each adapter's own null-vs-guessed convention.
 		tableSource: tableMatch ? 'explicit' : null,
-		idField: idFieldMatch ? idFieldMatch[1] : null,
+		idField: findIdField(text, classIndex),
 		file: filePath,
 		line: classDecl ? lineNumberAt(text, classDecl.index) : null,
 	};
@@ -274,6 +297,22 @@ export function scanJavaSpring(repoRoot) {
 
 	const basePackage = findBasePackage(srcRoot);
 
+	// D-entity-id-field-inheritance: built once, not per-entity -- a single pass over the same
+	// files this function was already about to read anyway (no new file I/O), so
+	// extractEntity()'s idField search can walk a real `extends` chain across files.
+	const files = listJavaFiles(srcRoot);
+	const fileTexts = new Map();
+	const classIndex = new Map();
+	for (const file of files) {
+		const text = fs.readFileSync(file, 'utf8');
+		fileTexts.set(file, text);
+		const decl = findClassOrRecordDeclaration(maskNonCode(text));
+		// First file wins on a same-simple-name collision across packages -- `files` is already
+		// sorted (listJavaFiles()'s own O6 determinism guarantee), so this is deterministic, not
+		// silently random; a documented, bounded limitation, not a general symbol resolver.
+		if (decl && !classIndex.has(decl.name)) classIndex.set(decl.name, text);
+	}
+
 	const modules = new Map();
 	const moduleEntry = (name) => {
 		const key = name ?? '_unknown';
@@ -281,8 +320,8 @@ export function scanJavaSpring(repoRoot) {
 		return modules.get(key);
 	};
 
-	for (const file of listJavaFiles(srcRoot)) {
-		const text = fs.readFileSync(file, 'utf8');
+	for (const file of files) {
+		const text = fileTexts.get(file);
 		const mod = moduleOf(file, srcRoot, basePackage);
 
 		if (/@RestController\b/.test(text)) {
@@ -290,7 +329,7 @@ export function scanJavaSpring(repoRoot) {
 			if (controller) moduleEntry(mod).controllers.push(controller);
 		}
 		if (/@Entity\b/.test(text)) {
-			const entity = extractEntity(text, file);
+			const entity = extractEntity(text, file, classIndex);
 			if (entity) moduleEntry(mod).entities.push(entity);
 		}
 		if (mod && file.includes(`${path.sep}domain${path.sep}`) && /public\s+enum\s+\w+/.test(text)) {
@@ -306,7 +345,7 @@ export function scanJavaSpring(repoRoot) {
 	// paths) -- this is what lib/gate-definitions.mjs's `scan` gate hashes to detect real content
 	// drift, and every other manifest-shaped gate input in this codebase (stack's `applied_file:`)
 	// is repo-relative too.
-	const filesRead = listJavaFiles(srcRoot).map((f) => path.relative(repoRoot, f));
+	const filesRead = files.map((f) => path.relative(repoRoot, f));
 	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot), filesRead };
 }
 

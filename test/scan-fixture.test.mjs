@@ -160,6 +160,113 @@ public class Owner {}
 	assert.ok(unknownModule.entities.some((e) => e.className === 'Owner'));
 });
 
+// D-entity-id-field-inheritance: found live against a real corpus check (spring-projects/
+// spring-petclinic) -- `Owner extends Person extends BaseEntity`, `@Id` lives on `BaseEntity` (a
+// `@MappedSuperclass`), the standard JPA pattern for sharing an id/audit-field base across
+// entities. A single-file-only `@Id` search never saw it. Mirrors the real 2-level inheritance
+// depth petclinic actually uses -- a 1-level fixture would not have caught the recursion needing
+// to walk more than one hop.
+function inheritedIdFixture() {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-inherited-id-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const base = path.join(root, 'src/main/java/org/example/petlike');
+	fs.mkdirSync(base, { recursive: true });
+	fs.writeFileSync(path.join(base, 'PetLikeApplication.java'), `
+package org.example.petlike;
+
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class PetLikeApplication {}
+`);
+	fs.mkdirSync(path.join(base, 'model'), { recursive: true });
+	fs.writeFileSync(path.join(base, 'model', 'BaseEntity.java'), `
+package org.example.petlike.model;
+
+import jakarta.persistence.Id;
+import jakarta.persistence.MappedSuperclass;
+
+@MappedSuperclass
+public class BaseEntity {
+	@Id
+	private Integer id;
+}
+`);
+	fs.writeFileSync(path.join(base, 'model', 'Person.java'), `
+package org.example.petlike.model;
+
+import jakarta.persistence.MappedSuperclass;
+
+@MappedSuperclass
+public class Person extends BaseEntity {
+	private String lastName;
+}
+`);
+	fs.mkdirSync(path.join(base, 'owner'), { recursive: true });
+	fs.writeFileSync(path.join(base, 'owner', 'Owner.java'), `
+package org.example.petlike.owner;
+
+import jakarta.persistence.Entity;
+import org.example.petlike.model.Person;
+
+@Entity
+public class Owner extends Person {
+	private String address;
+}
+`);
+	return root;
+}
+
+test('extractEntity(): idField resolves through a 2-level @MappedSuperclass chain across files (Owner extends Person extends BaseEntity, @Id on BaseEntity)', () => {
+	const result = scanJavaSpring(inheritedIdFixture());
+	const ownerModule = result.modules.find((m) => m.module === 'owner');
+	const owner = ownerModule.entities.find((e) => e.className === 'Owner');
+	assert.equal(owner.idField, 'id');
+});
+
+test('extractEntity(): idField declared directly on the entity itself (the common, already-working case) is unaffected', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-direct-id-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const dir = path.join(root, 'src/main/java/org/example/app/widget');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'Widget.java'), `
+package org.example.app.widget;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+
+@Entity
+public class Widget {
+	@Id
+	private java.util.UUID id;
+}
+`);
+	const result = scanJavaSpring(root);
+	const widget = result.modules[0].entities.find((e) => e.className === 'Widget');
+	assert.equal(widget.idField, 'id');
+});
+
+test('extractEntity(): a class extending something outside this source tree (an external library base class) resolves idField to null, not a crash', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-spring-external-base-'));
+	fs.writeFileSync(path.join(root, 'build.gradle'), "plugins { id 'org.springframework.boot' version '3.3.0' }\n");
+	const dir = path.join(root, 'src/main/java/org/example/app/widget');
+	fs.mkdirSync(dir, { recursive: true });
+	fs.writeFileSync(path.join(dir, 'Widget.java'), `
+package org.example.app.widget;
+
+import jakarta.persistence.Entity;
+import some.external.library.PanacheEntityBase;
+
+@Entity
+public class Widget extends PanacheEntityBase {
+	private String name;
+}
+`);
+	const result = scanJavaSpring(root);
+	const widget = result.modules[0].entities.find((e) => e.className === 'Widget');
+	assert.equal(widget.idField, null, 'PanacheEntityBase is not part of this source tree -- must fail closed, never guess');
+});
+
 test('the fixture\'s own global-path-prefix signals: configurePathMatch + springdoc.paths-to-match, no context-path', () => {
 	const report = runScan({ repoRoot: FIXTURE_ROOT, terms: ['organization'] });
 	const byKind = Object.fromEntries(report.path_prefix_signals.map((s) => [s.kind, s]));

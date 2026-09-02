@@ -11008,3 +11008,99 @@ graph, confirming the full `/api/:id` prefix chain resolves correctly end-to-end
 SOME edge gets created), all 18 tests in that file passing. All 15 pre-existing tests in
 `test/javascript-express-cli.test.mjs` (including the default-export mount-graph test this fix
 must not regress) pass unmodified. `npm test`: 1331 -> 1333 (real, re-run count).
+
+## D-entity-id-field-inheritance: `extractEntity()`'s `idField` couldn't see an `@Id` inherited from a different file -- and a pre-existing regex bug found only while verifying the fix against real code
+
+**WHY**: continuing this session's shadow-validation audit onto the handles-codegen layer (the same
+real repos already used for the scan-layer audit -- java-spring/spring-petclinic, python-fastapi/
+full-stack-fastapi-template, typescript-express/typeorm-express-typescript): running `bskel handles
+plan --feature 001-owner-management --module owner` against a real `spring-petclinic` clone showed
+`idField: null` for every entity (`Owner`, `Pet`, `PetType`, `Visit`, `Specialty`, `Vet`).
+
+Root-caused by direct read, not assumed: `Owner extends Person extends BaseEntity`
+(`src/main/java/org/springframework/samples/petclinic/{owner/Owner.java,model/Person.java,
+model/BaseEntity.java}`), `@Id` lives on `BaseEntity` -- a `@MappedSuperclass`, the standard,
+textbook JPA pattern for sharing an id/audit-field base across entities. `extractEntity()`'s
+`idFieldMatch = text.match(/@Id\b[\s\S]{0,200}?private\s+\S+\s+(\w+)\s*;/)` only ever searched the
+CURRENT file's own text, so an inherited `@Id` two files up was invisible.
+
+**Impact, confirmed by reading every consumer, not assumed**: `idField` is a pure `handles plan
+--json` REPORT field -- `grep -rn idField handles/` found exactly one other reference
+(`plan.mjs:321`, copied straight into the resources array) and `willGenerateResolver: Boolean(fetchOp
+&& service && serviceParamCount === 1)` never touches it. Report-accuracy, not codegen-safety --
+petclinic's `willGenerateResolver: false` stays correctly `false` either way (no `@Service` layer
+at all, repositories used directly in controllers -- a separate, correct refusal, not something
+this item touches). Still worth fixing: a human reading `handles plan --json` sees `idField: null`
+and reasonably concludes the tool couldn't find the id at all, when it just wasn't looking in the
+right file.
+
+**Cross-checked against the other two adapters, not assumed safe by symmetry alone**:
+- `python-fastapi.mjs`'s `extractTableEntities()` has the identical-LOOKING "scoped to this class's
+  body" restriction, but re-reading the real `full-stack-fastapi-template/backend/app/models.py`
+  confirms `id: uuid.UUID = Field(..., primary_key=True)` is declared directly on the `table=True`
+  class itself (`User(UserBase, table=True)`/`Item(ItemBase, table=True)`), never on the `Base`
+  mixin -- the real, standard SQLModel convention keeps `id` on the DB-table class specifically.
+  Confirmed clean, no bug.
+- `typescript-express.mjs`'s `extractTableEntities()` has the same structural shape (`body` scoped
+  to the matched class's own `{...}` braces only) -- a genuine, symmetric theoretical risk (a
+  shared base class carrying `@PrimaryGeneratedColumn` is a real, documented TypeORM pattern too),
+  but NOT confirmed against any real repo -- the one real TS repo already validated this session
+  (`mkosir/typeorm-express-typescript`) declares `@PrimaryGeneratedColumn()` directly on `User`
+  itself, no base class in the way. Left as a named, deferred EXIT item rather than speculatively
+  fixed without a real repro.
+
+**Design**: a `classIndex` (simple class name -> that file's own text) is built once per scan in
+`scanJavaSpring()` -- one extra pass over files the function was already reading anyway (zero new
+file I/O), not a repeated per-entity search. `extractEntity(text, filePath, classIndex)` gains the
+index; a new `findIdField(text, classIndex, depth)` tries the existing single-file regex first
+(zero behavior change for the common, already-working case), and only on failure parses the class's
+own `extends X` clause and recurses into `classIndex.get(X)`, depth-capped (10) as insurance against
+a pathological input -- real compilable Java can't have circular inheritance, same "not expected to
+trigger, cheap insurance" reasoning `javascript-express.mjs`'s own mount-graph cycle guard already
+uses for an analogous risk. No `extends` clause, or the superclass isn't in `classIndex` (an
+external library base class) -> `null`, the same honest fallback as before, never a guess. A
+same-simple-name collision across two different packages resolves to whichever file `listJavaFiles()`'s
+own sorted order visits first -- deterministic, not silently random, a documented, bounded
+limitation matching this adapter's own established "good enough regex, not a real symbol resolver"
+restraint (unchanged by this item, not newly introduced).
+
+**A second, unrelated-in-origin bug found only by verifying the fix against real code, not by
+inspection**: the new cross-file walk kept returning `null` even after the design above was
+implemented and unit-tested clean. Traced to `_java-spring-analyzer.mjs`'s shared
+`CLASS_OR_RECORD_RE = /(?:public\s+)?(class|record)\s+(\w+)/` -- no word boundary before
+`(class|record)`, so it matched `class` as a bare SUBSTRING of `@MappedSuperclass`'s own
+"Superclass" (no real `\w`-to-non-`\w` transition exists between "Super" and "class" -- both
+neighboring characters are letters -- so `\s+`, required only AFTER the match, was never real
+protection), then captured the very next bare word ("public", from the following line's `public
+class BaseEntity`) as if it were the class name. This directly blocked the exact real-world case
+this item exists to fix -- `@MappedSuperclass` is the annotation JPA developers use for precisely
+the shared-base-class pattern `classIndex` needs to resolve. Fixed with one added `\b`:
+`/(?:public\s+)?\b(class|record)\s+(\w+)/`. This function is shared beyond java-spring.mjs (also
+used by `handles/providers/java-spring/patch-strategy.mjs`), so the fix's blast radius is the whole
+adapter's class-name extraction, not just this item's own new code -- re-verified every pre-existing
+consumer's own test suite still passes unmodified.
+
+**Verified**: 3 new unit tests in `test/scan-fixture.test.mjs` (a synthetic 2-level
+`@MappedSuperclass` fixture mirroring petclinic's real shape resolves `idField` correctly; a
+same-file direct-declaration case, the common already-working path, stays unaffected; a class
+extending something outside the source tree resolves to `null`, not a crash). 2 new unit tests in
+`test/java-spring-analyzer.test.mjs` directly pinning the `CLASS_OR_RECORD_RE` substring-match
+regression for both `class` and `record`. All pre-existing tests in both files, plus
+`test/java-spring-analyzer.test.mjs`'s full existing suite, pass unmodified. Independently
+re-confirmed against the real, already-cloned `spring-petclinic`: `scanJavaSpring()` called directly
+now reports `idField: "id"` for all six real entities (`Owner`, `Pet`, `PetType`, `Visit`,
+`Specialty`, `Vet`), zero `null` -- the exact real-world gap this entry closes, confirmed closed on
+the exact real corpus that found it. `npm test`: 1333 -> 1338 (real, re-run count).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- `typescript-express.mjs`'s `extractTableEntities()` has the same theoretical single-file-scope
+  exposure for a shared-base-class `@PrimaryGeneratedColumn`, not yet confirmed against any real
+  repo -- named above, not fixed here without a real repro.
+- `handles/providers/java-spring/plan.mjs`'s `findUpdateDtoFile()` still hardcodes `domain/<module>/
+  presentation/dto/` when locating an update DTO's file -- the same, already-documented
+  Team-IZ-Backend-specific path convention `D-module-attribution-base-package`'s own EXIT list
+  already named for enum/DTO extraction; unrelated to and unchanged by this item.
+- No attempt to resolve a superclass that lives OUTSIDE `srcRoot` but still within the same repo
+  (e.g. a shared `common`/`core` Gradle module in a multi-module build) -- `classIndex` is built
+  from `listJavaFiles(srcRoot)` only, matching this adapter's own existing single-module scope
+  boundary everywhere else.
