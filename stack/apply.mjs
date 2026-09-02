@@ -6,6 +6,13 @@ import Ajv2020 from 'ajv/dist/2020.js';
 // P2b (D-greenfield-parameters): was a private `renderTemplate(templatePath, vars)` here, moved to
 // lib/template.mjs unchanged once `new/fastapi.mjs` became its second real consumer.
 import { renderTemplateFile } from '../lib/template.mjs';
+// D-write-safety-phase0 (item 2): reusing the exact same provenance-based classification and
+// git-recoverability check the handles write path already established, rather than inventing a
+// second one for this write path.
+import { classifyFile } from '../lib/handles-manifest.mjs';
+import { isDirtyOrUntracked } from '../handles/_engine.mjs';
+import { sha256String, readJsonIfExists } from '../lib/fsutil.mjs';
+import { sbfPath } from '../lib/paths.mjs';
 
 const STACK_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_ROOT = path.join(STACK_ROOT, '..', 'schemas');
@@ -84,19 +91,31 @@ export function planApply(repoRoot, entry, { port = 8080 } = {}) {
 	// crossed the stated boundary).
 	plan.alreadyDetected = (entry.detect?.files ?? []).some((f) => fs.existsSync(path.join(repoRoot, f)));
 
+	// D-write-safety-phase0 (item 2): `file_hashes` (additive, schemas/stack-record.schema.json) is
+	// what `stack apply` itself last wrote to each path -- absent on a record from before this
+	// existed, or if `stack apply` never ran. classifyFile()'s own no-manifest-entry fallback
+	// (content-comparison only) covers that case exactly the way handles emit's first-ever run does.
+	const priorRecord = readJsonIfExists(sbfPath(repoRoot, 'stack.json'));
+	const priorHashes = priorRecord?.file_hashes ?? {};
+
 	for (const f of entry.static?.files ?? []) {
 		const templatePath = path.join(STACK_ROOT, f.template);
 		assertContained(STACK_ROOT, templatePath, 'catalog template path');
 		const targetPath = path.join(repoRoot, f.path);
 		assertContained(repoRoot, targetPath, 'catalog target path');
 		const rendered = renderTemplateFile(templatePath, { PORT: port });
-		const exists = fs.existsSync(targetPath);
-		const unchanged = exists && fs.readFileSync(targetPath, 'utf8') === rendered;
+		const diskContent = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : null;
+		const exists = diskContent !== null;
+		const diskHash = exists ? sha256String(diskContent) : null;
+		const freshRenderHash = sha256String(rendered);
+		const matchesPristineRender = exists && diskContent === rendered;
+		const action = classifyFile({ exists, diskHash, manifestEntryHash: priorHashes[f.path] ?? null, freshRenderHash, matchesPristineRender });
 		plan.files.push({
 			path: f.path,
 			mode: f.mode ?? null,
-			action: !exists ? 'create' : (unchanged ? 'unchanged' : 'update'),
+			action,
 			content: rendered,
+			contentHash: freshRenderHash,
 		});
 	}
 
@@ -133,18 +152,40 @@ export function planApply(repoRoot, entry, { port = 8080 } = {}) {
 // API supports this), config_check could gain an `apply` action -- not built now because the
 // real target (Team-IZ-Backend) doesn't need it (already externalized), so there's no concrete
 // case to validate a patcher against yet.
-export function applyPlan(repoRoot, plan) {
+// D-write-safety-phase0 (item 2): `force` mirrors handles emit's own `--force` gate exactly -- a
+// `conflict` file (diverged from what `stack apply` itself last wrote) is refused outright without
+// it, and even with it is refused if not git-recoverable (uncommitted/untracked), so a --force
+// overwrite is only ever reversible. The `--reason` a real overwrite requires is a CLI-layer
+// concern (validated in cmdStackApply, mirroring cmdContractWaive/handles emit's identical
+// pattern) -- applyPlan() itself has nothing to do with an audit string it never persists. Returns
+// `fileHashes` (sha256 of what was ACTUALLY written this run) so the caller can persist it into
+// `.sbf/stack.json`'s new `file_hashes` field -- unchanged/adopt-unchanged files are simply absent
+// here, so the caller must merge onto the PRIOR record's file_hashes, not replace it wholesale.
+export function applyPlan(repoRoot, plan, { force = false } = {}) {
 	const written = [];
+	const conflicts = [];
+	const fileHashes = {};
 	for (const f of plan.files) {
-		if (f.action === 'unchanged') continue;
+		if (f.action === 'unchanged' || f.action === 'adopt-unchanged') continue;
 		const targetPath = path.join(repoRoot, f.path);
 		// Re-asserted here too (planApply already checked it) -- applyPlan must not assume it's
 		// only ever called with a plan it just generated for the same repoRoot.
 		assertContained(repoRoot, targetPath, 'catalog target path');
+		if (f.action === 'conflict') {
+			if (!force) {
+				conflicts.push({ path: f.path, reason: 'diverged from the last content `bskel stack apply` generated -- see notes for remediation' });
+				continue;
+			}
+			if (isDirtyOrUntracked(repoRoot, targetPath)) {
+				conflicts.push({ path: f.path, reason: 'refusing --force: this file has uncommitted/untracked changes -- commit or stash it first so the overwrite is recoverable' });
+				continue;
+			}
+		}
 		fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 		fs.writeFileSync(targetPath, f.content);
 		if (f.mode) fs.chmodSync(targetPath, Number.parseInt(f.mode, 8));
 		written.push(f.path);
+		fileHashes[f.path] = f.contentHash;
 	}
 
 	const toAppend = plan.envExampleActions.filter((a) => a.action === 'append');
@@ -158,5 +199,5 @@ export function applyPlan(repoRoot, plan) {
 		written.push('.env.example');
 	}
 
-	return written;
+	return { written, conflicts, fileHashes };
 }

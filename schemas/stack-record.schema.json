@@ -15,6 +15,11 @@
       "items": { "type": "string" }
     },
     "env_example_keys": { "type": "array", "items": { "type": "string" } },
-    "at": { "type": "string", "format": "date-time" }
+    "at": { "type": "string", "format": "date-time" },
+    "file_hashes": {
+      "description": "D-write-safety-phase0 (item 2): additive, optional (absent on a record written before this existed -- planApply() treats a missing entry as no prior provenance, same as classifyFile()'s own no-manifest-entry fallback). sha256 of what `stack apply --apply` itself last wrote to each path in applied_files, keyed by that same relative path -- gives planApply() a preimage to check a hand-edit against, instead of only comparing to the current fresh render.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
   }
 }

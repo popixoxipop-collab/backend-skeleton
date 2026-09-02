@@ -31,7 +31,9 @@ const DIFFABLE_ACTIONS = new Set(['update', 'conflict', 'adopt-update']);
 // overwrite is only ever reversible if the content it destroys is already committed. Fails
 // closed (treats git errors, or a repo where the path can't be resolved, as "dirty") since the
 // whole point is to never make an irreversible action look safe by default.
-function isDirtyOrUntracked(repoRoot, absPath) {
+// D-write-safety-phase0 (item 2): exported so stack/apply.mjs can apply the identical
+// git-recoverability check before a --force overwrite -- previously private to this file.
+export function isDirtyOrUntracked(repoRoot, absPath) {
 	try {
 		const out = execFileSync('git', ['status', '--porcelain', '--', absPath], { cwd: repoRoot, encoding: 'utf8' });
 		return out.trim().length > 0;
@@ -58,15 +60,21 @@ function isDirtyOrUntracked(repoRoot, absPath) {
 //                  'update'/'conflict'/'adopt-update' action -- the only 3 where content actually
 //                  differs. Off by default since it shells out to git per diffable file.
 //   postResolverUnit: D-patch-transactions (Continued) -- an OPTIONAL single unit, { id,
-//                  templatePath, targetAbs, render() => string }, whose correct content can only
-//                  be computed AFTER resolverUnits above have been written (e.g. typescript-
-//                  express's resolvers_index.ts barrel -- its import list must reflect the
-//                  resolvers directory's REAL final on-disk listing, including this run's own
-//                  just-written resolver files, not just this run's own resolverUnits -- a 4th
-//                  infraUnits entry can't do this, since infra is processed BEFORE resolvers).
-//                  Reuses the exact same classify/conflict/force/manifest logic the infra loop
-//                  above already implements, applied to exactly one repo-owned (kind: 'infra')
-//                  unit. null (the default) is a true no-op.
+//                  templatePath, targetAbs, render() => string, kind?, ownership?, owner? },
+//                  whose correct content can only be computed AFTER resolverUnits above have been
+//                  written (e.g. typescript-express's resolvers_index.ts barrel -- its import list
+//                  must reflect the resolvers directory's REAL final on-disk listing, including
+//                  this run's own just-written resolver files, not just this run's own
+//                  resolverUnits -- a 4th infraUnits entry can't do this, since infra is processed
+//                  BEFORE resolvers). Reuses the exact same classify/conflict/force/manifest logic
+//                  the infra loop above already implements. `kind`/`ownership`/`owner` default to
+//                  `'infra'`/`'repo'`/`'_repo'` (the barrel's own shape, unchanged);
+//                  D-write-safety-phase0 (item 1) is the first caller to override them, for a
+//                  feature-owned unit (java-spring/python-fastapi's migration.sql,
+//                  kind: 'migration', ownership: 'feature') whose content does NOT actually depend
+//                  on the resolver loop's post-write state -- it just reuses this slot rather than
+//                  adding a third one.
+//                  null (the default) is a true no-op.
 export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan, dryRun = false, computeDiff = false, postResolverUnit = null }) {
 	const manifest = loadManifest(repoRoot);
 	const nowIso = new Date().toISOString();
@@ -125,6 +133,10 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 					};
 					manifestChanged = true;
 					writeUnit(u.targetAbs, u.rendered);
+					// D-write-safety-phase0 (item 3): persist per-unit, not once at the end of the whole
+					// loop -- a crash after this write but before a later unit's own write must not
+					// leave THIS file's real provenance unrecorded.
+					saveManifest(repoRoot, manifest);
 				}
 				written.push(u.relPath);
 				forced.push(u.relPath);
@@ -150,6 +162,8 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 					updated_at: nowIso,
 				};
 				manifestChanged = true;
+				// D-write-safety-phase0 (item 3): see the comment at this loop's first saveManifest() call.
+				saveManifest(repoRoot, manifest);
 			}
 			recordAction({ relPath: u.relPath, kind: 'infra', action: u.action, diskContent: u.diskContent, rendered: u.rendered });
 		}
@@ -197,6 +211,11 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 						updated_at: nowIso, last_force: { reason, at: nowIso, overwritten_hash: diskHash },
 					};
 					manifestChanged = true;
+					// D-write-safety-phase0 (item 3): persist per-unit -- the resolver loop is where this
+					// matters most (potentially many resolvers per feature, one saveManifest() call at
+					// the end previously meant a crash partway through left every already-written
+					// resolver this run unrecorded, not just the interrupted one).
+					saveManifest(repoRoot, manifest);
 				}
 				written.push(relPath);
 				forced.push(relPath);
@@ -228,6 +247,8 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 					updated_at: nowIso,
 				};
 				manifestChanged = true;
+				// D-write-safety-phase0 (item 3): see the comment at this loop's first saveManifest() call.
+				saveManifest(repoRoot, manifest);
 			}
 		}
 		recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
@@ -239,12 +260,22 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 	// on-disk listing, including THIS run's own just-written resolver files, not just this run's
 	// own resolverUnits). Reuses the EXACT SAME classify/conflict/force/manifest logic the infra
 	// loop above already implements, applied to exactly one unit. `render()` is called HERE, not
-	// earlier, precisely so it observes this run's own writes. null (the default) is a true no-op
-	// -- java-spring/python-fastapi never pass this, so this block never executes for them. See
-	// D-patch-transactions (Continued) in DECISIONS.md for why this couldn't just be a 4th
-	// infraUnits entry. ----
+	// earlier, precisely so it observes this run's own writes (still true for a caller whose
+	// content doesn't actually need that timing, like migration.sql below -- it just reuses the
+	// same slot rather than adding a third one). null (the default) is a true no-op -- only used by
+	// a caller that actually passes this option. See D-patch-transactions (Continued) in
+	// DECISIONS.md for why this couldn't just be a 4th infraUnits entry, and D-write-safety-phase0
+	// for the kind/ownership/owner generalization below. ----
 	if (postResolverUnit) {
 		const u = postResolverUnit;
+		// D-write-safety-phase0 (item 1): generalized from a hardcoded infra/repo/_repo triple so a
+		// feature-owned single unit (java-spring/python-fastapi's migration.sql) can reuse this exact
+		// classify/conflict/force/manifest cycle too, not just typescript-express's repo-owned
+		// resolvers_index.ts barrel. Defaults preserve the original hardcoded values byte-for-byte, so
+		// the barrel caller (which never sets these) is unaffected.
+		const unitKind = u.kind ?? 'infra';
+		const unitOwnership = u.ownership ?? 'repo';
+		const unitOwner = u.owner ?? '_repo';
 		const rendered = u.render();
 		const relPath = path.relative(repoRoot, u.targetAbs);
 		const diskContent = readIfExists(u.targetAbs);
@@ -256,28 +287,30 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 		const action = classifyFile({ exists, diskHash, manifestEntryHash: entry?.generated_hash ?? null, freshRenderHash, matchesPristineRender });
 
 		if (action === 'conflict' && !force) {
-			conflicts.push({ path: relPath, kind: 'infra', reason: 'diverged from the last content backend-skeleton generated -- see notes for remediation' });
-			recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+			conflicts.push({ path: relPath, kind: unitKind, reason: 'diverged from the last content backend-skeleton generated -- see notes for remediation' });
+			recordAction({ relPath, kind: unitKind, action, diskContent, rendered });
 		} else if (action === 'conflict') {
 			if (isDirtyOrUntracked(repoRoot, u.targetAbs)) {
-				conflicts.push({ path: relPath, kind: 'infra', reason: 'refusing --force: this file has uncommitted/untracked changes -- commit or stash it first so the overwrite is recoverable' });
-				recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+				conflicts.push({ path: relPath, kind: unitKind, reason: 'refusing --force: this file has uncommitted/untracked changes -- commit or stash it first so the overwrite is recoverable' });
+				recordAction({ relPath, kind: unitKind, action, diskContent, rendered });
 			} else {
 				if (!dryRun) {
 					manifest.files[relPath] = {
-						kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
+						kind: unitKind, ownership: unitOwnership, owner: unitOwner, provider, template: u.id,
 						template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
 						updated_at: nowIso, last_force: { reason, at: nowIso },
 					};
 					manifestChanged = true;
 					writeUnit(u.targetAbs, rendered);
+					// D-write-safety-phase0 (item 3): see the infra loop's first saveManifest() call above.
+					saveManifest(repoRoot, manifest);
 				}
 				written.push(relPath);
 				forced.push(relPath);
-				recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+				recordAction({ relPath, kind: unitKind, action, diskContent, rendered });
 			}
 		} else if (action === 'unchanged') {
-			recordAction({ relPath, kind: 'infra', action });
+			recordAction({ relPath, kind: unitKind, action });
 		} else {
 			if (action !== 'adopt-unchanged') {
 				if (!dryRun) writeUnit(u.targetAbs, rendered);
@@ -285,13 +318,15 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 			}
 			if (!dryRun) {
 				manifest.files[relPath] = {
-					kind: 'infra', ownership: 'repo', owner: '_repo', provider, template: u.id,
+					kind: unitKind, ownership: unitOwnership, owner: unitOwner, provider, template: u.id,
 					template_hash: sha256File(u.templatePath), generated_hash: freshRenderHash,
 					updated_at: nowIso,
 				};
 				manifestChanged = true;
+				// D-write-safety-phase0 (item 3): see the infra loop's first saveManifest() call above.
+				saveManifest(repoRoot, manifest);
 			}
-			recordAction({ relPath, kind: 'infra', action, diskContent, rendered });
+			recordAction({ relPath, kind: unitKind, action, diskContent, rendered });
 		}
 	}
 
@@ -325,6 +360,12 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 		}
 	}
 
+	// D-write-safety-phase0 (item 3): every mutation site above already calls saveManifest()
+	// itself, incrementally, right after its own write -- this is now a defensive backstop, not
+	// the primary persistence mechanism (a no-op resave of already-current content in the normal
+	// case), kept so a future mutation site added without its own incremental save still ends up
+	// correct at the end of a run that completes normally. It is NOT what makes this item's own
+	// crash-safety property hold -- that comes entirely from the per-unit calls above.
 	if (!dryRun && manifestChanged) saveManifest(repoRoot, manifest);
 
 	// D-resolver-policy-split: two units (Resolver + Policy) now share one resourceType, so

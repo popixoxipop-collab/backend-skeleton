@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { emitUnits, unifiedDiff } from '../../_engine.mjs';
+import { emitUnits } from '../../_engine.mjs';
 import { loadPatchApprovals, approvedStrategyFor } from '../../../lib/patch-approvals.mjs';
 import { computeCodegenNeeds, renderPatchFieldBody } from './patch-strategy.mjs';
 import { sha256File } from '../../../lib/fsutil.mjs';
@@ -97,11 +97,6 @@ function currentlyApprovedFields(approvals, resourceType, patchable) {
 		if (approvedStrategyFor(approvals, resourceType, field.field) === field.bucket) approved.add(field.field);
 	}
 	return approved;
-}
-
-function writeUnit(target, content) {
-	fs.mkdirSync(path.dirname(target), { recursive: true });
-	fs.writeFileSync(target, content);
 }
 
 // O3 follow-up (D-handle-registry-enforcement, "Continued"): a coarse, per-resource, emit-time,
@@ -245,25 +240,23 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 		resourceTypeOf: (file, _content) => file.replace(/ResolverPolicy\.java$|Resolver\.java$/, ''),
 	} : null;
 
-	const result = emitUnits({ repoRoot, featureId, provider: 'java-spring', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff });
-
-	// The migration file is regenerated fresh every run, unconditionally, regardless of the
-	// resolver/infra conflict-block state above -- it has never been manifest-tracked (no
-	// conflict detection for it at all), matching the pre-G4 behavior exactly. D4: this is exactly
-	// the `outputs.spec` category P4's conformance harness already had to special-case (see
-	// handles/conformance.mjs) -- classifyFile() never runs against it, so its create/unchanged/
-	// update action is derived locally here, tagged `kind: 'spec'` in the actions report so it
-	// reads distinctly from the manifest-tracked infra/resolver kinds.
-	const migrationContent = render(MIGRATION_TEMPLATE, { FEATURE_ID: featureId });
+	// D-write-safety-phase0 (item 1): migration.sql used to be regenerated fresh every run,
+	// unconditionally, with no manifest tracking and no conflict detection at all -- a hand-edited
+	// migration (an added index, a NOT NULL, a tenant column) was silently overwritten on the next
+	// `handles emit`. It's feature-scoped (specs/<featureId>/handles/migration.sql), not a
+	// repo-wide singleton, but its content depends only on featureId (not on the resolver loop's
+	// post-write state) -- so it reuses emitUnits()'s postResolverUnit slot (previously
+	// typescript-express-only, for resolvers_index.ts) rather than adding a third write path,
+	// with kind/ownership/owner overridden to reflect real feature ownership.
 	const migrationPath = path.join(repoRoot, 'specs', featureId, 'handles', 'migration.sql');
-	const migrationRelPath = path.relative(repoRoot, migrationPath);
-	const migrationDiskContent = fs.existsSync(migrationPath) ? fs.readFileSync(migrationPath, 'utf8') : null;
-	const migrationAction = migrationDiskContent === null ? 'create' : (migrationDiskContent === migrationContent ? 'unchanged' : 'update');
-	if (!dryRun) writeUnit(migrationPath, migrationContent);
-	result.written.push(migrationRelPath);
-	const migrationActionEntry = { path: migrationRelPath, kind: 'spec', action: migrationAction };
-	if (computeDiff && migrationAction === 'update') migrationActionEntry.diff = unifiedDiff(migrationRelPath, migrationDiskContent, migrationContent);
-	result.actions.push(migrationActionEntry);
+	const result = emitUnits({
+		repoRoot, featureId, provider: 'java-spring', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff,
+		postResolverUnit: {
+			id: 'migration.sql.tmpl', templatePath: MIGRATION_TEMPLATE, targetAbs: migrationPath,
+			render: () => render(MIGRATION_TEMPLATE, { FEATURE_ID: featureId }),
+			kind: 'migration', ownership: 'feature', owner: featureId,
+		},
+	});
 
 	const postEmitNotes = [
 		'NOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.',

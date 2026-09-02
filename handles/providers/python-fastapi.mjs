@@ -11,9 +11,9 @@ export const provider = {
 	id: 'python-fastapi',
 	title: 'Python / FastAPI / SQLModel',
 	requiresCapabilities: ['resource.fetch'],
-	// G4 follow-up (D-handles-providers): this provider now generates a real recover()
-	// lifecycle + sbf_handle/sbf_handle_snapshot migration, mirroring java-spring's own O4 work --
-	// the EXCLUDED reasoning that used to justify an empty outputs.spec here is stale.
+	// D-write-safety-phase0 (item 1): mirrors java-spring.mjs's own updated comment exactly -- kept
+	// unchanged rather than emptied. See that file for the full reasoning (checkArtifacts()'s S6
+	// safety net for a `handles ran` but manifest-less state still needs this declared).
 	outputs: { spec: ['handles/migration.sql'] },
 	plan,
 	emit(args) {

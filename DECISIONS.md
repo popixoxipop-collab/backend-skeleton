@@ -11104,3 +11104,153 @@ the exact real corpus that found it. `npm test`: 1333 -> 1338 (real, re-run coun
   (e.g. a shared `common`/`core` Gradle module in a multi-module build) -- `classIndex` is built
   from `listJavaFiles(srcRoot)` only, matching this adapter's own existing single-module scope
   boundary everywhere else.
+
+## D-write-safety-phase0: closing three named-but-deferred silent-overwrite gaps in the handles/stack write path (ROADMAP.md Phase 0, items 1-2)
+
+**WHY**: `ROADMAP.md` (committed `e5584da`) named Phase 0 as the prerequisite to everything else in
+the production-readiness roadmap: real, disk-verified paths where `bskel` could destroy hand-written
+work silently. All were named-but-deferred in this project's own history, not newly discovered --
+`D-patch-transactions`'s own EXIT list explicitly named "the infra/resolver write-loop's own
+mid-crash manifest-desync gap, and `stack apply`'s own lack of any preimage hash... both real gaps
+this item's own research surfaced, neither touched by this item", and
+`handles/providers/java-spring/emit.mjs`'s own comment on `migration.sql` documented its
+unconditional-overwrite behavior as "matching the pre-G4 behavior exactly" without revisiting
+whether that was still the right call once every OTHER generated file had moved to manifest
+tracking. A tool whose entire premise is "check against disk, not against what an agent claims" had
+three of its own write paths that didn't check against disk at all.
+
+### Item 1: `migration.sql` under manifest tracking
+
+`migrationContent` in both `handles/providers/java-spring/emit.mjs` and `python-fastapi/emit.mjs`
+was computed and written unconditionally on every `handles emit` run, tagged `kind: 'spec'` purely
+for CLI display -- `classifyFile()` never ran against it, so a hand-edited migration (an added
+index, a `NOT NULL`, a tenant column) was silently overwritten on the very next emit.
+
+**Mechanism**: reused `emitUnits()`'s existing `postResolverUnit` slot (`handles/_engine.mjs`,
+introduced for typescript-express's `resolvers_index.ts` barrel, see the resolvers-barrel entry
+above) rather than adding a third write path. That slot hardcoded `kind: 'infra', ownership: 'repo',
+owner: '_repo'`, correct for a repo-wide singleton barrel but wrong for `migration.sql`
+(feature-scoped: `specs/<featureId>/handles/migration.sql`, a different file per feature). Made
+additive: `postResolverUnit` now accepts optional `kind`/`ownership`/`owner`, defaulting to the
+barrel's original values so that caller is unaffected; java-spring/python-fastapi pass
+`{ kind: 'migration', ownership: 'feature', owner: featureId }`. Both providers' manual
+`migrationActionEntry`/`writeUnit(...)` blocks were deleted entirely.
+
+**Two follow-on fixes this surfaced**, the same class of trap `resolvers_index.ts` hit and fixed:
+- `lib/verify.mjs`'s `handlesManifestChecks()` had `e.kind === 'infra' ? 'handles infra' : 'handles
+  resolver'` -- a binary ternary that would have mislabeled a `kind: 'migration'` entry as "handles
+  resolver". Widened to a small `HANDLES_ARTIFACT_LABELS` lookup.
+- `bin/bskel.mjs`'s `kind === 'spec'` CLI display note ("always regenerated, not conflict-tracked")
+  is still real and still needed -- but not for migration.sql any more. It's still genuinely used by
+  every `observe.mjs` provider's own observed-schema.json output (a real, still-unconditionally-
+  regenerated data file, unrelated to this item) -- comments in all three `observe.mjs` files and
+  `bin/bskel.mjs` itself were corrected to stop citing migration.sql as that pattern's current
+  example, without touching the mechanism itself.
+
+**A real design tension found while wiring this up, resolved by NOT taking the obvious-looking
+path**: the first draft also emptied `provider.outputs.spec` (`[]` for both providers), reasoning
+that migration.sql was no longer "regenerated unconditionally" so the field's stated purpose no
+longer applied. This broke a real, already-tested safety property: `lib/verify.mjs`'s S6 fix (see
+its own comment, "a `handles` gate that had passed and then had its migration.sql deleted or moved
+could never fail this check") relies on `handlesOutputsFor()` returning `provider.outputs.spec`
+independent of manifest state, specifically so a `handles` gate marked as having run (via a real
+emit, OR `bskel gate force handles`, which never touches the manifest at all) still gets migration.sql
+checked for existence. Emptying `outputs.spec` silently dropped that coverage for the exact
+`gate force`-without-a-real-emit case a real test (`test/verify-cli.test.mjs`) already existed to
+catch -- caught by re-running the full suite, not by reasoning alone. **Fix**: `outputs.spec` stays
+`['handles/migration.sql']` for both providers, now serving only the S6 safety-net purpose (no
+longer also meaning "excluded from idempotence checking", since migration.sql now genuinely is
+idempotent); `lib/verify.mjs`'s `checkArtifacts()` was restructured to compute the manifest-based
+check first and skip the legacy `outputs.spec`-driven check for any path the manifest-based check
+already covers, so the two paths are complementary (manifest exists -> accurate create/unchanged/
+update/conflict; no manifest entry but `handlesRan` -> existence-only S6 fallback) rather than
+duplicating.
+
+### Item 2: a preimage check for `stack apply`
+
+`stack/apply.mjs`'s `applyPlan()` was a bare `fs.writeFileSync(targetPath, f.content)` --
+`planApply()` classified a file as `unchanged` only via exact content match against the fresh
+render, so anything else (including a human hand-edit to an applied file, e.g. a tuned `ngrok`
+config) was `update` and got clobbered with no hash check and no `--force`.
+
+**Mechanism**: reused `classifyFile()` from `lib/handles-manifest.mjs` directly -- already a pure,
+provider-agnostic function, no new classification logic needed. `.sbf/stack.json`
+(`schemas/stack-record.schema.json`) gained an additive `file_hashes: { [path]: sha256 }` field:
+sha256 of what `stack apply` itself last wrote to each path. `planApply()` now loads the prior
+record and passes `manifestEntryHash: priorHashes[f.path] ?? null` into `classifyFile()` for each
+file, exactly mirroring how `emitUnits()` reads its own manifest. A `conflict` action is refused by
+`applyPlan()` (now accepting `{ force }`) unless `--force`, and even then refused if
+`isDirtyOrUntracked()` (exported from `handles/_engine.mjs`, previously private) says the target
+isn't git-recoverable -- identical two-layer protection to `handles emit --force`. `--force`
+requires `--reason` at the CLI layer (`cmdStackApply`, mirroring `cmdContractWaive`/`handles emit`'s
+identical validation) -- `applyPlan()` itself never sees or persists the reason string, since it
+persists nothing else the handles manifest does (`last_force` audit detail) either; this is a
+smaller-scope parity with the handles path by design, not an oversight, since a stack choice is a
+single repo-wide record, not a per-file manifest with room for that already.
+
+A new exit code, `STACK_CONFLICT: 19` (`lib/exit-codes.mjs`), was added rather than reusing
+`HANDLES_CONFLICT` -- a different write surface, and `D-stable-api-contract`'s exit-code promise is
+additive-safe for new codes, not a reuse obligation.
+
+**`stack.json`'s `file_hashes` must be merged onto the prior record, not replaced wholesale** --
+`applyPlan()`'s returned `fileHashes` only covers files it actually wrote THIS run (an `unchanged`
+file isn't in it), so `cmdStackApply` merges `{ ...(priorRecord?.file_hashes ?? {}), ...fileHashes }`
+before writing the new record. This is the exact same class of bug S2 already fixed for
+`applied_files` (an idempotent re-apply used to overwrite it with `[]`) -- found by re-reading S2's
+own comment while implementing this, not independently rediscovered the hard way.
+
+**Verified**: full `npm test` (`node --test test/*.test.mjs`) re-run clean after this item,
+including `test/typescript-express-handles.test.mjs`'s existing 7-test barrel-manifest suite
+(unaffected -- `postResolverUnit`'s new `kind`/`ownership`/`owner` params default to the barrel's
+original hardcoded values), `test/handles-check-cli.test.mjs`'s and
+`test/python-fastapi-handles.test.mjs`'s migration.sql action-kind/idempotence assertions (updated
+to assert `kind: 'migration'` and a genuinely-idempotent second emit rather than the old "always
+appears in written[]" quirk), and `test/cli-contract.test.mjs`'s `stack apply` default-flags
+snapshot (updated for the new `force`/`reason` flags).
+
+### Item 3: crash-safe incremental manifest persistence
+
+`handles/_engine.mjs` called `saveManifest()` exactly once, after the whole infra/resolver/
+postResolverUnit loop had finished. A crash (or kill) partway through left every file the loop HAD
+already written on disk with no manifest record -- fail-closed, not data loss (`classifyFile()`'s
+no-manifest-entry fallback never produces a false overwrite), but every one of those files then
+needed a manual `--force` to re-adopt on the next run, even though nothing about them was actually
+wrong.
+
+**Mechanism**: each of the 6 sites in `handles/_engine.mjs` that mutates `manifest.files[relPath]`
+(2 in the infra loop, 2 in the resolver loop, 2 in the postResolverUnit block -- one
+conflict-with-force branch and one normal branch each) now calls `saveManifest(repoRoot, manifest)`
+immediately afterward, still gated on `!dryRun`. The single trailing call at the end of the function
+is kept as a defensive backstop (a no-op resave of already-current content on a normal completion),
+not the primary mechanism -- explicitly commented as such so a future reader doesn't mistake it for
+where the crash-safety property actually comes from.
+
+**Trade-off accepted, not hidden**: this means up to 6x more `saveManifest()` calls per `handles
+emit` run than before (one per unit written, not one per run) -- each a full JSON stringify +
+atomic write of the whole manifest, not an append. For a feature with many resolvers this is real,
+measurable extra I/O. Accepted deliberately: `bskel handles emit` is an occasional, human-triggered
+command, not a hot loop, and correctness after an interrupted run matters more here than shaving
+milliseconds off a normal one.
+
+**Verified**: `test/handles-engine.test.mjs` (new) -- a direct unit test of `emitUnits()` itself
+(the only test in this codebase that does; everything else exercises it indirectly through a
+provider's `emit()` via the CLI, because the property under test -- manifest state mid-crash --
+isn't observable at the CLI layer, where a real process crash can't be triggered from a test). A
+resolver unit's `rendered` field is a getter that throws on first access, simulating a crash exactly
+where `emitUnits()` first reads it (`sha256String(u.rendered)`), after two earlier units in the same
+`resolverUnits` array have already been fully written and manifest-saved. Confirms: both earlier
+units are genuinely written to disk AND recorded in the manifest even though the overall call never
+returned; the interrupted unit is neither written nor recorded; and a subsequent, corrected re-run
+classifies the two earlier units `unchanged` (not `conflict`) without needing `--force` -- closing
+the loop on the actual user-facing consequence, not just the manifest's internal state. Full
+`npm test` re-run clean after this item (`node --test test/*.test.mjs`).
+
+**EXIT**: the 6x-write trade-off above is accepted, not mitigated -- a debounced/batched write
+would reintroduce a smaller version of the same gap (a batch boundary is still a place a crash can
+lose more than one unit's provenance) for a performance win this command's usage pattern doesn't
+need.
+
+Phase 0 of `ROADMAP.md` (items 1-3) is closed by this entry. Item 4 (the `waivable` field on
+WARN-severity contract codes) was found, on closer reading of `contracts/completeness.mjs`'s own
+comment, to already be a deliberate, tested design decision rather than an oversight -- see
+`ROADMAP.md`'s own item 4 for the corrected record; not re-litigated here.

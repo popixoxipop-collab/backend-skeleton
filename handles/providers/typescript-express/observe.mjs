@@ -64,12 +64,13 @@ export function emitObserveTypeScriptExpress({ repoRoot, featureId, contract, pl
 
 	const result = emitUnits({ repoRoot, featureId, provider: 'typescript-express', force, reason, infraUnits, resolverUnits: [], orphanScan: null, dryRun, computeDiff });
 
-	// The projected observed-schema.json resource -- regenerated unconditionally every run, like
-	// handles' own migration.sql (and both other providers' own observe schema resource), for the
-	// identical reason: nobody hand-finishes a generated data file, so O2-style conflict tracking
-	// buys nothing here. `kind: 'spec'` matches migration.sql's own action-reporting convention --
-	// NOT the `kind: 'infra'` A13 gave resolvers_index.ts, which was a genuinely hand-editable
-	// barrel; this is a generated data file, same class as migration.sql, not that one.
+	// The projected observed-schema.json resource -- regenerated unconditionally every run (unlike
+	// handles' own migration.sql, which moved to manifest tracking in D-write-safety-phase0; this
+	// file, and both other providers' own observe schema resource, stay unconditional: nobody
+	// hand-finishes a generated data file, so O2-style conflict tracking buys nothing here).
+	// `kind: 'spec'` still means "always regenerated, not conflict-tracked" -- NOT the
+	// `kind: 'infra'` A13 gave resolvers_index.ts, which was a genuinely hand-editable barrel;
+	// this is a generated data file, a different class.
 	const operations = {};
 	for (const [opId, opContract] of Object.entries(contract.operations)) {
 		operations[opId] = projectOperation(opContract);

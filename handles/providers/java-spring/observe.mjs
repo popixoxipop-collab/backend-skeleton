@@ -62,9 +62,10 @@ export function emitObserveJavaSpring({ repoRoot, featureId, contract, basePacka
 	const result = emitUnits({ repoRoot, featureId, provider: 'java-spring', force, reason, infraUnits, resolverUnits: [], orphanScan: null, dryRun, computeDiff });
 
 	// The projected observed-schema.json classpath resource -- regenerated unconditionally every
-	// run, like handles' own migration.sql, and for the identical reason: nobody hand-finishes a
-	// generated data file the way they hand-finish a resolver stub, so O2-style conflict tracking
-	// buys nothing here. `kind: 'spec'` matches migration.sql's own action-reporting convention.
+	// run (unlike handles' own migration.sql, which moved to manifest tracking in
+	// D-write-safety-phase0 -- this file stays unconditional: nobody hand-finishes a generated
+	// data file the way they hand-finish a resolver stub, so O2-style conflict tracking buys
+	// nothing here). `kind: 'spec'` still means "always regenerated, not conflict-tracked".
 	const operations = {};
 	for (const [opId, opContract] of Object.entries(contract.operations)) {
 		operations[opId] = projectOperation(opContract);

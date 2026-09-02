@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { emitUnits, unifiedDiff } from '../../_engine.mjs';
+import { emitUnits } from '../../_engine.mjs';
 import { sha256File } from '../../../lib/fsutil.mjs';
 import { specPath } from '../../../lib/paths.mjs';
 import { loadFeatureFile } from '../../../lib/featurelifecycle.mjs';
@@ -15,11 +15,6 @@ const RESOLVER_TEMPLATE = path.join(TEMPLATES_DIR, 'resolver.py.tmpl');
 // and DECISIONS.md.
 const POLICY_TEMPLATE = path.join(TEMPLATES_DIR, 'resolver_policy.py.tmpl');
 const MIGRATION_TEMPLATE = path.join(TEMPLATES_DIR, 'migration.sql.tmpl');
-
-function writeUnit(target, content) {
-	fs.mkdirSync(path.dirname(target), { recursive: true });
-	fs.writeFileSync(target, content);
-}
 
 function render(templatePath, vars) {
 	let content = fs.readFileSync(templatePath, 'utf8');
@@ -175,23 +170,19 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 		},
 	} : null;
 
-	const result = emitUnits({ repoRoot, featureId, provider: 'python-fastapi', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff });
-
-	// G4 follow-up (D-handles-providers): mirrors java-spring/emit.mjs's own migration.sql
-	// handling exactly -- regenerated fresh every run, unconditionally, never manifest-tracked
-	// (no conflict detection for it at all). `kind: 'spec'` tags it distinctly from the
-	// manifest-tracked infra/resolver kinds, same D4/outputs.spec category P4's conformance
-	// harness already special-cases.
-	const migrationContent = render(MIGRATION_TEMPLATE, { FEATURE_ID: featureId });
+	// D-write-safety-phase0 (item 1): mirrors java-spring/emit.mjs's own fix exactly -- migration.sql
+	// used to be regenerated fresh every run, unconditionally, never manifest-tracked. Reuses
+	// emitUnits()'s postResolverUnit slot (kind/ownership/owner overridden for feature ownership)
+	// instead of a separate, untracked write path.
 	const migrationPath = path.join(repoRoot, 'specs', featureId, 'handles', 'migration.sql');
-	const migrationRelPath = path.relative(repoRoot, migrationPath);
-	const migrationDiskContent = fs.existsSync(migrationPath) ? fs.readFileSync(migrationPath, 'utf8') : null;
-	const migrationAction = migrationDiskContent === null ? 'create' : (migrationDiskContent === migrationContent ? 'unchanged' : 'update');
-	if (!dryRun) writeUnit(migrationPath, migrationContent);
-	result.written.push(migrationRelPath);
-	const migrationActionEntry = { path: migrationRelPath, kind: 'spec', action: migrationAction };
-	if (computeDiff && migrationAction === 'update') migrationActionEntry.diff = unifiedDiff(migrationRelPath, migrationDiskContent, migrationContent);
-	result.actions.push(migrationActionEntry);
+	const result = emitUnits({
+		repoRoot, featureId, provider: 'python-fastapi', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff,
+		postResolverUnit: {
+			id: 'migration.sql.tmpl', templatePath: MIGRATION_TEMPLATE, targetAbs: migrationPath,
+			render: () => render(MIGRATION_TEMPLATE, { FEATURE_ID: featureId }),
+			kind: 'migration', ownership: 'feature', owner: featureId,
+		},
+	});
 
 	const postEmitNotes = [
 		'NOT done automatically: applying specs/<id>/handles/migration.sql to any database. Review it and apply yourself.',

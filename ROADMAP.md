@@ -76,6 +76,12 @@ roadmap isn't built on them:
 
 ## Phase 0 — Close the write-safety gaps in the `handles`/`stack` write path
 
+**Status: items 1-3 closed, `3c491d7`..`e5584da`-era HEAD → see `D-write-safety-phase0` in
+DECISIONS.md for the full implementation record and what was found while building it (notably: a
+first draft of item 1 emptied `provider.outputs.spec`, which turned out to silently break a real,
+already-tested safety property unrelated to this item's own goal -- caught by re-running the full
+suite, corrected before landing). Item 4 status below was corrected after implementation started.**
+
 **Effort: S–M. Risk: low. Depends on: nothing. Blocks: Phase 4 (pilot).**
 
 You cannot responsibly point this tool at someone else's production repo while it still has three
@@ -115,13 +121,24 @@ Deliverables:
    `classifyFile()`'s content-derived fallback already fails closed, this is the lowest-priority of
    the three.
 
-4. **[FIXABLE] Rename or re-scope `waivable`.** Given `contracts/completeness.mjs:22-26` establishes
-   that `waivable` "only has functional meaning for ERROR-severity codes," a field that is `true` on
-   ten WARN codes that can never be waived (`/usr/bin/grep -c "SEVERITY.WARN, waivable: true"
-   contracts/completeness.mjs` → 10) is a documented lie in a `1.0.0`-stable JSON shape.
-   Done = either drop the key on WARN codes (a schema change, so minor-version-safe under
-   `D-stable-api-contract` only if additive — check), or rename it to something that reads correctly
-   at both severities. Effort **S**; value is API honesty, not function.
+4. **[CORRECTED — not a fixable rough edge, a deliberate decision this roadmap mischaracterized.]**
+   The claim above ("a documented lie in a `1.0.0`-stable JSON shape") does not survive contact with
+   the actual code. Two things this item got wrong: **(a)** `waivable` is not in any `1.0.0`-stable
+   JSON shape at all — `schemas/feature-contract.schema.json`'s `warnings[]` definition
+   (`code`/`severity`/`subject`/`message`/`detail`) has no `waivable` field; it is purely an internal
+   `WARNING_CODES` lookup property `contracts/completeness.mjs` and `bin/bskel.mjs` share, never
+   serialized into any contract. `D-stable-api-contract` does not cover it either way. **(b)**
+   `contracts/completeness.mjs:15-26` already carries a direct comment addressing this exact
+   question: "`waivable` only has functional meaning for ERROR-severity codes... Every WARN-severity
+   code below is marked `waivable: true` anyway — read that as 'this finding is conceptually the
+   kind of thing a human might choose to acknowledge,' not as 'this can currently be passed to
+   `bskel contract waive`' — it can't, and isn't meant to. **This is deliberate**
+   (`test/contract-completeness.test.mjs` asserts the exact shape below, repeatedly)... **not an
+   unnoticed inconsistency.**" A prior session already made and tested this call. Overwriting it
+   with `waivable: false` would not be a bug fix — it would be silently reversing someone else's
+   considered decision, recorded in the exact place a future reader would look. Left as-is pending
+   the maintainer's own explicit call on whether to keep, rename, or reverse it — not decided by
+   this roadmap.
 
 ---
 

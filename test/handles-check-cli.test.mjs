@@ -135,20 +135,23 @@ test('handles plan --diff shows the same file-action preview as --check, without
 	assert.ok(!fs.existsSync(path.join(root, MANIFEST_REL)), 'handles plan --diff must not write anything either');
 });
 
-test('handles emit --check after a real emit reports everything unchanged and exits OK, including the spec-owned migration.sql', () => {
+test('handles emit --check after a real emit reports everything unchanged and exits OK, including the manifest-tracked migration.sql', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);
 	assert.equal(run(['handles', 'emit', '--feature', '001-widget-management'], root).code, 0);
 
 	const manifestBefore = fs.readFileSync(path.join(root, MANIFEST_REL), 'utf8');
 	const result = run(['handles', 'emit', '--feature', '001-widget-management', '--check', '--json'], root);
-	assert.equal(result.code, 0, 'a fully up-to-date repo must report OK even though migration.sql always appears in written[] (P4-era quirk) -- exit code must be derived from actions, not written.length');
+	assert.equal(result.code, 0, 'a fully up-to-date repo must report OK');
 	const body = JSON.parse(result.stdout);
 	assert.ok(body.actions.every((a) => a.action === 'unchanged'));
 
-	const specAction = body.actions.find((a) => a.kind === 'spec');
-	assert.ok(specAction, 'migration.sql must be reported with kind "spec"');
-	assert.equal(specAction.path, 'specs/001-widget-management/handles/migration.sql');
+	// D-write-safety-phase0 (item 1): migration.sql moved off the always-regenerated 'spec' kind
+	// onto real manifest tracking (kind: 'migration', ownership: 'feature') -- 'unchanged' here
+	// means classifyFile() genuinely found matching content, not a hardcoded 3-way guess.
+	const migrationAction = body.actions.find((a) => a.kind === 'migration');
+	assert.ok(migrationAction, 'migration.sql must be reported with kind "migration"');
+	assert.equal(migrationAction.path, 'specs/001-widget-management/handles/migration.sql');
 	assert.deepEqual(body.actions.filter((a) => a.kind === 'infra').length, 10);
 	// D-resolver-policy-split: two resolver-kind actions now (Resolver + Policy), both for Widget --
 	// look up by path, not by kind alone, since kind:'resolver' is no longer unique per resource.
@@ -338,10 +341,14 @@ class ItemPublic(ItemBase):
 	return root;
 }
 
-// G4 follow-up (D-handles-providers): python-fastapi now declares outputs.spec (migration.sql,
+// G4 follow-up (D-handles-providers): python-fastapi declares outputs.spec (migration.sql,
 // mirroring java-spring's own O4 work) -- this test's own name/premise used to be "no
 // outputs.spec, must never produce a spec-kind action"; both halves are now the opposite.
-test('handles emit --check for python-fastapi (real outputs.spec, G4 follow-up) exits OK once up to date, with a real "spec"-kind migration.sql action', () => {
+// D-write-safety-phase0 (item 1): migration.sql itself moved off the 'spec' action-kind onto real
+// manifest tracking ('migration', ownership: 'feature') -- outputs.spec is still declared (kept
+// for lib/verify.mjs's S6 safety net, see the java-spring.mjs comment) but no longer determines
+// this action's kind.
+test('handles emit --check for python-fastapi (real outputs.spec, G4 follow-up) exits OK once up to date, with a real manifest-tracked migration.sql action', () => {
 	const root = buildPythonFixtureRepo();
 	run(['preflight'], root);
 	run(['feature', 'init', '--slug', 'item-management'], root);
@@ -355,15 +362,15 @@ test('handles emit --check for python-fastapi (real outputs.spec, G4 follow-up) 
 	const fresh = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--check', '--json'], root);
 	assert.equal(fresh.code, 1);
 	const freshBody = JSON.parse(fresh.stdout);
-	const specActions = freshBody.actions.filter((a) => a.kind === 'spec');
-	assert.deepEqual(specActions.map((a) => a.path), ['specs/001-item-management/handles/migration.sql']);
-	assert.equal(specActions[0].action, 'create');
+	const migrationActions = freshBody.actions.filter((a) => a.kind === 'migration');
+	assert.deepEqual(migrationActions.map((a) => a.path), ['specs/001-item-management/handles/migration.sql']);
+	assert.equal(migrationActions[0].action, 'create');
 
 	assert.equal(run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items'], root).code, 0);
 
-	// migration.sql is regenerated fresh every run, unconditionally (same as java-spring, never
-	// manifest-tracked) -- its action is always present, but reports 'unchanged' once its own
-	// rendered content stops differing from what's on disk, same as every other action kind.
+	// D-write-safety-phase0 (item 1): migration.sql is manifest-tracked now (same mechanism as
+	// resolvers_index.ts's own barrel) -- its action reports genuine 'unchanged' via classifyFile(),
+	// same as every other action kind, not a hardcoded 3-way guess.
 	const upToDate = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--check', '--json'], root);
 	assert.equal(upToDate.code, 0);
 	assert.ok(JSON.parse(upToDate.stdout).actions.every((a) => a.action === 'unchanged'));

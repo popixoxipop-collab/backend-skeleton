@@ -9,10 +9,10 @@ import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision, headSha,
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
-import { writeFileAtomic, sha256File } from '../lib/fsutil.mjs';
+import { writeFileAtomic, sha256File, readJsonIfExists } from '../lib/fsutil.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 import { withLockSync } from '../lib/lock.mjs';
-import { specDir, specPath } from '../lib/paths.mjs';
+import { specDir, specPath, sbfPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import {
 	loadFeatureFile, saveFeatureFile, loadFeatureIndex, saveFeatureIndex,
@@ -96,7 +96,7 @@ function usage() {
   bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
   bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
   bskel dependency list --feature <id> [--json]
-  bskel stack apply --choice <id> [--apply] [--port N] [--json]
+  bskel stack apply --choice <id> [--apply] [--port N] [--force --reason "..."] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
@@ -1904,7 +1904,13 @@ function cmdStackApply(args) {
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
 	if (!flags.choice) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `usage: bskel stack apply --choice <id> [--apply] [--port N]   (known choices: ${listCatalogChoices().join(', ') || '(none)'})`);
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `usage: bskel stack apply --choice <id> [--apply] [--port N] [--force --reason "..."]   (known choices: ${listCatalogChoices().join(', ') || '(none)'})`);
+	}
+	// D-write-safety-phase0 (item 2): mirrors handles emit's own --force/--reason validation --
+	// every overwrite of a file that diverged from what `stack apply` itself last wrote must be
+	// auditable.
+	if (flags.force && (!flags.reason || !flags.reason.trim())) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel stack apply --force requires --reason "..." -- every overwrite of a diverged generated file must be auditable');
 	}
 
 	let entry;
@@ -1928,11 +1934,20 @@ function cmdStackApply(args) {
 		process.exit(0);
 	}
 
-	let written;
+	let written, conflicts, fileHashes;
 	try {
-		written = applyPlan(root, plan);
+		({ written, conflicts, fileHashes } = applyPlan(root, plan, { force: flags.force }));
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+	// D-write-safety-phase0 (item 2): a file that diverged from what `stack apply` itself last
+	// wrote is refused outright without --force -- mirrors handles emit's own conflict-refusal
+	// exactly, including the exit code family (a new, dedicated STACK_CONFLICT rather than reusing
+	// HANDLES_CONFLICT, since this is a different write surface).
+	if (conflicts.length > 0) {
+		console.error(`refusing to overwrite ${conflicts.length} file(s) that diverged from what \`bskel stack apply\` last generated${flags.force ? '' : ' -- pass --force --reason "..." to overwrite (only if the divergence is git-recoverable)'}:`);
+		for (const c of conflicts) console.error(`  ${c.path}\n    ${c.reason}`);
+		process.exit(EXIT_CODES.STACK_CONFLICT);
 	}
 	// S2: `applied_files` must be this choice's FULL file set in this repo (its desired state),
 	// not just whatever `applyPlan()` happened to write THIS run -- applyPlan() skips files whose
@@ -1944,17 +1959,22 @@ function cmdStackApply(args) {
 		...plan.files.map((f) => f.path),
 		...(plan.envExampleActions.length > 0 ? ['.env.example'] : []),
 	])].sort();
+	// D-write-safety-phase0 (item 2): `fileHashes` only covers files applyPlan() actually wrote
+	// THIS run -- an unchanged file isn't in it, so this merges onto the PRIOR record's file_hashes
+	// (now a genuine read boundary -- planApply() reads this same record to classify files, see
+	// stack/apply.mjs) rather than replacing it wholesale, or an unchanged file's provenance would
+	// be lost on every apply after the first.
+	const priorRecord = readJsonIfExists(sbfPath(root, 'stack.json'));
 	const stackRecord = {
 		schema: 'sbf.stack/1', choice: flags.choice, applied_files: appliedFiles,
 		env_example_keys: plan.envExampleActions.map((e) => e.key), at: new Date().toISOString(),
+		file_hashes: { ...(priorRecord?.file_hashes ?? {}), ...fileHashes },
 	};
 	// S5 (D-persistence-integrity): schemas/stack-record.schema.json is new -- this record had NO
 	// schema at all before (not the same file as stack-choice.schema.json, which validates a
 	// stack/catalog/<id>.yml CATALOG ENTRY, a completely different persistence boundary). Validated
 	// before it touches disk, same "fail loud here" reasoning as every other write site this item
-	// touched. No corresponding read helper -- nothing in this codebase reads .sbf/stack.json back
-	// (confirmed by grep before adding this), so there's no read boundary to close yet; adding an
-	// unused loadStackRecord() export would just be dead code.
+	// touched.
 	{
 		const { ok, errors } = validateAgainstSchema('stack-record.schema.json', stackRecord);
 		if (!ok) {
@@ -2078,8 +2098,10 @@ function writeScanReportOrExit(reportPath, report) {
 }
 
 // D4 (D-handles-dryrun): the marker vocabulary a human report uses for classifyFile()'s 6
-// possible actions (+ the java-spring-only 'spec' kind, which reuses the same 3 labels since it's
-// classified the same 3-way create/unchanged/update, just outside classifyFile() itself).
+// possible actions (+ the 'spec' kind every observe.mjs provider uses for its always-regenerated
+// observed-schema.json, which reuses the same 3 labels since it's classified the same 3-way
+// create/unchanged/update, just outside classifyFile() itself -- migration.sql used to be the
+// other 'spec' user too, until D-write-safety-phase0 moved it onto real manifest tracking).
 const ACTION_MARKERS = { create: '+', unchanged: '=', update: '~', 'adopt-unchanged': '=', 'adopt-update': '~', conflict: '!' };
 
 // D4: shared between `handles plan`'s preview and `handles emit --check`'s report -- both show

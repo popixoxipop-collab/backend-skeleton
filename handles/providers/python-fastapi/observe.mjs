@@ -62,11 +62,12 @@ export function emitObservePythonFastApi({ repoRoot, featureId, contract, plan, 
 
 	const result = emitUnits({ repoRoot, featureId, provider: 'python-fastapi', force, reason, infraUnits, resolverUnits: [], orphanScan: null, dryRun, computeDiff });
 
-	// The projected observed-schema.json resource -- regenerated unconditionally every run, like
-	// handles' own migration.sql (and java observe's own schema resource), and for the identical
-	// reason: nobody hand-finishes a generated data file the way they hand-finish a resolver stub,
-	// so O2-style conflict tracking buys nothing here. `kind: 'spec'` matches migration.sql's own
-	// action-reporting convention. Discovered at runtime via a plain glob under observe/schemas/
+	// The projected observed-schema.json resource -- regenerated unconditionally every run (unlike
+	// handles' own migration.sql, which moved to manifest tracking in D-write-safety-phase0; this
+	// file, and java observe's own schema resource, stay unconditional: nobody hand-finishes a
+	// generated data file the way they hand-finish a resolver stub, so O2-style conflict tracking
+	// buys nothing here). `kind: 'spec'` still means "always regenerated, not conflict-tracked".
+	// Discovered at runtime via a plain glob under observe/schemas/
 	// (see observed_schema.py.tmpl's own docstring for why -- no importlib.resources needed since
 	// this ecosystem only ever runs from source).
 	const operations = {};

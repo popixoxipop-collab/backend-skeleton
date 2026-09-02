@@ -425,7 +425,11 @@ test('e2e: bskel verify tracks a real migration.sql artifact for python-fastapi 
 	assert.equal(migrationArtifact.exists, true);
 });
 
-test('e2e: re-emit is idempotent -- nothing rewritten except migration.sql (regenerated fresh every run, unconditionally, same as java-spring), resolver stays byte-identical', () => {
+// D-write-safety-phase0 (item 1): migration.sql moved onto real manifest tracking, so a second,
+// content-identical emit now reports it 'unchanged' like everything else -- nothing at all is
+// rewritten on a genuinely idempotent re-emit any more (this test's own name/premise used to be
+// "migration.sql always rewrites unconditionally"; that's no longer true).
+test('e2e: re-emit is idempotent -- nothing rewritten at all, migration.sql included, resolver stays byte-identical', () => {
 	const root = buildE2eFixtureRepo();
 	runToHandlesEmit(root);
 	const resolverPath = path.join(root, 'backend', 'app', 'handles', 'resolvers', 'item.py');
@@ -433,7 +437,7 @@ test('e2e: re-emit is idempotent -- nothing rewritten except migration.sql (rege
 	const second = run(['handles', 'emit', '--feature', '001-item-management', '--module', 'items', '--json'], root);
 	assert.equal(second.code, 0, second.stderr);
 	const result = JSON.parse(second.stdout);
-	assert.deepEqual(result.written, ['specs/001-item-management/handles/migration.sql']);
+	assert.deepEqual(result.written, []);
 	assert.equal(fs.readFileSync(resolverPath, 'utf8'), before);
 });
 
