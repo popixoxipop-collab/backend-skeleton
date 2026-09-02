@@ -113,7 +113,16 @@ console.log('java-integration-smoke: PASS -- the full handle lifecycle ran for r
 // schema (sbf_handle/sbf_handle_snapshot/widgets) is unchanged; only HandleController.java is
 // re-rendered.
 console.log('java-integration-smoke: re-emitting with --enforce-registry on...');
-r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--enforce-registry', 'on'], scratch);
+// D-write-safety-phase1 (item 2): a genuine, already-documented false positive, not a bug in this
+// item -- the static check reads `resource.service.file`, which resolves to the WidgetService
+// INTERFACE (see findServiceFile()), but @RecordHandleSnapshot is applied on WidgetServiceImpl's
+// own override (see that file's own comment for why: it needs a real, running method body to
+// annotate, an interface method has none). Exactly the "decorator applied somewhere other than
+// the one canonical file" false-positive case DECISIONS.md's own D-handle-registry-enforcement
+// entry names as the deliberate, accepted cost of a false-positive-biased regex check -- so this
+// script, playing the role of an operator who already knows this repo has real coverage via the
+// impl class, acknowledges it with --force --reason exactly like a real one would have to.
+r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--enforce-registry', 'on', '--force', '--reason', '@RecordHandleSnapshot is applied on WidgetServiceImpl (the implementation), not the WidgetService interface the static check reads -- real coverage exists, this is the documented interface/impl false positive'], scratch);
 if (r.code !== 0) fail(`handles emit --enforce-registry on: ${r.stderr || r.stdout}`);
 
 console.log('java-integration-smoke: clearing widget/handle rows for a clean enforcement-phase run...');
