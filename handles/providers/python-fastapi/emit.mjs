@@ -172,16 +172,17 @@ export function emitPythonFastApi({ repoRoot, featureId, plan, resourceFilter = 
 
 	// D-write-safety-phase0 (item 1): mirrors java-spring/emit.mjs's own fix exactly -- migration.sql
 	// used to be regenerated fresh every run, unconditionally, never manifest-tracked. Reuses
-	// emitUnits()'s postResolverUnit slot (kind/ownership/owner overridden for feature ownership)
-	// instead of a separate, untracked write path.
+	// emitUnits()'s postResolverUnits slot (kind/ownership/owner overridden for feature ownership;
+	// widened to an array in D-typescript-express-registry-parity) instead of a separate,
+	// untracked write path.
 	const migrationPath = path.join(repoRoot, 'specs', featureId, 'handles', 'migration.sql');
 	const result = emitUnits({
 		repoRoot, featureId, provider: 'python-fastapi', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff,
-		postResolverUnit: {
+		postResolverUnits: [{
 			id: 'migration.sql.tmpl', templatePath: MIGRATION_TEMPLATE, targetAbs: migrationPath,
 			render: () => render(MIGRATION_TEMPLATE, { FEATURE_ID: featureId }),
 			kind: 'migration', ownership: 'feature', owner: featureId,
-		},
+		}],
 	});
 
 	const postEmitNotes = [

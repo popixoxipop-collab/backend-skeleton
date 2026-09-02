@@ -270,6 +270,18 @@ that the tool mentions only after the fact, in a `postEmitNotes` line:
 
 ## Phase 2 — Settle the third provider's scope, honestly, before the pilot
 
+**Status: closed — the user picked "build it" (full parity, not permanent-scope-declaration).
+`typescript-express` now generates the same `sbf_handle`/`sbf_handle_snapshot` schema, `recover()`
+route, and `--enforce-registry` gating java-spring/python-fastapi do. See
+`D-typescript-express-registry-parity` in DECISIONS.md for the full record, notably the one real
+architectural fork this required: no decorator/AOP-equivalent interception mechanism exists in
+TypeScript this provider's own `codec.ts.tmpl` constraint (no decorators) could use, so
+registration is a higher-order wrapper function (`recordSnapshotWrapper.ts`) applied by hand,
+instead of an annotation/decorator. Verified with a real `tsc --noEmit` against real
+`typeorm`/`express` types (twice — default posture and `--enforce-registry on`), and a real,
+disposable-Postgres confirmation that `handles audit --check-registry-coverage` (Phase 1 item 3)
+already worked for this provider with zero code changes.**
+
 **Effort: S (decision) or L (build). Risk: low. Depends on: nothing. Blocks: Phase 4's provider
 choice, Phase 6's default-flip scope.**
 

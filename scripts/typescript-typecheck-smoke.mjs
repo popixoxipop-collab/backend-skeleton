@@ -109,8 +109,18 @@ import { encodeHandle } from './codec';
 
 async function main() {
   const FAKE_UUID = 'e957347e-3794-4c71-92a8-cec75dec1c97';
+  // D-typescript-express-registry-parity: featureUid/contractRef/dataSource are now real,
+  // required fields on ResourceResolver -- this hand-built fake resolver (registered directly,
+  // not through a real handles-emit resolver.ts) needs to satisfy the same interface a generated
+  // one does. dataSource is never actually dereferenced here: this emit call doesn't pass
+  // --enforce-registry on, so ENFORCE_REGISTRY renders false and requireRegisteredOrThrow() is
+  // never called -- the cast below is a real, honest note that this driver doesn't exercise that
+  // path (the enforcement-focused phase further down DOES provide a real DataSource).
   register({
     type: 'Thing',
+    featureUid: '00000000-0000-0000-0000-000000000000',
+    contractRef: 'fake-contract-ref-for-smoke-test',
+    dataSource: null as any,
     async fetch(uid: string) { return { id: uid, name: 'Ann', secret: 'hidden' }; },
     checkAccess(_obj: unknown) {},
     patchField(_obj: unknown, _pointer: string, _value: unknown) {},
@@ -391,5 +401,36 @@ try {
 }
 
 console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, the emitted handles router\'s GET pointer-walk works against a real HTTP round trip, and the emitted observeContract middleware correctly intercepts real traffic (conformant / missing-field / bad-status / raw-string-uncaptured / bad-path-param).');
+
+// D-typescript-express-registry-parity: proves the new registry stack (handleEntities.ts/
+// handleService.ts/recordSnapshotWrapper.ts/<Type>Policy.ts/router.ts's recover()+enforcement
+// logic) actually compiles against real TypeORM types, not just that it renders as syntactically
+// plausible strings -- the whole point of this script existing at all (see its own header). Run
+// LAST, deliberately: this re-emit bakes ENFORCE_REGISTRY=true into the shared scratch repo's own
+// router.ts, which would make the EARLIER HTTP-round-trip driver's hand-registered fake resolver
+// (dataSource: null) crash for real inside requireRegisteredOrThrow() -- found live, not assumed,
+// by originally placing this phase before the HTTP round trip and watching it crash exactly that
+// way. Ordering this phase last means every earlier phase's own assumption (enforcement off)
+// stays true for its own run, and nothing after this phase depends on enforcement being off again.
+console.log('typescript-typecheck-smoke: re-emitting with --enforce-registry on --force --reason, re-typechecking...');
+r = bskel(['handles', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--enforce-registry', 'on', '--force', '--reason', 'typescript-typecheck-smoke: verifying the registry stack compiles for real', '--json'], scratch);
+if (r.code !== 0) fail(`handles emit --enforce-registry on --force: ${r.stderr || r.stdout}`);
+let enforceEmitResult;
+try {
+	enforceEmitResult = JSON.parse(r.stdout);
+} catch {
+	fail(`handles emit --enforce-registry on produced no parseable JSON: ${r.stdout}`);
+}
+const expectedRegistryFiles = ['backend/src/handles/handleEntities.ts', 'backend/src/handles/handleService.ts', 'backend/src/handles/recordSnapshotWrapper.ts', 'backend/src/handles/resolvers/userPolicy.ts', 'specs/001-user-management/handles/migration.sql'];
+for (const f of expectedRegistryFiles) {
+	if (!emitResult.written.includes(f) && !enforceEmitResult.written.includes(f)) fail(`expected ${f} to have been written by one of the two handles emit calls -- got ${JSON.stringify(emitResult.written)} then ${JSON.stringify(enforceEmitResult.written)}`);
+}
+try {
+	sh('npx', ['tsc', '--noEmit'], backendDir, { quiet: true });
+} catch (err) {
+	fail(`tsc --noEmit found real type errors in generated code AFTER --enforce-registry on:\n${err.stdout || err.stderr || err.message}`);
+}
+console.log('typescript-typecheck-smoke: registry-parity phase PASSED (real tsc --noEmit, twice, against the full registry stack).');
+
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });

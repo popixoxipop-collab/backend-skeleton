@@ -9,8 +9,38 @@
 // against still pins this version) does NOT auto-catch a rejected Promise inside an async route
 // handler the way Express 5 does, and that can't be assumed of an arbitrary target app either way.
 import { Router, type Request, type Response } from 'express';
-import { decodeHandle, resolveJsonPointer } from './codec';
-import { resolverFor, HandleAccessDeniedError, HandleNotImplementedError } from './registry';
+import { decodeHandle, resolveJsonPointer, deriveHandleUid, type DecodedHandle } from './codec';
+import { resolverFor, HandleAccessDeniedError, HandleNotImplementedError, type ResourceResolver } from './registry';
+import { HandleRegistry, HandleSnapshot } from './handleEntities';
+
+// O3 (D-handle-registry-enforcement, part 2 of 2), D-typescript-express-registry-parity: opt-in,
+// defaults false -- baked in at `bskel handles emit --enforce-registry on` time, matching every
+// other per-target-repo codegen constant this project bakes in (e.g. featureUid/contractRef on
+// each resolver). `registerHandle()` is only ever called by generated code wrapped with
+// recordSnapshot(...) (an app that opted in) or a target app's own hand-written calls -- an app
+// that mints handles through neither path gets fully working fetch()/patch() with zero registry
+// involvement today; flipping this on unconditionally would 404 every one of their existing
+// handles. Stays a deliberate, informed choice a target app's own maintainer makes.
+const ENFORCE_REGISTRY = {{ENFORCE_REGISTRY}};
+
+export class HandleNotRegisteredError extends Error {}
+
+// D-handle-registry-enforcement's own bootstrapping-trap fix, ported here from day one (not
+// rediscovered): always derives and looks up the PARENT RESOURCE's own row (kind='r',
+// pointer=null), regardless of the requested handle's own kind/pointer -- `resourceType` is still
+// exactly cross-checked (the real D-security-9 protection: an attacker-controlled `type` can't
+// claim a different, more sensitive resource's registration by UUID coincidence), but kind/pointer
+// are not, since every real registration in this system is resource-level. Structurally correct,
+// not a workaround: revocation is inherently a resource-level concept, matching how fetch()'s own
+// kind=f path already fetches the WHOLE resource and narrows client-side with a pointer.
+async function requireRegisteredOrThrow(resolver: ResourceResolver, decoded: DecodedHandle): Promise<HandleRegistry> {
+  const resourceHandleUid = deriveHandleUid('r', decoded.type, decoded.uuid, null);
+  const registry = await resolver.dataSource.getRepository(HandleRegistry).findOne({ where: { handleUid: resourceHandleUid } });
+  if (registry == null || registry.resourceType !== decoded.type || registry.revokedAt != null) {
+    throw new HandleNotRegisteredError('no active registration for this handle');
+  }
+  return registry;
+}
 
 export const router = Router();
 
@@ -38,6 +68,9 @@ router.get('/handles/:handle', async (req: Request, res: Response) => {
   }
 
   try {
+    if (ENFORCE_REGISTRY) {
+      await requireRegisteredOrThrow(resolver, decoded);
+    }
     const obj = await resolver.fetch(decoded.uuid);
     if (obj == null) {
       res.status(404).json({ detail: 'resource not found' });
@@ -63,6 +96,10 @@ router.get('/handles/:handle', async (req: Request, res: Response) => {
   } catch (exc) {
     if (exc instanceof HandleAccessDeniedError) {
       res.status(403).json({ detail: exc.message });
+      return;
+    }
+    if (exc instanceof HandleNotRegisteredError) {
+      res.status(404).json({ detail: exc.message });
       return;
     }
     throw exc;
@@ -100,6 +137,9 @@ router.patch('/handles/:handle', async (req: Request, res: Response) => {
   }
 
   try {
+    if (ENFORCE_REGISTRY) {
+      await requireRegisteredOrThrow(resolver, decoded);
+    }
     const obj = await resolver.fetch(decoded.uuid);
     if (obj == null) {
       res.status(404).json({ detail: 'resource not found' });
@@ -117,6 +157,77 @@ router.patch('/handles/:handle', async (req: Request, res: Response) => {
       res.status(501).json({ detail: exc.message });
       return;
     }
+    if (exc instanceof HandleNotRegisteredError) {
+      res.status(404).json({ detail: exc.message });
+      return;
+    }
     throw exc;
   }
+});
+
+// D-handle-lifecycle (O4), D-typescript-express-registry-parity: recover() structurally REQUIRES
+// a registry row to find a snapshot's own primary key -- there is no "unenforced" mode for it,
+// unlike fetch()/patch() above. Always calls the same shared cross-check those two now optionally
+// call, so the two paths can never silently drift apart. Unlike fetch()/patch(), this does NOT
+// call resolver.fetch() first -- recovering history of a since-deleted resource is legitimate, so
+// this never requires the live resource to still exist.
+router.get('/handles/:handle/recover', async (req: Request, res: Response) => {
+  if (typeof req.params.handle !== 'string') {
+    res.status(400).json({ detail: 'malformed handle path segment' });
+    return;
+  }
+  let decoded;
+  try {
+    decoded = decodeHandle(req.params.handle);
+  } catch (exc) {
+    res.status(400).json({ detail: (exc as Error).message });
+    return;
+  }
+
+  const resolver = resolverFor(decoded.type);
+  if (!resolver) {
+    res.status(404).json({ detail: `no resolver registered for handle type "${decoded.type}"` });
+    return;
+  }
+
+  let registry: HandleRegistry;
+  try {
+    registry = await requireRegisteredOrThrow(resolver, decoded);
+  } catch (exc) {
+    if (exc instanceof HandleNotRegisteredError) {
+      res.status(404).json({ detail: exc.message });
+      return;
+    }
+    throw exc;
+  }
+
+  const atParam = typeof req.query.at === 'string' ? req.query.at : null;
+  const at = atParam != null ? new Date(atParam) : null;
+  if (at != null && Number.isNaN(at.getTime())) {
+    res.status(400).json({ detail: `"at" query parameter is not a valid date: "${atParam}"` });
+    return;
+  }
+
+  const qb = resolver.dataSource.getRepository(HandleSnapshot)
+    .createQueryBuilder('snapshot')
+    .where('snapshot.handle_uid = :handleUid', { handleUid: registry.handleUid })
+    .orderBy('snapshot.recorded_at', 'DESC');
+  if (at != null) qb.andWhere('snapshot.recorded_at <= :at', { at });
+  const snapshot = await qb.getOne();
+
+  if (snapshot == null) {
+    res.status(404).json({ detail: `no snapshot recorded for this handle${at != null ? ` at or before ${at.toISOString()}` : ''}` });
+    return;
+  }
+
+  res.status(200).json({
+    handle: req.params.handle,
+    recordedAt: snapshot.recordedAt,
+    operationId: snapshot.operationId,
+    // snapshot.payload is already a native object/array/scalar (a real jsonb column) -- no
+    // manual re-parse step exists here for the double-encoding bug Java once had to be possible
+    // in the first place.
+    payload: snapshot.payload,
+    schemaDrift: registry.contractRef !== snapshot.contractHash,
+  });
 });

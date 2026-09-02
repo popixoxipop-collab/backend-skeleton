@@ -24,9 +24,22 @@
 import { {{MODEL}} } from '{{MODEL_IMPORT_PATH}}';
 import { {{DATA_SOURCE_NAME}} } from '{{DATA_SOURCE_IMPORT_PATH}}';
 import { register, HandleAccessDeniedError, HandleNotImplementedError, type ResourceResolver } from '../registry';
+import { {{RESOURCE_TYPE}}Policy } from './{{RESOURCE_TYPE_CAMEL}}Policy';
 
 const {{RESOURCE_TYPE}}Resolver: ResourceResolver = {
+  ...{{RESOURCE_TYPE}}Policy,
+  // Redundant with the spread above (Policy already carries `type`) -- restated explicitly so
+  // this file's own orphan-scan (emit.mjs's resourceTypeOf(), a content-read, not a filename
+  // guess) can still find a real `type: 'X'` field without needing to open the sibling Policy
+  // file too. A literal, not derived from anything -- if this and the Policy value ever
+  // disagreed, the object-literal spread order means this line always wins at runtime, matching
+  // what the orphan scan would read.
   type: '{{RESOURCE_TYPE}}',
+  // D-typescript-express-registry-parity: exposed here, not in the policy file -- this is an
+  // OBJECT REFERENCE (the same app-wide DataSource singleton fetch() already imports below), not
+  // a plain regenerable string value the way contractRef/featureUid are. Read by recordSnapshotWrapper.ts
+  // and router.ts's recover()/enforcement logic so they never need their own separate DataSource.
+  dataSource: {{DATA_SOURCE_NAME}},
 
   async fetch(resourceUid: string): Promise<unknown> {
     return {{DATA_SOURCE_NAME}}.getRepository({{MODEL}}).findOne({ where: { {{ID_FIELD}}: resourceUid } });

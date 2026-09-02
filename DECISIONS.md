@@ -11377,3 +11377,128 @@ shaped that way to validate against, which none of this project's own currently-
 are. python-fastapi has no equivalent `idFieldIsUuid`-style gate yet (SQLModel entities could in
 principle have a non-UUID primary key too) -- not touched by this item, named here as a real,
 separate gap for whoever picks it up next.
+
+## D-typescript-express-registry-parity: full `--enforce-registry` parity for typescript-express (ROADMAP.md Phase 2)
+
+**WHY**: `ROADMAP.md` Phase 2 named a real fork -- build full registry parity for
+typescript-express (no `sbf_handle` table, no `recover()`, no revocation since G5), or declare it
+permanently out of scope. The user picked build it. Read java-spring's and python-fastapi's full
+registry stacks end-to-end before writing any code (not just python's, despite it being the
+architecturally closer sibling -- the bootstrapping-trap fix and D-resolver-policy-split are both
+java-spring-first decisions python-fastapi only later mirrored), to make this a faithful port, not
+a guess.
+
+**The one genuine architectural fork, decided up front**: Java splits registration into a marker
+annotation (`@RecordHandleSnapshot`) plus a separate Spring-AOP interceptor (`HandleAspect`)
+because Java has no other way to intercept an arbitrary method call. Python collapses both into one
+decorator, because Python decorators natively ARE that ecosystem's interception mechanism.
+TypeScript has NEITHER mechanism available here: TS decorators are an experimental,
+`experimentalDecorators`-gated feature that targets class methods, not the standalone async
+functions this provider's resolvers/routes are written as -- and decisively, `codec.ts.tmpl`
+already established a real, load-bearing constraint for this provider ("zero non-erasable
+TypeScript syntax, no decorators, so this file runs via `node --experimental-strip-types`").
+`recordSnapshotWrapper.ts.tmpl` is a higher-order async function instead: `recordSnapshot(options,
+dataSource, fn)` returns a wrapped function a human applies by hand around an existing route
+handler -- the same "one mechanism, no marker/interceptor split" property Python's decorator has,
+without decorator syntax. `resourceUidArg` is an argument INDEX, not a parameter NAME (Python's
+decorator resolves a named parameter via `inspect.signature(fn).bind(...)`; TypeScript/JavaScript
+has no equivalent runtime reflection) -- an honest, simpler difference, not a missing feature. Only
+an async wrapper exists at all (Python needs a real sync/async dual-wrapper, detected via
+`inspect.iscoroutinefunction` at decoration time) -- every Express handler and TypeORM repository
+call in this ecosystem is already async by convention, so there is no second code path to maintain.
+
+**New template files** (`handles/providers/typescript-express/templates/`): `migration.sql.tmpl`
+(byte-identical DDL to java-spring's/python-fastapi's own `sbf_handle`/`sbf_handle_snapshot`
+schema, only the header comment's migration-tool suggestion differs); `handleEntities.ts.tmpl`
+(TypeORM `@Entity()` classes -- `payload` is a native `jsonb` column, the same no-manual-round-trip
+safety python-fastapi's own `tables.py` already has, structurally ruling out the double-JSON-encode
+bug class Java's original manually-(de)serialized String column once had); `handleService.ts.tmpl`
+(`registerHandle`/`revokeHandle`/`recordSnapshot`/`pruneSnapshotsOlderThan`, named
+`registerHandle`/`revokeHandle` rather than `register`/`revoke` specifically to avoid colliding
+with `registry.ts`'s own, completely unrelated in-process resolver-dispatch `register()` -- a real
+naming collision risk found and avoided during design, not after); `resolverPolicy.ts.tmpl` (ports
+`D-resolver-policy-split` to this provider for the first time -- a per-resource `<Type>Policy.ts`
+plain object carrying `contractRef`/`featureUid`, spread into the resolver object by
+`resolver.ts.tmpl` rather than embedded directly, so a hand-edited `checkAccess`/`patchField`
+never blocks those live-derived values from regenerating, the exact same file-level-conflict
+reason the original split exists for).
+
+**Modified templates**: `registry.ts.tmpl`'s `ResourceResolver` interface gains `featureUid`,
+`contractRef`, and `dataSource` (a real `DataSource` object reference, not a plain string --
+deliberately NOT added to the policy file, since it's the SAME app-wide singleton `fetch()`
+already imports, not a regenerable value; exposed as a field so `recordSnapshotWrapper.ts`/
+`router.ts`'s recover()/enforcement logic never need a second DataSource reference of their own).
+`router.ts.tmpl` gains an `ENFORCE_REGISTRY` module constant (mirrors `router.py.tmpl:30`), a
+`requireRegisteredOrThrow()` helper implementing `D-handle-registry-enforcement`'s own
+bootstrapping-trap parent-resource-lookup fix FROM DAY ONE (always derives/looks up the
+`kind='r'`/`pointer=null` row regardless of the requested handle's own kind/pointer, cross-checks
+`resourceType` exactly -- ported already-fixed, not rediscovered the hard way java-spring was),
+and a new `GET /handles/:handle/recover` route (unconditional registry requirement, `?at=`
+point-in-time query, `schemaDrift` computed the same way python's does).
+
+**`emit.mjs`**: `emitTypeScriptExpress` gains `enforceRegistry = false` -- `bin/bskel.mjs` already
+passed it uniformly to every provider's `emit()` call before this item, so zero CLI-layer plumbing
+changes were needed, only the provider had to start using it. Three new repo-wide infra units
+(`handleEntities.ts`, `handleService.ts`, `recordSnapshotWrapper.ts`). Per resource, TWO units now
+(resolver + policy, mirroring the Resolver+Policy split's own manifest shape exactly -- both
+`kind: 'resolver'`, same as java-spring's). `migration.sql` uses the Phase-0-fixed manifest-tracking
+pattern from day one (`postResolverUnits`, `kind: 'migration', ownership: 'feature', owner:
+featureId`) -- no "old always-regenerate pattern" ever existed for this provider to accidentally
+copy. Registration-gap checking (mirrors `D-write-safety-phase1` item 2 exactly) reads
+`resource.fetchRoute.file` (this provider's closest analog to a "service file") for an IMPORT of
+`recordSnapshotWrapper` -- deliberately not a bare substring match on `"recordSnapshot("`, since
+that string is also the name of `handleService.ts`'s own lower-level persistence function (the
+real naming overlap named above); a substring match would false-negative on files that only import
+the OTHER `recordSnapshot`.
+
+**A real engine generalization this item required, not anticipated**: `handles/_engine.mjs`'s
+`postResolverUnit` (singular, `D-write-safety-phase0`'s own kind/ownership/owner generalization)
+was already occupied by `resolvers_index.ts` for this provider -- java-spring/python-fastapi could
+freely reuse that ONE slot for `migration.sql` because neither of them had a second post-resolver
+unit competing for it. typescript-express needed both at once. Widened to `postResolverUnits` (an
+array), same per-unit classify/conflict/force/manifest logic applied to each independently, all
+three providers' call sites updated (java-spring/python-fastapi each now pass a 1-element array).
+`resolvers_index.ts.tmpl`'s own barrel-import render function was also fixed to exclude
+`*Policy.ts` files from its `import './X';` list -- those have no `register(...)` side effect of
+their own (their sibling resolver file already imports them directly); the render function's
+existing `.ts`-suffix filter would otherwise have added a spurious, pointless barrel entry for
+every policy file.
+
+**A real bug found by real execution, not by review**: the first draft of the extended
+`scripts/typescript-typecheck-smoke.mjs` ran the new `--enforce-registry on --force --reason`
+re-emit phase BEFORE the pre-existing real-HTTP-round-trip phase -- and crashed it. The re-emit
+bakes `ENFORCE_REGISTRY = true` into the SHARED scratch repo's own `router.ts`; the HTTP-round-trip
+phase's hand-registered fake resolver (a plain object literal, not one `handles emit` generated)
+had `dataSource: null`, and `requireRegisteredOrThrow()` genuinely dereferenced it, crashing with a
+real `TypeError: Cannot read properties of null (reading 'getRepository')`. Fixed by moving the new
+enforcement-typecheck phase to the very end of the script, after every earlier phase that assumes
+enforcement is off has already run to completion -- found by actually running the script and
+watching it crash exactly that way, not by reasoning about shared state in the abstract.
+
+**Verified**: full `npm test` clean. `test/typescript-express-handles.test.mjs`'s own two now-stale
+tests (asserting "no migration artifact" / "outputs.spec: []", both literally false after this
+item) updated to assert the new, real behavior. `test/scan-fixture.test.mjs`/
+`test/handles-plan-fixture.test.mjs` unaffected (this item never touched the scanner or the PK-type
+gate `D-write-safety-phase1` added). A manual, real end-to-end run (fresh fixture, real `preflight`
+-> ... -> `handles emit --enforce-registry on`) confirmed: refused with the new registration-gap
+block (exit 21) naming the real reason; `--force --reason` proceeds (exit 0), note stays visible;
+every generated file (`handleEntities.ts`, `handleService.ts`, `recordSnapshotWrapper.ts`,
+`<type>Policy.ts`, `migration.sql`) read back by hand and confirmed coherent, not just
+syntactically present. A real `npx tsc --noEmit` against real `typeorm`/`express`/`typescript`
+packages (installed via a real `npm install`, no new backend-skeleton devDependency) passed with
+ZERO errors both before and after `--enforce-registry on --force --reason`. `handles audit
+--check-registry-coverage` (`D-write-safety-phase1` item 3) confirmed working against a real,
+disposable Postgres for this provider with genuinely ZERO code changes -- proving the
+provider-agnostic design claim for real, not just by inspection: empty registry -> NOT COVERED, a
+real inserted `kind='r'` row -> COVERED. `scripts/typescript-typecheck-smoke.mjs` extended with the
+new phase, run in full end-to-end (real HTTP round trip, real `observeContract` HTTP round trip,
+new registry-parity phase) -- all passed.
+
+**EXIT**: repository-direct-call support (a resolver-generation strategy for a UUID-keyed entity
+with no Service/route-handler-adjacent business layer) remains out of scope, same reasoning
+`D-write-safety-phase1`'s own EXIT already gave for java-spring -- no real oracle shaped that way
+exists to validate against. `recordSnapshotWrapper.ts`'s best-effort failure handling
+(`console.warn`, never thrown) is a real, deliberate simplification of python's own `logger.warning`
+-- this provider has no established structured-logging convention the way Python's `logging` module
+is a real, ubiquitous ecosystem default; wiring a real logger is left to the target app, matching
+this provider's own `checkAccess`/`patchField` "wire it to your own convention" precedent.

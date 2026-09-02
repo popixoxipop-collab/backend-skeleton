@@ -73,10 +73,13 @@ production -- which still splits the same way it always has:
   gaps remain and are explicitly still open, not closed: registry enforcement is opt-in, off by
   default; authorization inference now recognizes both `@PreAuthorize(hasRole(...))` and
   `hasAuthority(...)` (see `DECISIONS.md`'s `D-resolver-authorization-action-aware`), but
-  `hasAnyRole`/`hasAnyAuthority` (list-shape), ownership, and tenant policy are still unaddressed;
-  and Java/Python are the only providers either applies to -- TypeScript Express has no persistent
-  handle table at all. Treat `handles emit`'s output as a scaffold to finish by hand, not a
-  production-ready subsystem, until a real deployment happens.
+  `hasAnyRole`/`hasAnyAuthority` (list-shape), ownership, and tenant policy are still unaddressed.
+  All three providers (Java/Python/TypeScript) now generate a real `sbf_handle`/
+  `sbf_handle_snapshot` schema and support `--enforce-registry`/`recover()` -- TypeScript's own
+  registration mechanism is a higher-order wrapper function, not a decorator (no Java-AOP or
+  Python-decorator equivalent exists in this ecosystem the templates could safely rely on; see
+  `D-typescript-express-registry-parity` in `DECISIONS.md`). Treat `handles emit`'s output as a
+  scaffold to finish by hand, not a production-ready subsystem, until a real deployment happens.
 
 ## Quickstart
 

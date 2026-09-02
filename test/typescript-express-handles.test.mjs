@@ -255,19 +255,27 @@ function runToHandlesEmit(root) {
 	return run(['handles', 'emit', '--feature', '001-user-management', '--module', 'users', '--json'], root);
 }
 
-test('e2e: handles emit writes exactly the expected files -- no .java/.py, no migration artifact (this 1st-slice provider has no outputs.spec)', () => {
+// D-typescript-express-registry-parity: this provider is no longer 1st-slice-only -- migration.sql/
+// handleEntities.ts/handleService.ts/recordSnapshotWrapper.ts/<Type>Policy.ts are all real now.
+test('e2e: handles emit writes exactly the expected files, including migration.sql and the full registry stack', () => {
 	const root = buildE2eFixtureRepo();
 	const emit = runToHandlesEmit(root);
 	assert.equal(emit.code, 0, emit.stderr);
 	const result = JSON.parse(emit.stdout);
 	assert.deepEqual(result.written.sort(), [
 		'backend/src/handles/codec.ts',
+		'backend/src/handles/handleEntities.ts',
+		'backend/src/handles/handleService.ts',
+		'backend/src/handles/recordSnapshotWrapper.ts',
 		'backend/src/handles/registry.ts',
 		'backend/src/handles/resolvers/resolvers_index.ts',
 		'backend/src/handles/resolvers/user.ts',
+		'backend/src/handles/resolvers/userPolicy.ts',
 		'backend/src/handles/router.ts',
+		'specs/001-user-management/handles/migration.sql',
 	].sort());
 	assert.ok(result.postEmitNotes.some((n) => n.includes('handles/router')), 'expected the router-wiring note');
+	assert.ok(result.postEmitNotes.some((n) => n.includes('recordSnapshotWrapper')), 'expected the recordSnapshotWrapper-wiring note');
 });
 
 test('e2e: checkAccess always throws HandleAccessDeniedError (403), patchField always throws HandleNotImplementedError (501), hashedPassword never referenced by the resolver', () => {
@@ -286,13 +294,18 @@ test('e2e: the router checks PATCH kind explicitly (kind !== "f" or pointer == n
 	assert.match(routerSrc, /decoded\.kind !== 'f' \|\| decoded\.pointer == null/);
 });
 
-test('e2e: bskel verify passes the handles gate with zero migration-artifact checks created', () => {
+// D-typescript-express-registry-parity: migration.sql is real and manifest-tracked now -- `bskel
+// verify` must track a real migration artifact, mirroring java-spring's/python-fastapi's own
+// verify-integration test exactly.
+test('e2e: bskel verify passes the handles gate and tracks a real migration.sql artifact', () => {
 	const root = buildE2eFixtureRepo();
 	const emit = runToHandlesEmit(root);
 	assert.equal(emit.code, 0, emit.stderr);
 	const verify = run(['verify', '--feature', '001-user-management', '--json'], root);
 	const report = JSON.parse(verify.stdout);
-	assert.ok(!report.artifacts.some((a) => a.artifact.includes('migration')), 'typescript-express declares outputs.spec: [] -- no migration artifact should ever be checked');
+	const migrationArtifact = report.artifacts.find((a) => a.artifact.includes('migration'));
+	assert.ok(migrationArtifact, 'expected a migration artifact check now that migration.sql is real');
+	assert.equal(migrationArtifact.exists, true);
 	const handlesArtifacts = report.artifacts.filter((a) => a.artifact.includes('handles'));
 	assert.ok(handlesArtifacts.length > 0);
 	assert.ok(handlesArtifacts.every((a) => a.exists === true));

@@ -9,10 +9,13 @@ export const provider = {
 	id: 'typescript-express',
 	title: 'TypeScript / Express / TypeORM',
 	requiresCapabilities: ['resource.fetch'],
-	// No migration.sql -- this 1st-slice provider generates no schema-owning artifact (no
-	// recover(), no sbf_handle table), matching java-spring/python-fastapi's own pre-O4/
-	// pre-follow-up state, not a gap specific to this provider.
-	outputs: { spec: [] },
+	// D-typescript-express-registry-parity: migration.sql is manifest-tracked now (like every
+	// other provider's, per D-write-safety-phase0), so this declaration is NOT for idempotence
+	// exclusion -- it's lib/verify.mjs's S6 safety net (a `handles ran` check that fires even with
+	// no manifest entry at all, e.g. a `gate force`d handles gate). See java-spring.mjs's own
+	// identical comment for the full reasoning; checkArtifacts() dedupes against the manifest-
+	// based check by path, so this never produces a duplicate once a real manifest entry exists.
+	outputs: { spec: ['handles/migration.sql'] },
 	plan,
 	emit(args) {
 		return emitTypeScriptExpress(args);

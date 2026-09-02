@@ -75,7 +75,7 @@ export function isDirtyOrUntracked(repoRoot, absPath) {
 //                  on the resolver loop's post-write state -- it just reuses this slot rather than
 //                  adding a third one.
 //                  null (the default) is a true no-op.
-export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan, dryRun = false, computeDiff = false, postResolverUnit = null }) {
+export function emitUnits({ repoRoot, featureId, provider, force = false, reason = '', infraUnits, resolverUnits, orphanScan, dryRun = false, computeDiff = false, postResolverUnits = [] }) {
 	const manifest = loadManifest(repoRoot);
 	const nowIso = new Date().toISOString();
 
@@ -254,20 +254,22 @@ export function emitUnits({ repoRoot, featureId, provider, force = false, reason
 		recordAction({ relPath, kind: 'resolver', action, resourceType: u.resourceType, diskContent, rendered: u.rendered });
 	}
 
-	// ---- post-resolver unit: an OPTIONAL single unit whose correct content can only be computed
-	// AFTER the resolver loop above has finished writing (e.g. typescript-express's
-	// resolvers_index.ts barrel -- its import list must reflect the resolvers directory's REAL
-	// on-disk listing, including THIS run's own just-written resolver files, not just this run's
-	// own resolverUnits). Reuses the EXACT SAME classify/conflict/force/manifest logic the infra
-	// loop above already implements, applied to exactly one unit. `render()` is called HERE, not
-	// earlier, precisely so it observes this run's own writes (still true for a caller whose
-	// content doesn't actually need that timing, like migration.sql below -- it just reuses the
-	// same slot rather than adding a third one). null (the default) is a true no-op -- only used by
-	// a caller that actually passes this option. See D-patch-transactions (Continued) in
-	// DECISIONS.md for why this couldn't just be a 4th infraUnits entry, and D-write-safety-phase0
-	// for the kind/ownership/owner generalization below. ----
-	if (postResolverUnit) {
-		const u = postResolverUnit;
+	// ---- post-resolver units: an array of units whose correct content can only be computed AFTER
+	// the resolver loop above has finished writing (e.g. typescript-express's resolvers_index.ts
+	// barrel -- its import list must reflect the resolvers directory's REAL on-disk listing,
+	// including THIS run's own just-written resolver files, not just this run's own
+	// resolverUnits). Reuses the EXACT SAME classify/conflict/force/manifest logic the infra loop
+	// above already implements, applied to each unit independently. `render()` is called HERE, not
+	// earlier, precisely so it observes this run's own writes (still true for a unit whose content
+	// doesn't actually need that timing, like migration.sql -- it just reuses this array rather
+	// than adding a third mechanism). Empty array (the default) is a true no-op.
+	// D-typescript-express-registry-parity: was a single optional `postResolverUnit` object
+	// (D-write-safety-phase0's own kind/ownership/owner generalization) until typescript-express
+	// needed TWO units here at once (resolvers_index.ts, repo-owned, AND migration.sql,
+	// feature-owned, once this item gave it one) -- widened to an array, same per-unit logic,
+	// nothing else about the mechanism changed. See D-patch-transactions (Continued) in
+	// DECISIONS.md for why this couldn't just be infraUnits/resolverUnits entries. ----
+	for (const u of postResolverUnits) {
 		// D-write-safety-phase0 (item 1): generalized from a hardcoded infra/repo/_repo triple so a
 		// feature-owned single unit (java-spring/python-fastapi's migration.sql) can reuse this exact
 		// classify/conflict/force/manifest cycle too, not just typescript-express's repo-owned

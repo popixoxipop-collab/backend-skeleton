@@ -265,17 +265,19 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 	// migration (an added index, a NOT NULL, a tenant column) was silently overwritten on the next
 	// `handles emit`. It's feature-scoped (specs/<featureId>/handles/migration.sql), not a
 	// repo-wide singleton, but its content depends only on featureId (not on the resolver loop's
-	// post-write state) -- so it reuses emitUnits()'s postResolverUnit slot (previously
-	// typescript-express-only, for resolvers_index.ts) rather than adding a third write path,
-	// with kind/ownership/owner overridden to reflect real feature ownership.
+	// post-write state) -- so it reuses emitUnits()'s postResolverUnits slot (previously
+	// typescript-express-only, for resolvers_index.ts; widened to an array in
+	// D-typescript-express-registry-parity once that provider needed two units here at once)
+	// rather than adding a third write path, with kind/ownership/owner overridden to reflect real
+	// feature ownership.
 	const migrationPath = path.join(repoRoot, 'specs', featureId, 'handles', 'migration.sql');
 	const result = emitUnits({
 		repoRoot, featureId, provider: 'java-spring', force, reason, infraUnits, resolverUnits, orphanScan, dryRun, computeDiff,
-		postResolverUnit: {
+		postResolverUnits: [{
 			id: 'migration.sql.tmpl', templatePath: MIGRATION_TEMPLATE, targetAbs: migrationPath,
 			render: () => render(MIGRATION_TEMPLATE, { FEATURE_ID: featureId }),
 			kind: 'migration', ownership: 'feature', owner: featureId,
-		},
+		}],
 	});
 
 	const postEmitNotes = [
