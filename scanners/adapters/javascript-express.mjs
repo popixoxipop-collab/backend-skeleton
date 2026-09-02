@@ -226,10 +226,40 @@ function resolveEsmImport(fromFile, specifier, suffixes) {
 	return null;
 }
 
-// `export default router;` -- which locally-declared mountable a file hands to whoever imports it.
-function defaultExportedMountable(text, mountables) {
-	const m = text.match(/export\s+default\s+([\w$]+)\s*;?/);
-	return m && mountables.has(m[1]) ? m[1] : null;
+// D-javascript-express-adapter (Update): found by the same shadow-validation-style audit that
+// closed D-module-attribution-base-package's own EXIT item for this adapter -- cross-file mount
+// resolution only ever recognized `export default router;`, a real but narrower limitation than
+// java-spring's own moduleOf() bug (endpoints still get FOUND either way, only their prefix goes
+// unresolved). A router handed off via a bare named export (`export { router };`) or an
+// export-prefixed declaration (`export const router = Router();`, ordinary and common) previously
+// had no path to being recognized as this file's "the" exported mountable at all.
+//
+// Three real ways a module hands a locally-declared mountable to whoever imports it -- `export
+// { router as r }` aliasing is deliberately NOT resolved, same restraint as this file's own
+// `Router as R` import-aliasing decision (D-javascript-express-adapter COST): a documented, narrow
+// limitation, not a silent guess at which local name an alias refers to.
+function exportedMountableName(text, mountables) {
+	const defaultMatch = text.match(/export\s+default\s+([\w$]+)\s*;?/);
+	if (defaultMatch && mountables.has(defaultMatch[1])) return defaultMatch[1];
+	const namedMatch = text.match(/export\s*\{\s*([\w$]+)\s*\}/);
+	if (namedMatch && mountables.has(namedMatch[1])) return namedMatch[1];
+	const exportedDeclMatch = text.match(/\bexport\s+(?:const|let|var)\s+([\w$]+)\s*=/);
+	if (exportedDeclMatch && mountables.has(exportedDeclMatch[1])) return exportedDeclMatch[1];
+	return null;
+}
+
+// `import target from '...'` (default) OR `import { target } from '...'` (named, unaliased) --
+// two real ways an imported mountable's LOCAL name reaches this file. `import { target as alias }`
+// is deliberately not resolved, same restraint as exportedMountableName's own aliasing decision
+// above -- a bare, unaliased single-name clause only, matching this file's existing default-import
+// regex's own narrow scope (never a general multi-specifier import-clause parser).
+function importSourceFor(text, target) {
+	const defaultImportRe = new RegExp(`import\\s+${target}\\s*(?:,\\s*\\{[^}]*\\})?\\s*from\\s*["']([^"']+)["']`);
+	const defaultMatch = text.match(defaultImportRe);
+	if (defaultMatch) return defaultMatch[1];
+	const namedImportRe = new RegExp(`import\\s*\\{\\s*${target}\\s*\\}\\s*from\\s*["']([^"']+)["']`);
+	const namedMatch = text.match(namedImportRe);
+	return namedMatch ? namedMatch[1] : null;
 }
 
 // Builds the mount graph over (file, variable) nodes. Two edge kinds, both from the same
@@ -261,13 +291,12 @@ function buildMountEdges(files, fileInfo, suffixes) {
 				edges.push({ from: nodeKey(file, fromVar), to: nodeKey(file, target), prefix: pathMatch[1] });
 				continue;
 			}
-			const importRe = new RegExp(`import\\s+${target}\\s*(?:,\\s*\\{[^}]*\\})?\\s*from\\s*["']([^"']+)["']`);
-			const importMatch = info.text.match(importRe);
-			if (!importMatch) continue;
-			const toFile = resolveEsmImport(file, importMatch[1], suffixes);
+			const importSource = importSourceFor(info.text, target);
+			if (!importSource) continue;
+			const toFile = resolveEsmImport(file, importSource, suffixes);
 			if (!toFile || !fileInfo.has(toFile)) continue;
 			const toInfo = fileInfo.get(toFile);
-			const toVar = defaultExportedMountable(toInfo.text, toInfo.mountables);
+			const toVar = exportedMountableName(toInfo.text, toInfo.mountables);
 			if (!toVar) continue;
 			edges.push({ from: nodeKey(file, fromVar), to: nodeKey(toFile, toVar), prefix: pathMatch[1] });
 		}

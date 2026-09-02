@@ -10971,3 +10971,40 @@ pre-existing one unmodified. All 8 pre-existing tests in `test/typescript-expres
 (including the `dto/`-folder-convention test and the DTO-drift-staleness test) pass unmodified,
 confirming zero regression for the primary, already-working convention. `npm test`: 1328 -> 1331
 (real, re-run count).
+
+**Update (javascript-express, closing this entry's own audit for the last of the 3 remaining
+adapters):** `moduleNameFor()` (route module naming) was already convention-independent -- same
+filename-basename pattern as the other two adapters, confirmed safe by re-reading it. This adapter
+has zero entity/DTO extraction at all (`resource.fetch: false`, no ORM), so there is no equivalent
+surface to that axis either.
+
+One real, narrower analog WAS found, on a third axis neither prior adapter has: cross-file
+**mount-graph resolution** only ever recognized `export default router;` as the way a module hands
+off a locally-declared mountable. A router exported via a bare named export (`export { router };`)
+or an export-prefixed declaration (`export const router = Router();`, an entirely ordinary,
+arguably MORE common idiom in modern ESM code that avoids default exports by convention) was
+invisible to `defaultExportedMountable()` -- the cross-file edge silently failed to connect, so that
+router's real prefix (e.g. `/api`) was dropped and its endpoints landed with an empty prefix
+instead, still found, just wrongly scoped. Real, but a narrower blast radius than the other two
+fixes in this entry: no module/entity vanishes, only prefix accuracy for one specific export style.
+
+**Fix**: `defaultExportedMountable()` generalized to `exportedMountableName()`, recognizing three
+real export forms (default; bare named `export { X }`; export-prefixed `export const/let/var X =`)
+-- `export { X as alias }` deliberately NOT resolved, the same restraint this file's own `import {
+Router as R }` decision already established (a documented, narrow limitation, not a silent alias
+guess). The IMPORT side needed a matching fix: the old regex only matched `import target from
+'...'` (default); new `importSourceFor()` also matches `import { target } from '...'` (bare named,
+unaliased) -- same restraint, no general multi-specifier import-clause parser attempted.
+
+**No real external oracle exists for this adapter to verify against** (unlike java-spring's
+petclinic or FastAPI's full-stack-template) -- `verificationBasis: 'synthetic-only'` was already an
+honest, standing admission before this fix, not something this update changes; a real, publicly
+findable plain-JS-ESM-Express-no-ORM repository is genuinely uncommon. Verification is therefore
+synthetic-fixture-only, same as this adapter's entire existing test corpus.
+
+**Verified**: 2 new unit tests in `test/express-shared.test.mjs` (the export-prefixed-declaration
+form and the separately-declared-then-bare-named-exported form, each through a real 2-file mount
+graph, confirming the full `/api/:id` prefix chain resolves correctly end-to-end, not just that
+SOME edge gets created), all 18 tests in that file passing. All 15 pre-existing tests in
+`test/javascript-express-cli.test.mjs` (including the default-export mount-graph test this fix
+must not regress) pass unmodified. `npm test`: 1331 -> 1333 (real, re-run count).

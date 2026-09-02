@@ -296,3 +296,52 @@ test('typescript-express: a plain, unrelated .ts file (no dto/ folder, name does
 	const allDtos = result.modules.flatMap((m) => m.dtos);
 	assert.deepEqual(allDtos, [], 'config.ts must never be misdetected as a DTO');
 });
+
+// D-javascript-express-adapter (Update): found by the same audit that closed
+// D-module-attribution-base-package's EXIT item for this adapter -- cross-file mount resolution
+// only ever recognized `export default router;`; a router handed off via a bare named export or an
+// export-prefixed declaration was invisible to the mount graph, silently dropping its real prefix.
+test('javascript-express: a router exported via "export const router = Router()" (export-prefixed declaration) and imported via a named import still resolves its real prefix', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { userRouter } from './users.js';",
+			'const app = express();',
+			"app.use('/api', userRouter);",
+		].join('\n'),
+		'users.js': [
+			"import express from 'express';",
+			'export const userRouter = express.Router();',
+			"userRouter.get('/:id', show);",
+		].join('\n'),
+	});
+	const detection = detectJavaScriptExpressRoot(root);
+	assert.ok(detection, 'fixture must be detected');
+	const result = scanJavaScriptExpress(root, detection);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/:id'], 'the /api prefix from app.js must reach the named-imported, export-prefixed-declared router');
+});
+
+test('javascript-express: a router declared separately then re-exported via a bare "export { router }" and imported via a named import still resolves its real prefix', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { userRouter } from './users.js';",
+			'const app = express();',
+			"app.use('/api', userRouter);",
+		].join('\n'),
+		'users.js': [
+			"import express from 'express';",
+			'const userRouter = express.Router();',
+			"userRouter.get('/:id', show);",
+			'export { userRouter };',
+		].join('\n'),
+	});
+	const detection = detectJavaScriptExpressRoot(root);
+	assert.ok(detection, 'fixture must be detected');
+	const result = scanJavaScriptExpress(root, detection);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/:id'], 'the /api prefix from app.js must reach the bare-named-exported router');
+});
