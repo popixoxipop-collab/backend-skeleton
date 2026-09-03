@@ -219,9 +219,12 @@ test('handles emit writes a patch() that checks the PATCH-specific authority, no
 	// fetch() is declared before patch() is before recover() in the template -- slice each method
 	// up to the START of the next one, not a fixed char count (the D-security-10/-9 explanatory
 	// comments inside these methods are long enough to push the real code past a short window).
-	assert.match(controllerContent.slice(fetchIdx, patchIdx), /requireAuthority\(resolver\.requiredAuthority\(\)\)/, 'fetch() must keep using the fetch/recover authority');
-	assert.match(controllerContent.slice(patchIdx, recoverIdx), /requireAuthority\(resolver\.requiredAuthorityForPatch\(\)\)/, 'patch() must use the patch-specific authority');
-	assert.match(controllerContent.slice(recoverIdx), /requireAuthority\(resolver\.requiredAuthority\(\)\)/, 'recover() must keep using the fetch/recover authority (it is conceptually a read, not a write)');
+	// D-resolver-authentication-context: requireAuthority() now also takes the already-fetched
+	// Authentication (threaded into resolver.fetch()/patchField() too) -- match on the
+	// resolver.requiredAuthority()/requiredAuthorityForPatch() argument only, not the full call.
+	assert.match(controllerContent.slice(fetchIdx, patchIdx), /requireAuthority\([^,]+,\s*resolver\.requiredAuthority\(\)\)/, 'fetch() must keep using the fetch/recover authority');
+	assert.match(controllerContent.slice(patchIdx, recoverIdx), /requireAuthority\([^,]+,\s*resolver\.requiredAuthorityForPatch\(\)\)/, 'patch() must use the patch-specific authority');
+	assert.match(controllerContent.slice(recoverIdx), /requireAuthority\([^,]+,\s*resolver\.requiredAuthority\(\)\)/, 'recover() must keep using the fetch/recover authority (it is conceptually a read, not a write)');
 
 	// ResourceResolver interface: both accessor methods present.
 	const resolverPath = path.join(root, 'src/main/java/com/example/global/handle/ResourceResolver.java');

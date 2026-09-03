@@ -11615,3 +11615,259 @@ risk") without picking one — that choice depends on the real pilot's own data-
 requirements, unknowable from here. Phase 6's own delegatable capability-scoped handles
 (`CATALOG.md`'s growth-idea #3) remain the first named, plausible real consumer of the `sbf2_`
 discriminant this entry reserves but does not spend.
+
+## D-resolver-authentication-context (java-spring): `ResourceResolver#fetch`/`#patchField` gain an `Authentication` parameter, found live during ROADMAP.md Phase 4's first real pilot
+
+**WHY**: Phase 4's first real target, `Cohort` (`Team-IZ-Backend`'s `academicoperations` module —
+see the pilot's own entry, `D-handles-pilot-cohort`, for the full candidate-selection record),
+correctly failed `handles plan`'s existing `D-security-8` multi-arg safety check:
+`CohortService.findCohort(UUID cohortId, UUID orgId)` takes two arguments, and the generated stub
+always passes one. Reading the real `CohortController` before assuming anything explained why:
+`GET /cohorts/{cohortId}` has **no role check at all** — its `@Operation` description states the
+real policy plainly ("조회 범위인 기관은 액세스 토큰에서 가져오며, 다른 기관의 기수를 요청하면
+404다" — the scope is the caller's own organization, read from the access token; a cross-org
+request 404s, not 403s, to avoid revealing existence). `extractOrganizationId(Authentication)`
+reads `authentication.getDetails()` cast to `UUID`. This is a real instance of exactly the
+tenant/ownership-scoping gap `ROADMAP.md`'s own W3 finding and
+`D-resolver-authorization-action-aware`'s (O5) own EXIT both already named as unaddressed — now
+hit for real, not theoretical.
+
+**Two paths were weighed, out loud, with the user, twice** (this repo's own established discipline
+for a real fork — `D-gate-attestation-signing`'s key-custody choice, `D-stable-api-contract`'s
+three framings): (1) a hand-written `CohortResolver` reads `SecurityContextHolder.getContext()
+.getAuthentication()` directly — zero `backend-skeleton` change, since `HandleController` itself
+already uses exactly this thread-local accessor for `requireAuthority()`, and Spring MVC's
+`Authentication`-typed method-parameter injection resolves from the same context, so nothing
+request-scoped is actually inaccessible without an interface change. This was presented as the
+simpler, no-op-on-the-tool option. (2) Extend `ResourceResolver` to receive `Authentication`
+explicitly. **The user chose (2) even after the correction that (1) works** — an explicit
+preference for the dependency to be visible in the interface contract rather than implicit
+thread-local reach-in, re-confirmed via a second AskUserQuestion round rather than assumed from
+silence.
+
+**Mechanism — minimal and additive, not a new abstraction**:
+- `ResourceResolver.java.tmpl`: `Object fetch(UUID resourceUid, Authentication authentication)`
+  and `void patchField(UUID resourceUid, String pointer, Object value, Authentication
+  authentication)`. Javadoc states explicitly: the framework interprets nothing here and never
+  will — same "never guess-modify hand-written code" boundary `patchField()`'s own stub-body
+  convention (`D-resolver-scope`) already follows. Implementations that don't need it ignore it.
+- `HandleController.java.tmpl`: `fetch()`/`patch()` read `Authentication` ONCE via
+  `SecurityContextHolder.getContext().getAuthentication()` (`requireAuthority()` refactored to
+  accept it as a parameter instead of re-fetching internally — was two `SecurityContextHolder`
+  reads per request, now one) and thread it into `resolver.fetch(...)`/`resolver.patchField(...)`.
+  `recover()` is untouched — it never calls the resolver's `fetch`/`patchField`, only registry/
+  snapshot lookups keyed by the already-decoded handle.
+- `ResourceResolverStub.java.tmpl` (the AUTO-generated per-resource stub — still only emitted for
+  the single-arg-service-method case `D-security-8` already gates on): signatures updated to
+  match; the generated body still ignores the new parameter
+  (`{{SERVICE_FIELD}}.{{FETCH_METHOD}}(resourceUid)`, ARGUMENT COUNT UNCHANGED) — auto-generation
+  stays exactly as conservative as before. This change adds a capability for HAND-WRITTEN
+  resolvers; it does not relax when auto-generation is allowed to run.
+- `plan.mjs`'s existing `D-security-8` "resolver NOT generated... Wire it by hand" note gains one
+  clause pointing at the new capability, since this is precisely the situation it describes.
+- **Scoped to java-spring only** — the only provider this real pilot uses. python-fastapi's
+  `registry.py.tmpl`/typescript-express's `registry.ts.tmpl` equivalents are NOT touched by this
+  entry; parity is a named, deliberate follow-up (see EXIT), matching this project's own "one
+  provider first, port once proven" precedent (G2 before G4, the resolver-policy-split's own
+  java-first-then-ported-twice history).
+
+**Verified**: full `npm test` (1352 → **1352**, no net new/changed assertions — no existing test
+hardcoded the exact `fetch(UUID resourceUid)`/`patchField(UUID, String, Object)` signature text,
+confirmed by grep before assuming; the real risk was compile-correctness, not string assertions).
+All three real-compile smoke scripts re-run for real and passed: `scripts/java-compile-smoke.mjs`
+(real `./gradlew compileJava` via `bskel verify --build`), `scripts/java-ast-smoke.mjs` (real AST
+helper build + real `handles plan --ast`), and — the most direct proof, since it's the only one
+that actually calls `resolver.fetch()`/`.patchField()` through a running app —
+`scripts/java-integration-smoke.mjs` against a real disposable Postgres: the existing
+`HandleLifecycleIntegrationTest`/`HandleRegistryEnforcementIntegrationTest` (exercising the
+AUTO-generated, single-arg `WidgetResolver`, which now implements the 4-arg-total interface with
+`authentication` genuinely unused in its body) passed both phases (enforcement off, then on)
+unchanged — confirming the interface widening is invisible to the existing single-arg case, not
+merely assumed compatible.
+
+**EXIT**: python-fastapi/typescript-express parity for this same tenant/ownership-scoping gap is
+real and not yet built — those providers' resolver interfaces still cannot express it either.
+Named here explicitly rather than left implicit, since a reader of only the java-spring templates
+would otherwise reasonably assume the other two already match (the project's own repeated
+"D-resolver-policy-split" precedent shows this is exactly the kind of parity gap that otherwise
+goes unnoticed for a while). No auto-detection of tenant/ownership scoping was added to `plan.mjs`
+— `D-security-8`'s refusal-to-guess boundary is unchanged; a human still decides how to derive
+scope from `Authentication` for each such resource, on a case-by-case basis, same as `patchField`'s
+own per-field classification already requires.
+
+## D-handle-aspect-transaction-isolation (java-spring): `HandleService.register`/`recordSnapshot` need `REQUIRES_NEW`, or a shared read-only transaction corrupts the wrapped business call
+
+**WHY**: found live, immediately after `D-resolver-authentication-context` landed, while running the
+Phase 4 pilot's own real disposable-Postgres lifecycle test against `CohortService.findCohort` —
+`CohortService` is annotated `@Transactional(readOnly = true)` at the class level, an unremarkable,
+common shape for a read path, not a contrived edge case. `@RecordHandleSnapshot` on `findCohort`
+makes `HandleAspect.record()` call `handleService.register(...)` (an INSERT) from WITHIN that same
+read-only transaction — Spring's default `@Transactional` propagation (`REQUIRED`) makes the
+call PARTICIPATE in the caller's existing transaction rather than starting a new one, and Postgres
+genuinely rejects an INSERT inside a read-only transaction. `HandleAspect.safely()`'s
+`catch (Exception e)` DOES catch this in Java — but by the time it does, Postgres has already
+marked the WHOLE transaction/connection aborted; every subsequent statement on it (including the
+rest of `findCohort()`'s own logic, or its final commit) then fails with `current transaction is
+aborted, commands ignored until end of transaction block`. `safely()`'s own javadoc promise —
+"the wrapped call proceeds unaffected" — was false under this real, ordinary condition. Confirmed
+live: the exact failure reproduced against a real disposable Postgres, root-caused by reading the
+real stack trace back to `CohortService.findCohort` (not assumed), fixed, then confirmed gone by
+re-running the same real test.
+
+**Mechanism**: `HandleService.register`/`HandleService.recordSnapshot` (the two methods
+`HandleAspect` calls from inside the wrapped business method's own transaction — `revoke`/
+`pruneSnapshotsOlderThan` are called from OUTSIDE any such nesting, standalone top-level
+operations, and are NOT at risk of this specific failure mode, left unchanged) now declare
+`@Transactional(propagation = Propagation.REQUIRES_NEW)` instead of plain `@Transactional`. This
+makes handle registration/snapshot recording a genuinely separate transaction and connection — a
+failure there can no longer propagate into or abort the caller's own transaction, actually
+delivering the "best-effort, never propagated" guarantee `safely()` already claimed.
+
+**Verified**: `scripts/java-integration-smoke.mjs` re-run in full (both phases — enforcement off,
+then on) against a real disposable Postgres, passed. `scripts/java-compile-smoke.mjs`/
+`scripts/java-ast-smoke.mjs` re-run, passed. Full `npm test` 1352/1352 (the one dangling-reference
+failure during this same session was the not-yet-written `D-handles-pilot-cohort` entry itself,
+resolved once that entry was written). The Phase 4 pilot's own real end-to-end lifecycle test
+(register via real bootstrap → fetch → cross-org tenant-isolation rejection → patch → recover →
+revoke → 404) — the test that originally found this bug — re-run and passed twice against a real
+disposable Postgres after the fix, confirming both that the fix works and that it isn't flaky.
+
+**EXIT**: scoped to java-spring only — python-fastapi's `record_snapshot` decorator and its own
+SQLAlchemy session handling were not checked for an analogous risk; whether a shared, constrained
+session there can similarly corrupt a wrapped call under some real condition is a real, open
+question this entry does not answer, named here explicitly rather than silently assumed fine by
+association with this fix.
+
+## D-handles-pilot-cohort: `handles`'s first-ever real deployment (ROADMAP.md Phase 4), against `Team-IZ/Backend`'s real `Cohort` resource
+
+**WHY**: `README.md`/`CATALOG.md`'s O3 status note/`DECISIONS.md:10860` all said the same thing:
+`handles` has never been deployed to a real production repo, and every "opt-in, off by default,
+treat as a scaffold" caveat in this subsystem stays true until that happens. `ROADMAP.md` Phase 4
+names this the keystone, **Effort L (calendar-dominated, not code-dominated), Risk: high**. This
+entry records what running it for real, for the first time, against `Team-IZ/Backend` (a real,
+actively-developed team repo — real merged PRs, multiple contributors, not a sandbox) actually
+found — matching the roadmap's own item 3: every manual step, every false-positive note, every
+place a permanent-stub boundary cost real time.
+
+**Scope, decided explicitly with the user before touching anything**: target resource `Cohort`
+(`academicoperations` module) — surveyed and selected over 5 other candidates (Classroom, Trainee,
+Organization, Team/Project, org-settings) each rejected for a real, hard reason (no GET-by-id,
+controller-split, too critical/complex, `hasAnyRole` this tool's extraction can't parse — full
+comparison in the session's own plan record). Work happens in an isolated worktree off a freshly-
+fetched `origin/develop`, on a new branch (`feat/handles-pilot-cohort`), never the main checkout.
+**Stops at a locally-committed, reviewable branch** — no push, no PR, a separate explicit decision
+this entry does not include (CLAUDE.md §18, this project's own `feedback_no_external_repo_posting`
+precedent).
+
+**Real findings, in the order they were hit — none anticipated, all confirmed live**:
+
+1. **`spring-boot-starter-aop` doesn't exist for Spring Boot 4.x.** `handles plan`'s own
+   `HANDLES_MISSING_DEPENDENCY` check and `RecordHandleSnapshot.java.tmpl`'s own javadoc both name
+   this artifact — real for Spring Boot 2.x/3.x, but Spring Boot 4.1.0 (this target's real version)
+   renamed it to `spring-boot-starter-aspectj` (confirmed against the real Maven Central BOM POM
+   for `spring-boot-dependencies:4.1.0` — a 404 for the old artifact, `aspectjrt`/`aspectjweaver`/
+   `spring-boot-starter-aspectj` present under the new name). `handles plan`'s dependency-presence
+   check does a literal string match against `build.gradle` content — it would have silently
+   "passed" with the WRONG artifact name added, only caught by a real `./gradlew compileJava`
+   failure (`Could not find org.springframework.boot:spring-boot-starter-aop:.`). Not fixed in
+   `backend-skeleton` itself this session (see EXIT) — worked around in the target repo directly.
+2. **`ResourceResolver#fetch`/`#patchField` had no way to express tenant scoping** — led to
+   `D-resolver-authentication-context` (its own entry, this session). `Cohort`'s real GET has no
+   role check at all; it's scoped by the caller's own organization, read from the access token.
+3. **`HandleService.register`/`recordSnapshot` could corrupt the wrapped business transaction** —
+   led to `D-handle-aspect-transaction-isolation` (its own entry, this session). Found because
+   `CohortService` is `@Transactional(readOnly = true)`, an unremarkable, common shape.
+4. **`TODO_ROLE` makes handle-mediated fetch permanently inert, not merely cautious.** Item 2's
+   fix made it POSSIBLE to derive tenant scope correctly, but `requiredAuthority()` still needed a
+   real value — `Cohort`'s real GET has no role at all, so the honest "found nothing" value
+   (`TODO_ROLE`) is a string no real caller's granted authorities will ever contain, making
+   `fetch()`/`recover()` permanently 403 for everyone. This was FOUND, not assumed, by writing the
+   pilot's own real lifecycle test and watching the "now registered, fetch should succeed" step
+   fail. **Decision**: `CohortResolverPolicy.requiredAuthority()` is `ROLE_OPERATOR` — deliberately
+   STRICTER than the real endpoint (which allows any authenticated user in the caller's own org),
+   erring in the safe direction, and matching `requiredAuthorityForPatch()`'s own real, confirmed
+   role for consistency. Flagged in the resolver's own comment for the eventual reviewer to
+   confirm or loosen — this is exactly the kind of policy decision `D-security-8`/
+   `D-resolver-scope`'s "never guess, always explicit" boundary exists to force into the open
+   rather than silently pick.
+5. **Redaction decision (ROADMAP.md Phase 3's own required pilot checklist, item 1)**: no fields
+   redacted. `Cohort`'s own 16 columns (org id, cohort name, dates, status, audit UUIDs, retention/
+   disclosure policy references) carry no trainee/personal data — confirmed by reading the real
+   entity and its real response DTO, not assumed from the field names alone. An explicit, stated
+   "empty" answer, not an unconsidered default.
+6. **Retention decision (Phase 3 checklist item 2)**: `HandleSnapshotRetentionScheduler`, a new
+   hand-written class mirroring this app's own established `@Scheduled` convention
+   (`ProjectLifecycleScheduler`'s exact shape — config-overridable `fixedDelay`/`initialDelay`, one
+   try/catch so a failed run never kills the schedule), calls `pruneSnapshotsOlderThan` on a
+   90-day cutoff. **The 90 days is this pilot's own placeholder, explicitly NOT derived from any
+   real Team-IZ retention policy** (unlike `Cohort.retentionUntil`, which DOES encode a real,
+   org-configurable policy) — stated as a requirement for the eventual reviewer to confirm/adjust
+   before this is ever deployed, per the checklist's own "silence is not acceptable" bar.
+
+**Verified — the same real-execution bar this project has held throughout, now aimed at a real
+target app for the first time**:
+- A real, hand-written `HandlesCohortPilotIntegrationTest` (`@SpringBootTest`, full context) against
+  a real disposable Postgres: register (via the real bootstrapping path — calling `CohortService
+  .findCohort` directly, exactly as the app's own real GET endpoint would, confirming the
+  documented D-handle-registry-enforcement "first real usage registers" behavior) → fetch (before
+  registration: real 404; after: real 200 with the real `CohortResponse` shape) → cross-org fetch
+  attempt (real `ApiException(COHORT_NOT_FOUND)`, confirming tenant isolation genuinely holds, not
+  merely assumed from reading the code) → field-level patch → `recover()` (real recorded history) →
+  `revoke()` → real 404 afterward. Passed twice in direct succession (not flaky).
+  - Honest scope note written into the test's own javadoc: `spring.jpa.hibernate.ddl-auto=create`
+    for this test only (this repo's real deployment posture is `validate`, schema managed
+    externally with no committed base-schema file to reconstruct from) — proves the generated
+    handles code + hand-written resolver work correctly against `Cohort`'s real shape, not that
+    `migration.sql` matches whatever the real external migration tool would produce byte-for-byte.
+    Goes through the real `CohortResolver`/`HandleController` beans directly rather than real HTTP
+    + a real JWT (this app has no existing full-HTTP-JWT integration-test precedent to extend,
+    confirmed by search before writing this) — the `Authentication` object constructed is
+    structurally identical to what the real `JwtFilter` builds, so what's actually new here
+    (registration/enforcement/snapshot/recover/revoke against a real tenant-scoped resource) is
+    still exercised for real.
+  - A real, previously-uninstantiable dependency chain was hit and solved for real, not stubbed:
+    `CurrentUserResolver` (needed by the hand-written `patchField()`, matching the real
+    `CohortController.updateCohort`) reads a native-SQL-backed `app_user` table `ddl-auto=create`
+    never makes (not a JPA entity) — a minimal table matching the real query's own columns
+    (confirmed by reading the real failing query, not guessed) was created in the test. A first
+    attempt at doing the same for `organization` collided with a REAL, much richer `@Entity`-backed
+    table Hibernate had already created under that name — found live (`row_version` NOT NULL
+    violation), fixed by recognizing the query's own `LEFT JOIN` makes an org row unnecessary.
+- `Team-IZ-Backend`'s own FULL test suite (988 tests) re-run twice: once without
+  `BSKEL_PILOT_DATABASE_URL` set (987 pass, the pilot's own test correctly refuses to run without
+  its required env var — matching this project's own `BSKEL_TEST_DATABASE_URL` convention exactly,
+  not a new pattern invented for this pilot), once with it set (988/988, zero regressions from the
+  `CohortService.java`/`build.gradle` changes).
+- `bskel verify --feature 001-handles-pilot-cohort`: `VERIFY: PASS` (5 applicable gates pass;
+  `dependencies`/`stack`/`patch_transactions`/`conformance` correctly `SKIP (not_run)` — none apply
+  to a handles-only pilot with no config-file/cross-repo/runtime-observe work).
+- `bskel gate export --sign` + `bskel attest verify`: real Ed25519 keypair generated
+  (`bskel attest keygen`), real signed attestation produced against the clean, all-green
+  `VERIFY: PASS` state, real signature verification succeeded (`D-gate-attestation-signing`'s
+  first real consumer). Private key kept local-only, gitignored, never committed.
+- Every backend-skeleton-side fix (D-resolver-authentication-context,
+  D-handle-aspect-transaction-isolation) independently re-verified against `backend-skeleton`'s own
+  test suite (`npm test` 1352/1352) and all 3 real-compile smoke scripts before being applied to
+  the pilot.
+
+**EXIT, stated plainly**:
+- Not pushed, no PR opened — a local, reviewable branch only, per explicit user scope.
+- Phase 4 item 4 ("wire `bskel observe` against real production requests... traffic that isn't
+  synthetic") is NOT done — this requires the branch to actually be merged, deployed, and see real
+  usage over time by the Team-IZ team, which a single session cannot do or fast-track. Named as
+  explicitly deferred, matching this project's own EXIT-section honesty discipline, not silently
+  claimed complete.
+- The `spring-boot-starter-aop` → `spring-boot-starter-aspectj` rename (finding 1) is NOT fixed in
+  `backend-skeleton` itself — `handles plan`'s dependency check and `RecordHandleSnapshot.java
+  .tmpl`'s javadoc both still name the old artifact. A real, scoped follow-up: detect the target's
+  real Spring Boot major version (already partially known — this codebase's own Spring-Boot-
+  version-aware behavior exists elsewhere) and name the correct starter artifact per version.
+- `TODO_ROLE`'s inertness (finding 4) was found and worked around for THIS resource, but the
+  underlying pattern — a resource with tenant-only, no-role read access — has no general codegen
+  support; `plan.mjs` still can't auto-detect "no role, but the real repository query itself
+  double-filters by an org column" and suggest anything better than the honest `TODO_ROLE`. Left
+  as a human decision every time, matching `D-security-8`'s own refusal-to-guess boundary — not a
+  gap this entry proposes closing.
+- The honest posture after ONE successful pilot is "verified against one real target application,"
+  phrased the same careful way `verificationBasis: 'production-repo'` already is elsewhere in this
+  project — not "production-ready" or "handles is now battle-tested." n=1 is n=1.

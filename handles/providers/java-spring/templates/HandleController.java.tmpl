@@ -4,6 +4,7 @@ import {{JACKSON_PACKAGE}}.JsonNode;
 import {{JACKSON_PACKAGE}}.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpStatus;
@@ -58,12 +59,13 @@ public class HandleController {
 	public ResponseEntity<Object> fetch(@PathVariable String handle) {
 		HandleCodec.Decoded decoded = decodeOrThrow(handle);
 		ResourceResolver resolver = resolverFor(decoded.type());
-		requireAuthority(resolver.requiredAuthority());
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		requireAuthority(authentication, resolver.requiredAuthority());
 		if (ENFORCE_REGISTRY) {
 			requireRegisteredOrThrow(decoded);
 		}
 
-		Object resource = resolver.fetch(decoded.uuid());
+		Object resource = resolver.fetch(decoded.uuid(), authentication);
 		if (decoded.pointer() == null) {
 			return ResponseEntity.ok(resource);
 		}
@@ -95,15 +97,16 @@ public class HandleController {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cannot PATCH a resource-level handle (kind=r) -- only field handles (kind=f) support PATCH");
 		}
 		ResourceResolver resolver = resolverFor(decoded.type());
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		// O5 (D-resolver-authorization-action-aware): the PATCH-specific authority, independently
 		// derived from the entity's own UPDATE endpoint -- NOT resolver.requiredAuthority(), which
 		// is fetch()/recover()'s own value and may legitimately require a different role.
-		requireAuthority(resolver.requiredAuthorityForPatch());
+		requireAuthority(authentication, resolver.requiredAuthorityForPatch());
 		if (ENFORCE_REGISTRY) {
 			requireRegisteredOrThrow(decoded);
 		}
 
-		resolver.patchField(decoded.uuid(), decoded.pointer(), value);
+		resolver.patchField(decoded.uuid(), decoded.pointer(), value, authentication);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -111,7 +114,7 @@ public class HandleController {
 	public ResponseEntity<?> recover(@PathVariable String handle, @RequestParam(required = false) Instant at) {
 		HandleCodec.Decoded decoded = decodeOrThrow(handle);
 		ResourceResolver resolver = resolverFor(decoded.type());
-		requireAuthority(resolver.requiredAuthority());
+		requireAuthority(SecurityContextHolder.getContext().getAuthentication(), resolver.requiredAuthority());
 
 		// D-security-9 / O3 (D-handle-registry-enforcement): recover() structurally REQUIRES a
 		// registry row to find a snapshot's own primary key -- there is no "unenforced" mode for
@@ -204,8 +207,11 @@ public class HandleController {
 	// the ROLE_ prefix Spring Security implicitly applies for hasRole('X') (but not hasAuthority('X'))
 	// is already baked into requiredAuthority by plan.mjs's extractPreAuthorize() at handles-plan
 	// time, so this method never needs to know which source annotation shape produced the value.
-	private void requireAuthority(String requiredAuthority) {
-		boolean granted = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+	// D-resolver-authentication-context: takes the already-fetched Authentication (callers now need
+	// it themselves, to thread into resolver.fetch()/patchField() too) rather than re-reading
+	// SecurityContextHolder a second time per request.
+	private void requireAuthority(Authentication authentication, String requiredAuthority) {
+		boolean granted = authentication.getAuthorities().stream()
 				.map(GrantedAuthority::getAuthority)
 				.anyMatch(authority -> authority.equals(requiredAuthority));
 		if (!granted) {

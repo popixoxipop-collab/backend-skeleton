@@ -3,6 +3,7 @@ package {{BASE_PACKAGE}}.domain.{{MODULE}}.infrastructure;
 import {{BASE_PACKAGE}}.global.handle.ResourceResolver;
 import {{SERVICE_IMPORT}};
 {{PATCH_IMPORTS}}import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -48,13 +49,18 @@ public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 		return {{RESOURCE_TYPE}}ResolverPolicy.type();
 	}
 
+	// D-resolver-authentication-context: `authentication` is unused here -- this stub is only ever
+	// generated for the single-resource-UUID-arg case (D-security-8), where the real service
+	// method needs nothing beyond resourceUid. It's still part of the signature (ResourceResolver
+	// requires it) so a hand-edit that later needs tenant/ownership scoping has it available
+	// without changing the interface again.
 	@Override
-	public Object fetch(UUID resourceUid) {
+	public Object fetch(UUID resourceUid, Authentication authentication) {
 		return {{SERVICE_FIELD}}.{{FETCH_METHOD}}(resourceUid);
 	}
 
 	@Override
-	public void patchField(UUID resourceUid, String pointer, Object value) {
+	public void patchField(UUID resourceUid, String pointer, Object value, Authentication authentication) {
 {{PATCH_FIELD_BODY}}
 	}
 

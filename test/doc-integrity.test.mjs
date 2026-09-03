@@ -62,7 +62,10 @@ export function parseDecisionAnchors(decisionsMdText) {
 // constructs D-security-${k} via template literal and deliberately references nonexistent tokens
 // in its synthetic self-verification subtests -- neither is a real documentation reference).
 const SCAN_EXTENSIONS = new Set(['.mjs', '.tmpl', '.md']);
-const EXCLUDED_DIRS = new Set(['node_modules', '.git']);
+// graphify-out/: auto-generated knowledge-graph reports (GRAPH_REPORT.md etc.) -- their prose
+// summarizes/truncates DECISIONS.md content and can legitimately contain a D-<x>-shaped substring
+// that was never a real documentation reference to begin with (e.g. a truncated node label).
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'graphify-out']);
 const EXCLUDED_FILES = new Set([path.join(REPO_ROOT, 'CATALOG.md'), THIS_FILE]);
 
 function walkFiles(dir) {

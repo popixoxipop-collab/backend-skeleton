@@ -320,7 +320,7 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			const reason = serviceParamCount === null
 				? `could not find a ${fetchOp.method}(...) method on ${service.serviceType} to confirm its argument count`
 				: `${service.serviceType}.${fetchOp.method} takes ${serviceParamCount} argument(s), not the single resource UUID the generated resolver always passes`;
-			notes.push(`${entity.className}: ${reason} -- resolver NOT generated (would either fail to compile or silently call the wrong overload and drop a required scoping argument, e.g. an organization/cohort id). Wire it by hand.`);
+			notes.push(`${entity.className}: ${reason} -- resolver NOT generated (would either fail to compile or silently call the wrong overload and drop a required scoping argument, e.g. an organization/cohort id). Wire it by hand -- ResourceResolver#fetch/#patchField receive the request's Authentication (D-resolver-authentication-context) for exactly this case, e.g. deriving a tenant/org id the same way the resource's own controller already does.`);
 		}
 
 		// A3 (D-patch-strategy): only worth computing once fetch()/the resolver itself is actually

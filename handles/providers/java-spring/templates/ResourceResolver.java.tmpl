@@ -1,5 +1,7 @@
 package {{BASE_PACKAGE}}.global.handle;
 
+import org.springframework.security.core.Authentication;
+
 import java.util.UUID;
 
 /**
@@ -19,8 +21,24 @@ public interface ResourceResolver {
 	/** Must match the {@code type} segment used when this resource's handles were minted (e.g. "Organization"). */
 	String type();
 
-	/** Fetches the whole resource, serialized the same shape its normal API response uses. */
-	Object fetch(UUID resourceUid);
+	/**
+	 * Fetches the whole resource, serialized the same shape its normal API response uses.
+	 *
+	 * <p>{@code authentication} is the SAME object {@link HandleController} already reads via
+	 * {@code SecurityContextHolder.getContext().getAuthentication()} for its own {@code
+	 * requireAuthority()} check, passed through verbatim -- for the common case (role-only
+	 * authorization, already fully covered by {@link #requiredAuthority()}) implementations
+	 * ignore this parameter entirely. It exists for resources whose real read path is scoped by
+	 * something {@code requiredAuthority()}'s single role string cannot express -- tenant/
+	 * organization/ownership scoping derived from the caller's own identity (e.g. an org id
+	 * carried in {@code authentication.getDetails()}), the same information the resource's real,
+	 * hand-written controller already reads from {@code Authentication} to enforce that scoping
+	 * itself. The framework interprets nothing here and never will -- same "never guess-modify
+	 * hand-written code" boundary {@link #patchField} already follows; a hand-written resolver
+	 * derives whatever it needs from this object using the target app's own existing helper (e.g.
+	 * mirroring the source controller's own extraction logic), never a guess this generator makes.
+	 */
+	Object fetch(UUID resourceUid, Authentication authentication);
 
 	/**
 	 * Applies a single field-level patch. Implementations route through the resource's EXISTING
@@ -29,8 +47,11 @@ public interface ResourceResolver {
 	 * this feature's target module for the specific pattern to follow (some DTOs use {@code
 	 * PatchField<T>} for null-has-meaning fields, most just treat null-vs-absent as "unchanged",
 	 * and some require re-submitting the whole object; check the target DTO before assuming).
+	 *
+	 * <p>{@code authentication}: see {@link #fetch}'s own javadoc -- same object, same purpose,
+	 * ignored by implementations that don't need it.
 	 */
-	void patchField(UUID resourceUid, String pointer, Object value);
+	void patchField(UUID resourceUid, String pointer, Object value, Authentication authentication);
 
 	/**
 	 * The literal Spring Security granted-authority string required to {@code fetch}/{@code

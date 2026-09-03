@@ -391,6 +391,20 @@ guess. Every item below must be explicitly resolved (not silently skipped) befor
 
 ## Phase 4 — A real production pilot of `handles`
 
+**Status: partially closed — see `D-handles-pilot-cohort` in DECISIONS.md for the full record.**
+**Items 1 (one real service/feature/provider), 2 (`--enforce-registry on` from day one), 3**
+**(every manual step/false-positive/permanent-stub cost recorded), and 5 (signed gate**
+**attestation, real `attest verify`) are done, for real, against `Team-IZ/Backend`'s `Cohort`**
+**resource. Two real backend-skeleton bugs found and fixed live in the process**
+**(`D-resolver-authentication-context`, `D-handle-aspect-transaction-isolation`) — neither was**
+**anticipated; both were found by the pilot's own real disposable-Postgres lifecycle test failing,**
+**not by code review. Item 4 (wiring `bskel observe` against real, non-synthetic production**
+**traffic) is explicitly NOT done — it requires the branch to actually be merged, deployed, and**
+**see real usage over time, which a single session cannot do or fast-track. The work stays on a**
+**local, reviewable branch (`feat/handles-pilot-cohort`) — not pushed, no PR opened — per explicit**
+**user scope. The honest posture after this: "verified against one real target application," not**
+**"production-ready."**
+
 **Effort: L (calendar-dominated, not code-dominated). Risk: high. Depends on: Phases 0, 1, 2, 3.
 Unblocks: Phases 5b and 6.**
 

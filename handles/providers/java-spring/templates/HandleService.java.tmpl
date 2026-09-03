@@ -3,6 +3,7 @@ package {{BASE_PACKAGE}}.global.handle;
 import {{JACKSON_PACKAGE}}.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -38,8 +39,23 @@ public class HandleService {
 	 * unique-constraint check. Returns the encoded handle token ({@link HandleCodec#encode},
 	 * already implemented -- "minting" a token was never the missing piece, persisting the row
 	 * backing it was).
+	 *
+	 * <p>D-handles-pilot-cohort: {@code REQUIRES_NEW}, not the default {@code REQUIRED} --
+	 * {@link HandleAspect} calls this from WITHIN the wrapped business method's own transaction
+	 * (e.g. a {@code @Transactional(readOnly = true)} read path, a real, unremarkable shape found
+	 * live against {@code CohortService}). Under the default propagation this PARTICIPATES in that
+	 * transaction rather than starting a new one; if it fails (readOnly rejects the INSERT, or any
+	 * other real constraint), the whole shared transaction/connection is marked aborted by the
+	 * database, and {@link HandleAspect#safely}'s {@code catch (Exception e)} genuinely swallows
+	 * THIS method's own exception -- but the WRAPPED business call still fails when it next touches
+	 * that same aborted connection, directly contradicting {@code safely()}'s own documented
+	 * promise ("the wrapped call proceeds unaffected"). Confirmed live: a real disposable Postgres
+	 * reproduced exactly this with {@code CohortService.findCohort} (readOnly) before this fix.
+	 * {@code REQUIRES_NEW} makes this a genuinely separate transaction/connection, so a failure
+	 * here can never propagate into the caller's own transaction -- matching what "best-effort,
+	 * never propagated" already claimed to guarantee.
 	 */
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public String register(String kind, String type, UUID resourceUid, String pointer, UUID featureUid, String operationId, String contractRef) {
 		String token = HandleCodec.encode(kind, type, resourceUid, pointer);
 		UUID handleUid = HandleCodec.deriveHandleUid(kind, type, resourceUid, pointer);
@@ -58,8 +74,11 @@ public class HandleService {
 	 * object (a DTO, a request body, an error shape), never a pre-serialized string, so this is
 	 * the one place that decides how it becomes the JSON text {@code sbf_handle_snapshot.payload}
 	 * stores.
+	 *
+	 * <p>{@code REQUIRES_NEW} for the same reason {@link #register} now uses it -- see that
+	 * method's own javadoc.
 	 */
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void recordSnapshot(UUID handleUid, String envelopeDir, String operationId, String contractHash, Object payload) {
 		// A generic `catch (Exception e)` (not the Jackson-2-specific checked
 		// JsonProcessingException, nor assuming Jackson 3's unchecked JacksonException) compiles
