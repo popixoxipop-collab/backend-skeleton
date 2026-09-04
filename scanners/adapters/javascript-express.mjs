@@ -420,10 +420,14 @@ export const adapter = {
 	// walk), not how many capabilities it can offer. generic-grep is `low` because it has no module
 	// inference and no prefix resolution at all -- this adapter has both.
 	confidence: 'high',
-	// D-adapter-verification-basis: no real-world oracle at all, unlike every other real framework
-	// adapter -- the real target repository was deliberately never touched, and the committed
-	// synthetic fixture carries all of the regression weight. Named honestly, not hidden.
-	verificationBasis: 'synthetic-only',
+	// D-oracle-corpus-pinning: promoted from synthetic-only -- 3 real, pinned community repos
+	// now exist in test/fixtures/oracle-manifest.json (JeanCaicedo/employees-api-mysql,
+	// Serkanbyx/chat-app-backend, nekesam/helloworld), found via a genuine search effort that
+	// contradicted this adapter's own prior 'may be structurally unpromotable' hedge. The
+	// committed synthetic fixture still carries the exact-count regression weight; the real
+	// corpus is diagnostic/diversity coverage on top, same role every other adapter's real
+	// oracle plays.
+	verificationBasis: 'community-sample',
 	capabilities: {
 		// false: plain Express has no operationId concept at all. --openapi-file is the honest path
 		// forward for an app that has one; see CAPABILITY_SATISFIERS in scanners/capabilities.mjs.

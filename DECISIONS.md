@@ -12054,3 +12054,134 @@ directory without a `Team-IZ-Backend` clone (real output: `10/10 ... were SKIPPE
 the real `HOME` (real output: `all 10 ... ran for real`) — both piped through the real script, not
 simulated. `test/ci-workflow.test.mjs` (13/13, unaffected) confirms the workflow YAML still parses
 and every static coupling check still holds after the edit.
+
+## D-oracle-corpus-pinning: growing each adapter's single-oracle verification basis into a 3-4 repo, commit-SHA-pinned corpus (ROADMAP.md Phase 5b)
+
+**WHY**: every scanner adapter's `verificationBasis` named exactly ONE real-world oracle, and none
+was pinned to a commit — `typescript-express`'s own oracle (`mkosir/typeorm-express-typescript`)
+had drifted so far (stale since 2022, legacy TypeORM `^0.2.45`, non-UUID PKs) that the adapter
+"generated zero resolvers" against the very repo meant to verify it. Three parallel research
+agents (real `gh repo view`/`git ls-remote`/live regex-replay against fetched source) found real
+candidates for all 4 adapters, but building the actual pinned manifest surfaced several real
+mechanism bugs and design corrections along the way — this entry records all of it, not just the
+final repo list.
+
+**User-confirmed decisions** (AskUserQuestion, before implementation): all 4 adapters in one pass;
+`javascript-express`'s `verificationBasis` promoted `synthetic-only` → `community-sample` (3 real
+candidates found, contradicting this project's own prior "may be structurally unpromotable"
+hedge); `mkosir/typeorm-express-typescript` REMOVED outright (not kept alongside its replacements).
+
+### Real mechanism bugs found and fixed while building `scripts/shadow-validation-smoke.mjs`'s manifest support
+
+1. **`repoRoot()` always re-roots to the TRUE git top-level, regardless of cwd.** The first
+   `:subpath` design (run `bskel` with `cwd` inside a subdirectory of the clone) did NOT scope the
+   scan at all — `lib/repo.mjs`'s `repoRoot()` calls `git rev-parse --show-toplevel`, which always
+   resolves to the whole clone. Confirmed live against `polarsource/polar` (a monorepo with a real
+   TypeScript frontend at the same repo root): the unscoped scan detected `python-fastapi` by
+   accident, and only revealed the bug when the CORRECTLY scoped version detected `generic-grep`
+   instead against the ACTUAL subdirectory. **Fix**: `:subpath` now copies the subdirectory into a
+   PHYSICALLY separate scratch git repo (fresh `git init`, one commit, a real local bare origin
+   pushed to — the same scratch-repo-plus-bare-origin convention `db-introspect-smoke.mjs`
+   established), so `repoRoot()` has no whole-monorepo root left to re-discover.
+2. **`git clone -b <ref>` cannot pin an arbitrary commit SHA**, only branch/tag names. Fixed via
+   `git init` + `git remote add` + `git fetch --depth 1 origin <sha>` (GitHub serves exact-SHA
+   fetches for public repos, confirmed live).
+3. **A bare SHA fetch leaves no `refs/remotes/origin/<branch>`**, and `bskel preflight` (even with
+   `--offline`) still resolves the repo's real default branch and hard-fails `WRONG_DEFAULT` when
+   that ref doesn't exist locally — confirmed live against `mealie-recipes/mealie`. Fixed by
+   discovering the real default branch (`git ls-remote --symref`) and fetching the SHA straight
+   into `refs/remotes/origin/<branch>` plus `git symbolic-ref refs/remotes/origin/HEAD`.
+4. **`preflight`'s own freshness gate is real, correct behavior for its normal use case (a feature
+   branch that should track the real default branch) and actively wrong for a deliberately pinned
+   analysis target.** Confirmed live: `mealie-recipes/mealie` moves multiple commits/day, and the
+   pinned SHA went `STALE_BASE` (1 commit behind) within minutes of being pinned. Fixed by passing
+   `--offline` to every `preflight` call this script makes.
+5. **`handles plan` hard-BLOCKs (exit 17) for any adapter with no `codegen.handles` provider** —
+   `javascript-express` has none, by design. The script now checks the stderr text for this
+   specific capability-refusal message on the first `handles plan` call per repo and, if it
+   matches, stops calling `handles plan` for the rest of that repo's modules and reports
+   `handles_not_applicable: "<reason>"` instead of crashing — this is real, honest, EXPECTED
+   behavior for that adapter, not a script-level failure.
+6. **A slug-generation bug this same script's own Phase 5a fix didn't fully cover**: not found
+   this pass (already fixed in 5a) — re-verified holding under the new subpath-copy code path too.
+
+### Real, structural adapter findings the corpus surfaced (none fixed here — corpus growth only)
+
+- **`ali-bouali/spring-security-asymmetric-encryption` (java-spring)**: id fields are `String`
+  with `@GeneratedValue(strategy = GenerationType.UUID)` — UUID-*generated*, not UUID-*typed*.
+  `isUuidType()` (`scanners/adapters/java-spring.mjs`) is a strict `type === 'UUID' ||
+  'java.util.UUID'` literal check, so this never registers as a UUID-addressable resource, producing
+  the same zero-resolver note as a genuinely non-UUID PK. Verified directly against the adapter's
+  own source, not assumed from the repo's README.
+- **`polarsource/polar` and `mealie-recipes/mealie` and `fastapi-practices/fastapi-best-architecture`
+  (python-fastapi, 3 independent confirmations)**: this adapter's module attribution is
+  file-basename-based (`path.basename(file, '.py')`), which works for the official template's own
+  single-file-per-module convention but breaks down for real, larger apps that centralize models in
+  one `models/` package while routes live in per-feature files with generic names (`endpoints.py`,
+  `*_routes.py`) — routes and their own models never land in the same "module" bucket, so entity
+  extraction reports zero entities everywhere despite the schema being fully real and
+  UUID-addressable. The single most significant finding from this whole pass — confirmed
+  independently 3 times, not a one-repo fluke.
+- **`leroy-netizen/marketplace-backend` (typescript-express)**: confirms `typescript-express.mjs`
+  hardcodes the literal identifier `router` for its endpoint-extraction gate — 8 real UUID
+  entities extract correctly (entity extraction doesn't depend on router-variable naming), but
+  almost no endpoints extract because this repo's route files use `authRoutes`/`productRoutes`/etc.
+- **`hoangsonww/PetSwipe-Match-App` (typescript-express)**: a previously-unexercised security
+  refusal — "no literal `select: [...]` allow-list found — resolver NOT generated" — alongside the
+  already-known "static scanning cannot safely determine authorization" refusal.
+
+**EXIT**: none of the above are fixed here — each is an explicit, evidence-backed Phase 6+
+follow-up candidate. The python-fastapi module-attribution gap in particular is the strongest,
+most consequential candidate: it means this adapter currently cannot generate a single resolver
+against ANY of the 3 new real oracles, only against the original official template's own
+single-file-per-module style.
+
+### Repos dropped from the plan during real verification (evidence-based, not preference)
+
+- **`eugenp/tutorials`** (java-spring, scoped to `spring-security-modules/spring-security-core`):
+  its `UserController`/`App` classes live in the SAME flat package (no subpackage at all), so
+  `moduleOf()`'s base-package fallback (`parts.length > basePackageParts.length + 1`) never fires
+  — everything lands in `_unknown`, which this script's own `perModule` loop skips, so the
+  intended `hasRole`/`hasAnyRole` coverage never actually surfaces through the pipeline. Replaced
+  by `1chz/realworld-java21-springboot3` (also lands in `_unknown`, but cleanly, on a modern,
+  actively-maintained MIT repo — real `_unknown`-bucket diversity beyond `spring-petclinic`).
+- **`eventuate-tram/eventuate-tram-examples-customers-and-orders`** (java-spring): a real Gradle
+  multi-module-per-bounded-context layout where the `@SpringBootApplication` class
+  (`customer-service-main`) and the real entity (`customer-service-domain`, using a bare `domain/`
+  folder segment WITHOUT an outer wrapper) live in separate Gradle submodules — `moduleOf()`'s
+  `domain/<module>/` branch returns the segment immediately after `domain`, which for this layout
+  is the FILENAME itself (`Customer.java`), not a real module name. `handles plan --module
+  Customer.java` then hard-crashes (exit 2, "could not detect the base package"). A genuine bug
+  worth naming, but it makes this repo unusable as an ONGOING corpus entry (the whole `--manifest`
+  run would permanently fail on it) without also fixing the crash, which is out of scope here.
+- **`dabouzajm-lang/ProyectoBackend`** (javascript-express): every route handler is an inline arrow
+  function, which `extractEndpoints()`'s bare-identifier gate never captures — real, but the
+  resulting `related_modules_count: 0` / `verdict: greenfield` report is indistinguishable from
+  "nothing relevant here," so this entry provides no ongoing diagnostic signal through this
+  script's own report format, unlike the other findings above (which DO surface visibly).
+
+### Final corpus (13 entries — `test/fixtures/oracle-manifest.json`, schema `schemas/oracle-manifest.schema.json`)
+
+java-spring: `spring-petclinic` (existing) + `ali-bouali/spring-security-asymmetric-encryption` +
+`1chz/realworld-java21-springboot3`. python-fastapi: `full-stack-fastapi-template` (existing) +
+`polarsource/polar` (scoped `server/`) + `mealie-recipes/mealie` + `fastapi-practices/fastapi-best-architecture`.
+typescript-express: `hoangsonww/PetSwipe-Match-App` (scoped `backend/`) +
+`justine92415/express-postgres-template` + `leroy-netizen/marketplace-backend` (`mkosir` fully
+removed). javascript-express: `JeanCaicedo/employees-api-mysql` + `Serkanbyx/chat-app-backend` +
+`nekesam/helloworld` (first-ever real corpus for this adapter). Every entry pinned to a real commit
+SHA (fetched fresh via `git ls-remote --heads` immediately before pinning, re-verified against the
+research agents' own reported SHAs with zero drift). `DEFAULT_REPOS` (the no-args quick-check list
+in `scripts/shadow-validation-smoke.mjs`) updated to 4 pinned entries (one per non-generic-grep
+adapter), replacing `mkosir` with `hoangsonww/PetSwipe-Match-App`.
+
+**Verified**: `test/shadow-validation-cli.test.mjs` grew from 4 to 9 tests (schema validation,
+`--adapter` filtering, `--manifest`-plus-positional-args rejection, a real local-fixture manifest
+PASS, and a real MANIFEST MISMATCH hard-fail — all local, non-network). A real, network-dependent
+run of the full 13-entry manifest (`node scripts/shadow-validation-smoke.mjs --manifest
+test/fixtures/oracle-manifest.json`) completed cleanly end to end, zero crashes, zero adapter
+mismatches, matching every individually-verified result above exactly.
+
+**EXIT**: 5c (re-derive the single-oracle-measured constants once ≥2 real corpora exist per
+adapter) can now proceed — every adapter has ≥2 real oracles for the first time. The
+python-fastapi module-attribution gap and the 3 other real findings above are explicit, unscoped
+Phase 6+ follow-up candidates, not silently assumed fixed by this entry.

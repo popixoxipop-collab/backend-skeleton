@@ -109,3 +109,90 @@ test('shadow-validation-smoke: --out writes the report to a file instead of stdo
 		fs.rmSync(path.dirname(outPath), { recursive: true, force: true });
 	}
 });
+
+// D-oracle-corpus-pinning (ROADMAP.md Phase 5b): --manifest mode's own local, non-network coverage
+// -- schema validation and the adapter-mismatch hard-fail, driven by a small synthetic manifest
+// pointed at the same local bare-origin fixture every other test in this file already uses.
+function writeManifest(dir, adaptersObj) {
+	const manifestPath = path.join(dir, 'manifest.json');
+	fs.writeFileSync(manifestPath, JSON.stringify({ contract: 'sbf.oracle-manifest/1', adapters: adaptersObj }, null, 2));
+	return manifestPath;
+}
+
+test('shadow-validation-smoke --manifest: a manifest failing schema validation is rejected with a clear message', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-shadow-validation-cli-test-manifest-'));
+	try {
+		// Missing the required "terms" field on the one entry.
+		const manifestPath = writeManifest(dir, { 'java-spring': [{ id: 'x', owner: 'o', repo: 'r', ref: '0'.repeat(40), note: 'n' }] });
+		const r = runScript(['--manifest', manifestPath]);
+		assert.equal(r.code, 1);
+		assert.match(r.stderr, /failed schema validation/);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('shadow-validation-smoke --manifest: --adapter naming an adapter absent from the manifest is rejected', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-shadow-validation-cli-test-manifest-'));
+	try {
+		const manifestPath = writeManifest(dir, { 'java-spring': [{ id: 'x', owner: 'o', repo: 'r', ref: '0'.repeat(40), terms: ['a'], note: 'n' }] });
+		const r = runScript(['--manifest', manifestPath, '--adapter', 'python-fastapi']);
+		assert.equal(r.code, 1);
+		assert.match(r.stderr, /has no entries in manifest/);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('shadow-validation-smoke --manifest: --manifest combined with positional repo specs is rejected', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-shadow-validation-cli-test-manifest-'));
+	try {
+		const manifestPath = writeManifest(dir, { 'java-spring': [{ id: 'x', owner: 'o', repo: 'r', ref: '0'.repeat(40), terms: ['a'], note: 'n' }] });
+		const r = runScript(['--manifest', manifestPath, 'owner/repo#term']);
+		assert.equal(r.code, 1);
+		assert.match(r.stderr, /cannot be combined with positional repo specs/);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('shadow-validation-smoke --manifest: a real run against a local fixture with the correct declared adapter PASSes cleanly', () => {
+	const { scratch, bareOrigin } = buildLocalOracle();
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-shadow-validation-cli-test-manifest-'));
+	try {
+		// `owner: null` is the local-test literal form (schemas/oracle-manifest.schema.json) -- repo
+		// is used as-is as the clone target, matching parseRepoSpec's own literal-path form.
+		const manifestPath = writeManifest(dir, {
+			'java-spring': [{ id: 'widget-fixture', owner: null, repo: bareOrigin, ref: null, path: null, terms: ['widget'], note: 'local fixture' }],
+		});
+		const r = runScript(['--manifest', manifestPath]);
+		assert.equal(r.code, 0, `expected a clean exit -- stderr: ${r.stderr}`);
+		assert.match(r.stderr, /PASS -- 1 repo\(s\) shadow-validated/);
+		const report = JSON.parse(r.stdout);
+		assert.equal(report[0].manifestId, 'widget-fixture');
+		assert.equal(report[0].expectedAdapter, 'java-spring');
+		assert.equal(report[0].adapter, 'java-spring');
+	} finally {
+		fs.rmSync(scratch, { recursive: true, force: true });
+		fs.rmSync(bareOrigin, { recursive: true, force: true });
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('shadow-validation-smoke --manifest: a declared-adapter mismatch hard-fails with MANIFEST MISMATCH', () => {
+	const { scratch, bareOrigin } = buildLocalOracle();
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-shadow-validation-cli-test-manifest-'));
+	try {
+		const manifestPath = writeManifest(dir, {
+			'python-fastapi': [{ id: 'widget-fixture', owner: null, repo: bareOrigin, ref: null, path: null, terms: ['widget'], note: 'declares the WRONG adapter on purpose' }],
+		});
+		const r = runScript(['--manifest', manifestPath]);
+		assert.equal(r.code, 1, `expected a hard-fail on adapter mismatch -- stderr: ${r.stderr}`);
+		assert.match(r.stderr, /MANIFEST MISMATCH -- declared adapter "python-fastapi" but scan detected "java-spring"/);
+		assert.match(r.stderr, /at least one manifest entry declared the wrong adapter/);
+	} finally {
+		fs.rmSync(scratch, { recursive: true, force: true });
+		fs.rmSync(bareOrigin, { recursive: true, force: true });
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});

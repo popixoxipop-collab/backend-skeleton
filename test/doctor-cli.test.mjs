@@ -190,7 +190,7 @@ test('bskel doctor --json: every adapter carries its real verificationBasis valu
 	assert.equal(byId['java-spring'].verificationBasis, 'production-repo');
 	assert.equal(byId['python-fastapi'].verificationBasis, 'official-reference');
 	assert.equal(byId['typescript-express'].verificationBasis, 'community-sample');
-	assert.equal(byId['javascript-express'].verificationBasis, 'synthetic-only');
+	assert.equal(byId['javascript-express'].verificationBasis, 'community-sample');
 	assert.equal(byId['generic-grep'].verificationBasis, 'not-applicable');
 });
 

@@ -47,6 +47,7 @@
     "test:typescript-compile": "node scripts/typescript-typecheck-smoke.mjs",
     "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs",
     "test:shadow-validation": "node scripts/shadow-validation-smoke.mjs",
+    "test:oracle-corpus": "node scripts/shadow-validation-smoke.mjs --manifest test/fixtures/oracle-manifest.json",
     "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:registry-coverage && npm run test:ddl-apply && npm run test:cross-feature-fk && npm run test:java-ast && npm run test:typescript-compile"
   },
   "dependencies": {

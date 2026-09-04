@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:oracle-manifest:1",
+  "title": "backend-skeleton scanner-adapter verification-corpus manifest",
+  "description": "ROADMAP.md Phase 5b (D-oracle-corpus-pinning): the committed, human-readable record of real, third-party repos pinned to a real commit SHA per scanner adapter, driven by scripts/shadow-validation-smoke.mjs --manifest. Loaded at scripts/shadow-validation-smoke.mjs run time, not by the CLI itself -- this is a test/verification-only artifact, never read by bin/bskel.mjs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "adapters"],
+  "properties": {
+    "contract": { "const": "sbf.oracle-manifest/1" },
+    "adapters": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["java-spring", "python-fastapi", "typescript-express", "javascript-express", "generic-grep"]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "repo", "terms", "note"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "Short, unique-within-this-adapter identifier for this manifest entry (e.g. 'spring-petclinic') -- used in report output, never sent to git/GitHub."
+            },
+            "owner": {
+              "type": ["string", "null"],
+              "description": "null means \"repo\" is used as-is as a literal clone URL/local path (matches scripts/shadow-validation-smoke.mjs's own parseRepoSpec literal form) -- ONLY for local, non-network test fixtures (test/shadow-validation-cli.test.mjs); every real corpus entry in this file names a real owner."
+            },
+            "repo": { "type": "string", "minLength": 1 },
+            "ref": {
+              "type": ["string", "null"],
+              "pattern": "^([0-9a-f]{40})?$",
+              "description": "A real, pinned commit SHA -- ROADMAP.md Phase 5b's own 'pin refs' requirement. null is permitted only for the local-fixture literal-owner form above (no meaningful \"pin\" for a throwaway local bare repo). Never a branch/tag name here (scripts/shadow-validation-smoke.mjs's own DEFAULT_REPOS/CLI-spec forms still accept branch names for quick manual use; this committed manifest does not)."
+            },
+            "path": {
+              "type": ["string", "null"],
+              "description": "Subdirectory within the clone to scope every bskel invocation to (relative, no leading/trailing slash) -- null/absent means the clone root. Needed for monorepos where the actual backend lives under a subdirectory (e.g. polarsource/polar's 'server')."
+            },
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "description": "One-line, human-readable justification for why this repo is in the corpus (what real coverage it adds, or what real diagnostic gap it's expected to surface) -- see DECISIONS.md's D-oracle-corpus-pinning for the full record."
+            }
+          }
+        }
+      }
+    }
+  }
+}

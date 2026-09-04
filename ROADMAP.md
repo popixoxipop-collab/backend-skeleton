@@ -502,6 +502,20 @@ by 5a's script. Priorities in order of current weakness:
   ran one repo against it clean.
 - `java-spring` — petclinic is now effectively a second oracle; formalize it as one.
 
+**Status: closed — see `D-oracle-corpus-pinning` in DECISIONS.md for the full record.** 13 real,
+**pinned repos across all 4 adapters (`test/fixtures/oracle-manifest.json` +**
+**`schemas/oracle-manifest.schema.json`) — java-spring and python-fastapi 3 each, typescript-express**
+**3 (mkosir REMOVED, not supplemented), javascript-express 3 (its own hedge above was wrong: a**
+**genuine search found real candidates, tier promoted `synthetic-only` → `community-sample`).**
+**`scripts/shadow-validation-smoke.mjs` grew real subpath-scoping (a physically separate scratch**
+**repo, not a cwd change — `repoRoot()` always re-roots to the clone's true top level) and**
+**commit-SHA pinning (fetch-by-exact-SHA, since `git clone -b` only accepts branch names). 3 repos**
+**originally planned were dropped after real verification (not preference) — see the DECISIONS.md**
+**entry's own "Repos dropped" section. The single most significant finding: python-fastapi's**
+**file-basename module attribution cannot unify routes and models for any real app that**
+**centralizes its models (confirmed 3 independent times) — a real Phase 6+ follow-up candidate,**
+**not fixed here.**
+
 ### 5c. **[TRADEOFF, mitigable only] Re-derive the single-oracle-measured constants.**
 
 This is W9's hard core and it cannot be phased away. These are all real, cited, load-bearing numbers

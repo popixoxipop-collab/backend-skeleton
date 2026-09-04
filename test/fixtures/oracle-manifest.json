@@ -1,0 +1,130 @@
+{
+  "contract": "sbf.oracle-manifest/1",
+  "adapters": {
+    "java-spring": [
+      {
+        "id": "spring-petclinic",
+        "owner": "spring-projects",
+        "repo": "spring-petclinic",
+        "ref": "818c4136ea971c21674525f9053de0d9c7ad8cfe",
+        "path": null,
+        "terms": ["owner"],
+        "note": "Existing baseline oracle. Integer PKs on every entity -- exercises the non-UUID zero-resolver diagnostic path, never the resolver-generation success path."
+      },
+      {
+        "id": "ali-bouali-asymmetric-encryption",
+        "owner": "ali-bouali",
+        "repo": "spring-security-asymmetric-encryption",
+        "ref": "c3663da2bdba846d499f233fdbbae7558c97d469",
+        "path": null,
+        "terms": ["category"],
+        "note": "Real @PreAuthorize coverage on BOTH sides of the exact hasRole('X') regex: the unsupported bean-expression shape and (Todo controller) an unsupported hasAnyRole-adjacent shape, both correctly falling back to TODO_ROLE. Also surfaces a real diagnostic-accuracy gap: id fields are `String` with @GeneratedValue(strategy=GenerationType.UUID) -- UUID-*generated*, not UUID-*typed* -- so isUuidType() (a strict 'UUID'/'java.util.UUID' literal check) never recognizes them, producing the same zero-resolver note as a genuinely non-UUID PK. Verified directly against scanners/adapters/java-spring.mjs's own isUuidType(), not assumed from the repo's own README."
+      },
+      {
+        "id": "realworld-java21-springboot3",
+        "owner": "1chz",
+        "repo": "realworld-java21-springboot3",
+        "ref": "93e018e9a769dadae5a80b922d649bd7c79545cd",
+        "path": null,
+        "terms": ["article"],
+        "note": "Modern Spring Boot 3 / Java 21 real app, MIT, actively maintained. Its package layout doesn't match either moduleOf()'s domain/<module>/ convention or the @SpringBootApplication-base-package fallback, so every real entity lands in the _unknown bucket -- confirmed real, honest _unknown bucketing on a SECOND real repo beyond spring-petclinic (D-module-attribution-base-package's own original oracle)."
+      }
+    ],
+    "python-fastapi": [
+      {
+        "id": "full-stack-fastapi-template",
+        "owner": "fastapi",
+        "repo": "full-stack-fastapi-template",
+        "ref": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+        "path": null,
+        "terms": ["item"],
+        "note": "Existing baseline oracle -- the official FastAPI reference template. SQLModel, single-file-per-module convention (routes and models co-located), the one shape this adapter's basename-based module attribution was built around."
+      },
+      {
+        "id": "polar",
+        "owner": "polarsource",
+        "repo": "polar",
+        "ref": "b99fac67fe6599fc9f0d670bc714245c6e9d31f6",
+        "path": "server",
+        "terms": ["organization"],
+        "note": "Real production billing-platform backend (SQLAlchemy 2.0 Mapped[...], real OAuth2 auth, genuine UUID-addressable resources). Monorepo -- scoped to server/ (the real pyproject.toml root, one level above the polar/ package itself; an earlier scoping attempt at server/polar/ mis-detected as generic-grep). Surfaces a real, significant module-attribution gap: models live in a centralized polar/models/ package while routes live in per-feature polar/<feature>/endpoints.py files uniformly named 'endpoints', so this adapter's basename-based module attribution never unifies a feature's routes and its model into one module -- entity extraction reports zero entities for every module despite the schema being fully UUID-addressable in reality."
+      },
+      {
+        "id": "mealie",
+        "owner": "mealie-recipes",
+        "repo": "mealie",
+        "ref": "cb32b6249f0e46138bfbda2479e313715c4a1946",
+        "path": null,
+        "terms": ["recipe"],
+        "note": "Real, actively-used self-hosted production app (AGPL-3.0). Extremely active development -- pinning required `bskel preflight --offline` to avoid STALE_BASE failures within minutes of pinning. Same centralized-models-vs-per-feature-routes module-attribution gap as polarsource/polar (11 real modules found, all zero entities) -- a second, independent confirmation this is a real, structural adapter limitation, not a one-repo fluke."
+      },
+      {
+        "id": "fastapi-best-architecture",
+        "owner": "fastapi-practices",
+        "repo": "fastapi-best-architecture",
+        "ref": "a38bd0b4a60ff139817f2a278b64489c76993954",
+        "path": null,
+        "terms": ["user"],
+        "note": "Strongest RBAC/multi-router oracle (casbin-style permission dependency + JWT/superuser gates), SQLAlchemy-direct. A third, independent confirmation of the same centralized-models module-attribution gap (2 real modules found, both zero entities)."
+      }
+    ],
+    "typescript-express": [
+      {
+        "id": "petswipe-match-app",
+        "owner": "hoangsonww",
+        "repo": "PetSwipe-Match-App",
+        "ref": "b8573eead531c68a4e2a551883c3a17828b30826",
+        "path": "backend",
+        "terms": ["pet"],
+        "note": "Real @PrimaryGeneratedColumn(\"uuid\") entities + real bare-identifier GET-by-id routes with literal `router` naming -- exercises real UUID-PK detection and a DIFFERENT, previously-unexercised security refusal: 'no literal select: [...] allow-list found -- resolver NOT generated' (avoiding an unintended column leak), plus the same 'static scanning cannot safely determine authorization' refusal python-fastapi's entries also show. Known, pre-existing, documented limitation also present in this same shape: app.use()-level mounts (not router.use()) drop the real path prefix."
+      },
+      {
+        "id": "express-postgres-template",
+        "owner": "justine92415",
+        "repo": "express-postgres-template",
+        "ref": "120e90f873b9fa9df286538cdd882e2937343c8f",
+        "path": null,
+        "terms": ["user"],
+        "note": "Clean route/mount-tree extraction (textbook match for detect()/verb-extraction/mount-graph). Integer (non-UUID) PK -- endpoint-extraction diversity, not entity/UUID diversity."
+      },
+      {
+        "id": "marketplace-backend",
+        "owner": "leroy-netizen",
+        "repo": "marketplace-backend",
+        "ref": "05ce7465999c22b35d2947cf779dec39527fb0d4",
+        "path": null,
+        "terms": ["product"],
+        "note": "8 real UUID entities extracted correctly (entity extraction doesn't depend on router-variable naming). Confirms a real, separate limitation: this adapter's endpoint-extraction gate hardcodes the literal identifier `router`, and this repo's route files use non-`router` variable names (authRoutes, productRoutes, etc.), so almost no endpoints extract despite 8 real UUID entities existing."
+      }
+    ],
+    "javascript-express": [
+      {
+        "id": "employees-api-mysql",
+        "owner": "JeanCaicedo",
+        "repo": "employees-api-mysql",
+        "ref": "e18789656adc0c91f96d0124fbdfefd86f7bf545",
+        "path": null,
+        "terms": ["employee"],
+        "note": "First real oracle this adapter has ever had (verificationBasis promoted from synthetic-only to community-sample, D-oracle-corpus-pinning). Textbook match: named Router import, bare-identifier GET-by-id, real cross-file app.use mount edge, genuinely-no-ORM (raw mysql2/promise) -- exactly the real-world shape this adapter was purpose-built for."
+      },
+      {
+        "id": "chat-app-backend",
+        "owner": "Serkanbyx",
+        "repo": "chat-app-backend",
+        "ref": "240422182000cccfcea11a043f2683df5821c83d",
+        "path": null,
+        "terms": ["user"],
+        "note": "Polished, production-shaped real app (Swagger docs, rate limiting, JWT auth). Uses Mongoose -- structurally irrelevant to this adapter (it never inspects ORM presence, always reports resource.fetch: false), still valuable route/mount-tree diversity."
+      },
+      {
+        "id": "helloworld-garage",
+        "owner": "nekesam",
+        "repo": "helloworld",
+        "ref": "56c49a984471b77e68607983186c539e97bdbb09",
+        "path": null,
+        "terms": ["record"],
+        "note": "Pug/MVC-style server-rendered app, multi-router mount graph -- diversity beyond JSON-REST-API-shaped apps (this adapter is route/verb-agnostic to content type)."
+      }
+    ]
+  }
+}
