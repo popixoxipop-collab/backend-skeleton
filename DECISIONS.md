@@ -11940,3 +11940,70 @@ design, for the documented hand-wiring use case) — a human calling these direc
 same transaction-sharing tradeoff this entry's own fix removed from the automatic decorator path.
 Not touched, not silently assumed safe by association: this is a real, distinct, ALREADY
 INTENTIONAL design point, not a residual gap.
+
+## D-shadow-validation-script: turning the ad-hoc shadow-validation pass into a committed, repeatable script (ROADMAP.md Phase 5a)
+
+**WHY**: the pass that produced `8d5de4b`/`654bcaf`/`5ff1a1a`/`e922f7f` (cloning real repos and
+running `scan`/`handles plan` read-only against them) was manual, with no committed script for it —
+unlike every other verification discipline in this project. `scripts/shadow-validation-smoke.mjs`
+closes that gap: takes one or more `owner/repo[@ref][#term1,term2]` specs (or a literal git
+URL/local path, for local testing — see below), clones each to a temp dir, runs the real
+`scan` (ad-hoc) → `preflight` → `feature init` → `scan --feature` → `handles plan --feature
+--module` sequence, and emits a JSON finding report (`adapter`, `verdict`, `related_modules_count`,
+`unknown_module_entities`, `scan_unknowns`, and per-module `resources_planned`/
+`zero_resolver_count`/`notes`) plus a human-readable stderr summary line per repo.
+
+**The approved plan's own core assumption was wrong, found by empirical verification before
+writing any code** (this project's own established discipline, applied to its own tooling this
+time): the plan assumed `bskel scan --terms ''` (blank) would broaden to a "see everything" scan.
+Running it for real against a freshly-cloned `spring-petclinic` immediately produced `exit 14,
+BAD_ARGS: "need at least one search term, from --terms or a --feature slug"` — confirmed live, not
+assumed, and root-caused to `scanners/index.mjs`'s `scoreModule()`/`collectEvidence()`/
+`matchingTerms()`: every scoring signal (module name, controller class/path, endpoint
+path/operationId, entity table/class, enum name) requires term-matching, so blank terms would score
+every module 0 even if the CLI-level `BAD_ARGS` guard didn't refuse first. There is no "everything"
+mode. The script's design was corrected before writing it: every repo spec carries its own real
+search terms, and the 3 default oracles use empirically-verified real terms found the same way a
+human running `bskel scan` by hand would have to — `owner` (spring-petclinic, real
+Owner/Pet/PetType/Visit domain), `item` (`fastapi/full-stack-fastapi-template`, real `items`
+module), `user` (`mkosir/typeorm-express-typescript`, real `users` module).
+
+**A DIAGNOSTIC tool, not a pass/fail gate**: exits non-zero only on a genuine script-level failure
+(a clone failed, `bskel` crashed unexpectedly) — a `_unknown` module bucket or a zero-resolver count
+is DATA the report surfaces, never a failure the script judges. Deliberately NOT wired into
+`test:all-smoke` or any CI job: every other smoke script runs against this project's own pinned
+fixtures, this one clones live, unpinned, third-party repos over the network, and ROADMAP Phase 5b
+(not this item) is the one that pins specific repos to specific commit SHAs — the prerequisite for
+including something like this in a CI gate reliably. `package.json` gained
+`"test:shadow-validation": "node scripts/shadow-validation-smoke.mjs"`, deliberately excluded from
+the `test:all-smoke` chain.
+
+**The literal git-URL/local-path spec form** (anything containing `://`, or starting with `/` or
+`.`, used as the clone URL as-is instead of expanding `owner/repo` to a github.com URL) exists
+specifically so `test/shadow-validation-cli.test.mjs` can point the real script at a real local
+bare git repo (same scratch-repo-plus-bare-origin convention `db-introspect-smoke.mjs` already
+established, reusing the same `test/fixtures/java-compile` fixture) and cover the real
+clone → scan → plan → report path as a fast, deterministic, non-network `npm test` regression
+guard — not because a real user is expected to reach for it often.
+
+**A real bug found and fixed while building the local test**: the handles-layer feature slug was
+built as `` `shadow-${repo}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-') ``, which allowed `-` to
+survive un-collapsed alongside newly-inserted separator dashes — for a literal local-path repo spec
+(all slashes), this produced consecutive dashes (e.g. `shadow--private-tmp-...`), which
+`SLUG_RE` (`lib/featureid.mjs`) rejects (no leading/trailing/consecutive dashes). Fixed by excluding
+`-` from the "keep" set too, so every run of non-alphanumeric characters (including existing
+dashes) collapses to exactly one dash, followed by trimming leading/trailing dashes.
+
+**Verified**: `test/shadow-validation-cli.test.mjs` (4/4, local, no network — argument validation
+for zero-terms and invalid specs, and a real local-fixture clone → scan → plan → report run
+asserting the exact real output: `adapter=java-spring`, `related_modules_count=1`, a `widget`
+module with `resources_planned=1`). A real, network-dependent run against all 3 default oracles
+(`node scripts/shadow-validation-smoke.mjs`) came back clean — `unknown_module_entities: 0` for all
+3 (confirming `8d5de4b`/`654bcaf`/`e922f7f`'s fixes still hold), and every `notes[]` entry matches
+what this project's own catalog/decisions already documented (petclinic's Integer PKs,
+full-stack-fastapi-template's and typeorm-express-typescript's `check_access()`-always-denies note,
+typeorm-express-typescript's non-UUID PK).
+
+**EXIT**: 5b (grow each tier to a pinned 3–5-repo corpus, driven by this script) and 5c (re-derive
+the single-oracle-measured constants once 5b + Phase 4 give ≥2 real corpora) are explicit,
+deliberate follow-ups, not silently assumed done — this entry closes 5a only.

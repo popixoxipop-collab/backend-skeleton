@@ -469,6 +469,16 @@ temp dir, running the real read-only flow, and emitting a machine-readable findi
 is the single highest-leverage item in the phase: it converts a one-off into something a small team
 can re-run on every adapter change. Effort **M**.
 
+**Status: closed — see `D-shadow-validation-script` in DECISIONS.md for the full record.**
+**`scripts/shadow-validation-smoke.mjs` exists, plus a fast local, non-network regression guard**
+**(`test/shadow-validation-cli.test.mjs`, 4/4) and a real network-dependent run against all 3**
+**default oracles, which came back clean — no fresh `_unknown` surprises, confirming**
+**`8d5de4b`/`654bcaf`/`e922f7f`'s fixes still hold. The approved plan's own "blank terms = see**
+**everything" assumption was found wrong by empirical verification before any code was written**
+**(`scan` hard-refuses zero terms) and corrected: every repo spec now carries real search terms.**
+**Deliberately NOT wired into `test:all-smoke`/CI (network-dependent, unpinned third-party repos) —**
+**that is 5b's job. `npm run test:shadow-validation` runs it standalone.**
+
 ### 5b. **[FIXABLE] Grow each tier from one repo to a small corpus, and pin refs.**
 
 Current state, verified: every adapter's `verificationBasis`
