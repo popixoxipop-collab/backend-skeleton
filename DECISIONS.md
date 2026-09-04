@@ -11733,10 +11733,9 @@ revoke → 404) — the test that originally found this bug — re-run and passe
 disposable Postgres after the fix, confirming both that the fix works and that it isn't flaky.
 
 **EXIT**: scoped to java-spring only — python-fastapi's `record_snapshot` decorator and its own
-SQLAlchemy session handling were not checked for an analogous risk; whether a shared, constrained
-session there can similarly corrupt a wrapped call under some real condition is a real, open
-question this entry does not answer, named here explicitly rather than silently assumed fine by
-association with this fix.
+SQLAlchemy session handling were not checked for an analogous risk when this entry was first
+written. **Checked as a direct follow-up in the same session, and a real (arguably worse) variant
+was found and fixed — see `D-handle-snapshot-side-channel-session`.**
 
 ## D-handles-pilot-cohort: `handles`'s first-ever real deployment (ROADMAP.md Phase 4), against `Team-IZ/Backend`'s real `Cohort` resource
 
@@ -11857,11 +11856,21 @@ target app for the first time**:
   usage over time by the Team-IZ team, which a single session cannot do or fast-track. Named as
   explicitly deferred, matching this project's own EXIT-section honesty discipline, not silently
   claimed complete.
-- The `spring-boot-starter-aop` → `spring-boot-starter-aspectj` rename (finding 1) is NOT fixed in
-  `backend-skeleton` itself — `handles plan`'s dependency check and `RecordHandleSnapshot.java
-  .tmpl`'s javadoc both still name the old artifact. A real, scoped follow-up: detect the target's
-  real Spring Boot major version (already partially known — this codebase's own Spring-Boot-
-  version-aware behavior exists elsewhere) and name the correct starter artifact per version.
+- The `spring-boot-starter-aop` → `spring-boot-starter-aspectj` rename (finding 1) was left unfixed
+  in `backend-skeleton` itself when this entry was first written — **closed in the same session, as
+  a direct follow-up**: `springAopArtifactName(repoRoot)` (new, `handles/providers/java-spring/
+  emit.mjs`) reuses the exact Spring Boot major-version detection `detectJacksonPackage()` already
+  had (factored into a shared `detectSpringBootMajorVersion()` — same signal, same "undetectable ->
+  assume the older/more common case" default both callers already used independently).
+  `hasSpringAopDependency()`, the `HANDLES_MISSING_DEPENDENCY` error (`bin/bskel.mjs`), the
+  post-emit note, and `RecordHandleSnapshot.java.tmpl`'s own javadoc (now `{{AOP_ARTIFACT_NAME}}`,
+  templated like `{{JACKSON_PACKAGE}}` already was) all name the version-correct artifact instead of
+  unconditionally `spring-boot-starter-aop`. Verified: 2 new tests (Boot 4 + the wrong artifact
+  still correctly refused, naming the right one; Boot 4 + the right artifact succeeds, the
+  generated file contains the templated name) — `npm test` 1352 → **1354**. Real re-verification:
+  `scripts/java-compile-smoke.mjs`/`scripts/java-integration-smoke.mjs` (real disposable Postgres,
+  both enforcement phases) re-run and passed against the existing Boot-<4 fixture, confirming the
+  default path is unchanged.
 - `TODO_ROLE`'s inertness (finding 4) was found and worked around for THIS resource, but the
   underlying pattern — a resource with tenant-only, no-role read access — has no general codegen
   support; `plan.mjs` still can't auto-detect "no role, but the real repository query itself
@@ -11871,3 +11880,63 @@ target app for the first time**:
 - The honest posture after ONE successful pilot is "verified against one real target application,"
   phrased the same careful way `verificationBasis: 'production-repo'` already is elsewhere in this
   project — not "production-ready" or "handles is now battle-tested." n=1 is n=1.
+
+## D-handle-snapshot-side-channel-session (python-fastapi): `record_snapshot`'s decorator writes on the WRAPPED function's own session, and the error path could silently persist a partial write the caller meant to roll back
+
+**WHY**: `D-handle-aspect-transaction-isolation`'s own EXIT explicitly named this as unchecked —
+"whether a shared, constrained session [in python-fastapi] can similarly corrupt a wrapped call...
+is a real, open question." Investigated as a direct follow-up. Reading `record_snapshot.py.tmpl`
+found a real, arguably WORSE variant of the java-spring bug: `handle_service.register`/
+`record_snapshot` each call `session.commit()` **on the exact session object the wrapped business
+function itself received** (`session_param`, resolved from the wrapped function's own signature).
+Unlike Java's Spring-managed transactions (corrupted by a REJECTED statement, e.g. a read-only
+violation), Python's failure mode is a silent, UNCONDITIONAL commit at multiple points: before the
+wrapped call even runs (`_record("request", ...)`), after it returns (`_record("response", ...)`),
+and — the genuinely dangerous one — inside the `except Exception: _record("error", ...)` handler,
+immediately before re-raising. A wrapped function doing a real multi-step write without committing
+(the standard "atomic operation, caller commits or rolls back" shape) that fails partway would have
+its OWN partial, should-never-be-persisted write silently committed by the decorator's own
+error-path snapshot recording — not merely fail loud like the Java case, but succeed WRONG.
+
+**Confirmed live, with a genuine negative control** — not just reasoned from reading the code:
+added a new scenario to `scripts/python-integration-smoke.mjs` (a real disposable Postgres): a
+function decorated with `@record_snapshot` adds one row without committing, then raises; the
+caller catches the exception and calls `session.rollback()` (exactly what a real caller does on
+failure). Before the fix, temporarily reverting `_register_and_record` to use the wrapped
+function's own session reproduced the bug for real — the "uncommitted" row WAS found in the
+database after rollback, because `record_snapshot`'s own error-path `session.commit()` had already
+made it durable before the rollback ever ran (`rollback()` is a no-op once a commit has already
+happened — confirmed live, not assumed). **A real bug was found in the FIRST version of this same
+negative-control test**: the scenario function generated its own fresh random UUID internally
+instead of using the `item_id` parameter the driver script was checking for afterward, so the
+"was it persisted" check queried the wrong row and passed regardless of whether the underlying fix
+was even present — caught by the negative control itself not behaving as expected (it should have
+failed pre-fix and didn't), root-caused, and fixed before trusting the test's own result either way.
+
+**Mechanism**: new `_side_channel_session(caller_session)` in `record_snapshot.py.tmpl` — a
+genuinely separate `Session`, sharing only the caller's engine/connection pool via
+`caller_session.get_bind()`, never its in-flight transaction (the SQLAlchemy idiom for "I need an
+independent side-channel transaction," the same role `Propagation.REQUIRES_NEW` plays for Java).
+`_register_and_record` (both the async and sync wrapper) opens this side-channel session via a
+`with` block and passes IT, not the wrapped function's own session, to
+`handle_service.register`/`record_snapshot`. `handle_service.py.tmpl` itself is UNCHANGED —
+its documented, legitimate direct-call use case ("call these functions explicitly from your own
+service code," sharing whatever session a human explicitly passes) keeps working exactly as
+before; only the DECORATOR's own blind-wrapping call sites, which cannot know the wrapped
+function's transaction semantics, were fixed — the same precise scoping
+`D-handle-aspect-transaction-isolation` used for Java (fixing the two methods actually called from
+inside another transaction, not every method in the service class).
+
+**Verified**: `test/python-fastapi-handles.test.mjs` (18/18, structural/CLI-level, unaffected).
+`scripts/python-integration-smoke.mjs` (real disposable Postgres, real FastAPI `TestClient`) — all
+prior scenarios (full lifecycle, async lifecycle, async error path, schema_drift, field fetch,
+redaction) plus 3 new checks, all passing with the fix, the key one FAILING under a real negative
+control (fix reverted) and passing once restored — the same reverted-then-restored discipline this
+project has used for other regression guards (e.g. O3's own real-Postgres negative control).
+
+**EXIT**: `handle_service.py.tmpl`'s own `register`/`record_snapshot`/`revoke`/
+`pruneSnapshotsOlderThan` still call `session.commit()` unconditionally when invoked directly (by
+design, for the documented hand-wiring use case) — a human calling these directly still owns the
+same transaction-sharing tradeoff this entry's own fix removed from the automatic decorator path.
+Not touched, not silently assumed safe by association: this is a real, distinct, ALREADY
+INTENTIONAL design point, not a residual gap.

@@ -56,7 +56,7 @@ import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../s
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
-import { hasSpringAopDependency } from '../handles/providers/java-spring/emit.mjs';
+import { hasSpringAopDependency, springAopArtifactName } from '../handles/providers/java-spring/emit.mjs';
 import { emitObserveJavaSpring } from '../handles/providers/java-spring/observe.mjs';
 import { plan as planPythonFastApi } from '../handles/providers/python-fastapi/plan.mjs';
 import { emitObservePythonFastApi } from '../handles/providers/python-fastapi/observe.mjs';
@@ -2357,7 +2357,12 @@ function cmdHandlesEmit(args) {
 	// silently produces resolvers that will 404 every fetch/patch. java-spring only: python-fastapi's
 	// @record_snapshot decorator needs no extra dependency (see python-fastapi/emit.mjs's own note).
 	if (enforceRegistry && scanReport.adapter === 'java-spring' && !hasSpringAopDependency(root)) {
-		fail(EXIT_CODES.HANDLES_MISSING_DEPENDENCY, 'HANDLES_MISSING_DEPENDENCY', 'bskel handles emit --enforce-registry on requires spring-boot-starter-aop on this repo\'s own build.gradle/build.gradle.kts/pom.xml classpath -- HandleAspect.java (the class that actually intercepts @RecordHandleSnapshot-annotated methods) does nothing without it, and no other Spring starter enables AOP. Add the dependency to your build file, then re-run.');
+		// D-handles-pilot-cohort: the correct artifact name is version-dependent (spring-boot-starter-aop
+		// before Spring Boot 4, spring-boot-starter-aspectj from Spring Boot 4 on -- confirmed against
+		// a real Spring Boot 4.1.0 target, the old artifact is a genuine 404 on Maven Central for it).
+		// springAopArtifactName(root) names the one THIS repo's own detected Boot version actually needs.
+		const artifactName = springAopArtifactName(root);
+		fail(EXIT_CODES.HANDLES_MISSING_DEPENDENCY, 'HANDLES_MISSING_DEPENDENCY', `bskel handles emit --enforce-registry on requires ${artifactName} on this repo's own build.gradle/build.gradle.kts/pom.xml classpath -- HandleAspect.java (the class that actually intercepts @RecordHandleSnapshot-annotated methods) does nothing without it, and no other Spring starter enables AOP. Add the dependency to your build file, then re-run.`);
 	}
 
 	const resourceFilter = flags.resource ? flags.resource.split(',').map((s) => s.trim()).filter(Boolean) : null;

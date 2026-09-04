@@ -134,6 +134,7 @@ import app.handles.tables as tables
 from app.handles.router import router as handles_router
 from app.handles.resolvers.item import ItemResolver
 from app.services.item_service import update_item, update_item_async
+from app.handles.record_snapshot import record_snapshot
 from app.models import Item
 from app.api.deps import get_db
 
@@ -237,6 +238,43 @@ with Session(engine) as session:
         .order_by(tables.HandleSnapshot.recorded_at.desc())
     ).first()
 check("async error path: an 'error' snapshot was recorded (previously unreachable for async fns)", async_error_snapshot is not None)
+
+# --- Scenario 1e: D-handles-pilot-cohort transaction-isolation fix (the python-fastapi twin of
+# java-spring's D-handle-aspect-transaction-isolation) -- a service function that does a real,
+# UNCOMMITTED write, then raises, relying on its OWN caller to roll back (the standard "atomic
+# multi-step write" shape). Before the side-channel-session fix, record_snapshot's own error-path
+# snapshot recording called session.commit() on THIS SAME session -- silently persisting the
+# should-never-have-been-saved row instead of ever letting a real rollback happen. This is the
+# python-specific analog of the real java-spring bug (there, a shared read-only transaction
+# aborted; here, a shared writable transaction gets prematurely/wrongly committed) -- confirmed
+# live by actually causing it and rolling back, not assumed from reading the code alone.
+@record_snapshot(resource_type="Item", operation_id="atomic_but_failing_update", resource_uid_param="item_id", session_param="session")
+def atomic_but_failing_update(session, item_id, updates):
+    session.add(Item(id=item_id, title="should never be persisted -- caller means to roll this back"))
+    raise RuntimeError("simulated mid-transaction failure, before this function's own commit")
+
+orphan_id = uuid.uuid4()
+atomic_raised = None
+with Session(engine) as session:
+    try:
+        atomic_but_failing_update(session, orphan_id, {"title": "unreachable"})
+    except RuntimeError as exc:
+        atomic_raised = exc
+        session.rollback()  # what a real caller does on failure -- must actually work
+check("transaction isolation: the simulated business exception still propagates", atomic_raised is not None)
+
+with Session(engine) as session:
+    orphan_row = session.get(Item, orphan_id)
+check("transaction isolation: the caller's own rollback genuinely took effect -- the uncommitted row was NOT persisted by record_snapshot's own error-path commit", orphan_row is None)
+
+with Session(engine) as session:
+    atomic_error_handle_uid = uuid.UUID(codec.derive_handle_uid("r", "Item", str(orphan_id), None))
+    atomic_error_snapshot = session.exec(
+        select(tables.HandleSnapshot)
+        .where(tables.HandleSnapshot.handle_uid == atomic_error_handle_uid, tables.HandleSnapshot.envelope_dir == "error")
+        .order_by(tables.HandleSnapshot.recorded_at.desc())
+    ).first()
+check("transaction isolation: the error snapshot itself was still recorded, via its own separate session", atomic_error_snapshot is not None)
 
 # --- Scenario 2: schema_drift -- directly mutate the registry row's contract_ref (same
 # direct-DB-row technique java-integration-smoke.mjs's own test uses, avoiding a real

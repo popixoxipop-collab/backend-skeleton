@@ -453,6 +453,46 @@ test('handles emit --enforce-registry on refuses with HANDLES_MISSING_DEPENDENCY
 	assert.ok(!fs.existsSync(resolverPath), 'refusing to enable enforcement must happen before anything is written');
 });
 
+// D-handles-pilot-cohort: found live against a real Spring Boot 4.1.0 target -- spring-boot-
+// starter-aop does not exist as an artifact for Spring Boot 4.x (renamed to spring-boot-starter-
+// aspectj). A Boot-4 repo with the OLD (nonexistent, for it) artifact name present must still be
+// refused -- adding the wrong name doesn't actually enable AOP -- but the error must name the
+// RIGHT artifact for THIS repo, not unconditionally "spring-boot-starter-aop".
+test('handles emit --enforce-registry on refuses with HANDLES_MISSING_DEPENDENCY (20) on Spring Boot 4, naming spring-boot-starter-aspectj (not -aop)', () => {
+	const root = buildFixtureRepo();
+	fs.writeFileSync(path.join(root, 'build.gradle'),
+		'plugins {\n\tid \'org.springframework.boot\' version \'4.1.0\'\n}\ndependencies {\n\timplementation \'org.springframework.boot:spring-boot-starter-aop\'\n}\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'declare Spring Boot 4, but the wrong AOP artifact'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	runWorkflowThroughContract(root);
+	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on'], root);
+	assert.equal(emit.code, 20);
+	assert.match(emit.stderr, /spring-boot-starter-aspectj/);
+});
+
+test('handles emit --enforce-registry on accepts spring-boot-starter-aspectj (not -aop) on a real Spring Boot 4 build.gradle', () => {
+	const root = buildFixtureRepo();
+	fs.writeFileSync(path.join(root, 'build.gradle'),
+		'plugins {\n\tid \'org.springframework.boot\' version \'4.1.0\'\n}\ndependencies {\n\timplementation \'org.springframework.boot:spring-boot-starter-aspectj\'\n}\n');
+	execFileSync('git', ['add', '-A'], { cwd: root });
+	execFileSync('git', ['commit', '--quiet', '-m', 'Spring Boot 4 with the correct AOP artifact'], { cwd: root });
+	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
+
+	runWorkflowThroughContract(root);
+	// --force --reason: this test is about the AOP-artifact-name check specifically, not
+	// D-write-safety-phase1's separate @RecordHandleSnapshot registration-gap check (exit 21),
+	// which the fixture's own Widget resource hasn't wired up -- same acknowledgment the sibling
+	// "blocks (21) per-resource" test above already exercises directly.
+	const emit = run(['handles', 'emit', '--feature', '001-widget-management', '--enforce-registry', 'on', '--force', '--reason', 'testing the AOP artifact name check, not registration gaps'], root);
+	assert.equal(emit.code, 0);
+	const recordHandleSnapshotPath = path.join(root, 'src/main/java/com/example/global/handle/RecordHandleSnapshot.java');
+	const content = fs.readFileSync(recordHandleSnapshotPath, 'utf8');
+	assert.match(content, /spring-boot-starter-aspectj/);
+	assert.doesNotMatch(content, /spring-boot-starter-aop\}/);
+});
+
 test('handles emit without --enforce-registry (the default, off) never emits a per-resource registration warning', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);

@@ -67,21 +67,43 @@ function lowerFirst(s) {
 // codebase's own "good-enough regex, not a real parser" convention throughout, and a
 // transitively-pulled-in `spring-boot-starter-aop` (via some other starter) is not a real shape
 // this project's own oracle or fixtures have ever exhibited.
+// D-handles-pilot-cohort follow-up: shared by detectJacksonPackage (Jackson 3 vs 2) and
+// springAopArtifactName (spring-boot-starter-aspectj vs -aop) -- both decisions hinge on the same
+// single signal, the Spring Boot Gradle plugin's own declared major version. Returns null (not a
+// guessed default) when build.gradle is absent or the plugin version can't be found -- callers
+// each decide their own "can't tell, assume the more common case" default, since that default
+// differs per caller (Jackson 2 vs the pre-4.x -aop artifact name).
+function detectSpringBootMajorVersion(repoRoot) {
+	const buildGradlePath = path.join(repoRoot, 'build.gradle');
+	if (!fs.existsSync(buildGradlePath)) return null;
+	const text = fs.readFileSync(buildGradlePath, 'utf8');
+	const match = text.match(/id\s+['"]org\.springframework\.boot['"]\s+version\s+['"](\d+)\./);
+	return match ? Number(match[1]) : null;
+}
+
+// D-handles-pilot-cohort: found live, deploying against a real Spring Boot 4.1.0 target --
+// `spring-boot-starter-aop` does not exist as an artifact for Spring Boot 4.x (confirmed against
+// the real Maven Central BOM POM for spring-boot-dependencies:4.1.0, a 404 for the old artifact);
+// it was renamed to `spring-boot-starter-aspectj`. `hasSpringAopDependency()`'s old hardcoded
+// check would have "passed" a target repo that added the WRONG (nonexistent, for its own Boot
+// version) artifact name, only ever caught by a real compile failure.
+export function springAopArtifactName(repoRoot) {
+	const majorVersion = detectSpringBootMajorVersion(repoRoot);
+	return majorVersion !== null && majorVersion >= 4 ? 'spring-boot-starter-aspectj' : 'spring-boot-starter-aop';
+}
+
 export function hasSpringAopDependency(repoRoot) {
+	const artifactName = springAopArtifactName(repoRoot);
 	for (const name of ['build.gradle', 'build.gradle.kts', 'pom.xml']) {
 		const buildFilePath = path.join(repoRoot, name);
 		if (!fs.existsSync(buildFilePath)) continue;
-		if (fs.readFileSync(buildFilePath, 'utf8').includes('spring-boot-starter-aop')) return true;
+		if (fs.readFileSync(buildFilePath, 'utf8').includes(artifactName)) return true;
 	}
 	return false;
 }
 
 export function detectJacksonPackage(repoRoot) {
-	const buildGradlePath = path.join(repoRoot, 'build.gradle');
-	if (!fs.existsSync(buildGradlePath)) return 'com.fasterxml.jackson.databind';
-	const text = fs.readFileSync(buildGradlePath, 'utf8');
-	const match = text.match(/id\s+['"]org\.springframework\.boot['"]\s+version\s+['"](\d+)\./);
-	const majorVersion = match ? Number(match[1]) : null;
+	const majorVersion = detectSpringBootMajorVersion(repoRoot);
 	return majorVersion !== null && majorVersion >= 4 ? 'tools.jackson.databind' : 'com.fasterxml.jackson.databind';
 }
 
@@ -151,6 +173,7 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 	// now needs jacksonPackage too, for the same reason patch codegen already did).
 	const patchApprovals = loadPatchApprovals(repoRoot, featureId);
 	const jacksonPackage = detectJacksonPackage(repoRoot);
+	const aopArtifactName = springAopArtifactName(repoRoot);
 
 	const infraUnits = INFRA_FILES.map((f) => ({
 		id: f.template,
@@ -160,7 +183,9 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 		// HandleController.java.tmpl -- applied to every infra file uniformly anyway, matching
 		// how BASE_PACKAGE/JACKSON_PACKAGE already do (render()'s replaceAll is a harmless no-op
 		// for a token absent from a given template, e.g. JACKSON_PACKAGE inside HandleCodec.java.tmpl).
-		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage, ENFORCE_REGISTRY: String(enforceRegistry) }),
+		// AOP_ARTIFACT_NAME (D-handles-pilot-cohort): same no-op-when-absent reasoning, only
+		// referenced by RecordHandleSnapshot.java.tmpl's own javadoc today.
+		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage, AOP_ARTIFACT_NAME: aopArtifactName, ENFORCE_REGISTRY: String(enforceRegistry) }),
 	}));
 
 	// O4 (D-handle-lifecycle): every resource in THIS feature shares the same contract file and
@@ -286,7 +311,7 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 		// human applies @RecordHandleSnapshot to a real service method AND the target repo has
 		// this dependency -- never auto-added to build.gradle, same "review and apply yourself"
 		// boundary as the migration note above.
-		'NOT done automatically: HandleAspect.java requires spring-boot-starter-aop on your own build.gradle classpath (Spring AOP is not enabled by any other starter). Add it yourself before applying @RecordHandleSnapshot to any service method.',
+		`NOT done automatically: HandleAspect.java requires ${aopArtifactName} on your own build.gradle classpath (Spring AOP is not enabled by any other starter; the artifact is named spring-boot-starter-aop before Spring Boot 4, spring-boot-starter-aspectj from Spring Boot 4 on -- ${aopArtifactName} matches what this repo's own detected Spring Boot version needs). Add it yourself before applying @RecordHandleSnapshot to any service method.`,
 	];
 	// O3 follow-up (D-handle-registry-enforcement, "Continued"): per-resource, conditional on
 	// enforceRegistry actually being on -- see hasRecordHandleSnapshot() above.

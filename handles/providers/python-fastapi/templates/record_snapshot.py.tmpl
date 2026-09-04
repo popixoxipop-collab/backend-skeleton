@@ -45,11 +45,31 @@ import inspect
 import logging
 import uuid
 
+from sqlmodel import Session
+
 from {{PKG}}.handles import handle_service
 from {{PKG}}.handles.codec import derive_handle_uid
 from {{PKG}}.handles.registry import resolver_for
 
 logger = logging.getLogger(__name__)
+
+
+def _side_channel_session(caller_session: Session) -> Session:
+    """D-handles-pilot-cohort (python-fastapi follow-up to the java-spring transaction-isolation
+    finding, D-handle-aspect-transaction-isolation): `handle_service.register`/`record_snapshot`
+    each call `session.commit()` -- fine when a human calls them directly on their OWN session
+    (handle_service.py's own documented use case), genuinely dangerous when called from THIS
+    decorator on the WRAPPED function's session, whose transaction semantics this decorator
+    cannot know. Real, concrete risk: a wrapped function that does multiple related writes
+    without committing (expecting ITS OWN caller to commit-or-rollback atomically) raises
+    mid-transaction -- this decorator's own error-path snapshot recording would call
+    `session.commit()` on that SAME session, silently persisting the should-have-rolled-back
+    partial write instead of ever reaching a real rollback. A genuinely separate session --
+    sharing only the caller's engine/connection pool via `get_bind()`, never its in-flight
+    transaction -- makes handle registration/snapshot recording a real side channel, matching
+    what `Propagation.REQUIRES_NEW` achieves on the Java side for the identical reason.
+    """
+    return Session(caller_session.get_bind())
 
 
 def _redact(obj, pointer: str) -> None:
@@ -152,8 +172,12 @@ def record_snapshot(*, resource_type: str, operation_id: str, resource_uid_param
                 contract_ref = resolver.contract_ref
 
                 def _register_and_record(envelope_dir, payload):
-                    handle_service.register(session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
-                    handle_service.record_snapshot(session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
+                    # D-handles-pilot-cohort: a genuinely separate session -- see
+                    # _side_channel_session's own docstring for why this must never be the
+                    # wrapped function's own `session`.
+                    with _side_channel_session(session) as side_session:
+                        handle_service.register(side_session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
+                        handle_service.record_snapshot(side_session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
 
                 def _record(envelope_dir, payload):
                     if isinstance(payload, (dict, list)):
@@ -192,8 +216,12 @@ def record_snapshot(*, resource_type: str, operation_id: str, resource_uid_param
                 contract_ref = resolver.contract_ref
 
                 def _register_and_record(envelope_dir, payload):
-                    handle_service.register(session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
-                    handle_service.record_snapshot(session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
+                    # D-handles-pilot-cohort: a genuinely separate session -- see
+                    # _side_channel_session's own docstring for why this must never be the
+                    # wrapped function's own `session`.
+                    with _side_channel_session(session) as side_session:
+                        handle_service.register(side_session, "r", resource_type, resource_uid, None, resolver.feature_uid, operation_id, contract_ref)
+                        handle_service.record_snapshot(side_session, handle_uid, envelope_dir, operation_id, contract_ref, payload)
 
                 def _record(envelope_dir, payload):
                     if isinstance(payload, (dict, list)):
