@@ -533,6 +533,15 @@ a warning, or the real-repo smoke tests are formally retired in favour of the fr
 already replaced them (`D-fixture-corpus` already made that transition for the assertions; the
 smoke tests are the leftover). Effort **S**.
 
+**Status: closed — see `D-repo-gated-skip-visibility` in DECISIONS.md for the full record.**
+**Chose "surface the skip count" over "retire" (retiring would have reversed**
+**`D-fixture-corpus`'s own already-reasoned decision to keep these tests, since they've caught**
+**real bugs the frozen fixtures structurally can't). `scripts/report-repo-gated-skips.mjs` greps**
+**the KNOWN gated-test count live from source (never hardcoded), counts how many actually**
+**skipped in `npm test`'s own captured output, and prints a `::warning::` GitHub Actions**
+**annotation when non-zero. Wired into both the `test` job (both Node matrix legs) and the**
+**`macos` job. Never fails the build — a visibility fix, not a new gate.**
+
 ---
 
 ## Phase 6 — Post-pilot: capability-scoped handles, and the default-flip decision

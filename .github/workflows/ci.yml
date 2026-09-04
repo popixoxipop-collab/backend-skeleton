@@ -87,7 +87,18 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: npm ci
-      - run: npm test
+      - name: run tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "${{ runner.temp }}/npm-test-output.log"
+      # ROADMAP.md Phase 5d (D-repo-gated-skip-visibility): `test/scan.test.mjs`/
+      # `test/contract.test.mjs`'s real-Team-IZ-Backend-gated tests silently skip whenever
+      # ~/Desktop/Team-IZ-Backend is absent on the runner -- true on every CI machine but the one
+      # dev machine that has it cloned. `always()` so this still reports even if `npm test` itself
+      # failed, since a failure doesn't make the skip count any less worth knowing.
+      - name: report Team-IZ-Backend-gated skip count
+        if: always()
+        run: node scripts/report-repo-gated-skips.mjs "${{ runner.temp }}/npm-test-output.log"
 
   # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   package-install:
@@ -584,7 +595,14 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: npm ci
-      - run: npm test
+      - name: run tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "${{ runner.temp }}/npm-test-output.log"
+      # Same reasoning as the `test` job above -- ROADMAP.md Phase 5d.
+      - name: report Team-IZ-Backend-gated skip count
+        if: always()
+        run: node scripts/report-repo-gated-skips.mjs "${{ runner.temp }}/npm-test-output.log"
 
   # D-greenfield-parameters (P2b): the ONLY job in this workflow that talks to a live external
   # service -- deliberately kept off the push/PR path (`npm test`'s own start.spring.io coverage

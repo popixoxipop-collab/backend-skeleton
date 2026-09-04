@@ -12007,3 +12007,50 @@ typeorm-express-typescript's non-UUID PK).
 **EXIT**: 5b (grow each tier to a pinned 3–5-repo corpus, driven by this script) and 5c (re-derive
 the single-oracle-measured constants once 5b + Phase 4 give ≥2 real corpora) are explicit,
 deliberate follow-ups, not silently assumed done — this entry closes 5a only.
+
+## D-repo-gated-skip-visibility: making the Team-IZ-Backend-gated test skip count honest in CI (ROADMAP.md Phase 5d)
+
+**WHY**: `test/scan.test.mjs`/`test/contract.test.mjs` carry 10 `skip: !repoPresent` tests gated on
+a real, private `~/Desktop/Team-IZ-Backend` clone (`D-fixture-corpus` kept them deliberately — they
+have historically caught real bugs the frozen fixture corpus couldn't, see that entry's own EXIT).
+On every CI runner but the one dev machine that has this clone, those 10 tests silently do nothing
+— `node --test`'s own default spec reporter already reports this honestly (confirmed live: each
+skipped test prints `﹣ ... # Team-IZ-Backend not present...`, and the run summary prints
+`ℹ skipped N`), but that line is invisible to anyone scanning a green checkmark in the GitHub
+Actions UI without expanding the raw log.
+
+**Chosen option**: ROADMAP's own two options were "surface the skip count explicitly in CI output
+as a warning" or "formally retire the real-repo smoke tests." Retiring was rejected — it would
+reverse `D-fixture-corpus`'s own already-reasoned decision to keep them specifically because they
+catch bugs the synthetic fixtures structurally can't (real, continuously-developed code style,
+e.g. the OperatorController basePath-affinity bug). Surfacing was chosen: it makes the existing
+honest-but-quiet fact loud, without touching test coverage.
+
+**Mechanism**: `scripts/report-repo-gated-skips.mjs` — a pure-function module (`countKnownGatedTests`,
+`countSkippedInOutput`, `buildReport`, `formatMessage`) plus a thin CLI entrypoint. The "known gated
+test count" is grepped LIVE from the two test files' own `skip: !repoPresent` sites (never
+hardcoded as "10"), so a future test add/remove keeps this in sync automatically rather than
+drifting into a stale magic number. The "actually skipped" count is grepped from `npm test`'s own
+captured stdout/stderr, counting occurrences of the literal substring `"Team-IZ-Backend not
+present"` (confirmed live, via grep, to appear nowhere else in `test/`/`scripts/`). When the actual
+count is non-zero, it prints a `::warning::` GitHub Actions workflow-command annotation naming the
+exact fraction (e.g. `10/10 ... were SKIPPED`) — parsed by the Actions UI into a visible check
+annotation without anyone needing to open the raw log. `.github/workflows/ci.yml`'s `test` job
+(both Node matrix legs) and `macos` job each gained a second step: `npm test 2>&1 | tee
+"${{ runner.temp }}/npm-test-output.log"` (with `set -o pipefail` so the step's own exit code is
+still `npm test`'s, not `tee`'s — `runner.temp` is GitHub's own per-job-unique scratch directory,
+chosen over a hand-rolled matrix-suffixed path), then `node scripts/report-repo-gated-skips.mjs
+"${{ runner.temp }}/npm-test-output.log"` with `if: always()` (reports even when `npm test` itself
+failed — a failure doesn't make the skip count less worth knowing).
+
+**Deliberately never fails the build**: this is a visibility fix (Effort S), not a new gate —
+whether these tests ran for real was already an honest, correct fact; only its visibility changed.
+
+**Verified**: `test/report-repo-gated-skips.test.mjs` (7/7, pure-function unit tests — the known
+count is really 10, the skip-substring counter is exact, `formatMessage` produces `::warning::`
+only when `actual > 0`). A real negative-control-style check, not just unit tests: ran the actual
+`node --test test/scan.test.mjs test/contract.test.mjs` twice — once with `HOME` pointed at a
+directory without a `Team-IZ-Backend` clone (real output: `10/10 ... were SKIPPED`) and once with
+the real `HOME` (real output: `all 10 ... ran for real`) — both piped through the real script, not
+simulated. `test/ci-workflow.test.mjs` (13/13, unaffected) confirms the workflow YAML still parses
+and every static coupling check still holds after the edit.
