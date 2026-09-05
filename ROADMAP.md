@@ -614,6 +614,25 @@ not precede one."
    argues correctly that building more without a proven need repeats a mistake this project has
    already measured and rejected. Let the pilot decide which of these is real.
 
+**Status: item 1 partially closed, items 2/3 confirmed still blocked — see**
+**`D-sbf2-capability-codec` in DECISIONS.md.** Re-reading Phase 4's own record
+**(`D-handles-pilot-cohort`) before starting this phase found its own gate is not actually**
+**satisfied: the pilot was a single session's local-branch exercise, never pushed, merged, or**
+**deployed, and its own EXIT text says plainly real usage over time is what's missing, which "a**
+**single session cannot do or fast-track." Presented to the user with this exact finding**
+**(AskUserQuestion): user chose to build item 1's `sbf2_` token FORMAT/Ed25519 sign-verify**
+**mechanics only (`handles/capability-codec.mjs`) — reusing `lib/attest.mjs`'s existing**
+**primitives, payload shape exactly the 4 fields this document already names (iss/aud/exp/scope),**
+**`scope` deliberately left uninterpreted. NOT wired into `handles/codec.mjs`'s own**
+**`HANDLE_DECODERS` dispatch table, no `HandleController`/`ResourceResolver` integration, no CLI**
+**command, no key rotation/revocation — the actual delegation MODEL stays explicitly undesigned,**
+**pending real requirements this project still does not have. Items 2 and 3 were NOT attempted —**
+**both explicitly need real pilot-operator evidence (bootstrapping-trap experience, registry-**
+**coverage findings, authority-extraction gaps hit in practice) that doesn't exist yet at any**
+**meaningful scale (n=1, one session, never deployed). Remain open, blocked on the same real**
+**deployment Phase 4's own EXIT already named as the missing piece — not this project's to**
+**fast-track.**
+
 ---
 
 ## The fundamental risks, stated plainly

@@ -12305,3 +12305,77 @@ real occurrences respectively — currently fail closed, a conscious, visible, s
 silently accepted). ROADMAP's own residual-risk note stands: n=2 real corpora is a stronger
 foundation than n=1 but still not a distribution — a future 5b-style corpus growth pass would keep
 strengthening this, not close it definitively.
+
+## D-sbf2-capability-codec: the `sbf2_` token format and Ed25519 sign/verify mechanics, deliberately infrastructure-only (ROADMAP.md Phase 6, item 1)
+
+**WHY**: ROADMAP.md Phase 6 gates `sbf2` (signed, revocable, audience/tenant-aware handles) hard on
+Phase 4's real pilot, "not this document's invention" — `CATALOG.md` already recorded Codex's own
+note that delegatable capability-scoped handles should follow a real production pilot, not precede
+one. Re-reading Phase 4's own record (`D-handles-pilot-cohort`) before starting this item found
+that gate is NOT actually satisfied: the pilot was a single session's local-branch implementation +
+test exercise, never pushed, merged, or deployed — its own EXIT section says plainly this "requires
+the branch to actually be merged, deployed, and see real usage over time... a single session cannot
+do or fast-track." Zero real cross-tenant/delegated-access requirements were ever exercised (one
+resource, one org, straightforward CRUD). Building the actual delegation MODEL now — what a `scope`
+grants, how a capability token interacts with the real authorization flow, key rotation/multiple-
+signers/revocation — would be designing against zero real requirements, exactly what this project
+has refused to do everywhere else.
+
+**User-confirmed decision** (AskUserQuestion, presented with this exact finding): build the `sbf2_`
+codec/signing INFRASTRUCTURE only. The delegation model itself stays explicitly undesigned.
+
+**What was built**: new `handles/capability-codec.mjs` — `encodeCapabilityToken({iss, aud, exp,
+scope}, privateKeyPem)` / `decodeCapabilityToken(token, publicKeyPem, {now})`, reusing
+`lib/attest.mjs`'s existing Ed25519 `signPayload`/`verifyPayload` directly (the same primitives
+this project's own signed gate attestations already use — zero new dependencies, zero new crypto
+code). Payload shape is exactly ROADMAP's own named fields (issuer, audience, expiry, scope) — no
+additional fields added speculatively. `scope`'s internal shape is deliberately UNINTERPRETED by
+this module: carried through verbatim, JSON-serializable, nothing more — this module has no opinion
+about what a scope value means or how it should be checked against a real request, since that IS
+the delegation-model design being deliberately deferred. `decodeCapabilityToken` returns `{ok,
+payload}`/`{ok: false, reason}` (never throws on a malformed/tampered/expired token), matching this
+project's own established convention for routine, expected verification failures
+(`contracts/openapi.mjs`'s `loadOpenApiDocument`/`inlineSchema`, `lib/schema-validate.mjs`'s
+`validateAgainstSchema`) — a deliberate departure from `handles/codec.mjs`'s own throw-based
+`decodeHandle()`, since an invalid capability token is an ordinary, expected outcome a caller needs
+to branch on, not a programming error.
+
+**What was deliberately NOT built (the actual scope boundary this entry exists to record)**:
+- **Not registered in `handles/codec.mjs`'s `HANDLE_DECODERS` dispatch table.** That table's own
+  comment already reserves the `sbf2` discriminant for exactly this ("register itself here
+  additively, without ever changing how an existing sbf1_ token decodes") — deliberately left
+  unregistered this pass, since `decodeHandle()`'s current callers all expect the `{kind, type,
+  uuid, pointer}` shape, and a capability token's payload shape is fundamentally different. Wiring
+  it in requires deciding how a caller should handle two different return shapes from one function
+  — an integration design question, not a codec question.
+- **No integration into `HandleController`/`ResourceResolver`/any real authorization check.** No
+  code path anywhere issues or consumes a real `sbf2_` token. The codec is reachable only by
+  direct import, exactly like this entry's own test file does.
+- **No CLI command** (`bskel handles issue-capability` or similar) — no real caller/use-case exists
+  to design the UX around.
+- **No key rotation, multiple valid signers, or revocation list** — `D-gate-attestation-signing`'s
+  own EXIT already named these as staying hard; a capability token inherits the identical problem
+  and adds distribution on top. Single-keypair signing only, matching `lib/attest.mjs`'s own
+  existing scope.
+- **`exp` is Unix seconds, expiry is exclusive at the boundary** (`exp <= now` fails) — the one
+  small, unavoidable design choice this codec had to make (a token format needs SOME clock
+  convention to be testable at all), kept as minimal and conventional as possible (matches JWT's
+  own `exp` claim semantics) rather than treated as part of the deferred delegation model.
+
+**Verified**: `test/capability-codec.test.mjs` (12/12) — a real Ed25519 round trip, `scope` carried
+through uninterpreted for string/array/object values, a tampered-signature rejection (signed by a
+genuinely different keypair), a byte-flipped-token rejection, expiry rejection (including the exact
+boundary second), missing-prefix/malformed-base64url/invalid-JSON/oversized-token rejections (all
+returning `{ok: false, reason}`, never throwing), encoder-side refusal to encode without every
+required field, and a decoder-side defense-in-depth test (a validly-signed envelope with a missing
+payload field still fails closed — proving the payload-shape check catches it, not merely signature
+verification, since a real adversarial token would be hand-crafted, not built via the encoder).
+
+**EXIT**: real, unscoped follow-up, gated on real delegation requirements existing — not this
+session's job to invent them. When/if `sbf2` is actually wired into a real authorization flow: (1)
+decide `HANDLE_DECODERS` dispatch semantics for a differently-shaped payload; (2) design what
+`scope` actually grants and how a resolver checks it; (3) confront key rotation/revocation for
+real, not defer it again; (4) decide whether `sbf1_`/`sbf2_` ever coexist on the SAME resource or
+are mutually exclusive per deployment. ROADMAP.md Phase 6 items 2 (`--enforce-registry` default-flip)
+and 3 (authority-extraction extension) remain separately gated on the same thin, n=1, undeployed
+pilot evidence — not addressed by this entry.
