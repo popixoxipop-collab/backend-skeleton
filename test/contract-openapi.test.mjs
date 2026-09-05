@@ -485,7 +485,9 @@ test('inlineSchema: a large enum array counts toward the node budget and can exc
 });
 
 test('inlineSchema: a pattern longer than MAX_PATTERN_LENGTH fails closed with pattern-too-long', () => {
-	const result = inlineSchema({ type: 'string', pattern: `^${'a'.repeat(301)}$` }, new Map());
+	// D-oracle-corpus-openapi-remeasurement: cap widened 300 -> 1000 (polarsource/polar's real max
+	// observed is 286) -- 1001 exceeds the NEW cap, not the old one.
+	const result = inlineSchema({ type: 'string', pattern: `^${'a'.repeat(1001)}$` }, new Map());
 	assert.equal(result.ok, false);
 	assert.equal(result.reason, 'pattern-too-long');
 });
@@ -545,6 +547,30 @@ test('inlineSchema: a required[] entry of __proto__ also fails closed', () => {
 	assert.equal(result.reason, 'unsupported-property-name');
 });
 
+// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c): SCHEMA_PROPERTY_NAME_RE widened after
+// re-measuring against polarsource/polar's real production document.
+test('SCHEMA_PROPERTY_NAME_RE: real property names the widened regex now accepts', () => {
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('_cost'), true);
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('_llm'), true);
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('cf-turnstile-response'), true);
+});
+
+test('SCHEMA_PROPERTY_NAME_RE: the widened regex still rejects every real prototype-pollution vector', () => {
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('__proto__'), false);
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('__defineGetter__'), false);
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('__defineSetter__'), false);
+	// A real domain property literally named $ref exists in polarsource/polar
+	// (BenefitCustom.properties.$ref) -- correctly still rejected, not a false positive to fix.
+	assert.equal(SCHEMA_PROPERTY_NAME_RE.test('$ref'), false);
+});
+
+test('inlineSchema: a real single-leading-underscore property name (e.g. _cost) is now accepted, not rejected', () => {
+	const schema = { type: 'object', properties: { _cost: { type: 'integer' }, name: { type: 'string' } } };
+	const result = inlineSchema(schema, new Map());
+	assert.equal(result.ok, true);
+	assert.ok('_cost' in result.schema.properties);
+});
+
 // --- uuid / format ---
 
 test('inlineSchema: format:uuid is rewritten to BARE_UUID_PATTERN, format key removed -- D-security-2 one layer down', () => {
@@ -557,6 +583,15 @@ test('inlineSchema: format:uuid is rewritten to BARE_UUID_PATTERN, format key re
 	const bareRe = new RegExp(result.schema.pattern);
 	assert.equal(bareRe.test('urn:uuid:550e8400-e29b-41d4-a716-446655440000'), false);
 	assert.equal(bareRe.test('550e8400-e29b-41d4-a716-446655440000'), true);
+});
+
+test('inlineSchema: format:uuid4 is ALSO rewritten to BARE_UUID_PATTERN, same as bare uuid (D-oracle-corpus-openapi-remeasurement)', () => {
+	// Real finding: polarsource/polar (Pydantic UUID4 fields) uses "uuid4" 1063 times and never
+	// bare "uuid" for the same shape -- before this fix every one of those fields failed closed.
+	const result = inlineSchema({ type: 'string', format: 'uuid4' }, new Map());
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.pattern, BARE_UUID_PATTERN);
+	assert.equal('format' in result.schema, false);
 });
 
 test('inlineSchema: format:uuid together with an explicit pattern fails closed (no merge guessed)', () => {
@@ -1805,7 +1840,7 @@ test('inlineSchema: description and example on a plain schema node are copied on
 	assert.equal(on.schema.example, 'foo');
 });
 
-test('inlineSchema: title/examples(plural)/externalDocs/xml/deprecated stay dropped regardless of includeFieldDocs -- 0 real occurrences, permanently out of scope', () => {
+test('inlineSchema: title/examples(plural)/externalDocs/xml/deprecated stay dropped regardless of includeFieldDocs -- real usage confirmed (D-oracle-corpus-openapi-remeasurement), still not built', () => {
 	const schema = {
 		type: 'string', title: 'Widget', examples: ['a', 'b'],
 		externalDocs: { url: 'https://example.com' }, xml: { name: 'widget' }, deprecated: true,

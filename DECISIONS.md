@@ -12185,3 +12185,123 @@ mismatches, matching every individually-verified result above exactly.
 adapter) can now proceed — every adapter has ≥2 real oracles for the first time. The
 python-fastapi module-attribution gap and the 3 other real findings above are explicit, unscoped
 Phase 6+ follow-up candidates, not silently assumed fixed by this entry.
+
+## D-oracle-corpus-openapi-remeasurement: re-deriving the single-oracle-measured OpenAPI constants against a real, much larger second corpus (ROADMAP.md Phase 5c)
+
+**WHY**: `contracts/openapi.mjs`/`contracts/export.mjs` carried ~19 real, cited constants and one
+"permanently unbuilt" decision, all measured against exactly one private repo (Team-IZ-Backend,
+308 component schemas, 148 operations). ROADMAP's own 5c explicitly blocked this re-derivation on
+Phase 5b giving ≥2 real corpora — that's done. 2 of the 13 Phase 5b oracle repos ship a real,
+checked-in OpenAPI document: `1chz/realworld-java21-springboot3` (`api-docs/openapi.yaml`, ~21KB,
+modest) and, far more valuably, `polarsource/polar` (`docs/openapi/2026-10.openapi.json`, ~2.7MB,
+1046 component schemas, 189 operations) — a real, CI-verified-current production API document
+(Polar's own repo runs `openapi-generate-check.yml` to keep it in sync).
+
+**Mechanism**: new `scripts/openapi-corpus-measure.mjs` — takes a real OpenAPI JSON/YAML file,
+reuses `contracts/openapi.mjs`'s own exported `findUnsupportedAnnotations()`/`indexOpenApiDocument()`/
+`inlineSchema()` directly (the EXACT production code path, not a reimplementation) for every metric
+those functions already compute, plus straightforward single-pass walks for the rest (max
+parameters/responses/security-requirements/media-types per operation, description/example/pattern
+length, the format-value histogram, `COMPONENT_SCHEMA_NAME_RE`/`SCHEMA_PROPERTY_NAME_RE` validity
+against every real name found — testing names, not just counting them). Not wired into
+`test:all-smoke`/CI (same reasoning as 5a/5b — needs an external document this repo doesn't own).
+`test/openapi-corpus-measure.test.mjs` covers the counting logic itself against a tiny synthetic
+document (3 tests, local, no network).
+
+**`1chz`'s document uses `components.requestBodies`/`components.responses` $refs pervasively** —
+this script's shallow per-operation walk doesn't resolve top-level component refs, so its numbers
+are a partial, lower-bound sample (54/54 responses show as `$ref`, `inlineSchemaResolution.attempted:
+0`). Treated as a secondary, informal data point only; `polarsource/polar` (no top-level refs of
+this kind, `responseObjects.withRef: 0`) is the real, primary second corpus for every finding below.
+
+### Per-constant results (Team-IZ-Backend, n=1, vs `polarsource/polar`, n=1046 schemas/189 ops)
+
+**Confirmed, cap holds with real headroom (no change)**:
+- `MAX_COMPONENT_SCHEMAS` (5000): real count 308 → 1046. Still 4.8x headroom.
+- `MAX_RESPONSES_PER_OPERATION` (64): real max 9 → 6 (smaller). Confirmed.
+- `MAX_SECURITY_REQUIREMENTS_PER_OPERATION` (32): real max 1 → 3. Still 10.7x headroom.
+- Security schemes document-wide: "exactly 1" → 5 real schemes in Polar. `MAX_SECURITY_SCHEMES`
+  (64) unaffected; the "exactly 1" framing in the original comment was a real, single-oracle
+  artifact, not a general truth — corrected in the comment.
+- `MAX_REQUEST_MEDIA_TYPES` (16): real max 1 → 1. Confirmed identical.
+- `MAX_DESCRIPTION_LENGTH` (40000): real max 9,083 (13,758 bytes) → 549 (549 bytes), and operation
+  coverage 146/148 → 183/189 (97%). Confirmed, more headroom.
+- `MAX_EXAMPLE_LENGTH` (2000): real max 70 → 0 (Polar's real document has zero `example` keyword
+  usage anywhere the script's walk reaches — a genuine, confirmed absence, not a script gap).
+- `COMPONENT_SCHEMA_NAME_RE`: 308 real names, 0 rejections → 1046 real names, 0 rejections.
+  Confirmed a second time at 3.4x the corpus size.
+- Response headers: "0/694" → 0/577. Confirmed a THIRD time (also true on `1chz`'s smaller doc) —
+  solid, convergent evidence response headers are genuinely rare in real OpenAPI documents.
+- Non-JSON response media types: found ONE real case (`text/csv`, 4 export endpoints), each with a
+  schema of `{"type": "string"}` — a real but structurally trivial counter-example (nothing to
+  project for a bare string). Doesn't change the "not worth building" conclusion for non-JSON
+  response schema projection.
+
+**Cap needed widening (real second-corpus number exceeded or nearly exceeded the old cap)**:
+- **`MAX_PATTERN_LENGTH`**: real max 77 → **286** (`SupportCaseAttachmentFileCreate`), 95% of the
+  OLD 300 cap — headroom effectively gone. Widened to **1000** (>3.5x the new real max). Fixed the
+  one existing test hardcoding a 301-char pattern to use 1001 (exceeds the new cap, not the old).
+- **`MAX_PARAMETERS_PER_OPERATION`**: real max 9 → **17** (`subscriptions:list`) — nearly double.
+  Cap (64) still holds with 3.8x headroom; the comment's specific "max 9" claim is now recorded
+  alongside the real 17.
+
+**Real bug found and fixed — `format: "uuid4"` unsupported, causing real resolution failures**:
+running `inlineSchema()` (the real production function) against every real request/response schema
+root in Polar's document: 568 attempted, only 381 (67%) resolved `ok: true`. Of the 187 failures,
+161 (86%) were `unsupported-format:uuid4` — Pydantic's `UUID4` type emits `format: "uuid4"`
+(non-standard but common), which the code only special-cased for bare `format: "uuid"`. **Fixed**:
+`uuid4` now gets the identical `BARE_UUID_PATTERN` rewrite as `uuid` (same RFC 4122 wire format
+regardless of version). Deliberately NOT generalized to `uuid1`/`uuid3`/`uuid5` — no real corpus has
+measured those; per this project's own data-first-numerics discipline, add them only when one does.
+Remaining 26 failures (`discriminator`×2, `x-speakeasy-enums`×4, `propertyNames`×20) are real,
+legitimate JSON Schema/OpenAPI keywords this tool doesn't recurse into — named here as a real,
+unscoped finding, not fixed (each is its own, separate, unmeasured feature gap, out of this
+remeasurement's scope).
+
+**Real bug found and fixed — `SCHEMA_PROPERTY_NAME_RE` rejected 3 real, legitimate property
+names**: `_cost`, `_llm` (single-leading-underscore — a real, common "internal/computed field"
+convention the original 308-name Team-IZ-Backend sample never happened to exercise), and
+`cf-turnstile-response` (kebab-case, a real third-party-integration field name). **Fixed**: widened
+from `/^[A-Za-z][A-Za-z0-9_]{0,127}$/` to `/^_?[A-Za-z][A-Za-z0-9_-]{0,127}$/` — allows AT MOST ONE
+leading underscore followed immediately by a letter, and adds hyphens to the body character class
+(matching `COMPONENT_SCHEMA_NAME_RE`'s own already-permissive class). Verified this still rejects
+every real prototype-pollution vector (`__proto__`, `__defineGetter__`, `__defineSetter__`) via a
+new regression test — `__proto__`'s SECOND character is also `_`, not a letter, so the optional
+single-underscore prefix can consume at most the first `_` and the required letter still fails to
+match either way the match backtracks. A 4th rejected name, a literal `$ref` — Polar has 54 real
+domain schemas with a property genuinely NAMED `$ref` (e.g. `BenefitCustom.properties.$ref`, a
+real naming collision with the JSON Schema meta-keyword, confirmed by inspecting the raw document,
+not assumed) — is correctly STILL rejected (`$` matches neither the optional underscore nor the
+required leading letter); not a bug, a real, intentional line this widening does not cross.
+
+**"Permanently unbuilt" decision partially contradicted**: `findUnsupportedAnnotations()` (the
+exact, already-shipped production function A12 built) against Polar's document returns `["deprecated",
+"examples", "title"]` — all three DO occur in a real, larger corpus, directly contradicting A11's
+"0 real occurrences... permanently unbuilt" framing for those three specific keywords.
+`externalDocs`/`xml` were NOT found — those two keywords' "0 real occurrences" holds at this larger
+scale too. Per ROADMAP's own stated (a)/(b) remediation path: NOT built here (that's A11-scale new
+effort, out of this remeasurement's scope) — converted into a real, evidence-backed CATALOG.md
+backlog item (A12's own Update note) instead of a silently-still-true "permanently" framing.
+`contracts/export.mjs`'s user-facing `field-metadata` omission string and its surrounding comment
+updated to say "not built" + cite the real second-corpus finding, not "permanently unbuilt: 0 real
+occurrences of any of these five" (now factually false for 3 of the 5). A12's own
+`CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT` warning already means a Polar-shaped document
+gets a real, visible warning today, not a silent drop — the gap this leaves is narrower than "no
+mechanism exists," but real copy support remains unbuilt.
+
+**Verified**: `test/contract-openapi.test.mjs` (172/172, including 5 new/updated tests: the
+pattern-length boundary test fixed to the new cap, a new `format:uuid4` regression test, 2 new
+`SCHEMA_PROPERTY_NAME_RE` regression tests covering both the newly-accepted real names and every
+still-rejected pollution vector, 1 new `inlineSchema` end-to-end test for a real `_cost`-shaped
+property, and the stale "permanently unbuilt" test title corrected). `test/contract-export.test.mjs`
+unaffected (53/53). `test/openapi-corpus-measure.test.mjs` (3/3, new, local/synthetic). `npm test`
+full suite green. `test/doc-integrity.test.mjs` clean.
+
+**EXIT**: real, unscoped follow-up candidates surfaced, none built here: (1) `title`/`examples`
+(plural)/`deprecated` copy support (A11-scale effort, real demand now confirmed); (2)
+`discriminator`/`x-speakeasy-enums`/`propertyNames` schema-keyword support (26 real occurrences,
+smaller than the uuid4 fix but real); (3) `ipvanyaddress`/`duration`/`color` format support (7/2/1
+real occurrences respectively — currently fail closed, a conscious, visible, still-open cost, not
+silently accepted). ROADMAP's own residual-risk note stands: n=2 real corpora is a stronger
+foundation than n=1 but still not a distribution — a future 5b-style corpus growth pass would keep
+strengthening this, not close it definitively.

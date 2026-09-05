@@ -29,7 +29,12 @@ const HTTP_METHODS = Object.freeze(new Set(['get', 'put', 'post', 'delete', 'opt
 const MAX_COMPONENT_SCHEMAS = 5000;
 const MAX_SCHEMA_DEPTH = 32; // every recursion level (structural AND $ref), not just $ref-chain depth
 const MAX_SCHEMA_NODES = 2000; // shared counter per top-level inlineSchema() call, enum entries count
-const MAX_PATTERN_LENGTH = 300; // real max observed: 77
+// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c): widened 300 -> 1000. Real max
+// observed against Team-IZ-Backend: 77. Re-measured against a second, much larger real
+// production document (polarsource/polar, 1046 component schemas vs Team-IZ-Backend's 308): real
+// max 286 (SupportCaseAttachmentFileCreate) -- 95% of the OLD 300 cap, headroom effectively gone.
+// 1000 restores >3.5x headroom over the new, larger real max.
+const MAX_PATTERN_LENGTH = 1000; // real max observed: 77 (Team-IZ-Backend), 286 (polarsource/polar)
 const JSON_MEDIA_TYPE = 'application/json';
 const SCHEMA_REF_PREFIX = '#/components/schemas/';
 
@@ -113,7 +118,22 @@ export const PATH_PREFIX_RE = /^(?:\/[A-Za-z0-9._~%-]+)+$/;
 // requirement kills `__proto__` on the first character alone, same as OPERATION_ID_RE; measured
 // against all 308 real Team-IZ-Backend component-schema names with zero rejections.
 export const COMPONENT_SCHEMA_NAME_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,199}$/;
-export const SCHEMA_PROPERTY_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,127}$/;
+// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c): widened from
+// /^[A-Za-z][A-Za-z0-9_]{0,127}$/ after re-measuring against polarsource/polar's real production
+// document found 4 real property names the ORIGINAL pattern rejected: `_cost`, `_llm`
+// (single-leading-underscore, a real, common convention for "internal/computed field" this
+// corpus's own Team-IZ-Backend measurement never happened to exercise), `cf-turnstile-response`
+// (a real kebab-case name from a third-party integration), and `$ref` (a real domain property
+// LITERALLY named $ref, e.g. BenefitCustom.properties.$ref -- correctly still rejected below, not
+// a false positive to fix: $ starts neither the required leading letter nor the new optional
+// leading underscore). The widened pattern (`_?[A-Za-z][A-Za-z0-9_-]{0,127}`) allows AT MOST ONE
+// leading underscore followed immediately by a letter -- this still kills `__proto__` (two
+// underscores; after consuming one, the required next character is the SECOND underscore, not a
+// letter, so it fails either way the optional group backtracks) and every other real
+// Object.prototype dunder name (`__defineGetter__`, etc.), confirmed by a real regression test,
+// not reasoned about only in this comment. Hyphens added (matching COMPONENT_SCHEMA_NAME_RE's own
+// already-permissive character class) for the same real `cf-turnstile-response` case.
+export const SCHEMA_PROPERTY_NAME_RE = /^_?[A-Za-z][A-Za-z0-9_-]{0,127}$/;
 
 // A8: an OpenAPI response-object status key becomes an object key downstream, in both this
 // contract's sourceResponses and the exported document's responses -- same prototype-pollution
@@ -273,6 +293,16 @@ export function findUnsupportedAnnotations(doc) {
 // Real Team-IZ-Backend format-value histogram (request-body-reachable schemas only): uuid(20),
 // int32(10), email(7), date(10), date-time(3), int64(2). `uuid` is handled separately (rewritten
 // to BARE_UUID_PATTERN, see inlineSchema) -- not in this set, since it never survives as `format`.
+// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c): re-measured against
+// polarsource/polar's real production document (full histogram, all schema roots): uuid4(1063,
+// see inlineSchema's own uuid4 handling -- also not in this set for the same reason bare uuid
+// isn't), date-time(676), uri(41), email(28), uuid(27), date(7), ipvanyaddress(7), duration(2),
+// color(1). Every value already in SAFE_FORMATS before this measurement (date-time/uri/email/date)
+// is confirmed still real and safe at a much larger scale; `ipvanyaddress`/`duration`/`color` are
+// real but too rare (1-7 occurrences) to justify adding -- an unmeasured format still fails the
+// WHOLE schema closed (`unsupported-format:<value>`, confirmed live: this is real, current
+// resolution-failure data for the 7 real ipvanyaddress/duration/color fields in this corpus, not
+// hypothetical), so leaving them unmeasured is a conscious, visible cost, not a silent one.
 const SAFE_FORMATS = Object.freeze(new Set(['int32', 'int64', 'email', 'date', 'date-time', 'double', 'float', 'binary', 'uri']));
 
 // Thrown internally by inlineSchema()'s recursive walk and caught exactly once at the exported
@@ -657,7 +687,18 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 	// uuid+pattern conflict check below (inside the loop) sees `out.pattern` already set.
 	if (Object.hasOwn(node, 'format')) {
 		const format = node.format;
-		if (format === 'uuid') {
+		// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c): `uuid4` added alongside `uuid`
+		// -- real, measured data, not a speculative generalization. polarsource/polar's real,
+		// production OpenAPI document uses `format: "uuid4"` 1063 times (Pydantic's UUID4 type
+		// emits this non-standard-but-common format string) and NONE use bare `uuid` for the same
+		// field shape -- before this fix, every one of those 1063 fields failed inlineSchema()
+		// closed with `unsupported-format:uuid4` (161 of 568 real request/response schema
+		// resolutions attempted against this document failed, 86% of all failures, for this one
+		// reason). The RFC 4122 wire format is identical regardless of which UUID version
+		// generated the value, so the same BARE_UUID_PATTERN rewrite applies. Deliberately NOT
+		// generalized to `uuid1`/`uuid3`/`uuid5` -- no real corpus has measured those yet; add them
+		// if and when one does, per this project's own data-first-numerics discipline.
+		if (format === 'uuid' || format === 'uuid4') {
 			out.pattern = BARE_UUID_PATTERN;
 		} else if (typeof format === 'string' && SAFE_FORMATS.has(format)) {
 			out.format = format;

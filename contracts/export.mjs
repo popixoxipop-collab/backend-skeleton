@@ -82,8 +82,16 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 // meaning moves from "never built" to "content-AND-flag-conditional"), while `title`/`examples`
 // (plural)/`externalDocs`/`xml`/`deprecated` move to a new, narrower structural entry
 // (`field-metadata`) -- measured 0 real occurrences each against the Team-IZ-Backend oracle, so
-// they stay permanently unbuilt on the same "don't build for zero real cases" grounds as the two
-// A8 entries below, not this item's scope. What else stays structural: `vendor-extensions` (x-*
+// they stayed unbuilt on the same "don't build for zero real cases" grounds as the two A8 entries
+// below, not this item's scope.
+// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c) update: re-measured against a much
+// larger second real corpus (polarsource/polar, 1046 component schemas vs 308) -- `title`,
+// plural `examples`, and `deprecated` DO occur for real there (contracts/openapi.mjs's
+// findUnsupportedAnnotations() found all three). `externalDocs`/`xml` remain 0 real occurrences
+// even at this larger scale. The "don't build for zero real cases" justification no longer holds
+// for 3 of these 5 keywords -- still not built here (that's a real, separate implementation
+// effort, out of this remeasurement's own scope), but tracked as a real, evidence-backed CATALOG.md
+// backlog item now, not a permanent, justified exclusion. What else stays structural: `vendor-extensions` (x-*
 // keys on an operation are never copied -- excluded in principle, not by cap or failure, since
 // their semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a non-JSON
 // response media type's NAME is copied via a per-status entry's `mediaTypes`, but its SHAPE is never
@@ -102,7 +110,7 @@ const OMISSION_PROSE = Object.freeze({
 	'cookie-parameters': 'cookie parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'error-schemas': 'a JSON error-body schema for at least one operation',
 	'field-descriptions': 'a schema field\'s own `description`/`example` (a property\'s own annotation, distinct from the operation-level `description` field -- see `operation-descriptions` below), for at least one field in the request-body/response/error schema of at least one operation -- copied only when `contract emit --descriptions` was used (the same flag as operation-level description) AND the source declared one for that exact field AND it did not exceed the length/size cap; otherwise the field carries no `description`/`example` key, never synthesized. Not tracked separately for per-status responses, non-JSON request media types, or path-parameter schemas -- those may carry field docs when the flag is on, but their presence is not reflected in this specific omission entry',
-	'field-metadata': 'a schema field\'s `title`, plural `examples`, `externalDocs`, `xml`, or `deprecated` keyword -- dropped unconditionally while inlining a schema (contracts/openapi.mjs\'s DROPPED_KEYWORDS), regardless of `--descriptions`. Permanently unbuilt: 0 real occurrences of any of these five measured against the Team-IZ-Backend oracle',
+	'field-metadata': 'a schema field\'s `title`, plural `examples`, `externalDocs`, `xml`, or `deprecated` keyword -- dropped unconditionally while inlining a schema (contracts/openapi.mjs\'s DROPPED_KEYWORDS), regardless of `--descriptions`. Not built: 0 real occurrences of any of these five against the original Team-IZ-Backend oracle, but a larger second corpus (polarsource/polar) shows real usage of title/examples/deprecated -- see D-oracle-corpus-openapi-remeasurement in DECISIONS.md. externalDocs/xml remain 0 real occurrences at either scale',
 	'header-parameters': 'header parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'non-json-request-media-types': 'the media type of the request body, for at least one operation that takes one -- a non-application/json request media type is emitted only when a real source document declared one for that exact operation, copied byte-for-byte; otherwise this document shows a JSON media-type entry because that is all the contract knows, never because the real body is known to be JSON',
 	'non-json-response-schemas': 'a JSON Schema for any response body in a media type other than application/json -- the media type is named where a source document declared one for that status, but its shape is never projected',

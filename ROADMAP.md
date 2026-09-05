@@ -537,6 +537,20 @@ measurement basis inline at the constant, so a future reader can see exactly how
 behind the number. That posture is already followed rigorously; the fix is more evidence, not better
 prose.
 
+**Status: closed — see `D-oracle-corpus-openapi-remeasurement` in DECISIONS.md for the full**
+**record.** Re-measured every constant against `polarsource/polar`'s real, ~2.7MB, CI-verified-**
+**current production OpenAPI document (1046 component schemas vs 308, 189 operations vs 148) using**
+**a new `scripts/openapi-corpus-measure.mjs`, reusing the real production `findUnsupportedAnnotations`/**
+**`indexOpenApiDocument`/`inlineSchema` functions directly. Outcome (b) fired for real, not just**
+**(a): `MAX_PATTERN_LENGTH` widened 300→1000 (real max was at 95% of the old cap), `SCHEMA_PROPERTY_**
+**NAME_RE` widened to accept a real single-leading-underscore/hyphen convention (verified this still**
+**rejects every real prototype-pollution vector), `format: "uuid4"` (Pydantic's UUID4 type) fixed to**
+**resolve like bare `uuid` (was causing 86% of all real schema-resolution failures against the new**
+**corpus), and the "permanently unbuilt" title/examples/deprecated decision converted into a real**
+**CATALOG.md backlog item (externalDocs/xml still confirmed 0 real occurrences, stay excluded).**
+**Every other constant confirmed holding, with the second corpus's real numbers now recorded**
+**alongside the first.**
+
 ### 5d. **[FIXABLE] Make the unpinnable oracle honest in CI.**
 
 Ten tests in `test/contract.test.mjs`/`test/scan.test.mjs` carry `skip: !repoPresent &&
