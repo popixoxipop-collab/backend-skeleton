@@ -1020,6 +1020,65 @@ test('A11: field-descriptions is an ANY-based derived omission -- present withou
 	assert.equal(exportedDoc(full).doc.info['x-bskel-omitted'].includes('field-descriptions'), false, 'every schema-bearing operation shares the same WidgetResponse/ErrorResponse components, both of which now carry a field-level annotation');
 });
 
+// --- A14: field-level title/examples/deprecated passthrough (D-openapi-field-metadata-passthrough) --
+// Same ANY-based doctrine as field-descriptions immediately above, mirrored test-for-test -- the
+// only difference is WHICH three keywords count (title/examples/deprecated, not description/example).
+
+test('A14: without --descriptions, field-level title/examples/deprecated are never copied, even though the source document has them', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({ withRequestBodies: true });
+	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
+	doc.components.schemas.CreateWidgetRequest.properties.name.deprecated = true;
+	const docFile = writeOpenApiFixture(root, doc);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0); // no --descriptions
+	const { doc: exported } = exportedDoc(root);
+	const nameSchema = exported.paths['/api/v0/widgets'].post.requestBody.content['application/json'].schema.properties.name;
+	assert.equal('title' in nameSchema, false);
+	assert.equal('deprecated' in nameSchema, false);
+});
+
+test('A14: field-metadata is an ANY-based derived omission -- present without the flag, present with the flag when a schema field has none, absent only when every schema-bearing operation carries at least one field-level title/examples/deprecated', () => {
+	const withoutFlag = buildFixtureRepo();
+	initThroughScanDisposition(withoutFlag);
+	const docNoFlag = writeOpenApiFixture(withoutFlag, widgetOpenApiDoc({ withResponses: true }));
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docNoFlag], withoutFlag).code, 0);
+	assert.ok(exportedDoc(withoutFlag).doc.info['x-bskel-omitted'].includes('field-metadata'), 'the flag was never passed');
+
+	const partial = buildFixtureRepo();
+	initThroughScanDisposition(partial);
+	const docPartial = widgetOpenApiDoc({ withResponses: true });
+	// createWidget's success schema gets a title; its error schema and every other operation's
+	// schemas do not -- a genuine mix.
+	docPartial.components.schemas.WidgetResponse.properties.id.title = 'Widget ID';
+	const docPartialFile = writeOpenApiFixture(partial, docPartial);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docPartialFile, '--descriptions'], partial).code, 0);
+	assert.ok(exportedDoc(partial).doc.info['x-bskel-omitted'].includes('field-metadata'), 'createWidget\'s errorSchema, and every other operation\'s response/error schemas, still have no field-level title/examples/deprecated even with the flag on');
+
+	const full = buildFixtureRepo();
+	initThroughScanDisposition(full);
+	const docFull2 = widgetOpenApiDoc({ withResponses: true });
+	docFull2.components.schemas.WidgetResponse.properties.id.title = 'Widget ID';
+	docFull2.components.schemas.ErrorResponse.properties.code.deprecated = false;
+	for (const item of Object.values(docFull2.paths)) {
+		for (const operation of Object.values(item)) operation.responses = { 200: OK_RESPONSE, 400: ERR_RESPONSE };
+	}
+	const docFull2File = writeOpenApiFixture(full, docFull2);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFull2File, '--descriptions'], full).code, 0);
+	assert.equal(exportedDoc(full).doc.info['x-bskel-omitted'].includes('field-metadata'), false, 'every schema-bearing operation shares the same WidgetResponse/ErrorResponse components, both of which now carry a field-level title/deprecated');
+});
+
+test('A14: external-docs-and-xml-metadata is a genuinely structural omission -- present regardless of --descriptions or real document content', () => {
+	const withFlag = buildFixtureRepo();
+	initThroughScanDisposition(withFlag);
+	const docWithFlag = widgetOpenApiDoc({ withResponses: true });
+	docWithFlag.components.schemas.WidgetResponse.properties.id.externalDocs = { url: 'https://example.com' };
+	docWithFlag.components.schemas.WidgetResponse.properties.id.xml = { name: 'id' };
+	const docWithFlagFile = writeOpenApiFixture(withFlag, docWithFlag);
+	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docWithFlagFile, '--descriptions'], withFlag).code, 0);
+	assert.ok(exportedDoc(withFlag).doc.info['x-bskel-omitted'].includes('external-docs-and-xml-metadata'), 'externalDocs/xml stay dropped even with --descriptions and real source content -- unlike field-metadata, this is never content-conditional');
+});
+
 // --- A7: loadContract()'s friendly sbf_contract mismatch message -------------------------------
 
 // loadContract()'s pre-check is exercised through an UNGATED command (`contract tool-schema`, not
@@ -1103,7 +1162,7 @@ test('x-bskel-omitted is derived from the contract, not hardcoded', () => {
 	// Genuinely structural (never conditional on any fixture's content) entries are present in all
 	// three, and the prose disclosure lists them too.
 	for (const omitted of [omittedA, omittedB, omittedC]) {
-		for (const key of ['query-parameters', 'header-parameters', 'security', 'summaries', 'tags', 'non-json-response-schemas', 'response-headers', 'path-parameter-schemas', 'vendor-extensions', 'field-descriptions', 'operation-descriptions']) {
+		for (const key of ['query-parameters', 'header-parameters', 'security', 'summaries', 'tags', 'non-json-response-schemas', 'response-headers', 'path-parameter-schemas', 'vendor-extensions', 'field-descriptions', 'operation-descriptions', 'external-docs-and-xml-metadata', 'field-metadata']) {
 			assert.ok(omitted.includes(key), `every export must disclose "${key}"`);
 		}
 	}

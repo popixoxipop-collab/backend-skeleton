@@ -51,8 +51,8 @@ const SYNTHETIC_DOC = {
 			},
 			post: {
 				operationId: 'createWidget',
-				title: 'Create a widget', // not a real Operation Object field, deliberately misplaced -- unrelated to the schema-scoped title check
-				requestBody: { content: { 'application/json': { schema: { title: 'CreateWidget', type: 'object', properties: { name: { type: 'string' } } } } } },
+				xml: { name: 'not a real Operation Object field' }, // deliberately misplaced -- unrelated to the schema-scoped xml check below
+				requestBody: { content: { 'application/json': { schema: { xml: { name: 'CreateWidget' }, type: 'object', properties: { name: { type: 'string' } } } } } },
 				responses: {
 					'201': { description: 'created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Widget' } } } },
 				},
@@ -98,11 +98,12 @@ test('openapi-corpus-measure: counts every metric correctly against a small, ful
 		assert.equal(report.maxExampleLength.value, JSON.stringify('ABC').length);
 		assert.deepEqual(report.formatHistogram, { uuid: 1 });
 
-		// The synthetic doc's "title" fields are: Widget.properties has none, but createWidget's
-		// requestBody schema has a real schema-level `title` ("CreateWidget") -- the Operation
-		// Object's OWN `title` (a made-up, non-real OpenAPI field on the operation itself) must NOT
-		// be counted, matching findUnsupportedAnnotations()'s own real schema-root scoping.
-		assert.deepEqual(report.unsupportedAnnotationsFound, ['title']);
+		// The synthetic doc's "xml" fields are: Widget.properties has none, but createWidget's
+		// requestBody schema has a real schema-level `xml` (still permanently dropped after A14 --
+		// title/examples/deprecated moved to DOCUMENTATION_KEYWORDS, xml/externalDocs did not) -- the
+		// Operation Object's OWN `xml` (a made-up, non-real OpenAPI field on the operation itself)
+		// must NOT be counted, matching findUnsupportedAnnotations()'s own real schema-root scoping.
+		assert.deepEqual(report.unsupportedAnnotationsFound, ['xml']);
 
 		assert.equal(report.responseObjects.total, 3);
 		assert.equal(report.responseObjects.withRef, 0);

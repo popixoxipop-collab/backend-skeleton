@@ -84,14 +84,16 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 // (`field-metadata`) -- measured 0 real occurrences each against the Team-IZ-Backend oracle, so
 // they stayed unbuilt on the same "don't build for zero real cases" grounds as the two A8 entries
 // below, not this item's scope.
-// D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c) update: re-measured against a much
-// larger second real corpus (polarsource/polar, 1046 component schemas vs 308) -- `title`,
-// plural `examples`, and `deprecated` DO occur for real there (contracts/openapi.mjs's
-// findUnsupportedAnnotations() found all three). `externalDocs`/`xml` remain 0 real occurrences
-// even at this larger scale. The "don't build for zero real cases" justification no longer holds
-// for 3 of these 5 keywords -- still not built here (that's a real, separate implementation
-// effort, out of this remeasurement's own scope), but tracked as a real, evidence-backed CATALOG.md
-// backlog item now, not a permanent, justified exclusion. What else stays structural: `vendor-extensions` (x-*
+// A14 (D-openapi-field-metadata-passthrough): D-oracle-corpus-openapi-remeasurement (ROADMAP
+// Phase 5c) found `title`/plural `examples`/`deprecated` DO occur for real against a much larger
+// second corpus (polarsource/polar, 1046 component schemas vs 308) -- those 3 of the original 5
+// `field-metadata` keywords are now conditionally copied (contracts/openapi.mjs's
+// DOCUMENTATION_KEYWORDS), same "gated on --descriptions" doctrine as A11's own description/
+// example. `field-metadata` migrates from a STRUCTURAL (always-present) omission to an ANY-based
+// one below -- the exact same migration A10 made for `operation-descriptions` when it left the
+// original single `descriptions` structural entry. `externalDocs`/`xml` remain 0 real occurrences
+// even at Polar's scale, so THOSE two keep the narrower structural entry
+// `external-docs-and-xml-metadata`. What else stays structural: `vendor-extensions` (x-*
 // keys on an operation are never copied -- excluded in principle, not by cap or failure, since
 // their semantics are tool-specific), and two A8 additions: `non-json-response-schemas` (a non-JSON
 // response media type's NAME is copied via a per-status entry's `mediaTypes`, but its SHAPE is never
@@ -100,7 +102,7 @@ const ERROR_RESPONSE_DESCRIPTION = 'Error. The source contract records the union
 // -- 0/694 real occurrences, a genuinely visible gap only now that per-status responses look
 // complete).
 const STRUCTURAL_OMISSIONS = Object.freeze([
-	'field-metadata',
+	'external-docs-and-xml-metadata',
 	'non-json-response-schemas',
 	'response-headers',
 	'vendor-extensions',
@@ -110,7 +112,8 @@ const OMISSION_PROSE = Object.freeze({
 	'cookie-parameters': 'cookie parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'error-schemas': 'a JSON error-body schema for at least one operation',
 	'field-descriptions': 'a schema field\'s own `description`/`example` (a property\'s own annotation, distinct from the operation-level `description` field -- see `operation-descriptions` below), for at least one field in the request-body/response/error schema of at least one operation -- copied only when `contract emit --descriptions` was used (the same flag as operation-level description) AND the source declared one for that exact field AND it did not exceed the length/size cap; otherwise the field carries no `description`/`example` key, never synthesized. Not tracked separately for per-status responses, non-JSON request media types, or path-parameter schemas -- those may carry field docs when the flag is on, but their presence is not reflected in this specific omission entry',
-	'field-metadata': 'a schema field\'s `title`, plural `examples`, `externalDocs`, `xml`, or `deprecated` keyword -- dropped unconditionally while inlining a schema (contracts/openapi.mjs\'s DROPPED_KEYWORDS), regardless of `--descriptions`. Not built: 0 real occurrences of any of these five against the original Team-IZ-Backend oracle, but a larger second corpus (polarsource/polar) shows real usage of title/examples/deprecated -- see D-oracle-corpus-openapi-remeasurement in DECISIONS.md. externalDocs/xml remain 0 real occurrences at either scale',
+	'field-metadata': 'a schema field\'s `title`, plural `examples`, or `deprecated` keyword, for at least one field in the request-body/response/error schema of at least one operation -- copied only when `--descriptions` is passed (contracts/openapi.mjs\'s DOCUMENTATION_KEYWORDS, A14/D-openapi-field-metadata-passthrough), same doctrine as `field-descriptions`. Present whenever the flag was not used at all, none of this operation\'s projected schemas carry any of the three, or the value exceeded its cap (MAX_TITLE_LENGTH/MAX_EXAMPLES_ARRAY_LENGTH/MAX_EXAMPLE_LENGTH)',
+	'external-docs-and-xml-metadata': 'a schema field\'s `externalDocs` or `xml` keyword -- dropped unconditionally while inlining a schema (contracts/openapi.mjs\'s DROPPED_KEYWORDS), regardless of `--descriptions`. Permanently unbuilt: 0 real occurrences of either keyword measured against either real corpus (the original Team-IZ-Backend oracle or the larger polarsource/polar re-measurement) -- see D-oracle-corpus-openapi-remeasurement in DECISIONS.md',
 	'header-parameters': 'header parameters, for at least one operation that does not carry a fully-copied set (never emitted at all when --openapi-file was not given, or the source document declared none)',
 	'non-json-request-media-types': 'the media type of the request body, for at least one operation that takes one -- a non-application/json request media type is emitted only when a real source document declared one for that exact operation, copied byte-for-byte; otherwise this document shows a JSON media-type entry because that is all the contract knows, never because the real body is known to be JSON',
 	'non-json-response-schemas': 'a JSON Schema for any response body in a media type other than application/json -- the media type is named where a source document declared one for that status, but its shape is never projected',
@@ -150,6 +153,26 @@ function schemaHasFieldDocs(node, seen = new Set()) {
 	}
 	if (node.items && typeof node.items === 'object' && schemaHasFieldDocs(node.items, seen)) return true;
 	if (node.additionalProperties && typeof node.additionalProperties === 'object' && schemaHasFieldDocs(node.additionalProperties, seen)) return true;
+	return false;
+}
+
+// A14 (D-openapi-field-metadata-passthrough): the exact same recursive shape as schemaHasFieldDocs
+// above, checking the OTHER three DOCUMENTATION_KEYWORDS (title/examples/deprecated) instead of
+// description/example -- kept as a separate function rather than merged into schemaHasFieldDocs
+// so the two disclosure keys (`field-descriptions` vs `field-metadata`) stay independently
+// derived from what's ACTUALLY in the projected schema, not conflated into one flag a caller
+// can't tell apart.
+function schemaHasFieldMetadata(node, seen = new Set()) {
+	if (node === null || typeof node !== 'object' || Array.isArray(node) || seen.has(node)) return false;
+	seen.add(node);
+	if (typeof node.title === 'string' || Object.hasOwn(node, 'examples') || Object.hasOwn(node, 'deprecated')) return true;
+	if (node.properties && typeof node.properties === 'object' && !Array.isArray(node.properties)) {
+		for (const propSchema of Object.values(node.properties)) {
+			if (schemaHasFieldMetadata(propSchema, seen)) return true;
+		}
+	}
+	if (node.items && typeof node.items === 'object' && schemaHasFieldMetadata(node.items, seen)) return true;
+	if (node.additionalProperties && typeof node.additionalProperties === 'object' && schemaHasFieldMetadata(node.additionalProperties, seen)) return true;
 	return false;
 }
 
@@ -204,6 +227,10 @@ export function collectOmissions(contract) {
 		// not gated on whether a schema exists first.
 		const fieldSchemas = [op.requestBodySchema, op.responseSchema, op.errorSchema].filter(Boolean);
 		if (!fieldSchemas.some((s) => schemaHasFieldDocs(s))) omissions.add('field-descriptions');
+		// A14: same ANY-based doctrine as field-descriptions immediately above -- added whenever
+		// NONE of this operation's projected schemas carry a field-level title/examples/deprecated,
+		// including the case where the operation has no projected schema at all.
+		if (!fieldSchemas.some((s) => schemaHasFieldMetadata(s))) omissions.add('field-metadata');
 	}
 	return [...omissions].sort();
 }

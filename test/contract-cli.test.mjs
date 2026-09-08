@@ -90,18 +90,20 @@ test('the real batchRequestId fix: a plain-string path param value is rejected b
 	assert.equal(JSON.parse(afterValidate.stdout).ok, true, 'the identical real, valid value is now accepted');
 });
 
-// D-unsupported-annotation-warning
-test('a source document using a permanently-dropped schema keyword (title) raises CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT, subject = the keyword name, module-wide not per-operation', () => {
+// D-unsupported-annotation-warning (A14: title/examples/deprecated moved OUT of the dropped set --
+// these fixtures now use xml/externalDocs, the 2 keywords still permanently dropped. See
+// D-openapi-field-metadata-passthrough in DECISIONS.md.)
+test('a source document using a permanently-dropped schema keyword (xml) raises CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT, subject = the keyword name, module-wide not per-operation', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const doc = widgetOpenApiDoc({ withRequestBodies: true });
-	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
+	doc.components.schemas.CreateWidgetRequest.properties.name.xml = { name: 'widgetName' };
 	const docFile = writeOpenApiFixture(root, doc);
 	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root).code, 0);
 	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
 	const warning = contract.warnings.find((w) => w.code === 'CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT');
 	assert.ok(warning);
-	assert.equal(warning.subject, 'title');
+	assert.equal(warning.subject, 'xml');
 	assert.equal(warning.severity, 'warn');
 });
 
@@ -109,18 +111,18 @@ test('two DIFFERENT dropped keywords each get their own warning entry, but the S
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const doc = widgetOpenApiDoc({ withRequestBodies: true, withResponses: true });
-	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
-	doc.components.schemas.CreateWidgetRequest.title = 'Create Widget Request (same keyword again)';
-	doc.components.schemas.WidgetResponse.properties.id.deprecated = true;
+	doc.components.schemas.CreateWidgetRequest.properties.name.xml = { name: 'widgetName' };
+	doc.components.schemas.CreateWidgetRequest.xml = { name: 'CreateWidgetRequest (same keyword again)' };
+	doc.components.schemas.WidgetResponse.properties.id.externalDocs = { url: 'https://example.com/docs' };
 	const docFile = writeOpenApiFixture(root, doc);
 	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root).code, 0);
 	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
 	const warnings = contract.warnings.filter((w) => w.code === 'CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT');
 	assert.equal(warnings.length, 2);
-	assert.deepEqual(warnings.map((w) => w.subject).sort(), ['deprecated', 'title']);
+	assert.deepEqual(warnings.map((w) => w.subject).sort(), ['externalDocs', 'xml']);
 });
 
-test('a document using none of the 5 dropped keywords never raises CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT', () => {
+test('a document using none of the 2 dropped keywords never raises CONTRACT_OPENAPI_UNSUPPORTED_ANNOTATION_PRESENT', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true, withResponses: true }));
@@ -133,7 +135,7 @@ test('the new warning never blocks the contract gate -- WARN severity, same as e
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const doc = widgetOpenApiDoc({ withRequestBodies: true });
-	doc.components.schemas.CreateWidgetRequest.properties.name.title = 'Widget Name';
+	doc.components.schemas.CreateWidgetRequest.properties.name.xml = { name: 'widgetName' };
 	const docFile = writeOpenApiFixture(root, doc);
 	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
 	assert.equal(emit.code, 0);

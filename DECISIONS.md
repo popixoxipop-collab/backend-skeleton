@@ -12379,3 +12379,71 @@ real, not defer it again; (4) decide whether `sbf1_`/`sbf2_` ever coexist on the
 are mutually exclusive per deployment. ROADMAP.md Phase 6 items 2 (`--enforce-registry` default-flip)
 and 3 (authority-extraction extension) remain separately gated on the same thin, n=1, undeployed
 pilot evidence — not addressed by this entry.
+
+## D-openapi-field-metadata-passthrough (CATALOG A14): `title`/plural `examples`/`deprecated` join `description`/`example` as conditionally-copied schema fields
+
+**WHY**: A11's own "0 real occurrences, permanently unbuilt" verdict for `title`/plural
+`examples`/`externalDocs`/`xml`/`deprecated` held against the original Team-IZ-Backend oracle (308
+component schemas) but not against `D-oracle-corpus-openapi-remeasurement`'s much larger second
+corpus (`polarsource/polar`, 1046 component schemas) — `findUnsupportedAnnotations()` (A12's own
+shipped function) found real usage of 3 of the 5. Recorded as a real, evidence-backed CATALOG.md
+backlog item (A12's own Update note), not built at the time. Built now, user-directed.
+
+**Fresh real measurement** (Polar's document, same schema roots `findUnsupportedAnnotations()`/
+`inlineSchema()` already walk — component schemas + every operation's request/response/parameter
+schemas), done before writing any code:
+- `title`: 6,226 real occurrences, max length **54** chars, avg 12.5
+- `examples` (plural array): 602 real arrays, max **4** entries/array, max single serialized
+  element **59** chars
+- `deprecated`: 31 real boolean occurrences, 0 malformed (non-boolean) values
+
+`externalDocs`/`xml` remain confirmed 0 real occurrences even at this larger scale — those two
+alone still satisfy the "don't build for zero real cases" discipline this project applies
+everywhere (A8's `non-json-response-schemas`/`response-headers`, etc.).
+
+**Mechanism** (`contracts/openapi.mjs`): `title`/`examples`/`deprecated` moved from
+`DROPPED_KEYWORDS` into `DOCUMENTATION_KEYWORDS` (now `['description', 'example', 'title',
+'examples', 'deprecated']`); `DROPPED_KEYWORDS` narrows to `['externalDocs', 'xml']`. `walkSchemaNode()`'s
+existing `DOCUMENTATION_KEYWORDS` branch (the exact block already handling `description`/`example`)
+gains 3 new cases, matching the identical defensive-cap-then-copy-or-silently-drop-the-whole-field
+doctrine already established — never a partial copy, never a schema-level failure over one
+oversized documentation value:
+- `title`: `typeof === 'string' && length <= MAX_TITLE_LENGTH` (new constant, `500` — real max 54,
+  ~9x headroom, matching `MAX_EXAMPLE_LENGTH`'s own "generously round, not a tight multiple" style)
+- `examples`: `Array.isArray() && length <= MAX_EXAMPLES_ARRAY_LENGTH` (new constant, `50` — real
+  max 4 entries, ~12x headroom) `&& every element's JSON.stringify length <= MAX_EXAMPLE_LENGTH`
+  (the EXISTING singular-`example` cap, reused rather than duplicated — same measurement lineage,
+  both are "one example value" at the same real distribution). ANY failing condition drops the
+  WHOLE array, never a partial filter — a caller reading a shortened array would have no way to
+  tell "this is everything" from "this is what survived a silent cut."
+- `deprecated`: `typeof === 'boolean'` — copies `false` verbatim too (a real, meaningful value, not
+  merely absence), only rejects genuinely malformed non-boolean values.
+
+**Mechanism** (`contracts/export.mjs`) — mirrors A10's own `descriptions` → `field-descriptions`
+(structural) + `operation-descriptions` (ANY-based) split exactly: `field-metadata` migrates from
+`STRUCTURAL_OMISSIONS` (always present) to the ANY-based derived set (present only when NONE of an
+operation's projected schemas carry title/examples/deprecated) via new `schemaHasFieldMetadata()`
+(parallel recursive shape to the existing `schemaHasFieldDocs()`). A NEW, narrower structural entry
+`external-docs-and-xml-metadata` takes over `field-metadata`'s old always-present slot in
+`STRUCTURAL_OMISSIONS`, scoped to just the 2 keywords still permanently dropped. `OMISSION_PROSE`
+updated for both keys.
+
+**Verified**: `test/contract-openapi.test.mjs` — 4 stale `findUnsupportedAnnotations()` tests
+(which used `title`/`deprecated` as DROPPED_KEYWORDS fixtures) updated to use `xml`/`externalDocs`
+instead, preserving each test's real structural intent (component-schema-root detection, nested
+detection, Parameter Object schema-root detection, dedup+sort) with keywords that are still
+actually dropped. The previously-stale "stays dropped" test split into two: `externalDocs`/`xml`
+confirmed still dropped regardless of the flag, plus 9 new tests for `title`/`examples`/`deprecated`
+(copy-when-on/drop-when-off, exact-boundary-still-copied for both new caps, over-cap
+silently-dropped for both new caps, one-oversized-element drops the WHOLE examples array not just
+that element, `deprecated: false` copied verbatim not treated as absent, a non-boolean `deprecated`
+value dropped, recursive copying nested inside `properties`). `test/contract-export.test.mjs` — 3
+new tests mirroring `field-descriptions`'s own exact 3-tier pattern (without-flag / partial-with-flag
+/ full-with-flag) for the new ANY-based `field-metadata`, plus one confirming
+`external-docs-and-xml-metadata` stays structural (present even with `--descriptions` and real
+source content, unlike `field-metadata`). Full `npm test` green.
+
+**EXIT**: closes the CATALOG A12 Update note's own backlog item (see CATALOG.md A14). Real,
+unscoped follow-up candidates from Phase 5c remain separately open, not touched here:
+`discriminator`/`x-speakeasy-enums`/`propertyNames` schema-keyword support, and
+`ipvanyaddress`/`duration`/`color` format support.

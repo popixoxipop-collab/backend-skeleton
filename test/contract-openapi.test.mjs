@@ -1826,9 +1826,10 @@ test('snapshot decision field: description "copied" / "unresolved:too-long" / "n
 
 // --- A11: field-level description/example passthrough (D-openapi-field-docs) ------------------
 // Reuses the SAME --descriptions flag as A10 (includeDescriptions doubles as includeFieldDocs) --
-// there is no separate flag to test. title/examples(plural)/externalDocs/xml/deprecated stay
-// permanently, unconditionally dropped (0 real occurrences measured against the oracle) -- only
-// `description` and `example` are gated on the flag at all.
+// there is no separate flag to test.
+// A14 (D-openapi-field-metadata-passthrough): title/examples(plural)/deprecated joined
+// description/example on the SAME flag -- only externalDocs/xml remain permanently,
+// unconditionally dropped (0 real occurrences measured against either real corpus).
 
 test('inlineSchema: description and example on a plain schema node are copied only when includeFieldDocs is true', () => {
 	const schema = { type: 'string', description: 'the widget label', example: 'foo' };
@@ -1840,18 +1841,93 @@ test('inlineSchema: description and example on a plain schema node are copied on
 	assert.equal(on.schema.example, 'foo');
 });
 
-test('inlineSchema: title/examples(plural)/externalDocs/xml/deprecated stay dropped regardless of includeFieldDocs -- real usage confirmed (D-oracle-corpus-openapi-remeasurement), still not built', () => {
+test('inlineSchema: externalDocs/xml stay dropped regardless of includeFieldDocs -- 0 real occurrences at either corpus scale, permanently out of scope', () => {
 	const schema = {
-		type: 'string', title: 'Widget', examples: ['a', 'b'],
-		externalDocs: { url: 'https://example.com' }, xml: { name: 'widget' }, deprecated: true,
+		type: 'string', externalDocs: { url: 'https://example.com' }, xml: { name: 'widget' },
 	};
 	for (const includeFieldDocs of [false, true]) {
 		const result = inlineSchema(schema, new Map(), { includeFieldDocs });
 		assert.equal(result.ok, true);
-		for (const key of ['title', 'examples', 'externalDocs', 'xml', 'deprecated']) {
+		for (const key of ['externalDocs', 'xml']) {
 			assert.equal(key in result.schema, false, `${key} must never appear (includeFieldDocs=${includeFieldDocs})`);
 		}
 	}
+});
+
+test('inlineSchema: title/examples(plural)/deprecated are copied only when includeFieldDocs is true -- A14, real usage confirmed against polarsource/polar', () => {
+	const schema = { type: 'string', title: 'Widget', examples: ['a', 'b'], deprecated: true };
+	const off = inlineSchema(schema, new Map());
+	assert.equal(off.ok, true);
+	for (const key of ['title', 'examples', 'deprecated']) {
+		assert.equal(key in off.schema, false, `${key} must not appear when includeFieldDocs is off`);
+	}
+	const on = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(on.ok, true);
+	assert.equal(on.schema.title, 'Widget');
+	assert.deepEqual(on.schema.examples, ['a', 'b']);
+	assert.equal(on.schema.deprecated, true);
+});
+
+test('inlineSchema: title over MAX_TITLE_LENGTH is silently dropped -- the field alone, not the whole schema', () => {
+	const schema = { type: 'string', title: 'x'.repeat(501) };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal('title' in result.schema, false);
+});
+
+test('inlineSchema: a title of exactly MAX_TITLE_LENGTH is still copied -- boundary, not off-by-one', () => {
+	const schema = { type: 'string', title: 'x'.repeat(500) };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.title, 'x'.repeat(500));
+});
+
+test('inlineSchema: an examples array longer than MAX_EXAMPLES_ARRAY_LENGTH is dropped WHOLE, not truncated', () => {
+	const schema = { type: 'string', examples: Array.from({ length: 51 }, (_, i) => `v${i}`) };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal('examples' in result.schema, false);
+});
+
+test('inlineSchema: an examples array of exactly MAX_EXAMPLES_ARRAY_LENGTH is still copied -- boundary, not off-by-one', () => {
+	const schema = { type: 'string', examples: Array.from({ length: 50 }, (_, i) => `v${i}`) };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.examples.length, 50);
+});
+
+test('inlineSchema: an examples array with ONE oversized element drops the WHOLE array, not just that element', () => {
+	const schema = { type: 'string', examples: ['fine', 'x'.repeat(2001)] };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal('examples' in result.schema, false, 'a partial drop would silently make "fine" look like the complete list');
+});
+
+test('inlineSchema: deprecated:false is copied verbatim, not treated as absent -- a real, meaningful value, not just a truthy flag', () => {
+	const schema = { type: 'string', deprecated: false };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.deprecated, false);
+});
+
+test('inlineSchema: a non-boolean deprecated value is silently dropped rather than copied as-is', () => {
+	const schema = { type: 'string', deprecated: 'yes' };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal('deprecated' in result.schema, false);
+});
+
+test('inlineSchema: title/examples/deprecated are copied recursively -- nested inside properties, not just the root node', () => {
+	const schema = {
+		type: 'object',
+		properties: { legacyField: { type: 'string', title: 'Legacy Field', examples: ['x'], deprecated: true } },
+	};
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	const nested = result.schema.properties.legacyField;
+	assert.equal(nested.title, 'Legacy Field');
+	assert.deepEqual(nested.examples, ['x']);
+	assert.equal(nested.deprecated, true);
 });
 
 test('inlineSchema: example copies non-string JSON values verbatim (number/object/array/boolean) -- example is not a string-only field', () => {
@@ -1970,14 +2046,18 @@ test('findUnsupportedAnnotations: an empty document (no paths, no components) fi
 	assert.deepEqual(findUnsupportedAnnotations({ paths: {}, components: { schemas: {} } }), []);
 });
 
-test('findUnsupportedAnnotations: title in a components.schemas entry is found', () => {
-	const doc = { components: { schemas: { Widget: { type: 'object', title: 'A Widget' } } } };
-	assert.deepEqual(findUnsupportedAnnotations(doc), ['title']);
+test('findUnsupportedAnnotations: xml in a components.schemas entry is found', () => {
+	// A14: title moved out of DROPPED_KEYWORDS (now conditionally copied) -- xml is one of the two
+	// keywords still permanently dropped, same structural test intent (component-schema-root
+	// detection) with a keyword findUnsupportedAnnotations still actually reports.
+	const doc = { components: { schemas: { Widget: { type: 'object', xml: { name: 'widget' } } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['xml']);
 });
 
-test('findUnsupportedAnnotations: deprecated NESTED inside a schema (a real schema-level keyword) is found', () => {
-	const doc = { components: { schemas: { Widget: { type: 'object', properties: { legacyField: { type: 'string', deprecated: true } } } } } };
-	assert.deepEqual(findUnsupportedAnnotations(doc), ['deprecated']);
+test('findUnsupportedAnnotations: xml NESTED inside a schema (a real schema-level keyword) is found', () => {
+	// A14: deprecated moved out of DROPPED_KEYWORDS -- xml stays, same nested-detection intent.
+	const doc = { components: { schemas: { Widget: { type: 'object', properties: { legacyField: { type: 'string', xml: { name: 'legacy_field' } } } } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['xml']);
 });
 
 test('findUnsupportedAnnotations: an Operation Object\'s OWN `deprecated` (a real, unrelated 3.1 field marking a whole endpoint deprecated) is NOT reported -- it lives outside any Schema Object entirely', () => {
@@ -1994,13 +2074,15 @@ test('findUnsupportedAnnotations: a Parameter Object\'s OWN `deprecated` is NOT 
 	assert.deepEqual(findUnsupportedAnnotations(doc), []);
 });
 
-test('findUnsupportedAnnotations: a Parameter Object\'s nested schema.deprecated (a genuine schema-level occurrence) IS reported', () => {
+test('findUnsupportedAnnotations: a Parameter Object\'s nested schema.externalDocs (a genuine schema-level occurrence) IS reported', () => {
+	// A14: deprecated moved out of DROPPED_KEYWORDS -- externalDocs stays, same
+	// parameter-schema-root detection intent.
 	const doc = { paths: { '/widgets': { get: {
 		operationId: 'findWidgets',
-		parameters: [{ name: 'q', in: 'query', schema: { type: 'string', deprecated: true } }],
+		parameters: [{ name: 'q', in: 'query', schema: { type: 'string', externalDocs: { url: 'https://example.com' } } }],
 		responses: {},
 	} } } };
-	assert.deepEqual(findUnsupportedAnnotations(doc), ['deprecated']);
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['externalDocs']);
 });
 
 test('findUnsupportedAnnotations: found inside a request body schema, a response schema, and a deeply nested properties/items chain', () => {
@@ -2024,12 +2106,14 @@ test('findUnsupportedAnnotations: found inside a request body schema, a response
 });
 
 test('findUnsupportedAnnotations: multiple distinct keywords across the document are deduped and sorted', () => {
+	// A14: title/deprecated moved out of DROPPED_KEYWORDS -- xml/externalDocs are the only two
+	// keywords left to test dedup+sort with, same structural intent.
 	const doc = { components: { schemas: {
-		A: { type: 'string', title: 'A' },
-		B: { type: 'string', title: 'B (same keyword, still one entry)' },
-		C: { type: 'string', deprecated: true },
+		A: { type: 'string', xml: { name: 'a' } },
+		B: { type: 'string', xml: { name: 'b (same keyword, still one entry)' } },
+		C: { type: 'string', externalDocs: { url: 'https://example.com' } },
 	} } };
-	assert.deepEqual(findUnsupportedAnnotations(doc), ['deprecated', 'title']);
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['externalDocs', 'xml']);
 });
 
 test('findUnsupportedAnnotations: a $ref cycle does not hang -- the same `seen` guard as inlineSchema(), just not fail-closed', () => {

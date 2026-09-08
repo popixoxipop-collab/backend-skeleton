@@ -192,13 +192,24 @@ const COPIED_KEYWORDS = Object.freeze(new Set([
 // A11 (D-openapi-field-docs): `description`/`example` measured real and heavily used at the FIELD
 // level (3,982 / 2,077 occurrences across the oracle's request/response/parameter schemas,
 // 520,527 / 32,708 real bytes) -- moved out of DROPPED_KEYWORDS into their own conditionally-
-// copied set. `title`/`examples`(plural)/`externalDocs`/`xml`/`deprecated` stay unconditionally
-// dropped: 0 real occurrences for every one of them (measured, not assumed), so building any
-// copy path for them would violate this project's own "don't build for zero real cases"
-// discipline -- named here, not built, a permanent gap like A8's `non-json-response-schemas`/
-// `response-headers`.
-const DOCUMENTATION_KEYWORDS = Object.freeze(new Set(['description', 'example']));
-const DROPPED_KEYWORDS = Object.freeze(new Set(['title', 'examples', 'externalDocs', 'xml', 'deprecated']));
+// copied set.
+// A14 (D-openapi-field-metadata-passthrough): `title`/`examples`(plural)/`deprecated` join them.
+// A11's own "0 real occurrences, permanently unbuilt" verdict for all five held against the
+// original Team-IZ-Backend oracle (308 component schemas) but NOT against a real, much larger
+// second corpus (polarsource/polar, 1046 component schemas, ROADMAP Phase 5c's own
+// D-oracle-corpus-openapi-remeasurement): title 6,226 real occurrences (max 54 chars), examples
+// 602 real arrays (max 4 entries, max element 59 chars serialized), deprecated 31 real boolean
+// occurrences. `externalDocs`/`xml` remain confirmed 0 real occurrences even at this larger
+// scale -- those two alone still satisfy the "don't build for zero real cases" discipline A8's
+// `non-json-response-schemas`/`response-headers` also rest on.
+const DOCUMENTATION_KEYWORDS = Object.freeze(new Set(['description', 'example', 'title', 'examples', 'deprecated']));
+const DROPPED_KEYWORDS = Object.freeze(new Set(['externalDocs', 'xml']));
+// A14: real max observed (polarsource/polar) -- title 54 chars, examples array 4 entries. Both
+// generously round, matching MAX_EXAMPLE_LENGTH's own "generously round, not a tight multiple"
+// precedent (a legitimately useful title/example set could reasonably run longer than any single
+// real value happened to here).
+const MAX_TITLE_LENGTH = 500;
+const MAX_EXAMPLES_ARRAY_LENGTH = 50;
 
 // D-unsupported-annotation-warning: 0 real occurrences on the ONE oracle this whole module's
 // caps/keyword sets were measured against does not mean 0 occurrences everywhere -- a genuinely
@@ -732,6 +743,27 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 				try { serialized = JSON.stringify(node.example); } catch { serialized = null; }
 				if (serialized !== undefined && serialized !== null && serialized.length <= MAX_EXAMPLE_LENGTH) {
 					out.example = node.example;
+				}
+			} else if (key === 'title') {
+				if (typeof node.title === 'string' && node.title.length <= MAX_TITLE_LENGTH) {
+					out.title = node.title;
+				}
+			} else if (key === 'examples') {
+				// A14: matches description/example's own "drop the WHOLE field, never partial" doctrine
+				// -- an examples array with one oversized entry is dropped entirely, not filtered down
+				// to the entries that happened to pass, since a caller reading a shortened array would
+				// have no way to tell "this is everything" from "this is what survived a silent cut".
+				if (Array.isArray(node.examples) && node.examples.length <= MAX_EXAMPLES_ARRAY_LENGTH) {
+					const allFit = node.examples.every((ex) => {
+						let serialized;
+						try { serialized = JSON.stringify(ex); } catch { serialized = null; }
+						return serialized !== undefined && serialized !== null && serialized.length <= MAX_EXAMPLE_LENGTH;
+					});
+					if (allFit) out.examples = node.examples;
+				}
+			} else if (key === 'deprecated') {
+				if (typeof node.deprecated === 'boolean') {
+					out.deprecated = node.deprecated;
 				}
 			}
 			continue;
