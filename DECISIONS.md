@@ -12913,9 +12913,10 @@ uniformly, with the real domain identity carried by the PARENT DIRECTORY name in
 collapses to the literal string `"endpoints"` for the large majority of the repo's controllers,
 substantially reducing the usefulness of `related_modules`' grouping (though NOT the correctness of
 any individual endpoint/basePath/verb — those are still exactly right). Logged as a new CATALOG.md
-backlog item (module-name-from-parent-directory-when-file-is-genereic), not implemented in this
+backlog item (module-name-from-parent-directory-when-file-is-generic), not implemented in this
 pass — a real design question (when should a directory name override a file basename?) rather than
-a narrow, obviously-correct regex fix like the one above.
+a narrow, obviously-correct regex fix like the one above. **Closed as `D-fastapi-generic-module-name`
+below.**
 
 **COST**: none identified for the shipped fix — a strict correctness improvement (every existing
 single-router-per-file fixture/oracle byte-for-byte unaffected, confirmed by the full existing
@@ -12934,3 +12935,112 @@ on the second router are extracted correctly too). Re-ran the real scan against
 correctly reports `basePath: "/customers"` (10 endpoints) as its own controller, separate from
 `router`'s `basePath: "/members"` — previously both were merged under `/members`. Full `npm test`
 green.
+
+## D-fastapi-generic-module-name: a router file named generically (`endpoints.py`/`router.py`) now resolves its module from the parent directory, collision-safe
+
+**WHY (D1)**: the same real-repo dogfooding pass as `D-fastapi-multi-router-per-file` above
+(`polarsource/polar`, 400+ real routes) — that entry already named this exact gap as unimplemented
+backlog. `scanPythonFastApi()`'s `moduleName = path.basename(file, '.py')` is correct against the
+adapter's original reference oracle (`fastapi/full-stack-fastapi-template`, where every router file
+is uniquely named per domain: `items.py`, `login.py`) but breaks against an equally common, real,
+different convention: naming EVERY router file generically and putting the real domain identity in
+the PARENT DIRECTORY instead. Real measurement in polar: **57 of ~65 router files are literally
+named `endpoints.py`**, 1 is `router.py` — under the old rule these all collapsed into the literal
+module key `"endpoints"`/`"router"`, merging dozens of unrelated controllers into one bucket.
+
+Not cosmetic: polar's real SQLModel table entities live in a fully separate, centralized
+`polar/models/*.py` package (97 files, one per entity, named after the entity — e.g.
+`organization.py`) — never co-located with their router file. The existing entity→module name-match
+loop depends on a module key matching the entity's own name; when the key was the literal string
+`"endpoints"` instead of `"organization"`, the `Organization` entity could never find it and fell
+into the `_models` unmatched bucket.
+
+**Real collision risk found before designing a fix (measured, not assumed)**: naively substituting
+the parent directory name for a generic basename creates 9 real collisions in polar alone —
+`polar/subscription/endpoints.py` (the real public-API subscription router) would land on the same
+module key as `polar/customer_portal/endpoints/subscription.py` (an already-correctly-named,
+unrelated, customer-portal-facing file whose own basename is `"subscription"` — non-generic,
+untouched by this fix). Full list of 9 colliding directory names, all inside
+`polar/customer_portal/endpoints/`: `subscription`, `customer_meter`, `organization`, `order`,
+`member`, `customer`, `customer_seat`, `customer_session`, `wallet`. Re-verified against the real,
+full corpus after implementation (not just the synthetic fixture): a 10th, DIFFERENT failure shape
+was also found live — `polar/sso/endpoints.py` and `polar/auth/sso/endpoints.py` are two unrelated
+generic-basename files in different subtrees that both compute the SAME candidate directory name
+(`"sso"`) — the mechanism below handles this correctly too (first-claim-wins, second falls back),
+confirming the design's `claimed` set (not just the `reserved` set) is load-bearing in real data,
+not just a theoretical case.
+
+**Mechanism**: a bounded, real-evidence-only generic-basename set,
+`GENERIC_ROUTER_STEMS = new Set(['endpoints', 'router'])` — both directly observed in polar, no
+speculative additions (`routes`/`views`/`api` have zero observed evidence anywhere) — matches this
+same file's own `KNOWN_DTO_SUFFIXES` precedent of "only what's been validated against a real
+oracle." New `resolveGenericModuleNames(files, readFile, projectRoot)`, called once before
+`scanPythonFastApi()`'s main per-file loop, in two CLOSED passes (not interleaved — correctness
+requires every non-generic file's own literal name to be known before any generic file's directory
+candidate is evaluated, or a later-discovered collision could arrive too late, after a wrong merge
+was already written into `modules`):
+1. **Pass 1 (reserved)**: every router file whose stem is NOT generic keeps its literal name,
+   byte-identical to before this fix — these names become `reserved`.
+2. **Pass 2 (candidate resolution)**: a generic-stem file's candidate is
+   `path.basename(path.dirname(file))`, adopted only if it collides with neither `reserved` nor
+   another generic file's already-`claimed` candidate, and the file has a meaningful parent (not
+   sitting directly at the project root). On any collision, the file keeps its old literal generic
+   name — never guess into a silent wrong merge, the same "prefer a known-imperfect-but-safe
+   fallback" doctrine this codebase applies everywhere (checkout.py's `inner_router`,
+   customer_portal's nested prefix composition, `cycle-detected`).
+
+`files` is already sorted by full path (`listRgFiles`, `scanners/text-util.mjs`), so pass ordering
+(and therefore first-claim-wins on a same-directory-name collision) is deterministic without
+inventing a new tiebreak. Entity/DTO assignment loops needed **zero changes** — module resolution
+completes as a full pre-pass before any `moduleEntry()` call, so by the time those later loops match
+against `[...modules.keys()]`, every key is already final.
+
+**A welcome side effect, not separately engineered**: `className` derivation
+(`D-fastapi-multi-router-per-file`'s `${capitalize(moduleName)}Router` for the conventional `router` variable)
+now reads the RESOLVED module name too — a file that used to produce the generic className
+`"EndpointsRouter"` for every single-router file in a repo now produces something specific like
+`"MemberRouter"`/`"OrganizationRouter"`, purely because it reuses `moduleName`. No test anywhere
+asserted the literal string `"EndpointsRouter"` (checked before shipping), so this is zero-risk.
+
+**Real, disclosed migration cost, with an explicit recommended remedy (found via a dedicated
+Explore-agent pass mapping every real downstream consumer of `module`, all confirmed by re-reading
+the cited call sites before writing this section)**: `handles/_engine.mjs` persists
+`module: u.module` per generated resolver into `.sbf/handles-manifest.json`, and its orphan
+detection compares `entry.module !== orphanScan.module` on every `handles emit`. A repo that
+ALREADY ran `handles emit` for a python-fastapi feature whose router file had a generic basename
+will see its still-valid resolver spuriously flagged orphaned on the next `handles emit` after
+upgrading past this fix — this project's own orphan detection is WARN-ONLY (O2 — never
+auto-deletes/overwrites), so this is real but non-destructive. **Recommended remedy for existing
+adopters**: re-run `bskel scan` then `bskel handles plan`/`bskel handles emit` once after upgrading,
+which re-derives the manifest under the new, correct module names and clears the spurious warning.
+`--module <name>` exact-match CLI usage (`bin/bskel.mjs`'s `scan disposition`/`scan explain`, every
+provider's `selectModule()`) has the same theoretical edge case but is not realistically hit today
+(nobody deliberately targets a module literally named `"endpoints"`).
+`lib/cross-feature-collisions.mjs`'s `ownDisposedModule()` scoping lookup degrades gracefully
+(returns `null`, not a crash) on a stale persisted name from before this change — no fix needed
+there. Cross-feature-collision's real signals (`resource_type`/`table`/`operation_id`/
+`db_foreign_key`) are confirmed NOT keyed on module name at all, unaffected.
+
+**Explicitly out of scope**: typescript-express currently uses the exact same filename-stem
+convention as python-fastapi did before this fix (confirmed by reading
+`scanners/adapters/typescript-express.mjs` directly) — this fix is python-fastapi-only, grounded in
+real python-fastapi (polar) evidence; a parallel fix for typescript-express would need its own real-
+repo evidence first, not speculative mirroring of this mechanism.
+
+**COST**: the 9 (10, counting the real `sso`/`sso` same-directory-name collision found post-
+implementation) colliding directories in polar — including the single biggest real controller,
+`organization/endpoints.py` at 42 routes — keep the old `"endpoints"` bucket; a disclosed, honest
+residual gap, not a silent wrong-merge. The one-time orphan-warning migration friction above, with
+its recommended remedy.
+
+**EXIT**: to revert, remove the `resolveGenericModuleNames()` call and restore
+`const moduleName = path.basename(file, '.py')` directly in `scanPythonFastApi()`'s loop — purely
+additive, a clean revert. **Verified**: new `test/python-fastapi-generic-module-name.test.mjs` (3
+tests — the win case, the collision-safe fallback case, the entity-attachment case) plus the full
+existing `test/python-fastapi-*.test.mjs` suite green unmodified (32/32, zero test changes needed —
+none of the existing fixture basenames are in `GENERIC_ROUTER_STEMS`). Re-ran the real scan against
+`polarsource/polar/server` after the fix: dozens of previously-`"endpoints"` modules (`member`,
+`oauth2`, `customer_seat`, `checkout`, `webhook`, `merchant_migration`, and more) now report their
+real domain name; all 9 originally-identified collisions plus the newly-discovered `sso`/`sso`
+same-directory-name collision correctly fall back to the old literal name rather than merging.
+Full `npm test` green.

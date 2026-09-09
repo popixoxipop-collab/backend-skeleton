@@ -25,6 +25,12 @@ const FASTAPI_DEP_RE = /(?:^|[\s"'[])fastapi(?:\[[^\]]*\])?(?:[\s"',\]=<>~!;]|$)
 
 const VERB_DECORATOR_RE = /@(\w+)\.(get|post|put|patch|delete)\s*\(/gi;
 const ROUTER_DECL_RE = /(\w+)\s*=\s*APIRouter\s*\(/g;
+
+// D-fastapi-generic-module-name: real evidence only (polarsource/polar), not a speculative list --
+// same "validated against a real oracle" precedent as KNOWN_DTO_SUFFIXES below. 57 real files
+// literally named `endpoints.py`, 1 named `router.py`; no other generic stem (`routes`, `views`,
+// `api`) has ever been observed.
+const GENERIC_ROUTER_STEMS = new Set(['endpoints', 'router']);
 const CLASS_RE = /^class\s+(\w+)\s*\(([^)]*)\)\s*:/gm;
 const INCLUDE_ROUTER_RE = /include_router\s*\(/g;
 
@@ -287,8 +293,59 @@ const API_SURFACE_SOURCE = 'router-local paths only (this scan does not resolve 
 	'document via `bskel contract emit --openapi-file <path> --path-prefix <prefix>` for trustworthy ' +
 	'operation identity and schemas.';
 
+// D-fastapi-generic-module-name: real polarsource/polar dogfooding found `path.basename(file,
+// '.py')` (the module-name rule below) collapses to the literal string "endpoints"/"router" for
+// every file using that repo's own real, common convention -- name every router file generically,
+// carry the real domain identity in the PARENT DIRECTORY instead (`organization/endpoints.py`,
+// `member/endpoints.py`). Two CLOSED passes, not interleaved -- a generic file's directory-derived
+// candidate must never be adopted before every non-generic file's own literal name is known, or a
+// later-discovered collision could arrive too late (the wrong merge would already be written).
+// Pass 1: every non-generic-stem file's own literal name is `reserved`, unchanged from today.
+// Pass 2: a generic-stem file's candidate (its own parent directory's basename) is adopted only if
+// it collides with neither `reserved` nor another generic file's already-`claimed` candidate --
+// real evidence found 9 such real collisions in polar alone (e.g. `subscription/endpoints.py`'s
+// candidate "subscription" collides with the real, unrelated, non-generic
+// `customer_portal/endpoints/subscription.py`). On any collision, the file keeps its old literal
+// generic name -- never guess into a silent wrong merge. `files` is already sorted by full path
+// (`listRgFiles`), so processing order (and therefore first-claim-wins) is deterministic.
+function resolveGenericModuleNames(files, readFile, projectRoot) {
+	const routerFiles = [];
+	const reserved = new Set();
+	for (const file of files) {
+		if (!/APIRouter\s*\(/.test(readFile(file))) continue;
+		const stem = path.basename(file, '.py');
+		routerFiles.push(file);
+		if (!GENERIC_ROUTER_STEMS.has(stem)) reserved.add(stem);
+	}
+
+	const moduleNameByFile = new Map();
+	const claimed = new Set();
+	for (const file of routerFiles) {
+		const stem = path.basename(file, '.py');
+		if (!GENERIC_ROUTER_STEMS.has(stem)) {
+			moduleNameByFile.set(file, stem);
+			continue;
+		}
+		const dir = path.dirname(file);
+		const candidate = dir !== projectRoot ? path.basename(dir) : null;
+		if (candidate && !reserved.has(candidate) && !claimed.has(candidate)) {
+			claimed.add(candidate);
+			moduleNameByFile.set(file, candidate);
+		} else {
+			moduleNameByFile.set(file, stem); // collision or no meaningful parent -- keep the old literal name
+		}
+	}
+	return moduleNameByFile;
+}
+
 export function scanPythonFastApi(repoRoot, projectRoot) {
 	const files = listPythonFiles(projectRoot);
+	const fileTextCache = new Map();
+	const readFile = (f) => {
+		if (!fileTextCache.has(f)) fileTextCache.set(f, fs.readFileSync(f, 'utf8'));
+		return fileTextCache.get(f);
+	};
+	const moduleNameByFile = resolveGenericModuleNames(files, readFile, projectRoot);
 	const modules = new Map();
 	const moduleEntry = (name) => {
 		if (!modules.has(name)) modules.set(name, { module: name, controllers: [], entities: [], enums: [], dtos: [] });
@@ -298,13 +355,15 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 	const allEntities = [];
 	const allDtos = [];
 	for (const file of files) {
-		const text = fs.readFileSync(file, 'utf8');
+		const text = readFile(file);
 
 		if (/APIRouter\s*\(/.test(text)) {
 			// module = filename stem, NOT the router's own prefix -- verified against the real oracle's
 			// login.py, which declares `APIRouter(tags=["login"])` with no prefix at all, so a
 			// prefix-derived name fails on a real file while the filename stem works for every one.
-			const moduleName = path.basename(file, '.py');
+			// D-fastapi-generic-module-name: for a GENERIC stem (`endpoints`/`router`), this is the
+			// collision-safe, directory-derived name instead -- see resolveGenericModuleNames() above.
+			const moduleName = moduleNameByFile.get(file);
 			const routerPrefixes = extractRouterPrefixes(text);
 			const rawEndpoints = extractEndpoints(text);
 
