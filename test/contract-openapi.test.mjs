@@ -500,16 +500,15 @@ test('inlineSchema: a syntactically invalid pattern fails closed with invalid-pa
 
 test('inlineSchema: unsupported keywords fail closed by name, never silently dropped', () => {
 	// A15: discriminator/propertyNames are now SUPPORTED (see their own dedicated tests below) --
-	// removed from this fixture list. prefixItems (JSON Schema 2020-12 tuple validation) added:
-	// a real, still-unsupported keyword found live while re-measuring after A15's own fixes
-	// (45 real occurrences in polarsource/polar, unmasked by fixing the OTHER 5 keywords that used
-	// to fail first and hide it -- not built this round, named here as an honest "still fails
-	// closed" fixture, not a claim of support).
+	// removed from this fixture list.
+	// A16: prefixItems is now ALSO supported (see its own dedicated tests below) -- removed too.
+	// Re-measuring after A16 landed found no new still-unsupported keyword to replace it with (the
+	// masking cascade bottomed out into 3 already-scoped-out categories: cycle-detected,
+	// too-many-nodes, ref-with-siblings -- none of them are "a keyword this list should name").
 	const cases = [
 		['patternProperties', { type: 'object', patternProperties: { '^x-': { type: 'string' } } }],
 		['not', { not: { type: 'string' } }],
 		['if', { if: { type: 'string' }, then: {} }],
-		['prefixItems', { type: 'array', prefixItems: [{ type: 'string' }] }],
 		['$dynamicRef', { '$dynamicRef': '#meta' }],
 		['$id', { '$id': 'urn:sbf:envelope:1', type: 'object' }],
 	];
@@ -2031,6 +2030,28 @@ test('inlineSchema: propertyNames still fails closed if ITS OWN sub-schema uses 
 	assert.match(result.reason, /unsupported-keyword:not/);
 });
 
+test('inlineSchema: prefixItems (JSON Schema 2020-12 tuple validation) recurses like oneOf/anyOf/allOf -- A16, real shape confirmed 9/9 against polarsource/polar', () => {
+	const components = new Map([['TaxIDFormat', { type: 'string', enum: ['us_ein', 'eu_vat'] }]]);
+	const schema = { type: 'array', prefixItems: [{ type: 'string' }, { '$ref': '#/components/schemas/TaxIDFormat' }], maxItems: 2, minItems: 2 };
+	const result = inlineSchema(schema, components);
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.schema.prefixItems, [{ type: 'string' }, { type: 'string', enum: ['us_ein', 'eu_vat'] }]);
+	assert.equal(result.schema.maxItems, 2);
+	assert.equal(result.schema.minItems, 2);
+});
+
+test('inlineSchema: an empty prefixItems array fails closed, same as empty oneOf/anyOf/allOf', () => {
+	const result = inlineSchema({ type: 'array', prefixItems: [] }, new Map());
+	assert.equal(result.ok, false);
+	assert.match(result.reason, /unsupported-keyword:prefixItems/);
+});
+
+test('inlineSchema: prefixItems still fails closed if ONE of its tuple positions uses a genuinely unsupported keyword', () => {
+	const result = inlineSchema({ type: 'array', prefixItems: [{ type: 'string' }, { not: { type: 'string' } }] }, new Map());
+	assert.equal(result.ok, false);
+	assert.match(result.reason, /unsupported-keyword:not/);
+});
+
 test('inlineSchema: x-speakeasy-enums and enumNames no longer fail the schema closed -- A15, moved into DROPPED_KEYWORDS', () => {
 	const schema = { type: 'string', enum: ['A', 'B'], 'x-speakeasy-enums': ['A', 'B'], enumNames: { A: 'Label A' } };
 	const result = inlineSchema(schema, new Map());
@@ -2246,6 +2267,11 @@ test('findUnsupportedAnnotations: a $ref cycle does not hang -- the same `seen` 
 test('findUnsupportedAnnotations: x-speakeasy-enums and enumNames (A15\'s new DROPPED_KEYWORDS members) are found the same way xml/externalDocs already are', () => {
 	const doc = { components: { schemas: { Scope: { type: 'string', enumNames: { a: 'A' } }, Address: { type: 'object', properties: { country: { type: 'string', 'x-speakeasy-enums': ['US'] } } } } } };
 	assert.deepEqual(findUnsupportedAnnotations(doc), ['enumNames', 'x-speakeasy-enums']);
+});
+
+test('findUnsupportedAnnotations: a dropped keyword nested inside one prefixItems tuple position is found -- A16, prefixItems joined RECURSED_KEYWORDS', () => {
+	const doc = { components: { schemas: { Tuple: { type: 'array', prefixItems: [{ type: 'string' }, { type: 'string', xml: { name: 'x' } }] } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['xml']);
 });
 
 test('findUnsupportedAnnotations: a dropped keyword nested inside propertyNames\' own sub-schema is found -- A15, propertyNames joined RECURSED_KEYWORDS', () => {

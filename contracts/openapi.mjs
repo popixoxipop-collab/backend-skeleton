@@ -179,7 +179,9 @@ export const PER_STATUS_NO_DESCRIPTION_STANDIN = 'The source document documents 
 // sibling being a container OF schemas), so findUnsupportedAnnotations() must descend into it the
 // same way it already descends into `items`, or a dropped/unsupported keyword nested inside a
 // propertyNames sub-schema would go completely unreported.
-const RECURSED_KEYWORDS = Object.freeze(new Set(['properties', 'items', 'additionalProperties', 'oneOf', 'anyOf', 'allOf', 'propertyNames']));
+// A16: `prefixItems` added -- an ARRAY of schemas (same shape as oneOf/anyOf/allOf), already
+// covered by this function's existing `Array.isArray(value)` branch with zero further code change.
+const RECURSED_KEYWORDS = Object.freeze(new Set(['properties', 'items', 'additionalProperties', 'oneOf', 'anyOf', 'allOf', 'propertyNames', 'prefixItems']));
 // A7: `default` added -- annotation-only per 2020-12 (Ajv runs with useDefaults off here, so it's
 // inert for validation either way), but a real, human-authored fact from the source document worth
 // carrying through regardless. Measured across every real request-body and response schema in the
@@ -247,8 +249,8 @@ const MAX_EXAMPLES_ARRAY_LENGTH = 50;
 // for the broader "self-identified weaknesses" context this closes one instance of).
 //
 // Deliberately walks ONLY genuine Schema Object structure (via RECURSED_KEYWORDS, the exact same
-// `properties`/`items`/`additionalProperties`/`oneOf`/`anyOf`/`allOf`/`propertyNames` set
-// inlineSchema() itself recurses through) -- NOT a blanket "every key anywhere in the document"
+// `properties`/`items`/`additionalProperties`/`oneOf`/`anyOf`/`allOf`/`propertyNames`/`prefixItems`
+// set inlineSchema() itself recurses through) -- NOT a blanket "every key anywhere in the document"
 // scan. That distinction
 // is load-bearing, not cosmetic: several of DROPPED_KEYWORDS' names collide with REAL, unrelated
 // OpenAPI concepts that live outside a Schema Object entirely -- an Operation Object's own
@@ -907,7 +909,18 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 			continue;
 		}
 
-		if (key === 'oneOf' || key === 'anyOf' || key === 'allOf') {
+		if (key === 'oneOf' || key === 'anyOf' || key === 'allOf' || key === 'prefixItems') {
+			// A16 (D-openapi-schema-keyword-recursion follow-up): `prefixItems` (JSON Schema 2020-12
+			// tuple validation) joins this array-of-schemas branch -- unlike `items`/`propertyNames`
+			// (a single schema), `prefixItems`' value is an ARRAY of schemas, one per tuple position,
+			// the same shape oneOf/anyOf/allOf already have. Real shape measured (polarsource/polar,
+			// all 9 occurrences identical): a strict 2-element tuple (`[{type:string},
+			// {$ref:.../TaxIDFormat}]`) alongside `type:array`/`maxItems:2`/`minItems:2`/`examples` --
+			// all already-handled COPIED_KEYWORDS/DOCUMENTATION_KEYWORDS siblings, nothing new needed
+			// for them. `items` never co-occurs with `prefixItems` in this corpus (0/9); if it ever
+			// did, both keys are still independently walked and copied here exactly as authored --
+			// this module doesn't itself enforce the "items applies beyond the prefix" interaction,
+			// it only needs to preserve both fields faithfully for whatever validates the output.
 			const arr = node[key];
 			if (!Array.isArray(arr) || arr.length === 0) fail(`unsupported-keyword:${key}`);
 			out[key] = arr.map((el) => walkSchemaNode(el, componentSchemas, depth + 1, visiting, state, limits));

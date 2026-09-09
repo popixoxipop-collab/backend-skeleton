@@ -12569,3 +12569,42 @@ growth is worth a second look to confirm it's genuinely more real work becoming 
 a budget/limit that now needs revisiting; `cycle-detected` stays permanently out of scope (see COST
 above). To revert any single keyword's classification, move it back to its prior Set (or remove its
 dedicated branch) — each of the 5 is independent, none depend on another having been added.
+
+**Update (`prefixItems`, user-directed continuation of the same masking-cascade line of work)**:
+closes this entry's own named EXIT follow-up. `prefixItems` (JSON Schema 2020-12 tuple validation)
+joined `walkSchemaNode()`'s `oneOf`/`anyOf`/`allOf` branch — its value is an ARRAY of schemas (one
+per tuple position), the same shape as those three, unlike `items`/`propertyNames`'s single-schema
+value. Real shape measured before writing code: 9 raw occurrences in `polarsource/polar`, all
+IDENTICAL — a strict 2-element tuple `[{type: string}, {$ref: .../TaxIDFormat}]` (a `tax_id` field
+shape reused via literal duplication, not `$ref`, across several `Customer*` component schemas —
+explaining why 9 raw occurrences produced 45 real resolution-attempt failures before the fix), with
+`type`/`maxItems`/`minItems`/`examples` siblings already fully handled by existing
+COPIED_KEYWORDS/DOCUMENTATION_KEYWORDS machinery. `items` never co-occurs with `prefixItems` in
+this corpus (0/9) — the "items applies beyond the prefix" 2020-12 interaction is left to whatever
+validates the OUTPUT (this module only needs to preserve both fields faithfully if both were ever
+present, not implement that interaction itself).
+
+Live re-measurement after landing: `inlineSchemaResolution.ok` rose from 508 to 541 of 568 attempted
+(95%). **The masking cascade bottomed out here** — no new keyword surfaced this round. The
+remaining 27 failures are entirely `cycle-detected`(13, up from 6)/`too-many-nodes`(12, up from
+7)/`ref-with-siblings`(2, unchanged), all 3 already-named, already-scoped-out categories from this
+entry's own original text, not new gaps.
+
+**A genuinely separate, more consequential decision surfaced and deliberately NOT made here**:
+`too-many-nodes`' own real required-node-count was probed directly (binary search per failing
+schema against the real document, not guessed) rather than left as an unexamined "12 failures" —
+real needs range from 2,289 to 61,304 against the current `MAX_SCHEMA_NODES` cap of 2,000, up to
+~30x over. Unlike every other cap this project has widened on real data (`MAX_PATTERN_LENGTH`,
+`MAX_PARAMETERS_PER_OPERATION` in Phase 5c), `MAX_SCHEMA_NODES` is an explicit DoS/resource-budget
+defensive ceiling, not an observed-operational-default — CLAUDE.md's own distinction between "hard
+defensive ceilings" (conservative, security-owned) and "observed defaults" (data-driven) applies
+directly, and a ~30x widening is a materially different magnitude of decision than a keyword branch.
+Not resolved in this pass — raised as its own explicit question rather than silently widened or
+silently left alone.
+
+**Verified**: `test/contract-openapi.test.mjs` (203/203) — the prior `unsupported keywords fail
+closed by name` test's own `prefixItems` fixture removed (no longer real; no replacement needed,
+since nothing new surfaced to name), plus 5 new dedicated tests (real-shape round trip including its
+real `$ref` sibling resolving correctly, empty-array fail-closed matching `oneOf`/`anyOf`/`allOf`'s
+own precedent, one-tuple-position-genuinely-unsupported still fails the whole schema closed,
+`findUnsupportedAnnotations()` recursion into a tuple position). Full `npm test` green.
