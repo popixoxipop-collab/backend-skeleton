@@ -63,25 +63,44 @@ export function validateEnvelopeStructure(envelope) {
 // shape uniform across all three directions ("a named-parts object, additionalProperties:false")
 // -- see D-openapi-response-schema. An unrecognized `direction` also returns null (unconstrained),
 // matching the envelope schema's own enum being the actual gate on valid direction values.
+// D-openapi-cyclic-refs: every direction below NESTS the projected schema one level deeper
+// (`properties.body`) before the caller compiles the WHOLE wrapper with Ajv. `$ref: "#/$defs/X"`
+// is a JSON Pointer resolved against the COMPILED DOCUMENT's own root, not wherever the $ref
+// textually sits -- confirmed live against the installed Ajv2020: leaving a schema's own `$defs`
+// nested at `properties.body.$defs` throws "can't resolve reference #/$defs/X from id #" once
+// wrapped this way, even though the SAME schema compiles and validates correctly on its own
+// (contracts/export.mjs's placement of a schema at a document LEAF isn't affected by this -- only
+// this function's own extra wrapping is). Every call site below hoists a nested `$defs` onto the
+// wrapper's own top level and strips the now-redundant nested copy.
+function hoistDefs(wrapper, schema) {
+	if (!schema || !Object.hasOwn(schema, '$defs')) return schema;
+	const { $defs, ...rest } = schema;
+	wrapper.$defs = $defs;
+	return rest;
+}
+
 export function operationPayloadSchema(opContract, direction = 'request') {
 	if (direction === 'request') {
 		const properties = { pathParams: opContract.pathParams };
 		const required = ['pathParams'];
 		const bodySchema = opContract.requestBodySchema ?? { type: 'object' };
+		const result = { type: 'object', additionalProperties: false, properties, required };
 		if (opContract.body === true) {
-			properties.body = bodySchema;
+			properties.body = hoistDefs(result, bodySchema);
 			required.push('body');
 		} else if (opContract.body === 'unknown') {
-			properties.body = bodySchema;
+			properties.body = hoistDefs(result, bodySchema);
 		}
 		// body === false: deliberately absent from `properties` -- with additionalProperties:false
 		// below, a payload that includes a body for a known-bodyless operation is rejected outright.
-		return { type: 'object', additionalProperties: false, properties, required };
+		return result;
 	}
 	if (direction === 'response' || direction === 'error') {
 		const schema = direction === 'response' ? opContract.responseSchema : opContract.errorSchema;
 		if (!schema) return null;
-		return { type: 'object', additionalProperties: false, properties: { body: schema }, required: ['body'] };
+		const result = { type: 'object', additionalProperties: false, properties: {}, required: ['body'] };
+		result.properties.body = hoistDefs(result, schema);
+		return result;
 	}
 	return null;
 }

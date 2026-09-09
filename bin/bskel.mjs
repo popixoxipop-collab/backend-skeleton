@@ -1868,14 +1868,29 @@ function cmdContractToolSchema(args) {
 	}
 
 	// Anthropic tool-use `input_schema` is a JSON Schema subset -- the operation's payload
-	// schema (already plain JSON Schema, no $ref/$defs) is directly usable as-is. A2: when `op`
-	// carries a projected `requestBodySchema`, it flows through here for free -- this function
-	// changed not at all; contracts/openapi.mjs's inlineSchema() is what guarantees the no-$ref
-	// promise this comment makes.
+	// schema is directly usable as-is UNLESS it's recursive. Confirmed against Anthropic's own
+	// documented JSON Schema limitations (platform.claude.com/docs/en/build-with-claude/
+	// structured-outputs): internal (non-external-URL) $ref/$defs ARE supported, but "recursive
+	// schemas" are explicitly listed as unsupported and return a real 400 error at the API. A2:
+	// when `op` carries a projected `requestBodySchema`, it flows through here for free -- this
+	// function changed not at all. D-openapi-cyclic-refs: contracts/openapi.mjs's inlineSchema()
+	// now emits `$ref`/`$defs` for a genuinely cyclic component (e.g. a real recursive
+	// filter-group tree) rather than failing the whole projection closed -- that's real progress
+	// for `contract validate`/`contract export`, but this ONE consumer genuinely cannot accept
+	// it: refuse explicitly here, citing the real reason, rather than emitting a schema that
+	// would only fail later at the actual Anthropic API call site.
+	const inputSchema = operationPayloadSchema(op);
+	if (inputSchema && Object.hasOwn(inputSchema, '$defs')) {
+		fail(
+			EXIT_CODES.NOT_PASSED,
+			'RECURSIVE_SCHEMA_UNSUPPORTED',
+			`operation "${flags.operation}"'s payload schema is recursive (a genuinely self-referential real shape, e.g. a nested filter-group tree) -- Anthropic tool-use input_schema does not support recursive schemas (see platform.claude.com/docs/en/build-with-claude/structured-outputs), so no tool-use schema can be generated for this operation`,
+		);
+	}
 	const toolSchema = {
 		name: flags.operation,
 		description: `${op.verb} ${op.path} (feature ${flags.feature})`,
-		input_schema: operationPayloadSchema(op),
+		input_schema: inputSchema,
 	};
 	console.log(JSON.stringify(toolSchema, null, 2));
 	process.exit(0);

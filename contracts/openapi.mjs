@@ -50,6 +50,10 @@ const MAX_SCHEMA_NODES = 250000; // shared counter per top-level inlineSchema() 
 const MAX_PATTERN_LENGTH = 1000; // real max observed: 77 (Team-IZ-Backend), 286 (polarsource/polar)
 const JSON_MEDIA_TYPE = 'application/json';
 const SCHEMA_REF_PREFIX = '#/components/schemas/';
+// D-openapi-cyclic-refs: the ONLY $ref form this module's own output ever emits (a genuinely
+// cyclic component, resolved into a top-level `$defs` map -- see inlineSchema()). Distinct from
+// SCHEMA_REF_PREFIX, which is what this module RESOLVES on the way IN from a source document.
+const DEFS_REF_PREFIX = '#/$defs/';
 
 // A3: response/error JSON Schema projection. Reuses every inlineSchema() defense above
 // unchanged (keyword/format whitelist, MAX_SCHEMA_DEPTH/NODES/PATTERN_LENGTH) -- measured by
@@ -661,14 +665,27 @@ export function inferPathPrefix(anchorDeltas) {
 }
 
 // A2: dereferences `node` (a schema fragment from a requestBody's application/json content) into
-// a single self-contained JSON Schema tree with NO `$ref` anywhere in the output. Pure, and NEVER
-// throws across this exported boundary (InlineFailure is caught here, anything else re-thrown --
-// it would be a real programming bug, not an untrusted-input failure, and must not be swallowed).
-// Full inlining (never registering a component with ajv by $id) for two independent reasons: ajv
-// would otherwise need every one of a document's component schemas registered just to validate
-// ONE operation's body, and bin/bskel.mjs's cmdContractToolSchema promises its `input_schema`
-// output is a JSON Schema subset "directly usable as-is" for Anthropic tool-use -- no $ref/$defs
-// is exactly what that promise requires; this function is what upholds it.
+// a single self-contained JSON Schema tree. Pure, and NEVER throws across this exported boundary
+// (InlineFailure is caught here, anything else re-thrown -- it would be a real programming bug,
+// not an untrusted-input failure, and must not be swallowed). Full inlining (never registering a
+// component with ajv by $id) for two independent reasons: ajv would otherwise need every one of a
+// document's component schemas registered just to validate ONE operation's body, and
+// bin/bskel.mjs's cmdContractToolSchema promises its `input_schema` output is a JSON Schema
+// subset "directly usable as-is" for Anthropic tool-use, which forbids RECURSIVE schemas
+// specifically (internal $ref/$defs to a non-recursive shared definition is fine, per Anthropic's
+// own documented JSON Schema limitations) -- this function is what upholds both promises.
+//
+// D-openapi-cyclic-refs: the ONE exception to "no $ref anywhere in the output" -- a genuinely
+// self-referential component (directly or via a mutual cycle, e.g. polarsource/polar's real
+// `Filter` and `Meter`<->`Subscription`<->`SubscriptionMeter`) can never terminate under full
+// inlining; walkSchemaNode() now emits `$ref: "#/$defs/<Name>"` at exactly the cyclic edge
+// (state.defsNeeded, populated during the walk) instead of failing closed, and this function
+// drains that set ONCE the top-level walk completes into a real, top-level `$defs` map attached
+// to the returned schema -- omitted entirely (this function's return shape is unchanged) for the
+// overwhelmingly common acyclic case. `cmdContractToolSchema` is the one real consumer this
+// genuinely cannot satisfy (Anthropic's own "recursive schemas not supported" limitation) --
+// it detects `$defs` on the projected schema and refuses explicitly rather than emitting
+// something that would only fail later at the real API call. See DECISIONS.md.
 export function inlineSchema(node, componentSchemas, opts = {}) {
 	const limits = {
 		maxDepth: opts.maxDepth ?? MAX_SCHEMA_DEPTH,
@@ -678,9 +695,40 @@ export function inlineSchema(node, componentSchemas, opts = {}) {
 		// byte-for-byte when the caller doesn't pass it) -- see D-openapi-field-docs.
 		includeFieldDocs: opts.includeFieldDocs ?? false,
 	};
-	const state = { nodes: 0 };
+	const state = { nodes: 0, defsNeeded: new Set() };
 	try {
 		const schema = walkSchemaNode(node, componentSchemas, 0, new Set(), state, limits);
+		if (state.defsNeeded.size > 0) {
+			const defs = {};
+			const resolved = new Set();
+			// Fixed-point drain: resolving one cyclic component's own body can discover ANOTHER
+			// cyclic component reachable from it (a mutual cycle, e.g. Meter -> Subscription ->
+			// SubscriptionMeter -> Meter) that state.defsNeeded didn't have yet -- one pass over a
+			// snapshot would miss it.
+			let pending = [...state.defsNeeded].filter((name) => !resolved.has(name));
+			while (pending.length > 0) {
+				for (const name of pending) {
+					resolved.add(name);
+					const target = componentSchemas.get(name); // presence already confirmed during the main walk
+					const def = walkSchemaNode(target, componentSchemas, 0, new Set([name]), state, limits);
+					// A component whose ENTIRE definition is nothing but a $ref chain back to
+					// itself (real content -- type/properties/etc -- never appears ANYWHERE in
+					// the cycle) resolves to a bare `{$ref: ...}` with no other real keys.
+					// Confirmed live: Ajv2020 itself stack-overflows trying to COMPILE such a
+					// schema (an infinite pure-indirection loop with no base case for its own
+					// compiler to terminate on) -- this is not a shape any real OpenAPI document
+					// produces (every real cyclic component measured has genuine structural
+					// content at every level, e.g. polarsource/polar's Filter/Meter/Subscription),
+					// so fail closed on this degenerate case rather than emit something that
+					// would break the very validator this whole mechanism exists to feed.
+					const realKeys = Object.keys(def).filter((k) => k !== '$ref' && k !== 'default');
+					if (realKeys.length === 0) fail('cycle-without-base-schema');
+					defs[name] = def;
+				}
+				pending = [...state.defsNeeded].filter((name) => !resolved.has(name));
+			}
+			schema.$defs = defs;
+		}
 		return { ok: true, schema, nodes: state.nodes };
 	} catch (err) {
 		if (err instanceof InlineFailure) return { ok: false, reason: err.reason };
@@ -717,7 +765,22 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 		// JSON-Pointer escapes (~0/~1) or percent-encoding in the name are never produced by
 		// springdoc for a plain component name -- reject rather than decode-and-guess.
 		if (name.includes('~') || name.includes('%') || !COMPONENT_SCHEMA_NAME_RE.test(name)) fail('unsupported-ref');
-		if (visiting.has(name)) fail('cycle-detected');
+		if (visiting.has(name)) {
+			// D-openapi-cyclic-refs: a genuine ancestor-chain cycle (name is currently being
+			// resolved higher up this same call stack) -- this is a deterministic property of
+			// `name`'s own structure (does it reach itself via ANY of its own oneOf/anyOf/allOf/
+			// properties/items branches, all of which are walked unconditionally, never
+			// simulating "one instance"), not of which reference site discovered it first: every
+			// occurrence of a self-referential component hits this same branch, every occurrence
+			// of a non-cyclic one fully inlines exactly as before -- no two-pass discovery needed.
+			// Recorded in state.defsNeeded and drained once, after the top-level walk completes
+			// (see inlineSchema()), into a real `$defs` map; this $ref stub is the only place in
+			// the whole module that ever emits an unresolved $ref in the OUTPUT.
+			state.defsNeeded.add(name);
+			const stub = { '$ref': `${DEFS_REF_PREFIX}${name}` };
+			if (Object.hasOwn(node, 'default')) stub.default = node.default;
+			return stub;
+		}
 		const target = componentSchemas.get(name);
 		if (!target) fail('component-not-found');
 		visiting.add(name);
@@ -1071,7 +1134,34 @@ function projectResponseSchemas(responses, statusRe, componentSchemas, { include
 	// verified directly against the installed Ajv2020: a payload matching two overlapping
 	// branches is rejected by oneOf and accepted by anyOf. anyOf states precisely what's true
 	// given the envelope carries no status code: "matches at least one documented shape."
-	return { outcome: 'resolved', schema: { anyOf: distinct }, sources: distinct.length };
+	//
+	// D-openapi-cyclic-refs: any distinct[i] may carry its OWN top-level $defs (a cyclic
+	// component reachable from that branch). $ref: "#/$defs/X" resolves against the COMPILED
+	// DOCUMENT's own root, not wherever the branch happens to sit once nested inside this new
+	// `anyOf` wrapper (confirmed live against the installed Ajv2020: leaving $defs on the nested
+	// branch throws "can't resolve reference" once wrapped) -- so every branch's $defs must be
+	// hoisted onto the wrapper's own top-level $defs, stripped from the branch itself. A name
+	// collision with DIFFERENT content across branches is not expected in real data (never
+	// observed) and is genuinely ambiguous which shape a shared name should mean -- fails this
+	// resolution closed rather than silently picking one, the same doctrine A15's discriminator/
+	// propertyNames already apply to a malformed/ambiguous real-world shape.
+	const mergedDefs = {};
+	let defsCollision = false;
+	const branches = distinct.map((schema) => {
+		if (!Object.hasOwn(schema, '$defs')) return schema;
+		const { $defs, ...rest } = schema;
+		for (const [name, body] of Object.entries($defs)) {
+			if (Object.hasOwn(mergedDefs, name) && canonicalJson(mergedDefs[name]) !== canonicalJson(body)) {
+				defsCollision = true;
+			}
+			mergedDefs[name] = body;
+		}
+		return rest;
+	});
+	if (defsCollision) return { outcome: 'unresolved', reason: 'defs-name-collision' };
+	const schema = { anyOf: branches };
+	if (Object.keys(mergedDefs).length > 0) schema.$defs = mergedDefs;
+	return { outcome: 'resolved', schema, sources: distinct.length };
 }
 
 // A3: applies both response (2xx) and error (4xx/5xx) projection to a `matched`/`adopted` result,

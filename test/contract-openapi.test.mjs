@@ -444,21 +444,91 @@ test('inlineSchema: diamond fan-out (two sibling properties referencing the SAME
 
 // --- inlineSchema: fail-closed ---
 
-test('inlineSchema: direct self-cycle (A -> A) fails closed with cycle-detected, does not hang or throw', () => {
+test('inlineSchema: a $ref chain with NO real content anywhere (A is defined as nothing but $ref to A) fails closed, does not hang or throw -- D-openapi-cyclic-refs, a degenerate case real $ref/$defs support still refuses', () => {
+	// Distinct from a REAL cyclic schema (see the $ref/$defs tests below) -- this component's
+	// entire definition is a bare $ref to itself with no type/properties/anything else ever, at
+	// any point in the chain. Confirmed live: Ajv2020 itself stack-overflows trying to COMPILE
+	// such a shape (a pure-indirection loop with no base case), so this stays fail-closed.
 	const components = new Map([['A', { '$ref': '#/components/schemas/A' }]]);
 	const result = inlineSchema({ '$ref': '#/components/schemas/A' }, components);
 	assert.equal(result.ok, false);
-	assert.equal(result.reason, 'cycle-detected');
+	assert.equal(result.reason, 'cycle-without-base-schema');
 });
 
-test('inlineSchema: indirect cycle (A -> B -> A) fails closed with cycle-detected', () => {
+test('inlineSchema: indirect cycle (A -> B -> A) with real structural content resolves via $ref/$defs, does not hang or throw -- D-openapi-cyclic-refs', () => {
 	const components = new Map([
 		['A', { type: 'object', properties: { b: { '$ref': '#/components/schemas/B' } } }],
 		['B', { type: 'object', properties: { a: { '$ref': '#/components/schemas/A' } } }],
 	]);
 	const result = inlineSchema({ '$ref': '#/components/schemas/A' }, components);
+	assert.equal(result.ok, true);
+	assert.deepEqual(Object.keys(result.schema.$defs), ['A']);
+	assert.equal(result.schema.properties.b.properties.a.$ref, '#/$defs/A');
+});
+
+// --- D-openapi-cyclic-refs: $ref/$defs for genuinely cyclic schemas ---
+
+test('inlineSchema: a real Filter-shaped self-reference (nested filter-group tree) resolves via $ref/$defs, and Ajv actually compiles + validates it -- the load-bearing proof', () => {
+	const components = new Map([
+		['Filter', {
+			type: 'object',
+			required: ['conjunction', 'clauses'],
+			properties: {
+				conjunction: { type: 'string', enum: ['and', 'or'] },
+				clauses: { type: 'array', items: { anyOf: [
+					{ type: 'object', properties: { field: { type: 'string' } }, required: ['field'] },
+					{ '$ref': '#/components/schemas/Filter' },
+				] } },
+			},
+		}],
+	]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/Filter' }, components);
+	assert.equal(result.ok, true);
+	assert.deepEqual(Object.keys(result.schema.$defs), ['Filter']);
+	assert.equal(result.schema.$defs.Filter.properties.clauses.items.anyOf[1].$ref, '#/$defs/Filter');
+
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validateFn = ajv.compile(result.schema);
+	assert.equal(validateFn({ conjunction: 'and', clauses: [{ field: 'status' }] }), true);
+	assert.equal(validateFn({ conjunction: 'and', clauses: [{ conjunction: 'or', clauses: [{ field: 'status' }] }] }), true, 'a real nested filter group validates');
+	assert.equal(validateFn({ conjunction: 'and', clauses: [{ conjunction: 'or', clauses: [{ field: 123 }] }] }), false, 'a real STRUCTURALLY WRONG nested value is rejected');
+});
+
+test('inlineSchema: a real 3-way mutual cycle (Meter <-> Subscription <-> SubscriptionMeter shape) resolves via $ref/$defs and Ajv compiles it', () => {
+	const components = new Map([
+		['Meter', { type: 'object', required: ['id'], properties: { id: { type: 'string' }, subscription: { '$ref': '#/components/schemas/Subscription' } } }],
+		['Subscription', { type: 'object', required: ['id'], properties: { id: { type: 'string' }, meters: { type: 'array', items: { '$ref': '#/components/schemas/SubscriptionMeter' } } } }],
+		['SubscriptionMeter', { type: 'object', properties: { meter: { '$ref': '#/components/schemas/Meter' } } }],
+	]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/Meter' }, components);
+	assert.equal(result.ok, true);
+	assert.ok(Object.keys(result.schema.$defs).length >= 1, 'at least the entry point needs a $defs entry');
+
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validateFn = ajv.compile(result.schema);
+	assert.equal(validateFn({ id: 'm1', subscription: { id: 's1', meters: [{ meter: { id: 'm2' } }] } }), true);
+	assert.equal(validateFn({ id: 'm1', subscription: { id: 's1', meters: [{ meter: { id: 42 } }] } }), false, 'a structurally wrong deeply-nested value is rejected');
+});
+
+test('inlineSchema: a $ref chain that eventually reaches a REAL component with no cycle at all still fully inlines, unaffected -- narrow scope confirmed', () => {
+	const components = new Map([
+		['Wrapper', { type: 'object', properties: { inner: { '$ref': '#/components/schemas/Inner' } } }],
+		['Inner', { type: 'string' }],
+	]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/Wrapper' }, components);
+	assert.equal(result.ok, true);
+	assert.equal('$defs' in result.schema, false, 'a genuinely acyclic reference chain gets no $defs at all');
+	assert.deepEqual(result.schema, { type: 'object', properties: { inner: { type: 'string' } } });
+});
+
+test('inlineSchema: node/depth budget is still enforced during $defs resolution, not a separate unbounded path', () => {
+	const properties = {};
+	for (let i = 0; i < 10; i++) properties[`p${i}`] = { type: 'string' };
+	properties.self = { '$ref': '#/components/schemas/Big' };
+	const components = new Map([['Big', { type: 'object', properties }]]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/Big' }, components, { maxNodes: 5 });
 	assert.equal(result.ok, false);
-	assert.equal(result.reason, 'cycle-detected');
+	assert.equal(result.reason, 'too-many-nodes');
 });
 
 test('inlineSchema: nesting past MAX_SCHEMA_DEPTH fails closed with max-depth-exceeded', () => {
@@ -798,6 +868,44 @@ test('two 2xx with genuinely different schemas -> anyOf union of 2, responseSche
 	const { result } = reconcileCreateWidget(doc);
 	assert.equal(result.responseSchema.anyOf.length, 2);
 	assert.equal(result.responseSchemaSources, 2);
+});
+
+test('D-openapi-cyclic-refs: two 2xx branches, each needing a DIFFERENT cyclic $defs entry -- both get hoisted onto the union wrapper\'s own top-level $defs, Ajv actually compiles it', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Filter' } } } },
+			'202': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Tree' } } } },
+		},
+		{
+			components: {
+				Filter: { type: 'object', properties: { clauses: { type: 'array', items: { '$ref': '#/components/schemas/Filter' } } } },
+				Tree: { type: 'object', properties: { children: { type: 'array', items: { '$ref': '#/components/schemas/Tree' } } } },
+			},
+		},
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal(result.responseSchema.anyOf.length, 2);
+	assert.deepEqual(Object.keys(result.responseSchema.$defs).sort(), ['Filter', 'Tree']);
+	// neither branch keeps its own nested $defs -- both were hoisted to the wrapper's own root
+	for (const branch of result.responseSchema.anyOf) assert.equal('$defs' in branch, false);
+
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validateFn = ajv.compile(result.responseSchema);
+	assert.equal(validateFn({ clauses: [{ clauses: [] }] }), true, 'a real nested Filter value validates');
+	assert.equal(validateFn({ children: [{ children: [] }] }), true, 'a real nested Tree value validates');
+});
+
+test('D-openapi-cyclic-refs: two branches that need the SAME-named $defs entry with IDENTICAL content merge cleanly (not a collision)', () => {
+	const doc = docWithResponses(
+		{
+			'200': { content: { 'application/json': { schema: { type: 'object', required: ['x'], properties: { x: { type: 'string' }, self: { '$ref': '#/components/schemas/Shared' } } } } } },
+			'202': { content: { 'application/json': { schema: { type: 'object', required: ['y'], properties: { y: { type: 'string' }, self: { '$ref': '#/components/schemas/Shared' } } } } } },
+		},
+		{ components: { Shared: { type: 'object', properties: { child: { '$ref': '#/components/schemas/Shared' } } } } },
+	);
+	const { result } = reconcileCreateWidget(doc);
+	assert.equal(result.responseSchema.anyOf.length, 2);
+	assert.deepEqual(Object.keys(result.responseSchema.$defs), ['Shared']);
 });
 
 test('two distinct $refs that resolve to the identical schema collapse to 1 via canonicalJson comparison (proves resolved-shape dedup, not just raw-node dedup)', () => {
@@ -2064,11 +2172,11 @@ test('inlineSchema: x-speakeasy-enums and enumNames no longer fail the schema cl
 	assert.deepEqual(result.schema.enum, ['A', 'B']);
 });
 
-test('inlineSchema: cycle-detected is unaffected by A15 -- a genuine circular $ref chain still fails closed, not a masking regression', () => {
+test('inlineSchema: a genuine circular $ref chain no longer fails closed as of D-openapi-cyclic-refs -- superseded by real $ref/$defs support (see the dedicated section below)', () => {
 	const components = new Map([['Self', { type: 'object', properties: { self: { '$ref': '#/components/schemas/Self' } } }]]);
 	const result = inlineSchema({ '$ref': '#/components/schemas/Self' }, components);
-	assert.equal(result.ok, false);
-	assert.equal(result.reason, 'cycle-detected');
+	assert.equal(result.ok, true);
+	assert.deepEqual(Object.keys(result.schema.$defs), ['Self']);
 });
 
 test('inlineSchema: example copies non-string JSON values verbatim (number/object/array/boolean) -- example is not a string-only field', () => {

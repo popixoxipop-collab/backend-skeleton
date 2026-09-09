@@ -823,6 +823,65 @@ test('operationPayloadSchema(op, direction) matrix: response/error/request/no-sc
 	assert.equal(operationPayloadSchema(op, 'bogus-direction'), null);
 });
 
+// ===== D-openapi-cyclic-refs: $defs hoisting in operationPayloadSchema() =====
+
+test('operationPayloadSchema: a requestBodySchema carrying its own $defs (a cyclic component) gets $defs HOISTED to the wrapper root, stripped from the nested body -- $ref: "#/$defs/X" resolves against the COMPILED document root, not wherever it textually sits', () => {
+	const cyclicSchema = {
+		type: 'object',
+		properties: { clauses: { type: 'array', items: { '$ref': '#/$defs/Filter' } } },
+		'$defs': { Filter: { type: 'object', properties: { clauses: { type: 'array', items: { '$ref': '#/$defs/Filter' } } } } },
+	};
+	const op = {
+		verb: 'POST', path: '/filters', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: true, provenance: 'scan+openapi', requestBodySchema: cyclicSchema,
+	};
+	const schema = operationPayloadSchema(op);
+	assert.deepEqual(schema.$defs, cyclicSchema.$defs);
+	assert.equal('$defs' in schema.properties.body, false, 'the nested copy must be stripped -- leaving it is redundant, not a correctness bug, but this asserts the intended clean shape');
+});
+
+test('operationPayloadSchema: response/error directions ALSO hoist $defs (both are wrapped in the identical properties.body pattern)', () => {
+	const cyclicSchema = { type: 'object', properties: { self: { '$ref': '#/$defs/Node' } }, '$defs': { Node: { type: 'object', properties: { self: { '$ref': '#/$defs/Node' } } } } };
+	const op = {
+		verb: 'GET', path: '/tree', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		provenance: 'scan+openapi', responseSchema: cyclicSchema, errorSchema: cyclicSchema,
+	};
+	for (const direction of ['response', 'error']) {
+		const schema = operationPayloadSchema(op, direction);
+		assert.deepEqual(schema.$defs, cyclicSchema.$defs, `direction=${direction}`);
+		assert.equal('$defs' in schema.properties.body, false, `direction=${direction}`);
+	}
+});
+
+test('operationPayloadSchema: a NON-cyclic requestBodySchema (no $defs at all) is completely unaffected -- no stray $defs key ever appears', () => {
+	const op = {
+		verb: 'POST', path: '/widgets', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: true, provenance: 'scan+openapi', requestBodySchema: { type: 'object', properties: { name: { type: 'string' } } },
+	};
+	const schema = operationPayloadSchema(op);
+	assert.equal('$defs' in schema, false);
+});
+
+test('end-to-end: a real cyclic (Filter-shaped) requestBodySchema round-trips through validateEnvelope -- a real matching payload passes, a real structurally-wrong deeply-nested one fails', () => {
+	const cyclicSchema = {
+		type: 'object', required: ['clauses'],
+		properties: { clauses: { type: 'array', items: { '$ref': '#/$defs/Filter' } } },
+		'$defs': { Filter: { type: 'object', required: ['clauses'], properties: { clauses: { type: 'array', items: { '$ref': '#/$defs/Filter' } } } } },
+	};
+	const op = {
+		verb: 'POST', path: '/filters', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },
+		body: true, provenance: 'scan+openapi', requestBodySchema: cyclicSchema,
+	};
+	const contract = widgetContract(op);
+	const envelopeBase = { sbf: '1', feature_id: '001-x', feature_uid: WIDGET_FEATURE_UID, operation_id: 'createWidget', direction: 'request' };
+
+	const valid = validateEnvelope({ ...envelopeBase, payload: { pathParams: {}, body: { clauses: [{ clauses: [] }] } } }, contract);
+	assert.equal(valid.ok, true, JSON.stringify(valid.errors));
+
+	const invalid = validateEnvelope({ ...envelopeBase, payload: { pathParams: {}, body: { clauses: [{ clauses: 'not an array' }] } } }, contract);
+	assert.equal(invalid.ok, false);
+});
+
 test('end-to-end: direction:"response" with a missing required field fails (used to pass before A3), a valid one passes; direction:"error" symmetric; an operation with no projected schema stays unconstrained', () => {
 	const op = {
 		verb: 'POST', path: '/widgets', pathParams: { type: 'object', additionalProperties: false, properties: {}, required: [] },

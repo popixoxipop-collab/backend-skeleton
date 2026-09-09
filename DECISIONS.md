@@ -12643,3 +12643,107 @@ missing keyword or an uncited cap.
 tests (`properties` wide fan-out, large `enum` array) updated from 2100 to 250001 entries each, to
 exceed the NEW cap rather than the old one, the same pattern `MAX_PATTERN_LENGTH`'s own boundary
 test already established. Full `npm test` green. `test/doc-integrity.test.mjs` clean.
+
+## D-openapi-cyclic-refs (CATALOG A15 Update): `$ref`/`$defs` support for genuinely cyclic schemas
+
+**WHY (D1)**: `cycle-detected` was the one real remaining failure category
+`D-openapi-schema-keyword-recursion` explicitly left permanently out of scope, calling it "a
+genuine circular schema reference, not a missing-keyword gap." User-directed, after that framing
+was explained: introduce
+real support rather than leave it a hard wall. `inlineSchema()` had always fully inlined every
+`$ref` — correct and sufficient for acyclic schemas, but a genuinely self-referential real schema
+(`polarsource/polar`'s `Filter`, a nested filter-group tree where a clause can itself be another
+`Filter`; `Meter`↔`Subscription`↔`SubscriptionMeter`'s mutual reference — 20 distinct component
+schemas transitively involved in a real cycle in this one corpus) can never terminate under full
+inlining. Alternative considered and rejected: depth-bounded truncation (inline up to N levels,
+then a permissive `{}` fallback) — keeps every consumer's "always $ref-free" invariant intact with
+zero special-casing anywhere, but silently under-constrains real payloads beyond the bound (a
+validator built from a truncated schema would accept structurally-invalid data past that depth).
+Rejected because it trades a real, disclosed limitation (this entry's own new
+`cmdContractToolSchema` refusal, below) for a SILENT, undisclosed one — this project's own
+established doctrine (SCHEMA_PROPERTY_NAME_RE, `discriminator`'s malformed-input handling,
+`ref-with-siblings` itself) is fail closed and explicit over silently accepting something weaker
+than the real shape.
+
+**Mechanism**: `walkSchemaNode()`'s existing `visiting.has(name)` ancestor-chain cycle check (the
+exact point that used to call `fail('cycle-detected')`) now records `name` in a per-call
+`state.defsNeeded` Set and returns `{"$ref": "#/$defs/<name>"}` instead. This is a deterministic
+property of `name`'s OWN structure (does it reach itself via any of its own
+`oneOf`/`anyOf`/`allOf`/`properties`/`items` branches, all walked unconditionally, never simulating
+"one instance") — not of which reference site discovers it first, so every occurrence of a
+self-referential component hits this branch and every occurrence of a non-cyclic one fully inlines
+exactly as before; no two-pass discovery step was needed (verified live: a component reached both
+cyclically and non-cyclically from different tree positions is architecturally impossible — if a
+self-reference is reachable from ANY position, it's reachable from EVERY position, since the
+structure being walked doesn't change based on the reference site). Once the top-level walk
+completes, `inlineSchema()` drains `state.defsNeeded` in a fixed-point loop (resolving one cyclic
+component can reveal ANOTHER one reachable from it — the real 3-way mutual cycle needs this, not a
+single pass over a snapshot) into a real `$defs` map attached to the top-level returned schema —
+entirely omitted for the overwhelmingly common acyclic case, so every existing non-cyclic call site
+is byte-for-byte unaffected. Defs-resolution walks share the SAME `state.nodes`/`maxDepth` budget as
+the main walk (verified live: still fails `too-many-nodes`/`max-depth-exceeded` for a genuinely
+oversized cyclic component) — no separate, unbounded resolution path.
+
+**Two other real consumers this touches, both found by direct code inspection before writing any
+code, not assumed**:
+- `contracts/validate.mjs`'s `operationPayloadSchema()` nests the projected schema one level deeper
+  (`properties.body`) before the caller compiles the WHOLE wrapper with a real `Ajv2020`. `$ref:
+  "#/$defs/X"` is a JSON Pointer resolved against the COMPILED DOCUMENT's own root, not wherever the
+  `$ref` textually sits — confirmed live: leaving `$defs` on the nested schema throws `can't
+  resolve reference #/$defs/X from id #` once wrapped this way, even though the identical schema
+  compiles and validates correctly standalone. Fixed (verified live, all 3 directions — request/
+  response/error all use this same wrapper): hoist any nested `$defs` onto the wrapper's own top
+  level, strip the now-redundant nested copy. `contracts/export.mjs` is NOT affected — it places
+  the schema at a document LEAF (`content[JSON_MEDIA_TYPE].schema`); standard OpenAPI tooling
+  treats that exact node as its own independent schema resource, so a `$defs` sibling riding along
+  on it resolves correctly there. `contracts/openapi.mjs`'s own A2/A3 internal attachment points
+  aren't affected either — they only store the schema, wrapping only happens later inside
+  `operationPayloadSchema()`. A3's own union-wrap (`{anyOf: distinct}`, 2+ distinct response
+  shapes) is the SAME class of bug one level earlier — fixed there too: each branch's own `$defs`
+  is hoisted onto the new wrapper's `$defs`, with a same-name-different-content collision (not
+  observed in real data) failing that resolution closed rather than silently picking one.
+- `bin/bskel.mjs`'s `cmdContractToolSchema` (`bskel contract tool-schema`) promises its
+  `input_schema` output is "directly usable as-is" for Anthropic tool-use, citing (its own
+  pre-existing comment) "no $ref/$defs is exactly what that promise requires." Checked against
+  Anthropic's own documentation (`platform.claude.com/docs/en/build-with-claude/structured-
+  outputs`, JSON Schema limitations) rather than assumed either way: internal (non-external-URL)
+  `$ref`/`$defs` ARE supported by tool-use `input_schema`, but **recursive schemas are explicitly
+  listed as unsupported and return a real 400 error**. This confirms the ORIGINAL comment's caution
+  was correct, and that this project genuinely cannot satisfy both consumers with one
+  representation for the cyclic case. Resolution (user-confirmed, one of 3 designs presented): keep
+  the single `$ref`/`$defs` representation for `contract validate`/`contract export` (both work
+  correctly with it), and have `cmdContractToolSchema` explicitly refuse (new `RECURSIVE_SCHEMA_
+  UNSUPPORTED` reason, `EXIT_CODES.NOT_PASSED`, matching `UNKNOWN_OPERATION`'s existing sibling
+  pattern) when the projected schema carries `$defs`, citing the real Anthropic limitation by name
+  — rather than silently emitting something that would only fail later at the actual API call.
+
+**A third, genuine edge case found live, not anticipated in the design**: a component whose ENTIRE
+definition is nothing but a `$ref` chain back to itself — no `type`/`properties`/any real assertion
+anywhere in the cycle — resolves to a bare `{"$ref": "#/$defs/X"}` with no other keys. Confirmed
+live: the real, installed `Ajv2020` itself throws `Maximum call stack size exceeded` trying to
+COMPILE such a schema (a pure-indirection loop with no base case for its own compiler to terminate
+on). Not a shape any real OpenAPI document produces — every real cyclic component measured
+(`Filter`, `Meter`/`Subscription`/`SubscriptionMeter`) has genuine structural content at every
+level of its own cycle. Fails closed with a new, distinct reason (`cycle-without-base-schema`)
+rather than being silently emitted, checked by scanning each drained `$defs` entry for any key
+besides `$ref`/`default`.
+
+**COST (D2)**: `requestBodySchema`/`responseSchema`/`errorSchema` are no longer UNCONDITIONALLY
+`$ref`-free — `schemas/feature-contract.schema.json`'s own description text updated from "fully
+inlined (no $ref)" to "fully inlined EXCEPT at a genuinely self-referential component." A genuinely
+recursive operation's payload now permanently cannot get a `bskel contract tool-schema` output — a
+real, disclosed new limitation (not a bskel-side gap; Anthropic's own API constraint), refused
+explicitly rather than silently degraded. `MAX_SCHEMA_NODES`'s already-generous 250000 budget
+(widened in this same entry's own prior Update) is shared across BOTH the main walk and every
+`$defs` drain — a pathological document with many independent large cycles could, in principle,
+consume more of that shared budget than a single acyclic document of the same nominal size; not
+observed in real data (the real corpus's own worst case, `Filter`, needed only one `$defs` entry).
+
+**EXIT**: to revert, remove the `state.defsNeeded`/drain machinery from `inlineSchema()` and restore
+`fail('cycle-detected')` at the `visiting.has(name)` check — purely additive, so this is a clean,
+isolated revert; every other change in this entry (the `operationPayloadSchema()` hoist, the A3
+union merge, `cmdContractToolSchema`'s refusal) becomes dead code but not a correctness hazard if
+left in place. Real, unscoped follow-up: none currently known — the real corpus's own masking
+cascade (A15's 5 keywords → `prefixItems` → `MAX_SCHEMA_NODES` → this entry) bottomed out at
+`ref-with-siblings`(2), a separate, already-understood limitation (this module's own `$ref`-sibling
+merge-semantics policy, unrelated to cycles) with no further real gaps surfaced by this pass.

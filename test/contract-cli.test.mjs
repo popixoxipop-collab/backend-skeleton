@@ -600,7 +600,7 @@ test('contract validate rejects a body missing a required field -- the identical
 	assert.equal(JSON.parse(withSchema.stdout).ok, false);
 });
 
-test('contract tool-schema exposes the real field shape, with zero $ref anywhere in the output', () => {
+test('contract tool-schema exposes the real field shape, with zero $ref anywhere in the output -- the ordinary, non-cyclic case', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const docFile = writeOpenApiFixture(root, widgetOpenApiDoc({ withRequestBodies: true }));
@@ -611,6 +611,41 @@ test('contract tool-schema exposes the real field shape, with zero $ref anywhere
 	const parsed = JSON.parse(toolSchema.stdout);
 	assert.equal(parsed.input_schema.properties.body.properties.name.maxLength, 10);
 	assert.equal(toolSchema.stdout.includes('$ref'), false);
+});
+
+test('D-openapi-cyclic-refs: contract tool-schema explicitly REFUSES a genuinely recursive requestBodySchema rather than emitting a schema Anthropic tool-use would 400 on', () => {
+	const root = buildFixtureRepo();
+	initThroughScanDisposition(root);
+	const doc = widgetOpenApiDoc({});
+	doc.components = { schemas: {
+		CreateWidgetRequest: {
+			type: 'object',
+			properties: { clauses: { type: 'array', items: { '$ref': '#/components/schemas/CreateWidgetRequest' } } },
+		},
+	} };
+	doc.paths['/api/v0/widgets'].post.requestBody = {
+		required: true,
+		content: { 'application/json': { schema: { '$ref': '#/components/schemas/CreateWidgetRequest' } } },
+	};
+	const docFile = writeOpenApiFixture(root, doc);
+	const emit = run(['contract', 'emit', '--feature', '001-widget-management', '--openapi-file', docFile], root);
+	assert.equal(emit.code, 0, 'D-openapi-cyclic-refs: a cyclic component now resolves via $ref/$defs, no longer blocks emit');
+
+	// contract validate (real Ajv) accepts it just fine -- confirms the refusal below is specific
+	// to tool-schema's own Anthropic-recursive-schema constraint, not a general problem with the
+	// projected schema itself.
+	const featureUid = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8')).feature_uid;
+	const envelopePath = path.join(root, 'envelope.json');
+	fs.writeFileSync(envelopePath, JSON.stringify({
+		sbf: '1', feature_id: '001-widget-management', feature_uid: featureUid,
+		operation_id: 'createWidget', direction: 'request', payload: { pathParams: {}, body: { clauses: [{ clauses: [] }] } },
+	}));
+	const validate = run(['contract', 'validate', '--feature', '001-widget-management', '--file', envelopePath], root);
+	assert.equal(validate.code, 0, validate.stdout + validate.stderr);
+
+	const toolSchema = run(['contract', 'tool-schema', '--feature', '001-widget-management', '--operation', 'createWidget'], root);
+	assert.notEqual(toolSchema.code, 0);
+	assert.match(toolSchema.stderr, /recursive/i);
 });
 
 test('an unsupported schema keyword: emit still exits 0 (WARN only), one CONTRACT_OPENAPI_SCHEMA_UNRESOLVED, and validate still accepts a plain object body', () => {
