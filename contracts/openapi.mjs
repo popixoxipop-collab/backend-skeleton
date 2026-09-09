@@ -28,7 +28,20 @@ const HTTP_METHODS = Object.freeze(new Set(['get', 'put', 'post', 'delete', 'opt
 // D-openapi-request-schema in DECISIONS.md for the full measurement.
 const MAX_COMPONENT_SCHEMAS = 5000;
 const MAX_SCHEMA_DEPTH = 32; // every recursion level (structural AND $ref), not just $ref-chain depth
-const MAX_SCHEMA_NODES = 2000; // shared counter per top-level inlineSchema() call, enum entries count
+// D-openapi-schema-keyword-recursion (CATALOG A15/A16 follow-up): widened 2000 -> 250000. The
+// original 2000 had no real-data citation (an uncited default). After A15/A16's own masking-
+// cascade fixes unmasked 30 real request/response schema resolutions genuinely needing more than
+// 2000 nodes, a real per-schema binary-search probe (not guessed) found needs ranging 2289-61304
+// against polarsource/polar. Investigated the worst case directly before widening anything (this
+// project's own "measure, don't guess" discipline applies doubly hard to a DoS-defensive cap, not
+// just an operational-default one): `GET /v1/events/`'s 200 response is `anyOf` of two list
+// wrappers (regular + cursor-paginated), each independently embedding a full copy of `Event` ->
+// `oneOf[SystemEvent, UserEvent]` -> `SystemEvent.oneOf` (36 REAL distinct event subtypes, a real
+// webhook/audit event taxonomy) -- roughly 2x one full Event tree's cost, from a genuinely wide
+// real API surface, not pathological duplication or a runaway loop. 250000 keeps this project's
+// own established "~4x real observed max" headroom convention (MAX_COMPONENT_SCHEMAS 4.8x,
+// MAX_PATTERN_LENGTH 3.5x, MAX_PARAMETERS_PER_OPERATION 3.8x) rather than a tight fit to 61304.
+const MAX_SCHEMA_NODES = 250000; // shared counter per top-level inlineSchema() call, enum entries count
 // D-oracle-corpus-openapi-remeasurement (ROADMAP Phase 5c): widened 300 -> 1000. Real max
 // observed against Team-IZ-Backend: 77. Re-measured against a second, much larger real
 // production document (polarsource/polar, 1046 component schemas vs Team-IZ-Backend's 308): real

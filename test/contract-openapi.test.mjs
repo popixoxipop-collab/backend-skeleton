@@ -470,15 +470,18 @@ test('inlineSchema: nesting past MAX_SCHEMA_DEPTH fails closed with max-depth-ex
 });
 
 test('inlineSchema: wide-but-acyclic fan-out past MAX_SCHEMA_NODES fails closed with too-many-nodes', () => {
+	// D-openapi-schema-keyword-recursion (A15/A16 follow-up): cap widened 2000 -> 250000 (real
+	// need against polarsource/polar ranged 2289-61304) -- 250001 exceeds the NEW cap, not the old
+	// one, same pattern as the pattern-length boundary test below.
 	const properties = {};
-	for (let i = 0; i < 2100; i++) properties[`p${i}`] = { type: 'string' };
+	for (let i = 0; i < 250001; i++) properties[`p${i}`] = { type: 'string' };
 	const result = inlineSchema({ type: 'object', properties }, new Map());
 	assert.equal(result.ok, false);
 	assert.equal(result.reason, 'too-many-nodes');
 });
 
 test('inlineSchema: a large enum array counts toward the node budget and can exceed it', () => {
-	const enumValues = Array.from({ length: 2100 }, (_, i) => `v${i}`);
+	const enumValues = Array.from({ length: 250001 }, (_, i) => `v${i}`);
 	const result = inlineSchema({ type: 'string', enum: enumValues }, new Map());
 	assert.equal(result.ok, false);
 	assert.equal(result.reason, 'too-many-nodes');

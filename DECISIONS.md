@@ -12608,3 +12608,38 @@ since nothing new surfaced to name), plus 5 new dedicated tests (real-shape roun
 real `$ref` sibling resolving correctly, empty-array fail-closed matching `oneOf`/`anyOf`/`allOf`'s
 own precedent, one-tuple-position-genuinely-unsupported still fails the whole schema closed,
 `findUnsupportedAnnotations()` recursion into a tuple position). Full `npm test` green.
+
+**Update (`MAX_SCHEMA_NODES` widened 2000 → 250000, user-directed)**: closes the `too-many-nodes`
+question this entry deliberately left open above. Investigated the real driver before widening
+anything — the same "measure, don't guess" discipline applied to a keyword branch applies doubly to
+a DoS-defensive ceiling. Binary-searched the single worst real case directly: `GET /v1/events/`'s
+200 response schema is `anyOf` of two list wrappers (`ListResource_Event_` /
+`ListResourceWithCursorPagination_Event_` — a regular and a cursor-paginated variant), each
+independently embedding a FULL copy of `Event` → `oneOf[SystemEvent, UserEvent]` →
+`SystemEvent.oneOf` (36 real distinct event subtypes — a genuine webhook/audit event taxonomy, not
+a fabricated stress case). Since this module has no `$ref`-preserving output mode (every reference
+is fully, independently re-inlined everywhere it's encountered — see this entry's own
+`cycle-detected` EXIT note above for the same architectural root cause), that ~36-branch tree gets
+embedded twice, roughly doubling one full tree's node cost. This is genuinely wide real API
+polymorphism compounded by the flatten-only architecture's own known duplication cost, NOT
+pathological duplication or a runaway loop — confirmed by inspecting the actual schema, not assumed
+from the number alone. `250000` was chosen to match this project's own already-established "~4x
+real observed max" headroom convention (`MAX_COMPONENT_SCHEMAS` 4.8x, `MAX_PATTERN_LENGTH` 3.5x,
+`MAX_PARAMETERS_PER_OPERATION` 3.8x in Phase 5c) against the real measured max of 61,304, rather
+than either a tight fit or an arbitrarily large "just remove the limit" number — it stays a real,
+finite DoS budget, just one sized to the real complexity this document's own architecture already
+requires.
+
+Live re-measurement: `inlineSchemaResolution.ok` rose from 541 to 553 of 568 attempted (97.4%) —
+`too-many-nodes` is now fully gone from the failure set. Only `cycle-detected`(13)/
+`ref-with-siblings`(2) remain, both already-scoped-out architectural limitations from this entry's
+own original text, not new gaps. This closes the masking cascade this entry and its `prefixItems`
+Update both started from — three full rounds of "fix the visible failures, re-measure, find what
+was hidden behind them" (A15's own 5 keywords → `prefixItems` → this cap) with nothing left to
+chase that isn't a genuine architectural limitation (no `$ref`-preserving output mode) rather than a
+missing keyword or an uncited cap.
+
+**Verified**: `test/contract-openapi.test.mjs` (203/203) — the 2 existing node-budget boundary
+tests (`properties` wide fan-out, large `enum` array) updated from 2100 to 250001 entries each, to
+exceed the NEW cap rather than the old one, the same pattern `MAX_PATTERN_LENGTH`'s own boundary
+test already established. Full `npm test` green. `test/doc-integrity.test.mjs` clean.
