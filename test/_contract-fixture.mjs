@@ -214,8 +214,10 @@ export function widgetOpenApiDoc({
 	const schemas = {};
 	const securitySchemes = {};
 	if (withRequestBodies) {
+		// A15: discriminator is now a supported keyword -- switched to `not`, still genuinely
+		// unsupported, to keep this fixture actually producing an unresolvable schema.
 		schemas.CreateWidgetRequest = unsupportedSchema
-			? { type: 'object', discriminator: { propertyName: 'kind' } }
+			? { type: 'object', not: { type: 'string' } }
 			: { type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 10 } } };
 		paths['/api/v0/widgets'].post.requestBody = {
 			required: true,
@@ -223,8 +225,9 @@ export function widgetOpenApiDoc({
 		};
 	}
 	if (withResponses) {
+		// A15: discriminator is now supported -- switched to `not`, same reasoning as above.
 		schemas.WidgetResponse = unsupportedResponseSchema
-			? { type: 'object', discriminator: { propertyName: 'kind' } }
+			? { type: 'object', not: { type: 'string' } }
 			: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } };
 		schemas.ErrorResponse = { type: 'object', required: ['code'], properties: { code: { type: 'string' } } };
 		const successKey = rangeStatusKeys ? '2XX' : '201';

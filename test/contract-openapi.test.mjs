@@ -499,12 +499,17 @@ test('inlineSchema: a syntactically invalid pattern fails closed with invalid-pa
 });
 
 test('inlineSchema: unsupported keywords fail closed by name, never silently dropped', () => {
+	// A15: discriminator/propertyNames are now SUPPORTED (see their own dedicated tests below) --
+	// removed from this fixture list. prefixItems (JSON Schema 2020-12 tuple validation) added:
+	// a real, still-unsupported keyword found live while re-measuring after A15's own fixes
+	// (45 real occurrences in polarsource/polar, unmasked by fixing the OTHER 5 keywords that used
+	// to fail first and hide it -- not built this round, named here as an honest "still fails
+	// closed" fixture, not a claim of support).
 	const cases = [
-		['discriminator', { type: 'object', discriminator: { propertyName: 'kind' } }],
 		['patternProperties', { type: 'object', patternProperties: { '^x-': { type: 'string' } } }],
 		['not', { not: { type: 'string' } }],
 		['if', { if: { type: 'string' }, then: {} }],
-		['propertyNames', { propertyNames: { pattern: '^x' } }],
+		['prefixItems', { type: 'array', prefixItems: [{ type: 'string' }] }],
 		['$dynamicRef', { '$dynamicRef': '#meta' }],
 		['$id', { '$id': 'urn:sbf:envelope:1', type: 'object' }],
 	];
@@ -604,6 +609,17 @@ test('inlineSchema: an unmeasured format value fails closed rather than being gu
 	const result = inlineSchema({ type: 'string', format: 'ipv4' }, new Map());
 	assert.equal(result.ok, false);
 	assert.match(result.reason, /unsupported-format:ipv4/);
+});
+
+test('inlineSchema: ipvanyaddress/duration/color pass through as SAFE_FORMATS -- A15, added despite low volume (7/2/1 real occurrences) since the mechanism is a pure passthrough, not a validator', () => {
+	for (const fmt of ['ipvanyaddress', 'duration', 'color']) {
+		const result = inlineSchema({ type: 'string', format: fmt }, new Map());
+		assert.equal(result.ok, true, `format:${fmt} should now be safe`);
+		assert.equal(result.schema.format, fmt);
+	}
+	// ipv4 itself (distinct from ipvanyaddress) stays unmeasured -- confirms this addition was
+	// scoped to exactly the 3 real formats, not a blanket "any ip-ish format" widening.
+	assert.equal(inlineSchema({ type: 'string', format: 'ipv4' }, new Map()).ok, false);
 });
 
 // --- dialect gate + reconcile integration ---
@@ -857,6 +873,9 @@ test('a response documented only under "default" contributes to the error bucket
 });
 
 test('one 2xx resolves, another has an unsupported keyword -> the WHOLE responseSchema fails closed, no partial union', () => {
+	// A15: discriminator is now SUPPORTED (see contract-openapi.test.mjs's own discriminator tests)
+	// -- this fixture switched to `not`, still genuinely unsupported, to keep testing what this
+	// test is actually about (partial-union refusal), not discriminator support.
 	const doc = docWithResponses(
 		{
 			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Good' } } } },
@@ -865,13 +884,13 @@ test('one 2xx resolves, another has an unsupported keyword -> the WHOLE response
 		{
 			components: {
 				Good: { type: 'object' },
-				Bad: { type: 'object', discriminator: { propertyName: 'kind' } },
+				Bad: { type: 'object', not: { type: 'string' } },
 			},
 		},
 	);
 	const { recon, result } = reconcileCreateWidget(doc);
 	assert.equal('responseSchema' in result, false);
-	assert.match(result.responseSchemaUnresolvedReason, /unsupported-keyword:discriminator/);
+	assert.match(result.responseSchemaUnresolvedReason, /unsupported-keyword:not/);
 	assert.equal(recon.stats.response_schema_unresolved, 1);
 });
 
@@ -1136,13 +1155,14 @@ test('example/examples are DROPPED silently (annotation-only), not a copy failur
 });
 
 test('a parameter whose schema fails to resolve is STILL copied (every other field is real and safe), just without a `schema` key -- and it drives the warning', () => {
-	const doc = docWithOperationFields({ parameters: [{ name: 'x', in: 'query', required: true, schema: { type: 'object', discriminator: { propertyName: 'kind' } } }] });
+	// A15: discriminator is now supported -- fixture switched to `not`.
+	const doc = docWithOperationFields({ parameters: [{ name: 'x', in: 'query', required: true, schema: { type: 'object', not: { type: 'string' } } }] });
 	const { recon, result } = reconcileCreateWidget(doc);
 	assert.equal(result.sourceParameters.length, 1);
 	assert.equal(result.sourceParameters[0].name, 'x');
 	assert.equal(result.sourceParameters[0].required, true);
 	assert.equal('schema' in result.sourceParameters[0], false);
-	assert.match(result.parametersUnresolved[0].reason, /unsupported-keyword:discriminator/);
+	assert.match(result.parametersUnresolved[0].reason, /unsupported-keyword:not/);
 	assert.equal(recon.stats.parameters_unresolved, 1);
 });
 
@@ -1409,7 +1429,7 @@ test('per-status: written only when BOTH response and error buckets are resolved
 			'200': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Widget' } } } },
 			'400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/BadError' } } } },
 		},
-	}, { componentSchemas: { Widget: { type: 'object' }, BadError: { type: 'object', discriminator: { propertyName: 'kind' } } } });
+	}, { componentSchemas: { Widget: { type: 'object' }, BadError: { type: 'object', not: { type: 'string' } } } }); // A15: discriminator now supported, fixture switched to `not`
 	const { recon, result } = reconcileCreateWidgetFields(doc);
 	assert.ok(result.responseSchema, 'the success side must still resolve');
 	assert.equal('errorSchema' in result, false, 'the error side must genuinely fail to resolve for this test to mean anything');
@@ -1534,8 +1554,9 @@ test('request media types: application/json alongside multipart -- only the non-
 });
 
 test('request media types: a media type whose schema fails to resolve is still recorded (media type name is real and safe), just without a `schema` key -- and drives the new warning signal', () => {
+	// A15: discriminator is now supported -- fixture switched to `not`.
 	const doc = docWithRequestBody(
-		{ content: { 'multipart/form-data': { schema: { type: 'object', discriminator: { propertyName: 'kind' } } } } },
+		{ content: { 'multipart/form-data': { schema: { type: 'object', not: { type: 'string' } } } } },
 	);
 	const { result } = reconcileCreateWidgetFields(doc);
 	assert.deepEqual(result.sourceRequestBody.content['multipart/form-data'], {});
@@ -1606,7 +1627,7 @@ test('snapshot decision fields: per_status_responses "copied:N" / "none" / "skip
 		'skipped:dialect',
 	);
 	assert.equal(
-		snapshotOp(docWithOperationFields({ responses: { '400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Bad' } } } } } }, { componentSchemas: { Bad: { type: 'object', discriminator: { propertyName: 'k' } } } })).per_status_responses,
+		snapshotOp(docWithOperationFields({ responses: { '400': { content: { 'application/json': { schema: { '$ref': '#/components/schemas/Bad' } } } } } }, { componentSchemas: { Bad: { type: 'object', not: { type: 'string' } } } })).per_status_responses, // A15: discriminator now supported, fixture switched to `not`
 		'skipped:unresolved',
 	);
 });
@@ -1618,7 +1639,7 @@ test('snapshot decision fields: request_media_types "copied:N" / "partial:N" / "
 		'copied:1',
 	);
 	assert.equal(
-		snapshotOp(docWithOperationFields({ requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', discriminator: { propertyName: 'k' } } } } } })).request_media_types,
+		snapshotOp(docWithOperationFields({ requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', not: { type: 'string' } } } } } })).request_media_types, // A15: discriminator now supported, fixture switched to `not`
 		'partial:1',
 	);
 });
@@ -1671,7 +1692,8 @@ test('source declares the path param but with no `schema` key: falls back to the
 });
 
 test('source declares an unresolvable schema for the path param: falls back to the heuristic', () => {
-	const { recon, result } = reconcileFindWidgetBatchId(docWithBatchIdPathParam({ type: 'object', discriminator: { propertyName: 'kind' } }));
+	// A15: discriminator is now supported -- fixture switched to `not`.
+	const { recon, result } = reconcileFindWidgetBatchId(docWithBatchIdPathParam({ type: 'object', not: { type: 'string' } }));
 	assert.equal('pathParamSchemas' in result, false);
 	assert.equal(recon.stats.path_params_unresolved, 1);
 });
@@ -1930,6 +1952,101 @@ test('inlineSchema: title/examples/deprecated are copied recursively -- nested i
 	assert.equal(nested.deprecated, true);
 });
 
+test('inlineSchema: readOnly is copied only when includeFieldDocs is true -- A15, 2020-12 s.9.4 annotation-only, same shape as deprecated', () => {
+	const schema = { type: 'string', readOnly: true };
+	const off = inlineSchema(schema, new Map());
+	assert.equal(off.ok, true);
+	assert.equal('readOnly' in off.schema, false);
+	const on = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(on.ok, true);
+	assert.equal(on.schema.readOnly, true);
+});
+
+test('inlineSchema: readOnly:false is copied verbatim, not treated as absent', () => {
+	const result = inlineSchema({ type: 'string', readOnly: false }, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.readOnly, false);
+});
+
+test('inlineSchema: a non-boolean readOnly value is silently dropped rather than copied as-is', () => {
+	const result = inlineSchema({ type: 'string', readOnly: 'yes' }, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal('readOnly' in result.schema, false);
+});
+
+test('inlineSchema: readOnly is copied recursively -- nested inside properties, not just the root node', () => {
+	const schema = { type: 'object', properties: { id: { type: 'string', readOnly: true } } };
+	const result = inlineSchema(schema, new Map(), { includeFieldDocs: true });
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.properties.id.readOnly, true);
+});
+
+test('inlineSchema: discriminator (propertyName + mapping) is copied verbatim, unconditional on includeFieldDocs -- A15, real shape confirmed 36/36 against polarsource/polar', () => {
+	const schema = { oneOf: [{ type: 'object' }], discriminator: { propertyName: 'type', mapping: { a: '#/components/schemas/A', b: '#/components/schemas/B' } } };
+	const off = inlineSchema(schema, new Map());
+	assert.equal(off.ok, true);
+	assert.deepEqual(off.schema.discriminator, { propertyName: 'type', mapping: { a: '#/components/schemas/A', b: '#/components/schemas/B' } });
+});
+
+test('inlineSchema: discriminator without a mapping (still spec-legal) is copied as propertyName-only', () => {
+	const result = inlineSchema({ type: 'object', discriminator: { propertyName: 'kind' } }, new Map());
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.schema.discriminator, { propertyName: 'kind' });
+});
+
+test('inlineSchema: a discriminator missing propertyName drops the field silently -- the schema still resolves, discriminator is annotation-only', () => {
+	const result = inlineSchema({ type: 'object', discriminator: { mapping: { a: 'x' } } }, new Map());
+	assert.equal(result.ok, true);
+	assert.equal('discriminator' in result.schema, false);
+});
+
+test('inlineSchema: a discriminator with a non-string mapping value drops the field silently, not the whole schema', () => {
+	const result = inlineSchema({ type: 'object', discriminator: { propertyName: 'kind', mapping: { a: 123 } } }, new Map());
+	assert.equal(result.ok, true);
+	assert.equal('discriminator' in result.schema, false);
+});
+
+test('inlineSchema: propertyNames recurses like items/additionalProperties -- real shape 1 of 3 (plain length constraint)', () => {
+	const result = inlineSchema({ type: 'object', propertyNames: { maxLength: 40, minLength: 1 } }, new Map());
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.schema.propertyNames, { maxLength: 40, minLength: 1 });
+});
+
+test('inlineSchema: propertyNames recurses -- real shape 2 of 3 (format:uuid4, gets the same BARE_UUID_PATTERN rewrite one layer down)', () => {
+	const result = inlineSchema({ type: 'object', propertyNames: { format: 'uuid4' } }, new Map());
+	assert.equal(result.ok, true);
+	assert.equal(result.schema.propertyNames.pattern, BARE_UUID_PATTERN);
+});
+
+test('inlineSchema: propertyNames recurses -- real shape 3 of 3 ($ref to a component schema)', () => {
+	const components = new Map([['Currency', { type: 'string', enum: ['USD', 'EUR'] }]]);
+	const result = inlineSchema({ type: 'object', propertyNames: { '$ref': '#/components/schemas/Currency' } }, components);
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.schema.propertyNames, { type: 'string', enum: ['USD', 'EUR'] });
+});
+
+test('inlineSchema: propertyNames still fails closed if ITS OWN sub-schema uses a genuinely unsupported keyword -- recursion is real, not a rubber stamp', () => {
+	const result = inlineSchema({ type: 'object', propertyNames: { not: { type: 'string' } } }, new Map());
+	assert.equal(result.ok, false);
+	assert.match(result.reason, /unsupported-keyword:not/);
+});
+
+test('inlineSchema: x-speakeasy-enums and enumNames no longer fail the schema closed -- A15, moved into DROPPED_KEYWORDS', () => {
+	const schema = { type: 'string', enum: ['A', 'B'], 'x-speakeasy-enums': ['A', 'B'], enumNames: { A: 'Label A' } };
+	const result = inlineSchema(schema, new Map());
+	assert.equal(result.ok, true);
+	assert.equal('x-speakeasy-enums' in result.schema, false);
+	assert.equal('enumNames' in result.schema, false);
+	assert.deepEqual(result.schema.enum, ['A', 'B']);
+});
+
+test('inlineSchema: cycle-detected is unaffected by A15 -- a genuine circular $ref chain still fails closed, not a masking regression', () => {
+	const components = new Map([['Self', { type: 'object', properties: { self: { '$ref': '#/components/schemas/Self' } } }]]);
+	const result = inlineSchema({ '$ref': '#/components/schemas/Self' }, components);
+	assert.equal(result.ok, false);
+	assert.equal(result.reason, 'cycle-detected');
+});
+
 test('inlineSchema: example copies non-string JSON values verbatim (number/object/array/boolean) -- example is not a string-only field', () => {
 	for (const value of [409, { status: 'ACTIVE' }, [1, 2, 3], false, 0]) {
 		const result = inlineSchema({ type: 'string', example: value }, new Map(), { includeFieldDocs: true });
@@ -2124,6 +2241,21 @@ test('findUnsupportedAnnotations: a $ref cycle does not hang -- the same `seen` 
 	// so this just confirms the object-identity `seen` guard prevents runaway recursion on a
 	// self-referential raw object graph, without needing to understand $ref semantics at all.
 	assert.doesNotThrow(() => findUnsupportedAnnotations(doc));
+});
+
+test('findUnsupportedAnnotations: x-speakeasy-enums and enumNames (A15\'s new DROPPED_KEYWORDS members) are found the same way xml/externalDocs already are', () => {
+	const doc = { components: { schemas: { Scope: { type: 'string', enumNames: { a: 'A' } }, Address: { type: 'object', properties: { country: { type: 'string', 'x-speakeasy-enums': ['US'] } } } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['enumNames', 'x-speakeasy-enums']);
+});
+
+test('findUnsupportedAnnotations: a dropped keyword nested inside propertyNames\' own sub-schema is found -- A15, propertyNames joined RECURSED_KEYWORDS', () => {
+	const doc = { components: { schemas: { Widget: { type: 'object', propertyNames: { type: 'string', xml: { name: 'key' } } } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), ['xml']);
+});
+
+test('findUnsupportedAnnotations: readOnly (A15\'s new DOCUMENTATION_KEYWORDS member) is never reported here, same as deprecated/title -- a different mechanism handles it', () => {
+	const doc = { components: { schemas: { Widget: { type: 'object', properties: { id: { type: 'string', readOnly: true } } } } } };
+	assert.deepEqual(findUnsupportedAnnotations(doc), []);
 });
 
 test('findUnsupportedAnnotations: description/example (A11\'s own DOCUMENTATION_KEYWORDS, not DROPPED_KEYWORDS) are never reported here -- a different mechanism already handles them', () => {

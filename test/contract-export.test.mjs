@@ -441,15 +441,17 @@ test('--status-codes has no effect on an operation with real per-status source d
 });
 
 // The union fallback (and --status-codes' effect on it) is still real and still tested here --
-// exercised by making exactly the ERROR side unresolvable (an unsupported `discriminator`
-// keyword), which is enough to make BOTH sides skip per-status (see D-openapi-per-status's
-// fail-closed invariant: sourceResponses is written only when BOTH buckets are resolved-or-none)
-// while the SUCCESS side still resolves and renders through the pre-A8 union path unchanged.
+// exercised by making exactly the ERROR side unresolvable (an unsupported `not` keyword -- A15
+// made `discriminator` itself a supported keyword, so this fixture switched to a keyword that's
+// still genuinely unsupported), which is enough to make BOTH sides skip per-status (see
+// D-openapi-per-status's fail-closed invariant: sourceResponses is written only when BOTH buckets
+// are resolved-or-none) while the SUCCESS side still resolves and renders through the pre-A8 union
+// path unchanged.
 test('--status-codes shapes the union fallback for an operation with no per-status source data (one side unresolvable)', () => {
 	const root = buildFixtureRepo();
 	initThroughScanDisposition(root);
 	const doc = widgetOpenApiDoc({ withResponses: true });
-	doc.components.schemas.ErrorResponse = { type: 'object', discriminator: { propertyName: 'kind' } };
+	doc.components.schemas.ErrorResponse = { type: 'object', not: { type: 'string' } };
 	const docFile = writeOpenApiFixture(root, doc);
 	assert.equal(run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root).code, 0);
 	const contract = JSON.parse(fs.readFileSync(contractSchemaPath(root), 'utf8'));
@@ -820,7 +822,8 @@ test('A8: a non-JSON request media type whose schema fails to resolve raises CON
 	initThroughScanDisposition(root);
 	const doc = widgetOpenApiDoc({});
 	doc.paths['/api/v0/widgets'].post.requestBody = {
-		content: { 'multipart/form-data': { schema: { type: 'object', discriminator: { propertyName: 'kind' } } } },
+		// A15: discriminator is now supported -- fixture switched to `not`.
+		content: { 'multipart/form-data': { schema: { type: 'object', not: { type: 'string' } } } },
 	};
 	const docFile = writeOpenApiFixture(root, doc);
 	const emitted = run(['contract', 'emit', '--feature', FEATURE, '--openapi-file', docFile], root);

@@ -404,8 +404,9 @@ test('adopted + a resolvable request body: schema attached AND CONTRACT_OPENAPI_
 
 test('an unresolvable schema on a matched operation: no requestBodySchema key, CONTRACT_OPENAPI_SCHEMA_UNRESOLVED (WARN), completeness stays complete', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
-	// discriminator is not in inlineSchema's whitelist -- fails closed.
-	const doc = WIDGET_REQUEST_SCHEMA_DOC({ type: 'object', discriminator: { propertyName: 'kind' } });
+	// A15: discriminator is now supported -- `not` is still genuinely outside inlineSchema's
+	// whitelist, fails closed the same way discriminator used to.
+	const doc = WIDGET_REQUEST_SCHEMA_DOC({ type: 'object', not: { type: 'string' } });
 	const openapi = reconcileFixture(scanReport, 'widget', doc);
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
 	const op = contract.operations.createWidget;
@@ -415,7 +416,7 @@ test('an unresolvable schema on a matched operation: no requestBodySchema key, C
 	assert.ok(unresolved);
 	assert.equal(unresolved.severity, 'warn');
 	assert.equal(unresolved.subject, 'createWidget');
-	assert.match(unresolved.detail.reason, /unsupported-keyword:discriminator/);
+	assert.match(unresolved.detail.reason, /unsupported-keyword:not/);
 	assert.equal(contract.completeness.status, 'complete', 'a WARN-severity code never demotes completeness');
 });
 
@@ -500,7 +501,8 @@ test('adopted + resolvable response: keys present AND CONTRACT_OPENAPI_DERIVED_O
 
 test('response projection fails, error projection succeeds: no responseSchema key, CONTRACT_OPENAPI_RESPONSE_SCHEMA_UNRESOLVED (WARN), errorSchema still present, completeness stays complete', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
-	const doc = WIDGET_RESPONSE_SCHEMA_DOC({ successOverride: { type: 'object', discriminator: { propertyName: 'kind' } } });
+	// A15: discriminator now supported, fixture switched to `not`.
+	const doc = WIDGET_RESPONSE_SCHEMA_DOC({ successOverride: { type: 'object', not: { type: 'string' } } });
 	const openapi = reconcileFixture(scanReport, 'widget', doc);
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
 	const op = contract.operations.createWidget;
@@ -515,7 +517,8 @@ test('response projection fails, error projection succeeds: no responseSchema ke
 
 test('error projection fails, response projection succeeds (symmetric to the previous test)', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
-	const doc = WIDGET_RESPONSE_SCHEMA_DOC({ errorOverride: { type: 'object', discriminator: { propertyName: 'kind' } } });
+	// A15: discriminator now supported, fixture switched to `not`.
+	const doc = WIDGET_RESPONSE_SCHEMA_DOC({ errorOverride: { type: 'object', not: { type: 'string' } } });
 	const openapi = reconcileFixture(scanReport, 'widget', doc);
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
 	const op = contract.operations.createWidget;
@@ -533,7 +536,7 @@ test('request-body AND response projection both fail on the same operation: exac
 		openapi: '3.1.0',
 		components: {
 			schemas: {
-				BadRequest: { type: 'object', discriminator: { propertyName: 'kind' } },
+				BadRequest: { type: 'object', not: { type: 'string' } }, // A15: discriminator now supported, fixture switched to `not`
 				BadResponse: { type: 'object', patternProperties: { '^x-': { type: 'string' } } },
 			},
 		},

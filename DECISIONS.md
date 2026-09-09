@@ -12447,3 +12447,125 @@ source content, unlike `field-metadata`). Full `npm test` green.
 unscoped follow-up candidates from Phase 5c remain separately open, not touched here:
 `discriminator`/`x-speakeasy-enums`/`propertyNames` schema-keyword support, and
 `ipvanyaddress`/`duration`/`color` format support.
+
+## D-openapi-schema-keyword-recursion (CATALOG A15): `discriminator`/`x-speakeasy-enums`/`propertyNames`/`readOnly`/`enumNames` schema-keyword support + `ipvanyaddress`/`duration`/`color` formats
+
+**WHY**: Phase 5c's own `D-oracle-corpus-openapi-remeasurement` (above) named
+`discriminator`/`x-speakeasy-enums`/`propertyNames` (26 combined real occurrences) and
+`ipvanyaddress`/`duration`/`color` (7/2/1 occurrences, judged too rare to justify at the time) as
+real, unscoped EXIT items. Built now, user-directed ("다 해보자" -- pursue every open track from
+that session's status check, not just the schema-keyword one).
+
+**Real bug found live before writing any code — Phase 5c's own "26" figure was an undercount via
+masking**: `walkSchemaNode()` iterates a schema node's keys and `fail()`s (throws) on the FIRST one
+it can't handle, never reaching the rest. Before Phase 5c's own uuid4 fix landed, a schema node
+with BOTH `format:uuid4` and, say, `discriminator` had its discriminator failure permanently hidden
+behind the uuid4 failure firing first (whichever key `Object.keys()` visits first). Fixing uuid4
+didn't just fix uuid4 — it unmasked failures that were always there. Re-running
+`scripts/openapi-corpus-measure.mjs` against the exact same `polarsource/polar` document Phase 5c
+used (confirmed unchanged: same file, same mtime, same sha256, only ever downloaded once this
+session) gave real, corrected counts: `x-speakeasy-enums` 59 (Phase 5c: 4), `readOnly` 25 (Phase 5c:
+not even named — fully masked), `propertyNames` 24 (Phase 5c: 20), `discriminator` 9 (Phase 5c: 2),
+`enumNames` 1 (Phase 5c: not named). `ipvanyaddress` stayed at 7 (a format failure, not a keyword
+failure — unaffected by the masking mechanism). Unlike A11/A14 (pure documentation keywords, zero
+validation-path impact either way), these 5 keywords currently cause WHOLE-SCHEMA resolution
+failure (the `CONTRACT_OPENAPI_*_UNRESOLVED` warning family), not merely a dropped-field notice —
+real operations using `discriminator`-based polymorphism (`oneOf` + dispatch) get ZERO schema
+projection today, a materially bigger practical gap than A11/A14 closed.
+
+**Real shapes measured (`polarsource/polar`) before designing each branch, not guessed**:
+- `propertyNames`: 66 occurrences, 3 unique shapes — `{maxLength, minLength}` (plain constraint),
+  `{format: "uuid4"}` (already-supported format), and a real `{"$ref": ".../PresentmentCurrency"}`.
+  All 3 are ordinary `walkSchemaNode()` territory already (COPIED_KEYWORDS' own
+  minLength/maxLength, the existing uuid4 rewrite, `$ref` resolution) — the recursion design fits
+  with zero new machinery.
+- `discriminator`: 36 occurrences, ALL shaped `{propertyName: string, mapping: {[string]: string}}`
+  — zero `mapping`-less cases, zero non-string mapping values.
+- `readOnly`: 40 occurrences, all boolean, 0 malformed.
+- `x-speakeasy-enums`: a Speakeasy-tool codegen hint (enum-value array duplicating the real `enum`).
+  `enumNames`: a non-standard key→human-label object (`{"benefits:read": "Read benefits", ...}` on
+  `Scope`) — NOT the parallel-array convention some JSON Schema tooling uses for the same name;
+  this project's own real corpus has exactly 1 occurrence and it's the key→label object shape.
+
+**Per-keyword classification (JSON Schema 2020-12 semantics, not a single mechanical pattern
+repeated 5 times)**:
+- `x-speakeasy-enums`/`enumNames` → `DROPPED_KEYWORDS` (same tier as `externalDocs`/`xml`): vendor/
+  non-standard codegen metadata, zero validation weight. Already reachable via the existing
+  `RECURSED_KEYWORDS` walk (both appear as direct schema children) — `findUnsupportedAnnotations()`
+  needed no other change to start reporting them.
+- `readOnly` → `DOCUMENTATION_KEYWORDS` (joins `deprecated`): 2020-12 s.9.4 makes it annotation-only
+  by spec, identical boolean shape to `deprecated`, so it gets the exact same copy-or-drop branch.
+- `discriminator` → its own dedicated branch, unconditional on `--descriptions`: also annotation-
+  only per spec (actual polymorphism validation is done by `oneOf`/`anyOf`, which this module
+  already walks) — the same validation-inert-but-worth-carrying tier as `default` (A7). Kept OUTSIDE
+  `DOCUMENTATION_KEYWORDS` deliberately: it's small structural dispatch metadata, not free-text
+  prose that could bloat contract size, so there's no reason to gate it behind the flag that exists
+  specifically to bound documentation growth.
+- `propertyNames` → its own dedicated branch, recurses via `walkSchemaNode()` exactly like `items`/
+  `additionalProperties`: a REAL validation constraint (restricts what an object's own property
+  NAMES may be) — dropping it would silently emit a schema weaker than the real one, the same
+  correctness concern `SCHEMA_PROPERTY_NAME_RE` already exists to prevent elsewhere. Not eligible
+  for the documentation-tier "drop the field, not the schema" treatment discriminator/readOnly get.
+- `ipvanyaddress`/`duration`/`color` → `SAFE_FORMATS`: the mechanism is a pure passthrough
+  whitelist (this module never validates a format VALUE, only whether the format NAME is safe to
+  keep as-is), so the marginal cost of a rare-but-real format name is low — reversing Phase 5c's own
+  "too rare to justify" call now that the underlying calculus (any real occurrence beats a
+  permanent fail-closed cost) is being applied consistently across this round's items.
+
+**COST**: `discriminator`/`propertyNames`'s malformed-input handling deliberately differs by
+keyword tier — a malformed `discriminator` drops just that field (schema still resolves, matching
+`title`/`examples`/`deprecated`'s own "field-level drop, never fail the schema" doctrine, since
+discriminator can't affect what the schema validates either way), while a malformed `propertyNames`
+sub-schema still fails the WHOLE schema closed via the ordinary `walkSchemaNode()` recursion path
+(the same fail-closed behavior `items`/`properties` already have, since propertyNames genuinely
+constrains validation and a malformed one has no safe default). This asymmetry is intentional, not
+an inconsistency — different real risk profiles get different real handling, the same tiering
+principle A7/A11/A14 already established, not a new one invented here.
+
+The live re-measurement also surfaced a REAL, freshly-unmasked follow-up cost this entry does NOT
+pay down: after these 5 fixes, `inlineSchemaResolution.ok` rose from 439 to 508 (of 568 attempted),
+but the SAME masking mechanism repeated one level deeper — `prefixItems` (JSON Schema 2020-12 tuple
+validation, 45 real occurrences, previously hidden behind these 5 keywords' own failures firing
+first) is now the largest visible gap, alongside smaller growth in `too-many-nodes`(7)/
+`ref-with-siblings`(2) and `cycle-detected` moving 4→6. None of these are fixed here — named
+honestly as a fresh, real, unscoped finding for a follow-up pass, the same discipline Phase 5c
+itself used when it surfaced this entry's own predecessor items rather than chasing every masked
+layer in one sitting. `cycle-detected` specifically stays permanently out of scope regardless of
+count: a genuine circular schema reference, not a missing-keyword gap — this flatten-only
+architecture has no `$ref`-preserving output mode to represent one, and building one is a
+fundamentally different, much larger architectural change than adding a keyword branch.
+
+**Mechanism**: `contracts/openapi.mjs` — `DROPPED_KEYWORDS` gains `x-speakeasy-enums`/`enumNames`;
+`DOCUMENTATION_KEYWORDS` gains `readOnly`; two new dedicated branches in `walkSchemaNode()` for
+`discriminator` (shape-validate `propertyName`/`mapping`, copy verbatim or drop the field) and
+`propertyNames` (recurse via `walkSchemaNode()`, same as `items`); `RECURSED_KEYWORDS` gains
+`propertyNames` so `findUnsupportedAnnotations()` descends into its own sub-schema too;
+`SAFE_FORMATS` gains `ipvanyaddress`/`duration`/`color`. `contracts/export.mjs` needed NO changes —
+confirmed via direct inspection that no existing `STRUCTURAL_OMISSIONS`/`OMISSION_PROSE` entry ever
+referenced any of these 8 items (unlike A14's `field-metadata` migration, there was nothing to
+migrate away from).
+
+**Verified**: `test/contract-openapi.test.mjs` (199/199) — ~20 new tests (discriminator
+valid/no-mapping/malformed-propertyName/malformed-mapping-value, propertyNames' all 3 real shapes
+plus a still-fails-closed-on-a-genuinely-unsupported-nested-keyword regression, readOnly's full
+on/off/boundary/recursive set mirroring `deprecated`'s own, x-speakeasy-enums/enumNames
+no-longer-failing plus their new `findUnsupportedAnnotations()` detection including nested inside
+`propertyNames`' own sub-schema, the 3 new safe formats, a `cycle-detected` regression guard) plus 7
+pre-existing tests in this file fixed (they used `discriminator: {propertyName: 'kind'}` as a
+generic "this schema fails to resolve" fixture — now genuinely wrong since discriminator resolves —
+swapped to `not`, still genuinely unsupported, same test intent preserved; found by running the
+full suite, not assumed). The same stale-fixture pattern was found and fixed in 3 more files
+discovered via a repo-wide sweep, not limited to the one file directly touched: `test/contract.test.mjs`
+(4 occurrences + 1 regex assertion), `test/contract-export.test.mjs` (2 occurrences), and the shared
+`test/_contract-fixture.mjs` helper (2 occurrences, used by multiple test files). `npm test` full
+suite green. `test/doc-integrity.test.mjs` clean.
+
+**EXIT**: closes Phase 5c's own two remaining EXIT items (`discriminator`/`x-speakeasy-enums`/
+`propertyNames` schema-keyword support; `ipvanyaddress`/`duration`/`color` format support). Real,
+unscoped follow-up surfaced live and not touched here: `prefixItems` (JSON Schema 2020-12 tuple
+validation, 45 real occurrences, unmasked by this entry's own fixes) is the next real, evidence-
+backed candidate if this masking-cascade line of work continues; `too-many-nodes`/`ref-with-siblings`
+growth is worth a second look to confirm it's genuinely more real work becoming visible rather than
+a budget/limit that now needs revisiting; `cycle-detected` stays permanently out of scope (see COST
+above). To revert any single keyword's classification, move it back to its prior Set (or remove its
+dedicated branch) — each of the 5 is independent, none depend on another having been added.

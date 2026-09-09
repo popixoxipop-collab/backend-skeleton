@@ -175,7 +175,11 @@ export const PER_STATUS_NO_DESCRIPTION_STANDIN = 'The source document documents 
 // dropping an assertion (e.g. an unrecognized `pattern`-like keyword) would emit a schema WEAKER
 // than the real one, which is worse than emitting no schema at all -- see
 // D-openapi-request-schema in DECISIONS.md.
-const RECURSED_KEYWORDS = Object.freeze(new Set(['properties', 'items', 'additionalProperties', 'oneOf', 'anyOf', 'allOf']));
+// A15: `propertyNames` added -- its value IS a schema (unlike every other RECURSED_KEYWORDS
+// sibling being a container OF schemas), so findUnsupportedAnnotations() must descend into it the
+// same way it already descends into `items`, or a dropped/unsupported keyword nested inside a
+// propertyNames sub-schema would go completely unreported.
+const RECURSED_KEYWORDS = Object.freeze(new Set(['properties', 'items', 'additionalProperties', 'oneOf', 'anyOf', 'allOf', 'propertyNames']));
 // A7: `default` added -- annotation-only per 2020-12 (Ajv runs with useDefaults off here, so it's
 // inert for validation either way), but a real, human-authored fact from the source document worth
 // carrying through regardless. Measured across every real request-body and response schema in the
@@ -202,8 +206,33 @@ const COPIED_KEYWORDS = Object.freeze(new Set([
 // occurrences. `externalDocs`/`xml` remain confirmed 0 real occurrences even at this larger
 // scale -- those two alone still satisfy the "don't build for zero real cases" discipline A8's
 // `non-json-response-schemas`/`response-headers` also rest on.
-const DOCUMENTATION_KEYWORDS = Object.freeze(new Set(['description', 'example', 'title', 'examples', 'deprecated']));
-const DROPPED_KEYWORDS = Object.freeze(new Set(['externalDocs', 'xml']));
+// A15 (D-openapi-schema-keyword-recursion): `readOnly` joins the documentation set -- 2020-12
+// section 9.4 marks readOnly/writeOnly as annotation-only (no effect on validation, same as
+// deprecated), and it has the identical boolean shape. Measured real (polarsource/polar): 40
+// occurrences, 0 malformed (non-boolean).
+const DOCUMENTATION_KEYWORDS = Object.freeze(new Set(['description', 'example', 'title', 'examples', 'deprecated', 'readOnly']));
+// A15: `x-speakeasy-enums`/`enumNames` join the dropped set. Both are vendor/non-standard codegen
+// metadata (Speakeasy's own enum-codegen hint; enumNames is a react-jsonschema-form-style
+// human-label convention) with zero JSON Schema validation weight -- the same risk tier as
+// externalDocs/xml. Real counts (polarsource/polar, measured AFTER the uuid4 masking fix below):
+// x-speakeasy-enums 59, enumNames 1. Both already reachable via the existing RECURSED_KEYWORDS
+// walk (they appear as direct schema children), so findUnsupportedAnnotations() needs no other
+// change to start reporting them.
+//
+// D-openapi-schema-keyword-recursion masking note: Phase 5c's own
+// D-oracle-corpus-openapi-remeasurement recorded "26 remaining failures (discriminator x2,
+// x-speakeasy-enums x4, propertyNames x20)" against this exact corpus. Re-measuring after the
+// uuid4 fix landed (this
+// file's SAFE_FORMATS/format handling below) revealed those Phase 5c counts were themselves an
+// undercount: walkSchemaNode() throws on the FIRST unsupported key it hits in a node and never
+// reaches the rest, so a node with BOTH format:uuid4 AND, say, a discriminator had its
+// discriminator failure permanently masked by the uuid4 failure firing first. Fixing uuid4 didn't
+// just fix uuid4 -- it unmasked failures that were always there. Real post-fix counts: x-speakeasy-
+// enums 59, readOnly 25 (not even named in Phase 5c -- fully masked), propertyNames 24,
+// discriminator 9, enumNames 1 (also unnamed in Phase 5c). `cycle-detected` (4, unrelated to
+// masking) stays out of scope -- a real circular schema reference, not a missing keyword; this
+// flatten-only architecture has no $ref-preserving output mode to represent one.
+const DROPPED_KEYWORDS = Object.freeze(new Set(['externalDocs', 'xml', 'x-speakeasy-enums', 'enumNames']));
 // A14: real max observed (polarsource/polar) -- title 54 chars, examples array 4 entries. Both
 // generously round, matching MAX_EXAMPLE_LENGTH's own "generously round, not a tight multiple"
 // precedent (a legitimately useful title/example set could reasonably run longer than any single
@@ -218,8 +247,9 @@ const MAX_EXAMPLES_ARRAY_LENGTH = 50;
 // for the broader "self-identified weaknesses" context this closes one instance of).
 //
 // Deliberately walks ONLY genuine Schema Object structure (via RECURSED_KEYWORDS, the exact same
-// `properties`/`items`/`additionalProperties`/`oneOf`/`anyOf`/`allOf` set inlineSchema() itself
-// recurses through) -- NOT a blanket "every key anywhere in the document" scan. That distinction
+// `properties`/`items`/`additionalProperties`/`oneOf`/`anyOf`/`allOf`/`propertyNames` set
+// inlineSchema() itself recurses through) -- NOT a blanket "every key anywhere in the document"
+// scan. That distinction
 // is load-bearing, not cosmetic: several of DROPPED_KEYWORDS' names collide with REAL, unrelated
 // OpenAPI concepts that live outside a Schema Object entirely -- an Operation Object's own
 // `deprecated` (marks a whole ENDPOINT deprecated) and a Parameter Object's own `deprecated`, both
@@ -309,12 +339,14 @@ export function findUnsupportedAnnotations(doc) {
 // see inlineSchema's own uuid4 handling -- also not in this set for the same reason bare uuid
 // isn't), date-time(676), uri(41), email(28), uuid(27), date(7), ipvanyaddress(7), duration(2),
 // color(1). Every value already in SAFE_FORMATS before this measurement (date-time/uri/email/date)
-// is confirmed still real and safe at a much larger scale; `ipvanyaddress`/`duration`/`color` are
-// real but too rare (1-7 occurrences) to justify adding -- an unmeasured format still fails the
-// WHOLE schema closed (`unsupported-format:<value>`, confirmed live: this is real, current
-// resolution-failure data for the 7 real ipvanyaddress/duration/color fields in this corpus, not
-// hypothetical), so leaving them unmeasured is a conscious, visible cost, not a silent one.
-const SAFE_FORMATS = Object.freeze(new Set(['int32', 'int64', 'email', 'date', 'date-time', 'double', 'float', 'binary', 'uri']));
+// is confirmed still real and safe at a much larger scale.
+// A15: `ipvanyaddress`/`duration`/`color` added despite being the rarest formats measured (7/2/1
+// occurrences) -- Phase 5c judged that too rare to justify adding on its own, but SAFE_FORMATS is
+// a pure passthrough whitelist (this module never validates a format VALUE, only decides whether
+// the format NAME is safe to keep), so the marginal cost of adding a real, if rare, format name is
+// low and the alternative (3 real fields permanently fail-closed) is a real, visible cost with no
+// offsetting benefit once a real occurrence exists at all.
+const SAFE_FORMATS = Object.freeze(new Set(['int32', 'int64', 'email', 'date', 'date-time', 'double', 'float', 'binary', 'uri', 'ipvanyaddress', 'duration', 'color']));
 
 // Thrown internally by inlineSchema()'s recursive walk and caught exactly once at the exported
 // boundary -- with 12+ distinct failure points, threading {ok:false} through every return would
@@ -765,6 +797,12 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 				if (typeof node.deprecated === 'boolean') {
 					out.deprecated = node.deprecated;
 				}
+			} else if (key === 'readOnly') {
+				// A15: identical shape/validation to deprecated -- 2020-12 section 9.4 makes readOnly
+				// annotation-only, same as deprecated, so it gets the same boolean-typed copy-or-drop.
+				if (typeof node.readOnly === 'boolean') {
+					out.readOnly = node.readOnly;
+				}
 			}
 			continue;
 		}
@@ -791,6 +829,31 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 				if (typeof r !== 'string' || !SCHEMA_PROPERTY_NAME_RE.test(r)) fail('unsupported-property-name');
 			}
 			out.required = [...req];
+			continue;
+		}
+
+		if (key === 'discriminator') {
+			// A15 (D-openapi-schema-keyword-recursion): discriminator is annotation-only per the
+			// OpenAPI spec -- actual polymorphism validation is done by oneOf/anyOf itself, which
+			// this module already walks; discriminator is only a dispatch HINT for consumers, the
+			// same validation-inert-but-worth-carrying-through tier as `default` (A7). Real shape
+			// measured (polarsource/polar, 36/36 occurrences): always `{propertyName: string,
+			// mapping?: {[string]: string}}`, mapping present in all 36. Unlike `pattern`/`required`
+			// (real validation constraints, fail the WHOLE schema closed on a malformed value), a
+			// malformed discriminator can't silently weaken what the schema validates -- so an
+			// off-shape value drops just this field, matching DOCUMENTATION_KEYWORDS' own doctrine,
+			// not the fail-closed one. Kept OUTSIDE DOCUMENTATION_KEYWORDS/--descriptions on purpose:
+			// this is small structural dispatch metadata, not prose that could bloat contract size,
+			// so there's no reason to gate it behind the same flag that exists specifically to bound
+			// free-text documentation growth.
+			const disc = node.discriminator;
+			const propertyNameOk = disc && typeof disc === 'object' && !Array.isArray(disc) && typeof disc.propertyName === 'string';
+			const mappingOk = !disc || !Object.hasOwn(disc, 'mapping')
+				|| (disc.mapping && typeof disc.mapping === 'object' && !Array.isArray(disc.mapping)
+					&& Object.values(disc.mapping).every((v) => typeof v === 'string'));
+			if (propertyNameOk && mappingOk) {
+				out.discriminator = Object.hasOwn(disc, 'mapping') ? { propertyName: disc.propertyName, mapping: { ...disc.mapping } } : { propertyName: disc.propertyName };
+			}
 			continue;
 		}
 
@@ -828,6 +891,19 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 			out.additionalProperties = typeof ap === 'boolean'
 				? ap
 				: walkSchemaNode(ap, componentSchemas, depth + 1, visiting, state, limits);
+			continue;
+		}
+
+		if (key === 'propertyNames') {
+			// A15: propertyNames is a REAL validation constraint (restricts what an object's own
+			// property NAMES may be) -- unlike discriminator/readOnly, dropping it would silently
+			// emit a schema weaker than the real one, the same correctness concern
+			// SCHEMA_PROPERTY_NAME_RE already exists to prevent elsewhere. Its value IS a schema, so
+			// it recurses exactly like `items`/`additionalProperties`. Real shapes measured
+			// (polarsource/polar, 66 occurrences, 3 unique): a plain length-constrained schema
+			// (`{maxLength, minLength}`), an already-supported format (`{format: "uuid4"}`), and a
+			// real `$ref`. All 3 are ordinary walkSchemaNode() territory already.
+			out.propertyNames = walkSchemaNode(node.propertyNames, componentSchemas, depth + 1, visiting, state, limits);
 			continue;
 		}
 
