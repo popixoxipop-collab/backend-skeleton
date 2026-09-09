@@ -12841,3 +12841,96 @@ recognized; a member-expression handler is still correctly skipped, not guessed 
 real scan against `gothinkster/node-express-realworld-example-app` after the fix: 19/19 real
 endpoints now found (all correctly `method: null`, since this repo's entire real style is inline
 handlers). Full `npm test` green.
+
+## D-fastapi-multi-router-per-file: a second `APIRouter()` declared in the same file no longer inherits the first one's basePath
+
+**WHY (D1)**: continuing the same cross-framework dogfooding pass (D-java-spring-static-import-method,
+D-typescript-express-inline-handlers above), this entry comes from a THIRD, separate real-repo pass
+against `polarsource/polar` (a real, large, currently-active production FastAPI monorepo — 400+
+public API routes across ~58 mounted router modules, confirmed by directly reading `polar/api.py`'s
+own `router.include_router(...)` call list rather than assumed). `bskel doctor` correctly detected
+the repo (python-fastapi, specificity 90, confidence high, `verified: official-reference`), and a
+broad `bskel scan` recovered the large majority of the real route surface — the residual gap traced
+almost entirely to either `--terms` scoping (same class as the FastAPI RealWorld finding above,
+resolved by broadening terms, not a bug) or the adapter's own already-disclosed, out-of-scope
+limitation (`API_SURFACE_SOURCE`'s "does not resolve a global prefix applied via
+`include_router(prefix=...)` beyond a simple literal/single-variable lookup" — correctly triggered
+and correctly disclosed for `polar/customer_portal/endpoints/__init__.py`'s nested prefix
+composition, not a new bug).
+
+One real, previously-undocumented bug did surface: 3 real files in this repo
+(`polar/checkout/endpoints.py`, `polar/member/endpoints.py`, `polar/auth/oauth2/router.py`) declare
+MORE THAN ONE `<var> = APIRouter(...)` in the same source file. `polar/member/endpoints.py` is the
+clearest case — `router = APIRouter(prefix="/members")` (the member resource itself) plus a second,
+later-declared `customer_members_router = APIRouter(prefix="/customers")` (a nested, customer-scoped
+member-CRUD resource, real comment in `api.py`: "mounted under /v1/customers/{id}/members").
+`extractBasePath()` used `text.match(/APIRouter\s*\(/)` — a single, non-global match, always the
+FIRST occurrence in the file — while `extractEndpoints()`'s `VERB_DECORATOR_RE` matched
+`@\w+\.(get|post|...)` for ANY router variable name, file-wide, with no way to tell them apart.
+Result: every decorator in the file, regardless of which router variable it actually belonged to,
+was silently attributed the FIRST router's basePath (`/members`) — `customer_members_router`'s own
+real, explicitly-declared prefix (`/customers`) was discarded entirely. Same bug class as one of
+this project's own original 6 real bugs (a multi-controller module sharing the first controller's
+basePath across all entities) reappearing in a different adapter.
+
+**Mechanism**: `extractBasePath()` replaced with `extractRouterPrefixes(text)`, which finds EVERY
+`<var> = APIRouter(...)` declaration in the file (not just the first) and returns
+`Map<varName, prefix>`. `VERB_DECORATOR_RE` gains a capture group for the router variable name
+(`@(\w+)\.(get|post|put|patch|delete)\(`), so `extractEndpoints()` now tags each endpoint with the
+exact router variable that decorates it. `scanPythonFastApi()` groups endpoints by their own
+`routerVar`, resolves each group's basePath from ITS OWN router's declared prefix (not the file's
+first one), and emits ONE controller PER router variable that has at least one endpoint — matching
+the java-spring adapter's own existing multi-controller-per-module convention, rather than
+collapsing a file's multiple routers into one. `className` stays byte-identical to before
+(`${capitalize(moduleName)}Router`) for the conventional, near-universal `router = APIRouter(...)`
+case; only a second/differently-named router variable gets a distinguishing className derived from
+its own identifier (`customer_members_router` → `CustomerMembersRouter`, PascalCase, no synthetic
+suffix invented). A router variable a decorator references but that this file never itself declares
+(imported from elsewhere, or a same-file `include_router()` alias) falls back to `basePath: ''`,
+same non-guessing behavior as before this fix.
+
+**A related, deliberately NOT-fixed pattern found in the same pass**: `polar/checkout/endpoints.py`
+declares an `inner_router = APIRouter(tags=[...])` (no prefix) whose 10 real decorators are then
+mounted into the file's OWN exported `router = APIRouter(prefix="/checkouts")` via a SAME-FILE
+`router.include_router(inner_router)` call (in fact mounted TWICE, once again under
+`prefix="/custom"` with `include_in_schema=False` — the same handler genuinely serves two live
+paths). Per-router-variable resolution (this fix) correctly reports `inner_router`'s own basePath as
+empty (accurately reflecting that `inner_router` itself declares no prefix) but still cannot recover
+the TRUE composed path (`/checkouts/...`), since that requires resolving a same-file
+`include_router()` composition — architecturally the same class of problem as the already-disclosed
+cross-file `include_router(prefix=...)` limitation, just one hop closer. Deliberately left
+unresolved here rather than half-fixed: correcting `extractIncludeRouterPrefixSignals()` (or an
+equivalent same-file variant) to also flag this pattern as a diagnostic `unknowns` hint is real,
+scoped follow-on work, not done in this pass.
+
+**A separate, real, NOT-fixed finding surfaced during the same investigation (documented, not
+silently dropped)**: this adapter's module-name heuristic is `path.basename(file, '.py')` — verified
+correct against the ORIGINAL reference oracle (`fastapi/full-stack-fastapi-template`), where every
+router file is uniquely named per domain (`items.py`, `login.py`, `users.py`). Polar instead follows
+the (at least equally common) FastAPI convention of naming EVERY router file `endpoints.py`
+uniformly, with the real domain identity carried by the PARENT DIRECTORY name instead
+(`organization/endpoints.py`, `member/endpoints.py`, …). Against that real convention, `moduleName`
+collapses to the literal string `"endpoints"` for the large majority of the repo's controllers,
+substantially reducing the usefulness of `related_modules`' grouping (though NOT the correctness of
+any individual endpoint/basePath/verb — those are still exactly right). Logged as a new CATALOG.md
+backlog item (module-name-from-parent-directory-when-file-is-genereic), not implemented in this
+pass — a real design question (when should a directory name override a file basename?) rather than
+a narrow, obviously-correct regex fix like the one above.
+
+**COST**: none identified for the shipped fix — a strict correctness improvement (every existing
+single-router-per-file fixture/oracle byte-for-byte unaffected, confirmed by the full existing
+python-fastapi suite staying green with zero test changes needed). The same-file
+`include_router()`-composition gap and the `endpoints.py`-basename module-collision finding remain
+real, disclosed, unresolved limitations — not claimed fixed by this entry.
+
+**EXIT**: to revert, restore `extractBasePath()` (single, non-global `APIRouter(` match) and drop
+the router-variable capture group from `VERB_DECORATOR_RE`/the per-router-variable grouping in
+`scanPythonFastApi()` — purely additive, a clean revert. **Verified**: full existing
+`test/python-fastapi-cli.test.mjs` + `test/python-fastapi-handles.test.mjs` suite (30/30, zero test
+changes needed) plus a new dedicated `test/python-fastapi-multi-router.test.mjs` (2 new tests: two
+`APIRouter()` declarations in one file produce two separately-basePathed controllers; verbs/methods
+on the second router are extracted correctly too). Re-ran the real scan against
+`polarsource/polar/server` after the fix: `member/endpoints.py`'s `customer_members_router` now
+correctly reports `basePath: "/customers"` (10 endpoints) as its own controller, separate from
+`router`'s `basePath: "/members"` — previously both were merged under `/members`. Full `npm test`
+green.

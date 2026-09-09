@@ -23,7 +23,8 @@ const EXCLUDE_GLOBS = ['!**/.venv/**', '!**/site-packages/**', '!**/node_modules
 // `fastapi==0.100.0`.
 const FASTAPI_DEP_RE = /(?:^|[\s"'[])fastapi(?:\[[^\]]*\])?(?:[\s"',\]=<>~!;]|$)/mi;
 
-const VERB_DECORATOR_RE = /@\w+\.(get|post|put|patch|delete)\s*\(/gi;
+const VERB_DECORATOR_RE = /@(\w+)\.(get|post|put|patch|delete)\s*\(/gi;
+const ROUTER_DECL_RE = /(\w+)\s*=\s*APIRouter\s*\(/g;
 const CLASS_RE = /^class\s+(\w+)\s*\(([^)]*)\)\s*:/gm;
 const INCLUDE_ROUTER_RE = /include_router\s*\(/g;
 
@@ -104,24 +105,42 @@ function capitalize(s) {
 // resolved against a global prefix applied elsewhere (e.g. `include_router(prefix=...)`) -- that
 // asymmetry is exactly what `pathPrefixSignals`/`unknowns` exists to flag, same role java-spring's
 // detectGlobalPathPrefixSignals plays for `configurePathMatch`/`context-path`.
-function extractBasePath(text) {
-	const m = text.match(/APIRouter\s*\(/);
-	if (!m) return '';
-	const openIdx = m.index + m[0].length - 1;
-	const closeIdx = matchBalancedParens(text, openIdx);
-	if (closeIdx === -1) return '';
-	const prefixMatch = text.slice(openIdx + 1, closeIdx).match(/prefix\s*=\s*["']([^"']*)["']/);
-	return prefixMatch ? prefixMatch[1] : '';
+//
+// D-fastapi-multi-router-per-file: a real dogfooding find against `polarsource/polar` (a 400+
+// route production FastAPI monorepo) -- 3 real files (`checkout/endpoints.py`,
+// `member/endpoints.py`, `auth/oauth2/router.py`) declare MORE THAN ONE `<var> = APIRouter(...)`
+// in the same file (e.g. member.py's `router = APIRouter(prefix="/members")` plus a second,
+// distinct `customer_members_router = APIRouter(prefix="/customers")` for a nested customer-scoped
+// resource). The single-basePath-per-file design used to always read only the FIRST `APIRouter(`
+// occurrence and apply it to every decorator in the file regardless of which router variable
+// actually decorates it -- silently discarding the second router's own real prefix. Returns
+// Map<varName, prefix> for every declared router in the file so each decorator can look up its
+// OWN router's prefix instead.
+function extractRouterPrefixes(text) {
+	const prefixes = new Map();
+	for (const m of text.matchAll(ROUTER_DECL_RE)) {
+		const openIdx = m.index + m[0].length - 1;
+		const closeIdx = matchBalancedParens(text, openIdx);
+		if (closeIdx === -1) continue;
+		const prefixMatch = text.slice(openIdx + 1, closeIdx).match(/prefix\s*=\s*["']([^"']*)["']/);
+		prefixes.set(m[1], prefixMatch ? prefixMatch[1] : '');
+	}
+	return prefixes;
 }
 
 // `operationId` is always null -- see the adapter's own `api.operations: false` and
 // D-fastapi-adapter in DECISIONS.md: FastAPI generates operation ids at request-handling time
 // (per-project, sometimes via a custom `generate_unique_id_function`), never pinned in source the
 // way `@Operation(operationId=...)` is for Java, so there is nothing honest to statically correlate.
+//
+// D-fastapi-multi-router-per-file: `routerVar` (the exact identifier before `.get`/`.post`/...) is
+// now captured per endpoint so the caller can resolve basePath per-router-variable rather than
+// once for the whole file -- see extractRouterPrefixes() above.
 function extractEndpoints(text) {
 	const endpoints = [];
 	for (const m of text.matchAll(VERB_DECORATOR_RE)) {
-		const verb = m[1].toUpperCase();
+		const routerVar = m[1];
+		const verb = m[2].toUpperCase();
 		const openIdx = m.index + m[0].length - 1;
 		const closeIdx = matchBalancedParens(text, openIdx);
 		if (closeIdx === -1) continue;
@@ -134,9 +153,17 @@ function extractEndpoints(text) {
 		const funcMatch = afterDecoratorRe.exec(text);
 		if (!funcMatch) continue;
 
-		endpoints.push({ verb, path: pathMatch[1], operationId: null, method: funcMatch[1], line: lineNumberAt(text, m.index) });
+		endpoints.push({ verb, path: pathMatch[1], operationId: null, method: funcMatch[1], routerVar, line: lineNumberAt(text, m.index) });
 	}
 	return endpoints;
+}
+
+// snake_case/mixed identifier -> PascalCase, e.g. "customer_members_router" -> "CustomerMembersRouter",
+// "inner_router" -> "InnerRouter". Only used for a NON-default router variable name (see
+// scanPythonFastApi below) -- the common single-router-per-file case keeps its existing
+// `${capitalize(moduleName)}Router` className exactly as before, byte-for-byte.
+function pascalCase(identifier) {
+	return identifier.split('_').filter(Boolean).map(capitalize).join('');
 }
 
 // SQLModel `class X(<bases>, table=True):` -- table name is the lowercased class name (SQLModel's
@@ -249,9 +276,10 @@ function extractIncludeRouterPrefixSignals(repoRoot, files) {
 	return signals;
 }
 
-// D-fastapi-adapter: paths are router-local (see extractBasePath); FastAPI generates operation ids
-// at runtime, never pinned in source -- see extractEndpoints. --openapi-file + --path-prefix is the
-// trustworthy path (contracts/openapi.mjs's existing, adapter-agnostic reconciliation).
+// D-fastapi-adapter: paths are router-local (see extractRouterPrefixes); FastAPI generates
+// operation ids at runtime, never pinned in source -- see extractEndpoints. --openapi-file +
+// --path-prefix is the trustworthy path (contracts/openapi.mjs's existing, adapter-agnostic
+// reconciliation).
 const API_SURFACE_SOURCE = 'router-local paths only (this scan does not resolve a global prefix applied via ' +
 	'include_router(prefix=...) beyond a simple literal/single-variable lookup -- see unknowns below if one ' +
 	'was found) -- FastAPI generates operation ids at request-handling time (per-project, sometimes via a ' +
@@ -277,10 +305,27 @@ export function scanPythonFastApi(repoRoot, projectRoot) {
 			// login.py, which declares `APIRouter(tags=["login"])` with no prefix at all, so a
 			// prefix-derived name fails on a real file while the filename stem works for every one.
 			const moduleName = path.basename(file, '.py');
-			const basePath = extractBasePath(text);
-			const endpoints = extractEndpoints(text).map((ep) => ({ ...ep, path: joinPath(basePath, ep.path) }));
-			if (endpoints.length > 0) {
-				moduleEntry(moduleName).controllers.push({ className: `${capitalize(moduleName)}Router`, basePath, operationIds: [], endpoints, file });
+			const routerPrefixes = extractRouterPrefixes(text);
+			const rawEndpoints = extractEndpoints(text);
+
+			// D-fastapi-multi-router-per-file: group by the router variable each decorator actually
+			// belongs to (not the file as a whole) -- a decorator on a router variable this file never
+			// itself declares (e.g. imported from elsewhere, or a same-file `include_router()` alias)
+			// falls back to '' rather than guessing, same as the pre-fix single-router behavior.
+			const byRouterVar = new Map();
+			for (const ep of rawEndpoints) {
+				if (!byRouterVar.has(ep.routerVar)) byRouterVar.set(ep.routerVar, []);
+				byRouterVar.get(ep.routerVar).push(ep);
+			}
+
+			for (const [routerVar, eps] of byRouterVar) {
+				const basePath = routerPrefixes.get(routerVar) ?? '';
+				const endpoints = eps.map((ep) => ({ verb: ep.verb, path: joinPath(basePath, ep.path), operationId: ep.operationId, method: ep.method, line: ep.line }));
+				// the common case (single router per file, conventionally named "router") keeps the
+				// existing className exactly as before -- only a second/other-named router variable
+				// gets a distinguishing className derived from its own identifier.
+				const className = routerVar === 'router' ? `${capitalize(moduleName)}Router` : `${pascalCase(routerVar)}`;
+				moduleEntry(moduleName).controllers.push({ className, basePath, operationIds: [], endpoints, file });
 			}
 		}
 
