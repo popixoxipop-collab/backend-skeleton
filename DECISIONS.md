@@ -12747,3 +12747,97 @@ left in place. Real, unscoped follow-up: none currently known — the real corpu
 cascade (A15's 5 keywords → `prefixItems` → `MAX_SCHEMA_NODES` → this entry) bottomed out at
 `ref-with-siblings`(2), a separate, already-understood limitation (this module's own `$ref`-sibling
 merge-semantics policy, unrelated to cycles) with no further real gaps surfaced by this pass.
+
+## D-java-spring-static-import-method: `@RequestMapping(method = X)` resolves a bare (unqualified) verb, not just `RequestMethod.X`
+
+**WHY (D1)**: user-directed real-world dogfooding (not a synthetic fixture, not this project's own
+oracle corpus) — cloned `gothinkster/spring-boot-realworld-example-app` (1,584 real GitHub stars, a
+real, popular, independently-maintained RealWorld-spec Spring Boot implementation) and ran a real
+`bskel scan` against it as a cross-framework comparison exercise (alongside the equivalent FastAPI
+and Express implementations of the identical spec). Result: 17 of the real 19 endpoints found
+correctly; `UsersApi.java` (register + login, 2 of the RealWorld spec's most fundamental endpoints)
+found ZERO. Root cause: `_java-spring-analyzer.mjs`'s `REQUEST_MAPPING_METHOD_RE` required the
+literal `RequestMethod.` prefix (`/\bmethod\s*=\s*RequestMethod\.(\w+)\b/`), but this file uses
+`import static ... RequestMethod.POST;` then bare `@RequestMapping(path = "/users", method = POST)`
+— a real, common Java style (static-importing a single enum constant specifically to drop the
+qualifier), not a hypothetical edge case. This is a DIFFERENT gap from the one already documented
+just above this entry (`method = {RequestMethod.GET, RequestMethod.POST}`, a multi-verb ARRAY,
+still deliberately unresolved) — this one is a single verb with no qualifier at all.
+
+**Mechanism**: `REQUEST_MAPPING_METHOD_RE` widened to
+`/\bmethod\s*=\s*(?:RequestMethod\.)?(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|TRACE)\b/` — the
+qualifier is now optional, but the verb alternation is restricted to Spring's own real
+`RequestMethod` enum's 8 actual values, not a bare `\w+`, so an unrelated `method = someVariable`
+still correctly fails to match rather than being misread as a verb name. Verified live (not
+assumed): the existing multi-verb array form, in BOTH its qualified (`{RequestMethod.GET,
+RequestMethod.POST}`) and now-also-possible bare (`{GET, POST}`) shapes, does NOT accidentally
+partial-match — the array's own `{` breaks the match before any verb name is reached, identical
+behavior to before this change for the array case.
+
+**COST**: none identified — this is a strict widening of what already-real, already-measured verb
+names resolve; nothing that previously resolved changes, and the array-form gap stays exactly as
+documented above, unaffected.
+
+**EXIT**: to revert, restore the `RequestMethod\.` prefix as mandatory in
+`REQUEST_MAPPING_METHOD_RE`. **Verified**: `test/java-spring-analyzer.test.mjs` — 3 new tests (the
+real static-import bare-verb case resolves; an arbitrary non-enum identifier in `method = X` still
+does not match; the bare-verb array form stays unresolved same as the qualified one). Re-ran the
+real scan against `gothinkster/spring-boot-realworld-example-app` after the fix: 19/19 real
+endpoints now found, including `UsersApi`'s register/login. Full `npm test` green.
+
+## D-typescript-express-inline-handlers: `router.VERB('/path', <inline handler>)` is now recognized, not just a named reference
+
+**WHY (D1)**: the same cross-framework dogfooding pass above, run against
+`gothinkster/node-express-realworld-example-app` (3,796 real GitHub stars, TypeScript Express
+implementation of the identical RealWorld spec). Result: `bskel doctor` correctly detected the
+repo (typescript-express, specificity 85, confidence high), but `bskel scan` found ZERO endpoints
+anywhere in the whole repo — verdict `greenfield` on a real repo with a real, complete, 19-endpoint
+REST API. Root cause: `extractEndpoints()`'s own comment already named the limitation honestly
+("an inline arrow-function handler has no name to correlate to a controller file, so it's skipped
+rather than guessed at") — but this repo's real style uses an inline handler as the LAST argument
+of every single one of its 19 real route registrations
+(`router.get('/articles', async (req: Request, res: Response, next: NextFunction) => {...})`),
+never a bare-identifier reference. What was scoped as a documented, presumably-rare limitation
+turned out, against a real, popular, idiomatic codebase, to be a 100% miss rate — this project's
+own broader lesson (Data-First Numerics: a limitation's real severity is an empirical question,
+not something to estimate from the source code's own framing of it).
+
+**Mechanism**: `extractEndpoints()` gains a second recognized handler shape alongside the existing
+bare-identifier one — `INLINE_HANDLER_RE` matches an inline arrow function (parenthesized or
+single-unparenthesized-param, `async` optional, with or without TypeScript parameter type
+annotations) or a traditional `function`/`async function` expression, tested against real samples
+pulled directly from the oracle repo before writing the regex, not guessed. The resulting endpoint
+gets `method: null` — deliberately NOT a synthesized or guessed name, since an inline handler
+genuinely has no export for anything downstream to correlate to.
+
+**A real, deliberately scoped consequence, found before it could become a silent misattribution
+bug**: `handles/providers/typescript-express/plan.mjs`'s `resolveHandlerFile(file, handlerName,
+srcRoot)` — the handles-resolver-codegen path — takes `fetchRoute.method` and searches the router
+file's own `import` statements for it. Checked live before this shipped: that function ALREADY has
+a real, tested "no import found → return null → resolver NOT generated, with a clear note" path
+(pre-existing, not new), so a `null` method flowing into it would have degraded gracefully on
+its own — but relying on that as an INCIDENTAL consequence (the string `"null"` simply happening
+not to match any real import) rather than an INTENTIONAL check was judged too fragile to leave as
+the only guard. Fixed explicitly: the call site now checks `fetchRoute.method` truthiness BEFORE
+calling `resolveHandlerFile()` at all, with its own clear, named note ("the single-resource GET
+route's handler is an inline function expression, not a named export -- nothing to correlate to a
+defining file, resolver NOT generated") rather than depending on the incidental non-match. Handles
+resolver generation for an inline-handler-based fetch route remains a real, unscoped, honestly
+un-addressed gap — this entry only fixes SCAN/CONTRACT visibility (bskel can now see and report the
+real route), not codegen correlation, which would need a fundamentally different mechanism (there
+is no name to search source for).
+
+**COST**: a route whose handler is a member expression (`controller.show`) or anything else not
+matching either recognized shape still silently skips, same as before — a real, if rare (not
+observed in either oracle), residual gap, disclosed here rather than claimed fixed.
+
+**EXIT**: to revert, remove the `isInlineHandler`/`INLINE_HANDLER_RE` branch and restore the
+bare-identifier-only gate; also revert the `fetchRoute.method` truthiness check in `plan.mjs` (not
+required for correctness even after a revert, since `resolveHandlerFile` never receives a `null`
+input in the reverted state, but keeping the explicit check is harmless either way). **Verified**:
+`test/express-shared.test.mjs` — 3 new tests (a real async-arrow-with-TypeScript-types handler is
+found with `method: null`; a plain arrow/single-param-arrow/traditional-function form are all
+recognized; a member-expression handler is still correctly skipped, not guessed at). Re-ran the
+real scan against `gothinkster/node-express-realworld-example-app` after the fix: 19/19 real
+endpoints now found (all correctly `method: null`, since this repo's entire real style is inline
+handlers). Full `npm test` green.

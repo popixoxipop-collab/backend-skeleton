@@ -137,6 +137,25 @@ test('findMappingAnnotations: a multi-verb @RequestMapping(method = {A, B}) arra
 	assert.deepEqual(findMappingAnnotations(text), []);
 });
 
+test('findMappingAnnotations: D-java-spring-static-import-method -- a single-verb @RequestMapping(method = X) via a static import of RequestMethod.X (no qualifier) resolves the verb, same as the qualified form', () => {
+	// Real shape found live dogfooding gothinkster/spring-boot-realworld-example-app's own
+	// UsersApi.java: `import static ... RequestMethod.POST;` then bare `method = POST`.
+	const text = '@RequestMapping(path = "/users", method = POST)\npublic void foo() {}';
+	const [m] = findMappingAnnotations(text);
+	assert.equal(m.verb, 'POST');
+	assert.equal(m.methodName, 'foo');
+});
+
+test('findMappingAnnotations: the bare-verb form only matches Spring\'s real RequestMethod enum values, not an arbitrary identifier', () => {
+	const text = '@RequestMapping(method = someVariable)\npublic void foo() {}';
+	assert.deepEqual(findMappingAnnotations(text), []);
+});
+
+test('findMappingAnnotations: a multi-verb array using the BARE (unqualified) form is still left unresolved, not partially matched', () => {
+	const text = '@RequestMapping(method = {GET, POST})\npublic void foo() {}';
+	assert.deepEqual(findMappingAnnotations(text), []);
+});
+
 test('findMappingAnnotations: a class-level @RequestMapping is excluded even with an intervening annotation before `class`', () => {
 	const text = '@RequestMapping("/foo")\n@RequiredArgsConstructor\npublic class FooController {\n\t@GetMapping\n\tpublic void bar() {}\n}';
 	const results = findMappingAnnotations(text);

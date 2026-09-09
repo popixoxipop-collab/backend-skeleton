@@ -149,7 +149,22 @@ const MAPPING_VERBS = ['Get', 'Post', 'Put', 'Patch', 'Delete'];
 const MAPPING_ANNOTATION_RE = new RegExp(`@(?:(${MAPPING_VERBS.join('|')})Mapping|RequestMapping)\\b`, 'g');
 const REQUEST_MAPPING_RE = /@RequestMapping\b/g;
 const CLASS_OR_RECORD_START_RE = /^(?:public\s+)?(?:class|record)\b/;
-const REQUEST_MAPPING_METHOD_RE = /\bmethod\s*=\s*RequestMethod\.(\w+)\b/;
+// D-java-spring-static-import-method: `RequestMethod.` prefix made optional -- confirmed live,
+// dogfooding against a real, popular repo (gothinkster/spring-boot-realworld-example-app, 1,584
+// real GitHub stars): its UsersApi.java (register + login, 2 of the RealWorld spec's most
+// fundamental endpoints) uses `import static ... RequestMethod.POST;` then bare
+// `@RequestMapping(path = "/users", method = POST)` -- a real, common Java style (static-import a
+// single enum constant to cut the qualifier) the original prefix-required regex silently missed
+// (0/2 endpoints on this file; the OTHER 15/17 endpoints in this same corpus, using
+// @PostMapping/@GetMapping shorthand elsewhere, were unaffected and already correct). The verb
+// alternation is restricted to Spring's own real `RequestMethod` enum's 8 actual values (GET,
+// HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE) rather than a bare `\w+` -- narrower than
+// "any identifier", so an unrelated `method = someVariable` still correctly fails to match rather
+// than being misread as a verb. Verified live: the existing multi-verb array form (`method =
+// {RequestMethod.GET, RequestMethod.POST}`, still deliberately unresolved/skipped) does NOT
+// accidentally partial-match here -- the array's own `{` breaks the match before any verb name is
+// reached, same as before this change.
+const REQUEST_MAPPING_METHOD_RE = /\bmethod\s*=\s*(?:RequestMethod\.)?(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|TRACE)\b/;
 
 // True when `class`/`record` is the next real declaration after `index`, ONE OR MORE further
 // annotations allowed in between (e.g. a real oracle shape: `@RequestMapping(...)

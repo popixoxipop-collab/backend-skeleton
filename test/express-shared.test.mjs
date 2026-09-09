@@ -118,6 +118,71 @@ test('typescript-express: a commented-out router.get is NOT reported as a live e
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
 });
 
+// D-typescript-express-inline-handlers: real shape found live dogfooding
+// gothinkster/node-express-realworld-example-app (3,796 real GitHub stars) -- ALL 19 of its real
+// route registrations use an inline handler, not a named reference; before this fix, this exact
+// idiom found ZERO endpoints anywhere in that whole repo (verdict: greenfield on a repo with a
+// real, complete REST API).
+test('typescript-express: an inline async arrow-function handler (not a named reference) is now found -- method is null, not guessed', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/articles.ts': `import { Router, Request, Response, NextFunction } from 'express';
+const router = Router();
+router.get('/articles', async (req: Request, res: Response, next: NextFunction) => {
+  res.json({ articles: [] });
+});
+export default router;
+`,
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot, 'fixture must be detected by typescript-express');
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /articles']);
+	assert.equal(endpoints[0].method, null, 'an inline handler has no name to correlate to a defining file');
+});
+
+test('typescript-express: a plain (non-async) inline arrow-function handler, a single unparenthesized param, and a traditional function() handler are all recognized', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/things.ts': [
+			"import { Router } from 'express';",
+			'const router = Router();',
+			"router.get('/a', (req, res) => { res.json({}); });",
+			"router.get('/b', req => { req.res.json({}); });",
+			"router.get('/c', async function (req, res) { res.json({}); });",
+			'export default router;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /a', 'GET /b', 'GET /c']);
+	assert.ok(endpoints.every((e) => e.method === null));
+});
+
+test('typescript-express: a handler that is neither a bare identifier nor a recognizable inline function (a member expression) is still skipped, not guessed at', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/things.ts': [
+			"import { Router } from 'express';",
+			"import controller from '../controller';",
+			'const router = Router();',
+			"router.get('/x', controller.show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
 test('javascript-express: a commented-out router.get is NOT reported as a live endpoint', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),

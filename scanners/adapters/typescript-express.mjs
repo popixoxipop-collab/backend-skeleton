@@ -89,6 +89,20 @@ function listTypeScriptFiles(projectRoot) {
 // of `router.use('/literal', subRouter)` mount edges from a graph root down to the leaf file. This
 // extracts just the LOCAL endpoints (verb/path/handler/line) with an EMPTY prefix -- the mount-tree
 // walk in scanTypeScriptExpress() below joins the real prefix chain afterward.
+//
+// D-typescript-express-inline-handlers: an inline function expression (`router.get('/x', async
+// (req, res) => {...})`) is a DIFFERENT shape from a bare-identifier handler reference
+// (`router.get('/x', show)`) -- confirmed live, dogfooding against a real, popular repo
+// (gothinkster/node-express-realworld-example-app, 3,796 real GitHub stars): ALL 19 of its real
+// route registrations use this inline form, and the bare-identifier-only gate this comment used to
+// describe found ZERO of them (verdict: greenfield on a repo with a real, complete REST API).
+// `method: null` (not a synthesized/guessed name) marks this case -- there is no export to
+// correlate an inline handler to, and `handles/providers/typescript-express/plan.mjs`'s own
+// `resolveHandlerFile()` already has a real, tested `null`-propagates-to-"resolver not generated"
+// path for exactly this "handler correlates to nothing" case (see its own Update note in
+// DECISIONS.md) -- this is NOT a new failure mode, just a new, real way to reach the existing one.
+const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
+
 function extractEndpoints(text) {
 	const endpoints = [];
 	for (const m of text.matchAll(VERB_CALL_RE)) {
@@ -102,13 +116,14 @@ function extractEndpoints(text) {
 
 		const args = splitTopLevelArgs(argsText);
 		const lastArg = args[args.length - 1]?.trim();
-		// A bare identifier only -- an inline arrow-function handler has no name to correlate to a
-		// controller file, so it's skipped rather than guessed at (same discipline as FastAPI's own
-		// "no path literal -> skip").
 		const handlerMatch = lastArg?.match(/^(\w+)$/);
-		if (!handlerMatch) continue;
+		const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
+		// Neither a bare identifier nor a recognizable inline function expression (e.g. a member
+		// expression like `controller.show`, or something built dynamically) -- skip rather than
+		// guess, same discipline as the missing-path-literal case just above.
+		if (!handlerMatch && !isInlineHandler) continue;
 
-		endpoints.push({ verb, path: pathMatch[1], operationId: null, method: handlerMatch[1], line: lineNumberAt(text, m.index) });
+		endpoints.push({ verb, path: pathMatch[1], operationId: null, method: handlerMatch ? handlerMatch[1] : null, line: lineNumberAt(text, m.index) });
 	}
 	return endpoints;
 }

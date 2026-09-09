@@ -172,11 +172,18 @@ export function plan({ repoRoot, scanReport, module: moduleName, resourceFilter 
 	for (const entity of targetModule.entities) {
 		if (resourceFilter && !resourceFilter.includes(entity.className)) continue;
 		const fetchRoute = findFetchRoute(targetModule.controllers, entity.className);
-		const handlerFile = fetchRoute ? resolveHandlerFile(fetchRoute.file, fetchRoute.method, srcRoot) : null;
+		// D-typescript-express-inline-handlers: `method === null` means the scanner found a real
+		// route but its handler is an inline function expression, not a named export -- there is
+		// genuinely nothing for resolveHandlerFile()'s import/barrel-hop search to correlate to, so
+		// this is checked explicitly (a clear, named reason) rather than relying on the incidental
+		// fact that a regex built from the literal string "null" also happens not to match anything.
+		const handlerFile = fetchRoute && fetchRoute.method ? resolveHandlerFile(fetchRoute.file, fetchRoute.method, srcRoot) : null;
 		const selectFields = handlerFile ? findSelectAllowList(handlerFile) : null;
 
 		if (!fetchRoute) {
 			notes.push(`${entity.className}: no single-resource GET route found on a router whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
+		} else if (!fetchRoute.method) {
+			notes.push(`${entity.className}: the single-resource GET route's handler is an inline function expression, not a named export -- nothing to correlate to a defining file, resolver NOT generated.`);
 		} else if (!handlerFile) {
 			notes.push(`${entity.className}: could not resolve ${fetchRoute.method}'s own defining file (import, or one barrel hop, from ${path.relative(repoRoot, fetchRoute.file)}) -- resolver NOT generated.`);
 		} else if (!selectFields) {
