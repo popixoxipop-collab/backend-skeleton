@@ -111,7 +111,7 @@ function usage() {
   bskel patch rollback --feature <id> --transaction <id> --reason "..." [--force] [--json]
   bskel patch list --feature <id> [--json]
   bskel observe emit --feature <id> [--module <name>] [--force --reason "..."] [--check] [--diff] [--json]
-  bskel observe import --feature <id> --receipts <path> [--fail-on-violation] [--json]
+  bskel observe import --feature <id> --receipts <path> [--fail-on-violation] [--pubkey <path> [--require-signature]] [--json]
   bskel verify --feature <id> [--build [--allow-skip-build]] [--json]
   bskel status [--feature <id>] [--json]
   bskel next [--feature <id>] [--json]
@@ -3067,6 +3067,20 @@ function cmdObserveImport(args) {
 	const flags = parseCommand('observe import', args);
 	if (flags.help) { console.log(renderCommandHelp('observe import')); process.exit(0); }
 	setContext('observe import', flags);
+	if (flags['require-signature'] && !flags.pubkey) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--require-signature was given but --pubkey was not -- refusing to require a signature this command has no way to check. Pass --pubkey <path>, or drop --require-signature to allow unsigned/unverified receipts (with a warning).');
+	}
+	// Mirrors `cmdAttestVerify`'s own pubkey-read pattern exactly. `null` (not given) means: don't
+	// verify at all -- a signature field, if present on a receipt, is simply ignored, matching
+	// today's behavior byte-for-byte (full backward compatibility with every already-deployed app).
+	let pubkeyPem = null;
+	if (flags.pubkey) {
+		try {
+			pubkeyPem = fs.readFileSync(path.resolve(process.cwd(), flags.pubkey), 'utf8');
+		} catch (err) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read --pubkey "${flags.pubkey}": ${err.message}`);
+		}
+	}
 	const root = requireRepoRoot();
 	requirePreflightPassed(root);
 
@@ -3118,12 +3132,50 @@ function cmdObserveImport(args) {
 	}
 
 	const currentContractHash = sha256File(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`));
+
+	// D-runtime-conformance-receipts (cryptographic receipt attestation): verification always
+	// happens here, in Node, regardless of which language's runtime produced+signed the receipt --
+	// lib/attest.mjs's verifyPayload() is reused completely unmodified (already payload-shape-
+	// agnostic, the same reuse D-ddl-apply's own maybeSignStep() already established for a
+	// different payload shape). `unsigned` is computed regardless of --pubkey (forward visibility);
+	// `signature_invalid` is only ever non-zero when --pubkey was given -- there is no key to judge
+	// a signature against otherwise. Without --pubkey, every receipt is trusted exactly like today
+	// (a signature field, if present, is never even looked at) -- full backward compatibility.
+	let unsignedCount = 0;
+	let signatureInvalidCount = 0;
+	const trustedByIndex = receipts.map((r) => {
+		const hasSignature = Boolean(r.signature);
+		if (!hasSignature) unsignedCount++;
+		if (!pubkeyPem) return true;
+		if (!hasSignature) return false;
+		const { signature, ...unsigned } = r;
+		const valid = verifyPayload(unsigned, signature.value, pubkeyPem);
+		if (!valid) signatureInvalidCount++;
+		return valid;
+	});
+	if (flags['require-signature']) {
+		const badIndex = trustedByIndex.findIndex((trusted) => !trusted);
+		if (badIndex !== -1) {
+			const bad = receipts[badIndex];
+			const reason = bad.signature ? 'its signature does not verify against --pubkey' : 'it has no signature at all';
+			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `${flags.receipts}: a receipt for operation "${bad.operation_id}" is untrusted -- ${reason}. Aborting the whole import (--require-signature demands every receipt verify, and a corrupted/untrusted receipts file must not partially land).`);
+		}
+	}
+	if (pubkeyPem && unsignedCount > 0 && !flags.quiet) {
+		console.error(`WARNING: ${unsignedCount} receipt(s) have no signature -- excluded from matched/violation counts now that --pubkey is checking signatures. Pass --require-signature to make this a hard failure instead.`);
+	}
+
+	// Untrusted receipts (unsigned or signature-invalid, only possible when --pubkey was given)
+	// are excluded from EVERY count below -- not "noise" (non-JSON garbage) and not "corruption"
+	// (schema-invalid, aborts the whole import), a genuinely new third tier alongside
+	// stale_contract_ref's own existing "kept on record, excluded from current evidence" precedent.
 	let matched = 0;
 	let staleContractRef = 0;
 	let violationCount = 0;
 	let unsupportedCount = 0;
 	const byOperation = {};
-	for (const r of receipts) {
+	receipts.forEach((r, i) => {
+		if (!trustedByIndex[i]) return;
 		const isMatched = r.contract_ref === currentContractHash;
 		if (isMatched) matched++; else staleContractRef++;
 		const opStats = byOperation[r.operation_id] ?? { matched: 0, stale_contract_ref: 0, violations: 0 };
@@ -3133,7 +3185,7 @@ function cmdObserveImport(args) {
 			if (isMatched) opStats.violations++;
 		}
 		byOperation[r.operation_id] = opStats;
-	}
+	});
 
 	const report = {
 		sbf_conformance_report: '1',
@@ -3147,8 +3199,11 @@ function cmdObserveImport(args) {
 			matched, stale_contract_ref: staleContractRef,
 			violations: violationCount,
 			unsupported: unsupportedCount,
+			unsigned: unsignedCount,
+			signature_invalid: signatureInvalidCount,
 		},
 		by_operation: byOperation,
+		verification: { pubkey_given: Boolean(pubkeyPem), require_signature: Boolean(flags['require-signature']) },
 	};
 	const { ok: reportOk, errors: reportErrors } = validateAgainstSchema('conformance-report.schema.json', report);
 	if (!reportOk) {
@@ -3177,6 +3232,9 @@ function cmdObserveImport(args) {
 		console.log(JSON.stringify({ report, noise_lines: noiseLines, gate: gateState.gates.conformance }, null, 2));
 	} else {
 		console.log(`imported ${receipts.length} receipt(s) (${matched} matched the current contract, ${staleContractRef} stale, ${noiseLines} noise line(s) skipped)`);
+		if (pubkeyPem) {
+			console.log(`signatures: ${unsignedCount} unsigned, ${signatureInvalidCount} invalid (both excluded from the counts above)`);
+		}
 		console.log(`${violationCount} violation(s), ${unsupportedCount} unsupported field(s) across matched receipts`);
 		console.log(`wrote ${path.relative(root, reportPath)}`);
 		console.log(`gate: conformance -> ${gateState.gates.conformance.status}`);

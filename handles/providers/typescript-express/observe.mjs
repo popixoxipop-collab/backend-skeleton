@@ -28,6 +28,10 @@ const INFRA_FILES = [
 	{ template: 'contractCheck.ts.tmpl', target: 'contractCheck.ts' },
 	{ template: 'observedSchema.ts.tmpl', target: 'observedSchema.ts' },
 	{ template: 'observeContract.ts.tmpl', target: 'observeContract.ts' },
+	// D-runtime-conformance-receipts (cryptographic receipt attestation): node:crypto-only Ed25519
+	// signer used by observeContract.ts -- a self-contained port of lib/attest.mjs, never imported
+	// directly (this runs inside a deployed target app, a foreign process from this CLI's own).
+	{ template: 'receiptSign.ts.tmpl', target: 'receiptSign.ts' },
 ];
 
 function render(templatePath, vars) {
@@ -97,6 +101,7 @@ export function emitObserveTypeScriptExpress({ repoRoot, featureId, contract, pl
 			'error_class is never populated in this provider\'s receipts (always omitted) -- Express middleware runs BEFORE the route handler and is structurally unable to observe a thrown error the way java\'s @Around/python\'s except block can (by the time a handler throws or calls next(err), this middleware\'s own call frame has already returned). See DECISIONS.md D-runtime-conformance-receipts.',
 			'Response-body checking only covers a handler that calls res.json(...) or res.send(<object>) (Express\'s own res.send delegates to res.json for a plain-object body) -- a handler that calls res.send(<string>)/res.end(...) directly, or whose response is produced by Express\'s own default/generic error handler, has its response check silently skipped, never guessed.',
 			'OpenAPI reconciliation for this adapter matches scanned Express route strings EXACTLY against the OpenAPI document\'s own path keys (contracts/openapi.mjs has no ":id" <-> "{id}" translation) -- a real, standards-compliant OpenAPI document (which must use "{id}") will not match a scanned ":id"/":id([0-9]+)" route unless the document\'s own path key happens to already read that way. Unlike python-fastapi, this is not "for free."',
+			'NOT done automatically: to sign receipts, call setSigningKey(pem) yourself at application startup (import { setSigningKey } from \'./observe/receiptSign\';), with a PKCS#8 Ed25519 private key PEM -- `bskel attest keygen --out <dir>` already generates one in this exact format. Unconfigured means every receipt stays unsigned (backward compatible). Verify with `bskel observe import --pubkey <path/to/attest-public.pem>`.',
 		],
 	};
 }

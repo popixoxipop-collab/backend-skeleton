@@ -34,12 +34,17 @@
 // (req.body is Express's own unambiguous body once body-parsing middleware has run -- no
 // python-style explicit body_param argument needed here).
 //
+// Optionally signs each receipt (Ed25519, via receiptSign.ts) once setSigningKey() has been
+// called with a real key -- see that module's own doc comment. Unconfigured means every
+// receipt stays unsigned, exactly like before this capability existed.
+//
 // Example:
 //   router.get('/users/:id', [checkJwt, observeContract('users-show')], showUser);
 
 import type { RequestHandler, Request, Response } from 'express';
 import * as contractCheck from './contractCheck';
 import * as observedSchema from './observedSchema';
+import * as receiptSign from './receiptSign';
 import type { ObservedOperation } from './observedSchema';
 import type { Violation } from './contractCheck';
 
@@ -90,9 +95,23 @@ function emitReceipt(op: ObservedOperation, operationId: string, requestViolatio
 			recorded_at: new Date().toISOString(),
 			violations: allViolations,
 		};
+		signReceipt(receipt);
 		receiptSink(JSON.stringify(receipt));
 	} catch (err) {
 		console.warn(`observeContract: could not emit a receipt for "${operationId}"`, err);
+	}
+}
+
+// D-runtime-conformance-receipts (cryptographic receipt attestation): its OWN inner try/catch,
+// separate from emitReceipt()'s outer one -- a signing failure (bad/missing key config, malformed
+// PEM) must fall back to sending the receipt UNSIGNED, not silently drop the whole receipt the way
+// sharing the outer catch would.
+function signReceipt(receipt: Record<string, unknown>): void {
+	if (!receiptSign.isConfigured()) return;
+	try {
+		receipt.signature = { algorithm: 'ed25519', value: receiptSign.sign(receipt) };
+	} catch (err) {
+		console.warn('observeContract: could not sign a receipt -- sending it unsigned instead', err);
 	}
 }
 

@@ -8,20 +8,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { signPayload } from '../lib/attest.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
 
+// spawnSync (not execFileSync) -- captures stderr on the SUCCESS path too, needed for the
+// cryptographic-receipt-attestation tests below, which assert a WARNING printed to stderr on an
+// otherwise-successful (exit 0) `--pubkey` run. execFileSync's success path only ever returns
+// stdout; stderr is only populated when it throws.
 function run(args, cwd) {
-	try {
-		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
-		return { code: 0, stdout };
-	} catch (err) {
-		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
-	}
+	const result = spawnSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+	return { code: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 
 function buildFixtureRepo() {
@@ -345,4 +346,146 @@ test('bskel next recommends the real, already-generic gate-force command for a s
 	assert.deepEqual(nextBody.blocked_by, ['conformance']);
 	assert.equal(nextBody.next_actions[0].command, `bskel gate force conformance --feature ${FEATURE_ID} --reason "..."`);
 	assert.equal(nextBody.next_actions[0].mutating, true);
+});
+
+// D-runtime-conformance-receipts (cryptographic receipt attestation): --pubkey/--require-signature.
+// Signing here goes through lib/attest.mjs directly (this file runs inside the SAME Node
+// process/CLI as the tool itself -- no cross-language canonicalization concern; THAT is covered
+// separately by scripts/java-compile-smoke.mjs / scripts/python-import-smoke.mjs / a plain npm-test
+// TypeScript round trip, each signing in a REAL foreign runtime and verifying here).
+
+function keysDir() {
+	return fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-import-keys-'));
+}
+
+function keygen(dir) {
+	const result = run(['attest', 'keygen', '--out', dir, '--json'], dir);
+	assert.equal(result.code, 0, result.stderr);
+	return JSON.parse(result.stdout);
+}
+
+function signReceipt(receipt, privateKeyPath) {
+	const privateKeyPem = fs.readFileSync(privateKeyPath, 'utf8');
+	return { ...receipt, signature: { algorithm: 'ed25519', value: signPayload(receipt, privateKeyPem) } };
+}
+
+test('--require-signature without --pubkey is refused, mirroring serve --require-sign-key', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(makeReceipt(root))]);
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--require-signature'], root);
+	assert.equal(result.code, 14);
+	assert.match(result.stderr, /--require-signature was given but --pubkey was not/);
+});
+
+test('without --pubkey, a receipt carrying a signature field is simply ignored -- full backward compatibility', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dir = keysDir();
+	const { private_key: privateKey } = keygen(dir);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(signReceipt(makeReceipt(root), privateKey))]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	const body = JSON.parse(result.stdout);
+	assert.equal(body.report.counts.matched, 1);
+	assert.equal(body.report.counts.unsigned, 0, 'this receipt DOES have a signature -- unsigned only counts receipts with none');
+	assert.equal(body.report.counts.signature_invalid, 0, 'never checked without --pubkey');
+	assert.equal(body.report.verification.pubkey_given, false);
+});
+
+test('--pubkey alone: a genuine signature verifies and counts as matched evidence', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dir = keysDir();
+	const { private_key: privateKey, public_key: publicKey } = keygen(dir);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(signReceipt(makeReceipt(root), privateKey))]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKey, '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	const body = JSON.parse(result.stdout);
+	assert.equal(body.report.counts.matched, 1);
+	assert.equal(body.report.counts.unsigned, 0);
+	assert.equal(body.report.counts.signature_invalid, 0);
+	assert.equal(body.report.verification.pubkey_given, true);
+	assert.equal(body.report.verification.require_signature, false);
+});
+
+test('--pubkey alone: an unsigned receipt is tolerated but excluded from matched/violations -- a real rollout warning is printed', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dir = keysDir();
+	const { public_key: publicKey } = keygen(dir);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(makeReceipt(root))]); // no signature at all
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKey], root);
+	assert.equal(result.code, 0, result.stderr);
+	assert.match(result.stderr, /WARNING: 1 receipt\(s\) have no signature/);
+
+	const jsonResult = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKey, '--json'], root);
+	const body = JSON.parse(jsonResult.stdout);
+	assert.equal(body.report.counts.matched, 0, 'the unsigned receipt must not count as trusted evidence once --pubkey is checking');
+	assert.equal(body.report.counts.unsigned, 1);
+	assert.equal(body.report.counts.signature_invalid, 0);
+});
+
+test('--pubkey alone: a tampered receipt (signed, then mutated) is signature_invalid, not matched', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dir = keysDir();
+	const { private_key: privateKey, public_key: publicKey } = keygen(dir);
+	const signed = signReceipt(makeReceipt(root), privateKey);
+	signed.status = 500; // mutated AFTER signing -- the signature no longer matches
+	const receiptsPath = writeReceipts(root, [JSON.stringify(signed)]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKey, '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	const body = JSON.parse(result.stdout);
+	assert.equal(body.report.counts.matched, 0);
+	assert.equal(body.report.counts.unsigned, 0);
+	assert.equal(body.report.counts.signature_invalid, 1);
+});
+
+test('--pubkey alone: a receipt signed with the WRONG key is signature_invalid', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dirA = keysDir();
+	const { private_key: privateKeyA } = keygen(dirA);
+	const dirB = keysDir();
+	const { public_key: publicKeyB } = keygen(dirB);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(signReceipt(makeReceipt(root), privateKeyA))]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKeyB, '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	assert.equal(JSON.parse(result.stdout).report.counts.signature_invalid, 1);
+});
+
+test('--require-signature aborts the whole import on any unsigned/invalid receipt -- nothing partially lands', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dir = keysDir();
+	const { private_key: privateKey, public_key: publicKey } = keygen(dir);
+	const receiptsPath = writeReceipts(root, [
+		JSON.stringify(signReceipt(makeReceipt(root), privateKey)),
+		JSON.stringify(makeReceipt(root)), // unsigned
+	]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKey, '--require-signature'], root);
+	assert.equal(result.code, 2);
+	assert.match(result.stderr, /is untrusted -- it has no signature at all/);
+	assert.ok(!fs.existsSync(path.join(root, 'specs', FEATURE_ID, 'observe')), 'an untrusted receipt under --require-signature must not partially land');
+});
+
+test('--require-signature passes cleanly when every receipt genuinely verifies', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const dir = keysDir();
+	const { private_key: privateKey, public_key: publicKey } = keygen(dir);
+	const receiptsPath = writeReceipts(root, [JSON.stringify(signReceipt(makeReceipt(root), privateKey))]);
+
+	const result = run(['observe', 'import', '--feature', FEATURE_ID, '--receipts', receiptsPath, '--pubkey', publicKey, '--require-signature', '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	const body = JSON.parse(result.stdout);
+	assert.equal(body.report.counts.matched, 1);
+	assert.equal(body.report.verification.require_signature, true);
 });

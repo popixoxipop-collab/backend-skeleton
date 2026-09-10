@@ -24,6 +24,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { bskel, makeFail, establishThroughContract, REPO_ROOT } from './_smoke-lib.mjs';
+import { generateKeypair, verifyPayload } from '../lib/attest.mjs';
 
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'python-fastapi');
 const FEATURE_ID = '001-item-management';
@@ -126,9 +127,13 @@ try {
 }
 const venvPython = path.join(scratch, '.venv', 'bin', 'python');
 try {
-	sh(venvPython, ['-m', 'pip', 'install', '--quiet', '--disable-pip-version-check', 'fastapi', 'sqlmodel'], scratch, { quiet: true });
+	// D-runtime-conformance-receipts (cryptographic receipt attestation): `cryptography` -- receipt_
+	// sign.py's own real (not stdlib) Ed25519 dependency, a genuinely new category of dependency for
+	// this provider's generated runtime code. Installed unconditionally here since this script's
+	// whole job is proving the real import graph works, including the lazily-imported signing path.
+	sh(venvPython, ['-m', 'pip', 'install', '--quiet', '--disable-pip-version-check', 'fastapi', 'sqlmodel', 'cryptography'], scratch, { quiet: true });
 } catch (err) {
-	fail(`pip install fastapi sqlmodel failed: ${err.stderr || err.message}`);
+	fail(`pip install fastapi sqlmodel cryptography failed: ${err.stderr || err.message}`);
 }
 
 // A small, test-only driver (not a generated artifact) -- imports every generated module for real,
@@ -147,6 +152,7 @@ import app.handles.record_snapshot
 import app.observe.observe_contract
 import app.observe.contract_check
 import app.observe.observed_schema
+import app.observe.receipt_sign
 from app.observe.observe_contract import observe_contract
 from app.models import Item, ItemPublic
 
@@ -208,14 +214,52 @@ for actual in [{}, {"id": MARKER}]:
         assert MARKER not in v.message, f"path-param violation message embedded the observed value! actual={actual!r} message={v.message!r}"
 
 print("python-import-smoke: all generated modules imported successfully")
+
+# D-runtime-conformance-receipts (cryptographic receipt attestation): the real cross-language proof
+# -- sign a receipt via the REAL generated receipt_sign.py (real cryptography-package Ed25519, not
+# a mock), print the result on a marker line for the calling Node script to verify against
+# lib/attest.mjs's own verifyPayload() (unmodified). Same rigor as the async-wrapper probe above.
+import json
+import os
+
+sign_input = json.loads(os.environ["BSKEL_SIGN_SMOKE_INPUT"])
+app.observe.receipt_sign.configure(sign_input["privateKeyPem"])
+assert app.observe.receipt_sign.is_configured(), "receipt_sign did not accept a real PKCS#8 Ed25519 private key PEM"
+signature = app.observe.receipt_sign.sign(sign_input["receipt"])
+print(f"SIGN_SMOKE_SIGNATURE:{signature}")
 `;
 
 console.log('python-import-smoke: importing every generated module for real (not just ast.parse)...');
+const { publicKeyPem, privateKeyPem } = generateKeypair();
+const signSmokeReceipt = {
+	feature_id: FEATURE_ID,
+	feature_uid: '6bcbb17e-72fe-4049-92b5-712125c5c1ec',
+	operation_id: 'items-read_item',
+	contract_ref: 'deadbeef'.repeat(8),
+	verb: 'GET',
+	status: 200,
+	recorded_at: '2026-09-10T00:00:00.000Z',
+	violations: [{ pointer: '/body/name', keyword: 'pattern', message: 'héllo wörld / slash "quote" 日本語' }],
+};
+let driverOutput;
 try {
-	sh(venvPython, ['-c', DRIVER_SOURCE], backendDir, { quiet: true, env: { ...process.env, PYTHONPATH: backendDir } });
+	driverOutput = sh(venvPython, ['-c', DRIVER_SOURCE], backendDir, {
+		quiet: true,
+		env: { ...process.env, PYTHONPATH: backendDir, BSKEL_SIGN_SMOKE_INPUT: JSON.stringify({ privateKeyPem, receipt: signSmokeReceipt }) },
+	});
 } catch (err) {
 	fail(`real import of generated modules failed:\n${err.stderr || err.stdout || err.message}`);
 }
+
+const signatureLine = driverOutput.split('\n').find((line) => line.startsWith('SIGN_SMOKE_SIGNATURE:'));
+if (!signatureLine) {
+	fail(`the driver did not print a SIGN_SMOKE_SIGNATURE line -- got:\n${driverOutput}`);
+}
+const pythonSignature = signatureLine.slice('SIGN_SMOKE_SIGNATURE:'.length);
+if (!verifyPayload(signSmokeReceipt, pythonSignature, publicKeyPem)) {
+	fail('a signature produced by the real generated receipt_sign.py did not verify against lib/attest.mjs\'s own verifyPayload() -- cross-language canonicalization has diverged.');
+}
+console.log('python-import-smoke: PASS -- a real Python-signed receipt verified correctly in Node.');
 
 console.log('python-import-smoke: PASS -- generated Python imported cleanly against real fastapi + sqlmodel.');
 fs.rmSync(scratch, { recursive: true, force: true });

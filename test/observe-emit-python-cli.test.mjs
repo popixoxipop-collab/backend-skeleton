@@ -121,7 +121,7 @@ test('observe emit --module items is blocked before the contract gate has passed
 	assert.equal(result.code, 2);
 });
 
-test('observe emit writes the three python infra modules plus the projected observed-schema.json, and never touches handles/ output', () => {
+test('observe emit writes the four python infra modules plus the projected observed-schema.json, and never touches handles/ output', () => {
 	const root = buildOpenApiFixtureRepo();
 	runWorkflowThroughContract(root);
 
@@ -136,10 +136,11 @@ test('observe emit writes the three python infra modules plus the projected obse
 			`${OBSERVE_DIR}/observed_schema.py`,
 			`${OBSERVE_DIR}/contract_check.py`,
 			`${OBSERVE_DIR}/observe_contract.py`,
+			`${OBSERVE_DIR}/receipt_sign.py`,
 			OBSERVED_SCHEMA_PATH,
 		].sort(),
 	);
-	for (const f of ['__init__.py', 'observed_schema.py', 'contract_check.py', 'observe_contract.py']) {
+	for (const f of ['__init__.py', 'observed_schema.py', 'contract_check.py', 'observe_contract.py', 'receipt_sign.py']) {
 		assert.ok(fs.existsSync(path.join(root, OBSERVE_DIR, f)), `expected ${f} to exist`);
 	}
 	assert.ok(!fs.existsSync(path.join(root, 'backend/app/handles')), 'observe emit must never write anything handles emit owns');

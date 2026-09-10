@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sbf:observe-receipt:1",
   "title": "backend-skeleton runtime contract-conformance receipt",
-  "description": "One JSONL line ContractObservationAspect logs per @ObserveContract-annotated call. Verdict-only, by design -- never carries an observed request/response VALUE, only pointers + constraint kinds. See DECISIONS.md D-runtime-conformance-receipts. `bskel observe import --receipts <path>` reads a stream of these.",
+  "description": "One JSONL line ContractObservationAspect logs per @ObserveContract-annotated call. Verdict-only, by design -- never carries an observed request/response VALUE, only pointers + constraint kinds. See DECISIONS.md D-runtime-conformance-receipts. `bskel observe import --receipts <path>` reads a stream of these. `signature` is optional -- unsigned receipts stay valid; `bskel observe import --pubkey <path>` opts into verifying it where present. See the D-runtime-conformance-receipts 'cryptographic receipt attestation' Update note.",
   "type": "object",
   "additionalProperties": false,
   "required": ["feature_id", "feature_uid", "operation_id", "contract_ref", "verb", "recorded_at", "violations"],
@@ -26,6 +26,15 @@
           "keyword": { "enum": ["required", "type", "pattern", "status", "unsupported"] },
           "message": { "type": "string", "maxLength": 300 }
         }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "value": { "type": "string", "description": "base64-encoded raw Ed25519 signature bytes over the canonicalized receipt (this field excluded)." }
       }
     }
   }

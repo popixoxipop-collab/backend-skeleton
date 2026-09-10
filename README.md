@@ -39,6 +39,7 @@ check for a specific failure mode found the same way — see `DECISIONS.md` for 
   - [Declaring field-to-field dependencies (optional)](#declaring-field-to-field-dependencies-optional)
   - [Patching a config file (optional)](#patching-a-config-file-optional)
   - [Signed gate attestations (optional)](#signed-gate-attestations-optional)
+  - [Signed observe receipts (optional)](#signed-observe-receipts-optional)
 - [Compatibility](#compatibility)
 - [Generated-file policy](#generated-file-policy)
 - [Security model](#security-model)
@@ -343,6 +344,32 @@ bskel attest verify --file attestation.json --pubkey ~/.bskel-keys/attest-public
 
 `attest verify`'s exit code reflects signature validity only — whether the gates inside actually
 passed is a separate, printed summary. See `D-gate-attestation-signing` in `DECISIONS.md`.
+
+### Signed observe receipts (optional)
+
+`bskel observe emit` generates opt-in runtime middleware that checks real traffic against a
+feature's contract and logs a verdict-only receipt per call (JSON Pointer + constraint kind, never
+an observed value); `bskel observe import --receipts <path>` turns a stream of those receipts into
+a committed report backing the `conformance` gate. By default a receipts file is trusted at face
+value once it's structurally valid — a human could hand-fabricate one. Add `--pubkey <path>` to
+`observe import` to verify each receipt's optional signature instead, reusing the same
+`bskel attest keygen`-generated keypair signed gate attestations use:
+
+```bash
+bskel attest keygen --out ~/.bskel-keys        # same command as above -- one keypair, multiple uses
+# then, per deployed app (one-time, at the app's own startup):
+#   TypeScript: import { setSigningKey } from './observe/receiptSign'; setSigningKey(pem);
+#   Java:       set the bskel.observe.signing-key-pem Spring property (e.g. an env var)
+#   Python:     receipt_sign.configure(os.environ.get("BSKEL_OBSERVE_SIGNING_KEY_PEM"))
+bskel observe import --feature 001-organization-management --receipts receipts.jsonl \
+  --pubkey ~/.bskel-keys/attest-public.pem [--require-signature]
+```
+
+Unset/no key configured means every receipt stays unsigned — fully backward compatible with every
+app already using this feature. `--pubkey` alone verifies signatures where present and tolerates
+unsigned receipts (excluding them from the report's `matched` counts, with a printed warning);
+`--require-signature` makes any unsigned or invalid receipt abort the whole import. See the
+"cryptographic receipt attestation" update in `D-runtime-conformance-receipts` in `DECISIONS.md`.
 
 Every command is read-only until you explicitly run one of the mutating steps above — `bskel
 status`/`bskel next` (no arguments needed) tell you which gate is next and print the exact

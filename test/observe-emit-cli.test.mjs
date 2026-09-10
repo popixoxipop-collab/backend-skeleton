@@ -98,7 +98,7 @@ test('observe emit is blocked before the contract gate has passed', () => {
 	assert.equal(result.code, 2);
 });
 
-test('observe emit writes the four infra templates plus the projected observed-schema.json, and never touches handles/ output', () => {
+test('observe emit writes the five infra templates plus the projected observed-schema.json, and never touches handles/ output', () => {
 	const root = buildFixtureRepo();
 	runWorkflowThroughContract(root);
 
@@ -113,11 +113,12 @@ test('observe emit writes the four infra templates plus the projected observed-s
 			`${OBSERVE_DIR}/ContractCheck.java`,
 			`${OBSERVE_DIR}/ObserveSchemaLoader.java`,
 			`${OBSERVE_DIR}/ContractObservationAspect.java`,
+			`${OBSERVE_DIR}/ReceiptSigner.java`,
 			OBSERVED_SCHEMA_PATH,
 		].sort(),
 	);
 
-	for (const f of ['ObserveContract.java', 'ContractCheck.java', 'ObserveSchemaLoader.java', 'ContractObservationAspect.java']) {
+	for (const f of ['ObserveContract.java', 'ContractCheck.java', 'ObserveSchemaLoader.java', 'ContractObservationAspect.java', 'ReceiptSigner.java']) {
 		assert.ok(fs.existsSync(path.join(root, OBSERVE_DIR, f)), `expected ${f} to exist`);
 	}
 	assert.ok(!fs.existsSync(path.join(root, 'src/main/java/com/example/domain/widget/infrastructure/WidgetResolver.java')), 'observe emit must never write anything handles emit owns');

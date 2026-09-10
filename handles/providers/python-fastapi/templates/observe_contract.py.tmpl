@@ -32,6 +32,10 @@ return value transparently, unmodified, even without inspecting it) -- FastAPI r
 commonly `async def`, so getting this wrong breaks production traffic, not just the conformance
 check.
 
+Optionally signs each receipt (Ed25519, via receipt_sign.py) once `receipt_sign.configure(...)`
+has been called with a real key -- see that module's own docstring. Unconfigured means every
+receipt stays unsigned, exactly like before this capability existed.
+
 Example:
     @observe_contract(operation_id="items-read_item")
     async def read_item(session: SessionDep, id: str):
@@ -48,6 +52,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import contract_check
 from . import observed_schema
+from . import receipt_sign
 
 logger = logging.getLogger(__name__)
 _RECEIPTS = logging.getLogger("bskel.observe.receipts")
@@ -102,9 +107,23 @@ def _emit_receipt(op: dict, operation_id: str, request_violations: list, respons
             receipt["status"] = status
         if error_class is not None:
             receipt["error_class"] = error_class
+        _sign_receipt(receipt)
         _RECEIPTS.info(json.dumps(receipt))
     except Exception:
         logger.warning("observe_contract: could not emit a receipt -- the wrapped call already returned unaffected", exc_info=True)
+
+
+def _sign_receipt(receipt: dict) -> None:
+    # D-runtime-conformance-receipts (cryptographic receipt attestation): its OWN inner try/except,
+    # separate from _emit_receipt()'s outer one -- a signing failure (bad/missing key config,
+    # malformed PEM) must fall back to logging the receipt UNSIGNED, not silently drop the whole
+    # receipt the way sharing the outer except block would.
+    if not receipt_sign.is_configured():
+        return
+    try:
+        receipt["signature"] = {"algorithm": "ed25519", "value": receipt_sign.sign(receipt)}
+    except Exception:
+        logger.warning("observe_contract: could not sign a receipt -- logging it unsigned instead", exc_info=True)
 
 
 def observe_contract(*, operation_id: str, body_param: str | None = None):

@@ -30,7 +30,9 @@
         "matched": { "type": "integer", "minimum": 0, "description": "receipts whose contract_ref equals the CURRENT contract hash -- these count as evidence for the current contract." },
         "stale_contract_ref": { "type": "integer", "minimum": 0, "description": "receipts recorded against a contract_ref that no longer matches -- kept on record for audit/trend purposes, not counted as current evidence." },
         "violations": { "type": "integer", "minimum": 0 },
-        "unsupported": { "type": "integer", "minimum": 0 }
+        "unsupported": { "type": "integer", "minimum": 0 },
+        "unsigned": { "type": "integer", "minimum": 0, "description": "receipts with no signature field -- computed regardless of --pubkey, for forward visibility." },
+        "signature_invalid": { "type": "integer", "minimum": 0, "description": "receipts whose signature field failed verification -- only ever non-zero when --pubkey was given; meaningless (always 0) otherwise. Excluded from matched/violations, same as stale_contract_ref." }
       }
     },
     "by_operation": {
@@ -43,6 +45,15 @@
           "stale_contract_ref": { "type": "integer", "minimum": 0 },
           "violations": { "type": "integer", "minimum": 0 }
         }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Whether signature verification was even attempted at generation time -- without this, signature_invalid: 0 is ambiguous between 'verified, zero invalid' and 'never checked'. See D-runtime-conformance-receipts.",
+      "properties": {
+        "pubkey_given": { "type": "boolean" },
+        "require_signature": { "type": "boolean" }
       }
     }
   }

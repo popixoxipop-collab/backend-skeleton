@@ -26,6 +26,10 @@ const INFRA_FILES = [
 	{ template: 'observed_schema.py.tmpl', target: 'observed_schema.py' },
 	{ template: 'contract_check.py.tmpl', target: 'contract_check.py' },
 	{ template: 'observe_contract.py.tmpl', target: 'observe_contract.py' },
+	// D-runtime-conformance-receipts (cryptographic receipt attestation): Ed25519 signer used by
+	// observe_contract.py -- imports the `cryptography` package lazily, only if actually configured
+	// with a real key (see receipt_sign.py's own docstring for why).
+	{ template: 'receipt_sign.py.tmpl', target: 'receipt_sign.py' },
 ];
 
 function render(templatePath, vars) {
@@ -92,6 +96,7 @@ export function emitObservePythonFastApi({ repoRoot, featureId, contract, plan, 
 			'NOT done automatically: route the "bskel.observe.receipts" logger (Python\'s standard logging module) to wherever you want receipt lines collected (a dedicated handler to a file, your existing log pipeline, etc.) -- bskel never edits your logging config. Point `bskel observe import --receipts <path>` at whatever that logger\'s output ends up as.',
 			`Contract-conformance checking only covers path params always, plus a bounded slice of request/response/error body shape -- and only when this contract was emitted with --openapi-file. See the emitted ${path.relative(repoRoot, schemaPath)}'s own "unsupported" markers for exactly what is skipped for this feature.`,
 			'NOT done automatically: apply @observe_contract(operation_id="...") to whichever existing route handlers you want observed -- nothing is decorated for you (D-resolver-scope: never guess which function implements which operation). For a request body to be checked, also pass body_param="<the argument name>" explicitly -- Python has no @RequestBody-equivalent marker to infer it from.',
+			'NOT done automatically: to sign receipts, call receipt_sign.configure(os.environ.get("BSKEL_OBSERVE_SIGNING_KEY_PEM")) yourself at application startup, with a PKCS#8 Ed25519 private key PEM -- `bskel attest keygen --out <dir>` already generates one in this exact format. This also requires `pip install cryptography` (Python\'s stdlib has no Ed25519 signing -- receipt_sign.py imports it lazily, only when configure() is actually called with a real key). Unconfigured means every receipt stays unsigned (backward compatible). Verify with `bskel observe import --pubkey <path/to/attest-public.pem>`.',
 		],
 	};
 }

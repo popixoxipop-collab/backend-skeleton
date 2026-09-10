@@ -24,6 +24,10 @@ const INFRA_FILES = [
 	{ template: 'ContractCheck.java.tmpl', target: 'global/observe/ContractCheck.java' },
 	{ template: 'ObserveSchemaLoader.java.tmpl', target: 'global/observe/ObserveSchemaLoader.java' },
 	{ template: 'ContractObservationAspect.java.tmpl', target: 'global/observe/ContractObservationAspect.java' },
+	// D-runtime-conformance-receipts (cryptographic receipt attestation): JDK-stdlib-only Ed25519
+	// signer, used by ContractObservationAspect -- see that template's own javadoc for why this is
+	// a hand-rolled canonicalizer, not a Jackson mapper feature.
+	{ template: 'ReceiptSigner.java.tmpl', target: 'global/observe/ReceiptSigner.java' },
 ];
 
 function render(templatePath, vars) {
@@ -89,6 +93,7 @@ export function emitObserveJavaSpring({ repoRoot, featureId, contract, basePacka
 			'NOT done automatically: route the "bskel.observe.receipts" SLF4J logger to wherever you want receipt lines collected (a dedicated logback/log4j2 appender to a file, your existing log pipeline, etc.) -- bskel never edits your logging config. Point `bskel observe import --receipts <path>` at whatever that logger\'s output ends up as.',
 			`Contract-conformance checking only covers path params always, plus a bounded slice of request/response/error body shape -- and only when this contract was emitted with --openapi-file. See the emitted ${path.relative(repoRoot, schemaPath)}'s own "unsupported" markers for exactly what is skipped for this feature.`,
 			'NOT done automatically: apply @ObserveContract(operationId = "...") to whichever existing controller/service methods you want observed -- nothing is annotated for you (D-resolver-scope: never guess which method implements which operation).',
+			'NOT done automatically: to sign receipts, set the `bskel.observe.signing-key-pem` Spring property (e.g. an env var via Spring\'s own relaxed binding: BSKEL_OBSERVE_SIGNING_KEY_PEM=...) to a PKCS#8 Ed25519 private key PEM -- `bskel attest keygen --out <dir>` already generates one in this exact format. Unset means every receipt stays unsigned (backward compatible). Verify with `bskel observe import --pubkey <path/to/attest-public.pem>`.',
 		],
 	};
 }

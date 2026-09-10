@@ -1,0 +1,159 @@
+package {{BASE_PACKAGE}}.global.observe;
+
+import {{JACKSON_PACKAGE}}.JsonNode;
+import {{JACKSON_PACKAGE}}.node.ObjectNode;
+
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * D-runtime-conformance-receipts (cryptographic receipt attestation): signs a receipt at emission
+ * time so {@code bskel observe import --pubkey <path>} can prove it genuinely came from this
+ * running app, not a hand-fabricated file. JDK-stdlib-only ({@link Signature}, Ed25519 -- standard
+ * since JDK 15) -- zero new dependency, matching this project's own JDK 17 floor.
+ *
+ * <p>Canonicalization must be byte-identical to {@code bskel observe import}'s own verification
+ * side (Node's {@code lib/attest.mjs} {@code canonicalize()}: deep-sorted keys, compact JSON,
+ * non-ASCII left unescaped) -- proven cross-language-compatible by direct execution against a real
+ * receipt containing a forward slash, a quote, and non-ASCII text (see DECISIONS.md
+ * D-runtime-conformance-receipts). Jackson's own {@code MapperFeature.SORT_PROPERTIES_ALPHABETICALLY}
+ * does NOT sort an {@link ObjectNode}'s own tree-model field order -- confirmed live, it only
+ * affects bean/POJO introspection -- so this class hand-walks the {@link JsonNode} tree instead of
+ * relying on a mapper feature that would silently no-op.
+ *
+ * <p>The private key is never baked into generated source (that would commit a secret to the
+ * repo) -- see {@link #configure(String)}'s own javadoc for how a human wires this in.
+ */
+public final class ReceiptSigner {
+
+	private static volatile PrivateKey privateKey;
+
+	private ReceiptSigner() {
+	}
+
+	/**
+	 * NOT called by any generated code -- a human calls this once, themselves, at application
+	 * startup (see {@code ContractObservationAspect}'s own {@code @PostConstruct} wiring), passing a
+	 * PKCS#8 PEM private key string -- the exact format {@code bskel attest keygen} already writes.
+	 * Never hardcode a real key value in source; read it from wherever you already keep secrets (an
+	 * env var, a mounted file, a secrets manager). Unconfigured (the default) means every receipt
+	 * stays unsigned -- backward compatible with every already-deployed app using this feature
+	 * before signing existed.
+	 */
+	public static void configure(String privateKeyPem) {
+		privateKey = (privateKeyPem == null || privateKeyPem.isBlank()) ? null : parsePkcs8(privateKeyPem);
+	}
+
+	static boolean isConfigured() {
+		return privateKey != null;
+	}
+
+	/**
+	 * Returns the base64 Ed25519 signature over the canonicalized receipt. Callers must pass a node
+	 * that does not yet carry a {@code "signature"} field (this class never strips one itself --
+	 * {@code ContractObservationAspect} only ever calls this before adding one).
+	 */
+	static String sign(ObjectNode receiptWithoutSignature) {
+		try {
+			Signature signer = Signature.getInstance("Ed25519");
+			signer.initSign(privateKey);
+			signer.update(canonicalize(receiptWithoutSignature).getBytes(StandardCharsets.UTF_8));
+			return Base64.getEncoder().encodeToString(signer.sign());
+		} catch (Exception e) {
+			throw new IllegalStateException("could not sign receipt", e);
+		}
+	}
+
+	private static PrivateKey parsePkcs8(String pem) {
+		try {
+			String base64 = pem
+					.replace("-----BEGIN PRIVATE KEY-----", "")
+					.replace("-----END PRIVATE KEY-----", "")
+					.replaceAll("\\s", "");
+			byte[] der = Base64.getDecoder().decode(base64);
+			KeyFactory keyFactory = KeyFactory.getInstance("Ed25519");
+			return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(der));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("not a usable PKCS#8 Ed25519 private key PEM", e);
+		}
+	}
+
+	// Recursively sorts every object's field names, preserves array order (matching lib/gates.mjs's
+	// own sortKeysDeep() semantics exactly on the Node verification side), emits compact JSON by
+	// hand. The schema this signs has exactly one numeric field (a plain integer HTTP status) and
+	// nothing else numeric anywhere -- no float-formatting cross-language risk exists here.
+	static String canonicalize(JsonNode node) {
+		StringBuilder sb = new StringBuilder();
+		canonicalizeInto(node, sb);
+		return sb.toString();
+	}
+
+	private static void canonicalizeInto(JsonNode node, StringBuilder sb) {
+		if (node == null || node.isNull()) {
+			sb.append("null");
+		} else if (node.isObject()) {
+			List<String> names = new ArrayList<>();
+			node.fieldNames().forEachRemaining(names::add);
+			Collections.sort(names);
+			sb.append('{');
+			for (int i = 0; i < names.size(); i++) {
+				if (i > 0) sb.append(',');
+				sb.append(jsonString(names.get(i))).append(':');
+				canonicalizeInto(node.get(names.get(i)), sb);
+			}
+			sb.append('}');
+		} else if (node.isArray()) {
+			sb.append('[');
+			for (int i = 0; i < node.size(); i++) {
+				if (i > 0) sb.append(',');
+				canonicalizeInto(node.get(i), sb);
+			}
+			sb.append(']');
+		} else if (node.isTextual()) {
+			sb.append(jsonString(node.asText()));
+		} else if (node.isBoolean()) {
+			sb.append(node.asBoolean());
+		} else if (node.isNumber()) {
+			sb.append(node.numberValue());
+		} else {
+			sb.append(jsonString(node.asText()));
+		}
+	}
+
+	// Standard JSON string escaping (RFC 8259) -- the same set Node's JSON.stringify and Python's
+	// json.dumps(ensure_ascii=False) both already apply, proven byte-identical live. Non-ASCII is
+	// deliberately left UNESCAPED to match (ensure_ascii=False on the Python side is the analogous,
+	// load-bearing requirement there -- Python's own json.dumps default would otherwise diverge).
+	private static String jsonString(String s) {
+		StringBuilder sb = new StringBuilder(s.length() + 2);
+		sb.append('"');
+		for (int i = 0; i < s.length(); i++) {
+			char c = s.charAt(i);
+			switch (c) {
+				case '"' -> sb.append("\\\"");
+				case '\\' -> sb.append("\\\\");
+				case '\b' -> sb.append("\\b");
+				case '\f' -> sb.append("\\f");
+				case '\n' -> sb.append("\\n");
+				case '\r' -> sb.append("\\r");
+				case '\t' -> sb.append("\\t");
+				default -> {
+					if (c < 0x20) {
+						sb.append(String.format("\\u%04x", (int) c));
+					} else {
+						sb.append(c);
+					}
+				}
+			}
+		}
+		sb.append('"');
+		return sb.toString();
+	}
+}
