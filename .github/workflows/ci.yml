@@ -269,6 +269,14 @@ jobs:
       - run: npm run test:db-introspect
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
+      # D-pattern-accrual: reuses this job's own already-running postgres:16 service container
+      # rather than standing up a dedicated job for one more real-database smoke test -- same
+      # BSKEL_TEST_DATABASE_URL convention as db-introspect-smoke.mjs above, own throwaway table
+      # (sbf_pattern), dropped/recreated by the script itself so this step never depends on
+      # db-introspect's own tables/state.
+      - run: npm run test:pattern-db
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
       - name: stop postgres
         if: always()
         run: docker rm -f bskel-pg-a4

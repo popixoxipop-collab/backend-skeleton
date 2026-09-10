@@ -44,7 +44,8 @@ import {
 	findCollisions, evaluateCrossFeatureFindings, waiverKey,
 	crossFeatureReportPath, loadCrossFeatureReport, loadCrossFeatureResolution, saveCrossFeatureResolution,
 } from '../lib/cross-feature-collisions.mjs';
-import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting } from '../new/index.mjs';
+import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting, reusableParamsFor } from '../new/index.mjs';
+import { recordPattern, listPatterns, getPattern, isMissingPatternTable, summarizePatternFrequency } from '../patterns/store.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
 	requireValidPythonVersion, requireValidLicense, requireValidDatabase, requireSupportedJavaVersion,
@@ -76,7 +77,10 @@ const SKILL_ROOT = path.resolve(__dirname, '..');
 function usage() {
 	console.error(`bskel -- backend-skeleton CLI
 
-  bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json] [--name <text>] [--description <text>] [--project-version <v>] [--group-id <pkg>] [--artifact-id <id>] [--package-name <pkg>] [--java-version <n>] [--packaging jar|war] [--dependencies a,b,c] [--add-dependencies a,b,c] [--python-version <spec>] [--port N] [--license <spdx>] [--database postgres|sqlite|none]
+  bskel new --stack spring|fastapi --slug <name> [--dir <path>] [--offline] [--json] [--name <text>] [--description <text>] [--project-version <v>] [--group-id <pkg>] [--artifact-id <id>] [--package-name <pkg>] [--java-version <n>] [--packaging jar|war] [--dependencies a,b,c] [--add-dependencies a,b,c] [--python-version <spec>] [--port N] [--license <spdx>] [--database postgres|sqlite|none] [--record-pattern --pattern-database-url-env <NAME>]
+  bskel pattern list --pattern-database-url-env <NAME> [--stack spring|fastapi] [--json]
+  bskel pattern show <pattern_id> --pattern-database-url-env <NAME> [--json]
+  bskel pattern suggest --stack spring|fastapi --pattern-database-url-env <NAME> [--json]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
@@ -3617,6 +3621,132 @@ async function resolveNewParams(stack, flags) {
 	};
 }
 
+// D-pattern-accrual: all three pattern commands are repo-independent, like `bskel new` itself --
+// a pattern store is a user-owned CROSS-PROJECT resource, never scoped to the current repo/feature,
+// so none of them call requireRepoRoot(). Read-only; --pattern-database-url-env is required on all
+// three (mirrors O7's `handles audit` -- there is no meaningful "run without a live connection" mode).
+async function cmdPatternList(args) {
+	const flags = parseCommand('pattern list', args);
+	if (flags.help) { console.log(renderCommandHelp('pattern list')); process.exit(0); }
+	setContext('pattern list', flags);
+
+	const connectionString = process.env[flags['pattern-database-url-env']];
+	if (!connectionString) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--pattern-database-url-env ${flags['pattern-database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
+	}
+	if (flags.stack && !NEW_STACKS[flags.stack]) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--stack must be one of: ${Object.keys(NEW_STACKS).join(', ')} (got ${JSON.stringify(flags.stack)})`);
+	}
+
+	let records;
+	try {
+		records = await listPatterns({ connectionString, stack: flags.stack });
+	} catch (err) {
+		if (isMissingPatternTable(err)) {
+			fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', 'sbf_pattern does not exist in this database -- run patterns/schema.sql against it first (bskel never applies it automatically; see D-migration-scope in DECISIONS.md).');
+		}
+		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `could not query the pattern store: ${describeConnectionError(err)}`);
+	}
+
+	if (flags.json) {
+		console.log(JSON.stringify({ records }, null, 2));
+	} else {
+		console.log(`pattern store -- ${records.length} record(s)${flags.stack ? ` (stack: ${flags.stack})` : ''}`);
+		for (const r of records) {
+			console.log(`  ${r.pattern_id}  [${r.stack}]  ${r.recorded_at}  ${JSON.stringify(r.params)}`);
+		}
+	}
+	process.exit(0);
+}
+
+async function cmdPatternShow(args) {
+	const flags = parseCommand('pattern show', args);
+	if (flags.help) { console.log(renderCommandHelp('pattern show')); process.exit(0); }
+	setContext('pattern show', flags);
+	const patternId = flags._[0];
+	if (!patternId) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel pattern show <pattern_id> --pattern-database-url-env <NAME>');
+	}
+	const connectionString = process.env[flags['pattern-database-url-env']];
+	if (!connectionString) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--pattern-database-url-env ${flags['pattern-database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
+	}
+
+	let record;
+	try {
+		record = await getPattern({ connectionString, patternId });
+	} catch (err) {
+		if (isMissingPatternTable(err)) {
+			fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', 'sbf_pattern does not exist in this database -- run patterns/schema.sql against it first (bskel never applies it automatically; see D-migration-scope in DECISIONS.md).');
+		}
+		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `could not query the pattern store: ${describeConnectionError(err)}`);
+	}
+	if (!record) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no pattern record with id ${patternId}`);
+	}
+
+	if (flags.json) {
+		console.log(JSON.stringify(record, null, 2));
+	} else {
+		console.log(`pattern ${record.pattern_id}  [${record.stack}]  recorded ${record.recorded_at}`);
+		for (const [k, v] of Object.entries(record.params)) console.log(`  --${k} ${v}`);
+	}
+	process.exit(0);
+}
+
+// D-pattern-accrual: `suggest`'s output is TEXT only -- a per-value frequency breakdown, honest about
+// disagreement, plus one paste-ready command line built from the top-ranked value per param. Never
+// fed into `bskel new` as a default; `bskel new` has no flag that would accept it as one (see
+// D-pattern-accrual's WHY for why this is the one design decision that keeps this feature inside
+// D-greenfield-parameters' safe/unsafe line).
+async function cmdPatternSuggest(args) {
+	const flags = parseCommand('pattern suggest', args);
+	if (flags.help) { console.log(renderCommandHelp('pattern suggest')); process.exit(0); }
+	setContext('pattern suggest', flags);
+
+	const stack = NEW_STACKS[flags.stack];
+	if (!stack) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--stack must be one of: ${Object.keys(NEW_STACKS).join(', ')} (got ${JSON.stringify(flags.stack)})`);
+	}
+	const connectionString = process.env[flags['pattern-database-url-env']];
+	if (!connectionString) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--pattern-database-url-env ${flags['pattern-database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md)`);
+	}
+
+	let records;
+	try {
+		records = await listPatterns({ connectionString, stack: flags.stack });
+	} catch (err) {
+		if (isMissingPatternTable(err)) {
+			fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', 'sbf_pattern does not exist in this database -- run patterns/schema.sql against it first (bskel never applies it automatically; see D-migration-scope in DECISIONS.md).');
+		}
+		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `could not query the pattern store: ${describeConnectionError(err)}`);
+	}
+
+	const summary = summarizePatternFrequency(records, stack.reusableParams);
+	const suggestedFlags = summary.map(({ param, values }) => `--${param} ${values[0].value}`).join(' ');
+	const suggestedCommand = `bskel new --stack ${stack.id} --slug <name>${suggestedFlags ? ` ${suggestedFlags}` : ''}`;
+
+	if (flags.json) {
+		console.log(JSON.stringify({ stack: stack.id, total_records: records.length, summary, suggested_command: suggestedCommand }, null, 2));
+	} else {
+		console.log(`pattern suggest -- ${records.length} recorded ${stack.id} run(s)`);
+		if (records.length === 0) {
+			console.log('  (no patterns recorded yet for this stack -- nothing to suggest)');
+		} else {
+			for (const { param, values } of summary) {
+				for (const { value, count, total } of values) {
+					console.log(`  --${param} ${value}   (${count}/${total} runs)`);
+				}
+			}
+			console.log('');
+			console.log('suggested command (edit before running -- bskel never applies this automatically):');
+			console.log(`  ${suggestedCommand}`);
+		}
+	}
+	process.exit(0);
+}
+
 async function cmdNew(args) {
 	const flags = parseCommand('new', args);
 	if (flags.help) { console.log(renderCommandHelp('new')); process.exit(0); }
@@ -3628,6 +3758,21 @@ async function cmdNew(args) {
 	}
 	requireValidSlug(flags.slug);
 	requireStackParams(stack, flags);
+	// D-pattern-accrual: checked BEFORE any network call or filesystem write, same ordering
+	// principle P2b's own comment states above -- a usage mistake (flag given without its required
+	// partner, or an env var that was never exported) must never leave a half-scaffolded project
+	// behind. The actual DB write later in this function is a SEPARATE, best-effort concern; this
+	// block only validates that recording, if requested, is even POSSIBLE to attempt.
+	let patternConnectionString = null;
+	if (flags['record-pattern']) {
+		if (!flags['pattern-database-url-env']) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--record-pattern requires --pattern-database-url-env <NAME>. Nothing was written.');
+		}
+		patternConnectionString = process.env[flags['pattern-database-url-env']];
+		if (!patternConnectionString) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--pattern-database-url-env ${flags['pattern-database-url-env']} names an environment variable that isn't set -- export it first (never read from .env directly; see D-db-schema-plane in DECISIONS.md). Nothing was written.`);
+		}
+	}
 
 	let stackParams;
 	let warnings;
@@ -3670,6 +3815,27 @@ async function cmdNew(args) {
 		commitArgs.unshift('-c', 'user.email=bskel@localhost', '-c', 'user.name=bskel');
 	}
 	execFileSync('git', commitArgs, { cwd: dir });
+
+	// D-pattern-accrual: best-effort, deliberately AFTER the project is already scaffolded and
+	// committed -- failing here would be strictly worse than not recording (the project the user
+	// asked for already exists). Only ever a stderr warning, never a fail()/non-zero exit; records
+	// ONLY the flags new/index.mjs's reusableParamsFor(stack) names, and only the ones the user
+	// actually typed (a param the user never passed stays absent from `params`, not defaulted in --
+	// an omission is itself real information for `pattern suggest`, see patterns/store.mjs).
+	if (patternConnectionString) {
+		const patternParams = {};
+		for (const param of reusableParamsFor(stack.id)) {
+			if (flags[param] != null) patternParams[param] = String(flags[param]);
+		}
+		try {
+			await recordPattern({ connectionString: patternConnectionString, stack: stack.id, params: patternParams });
+		} catch (err) {
+			const hint = isMissingPatternTable(err)
+				? 'sbf_pattern does not exist in this database -- run patterns/schema.sql against it first (bskel never applies it automatically; see D-migration-scope).'
+				: describeConnectionError(err);
+			console.error(`warning: --record-pattern could not write to the pattern store: ${hint}`);
+		}
+	}
 
 	const { postScaffoldNotes = [], ...resultRest } = result;
 	if (flags.json) {
@@ -3871,6 +4037,14 @@ async function dispatchCommand(cmd, rest) {
 			return cmdServe(rest);
 		case 'new':
 			return cmdNew(rest);
+		case 'pattern': {
+			if (rest[0] === 'list') return cmdPatternList(rest.slice(1));
+			if (rest[0] === 'show') return cmdPatternShow(rest.slice(1));
+			if (rest[0] === 'suggest') return cmdPatternSuggest(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
 		default:
 			usage();
 			process.exit(cmd ? 14 : 0);

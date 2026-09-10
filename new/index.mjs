@@ -9,6 +9,13 @@
 // parameters it accepts and which it explicitly refuses), and deliberately still a plain object.
 // The reason two first-party stacks don't justify a registry hasn't changed just because each entry
 // grew three fields.
+//
+// D-pattern-accrual: a FOURTH field, `reusableParams` -- the subset of `acceptedParams` worth
+// persisting to a user-owned pattern store when they opt in via `--record-pattern`. Deliberately a
+// subset, not `acceptedParams` itself: per-project identity (`name`/`description`/`project-version`,
+// spring's `artifact-id`/`package-name`) describes THIS project, not a reusable convention, and
+// storing project names in a database buys nothing (see D-pattern-accrual's own EXIT for the full
+// list and why each exclusion is drawn).
 import { scaffoldSpring } from './spring.mjs';
 import { scaffoldFastapi } from './fastapi.mjs';
 
@@ -39,6 +46,10 @@ export const STACKS = Object.freeze({
 			'dependencies', 'add-dependencies',
 		]),
 		refusedParams: SPRING_REFUSED_PARAMS,
+		// D-pattern-accrual: `group-id` is the one per-project-identity-shaped field kept in
+		// (unlike `artifact-id`/`package-name`) -- an organization's group id is itself a reusable
+		// convention (`com.ourco`, applied to every project), not a name unique to this one project.
+		reusableParams: Object.freeze(['java-version', 'packaging', 'dependencies', 'add-dependencies', 'group-id']),
 	}),
 	fastapi: Object.freeze({
 		id: 'fastapi',
@@ -46,8 +57,17 @@ export const STACKS = Object.freeze({
 		requiresNetwork: false,
 		acceptedParams: Object.freeze([...COMMON_PARAMS, 'python-version', 'port', 'license', 'database']),
 		refusedParams: Object.freeze({}),
+		reusableParams: Object.freeze(['python-version', 'port', 'license', 'database']),
 	}),
 });
+
+// D-pattern-accrual: the one place `bskel new`'s best-effort recording call and `bskel pattern
+// suggest` both look up which flags are worth persisting for a stack -- never re-derived, never a
+// hand-copied list at either call site.
+export function reusableParamsFor(stackId) {
+	const stack = STACKS[stackId];
+	return stack ? stack.reusableParams : [];
+}
 
 // Every parameter any stack knows about -- the set cmdNew checks a passed flag against to decide
 // "wrong stack" vs. "not a stack parameter at all". Derived, never a hand-maintained third list.

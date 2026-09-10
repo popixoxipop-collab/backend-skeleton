@@ -13234,3 +13234,121 @@ refuse-on-idempotence, `contract emit` correctly blocked then unblocked, the `co
 stale→non-stale transition on a real absolute-vs-relative `.file` swap). Full existing suite green,
 including `test/handles-plan-fixture.test.mjs` and `test/handles-provider-registry.test.mjs` (the
 two tests that caught the false start). Full `npm test` green.
+
+## D-pattern-accrual: a user-owned pattern store for `bskel new` conventions, Phase 1 (parameters only) -- suggests as TEXT, never as a default
+
+User request: someone starting several projects with the same organizational conventions
+(`--java-version 21`, `--dependencies web,data-jpa,validation,flyway`, `--group-id com.ourco`)
+retypes them every time and has no way to answer "what did I use last time?" They asked for a
+growth-oriented capability -- accrue generalized patterns from their own past `bskel new` runs into
+a database they own, then support new greenfield projects from that accumulated knowledge -- staged
+explicitly: Phase 1 is configuration/parameters only, code-shaped patterns are a later, separate
+decision (mirroring O8's own java-first-then-other-providers staging).
+
+**Why this does not violate `D-greenfield-parameters`' safe/unsafe line** ("does the generated file
+encode a claim about the user's domain that the user did not state?"): `bskel pattern suggest`
+prints a paste-ready command line as TEXT. It never feeds a default into `bskel new`, and `bskel
+new` gained no `--use-pattern`-style flag that would accept one. Every value that ends up in a
+generated project is still a value the SAME human typed in THAT invocation -- there is no code path
+by which an accrued value reaches a generated file without passing through a keyboard a second
+time. This satisfies the line literally, not by argument.
+
+**Why this does not resurrect the `.bskel/config.yml` refusal**: that refusal (`D-greenfield-parameters`'
+own EXIT, restated in `D-greenfield-bootstrap`'s EXIT as "should be re-justified against this same
+anti-stale-state principle, not assumed away") is about a file that claims to describe THIS repo's
+current shape, and can therefore silently drift from it. A `sbf_pattern` row asserts nothing about
+any current repo -- it is an append-only historical record of a `bskel new` invocation that already
+happened, the same epistemic category as `.sbf/<featureId>.history.jsonl`. It cannot go stale
+because it never claimed to be live in the first place.
+
+**Why this does not violate `D-migration-scope`**: bskel never creates `sbf_pattern` itself.
+`patterns/schema.sql` ships in the package for a human to run by hand, once, against a database they
+already own; a missing table surfaces as Postgres `42P01` -> a clean `REFRESH_FAILED` naming that
+exact file (`patterns/store.mjs`'s `isMissingPatternTable`, byte-identical convention to
+`handles/audit.mjs`'s `isMissingHandleTables`).
+
+**What is recorded, and what deliberately is not**: `new/index.mjs`'s frozen per-stack STACKS
+declaration gains a fourth field, `reusableParams`, alongside the existing `acceptedParams`/
+`refusedParams` -- spring: `java-version`, `packaging`, `dependencies`, `add-dependencies`,
+`group-id`; fastapi: `python-version`, `port`, `license`, `database`. Never recorded, either stack:
+`slug`, `dir`, and `COMMON_PARAMS` (`name`/`description`/`project-version`), plus spring's
+`artifact-id`/`package-name` -- these describe THIS project's identity, not a reusable convention
+(`group-id` is the one identity-shaped exception kept in: an organization's group id, e.g.
+`com.ourco`, IS itself a reusable convention applied to every project, unlike an artifact id or
+package name unique to one). A `reusableParamsFor(stackId)` export is the one place both `cmdNew`'s
+recording call and `cmdPatternSuggest` look this set up -- never a second hand-copied list.
+
+**Storage**: `--pattern-database-url-env <NAME>` names an already-exported environment variable,
+byte-identical convention to `scan --db`/`handles audit`/`patch propose --kind ddl-apply`/`serve` --
+never a URL on the command line, never `.env`. A DISTINCT flag name from every other command's
+`--database-url-env`: in every existing command that flag means the TARGET APPLICATION's database;
+this one is the user's own cross-project pattern store, a different resource entirely, so reusing
+the name would silently conflate two unrelated connections. One table, `sbf_pattern` (`pattern_id`
+UUID primary key, `stack` text, `params` JSONB, `recorded_at` timestamptz) -- JSONB because the
+accepted parameter set differs per stack and grows independently of this table's own schema.
+Connection handling reuses `scanners/db/introspect.mjs`'s established shape unchanged: one
+`pg.Client`, `BEGIN TRANSACTION READ ONLY` on every read path, `describeConnectionError(err)` for
+the empty-message `AggregateError` case.
+
+**`bskel new` gains exactly two flags**: `--record-pattern` and `--pattern-database-url-env <NAME>`.
+Omitting either leaves `bskel new` byte-identical to today (existing `test/new-cli.test.mjs`'s ~44
+tests pass unmodified). Both required together, checked BEFORE any network call or filesystem write
+(the same ordering `requireStackParams`'s own comment already establishes for every other `new`
+validation) -- a usage mistake (one flag without the other, or an unset env var) must never leave a
+half-scaffolded project behind. The actual database write happens AFTER the project is already
+scaffolded and committed, wrapped in try/catch: a signing-style best-effort, never a `fail()` --
+failing here would be strictly worse than not recording, since the project the user asked for
+already exists by that point. A missing `sbf_pattern` table or an unreachable host is a stderr
+warning only; `bskel new` still exits 0.
+
+**Three new commands, all read-only except the write above**: `bskel pattern list
+--pattern-database-url-env <NAME> [--stack <s>] [--json]`, `bskel pattern show <pattern_id>
+--pattern-database-url-env <NAME> [--json]`, `bskel pattern suggest --stack spring|fastapi
+--pattern-database-url-env <NAME> [--json]`. `suggest` (`patterns/store.mjs`'s pure, DB-free
+`summarizePatternFrequency(records, reusableParams)`) ranks every distinct value seen per param by
+how many recorded runs carried it, denominator always the FULL recorded-run count for that stack
+(an omitted param on some run is real information, not missing data) -- printed as one line per
+observed value with its own `count/total`, never collapsed to a single "best" answer. Honest about
+disagreement rather than hiding it, the same posture `D-cross-feature-collision`'s confidence labels
+take. The paste-ready command line underneath uses the top-ranked value per param -- text only, per
+the safe/unsafe-line argument above.
+
+None of the three `pattern` commands, nor `bskel new` itself, correspond to any `GATE_NAMES` gate --
+checked directly against `lib/workflow.mjs`'s `ESTABLISH_COMMAND`/`MUTATING_PREFIXES` (the exact gap
+class that broke live twice before for `cross_feature`/`dependencies`/`conformance`, per that file's
+own comments) and confirmed neither table needs an entry; `handles audit` (O7) is the existing
+precedent for a read-only command correctly staying out of `MUTATING_PREFIXES`.
+
+**EXIT**: Phase 2 (code-shaped patterns -- a `BaseEntity`, a `GlobalExceptionHandler`, any generated
+source file) is explicitly NOT part of this slice. It needs its own decision entry arguing against
+the safe/unsafe line on its own terms -- a source file is a much larger domain claim than a
+dependency id or a Java version, and this entry deliberately leaves that argument unmade until Phase
+1 produces real usage data on whether accrual is even valuable. Also out of scope: any auto-apply
+path from `pattern suggest` into `bskel new`, any cross-user or shared pattern store (the whole
+design rests on this being a database ONE user owns for THEIR OWN past runs -- a shared source would
+break the exact "no runtime LLM/RAG dependency, deterministic local analysis" differentiator the
+Codex-reviewed growth-idea pass (Part A/W-item review, this session) flagged as the one thing not to
+trade away), and any `bskel new` behavior change when `--record-pattern`/`--pattern-database-url-env`
+are absent.
+
+**COST**: `new/index.mjs`, `lib/cli.mjs`, `bin/bskel.mjs`, `lib/workflow.mjs` (comment only, no
+functional change), `test/cli-contract.test.mjs`'s two independent hardcoded command lists. New:
+`patterns/store.mjs`, `patterns/schema.sql`, `schemas/pattern-record.schema.json`,
+`test/pattern-store.test.mjs`, `test/pattern-cli.test.mjs`, `scripts/pattern-db-smoke.mjs` (wired
+into the EXISTING `db-introspect` CI job, which already provisions a disposable `postgres:16`
+service container, rather than a new job).
+
+**Verified**: real disposable Postgres (`scripts/pattern-db-smoke.mjs`, same `BSKEL_TEST_DATABASE_URL`
+convention as `scripts/db-introspect-smoke.mjs`) -- three real `bskel new --stack fastapi ...
+--record-pattern` invocations with genuinely differing params against a real throwaway database,
+then real `pattern list`/`show`/`suggest` confirmed to return the real rows and correct per-value
+frequencies, computed from real data, never hardcoded. Negative paths: table absent -> clean
+`REFRESH_FAILED` naming `patterns/schema.sql`, not a raw driver stack trace; env var unset ->
+`BAD_ARGS` with the canonical "names an environment variable that isn't set" message, checked BEFORE
+scaffold. Best-effort proof: `--pattern-database-url-env` pointed at an unreachable host, `bskel new`
+still exits 0 with the project fully scaffolded and committed, warning on stderr only.
+No-regression proof: `bskel new` with neither new flag produces byte-identical output to today.
+`test/pattern-store.test.mjs` (pure `summarizePatternFrequency` unit tests, no DB). `npm test` green,
+`test/doc-integrity.test.mjs` clean (usage()<->COMMANDS flag-set equality holds for `pattern list`/
+`pattern show`/`pattern suggest`, and every `D-pattern-accrual` reference in source resolves to this
+heading).

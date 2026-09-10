@@ -193,6 +193,27 @@ bskel new --stack fastapi --slug my-service \
 The full parameter list, the measured API-validation matrix behind that split, and the warning
 behaviour are in `D-greenfield-parameters` in `DECISIONS.md`.
 
+#### Remembering your own conventions across projects (optional)
+
+If you start several projects with the same conventions, `bskel new` can record them into a
+database **you own** -- never bskel's own state, never a shared store:
+
+```bash
+export MY_PATTERNS=postgres://localhost/my_patterns    # once: run patterns/schema.sql against it
+
+bskel new --stack spring --slug billing \
+  --java-version 21 --group-id com.acme --dependencies web,data-jpa,validation,flyway \
+  --record-pattern --pattern-database-url-env MY_PATTERNS
+
+bskel pattern suggest --stack spring --pattern-database-url-env MY_PATTERNS
+```
+
+`pattern suggest` prints what you've recorded, with per-value frequency, and a ready-to-paste
+command line at the bottom -- it never runs `bskel new` for you and `bskel new` has no flag that
+would accept a suggestion as a default. Every value in a generated project is still one you typed
+in that invocation. Omitting `--record-pattern`/`--pattern-database-url-env` leaves `bskel new`
+exactly as it is today. See `D-pattern-accrual` in `DECISIONS.md`.
+
 ### Publishing a feature's contract as OpenAPI (optional)
 
 ```bash

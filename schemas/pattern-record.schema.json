@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:pattern-record:1",
+  "title": "backend-skeleton pattern-accrual record (sbf_pattern.params, one row)",
+  "description": "D-pattern-accrual: one real `bskel new --record-pattern` invocation, recorded into a database the user owns and named via --pattern-database-url-env -- never bskel's own repo state. `params` holds ONLY the flag values new/index.mjs's reusableParamsFor(stack) names for that stack (the user-typed CLI value, not a resolved/defaulted one) -- keyed by the exact flag name (e.g. `java-version`, not `javaVersion`), so `bskel pattern suggest`'s output is always a literal, paste-ready `--flag value` pair. Validated on both write (patterns/store.mjs's recordPattern) and read (listPatterns/getPattern) -- the patch-approvals.mjs doctrine.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "pattern_id", "stack", "params", "recorded_at"],
+  "properties": {
+    "schema": { "const": "sbf.pattern/1" },
+    "pattern_id": { "type": "string", "format": "uuid" },
+    "stack": { "enum": ["spring", "fastapi"] },
+    "params": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "recorded_at": { "type": "string", "format": "date-time" }
+  }
+}
