@@ -13071,3 +13071,133 @@ none of the existing fixture basenames are in `GENERIC_ROUTER_STEMS`). Re-ran th
 real domain name; all 9 originally-identified collisions plus the newly-discovered `sso`/`sso`
 same-directory-name collision correctly fall back to the old literal name rather than merging.
 Full `npm test` green.
+
+
+## D-scan-report-portable-paths: a committed `brownfield-scan.json`'s `.file` paths now survive being checked out somewhere else
+
+**WHY (D1)**: while executing a real production-pilot verification plan (W3, this session) against
+an already-real, already-committed feature branch (`feat/handles-pilot-cohort` in a fork of
+`Team-IZ/Backend`), `bskel verify --feature 001-handles-pilot-cohort` unexpectedly returned
+`VERIFY: FAIL` from a FRESH git worktree of that exact branch — on files confirmed completely
+unmodified (`git status --short` clean). Root-caused via direct reproduction, not assumed:
+`lib/gate-definitions.mjs`'s `contract` gate computes a per-file staleness key as
+`path.relative(root, item.file)`, where `item.file` comes from
+`related_modules[].{controllers,entities,enums,dtos}[].file` in the committed scan report. Every
+scanner adapter populates `.file` ABSOLUTE (deliberately, unchanged by this fix — see Mechanism),
+and this gets **committed to git** (confirmed: `specs/`/`.sbf/` are NOT gitignored for real feature
+work, only the CLI's own throwaway test fixtures use that convention — the real, already-committed
+report on the pilot branch literally contained
+`/Users/xox/Desktop/Team-IZ-Backend/.claude/worktrees/handles-pilot-cohort/...` baked in). Checking
+that same committed branch out into ANY different absolute directory (a second worktree, a
+different developer's clone, CI) breaks `path.relative(newRoot, staleAbsolutePath)`, producing a
+garbage multi-`../` path — reproduced exactly via a direct `node -e` simulation using the real
+absolute value read out of the real committed file. A genuinely new, previously-undiscovered,
+pre-existing `bskel` bug, unrelated to anything touched earlier in this session, affecting every
+real feature this tool has ever scanned across all 3 first-class adapters — discovered only because
+this session did something no prior session had: check out a real, already-scanned, already-disposed
+feature branch into a genuinely different worktree location and run `bskel verify` there.
+
+**Mechanism — the fix lives ONLY at the disk-persistence boundary, not in the adapters or in every
+downstream consumer (a real, working first attempt at "adapters write repo-relative, consumers
+re-hydrate on read" was tried and reverted — see the false start below, kept because the reason it
+was wrong is itself load-bearing)**:
+
+- Every adapter keeps building `.file` ABSOLUTE, exactly as before — this is the shape every
+  in-memory/direct-API consumer has always expected, and a real, WIDELY-USED pattern across this
+  project's own test suite turned out to depend on it directly:
+  `test/handles-plan-fixture.test.mjs`'s `planModule()` calls `runScan()` directly and hands the
+  result straight to `planHandles()`; `test/handles-provider-registry.test.mjs` runs
+  `bskel scan --json`, parses the stdout, and hands it straight to `provider.plan()`. Neither goes
+  through any CLI-level "load from disk" step — there is no single choke point on the READ side to
+  hydrate at, because for these callers there is no disk round-trip at all.
+- `lib/scan-report-paths.mjs` now exports a PAIR of functions: `dehydrateScanReportFilePaths(report,
+  repoRoot)` converts absolute → repo-relative (mirrors the adapters' own pre-existing `filesRead`
+  convention — one `path.relative(repoRoot, f)` call, applied once at the write boundary instead of
+  duplicated across 4 adapters); `hydrateScanReportFilePaths(report, repoRoot)` converts back.
+  `bin/bskel.mjs`'s `cmdScan` calls `dehydrateScanReportFilePaths()` ONCE, immediately before
+  `writeScanReportOrExit()` — the on-disk artifact is relative (portable); the SAME in-memory
+  `report` object used for the `--json` stdout print (and everything before the write) stays
+  absolute, untouched. Both functions return a NEW object (`structuredClone`-based, never mutate
+  their input) specifically because `cmdScan` needs the SAME report for both the dehydrated disk
+  write and the absolute stdout print from one scan — mutating in place would make whichever
+  happened first corrupt the other.
+- `hydrateScanReportFilePaths()` is called at exactly 3 REAL RE-LOAD sites, where something reads
+  the already-relative on-disk artifact back and needs the absolute form every consumer expects:
+  `bin/bskel.mjs`'s new `loadHydratedScanReportOrExit()` wrapper (swapped into `cmdContractEmit`,
+  `cmdHandlesPlan`, `cmdHandlesEmit`, `cmdHandlesPatchApprove`, `--check-registry-coverage`, the O8
+  runtime-conformance command, and `cmdScanExplain`), `lib/gate-definitions.mjs`'s `contract` gate,
+  and `lib/field-dependencies.mjs`'s `resolveClassFile()` (this alone also covers the `dependencies`
+  gate, which never reads the scan report directly). `path.isAbsolute(item.file)` doubles as the
+  legacy-shape detector inside hydrate: an old (still-absolute, committed before this fix) report
+  passes through unchanged — a correct no-op, not a hard schema-version gate — so both shapes are
+  handled by one code path with zero migration cliff at read time.
+
+**A real false start, corrected before shipping, kept here because the reason it broke is itself the
+load-bearing insight**: the first implementation made ADAPTERS write `.file` repo-relative directly
+(matching `filesRead`) and hydrated only at the 3 re-load sites above. This passed every test file
+this entry's own author checked in advance — but the FULL suite caught two real, unanticipated
+regressions from the exact "direct API, no disk round-trip" pattern described above
+(`test/handles-plan-fixture.test.mjs` and `test/handles-provider-registry.test.mjs`), proving the
+original design's "zero changes needed to consumers" claim was true only for consumers reached via
+a disk round-trip, not for direct in-process callers of `runScan()` — a real, wider set than
+initially mapped. Re-designed to the dehydrate-at-write / adapters-stay-absolute shape above, which
+fixes both regressions with ZERO consumer-side changes of any kind (including reverting the 3
+CLI-test one-line fixes the first attempt needed), because nothing about the absolute, in-memory
+shape ever changes for any in-process caller — only the disk artifact does.
+
+**A real landmine, found by a Plan-agent stress test before any code was written**:
+`cmdScanDisposition` does load → mutate `.disposition` → write back the WHOLE report object. If
+hydration lived inside the base `loadScanReportOrExit()`, every `bskel scan disposition` call would
+silently re-persist re-absolutized (and therefore, on the next worktree move, wrong again) paths
+back to disk, resurrecting the exact bug being fixed. `loadScanReportOrExit()` keeps returning the
+raw on-disk (relative) shape unchanged; only read-only consumers use the new hydrated wrapper.
+
+**A second real, previously-unknown bug found in the same design pass**: `cmdContractEmit` did its
+OWN inline `fs.existsSync`/`JSON.parse(fs.readFileSync(...))` read of the scan report, bypassing
+`loadScanReportOrExit()`'s schema validation entirely — despite that very function's own governing
+comment already claiming `cmdContractEmit()` was consolidated onto it. Closed in the same diff by
+switching to `loadHydratedScanReportOrExit()`.
+
+**Schema bump, write-side marker only**: `sbf.scan-report/1` → `sbf.scan-report/2`
+(`scanners/index.mjs`, `schemas/scan-report.schema.json`) — new scans always emit `/2` (the
+DISK artifact's own schema value, set once dehydration runs); this is **not** used to hard-block
+reads the way `D-openapi-passthrough (A7)`'s `sbf_contract` version check does, since
+`hydrateScanReportFilePaths()` already handles both shapes losslessly and there is no correctness
+reason to force an immediate migration.
+
+**`bskel scan repair --feature <id>`**: a new, narrow, non-destructive migration command for an
+ALREADY-committed old-shape report (the real, concrete case: the actual pilot branch above).
+Needed because `bskel scan`'s own re-run is confirmed NOT a substitute — `runScan()` never carries
+`disposition` forward, so re-scanning would silently wipe an already-disposed feature's disposition
+and cascade `scan`/`contract`/`handles` gates back to stale/`awaiting_disposition`. Deliberately
+reads the RAW report (not via the schema-validating loader, which can never successfully load a
+genuinely old `/1` report by definition — found live, the first implementation attempt used the
+wrong loader and the command could never run on the exact input it exists to fix). Refuses if
+`schema !== 'sbf.scan-report/1'` (idempotence/already-repaired guard) or if any `.file` doesn't
+resolve under the CURRENT root (fail closed, names the exact file, never guesses — this is why
+repair must run from the SAME location the original `bskel scan` ran from, not a fresh worktree).
+Reuses `dehydrateScanReportFilePaths()` (the exact same function `cmdScan` uses at its own real
+write) for the actual conversion, then sets `schema` — `disposition` and everything else stay
+byte-identical, verified via a real before/after `deepEqual`.
+
+**COST**: none of `handles/providers/*/plan.mjs`/`emit.mjs`, `contracts/emit.mjs`'s
+`buildContract()`, `lib/field-dependencies.mjs`'s own `.file` reads, or any scanner adapter needed
+ANY change beyond the 3 read-site hydration calls and the 1 write-site dehydration call — they keep
+receiving/producing absolute paths exactly as always. Every existing test file needed zero changes
+(confirmed empirically, not just claimed — including after the false start above, which DID need 3
+one-line test fixes that this final design makes unnecessary again). typescript-express currently
+uses the exact same filename-stem module convention as python-fastapi did before O13 — out of
+scope here, unrelated to this fix.
+
+**EXIT**: to revert, remove the `dehydrateScanReportFilePaths()` call at `cmdScan`'s write site and
+the `hydrateScanReportFilePaths()` calls at the 3 read sites, and restore
+`schema: 'sbf.scan-report/1'` — purely additive, a clean revert (`bskel scan repair` becomes dead
+code but harmless). **Verified**: `test/scan-report-paths.test.mjs` (unit tests for both helper
+functions + 1 real portability regression test — scan a fixture, physically copy the whole
+directory tree to a different absolute location, confirm `scan`/`contract` gates and `handles emit`
+all correctly stay non-stale on the copy); `test/scan-repair-cli.test.mjs` (5 tests: happy path with
+a real before/after `deepEqual` on `disposition`, refuse-on-unresolvable-file naming the exact file,
+refuse-on-idempotence, `contract emit` correctly blocked then unblocked, the `contract` gate's own
+stale→non-stale transition on a real absolute-vs-relative `.file` swap). Full existing suite green,
+including `test/handles-plan-fixture.test.mjs` and `test/handles-provider-registry.test.mjs` (the
+two tests that caught the false start). Full `npm test` green.

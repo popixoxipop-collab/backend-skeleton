@@ -265,7 +265,7 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	}
 
 	return {
-		schema: 'sbf.scan-report/1',
+		schema: 'sbf.scan-report/2',
 		terms,
 		adapter,
 		confidence,

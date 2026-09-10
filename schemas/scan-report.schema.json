@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema", "terms", "adapter", "verdict", "related_modules", "collisions", "unknowns", "files_read"],
   "properties": {
-    "schema": { "const": "sbf.scan-report/1" },
+    "schema": { "const": "sbf.scan-report/2" },
     "feature_id": { "type": "string" },
     "terms": { "type": "array", "items": { "type": "string" } },
     "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },

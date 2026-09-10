@@ -10,6 +10,7 @@ import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, await
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
 import { writeFileAtomic, sha256File, readJsonIfExists } from '../lib/fsutil.mjs';
+import { hydrateScanReportFilePaths, dehydrateScanReportFilePaths } from '../lib/scan-report-paths.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath, sbfPath } from '../lib/paths.mjs';
@@ -80,6 +81,7 @@ function usage() {
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
+  bskel scan repair --feature <id> [--json]
   bskel scan cross-feature-check --feature <id> [--db [--database-url-env <NAME>] [--schema public]] [--json]
   bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id|db_foreign_key --identifier <name> --other-feature <id> --reason "..."
   bskel feature init --slug <name>
@@ -668,7 +670,12 @@ async function cmdScan(args) {
 
 	const dir = specDir(root, flags.feature);
 	fs.mkdirSync(dir, { recursive: true });
-	writeScanReportOrExit(specPath(root, flags.feature, 'brownfield-scan.json'), report);
+	// D-scan-report-portable-paths: `report`'s `.file` fields stay absolute in memory (every
+	// consumer's expected shape, including this same function's OWN JSON stdout print below) --
+	// only the ON-DISK copy is converted to repo-relative, so the committed artifact survives
+	// being checked out somewhere else (a second worktree, a different clone, CI) without
+	// requiring any change to how `.file` is read back in memory once re-hydrated.
+	writeScanReportOrExit(specPath(root, flags.feature, 'brownfield-scan.json'), dehydrateScanReportFilePaths(report, root));
 	writeFileAtomic(specPath(root, flags.feature, 'brownfield-scan.md'), renderScanMarkdown(report));
 
 	let gateState;
@@ -748,7 +755,7 @@ function cmdScanExplain(args) {
 	if (!moduleName) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel scan explain <module> --feature <id> [--json]');
 	}
-	const report = loadScanReportOrExit(root, flags.feature);
+	const report = loadHydratedScanReportOrExit(root, flags.feature);
 	const mod = report.related_modules.find((m) => m.module === moduleName);
 	if (!mod) {
 		const known = report.related_modules.map((m) => m.module).join(', ') || '(none)';
@@ -758,6 +765,60 @@ function cmdScanExplain(args) {
 		console.log(JSON.stringify(mod, null, 2));
 	} else {
 		console.log(renderScanExplain(mod));
+	}
+	process.exit(0);
+}
+
+// D-scan-report-portable-paths: a one-time, non-destructive migration for a committed
+// brownfield-scan.json written BEFORE this fix (schema "sbf.scan-report/1", `.file` absolute) --
+// `bskel scan`'s own re-run is NOT a substitute here: runScan() never carries `disposition`
+// forward, so re-scanning would silently wipe an already-disposed feature's disposition and
+// cascade `scan`/`contract`/`handles` gates back to stale/awaiting_disposition. This command
+// touches ONLY `.file` strings and `schema` -- `disposition` and everything else stay
+// byte-identical. Must run from the SAME location the original `bskel scan` ran from (a fresh
+// worktree's absolute paths won't resolve to anything real) -- fails closed, naming the exact
+// file, rather than guessing at a mapping.
+function cmdScanRepair(args) {
+	const flags = parseCommand('scan repair', args);
+	if (flags.help) { console.log(renderCommandHelp('scan repair')); process.exit(0); }
+	setContext('scan repair', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	// Deliberately NOT loadScanReportOrExit() -- that validates against the CURRENT schema const
+	// ("sbf.scan-report/2"), which a genuinely old ("/1") report can never match by definition.
+	// This command's whole job is repairing exactly that mismatch, so it reads raw here.
+	const reportPath = specPath(root, flags.feature, 'brownfield-scan.json');
+	if (!fs.existsSync(reportPath)) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${reportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
+	}
+	const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+	if (report.schema !== 'sbf.scan-report/1') {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `${flags.feature}'s scan report is already schema "${report.schema}" -- nothing to repair (this command only migrates a "sbf.scan-report/1" report's absolute \`.file\` paths to repo-relative).`);
+	}
+
+	const unresolvable = [];
+	for (const mod of report.related_modules ?? []) {
+		for (const key of ['controllers', 'entities', 'enums', 'dtos']) {
+			for (const item of mod[key] ?? []) {
+				if (item.file && !fs.existsSync(item.file)) unresolvable.push(item.file);
+			}
+		}
+	}
+	if (unresolvable.length > 0) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `refusing to guess: ${unresolvable.length} file(s) referenced in this scan report do not exist under the CURRENT root -- re-run this command from the exact location \`bskel scan\` originally ran from:\n${unresolvable.map((f) => `  ${f}`).join('\n')}`);
+	}
+
+	// D-scan-report-portable-paths: same transform `cmdScan` applies at every real write -- a
+	// legacy report is, by definition, exactly the "still absolute" case that needs converting.
+	const repaired = dehydrateScanReportFilePaths(report, root);
+	repaired.schema = 'sbf.scan-report/2';
+	writeScanReportOrExit(reportPath, repaired);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ feature_id: flags.feature, schema: repaired.schema, repaired: true }, null, 2));
+	} else {
+		console.log(`repaired: ${flags.feature}'s scan report is now schema "${repaired.schema}" (disposition and every other field untouched)`);
 	}
 	process.exit(0);
 }
@@ -1194,11 +1255,11 @@ function cmdContractEmit(args) {
 		});
 	}
 
+	// D-scan-report-portable-paths: was its own inline fs.existsSync/JSON.parse here, duplicating
+	// (and bypassing) loadScanReportOrExit()'s schema validation -- consolidated onto the shared,
+	// hydrated loader, closing both that gap and the portability bug the hydration itself fixes.
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
-	if (!fs.existsSync(scanReportPath)) {
-		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no scan report at ${scanReportPath} -- run \`bskel scan --feature ${flags.feature}\` first`);
-	}
-	const scanReport = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
+	const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
 	requireCapabilitiesOrExit(scanReport, 'contract emit', {
 		featureId: flags.feature,
 		scanReportPath,
@@ -2101,6 +2162,19 @@ function loadScanReportOrExit(root, featureId) {
 	return parsed;
 }
 
+// D-scan-report-portable-paths: the read-only sibling of loadScanReportOrExit() -- every consumer
+// that only READS the report (never writes it back) should go through this instead, so its
+// `related_modules[].{controllers,entities,enums,dtos}[].file` values are correctly re-anchored to
+// THIS root before anything downstream (handles codegen, contract emission, gate recomputation)
+// touches them. Deliberately NOT folded into loadScanReportOrExit() itself: cmdScanDisposition()
+// does load -> mutate `.disposition` -> write back the WHOLE object -- if hydration lived in the
+// base loader, that round trip would silently re-persist re-absolutized paths to disk, resurrecting
+// the exact portability bug this closes. Any future read-modify-write command must stay on the raw
+// loader for the same reason.
+function loadHydratedScanReportOrExit(root, featureId) {
+	return hydrateScanReportFilePaths(loadScanReportOrExit(root, featureId), root);
+}
+
 // S5 (D-persistence-integrity): the write-side sibling of loadScanReportOrExit() above -- validated
 // before it ever touches disk, same "fail loud here, not as a confusing error somewhere later"
 // reasoning as lib/state.mjs's saveState(). Used by both cmdScan()'s own write and
@@ -2225,7 +2299,7 @@ async function cmdHandlesPlan(args) {
 	if (flags.help) { console.log(renderCommandHelp('handles plan')); process.exit(0); }
 	setContext('handles plan', flags);
 	const root = requireRepoRoot();
-	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	requireCapabilitiesOrExit(scanReport, 'handles plan', { featureId: flags.feature, scanReportPath });
 	const provider = selectProviderOrExit(scanReport);
@@ -2360,7 +2434,7 @@ function cmdHandlesEmit(args) {
 		});
 	}
 
-	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	requireCapabilitiesOrExit(scanReport, 'handles emit', { featureId: flags.feature, scanReportPath });
 	const provider = selectProviderOrExit(scanReport);
@@ -2524,7 +2598,7 @@ function cmdHandlesPatchApprove(args) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel handles patch approve requires --reason "..." -- every approval must be auditable');
 	}
 
-	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
 	const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 	requireCapabilitiesOrExit(scanReport, 'handles patch approve', { featureId: flags.feature, scanReportPath });
 	const provider = selectProviderOrExit(scanReport);
@@ -2800,7 +2874,7 @@ async function cmdHandlesAudit(args) {
 	// live database rather than a static regex proxy.
 	let registryCoverage = null;
 	if (flags['check-registry-coverage']) {
-		const scanReport = loadScanReportOrExit(root, flags.feature);
+		const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
 		const scanReportPath = specPath(root, flags.feature, 'brownfield-scan.json');
 		requireCapabilitiesOrExit(scanReport, 'handles audit --check-registry-coverage', { featureId: flags.feature, scanReportPath });
 		const provider = selectProviderOrExit(scanReport);
@@ -2875,7 +2949,7 @@ function cmdObserveEmit(args) {
 		});
 	}
 
-	const scanReport = loadScanReportOrExit(root, flags.feature);
+	const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
 	const contract = loadContract(root, flags.feature);
 	const dryRun = flags.check || flags.diff;
 
@@ -3625,6 +3699,7 @@ async function dispatchCommand(cmd, rest) {
 		case 'scan': {
 			if (rest[0] === 'disposition') return cmdScanDisposition(rest.slice(1));
 			if (rest[0] === 'explain') return cmdScanExplain(rest.slice(1));
+			if (rest[0] === 'repair') return cmdScanRepair(rest.slice(1));
 			if (rest[0] === 'cross-feature-check') return cmdScanCrossFeatureCheck(rest.slice(1));
 			if (rest[0] === 'cross-feature-waive') return cmdScanCrossFeatureWaive(rest.slice(1));
 			await cmdScan(rest);
