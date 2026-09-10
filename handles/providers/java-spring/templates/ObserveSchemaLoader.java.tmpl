@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -69,9 +68,7 @@ public class ObserveSchemaLoader {
 			String featureId = root.path("feature_id").asText(null);
 			String featureUid = root.path("feature_uid").asText(null);
 			String contractRef = root.path("contract_ref").asText(null);
-			Iterator<Map.Entry<String, JsonNode>> ops = root.path("operations").fields();
-			while (ops.hasNext()) {
-				Map.Entry<String, JsonNode> entry = ops.next();
+			for (Map.Entry<String, JsonNode> entry : fieldsOf(root.path("operations"))) {
 				String operationId = entry.getKey();
 				JsonNode op = entry.getValue();
 				String body = op.path("body").asText("unknown");
@@ -99,9 +96,7 @@ public class ObserveSchemaLoader {
 		List<String> required = parseStringList(node.path("required"));
 		List<String> unsupported = new ArrayList<>(parseStringList(node.path("unsupported")));
 		Map<String, ObservedProperty> properties = new HashMap<>();
-		Iterator<Map.Entry<String, JsonNode>> props = node.path("properties").fields();
-		while (props.hasNext()) {
-			Map.Entry<String, JsonNode> entry = props.next();
+		for (Map.Entry<String, JsonNode> entry : fieldsOf(node.path("properties"))) {
 			JsonNode propSchema = entry.getValue();
 			String type = propSchema.path("type").asText(null);
 			String patternText = propSchema.has("pattern") ? propSchema.get("pattern").asText() : null;
@@ -117,6 +112,17 @@ public class ObserveSchemaLoader {
 			properties.put(entry.getKey(), new ObservedProperty(type, pattern));
 		}
 		return new ObservedObject(required, properties, unsupported);
+	}
+
+	// D-runtime-conformance-receipts (Jackson 2/3 JsonNode field-iteration parity): Jackson 2's
+	// JsonNode#fields() (an Iterator) does not exist on Jackson 3's JsonNode at all -- Jackson 3
+	// replaced it with #properties() (a Set, no Iterator wrapper needed). Neither API exists on
+	// EVERY version of the other major (older Jackson 2.x, e.g. 2.14, has no #properties() either),
+	// so this can't be unified into one call safely -- {{JACKSON_PACKAGE}} already tells us which
+	// major is on this target's real classpath (detectJacksonPackage() in emit.mjs), so that same
+	// signal picks the one real, correct implementation body at emit time.
+	private static Iterable<Map.Entry<String, JsonNode>> fieldsOf(JsonNode node) {
+		{{JACKSON_FIELDS_OF_IMPL}}
 	}
 
 	private static List<String> parseStringList(JsonNode node) {

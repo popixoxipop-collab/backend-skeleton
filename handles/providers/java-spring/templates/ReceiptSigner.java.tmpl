@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * D-runtime-conformance-receipts (cryptographic receipt attestation): signs a receipt at emission
@@ -100,7 +101,9 @@ public final class ReceiptSigner {
 			sb.append("null");
 		} else if (node.isObject()) {
 			List<String> names = new ArrayList<>();
-			node.fieldNames().forEachRemaining(names::add);
+			for (Map.Entry<String, JsonNode> entry : fieldsOf(node)) {
+				names.add(entry.getKey());
+			}
 			Collections.sort(names);
 			sb.append('{');
 			for (int i = 0; i < names.size(); i++) {
@@ -125,6 +128,18 @@ public final class ReceiptSigner {
 		} else {
 			sb.append(jsonString(node.asText()));
 		}
+	}
+
+	// D-runtime-conformance-receipts (Jackson 2/3 JsonNode field-iteration parity): Jackson 2's
+	// JsonNode#fields() (an Iterator) does not exist on Jackson 3's JsonNode at all -- Jackson 3
+	// replaced it with #properties() (a Set, no Iterator wrapper needed). Neither API exists on
+	// EVERY version of the other major (older Jackson 2.x, e.g. 2.14, has no #properties() either),
+	// so this can't be unified into one call safely -- {{JACKSON_PACKAGE}} already tells us which
+	// major is on this target's real classpath (detectJacksonPackage() in emit.mjs), so that same
+	// signal picks the one real, correct implementation body at emit time. Mirrors
+	// ObserveSchemaLoader's own identically-named, identically-reasoned helper exactly.
+	private static Iterable<Map.Entry<String, JsonNode>> fieldsOf(JsonNode node) {
+		{{JACKSON_FIELDS_OF_IMPL}}
 	}
 
 	// Standard JSON string escaping (RFC 8259) -- the same set Node's JSON.stringify and Python's

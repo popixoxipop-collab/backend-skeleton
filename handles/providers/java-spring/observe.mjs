@@ -55,12 +55,21 @@ function writeUnit(target, content) {
 export function emitObserveJavaSpring({ repoRoot, featureId, contract, basePackage, force = false, reason = '', dryRun = false, computeDiff = false }) {
 	const javaSrcRoot = path.join(repoRoot, 'src', 'main', 'java', ...basePackage.split('.'));
 	const jacksonPackage = detectJacksonPackage(repoRoot);
+	// D-runtime-conformance-receipts (Jackson 2/3 JsonNode field-iteration parity): Jackson 3's
+	// JsonNode has no #fields()/#fieldNames() at all (confirmed live via javap against real
+	// jackson-databind 3.1.5 -- only #properties(), a Set); Jackson 2's #fields() exists across
+	// every real version checked (2.14 through 2.21), but #properties() does NOT exist on the
+	// older ones (2.14 lacks it, 2.17+ has it) -- so the safe, version-spanning choice per major is
+	// #fields() for Jackson 2, #properties() for Jackson 3, never the other way around.
+	const jacksonFieldsOfImpl = jacksonPackage === 'tools.jackson.databind'
+		? 'return node.properties();'
+		: 'return () -> node.fields();';
 
 	const infraUnits = INFRA_FILES.map((f) => ({
 		id: f.template,
 		templatePath: path.join(TEMPLATES_DIR, f.template),
 		targetAbs: path.join(javaSrcRoot, f.target),
-		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage }),
+		rendered: render(path.join(TEMPLATES_DIR, f.template), { BASE_PACKAGE: basePackage, JACKSON_PACKAGE: jacksonPackage, JACKSON_FIELDS_OF_IMPL: jacksonFieldsOfImpl }),
 	}));
 
 	const result = emitUnits({ repoRoot, featureId, provider: 'java-spring', force, reason, infraUnits, resolverUnits: [], orphanScan: null, dryRun, computeDiff });

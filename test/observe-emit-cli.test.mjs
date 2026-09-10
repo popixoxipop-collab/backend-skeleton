@@ -22,12 +22,12 @@ function run(args, cwd) {
 	}
 }
 
-function buildFixtureRepo() {
+function buildFixtureRepo(buildGradleContent = '// fixture\n') {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-observe-emit-fixture-'));
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
 	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
-	fs.writeFileSync(path.join(root, 'build.gradle'), '// fixture\n');
+	fs.writeFileSync(path.join(root, 'build.gradle'), buildGradleContent);
 
 	const base = 'com/example';
 	const widgetDomain = path.join(root, 'src/main/java', base, 'domain/widget');
@@ -129,6 +129,42 @@ test('observe emit writes the five infra templates plus the projected observed-s
 	assert.ok(schema.operations.findWidget);
 	assert.equal(schema.operations.findWidget.verb, 'GET');
 	assert.deepEqual(schema.operations.findWidget.pathParams.required, ['widgetId']);
+});
+
+// D-runtime-conformance-receipts (Jackson 2/3 JsonNode field-iteration parity): every test above
+// uses the default '// fixture\n' build.gradle (no real Spring Boot plugin line), which
+// detectSpringBootMajorVersion() reads as "can't tell" -> detectJacksonPackage() defaults to
+// com.fasterxml.jackson.databind (Jackson 2) -- so none of them ever exercise the Jackson 3
+// branch. This is the regression test that would have caught the real bug found live via W3-3
+// (Jackson 3's JsonNode has no #fields()/#fieldNames() at all -- only #properties(), a Set):
+// asserts the RENDERED SOURCE for both majors, not just that emit succeeds, since a wrong-but-
+// compiling rendering (or a silently-swallowed exception) would not be caught by file-existence
+// checks alone. scripts/java-compile-smoke.mjs (Jackson 2 fixture) and a live, manual W3-3 run
+// against the real Jackson-3 handles-pilot-cohort target both additionally proved this by REAL
+// compilation -- this test is the cheap, `npm test`-tier, no-Gradle-needed complement to those.
+test('observe emit renders the Jackson-3-correct JsonNode#properties() body for a Spring Boot 4.x target, and the Jackson-2-correct #fields() body otherwise', () => {
+	const rootJackson2 = buildFixtureRepo();
+	runWorkflowThroughContract(rootJackson2);
+	run(['observe', 'emit', '--feature', '001-widget-management'], rootJackson2);
+	const loaderJackson2 = fs.readFileSync(path.join(rootJackson2, OBSERVE_DIR, 'ObserveSchemaLoader.java'), 'utf8');
+	const signerJackson2 = fs.readFileSync(path.join(rootJackson2, OBSERVE_DIR, 'ReceiptSigner.java'), 'utf8');
+	for (const source of [loaderJackson2, signerJackson2]) {
+		assert.match(source, /import com\.fasterxml\.jackson\.databind\.JsonNode;/);
+		assert.match(source, /return \(\) -> node\.fields\(\);/);
+		assert.doesNotMatch(source, /node\.properties\(\)/);
+	}
+
+	const rootJackson3 = buildFixtureRepo("plugins {\n\tid 'org.springframework.boot' version '4.1.0'\n}\n");
+	runWorkflowThroughContract(rootJackson3);
+	run(['observe', 'emit', '--feature', '001-widget-management'], rootJackson3);
+	const loaderJackson3 = fs.readFileSync(path.join(rootJackson3, OBSERVE_DIR, 'ObserveSchemaLoader.java'), 'utf8');
+	const signerJackson3 = fs.readFileSync(path.join(rootJackson3, OBSERVE_DIR, 'ReceiptSigner.java'), 'utf8');
+	for (const source of [loaderJackson3, signerJackson3]) {
+		assert.match(source, /import tools\.jackson\.databind\.JsonNode;/);
+		assert.match(source, /return node\.properties\(\);/);
+		assert.doesNotMatch(source, /\.fields\(\)/);
+		assert.doesNotMatch(source, /\.fieldNames\(\)/);
+	}
 });
 
 test('observe emit fails cleanly for an unsupported adapter (generic-grep, the only remaining adapter with a scanner but no handles/observe provider)', () => {
