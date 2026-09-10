@@ -71,6 +71,18 @@ roadmap isn't built on them:
   (`contracts/completeness.mjs:126`), but `cmdContractWaive` filters `w.severity === 'error'`
   (`bin/bskel.mjs:1573`), so it can never be dispositioned. `contracts/completeness.mjs:22-26`
   documents this as intentional. The behavior is fine; the field name is still misleading.
+- **W3's "does not apply to TypeScript Express" claim is stale.** Closed by Phase 2 /
+  `D-typescript-express-registry-parity` (`DECISIONS.md:11381`) — typescript-express now generates
+  `sbf_handle`/`sbf_handle_snapshot`, a `recover()` route, `handleService.ts`, and
+  `--enforce-registry` gating, verified by real `tsc --noEmit` and a real disposable-Postgres
+  `handles audit --check-registry-coverage` run.
+- **W3's "no real production deployment has occurred" is half-stale.** `D-handles-pilot-cohort`
+  (`DECISIONS.md:11740`) is a real pilot against `Team-IZ/Backend`'s real `Cohort` resource,
+  `--enforce-registry on`, full mint/register/fetch/patch/revoke/recover lifecycle green against
+  real Postgres, 988/988 host tests, signed attestation. What genuinely has not happened: exercising
+  the lifecycle under real HTTP + a real JWT (the existing test drives the resolver/controller
+  beans directly), composing `bskel handles audit` against the pilot's own data, and any real
+  deployment/traffic. See Phase 4 below, which now reflects this corrected baseline.
 
 ---
 
@@ -400,10 +412,12 @@ guess. Every item below must be explicitly resolved (not silently skipped) befor
 **anticipated; both were found by the pilot's own real disposable-Postgres lifecycle test failing,**
 **not by code review. Item 4 (wiring `bskel observe` against real, non-synthetic production**
 **traffic) is explicitly NOT done — it requires the branch to actually be merged, deployed, and**
-**see real usage over time, which a single session cannot do or fast-track. The work stays on a**
-**local, reviewable branch (`feat/handles-pilot-cohort`) — not pushed, no PR opened — per explicit**
-**user scope. The honest posture after this: "verified against one real target application," not**
-**"production-ready."**
+**see real usage over time, which a single session cannot do or fast-track. The work is on**
+**`feat/handles-pilot-cohort`, pushed to `popixoxipop-collab/Backend` (a personal fork of**
+**`Team-IZ/Backend`, not upstream) — PR #1 was opened and MERGED there on 2026-09-04**
+**(corrected 2026-09-10, see `D-handles-pilot-cohort`'s EXIT section; upstream `Team-IZ/Backend`**
+**itself was never touched and nothing has been deployed). The honest posture after this:**
+**"verified against one real target application," not "production-ready."**
 
 **Effort: L (calendar-dominated, not code-dominated). Risk: high. Depends on: Phases 0, 1, 2, 3.
 Unblocks: Phases 5b and 6.**

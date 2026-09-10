@@ -11851,11 +11851,38 @@ target app for the first time**:
 
 **EXIT, stated plainly**:
 - Not pushed, no PR opened — a local, reviewable branch only, per explicit user scope.
+  **Update (2026-09-10, W3 record-reconciliation pass)**: this is now factually stale and is
+  corrected here rather than silently left wrong. `feat/handles-pilot-cohort` WAS pushed, to
+  `popixoxipop-collab/Backend` (a personal fork of `Team-IZ/Backend`, owned by the user -- not the
+  upstream repo, and CLAUDE.md §18-compliant since a fork the user owns is a permitted push target
+  even though upstream is not). **PR #1 was opened against the fork's own `develop` and MERGED on
+  2026-09-04T12:07:11Z (merge commit `044d801`)** -- both re-verified live via `gh pr view 1 --repo
+  popixoxipop-collab/Backend` and `gh repo view popixoxipop-collab/Backend --json isFork,parent`
+  before writing this correction, not assumed from a stale note. Upstream `Team-IZ/Backend:develop`
+  itself was never touched by this (confirmed still at `5041a08`, unmoved since 2026-08-26) and the
+  fork has not been deployed -- so the real, current state is: pushed and merged on a personal
+  fork, upstream untouched, nothing live. The original bullet's underlying INTENT (no upstream PR,
+  no production exposure without a separate explicit decision) still holds; only the "not pushed"
+  half of the claim was wrong. Kept per explicit user decision (2026-09-10): the fork's merged PR
+  #1 stays as-is, not reverted.
 - Phase 4 item 4 ("wire `bskel observe` against real production requests... traffic that isn't
   synthetic") is NOT done — this requires the branch to actually be merged, deployed, and see real
   usage over time by the Team-IZ team, which a single session cannot do or fast-track. Named as
   explicitly deferred, matching this project's own EXIT-section honesty discipline, not silently
   claimed complete.
+- **A real, previously-unrecorded production risk, added 2026-09-10**: `@RecordHandleSnapshot` is
+  annotated on `CohortService.findCohort` -- a READ path, not a write path. `HandleAspect`'s
+  `@Around` advice unconditionally calls `handleService.register(...)` before `proceed()`, then
+  records request/response snapshots after, each in its own `REQUIRES_NEW` transaction. If this
+  branch were ever deployed, every real `GET` of a cohort by id becomes 1 upsert + up to 2 snapshot
+  inserts, in separate transactions, on a hot read path -- growth bounded only by
+  `HandleSnapshotRetentionScheduler`'s 90-day placeholder (see above: explicitly not derived from
+  any real Team-IZ retention policy). The aspect fails soft (logs `warn`, `proceed()`s unaffected)
+  on a missing resolver/non-UUID param/snapshot-write failure, so the failure mode is lost
+  telemetry, not a broken endpoint -- but the write-amplification cost itself has never been
+  measured against real load. Not fixed here; recorded as a required input to any future decision
+  about Phase 6 item 2 (flipping `--enforce-registry` default-on) or Phase 4 item 4 (real
+  deployment).
 - The `spring-boot-starter-aop` → `spring-boot-starter-aspectj` rename (finding 1) was left unfixed
   in `backend-skeleton` itself when this entry was first written — **closed in the same session, as
   a direct follow-up**: `springAopArtifactName(repoRoot)` (new, `handles/providers/java-spring/
