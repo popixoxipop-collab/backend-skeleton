@@ -13352,3 +13352,248 @@ No-regression proof: `bskel new` with neither new flag produces byte-identical o
 `test/doc-integrity.test.mjs` clean (usage()<->COMMANDS flag-set equality holds for `pattern list`/
 `pattern show`/`pattern suggest`, and every `D-pattern-accrual` reference in source resolves to this
 heading).
+
+## D-contract-csv: a spreadsheet-shaped projection of a feature contract -- fixed columns, blanks disclosed, ungated
+
+`bskel contract export` already breaks the pattern of making a newcomer learn this tool's own
+JSON schemas before seeing anything, by emitting OpenAPI -- an artifact people already recognize.
+This closes the other half of that idea (raised directly by the user, alongside `D-db-erd`): a CSV
+table of a feature's contract, opened by a PM or a lead who will never read a JSON Schema. Both are
+lossier than OpenAPI export -- a CSV cell has no "unspecified" -- so most of the design work here
+is deciding how that loss is *shown*, never hidden.
+
+**C1 -- new sibling command, not a format flag**: `bskel contract export-csv --feature <id> [--out
+<path>] [--bom] [--json]`, not `contract export --format csv`. WHY: keeps the "one command, one
+artifact type" invariant every existing command holds -- `contract export`'s two OpenAPI-specific
+flags (`--allow-unprefixed`, `--status-codes`) and its documented "`--json` is a no-op because
+stdout is already one JSON document" rule stay literally true for it; bolting a format flag on
+would silently break that the moment stdout could be CSV. Discoverable next to `contract export` in
+`usage()`. COST: two commands to keep in sync if the contract shape changes. EXIT: if a third/fourth
+contract projection appears (Postman, AsyncAPI), consolidate into `bskel contract export --format
+<name>` as a deliberate migration, keeping `export-csv` as an alias.
+
+**C2 -- a FIXED 14-column header, always; nothing dropped for being empty, coverage disclosed
+separately**: `operation_id, verb, path, path_params, path_params_unverified, body,
+request_body_required, request_body_fields, response_fields, error_fields, provenance, summary,
+tags, security`. WHY: most contracts are scan-only (no `--openapi-file`), so `summary`/`tags`/
+`security` are blank for every row -- dropping a column when nothing populates it would make the
+file's own *schema* depend on its content (two exports of two features could be shape-incompatible;
+adding `--openapi-file` later would silently change the header). The blank column **is** the
+finding, stated in words too: an unconditional stderr note ("N of 14 columns are empty for every
+operation ... this contract was emitted without --openapi-file, so no source document ever stated
+them") plus `columns: [{name, populated_rows}]` in `--json`. COST: a scan-only contract exports
+three permanently-blank columns -- a true depiction of a scan-only contract. EXIT:
+`--drop-empty-columns` as an explicit opt-in, never the default.
+
+**C3 -- `description` is not a column**: `D-openapi-description` measured `sourceDescription` at
+2,442.7 bytes/operation average -- larger than every other copied field combined, and only present
+under `--descriptions`. A 2.4KB cell wrecks a spreadsheet's row height; `summary` already carries
+the short-form answer. COST: a `--descriptions` user cannot see it in the CSV -- use `contract
+export` or read the contract directly. EXIT: `--with-description` as a 15th column, if asked for.
+
+**C4 -- RFC 4180 escaping, hand-rolled, LF-terminated, no preamble; BOM opt-in via `--bom`**: quote
+a field iff it contains `"`, `,`, `\r`, or `\n`; escape an embedded `"` as `""` (~6 lines,
+`escapeCsvField()` in `contracts/csv.mjs`). Line 1 is always the header row -- no comment/
+provenance preamble, because a leading `#`/comment line breaks `pandas.read_csv`/
+`csv.DictReader`/spreadsheet import by default. `security: []` (a genuine "no auth" claim) renders
+`(source-declared: none)`; an absent `sourceSecurity` renders `''` -- the two must be
+distinguishable. WHY no new dependency: a `csv-stringify` package for a 6-line function needs
+justification comparable to `pg`'s (this project's first-ever SQL dependency, a documented event)
+and doesn't have it; CSV's escaping rule hasn't changed since RFC 4180 (2005). WHY LF not CRLF:
+every other artifact this project writes is LF, and these files get committed/diffed. WHY BOM is
+opt-in: Excel-on-Windows mangles non-ASCII without one, but a BOM breaks naive parsers/`head`/
+`diff` for everyone else -- neither default is right for everyone. COST: one more flag to keep in
+sync between `lib/cli.mjs` and `usage()`; strict-RFC CRLF consumers must convert. EXIT: `--crlf` if
+ever demanded.
+
+**C5 -- UNGATED, and never hard-refuses on an unreflected path prefix; it warns**: `contract
+export` requires the `contract` gate to have PASSED and hard-refuses when the scan's
+`path_prefix_signals` aren't reflected in the contract's paths. `contract export-csv` does
+neither -- it keeps only the zero-operation refusal (a zero-row CSV handed to a stakeholder reads
+as "this feature has no API", same positive-false-claim `contract export` itself refuses). WHY: the
+risk model differs. OpenAPI hands machine-readable URLs to a client generator -- a wrong path is a
+runtime bug with no compile step, so refusing is right. A CSV is read by a human, and its single
+most valuable moment is *reviewing a partial contract to decide whether to waive it* -- exactly
+when the gate hasn't passed; gating it would make it useless exactly when it matters. Matches the
+ungated posture `contract validate`/`contract tool-schema`/`contract history` already take.
+Confirmed by direct code read: `loadContract()` (bin/bskel.mjs) only checks file-existence + schema
+version + schema shape -- it is genuinely independent of `requireNamedGate()`, which
+`cmdContractExport` calls separately before it. The prefix check still runs when a scan report is
+readable (via a new `tryLoadScanReport()` that returns `null` on ANY failure instead of exiting,
+the soft-refusal counterpart to `loadScanReportOrExit()`), downgraded to a stderr warning +
+`path_prefix_warning` in `--json`. COST: a CSV can be produced from a contract nobody has
+accepted -- its `completeness` status is therefore printed on stderr and carried in `--json` on
+every run, so "this is not the accepted state" is never invisible. EXIT: re-gate to `contract
+export`'s posture the moment a CSV becomes machine input to something (an import script, a
+compliance pipeline).
+
+**C6/C7 (CSV half) -- no schema file for the CSV's own summary shape; `--out`/stdout copied from
+`contract export`, `--json` without `--out` is a loud no-op**: `sbf.contract-export-csv/1` is an
+inline `schema:` string on the `--json --out` summary, with no
+`schemas/contract-export-csv.schema.json` -- direct precedent: `contract export --json` does the
+same for `sbf.contract-export/1`, no schema file exists for it either, because a value constructed
+and printed in one function call (never read back by a later invocation) has no trust boundary to
+defend. `--out <path>` given -> `writeFileAtomic()` then a human line or the `--json` summary;
+`--out` absent -> the CSV text is the ONLY thing on stdout (`process.stdout.write`, not
+`console.log` -- `contracts/csv.mjs`'s `toCsv()` already appends exactly one trailing `\n`, and
+`console.log` would add a second, making stdout byte-different from what `--out` writes); `--json`
+without `--out` prints a stderr note explaining it did nothing, rather than silently no-op-ing on a
+flag the user typed on purpose. `process.exitCode = EXIT.PASS`, never `process.exit()` -- same
+`D-process-exit-audit` reasoning `contract export` itself already documents (a large
+`console.log` immediately followed by a forced exit can truncate at the 64KB pipe buffer; a
+300-operation CSV clears that easily).
+
+**COST** (whole item): `bin/bskel.mjs` (`cmdContractExportCsv`, `tryLoadScanReport`, `usage()`,
+dispatch), `lib/cli.mjs` (new COMMANDS entry), `test/cli-contract.test.mjs`'s two independent
+hardcoded command lists. New: `contracts/csv.mjs`, `test/contract-export-csv.test.mjs` (pure unit,
+19 tests), `test/contract-export-csv-cli.test.mjs` (real CLI against `test/_contract-fixture.mjs`'s
+existing harness, 11 tests, including the C5 assertion that `export-csv` succeeds with the
+`contract` gate genuinely `awaiting_disposition` -- `contract export` itself is asserted to fail in
+that exact state first, proving the fixture is real). No new CI job and no real-database smoke test
+needed -- the input is already schema-validated JSON with no external system in the loop.
+
+**Verified**: `npm test` green (30 new tests total); real fixture round trip through Google
+Sheets/LibreOffice/Excel-equivalent parsing (`python3 -c "import csv; csv.DictReader(...)"`, no
+preamble surprises); the C2 assertion that a scan-only and a scan+openapi contract produce the
+IDENTICAL 14-column header; the C5 assertion that `export-csv` succeeds where `contract export`
+itself is confirmed blocked; `--bom` prepends exactly `﻿` and nothing else changes.
+`test/doc-integrity.test.mjs` clean (usage()<->COMMANDS flag-set equality for `contract
+export-csv`, every `D-contract-csv` reference in source resolves to this heading).
+
+## D-db-erd: a Mermaid ERD from the database plane -- collapses what it cannot pair, never invents cardinality
+
+The second half of the same user-proposed idea `D-contract-csv` closes the first half of: a Mermaid
+`erDiagram` of the database, pasteable into GitHub/Notion/mermaid.live, rendered by tools that
+already exist -- built from data `scanners/db/{introspect,migrations}.mjs` already collect.
+
+**E1 -- new top-level verb `bskel db erd`, not `scan --erd`/`contract export --format erd`**:
+`bskel db erd [--database-url-env <NAME>] [--schema public] [--out <path>] [--json]`. WHY: an
+ERD's input is the database plane (`db_schema` in the scan report's own vocabulary), orthogonal to
+both the scan gate and any feature's contract -- there is no invocation where scan/contract/ERD
+flags would all be simultaneously meaningful. `db` is the noun this repo already uses (`--db`,
+`db_schema`, `D-db-schema-plane`). No `--db` flag on this command -- `--db` is implied by the verb;
+internally calls the existing `resolveDbSchemaOrExit(root, {...flags, db:true})` unchanged, so
+env-var handling and every error string stay byte-identical to `scan --db`. COST: a new top-level
+verb -- a `case 'db':` label, a `usage()` line, the bare-`db` "incomplete command" fallthrough
+(matches `feature`/`handles`/`observe`). EXIT: fold into `scan erd` with an alias if a second
+db-plane rendering never materializes; `scanners/db/erd.mjs` is independent of the verb name.
+
+**E2 -- supports both Plane C (live) and Plane A (migration files), degraded but never silent**:
+Plane-C-only would be simpler but excludes exactly the newcomer this feature exists for -- someone
+with a checked-out repo and no production credentials in their shell. The degradation is made
+unmissable *inside the rendered picture itself*, not just in a comment: every attribute types
+`unknown` (Plane A has no column types at all), no `PK` badge appears anywhere (Plane A has no
+`primary_key` data at all), plus a `%%` header block, an unconditional stderr note, and
+`degraded: true` + `missing: [...]` in `--json`. COST: two code paths through the renderer, roughly
+double the test surface; composite FKs are silently dropped by `scanners/db/migrations.mjs` ITSELF
+(not by this feature), and Liquibase XML/YAML changelogs are detected but never parsed -- the
+header states both gaps explicitly. EXIT: gate Plane A behind an explicit `--from migrations`
+opt-in if it ever proves misleading in practice.
+
+**E3 -- Plane C wins when both are available; the header says so, no merge, no drift rendering**:
+the live database is ground truth; a migration file is a historical statement of intent that may
+never have been applied. `scanners/index.mjs`'s `computeDbDrift()` already owns the "source says X,
+live says Y" question via `scan --db`. COST: a repo whose migrations describe a table the live DB
+lacks gets no signal from `db erd`. EXIT: `db erd --show-drift` overlaying migration-only tables
+distinctly, once needed -- the IR already carries a per-table `plane` field, a rendering-only
+change.
+
+**E4 -- composite/multi-column foreign keys collapse to ONE unlabeled-pairing relationship, never N
+fabricated lines**: after grouping `foreign_keys[]` by `(child_table, parent_table)`, a group whose
+distinct `references_column` set has size 1 renders one line PER DISTINCT SOURCE COLUMN (two
+genuinely separate single-column FKs to the same parent, e.g. `created_by`/`updated_by` -> both
+`users.id`, stay two lines); a group whose target set has size > 1 collapses to EXACTLY ONE line,
+labeled with the source columns joined by `+`, preceded by a `%%` comment naming every raw observed
+pair. WHY: `introspect.mjs`'s `FOREIGN_KEYS_SQL` joins `key_column_usage` to
+`constraint_column_usage` on `constraint_name` alone with no `ordinal_position` correlation and no
+`constraint_name` retained in the output -- for a genuinely composite FK, the per-row pairing is
+not recoverable and may not even be real (the join is a cross product). **Measured against a real
+Postgres 16** (`scripts/db-erd-smoke.mjs`): a real `FOREIGN KEY (tenant_id, tag_id) REFERENCES
+tags (tenant_id, id)` constraint surfaces as EXACTLY the predicted 4-row cross product, including
+two pairs that were never declared (`tag_id -> tenant_id`, `tenant_id -> id`) -- confirming this
+isn't a hypothetical risk. Drawing N lines from that would be N fabricated cardinality claims, the
+same line `D-resolver-scope`/`D-greenfield-parameters` draw elsewhere; collapsing to one edge
+asserts only what is certainly true. **Composite PRIMARY KEYs have no such problem**
+(`PRIMARY_KEYS_SQL` never joins `constraint_column_usage`, orders by `ordinal_position`, one PK per
+table) -- rendered fully, one `PK` badge per participating column; only composite FKs are
+ambiguous. COST: a schema with genuinely distinct multi-target FKs between the same table pair
+understates the relationship count by one line instead of two -- the conservative direction. EXIT:
+add `constraint_name`/`ordinal_position` correlation to `introspectSchema()`'s output (additive,
+non-breaking per `schemas/scan-report.schema.json`'s untyped `tables` array); `scripts/db-erd-smoke.mjs`
+re-asserts this exact premise on every CI run, so if Postgres/`introspect.mjs` ever starts
+correlating correctly, this EXIT becomes actionable rather than staying conservative forever
+unnoticed.
+
+**E5 -- cardinality derived only from observed facts; the child side is always "zero or more"**:
+parent side `||` only for a RESOLVED single-column FK on a live (Plane C) column confirmed NOT
+NULL; `|o` otherwise (nullable, unknown, or an unresolved composite group all take the weaker
+claim). Child side ALWAYS `o{`: a 1:1 relationship requires a UNIQUE constraint on the FK column,
+and `introspect.mjs` collects only index NAMES (`pg_indexes.indexname`), not columns/uniqueness, so
+`||` on the child side would be a guess. Identifying (`--`) only when EVERY participating column is
+part of the child's own primary key on a resolved Plane C relationship; non-identifying (`..`)
+otherwise, and always on Plane A (no PK data exists there at all). COST: a real 1:1 relationship
+draws as 1:N -- understated, disclosed, never wrong-direction. EXIT: extend `INDEXES_SQL` to
+`pg_index`/`pg_attribute` for `indisunique` + column list -- the same `introspect.mjs` shape change
+E4's EXIT names; land together if either does.
+
+**E6 -- whole-schema in v1; feature-scoping deferred**: feature-scoping needs a written scan report
+-> a feature id -> preflight, reintroducing the exact ceremony this initiative removes. COST: a
+large brownfield schema produces a dense diagram, mitigated by a stderr note above an entity-count
+threshold (>40 entities). EXIT: `--feature <id>` reusing `related_modules[].entities[].table` from
+the scan report (exactly what `computeDbDrift()` already reads) and/or `--tables a,b,c`, as a
+filter at the CLI boundary.
+
+**E7 -- Mermaid only, hand-emitted, no new dependency; raw output, not a fenced markdown block**:
+`erDiagram` renders natively on GitHub/GitLab/Notion/Obsidian/VS Code/mermaid.live -- widest
+install base, zero reader setup -- and is line-oriented plain text, so emission is string
+concatenation; a repo-wide grep confirmed zero existing diagram/CSV dependency before this item.
+Raw output (not fenced) because raw is what every renderer's input box takes; fencing for a README
+is one shell line. COST: pasting `--out schema.mmd` straight into a README shows an unrendered code
+block until fenced. EXIT: `--format dot` (Graphviz, also trivially hand-emittable) or `--markdown`
+to wrap the fence, if asked for.
+
+**E8 -- Mermaid-unsafe identifiers are sanitized and disclosed; types are unconditionally
+separator-normalized**: `information_schema.data_type` values contain spaces (`character
+varying`) and hyphens (`USER-DEFINED`), which break Mermaid's `type name` grammar -- every
+non-`[A-Za-z0-9_]` character becomes `_` (`sanitizeType()`). Entity/attribute names are emitted
+bare when they already match `^[A-Za-z_][A-Za-z0-9_]*$`; otherwise sanitized the same way AND a
+`%% renamed for Mermaid syntax: "<original>" -> <sanitized>` line is added to the header, full list
+also in `--json` (`sanitizeIdent()`). A column that is both PK and FK renders `PK, FK` (confirmed
+rendering correctly against real fixture output, not merely assumed). Nullable Plane C columns get
+attribute comment `"nullable"`; its absence means NOT NULL, stated in the header note; Plane A
+emits no comments at all (unknown there). WHY: separator normalization is the same string with
+whitespace turned to underscores, obvious on sight -- not a fabrication; silently dropping the type
+or substituting a placeholder like `string` would be. COST: a diagram's type token isn't
+byte-identical to `information_schema`'s -- `--json` carries the raw types. EXIT: switch to
+Mermaid's quoted-entity-name form once a minimum Mermaid version is documented in the README.
+
+**E9/E10 (ERD half) -- no schema file for the transient `{tables, relationships}` IR; `--out`/
+stdout copied from `contract export`'s shape**: `scanners/db/erd.mjs` normalizes Plane A/C into one
+in-memory shape before rendering -- never written to disk, never read back, never validated by
+`lib/schema-validate.mjs`. Same reasoning as `D-contract-csv`'s own E9/E10 note: a value
+constructed and consumed inside one function call has no trust boundary; `sbf.db-erd/1` is an
+inline `schema:` string on the `--json --out` summary only, matching `contract export --json`'s own
+unschematized `sbf.contract-export/1`. `--out <path>` -> `writeFileAtomic()` then a human line or
+the `--json` summary; `--out` absent -> `process.stdout.write(built.mermaid)` (not `console.log`,
+for the identical byte-exactness reason `D-contract-csv` documents); `--json` without `--out` warns
+on stderr rather than silently doing nothing. `process.exitCode = EXIT.PASS`, never
+`process.exit()` -- a 200-table diagram can clear the 64KB pipe buffer as easily as a schema-rich
+OpenAPI export. COST: the IR's shape is enforced only by unit tests, not Ajv. EXIT: the moment
+anything writes an ERD IR to disk (e.g. a diffable `specs/<feature>/erd.json`), add
+`schemas/erd-model.schema.json` and validate at both boundaries.
+
+**COST** (whole item): `bin/bskel.mjs` (`cmdDbErd`, `usage()`, new `case 'db':` dispatch),
+`lib/cli.mjs` (new COMMANDS entry), `test/cli-contract.test.mjs`'s `EXPECTED_DEFAULTS` (no required
+flag, so only one of the two hardcoded lists needed an entry). New: `scanners/db/erd.mjs`,
+`test/db-erd.test.mjs` (pure unit, 27 tests), `test/db-erd-cli.test.mjs` (real CLI, no live DB
+needed, 9 tests), `scripts/db-erd-smoke.mjs` (wired into the EXISTING `db-introspect` CI job, own
+throwaway `bskel_erd_smoke` schema -- no new job, following the `D-pattern-accrual` precedent
+exactly).
+
+**Verified**: `npm test` green (36 new tests total); a real disposable Postgres 16 container
+(`scripts/db-erd-smoke.mjs`) proving -- against real DDL, not just hand-built fixtures -- E4's
+cross-product premise, every E4/E5 rendering rule (two-single-FK non-collapse, composite-FK
+collapse with correct `+`-label, composite-PK full rendering, self-reference, plain single-column
+FK alongside a composite one on the same child table), and the exact expected Mermaid line for
+each. `test/doc-integrity.test.mjs` clean (usage()<->COMMANDS flag-set equality for `db erd`, every
+`D-db-erd` reference in source resolves to this heading).

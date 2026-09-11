@@ -293,6 +293,23 @@ bskel scan cross-feature-waive --feature <id> --signal resource_type|table|opera
                                                         # resolves ONE finding from the last cross-feature-check run (per-item, never a
                                                         # whole-gate blanket accept) -- refuses, naming every current finding, if the
                                                         # given signal/identifier/other-feature doesn't match one
+
+bskel db erd [--database-url-env <NAME>] [--schema public] [--out <path>] [--json]
+  # -> D-db-erd: a Mermaid `erDiagram` of the database plane -- pasteable straight into a GitHub/
+  #    Notion/mermaid.live render, no external tooling. Repo-independent (no --feature, no
+  #    preflight/gate involvement). With --database-url-env: real, live Postgres introspection
+  #    (full column types/nullability/keys). Without it: falls back to scanning Flyway/Liquibase
+  #    .sql migration files (no network) -- a real but explicitly DEGRADED diagram (every column
+  #    types `unknown`, no `PK` badges anywhere, a header block spelling out exactly what's
+  #    missing). Live wins when both are available.
+  #
+  #    Never invents a relationship it can't verify: a composite/multi-column foreign key can't be
+  #    correctly paired back from `information_schema` (measured live against a real Postgres --
+  #    the raw rows are an unrecoverable cross product, including pairs never actually declared),
+  #    so it collapses to ONE relationship line labeled with all its source columns, rather than
+  #    drawing several fabricated ones. The child side of every relationship is always "zero or
+  #    more" (1:1 vs 1:N isn't distinguishable from what this tool introspects) -- never claimed
+  #    as "exactly one". See `D-db-erd` in DECISIONS.md.
 ```
 
 `scan`'s verdict: `greenfield` (no related code found -- gate auto-passes), `adjacent` (weak
@@ -627,6 +644,24 @@ bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed
   #    exported document carries an `x-bskel-generated` marker on `info`, and reconciling a contract
   #    against its own export would make it confirm itself -- silently reclassifying a recorded
   #    CONTRACT_OPENAPI_DRIFT/MISSING_OPERATION ERROR as `matched`. See `D-openapi-export`.
+
+bskel contract export-csv --feature <id> [--out <path>] [--bom] [--json]
+  # -> D-contract-csv: a spreadsheet-shaped projection of a feature contract -- one row per
+  #    operation, opened by someone who will never read a JSON Schema (a PM, a lead deciding
+  #    whether a partial contract is good enough to waive). A FIXED 14-column header, always:
+  #    `operation_id, verb, path, path_params, path_params_unverified, body,
+  #    request_body_required, request_body_fields, response_fields, error_fields, provenance,
+  #    summary, tags, security`. A scan-only contract (no --openapi-file) leaves
+  #    `summary`/`tags`/`security` blank for EVERY row -- that blank IS the finding, disclosed on
+  #    stderr (which columns, and why) rather than the column simply not appearing.
+  #
+  #    UNLIKE `contract export`, this command is deliberately UNGATED -- it works even when the
+  #    `contract` gate hasn't passed (its whole value is reviewing a partial contract to decide
+  #    whether to waive it), and an unreflected global path-prefix signal downgrades to a stderr
+  #    warning instead of a hard refusal. Only the zero-operation refusal survives (same
+  #    positive-false-claim reasoning `contract export` uses). `--bom` prepends a UTF-8 BOM for
+  #    Excel-on-Windows; omit it for `pandas`/`csv.DictReader`/`diff`. See `D-contract-csv` in
+  #    DECISIONS.md.
 
 bskel contract history --feature <id> [--json]
   # -> D7 (D-contract-history): a chronological view of this feature's own emitted contract file,

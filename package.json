@@ -1,6 +1,6 @@
 {
   "name": "backend-skeleton",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "description": "Deterministic gate layer for AI-assisted backend changes -- blocks brownfield collisions and contract/handle drift via disk-hash checks before code ships. Scaffolding codegen included (Java/Spring, Python/FastAPI, TypeScript/Express).",
   "license": "AGPL-3.0-or-later",
@@ -40,6 +40,7 @@
     "test:python-import": "node scripts/python-import-smoke.mjs",
     "test:db-introspect": "node scripts/db-introspect-smoke.mjs",
     "test:pattern-db": "node scripts/pattern-db-smoke.mjs",
+    "test:db-erd": "node scripts/db-erd-smoke.mjs",
     "test:registry-coverage": "node scripts/handles-registry-coverage-smoke.mjs",
     "test:ddl-apply": "node scripts/ddl-apply-smoke.mjs",
     "test:cross-feature-fk": "node scripts/cross-feature-fk-smoke.mjs",
@@ -50,7 +51,7 @@
     "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs",
     "test:shadow-validation": "node scripts/shadow-validation-smoke.mjs",
     "test:oracle-corpus": "node scripts/shadow-validation-smoke.mjs --manifest test/fixtures/oracle-manifest.json",
-    "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:pattern-db && npm run test:registry-coverage && npm run test:ddl-apply && npm run test:cross-feature-fk && npm run test:java-ast && npm run test:typescript-compile"
+    "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:pattern-db && npm run test:db-erd && npm run test:registry-coverage && npm run test:ddl-apply && npm run test:cross-feature-fk && npm run test:java-ast && npm run test:typescript-compile"
   },
   "dependencies": {
     "ajv": "^8.20.0",

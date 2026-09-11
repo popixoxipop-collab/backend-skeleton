@@ -54,6 +54,8 @@ import {
 import { DEFAULT_GROUP_ID, DEFAULT_JAVA_VERSION, resolveSpringDependencies } from '../new/spring.mjs';
 import { buildReconciliation, snapshotFromReconciliation, describeSourceFile } from '../contracts/openapi.mjs';
 import { buildOpenApiDocument, pathPrefixCandidates, unreflectedPathPrefixes, STATUS_CODE_MODES } from '../contracts/export.mjs';
+import { buildContractCsv } from '../contracts/csv.mjs';
+import { buildErdDiagram } from '../scanners/db/erd.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
@@ -96,6 +98,8 @@ function usage() {
   bskel feature archive <id> --reason "..." [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
+  bskel contract export-csv --feature <id> [--out <path>] [--bom] [--json]
+  bskel db erd [--database-url-env <NAME>] [--schema public] [--out <path>] [--json]
   bskel contract history --feature <id> [--json]
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
@@ -1590,6 +1594,181 @@ function cmdContractExport(args) {
 	// routinely well past the 64KB pipe buffer that truncated cmdContractEmit's own --json output,
 	// and this is the same shape of bug -- a large console.log immediately followed by a forced
 	// exit. Last statement in the function; nothing else is pending on this path.
+	process.exitCode = EXIT.PASS;
+}
+
+// D-contract-csv: the soft-refusal counterpart to loadScanReportOrExit() above -- returns null
+// (skip the path-prefix check entirely) on ANY failure (missing file, unparseable JSON, schema
+// violation) instead of exiting. `contract export-csv` treats this check as advisory (see C5 in
+// D-contract-csv, DECISIONS.md): a scan report that can't be read is not itself a reason to block a
+// human-reviewed artifact, unlike `contract export`'s own hard guard for a machine-consumed one.
+function tryLoadScanReport(root, featureId) {
+	const scanReportPath = specPath(root, featureId, 'brownfield-scan.json');
+	if (!fs.existsSync(scanReportPath)) return null;
+	try {
+		const parsed = JSON.parse(fs.readFileSync(scanReportPath, 'utf8'));
+		const { ok } = validateAgainstSchema('scan-report.schema.json', parsed);
+		return ok ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+// D-contract-csv: a spreadsheet-shaped projection of a feature contract. Mirrors
+// cmdContractExport's overall shape (loadContract, zero-operation refusal, --out/stdout via
+// writeFileAtomic) but is deliberately UNGATED -- it never calls requireNamedGate('contract', ...)
+// and never hard-refuses on an unreflected path prefix, only warns. See D-contract-csv in
+// DECISIONS.md for the full risk-model argument (a CSV is read by a human deciding whether to
+// waive a partial contract -- gating it would make it useless exactly when it matters).
+function cmdContractExportCsv(args) {
+	const flags = parseCommand('contract export-csv', args);
+	if (flags.help) { console.log(renderCommandHelp('contract export-csv')); process.exit(0); }
+	setContext('contract export-csv', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+
+	const contract = loadContract(root, flags.feature);
+
+	// Same positive-false-claim refusal `contract export` itself makes (see that function's own
+	// comment) -- a zero-row CSV handed to a stakeholder reads as "this feature has no API".
+	if (Object.keys(contract.operations).length === 0) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `\`${flags.feature}\`'s contract has zero operations (completeness: ${contract.completeness.status}) -- exporting it would produce a table positively claiming this API has no operations. Fix --module/--terms and re-run \`bskel contract emit --feature ${flags.feature}\`.`);
+	}
+
+	// C5 (D-contract-csv): advisory only. If the scan report cannot be read, the check is skipped
+	// silently rather than refusing (contrast cmdContractExport's loadScanReportOrExit(), which hard-exits).
+	let pathPrefixWarning = null;
+	const scanReport = tryLoadScanReport(root, flags.feature);
+	if (scanReport) {
+		const candidates = pathPrefixCandidates(scanReport.path_prefix_signals);
+		const unreflected = unreflectedPathPrefixes(contract, candidates);
+		if (unreflected.length > 0) {
+			pathPrefixWarning = `this repo's scan found a global path-prefix signal (${unreflected.join(', ')}) that ${flags.feature}'s contract paths do not reflect -- the paths in this CSV may be missing it. Re-run \`bskel contract emit --feature ${flags.feature} --openapi-file <real-generated-doc>\` to correct them, or treat this export as informational only.`;
+			console.error(`note: ${pathPrefixWarning}`);
+		}
+	}
+
+	const built = buildContractCsv({ contract });
+	if (!built.ok) {
+		// Unreachable given the zero-operation refusal above already covers this case -- kept as
+		// a real check rather than assuming buildContractCsv()'s precondition forever.
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `cannot export ${flags.feature}'s contract to CSV: ${built.error}`);
+	}
+
+	// C2 (D-contract-csv): unconditional -- a reader must not have to guess whether a blank column
+	// means "nothing to show" or "the tool is broken".
+	if (built.emptyColumns.length > 0) {
+		console.error(`note: ${built.emptyColumns.length} of ${built.columns.length} columns are empty for every operation (${built.emptyColumns.join(', ')}) -- this contract was emitted without --openapi-file, so no source document ever stated them. Re-run \`bskel contract emit --feature ${flags.feature} --openapi-file <doc>\` to populate them.`);
+	}
+
+	// C4 (D-contract-csv): BOM is opt-in -- Excel-on-Windows mangles non-ASCII without one, but a
+	// BOM breaks naive parsers/`head`/`diff` for everyone else, so neither default is right for everyone.
+	const csvText = flags.bom ? `\uFEFF${built.csv}` : built.csv;
+
+	if (flags.out) {
+		const outPath = path.resolve(process.cwd(), flags.out);
+		writeFileAtomic(outPath, csvText);
+		if (flags.json) {
+			console.log(JSON.stringify({
+				schema: 'sbf.contract-export-csv/1',
+				feature_id: contract.feature_id,
+				out: flags.out,
+				row_count: built.rowCount,
+				columns: built.columns,
+				completeness: contract.completeness.status,
+				path_prefix_warning: pathPrefixWarning,
+			}, null, 2));
+		} else if (!flags.quiet) {
+			console.log(`wrote ${flags.out} -- ${built.rowCount} operation(s), completeness: ${contract.completeness.status}`);
+		}
+	} else {
+		// process.stdout.write, not console.log -- `csvText` already ends in exactly one `\n`
+		// (contracts/csv.mjs's toCsv()), and console.log would append a SECOND one, making stdout
+		// byte-different from the file --out writes. C7 (D-contract-csv): the artifact is the only
+		// thing on stdout here.
+		process.stdout.write(csvText);
+		if (flags.json) {
+			console.error('note: --json has no effect without --out -- stdout is the CSV itself. Pass --out <path> to get both.');
+		}
+	}
+	// D-process-exit-audit: NOT process.exit() -- same reasoning as cmdContractExport's own
+	// trailing comment; a 300-operation CSV can clear the 64KB pipe buffer just as easily.
+	process.exitCode = EXIT.PASS;
+}
+
+// D-db-erd: a Mermaid `erDiagram` of the database plane -- repo-independent like `bskel new`/
+// `bskel pattern *` (no --feature; the database plane is not feature-scoped, see E6 in D-db-erd,
+// DECISIONS.md). Reuses resolveDbSchemaOrExit() unchanged (via a synthetic `db: true`) so
+// --database-url-env's env-var handling and every error string stay byte-identical to `scan --db`.
+async function cmdDbErd(args) {
+	const flags = parseCommand('db erd', args);
+	if (flags.help) { console.log(renderCommandHelp('db erd')); process.exit(0); }
+	setContext('db erd', flags);
+	const root = requireRepoRoot();
+
+	// E1 (D-db-erd)'s own `--db` flag doesn't exist on this command -- the verb `db erd` implies
+	// it, so a synthetic `db: true` is threaded through to the exact same helper `scan --db` uses,
+	// never a second copy of its env-var-unset/connection-failure handling.
+	const { live, migrations } = await resolveDbSchemaOrExit(root, { ...flags, db: true });
+
+	if (!live && (!migrations || migrations.tables.length === 0)) {
+		if (migrations && migrations.tool === 'liquibase') {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no schema to draw: this repo's Liquibase changelogs were detected (${migrations.files.length} file(s)) but none are plain .sql -- XML/YAML changelog parsing is not supported (see D-db-schema-plane in DECISIONS.md). Pass --database-url-env <NAME> for live introspection instead.`);
+		}
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'no schema to draw: no Flyway/Liquibase migration files found in this repo, and no --database-url-env was given. Pass --database-url-env <NAME> (an already-exported environment variable; never read from .env directly -- see D-db-schema-plane in DECISIONS.md) for live introspection.');
+	}
+
+	const version = JSON.parse(fs.readFileSync(path.join(SKILL_ROOT, 'package.json'), 'utf8')).version;
+	const invocation = flags['database-url-env']
+		? `bskel db erd --database-url-env ${flags['database-url-env']} --schema ${flags.schema}`
+		: 'bskel db erd';
+	const built = buildErdDiagram({ live, migrations, generatedBy: `bskel ${version} -- \`${invocation}\`` });
+	if (!built.ok) {
+		// Unreachable given the refusal above already covers both reasons buildErdDiagram() can
+		// report -- kept as a real check rather than assuming its precondition forever.
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no schema to draw (${built.reason})`);
+	}
+
+	// E2 (D-db-erd): unconditional when degraded -- a reader must see this before the diagram, not
+	// discover it by noticing every type says `unknown`.
+	if (built.degraded) {
+		console.error(`note: this diagram is DEGRADED -- built from migration files, not a live database. Missing: ${built.missing.join(', ')}. Pass --database-url-env <NAME> for a complete diagram.`);
+	}
+	// E6 (D-db-erd): a readability nudge only, never a refusal -- whole-schema is the only mode
+	// this version supports.
+	if (built.entityCount > 40) {
+		console.error(`note: ${built.entityCount} entities -- this diagram may be dense (whole-schema only in this version; see E6 in D-db-erd, DECISIONS.md).`);
+	}
+
+	if (flags.out) {
+		const outPath = path.resolve(process.cwd(), flags.out);
+		writeFileAtomic(outPath, built.mermaid);
+		if (flags.json) {
+			console.log(JSON.stringify({
+				schema: 'sbf.db-erd/1',
+				out: flags.out,
+				plane: built.plane,
+				entity_count: built.entityCount,
+				relationship_count: built.relationshipCount,
+				unresolved_relationships: built.unresolvedRelationships,
+				external_tables: built.externalTables,
+				renames: built.renames,
+				degraded: built.degraded,
+				missing: built.missing,
+			}, null, 2));
+		} else if (!flags.quiet) {
+			console.log(`wrote ${flags.out} -- ${built.entityCount} entity(ies), ${built.relationshipCount} relationship(s), plane: ${built.plane}${built.degraded ? ' (degraded)' : ''}`);
+		}
+	} else {
+		// process.stdout.write, not console.log -- same E10 (D-db-erd) byte-exactness reasoning as
+		// cmdContractExportCsv's own C7 (built.mermaid already ends in exactly one `\n`).
+		process.stdout.write(built.mermaid);
+		if (flags.json) {
+			console.error('note: --json has no effect without --out -- stdout is the diagram itself. Pass --out <path> to get both.');
+		}
+	}
+	// D-process-exit-audit: NOT process.exit() -- a 200-table diagram can clear the 64KB pipe
+	// buffer just as easily as a schema-rich OpenAPI export.
 	process.exitCode = EXIT.PASS;
 }
 
@@ -3945,6 +4124,7 @@ async function dispatchCommand(cmd, rest) {
 			const subArgs = rest.slice(1);
 			if (sub === 'emit') return cmdContractEmit(subArgs);
 			if (sub === 'export') return cmdContractExport(subArgs);
+			if (sub === 'export-csv') return cmdContractExportCsv(subArgs);
 			if (sub === 'history') return cmdContractHistory(subArgs);
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
@@ -4041,6 +4221,12 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'list') return cmdPatternList(rest.slice(1));
 			if (rest[0] === 'show') return cmdPatternShow(rest.slice(1));
 			if (rest[0] === 'suggest') return cmdPatternSuggest(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'db': {
+			if (rest[0] === 'erd') return await cmdDbErd(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

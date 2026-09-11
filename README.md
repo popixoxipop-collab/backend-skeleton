@@ -34,7 +34,9 @@ check for a specific failure mode found the same way — see `DECISIONS.md` for 
 - [Quickstart](#quickstart)
   - [Starting from nothing (greenfield)](#starting-from-nothing-greenfield)
   - [Publishing a feature's contract as OpenAPI (optional)](#publishing-a-features-contract-as-openapi-optional)
+  - [A CSV table of a feature's contract (optional)](#a-csv-table-of-a-features-contract-optional)
   - [Database schema (optional)](#database-schema-optional)
+  - [An ERD of your database schema (optional)](#an-erd-of-your-database-schema-optional)
   - [Applying DDL to a live database (optional)](#applying-ddl-to-a-live-database-optional)
   - [Declaring field-to-field dependencies (optional)](#declaring-field-to-field-dependencies-optional)
   - [Patching a config file (optional)](#patching-a-config-file-optional)
@@ -253,6 +255,31 @@ contract's paths don't reflect (`--allow-unprefixed` overrides), and stamps ever
 reconciling a contract against its own export would make it confirm itself. See `D-openapi-export`
 in `DECISIONS.md`.
 
+### A CSV table of a feature's contract (optional)
+
+```bash
+bskel contract export-csv --feature 001-organization-management --out organization.csv
+```
+
+One row per operation, opened by someone who will never read a JSON Schema — a PM reviewing scope,
+a lead deciding whether a partial contract is good enough to waive. Fourteen columns, always, in
+the same order: `operation_id, verb, path, path_params, path_params_unverified, body,
+request_body_required, request_body_fields, response_fields, error_fields, provenance, summary,
+tags, security`.
+
+**Every column is always present, even when every row leaves it blank** — a scan-only contract
+(no `--openapi-file`) never states `summary`/`tags`/`security`, and the blank columns *are* that
+finding, not something to hide: `export-csv` prints exactly which columns are empty for every
+operation, and why, on stderr. Dropping an empty column would make the file's own shape depend on
+its content, so it never does.
+
+**Unlike `contract export`, this command is deliberately UNGATED** — it works even when the
+`contract` gate hasn't passed yet, because its single most valuable moment is reviewing a partial
+contract to decide whether to waive it. An unreflected global path-prefix signal (the thing
+`contract export` hard-refuses on) downgrades to a stderr warning here instead. `--bom` prepends a
+UTF-8 byte-order mark for Excel-on-Windows, which otherwise mangles non-ASCII text; omit it for
+`pandas`/`csv.DictReader`/`diff`, which don't want one. See `D-contract-csv` in `DECISIONS.md`.
+
 ### Database schema (optional)
 
 `bskel scan --db` additionally scans Flyway/Liquibase migration files (local only, no network).
@@ -269,6 +296,40 @@ report also carries `generated_at` — when the underlying data was actually cap
 `persisted`/`migrations`-mode correlation (reused from an earlier scan, not a fresh connection) can
 be judged for staleness rather than trusted blindly. See `D-cross-feature-fk-inference` in
 `DECISIONS.md`.
+
+### An ERD of your database schema (optional)
+
+```bash
+bskel db erd --database-url-env BSKEL_DB_URL --schema public --out schema.mmd
+```
+
+A Mermaid `erDiagram` of the database — paste it straight into a GitHub/GitLab/Notion/Obsidian
+markdown file (fence it in \`\`\`mermaid) or [mermaid.live](https://mermaid.live) and it renders
+with no extra tooling. Works two ways:
+
+- **With `--database-url-env`**: a real, live Postgres introspection — full column types,
+  nullability, and primary/foreign keys.
+- **Without it**: falls back to scanning Flyway/Liquibase `.sql` migration files (no network, no
+  credentials needed) — a real but **degraded** diagram, clearly marked as such in the file itself:
+  every column types as `unknown`, no `PK` badge appears anywhere, and a header block spells out
+  exactly what's missing. Useful for evaluating the tool on a repo you don't have DB credentials
+  for yet.
+
+Two things this diagram deliberately does **not** guess:
+
+- **Composite foreign keys.** Postgres's own `information_schema` doesn't retain which source
+  column pairs with which target column once a foreign key spans more than one column — the raw
+  data is a cross product that can include pairs that were never declared. Rather than draw a wrong
+  relationship line, a composite FK collapses to one line labeled with all its source columns
+  joined by `+`, with the ambiguity spelled out in a `%%` comment above it. (Composite *primary*
+  keys have no such problem and render fully.)
+- **1:1 vs 1:N.** The child side of every relationship is drawn as "zero or more," never "exactly
+  one" — telling those apart needs a UNIQUE constraint check this tool doesn't perform. The header
+  says so.
+
+Whole-schema only in this version (no `--feature`/`--tables` filtering yet) — for a very large
+schema, `db erd` prints a note above 40 entities rather than silently producing an unreadable
+diagram. See `D-db-erd` in `DECISIONS.md`.
 
 ### Applying DDL to a live database (optional)
 

@@ -277,6 +277,14 @@ jobs:
       - run: npm run test:pattern-db
         env:
           BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
+      # D-db-erd: same reuse-the-existing-container precedent as test:pattern-db above -- own
+      # throwaway SCHEMA (bskel_erd_smoke, not a table, since this script needs several related
+      # tables), dropped/recreated by the script itself. Proves D5's central assumption (a
+      # composite FK surfaces as an unrecoverable cross product) against a REAL Postgres, not just
+      # a hand-built fixture.
+      - run: npm run test:db-erd
+        env:
+          BSKEL_TEST_DATABASE_URL: postgres://postgres@localhost:5432/bskel_a4_test
       - name: stop postgres
         if: always()
         run: docker rm -f bskel-pg-a4
