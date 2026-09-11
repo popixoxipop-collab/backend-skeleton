@@ -14005,3 +14005,35 @@ operation is a silent no-op; and an enforce-mode rejection detail never leaks an
 value (planted marker string asserted absent). `test/rules-emit-cli.test.mjs`'s own
 unsupported-adapter test moved from python-fastapi (now supported) to typescript-express (still
 the one remaining gap). `npm test` 1642/1642.
+
+**Update (typescript-express runtime, R9 Phase 2 complete)**: `bskel rules emit` now supports
+typescript-express, closing Phase 2 -- all three stacks `observe emit` already covers now have a
+rules runtime too. `ruleCheck.ts` (pure executor, typed interfaces mirroring java-spring's Violation/
+FieldRule/CrossRule/TransitionRule shapes field-for-field) and `ruleSet.ts` (module-load-time
+discovery of `rulesSchemas/*.rules.json`, the same `fs.readdirSync`+CommonJS-`__dirname` pattern
+`observedSchema.ts` already established). `enforceRules.ts` is Express MIDDLEWARE, not an
+annotation/decorator -- genuinely simpler than `observeContract.ts`'s own response-capture dance
+(`res.json` patch + `res.on('finish', ...)`), since field/cross rules only ever check the REQUEST:
+a violation in enforce mode is rejected synchronously before `next()`, the same way any ordinary
+Express validation middleware already works. Mode reads `process.env.BSKEL_RULES_MODE` (default
+`"observe"`) per request -- the third sibling of java-spring's Spring property / python-fastapi's
+identically-named environment variable, same "config change, not a re-emit" posture throughout.
+
+**Verified**: `scripts/typescript-typecheck-smoke.mjs` extended -- a `requestBody` attached to the
+existing `users-show` operation (not realistic REST; same simplification the other two languages'
+own business-rules phases use) gives four authored rules real fields. A real `tsc` compile plus a
+real Express app driven over a real HTTP round trip (the cheapest way to exercise middleware here,
+no JVM-mock/Python-reflection ceremony needed) proves: `ruleCheck`/`ruleSet` detect 4/4 violations
+and 0 false positives; `enforceRules()` observe mode always proceeds even with real violations;
+enforce mode rejects with a real 400 response and the real handler never runs; a valid payload
+always proceeds even in enforce mode; a rule-less operation is a silent no-op; and the 400 response
+body never leaks an observed payload value (planted marker string asserted absent, matching the
+java/python proofs exactly). `test/rules-emit-cli.test.mjs`'s unsupported-adapter test moved a
+third time, now to javascript-express (G6) -- the one adapter this can never support, since it
+ships no codegen provider at all, unlike python-fastapi/typescript-express which were genuine
+"not yet" gaps this same test file closed twice over the course of this item. `npm test` 1642/1642.
+
+**R9/Phase 2 status**: all three target stacks now have a working rules runtime
+(check + emit + auto-wiring + observe/enforce mode), each independently verified against a real
+toolchain (JVM/Gradle, venv/pip, tsc/npm). Remaining: Phase 3 (`derived` fields, reading
+`dependencies.json`, closing `D-field-dependency`'s own named EXIT) -- not started.

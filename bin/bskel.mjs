@@ -52,6 +52,7 @@ import { rulesSourcePath, loadRulesSource, loadRulesArtifact, saveRulesArtifact,
 import { PREDICATE_KINDS, explainRule } from '../rules/vocabulary.mjs';
 import { emitRulesJavaSpring } from '../handles/providers/java-spring/rules.mjs';
 import { emitRulesPythonFastApi } from '../handles/providers/python-fastapi/rules.mjs';
+import { emitRulesTypeScriptExpress } from '../handles/providers/typescript-express/rules.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
 	requireValidPythonVersion, requireValidLicense, requireValidDatabase, requireSupportedJavaVersion,
@@ -2235,11 +2236,22 @@ function cmdRulesEmit(args) {
 		} catch (err) {
 			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 		}
+	} else if (scanReport.adapter === 'typescript-express') {
+		// TS's own project-root detection needs a module to anchor itself too -- same --module
+		// dependency python-fastapi's own rules emit already established.
+		let tsPlan;
+		try {
+			tsPlan = planTypeScriptExpress({ repoRoot: root, scanReport, module: flags.module, resourceFilter: null });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		try {
+			result = emitRulesTypeScriptExpress({ repoRoot: root, featureId: flags.feature, artifact, plan: tsPlan, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
 	} else {
-		// Named, not silently skipped -- typescript-express is the next slice (R9/Phase 2).
-		// `rules check` already works for every adapter; only execution is java/python so far, and
-		// saying so plainly is better than an empty success.
-		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel rules emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring, python-fastapi). \`bskel rules check\` works for every adapter -- only the generated runtime executor is java/python so far.`);
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel rules emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring, python-fastapi, typescript-express).`);
 	}
 
 	const { written, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = result;

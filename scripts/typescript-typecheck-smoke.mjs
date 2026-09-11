@@ -206,6 +206,26 @@ fs.writeFileSync(openApiPath, JSON.stringify({
 				responses: {
 					200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', required: ['id', 'name'], properties: { id: { type: 'string' }, name: { type: 'string' } } } } } },
 				},
+				// D-business-rules (R9): a requestBody attached to this GET purely so the rules
+				// phase below has real, contract-declared fields to author rules against -- not a
+				// realistic REST shape, the same simplification java-compile-smoke.mjs's/python-
+				// import-smoke.mjs's own business-rules phases already use.
+				requestBody: {
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								properties: {
+									capacity: { type: 'integer' },
+									ownerName: { type: 'string' },
+									status: { type: 'string', enum: ['draft', 'published', 'archived'] },
+									startWindow: { type: 'string' },
+									endWindow: { type: 'string' },
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	},
@@ -401,6 +421,166 @@ try {
 }
 
 console.log('typescript-typecheck-smoke: PASS -- generated TypeScript type-checks cleanly against real TypeORM/Express types, the emitted handles router\'s GET pointer-walk works against a real HTTP round trip, and the emitted observeContract middleware correctly intercepts real traffic (conformant / missing-field / bad-status / raw-string-uncaptured / bad-path-param).');
+
+// D-business-rules (R9): rules check -> rules emit --module users, against the requestBody
+// attached to users-show above. Reuses the same scratch repo/node_modules (deliberate, same
+// reasoning the observe phase's own comment gives -- proves rules coexists with handles/observe
+// in one real repo).
+console.log('typescript-typecheck-smoke: rules check -> rules emit --module users...');
+fs.writeFileSync(path.join(scratch, 'specs', FEATURE_ID, 'rules.yaml'), `schema: sbf.feature-rules-source/1
+rules:
+  - id: capacity-cap
+    kind: field
+    operation: users-show
+    pointer: /capacity
+    assert: maximum
+    value: 500
+    reason: typescript-typecheck-smoke
+  - id: owner-min
+    kind: field
+    operation: users-show
+    pointer: /ownerName
+    assert: minLength
+    value: 3
+    reason: typescript-typecheck-smoke
+  - id: window-order
+    kind: cross
+    operation: users-show
+    pointers: [/startWindow, /endWindow]
+    assert: lt
+    reason: typescript-typecheck-smoke
+  - id: publish-flow
+    kind: transition
+    operation: users-show
+    pointer: /status
+    from: [draft]
+    to: [published]
+    reason: typescript-typecheck-smoke
+`);
+r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`rules check: ${r.stderr || r.stdout}`);
+r = bskel(['rules', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--json'], scratch);
+if (r.code !== 0) fail(`rules emit: ${r.stderr || r.stdout}`);
+let rulesEmitResult;
+try {
+	rulesEmitResult = JSON.parse(r.stdout);
+} catch {
+	fail(`rules emit produced no parseable JSON: ${r.stdout}`);
+}
+const expectedRulesFiles = ['backend/src/rules/ruleCheck.ts', 'backend/src/rules/ruleSet.ts', 'backend/src/rules/enforceRules.ts', 'backend/src/rules/rulesSchemas/001-user-management.rules.json'];
+for (const f of expectedRulesFiles) {
+	if (!rulesEmitResult.written.includes(f)) fail(`rules emit: expected ${f} in written, got ${JSON.stringify(rulesEmitResult.written)}`);
+}
+
+// The real toolchain proof: a real tsc compile, then a real Express app using the REAL generated
+// enforceRules('users-show') middleware, driven over a real HTTP round trip -- proving both the
+// pure executor (ruleCheck/ruleSet) AND the observe/enforce mode branching, mirroring
+// java-compile-smoke.mjs's RuleExecSmokeTest + RuleEnforcementAspectSmokeTest combined into one
+// driver (TS has no JVM-style mocking ceremony needed -- a real Express app IS the cheapest way
+// to drive middleware here, the same call the observe HTTP driver above already made).
+const RULES_DRIVER_SOURCE = `
+import express from 'express';
+import http from 'node:http';
+import * as ruleCheck from './ruleCheck';
+import * as ruleSet from './ruleSet';
+import { enforceRules } from './enforceRules';
+
+async function main() {
+  // ---- pure executor proof ----
+  const rules = ruleSet.forOperation('users-show');
+  if (rules.field.length === 0 || rules.cross.length === 0 || rules.transition.length === 0) {
+    throw new Error(\`expected all three predicate kinds compiled, got \${JSON.stringify(rules)}\`);
+  }
+  const violatingBody = { capacity: 999, ownerName: 'x', startWindow: '2026-01-02', endWindow: '2026-01-01' };
+  const violating = [
+    ...ruleCheck.check(rules, violatingBody),
+    ...ruleCheck.checkTransitions(rules, { status: 'published' }, { '/status': 'archived' }),
+  ];
+  if (violating.length !== 4) throw new Error(\`expected 4 violations (capacity-cap, owner-min, window-order, publish-flow), got \${violating.length}: \${JSON.stringify(violating.map((v) => v.ruleId))}\`);
+  const gotIds = violating.map((v) => v.ruleId).sort();
+  const wantIds = ['capacity-cap', 'owner-min', 'window-order', 'publish-flow'].sort();
+  if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) throw new Error(\`got \${JSON.stringify(gotIds)}\`);
+
+  const validBody = { capacity: 100, ownerName: 'widget-owner', startWindow: '2026-01-01', endWindow: '2026-01-02' };
+  const valid = [
+    ...ruleCheck.check(rules, validBody),
+    ...ruleCheck.checkTransitions(rules, { status: 'published' }, { '/status': 'draft' }),
+  ];
+  if (valid.length !== 0) throw new Error(\`expected 0 violations against a payload deliberately constructed to satisfy every rule, got \${valid.length}: \${JSON.stringify(valid.map((v) => v.ruleId))}\`);
+
+  // ---- enforceRules() middleware proof, real HTTP round trip ----
+  const app = express();
+  app.use(express.json());
+  app.patch('/v1/users/:id/observe', enforceRules('users-show'), (req, res) => { res.json({ ran: 'REAL_HANDLER' }); });
+  app.patch('/v1/users/:id/enforce', enforceRules('users-show'), (req, res) => { res.json({ ran: 'REAL_HANDLER' }); });
+  app.patch('/v1/users/:id/no-rules', enforceRules('no-such-operation-for-smoke-test'), (req, res) => { res.json({ ran: 'REAL_HANDLER' }); });
+
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+  const base = \`http://127.0.0.1:\${port}\`;
+
+  // (1) observe mode (default): always proceeds, even with real violations
+  {
+    const res = await fetch(\`\${base}/v1/users/1/observe\`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(violatingBody) });
+    const body = await res.json();
+    if (res.status !== 200 || body.ran !== 'REAL_HANDLER') throw new Error(\`observe mode: expected the real handler to run, got \${res.status} \${JSON.stringify(body)}\`);
+  }
+
+  // (2) enforce mode: a real violation rejects with 400, the real handler never runs, and the
+  // response never leaks the observed value
+  {
+    process.env.BSKEL_RULES_MODE = 'enforce';
+    const secretMarker = 'SECRET_MARKER_VALUE_12345';
+    const res = await fetch(\`\${base}/v1/users/1/enforce\`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ capacity: 999, ownerName: secretMarker }) });
+    const body = await res.json();
+    if (res.status !== 400) throw new Error(\`enforce mode: expected 400, got \${res.status} \${JSON.stringify(body)}\`);
+    if (body.ran === 'REAL_HANDLER') throw new Error('enforce mode: the real handler must never run when a real violation is rejected');
+    const detail = JSON.stringify(body);
+    if (!detail.includes('capacity-cap')) throw new Error(\`enforce mode: message should name the real rule id: \${detail}\`);
+    if (detail.includes(secretMarker)) throw new Error(\`Decision A violation: an enforce-mode rejection leaked an observed payload value: \${detail}\`);
+    if (detail.includes('999')) throw new Error(\`Decision A violation: an enforce-mode rejection leaked an observed numeric value: \${detail}\`);
+  }
+
+  // (3) enforce mode, valid payload: always proceeds
+  {
+    const res = await fetch(\`\${base}/v1/users/1/enforce\`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(validBody) });
+    const body = await res.json();
+    if (res.status !== 200 || body.ran !== 'REAL_HANDLER') throw new Error(\`enforce mode, valid payload: expected the real handler to run, got \${res.status} \${JSON.stringify(body)}\`);
+  }
+
+  // (4) an operation with no compiled rules is a silent no-op, even in enforce mode
+  {
+    const res = await fetch(\`\${base}/v1/users/1/no-rules\`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const body = await res.json();
+    if (res.status !== 200 || body.ran !== 'REAL_HANDLER') throw new Error(\`no-rules: expected the real handler to run, got \${res.status} \${JSON.stringify(body)}\`);
+  }
+
+  delete process.env.BSKEL_RULES_MODE;
+  server.close();
+  console.log('typescript-typecheck-smoke: real enforceRules HTTP round trip PASSED (observe always proceeds / enforce rejects real violations without leaking values / valid payload proceeds / rule-less operation is a no-op)');
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
+`;
+const rulesDriverPath = path.join(backendDir, 'src', 'rules', 'http-test-driver.ts');
+fs.writeFileSync(rulesDriverPath, RULES_DRIVER_SOURCE);
+try {
+	sh('npx', ['tsc', '--outDir', distDir, '--noEmit', 'false'], backendDir, { quiet: true });
+} catch (err) {
+	fail(`real tsc compile (for the rules HTTP round trip) failed:\n${err.stdout || err.stderr || err.message}`);
+}
+// Same real packaging gap observe's own driver already found and worked around: tsc never copies
+// plain data files into --outDir, so ruleSet.ts's own runtime discovery (relative to its OWN
+// compiled location, __dirname) finds nothing under dist/rules/rulesSchemas/ unless copied.
+fs.cpSync(path.join(backendDir, 'src', 'rules', 'rulesSchemas'), path.join(distDir, 'rules', 'rulesSchemas'), { recursive: true });
+try {
+	sh('node', [path.join(distDir, 'rules', 'http-test-driver.js')], backendDir, { quiet: true });
+} catch (err) {
+	fail(`real rules HTTP round trip failed:\n${err.stdout || err.stderr || err.message}`);
+}
+console.log('typescript-typecheck-smoke: PASS -- real generated ruleCheck/ruleSet correctly detected all 4 real violations, and correctly passed a valid payload; real enforceRules HTTP round trip passed.');
 
 // D-typescript-express-registry-parity: proves the new registry stack (handleEntities.ts/
 // handleService.ts/recordSnapshotWrapper.ts/<Type>Policy.ts/router.ts's recover()+enforcement

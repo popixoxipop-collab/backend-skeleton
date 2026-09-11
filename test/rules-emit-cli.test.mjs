@@ -177,13 +177,14 @@ test('a second rules emit with nothing changed leaves every file unchanged (idem
 	}
 });
 
-// A real typescript-express-detected repo, not a synthetic one: reuses the committed
-// test/fixtures/typescript-express/ tree, matching test/observe-emit-typescript-cli.test.mjs's own
-// buildOpenApiFixtureRepo() exactly -- typescript-express's scanned operationId is always null
-// (`api.operations: false`), so `--openapi-file` is required for contract emit here too.
-function buildTypeScriptFixtureRepo() {
-	const FIXTURE_SRC = path.join(__dirname, 'fixtures', 'typescript-express');
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-ts-'));
+// A real javascript-express-detected repo, not a synthetic one: reuses the committed
+// test/fixtures/javascript-express/ tree, matching test/javascript-express-cli.test.mjs's own
+// buildFixtureRepo() exactly -- javascript-express (G6) ships no codegen provider at all, so this
+// stays the one adapter `rules emit` can never support, unlike python-fastapi/typescript-express
+// which were "not yet" gaps this same test file already closed twice.
+function buildJavaScriptFixtureRepo() {
+	const FIXTURE_SRC = path.join(__dirname, 'fixtures', 'javascript-express');
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-js-'));
 	fs.cpSync(FIXTURE_SRC, root, { recursive: true });
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
@@ -191,34 +192,40 @@ function buildTypeScriptFixtureRepo() {
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
-	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-ts-origin-'));
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-js-origin-'));
 	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
 	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
 	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
 	return root;
 }
 
-test('rules emit refuses an adapter it does not support yet, naming java-spring and python-fastapi as the ones that ARE supported', () => {
-	const root = buildTypeScriptFixtureRepo();
+test('rules emit refuses an adapter with no codegen provider at all, naming all three that ARE supported', () => {
+	const root = buildJavaScriptFixtureRepo();
 	const FEATURE_ID = '001-user-management';
 	run(['preflight'], root);
 	run(['feature', 'init', '--slug', 'user-management'], root);
-	run(['scan', '--feature', FEATURE_ID, '--terms', 'user', '--json'], root);
+	run(['scan', '--feature', FEATURE_ID, '--terms', 'user'], root);
 	run(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'extend', '--note', 'test'], root);
 	// D-cli-contract convention: openapi.json written AFTER preflight, not before -- an untracked
 	// file at repo root would otherwise make preflight's own dirty-tree check fail.
+	// javascript-express's scanned operationId is always null (`api.operations: false`, G6), so
+	// --openapi-file is required for contract emit -- same reasoning python/typescript needed it.
 	const openApiPath = path.join(root, 'openapi.json');
 	fs.writeFileSync(openApiPath, JSON.stringify({
 		openapi: '3.1.0',
-		paths: { '/v1/users/{id}': { get: { operationId: 'users-show', responses: {} } } },
+		paths: { '/api/user/{userUid}': { get: { operationId: 'user-getUser', responses: {} } } },
 	}));
-	const contractResult = run(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--openapi-file', openApiPath, '--path-prefix', '/v1'], root);
-	assert.equal(contractResult.code, 0, `contract emit: ${contractResult.stderr ?? ''}`);
+	run(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'user', '--openapi-file', openApiPath, '--path-prefix', '/api'], root);
+	// The two other real routes (list, PATCH :userUid) have no corresponding OpenAPI operation
+	// above, so contract emit reports them CONTRACT_UNMATCHED_ENDPOINT and stops at
+	// awaiting_disposition -- waived here since this test's only concern is reaching a PASSED
+	// contract gate, not a complete one.
+	const waiveResult = run(['contract', 'waive', '--feature', FEATURE_ID, '--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--all', '--reason', 'test'], root);
+	assert.equal(waiveResult.code, 0, `contract waive: ${waiveResult.stderr ?? ''}`);
 	const checkResult = run(['rules', 'check', '--feature', FEATURE_ID], root);
 	assert.equal(checkResult.code, 0, `rules check: ${checkResult.stderr ?? ''}`);
 
 	const result = run(['rules', 'emit', '--feature', FEATURE_ID], root);
 	assert.notEqual(result.code, 0);
-	assert.match(result.stderr, /does not support the "typescript-express" adapter yet \(supported: java-spring, python-fastapi\)/);
-	assert.match(result.stderr, /`bskel rules check` works for every adapter/);
+	assert.match(result.stderr, /does not support the "javascript-express" adapter yet \(supported: java-spring, python-fastapi, typescript-express\)/);
 });
