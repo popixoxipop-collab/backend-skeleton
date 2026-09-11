@@ -18,11 +18,16 @@ const TEMPLATES_DIR = path.join(PROVIDER_ROOT, 'templates');
 
 // Repo-wide, shared across every feature that ever runs `bskel rules emit` -- RuleSetLoader
 // discovers every `bskel/*.rules.json` classpath resource at startup rather than being regenerated
-// per feature, so these two files are true infra (create-once-per-repo, all-or-nothing conflict
-// unit), the same treatment observe.mjs's own INFRA_FILES get.
+// per feature, so these files are true infra (create-once-per-repo, all-or-nothing conflict unit),
+// the same treatment observe.mjs's own INFRA_FILES get. EnforceRules/RuleEnforcementAspect (R8) are
+// the automatic field/cross wiring path -- transition rules stay a manual RuleCheck.checkTransitions
+// call, since a transition guard needs the resource's current state, which no annotation can supply
+// generically (see EnforceRules.java.tmpl's own javadoc).
 const INFRA_FILES = [
 	{ template: 'RuleSetLoader.java.tmpl', target: 'global/rules/RuleSetLoader.java' },
 	{ template: 'RuleCheck.java.tmpl', target: 'global/rules/RuleCheck.java' },
+	{ template: 'EnforceRules.java.tmpl', target: 'global/rules/EnforceRules.java' },
+	{ template: 'RuleEnforcementAspect.java.tmpl', target: 'global/rules/RuleEnforcementAspect.java' },
 ];
 
 function render(templatePath, vars) {
@@ -76,8 +81,9 @@ export function emitRulesJavaSpring({ repoRoot, featureId, artifact, basePackage
 	return {
 		...result,
 		postEmitNotes: [
-			`rules are LOADED but not yet WIRED: inject RuleSetLoader and call RuleCheck.check(loader.forOperation("<operationId>"), body) from your own controller/service.`,
-			`transition rules additionally need the resource's CURRENT state -- call RuleCheck.checkTransitions(rules, body, Map.of("/status", current.getStatus())). A transition whose current state is not supplied reports "unchecked", never a silent pass.`,
+			`field/cross rules are LOADED but not yet ACTIVE: add @EnforceRules(operationId = "<operationId>") to the real controller method to have them checked automatically on every call.`,
+			`defaults to OBSERVE (logs to the "bskel.rules.violations" logger, never rejects a request) -- set bskel.rules.mode: enforce in your own application.yml when you're ready for a real violation to reject with HTTP 400. No re-run of \`bskel rules emit\` needed to switch.`,
+			`transition rules are NOT checked by @EnforceRules -- they need the resource's CURRENT state, which no annotation can supply generically. Call RuleCheck.checkTransitions(rules, body, Map.of("/status", current.getStatus())) directly wherever your service layer has that state. A transition whose current state is not supplied reports "unchecked", never a silent pass.`,
 		],
 	};
 }

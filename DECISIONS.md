@@ -13938,3 +13938,45 @@ whole point is determinism); patching existing user source at any point; a gener
 language (no loops, calls, or I/O); rules spanning features (`cross_feature` owns that); runtime
 reactivity (`D-field-dependency` already fixed that boundary at codegen-time propagation); and
 emitting DB `CHECK` constraints (`D-migration-scope`: bskel never applies migrations).
+
+**Update (R8 refinement, java-spring auto-wiring)**: the original R8 text described the
+observe/enforce split loosely as "`bskel rules emit --mode observe|enforce`". Implementing it
+against `ContractObservationAspect`'s own precedent found a better shape and no CLI flag was
+built: `@EnforceRules(operationId = "...")` (mirroring `@ObserveContract`'s own annotation
+pattern) applied to a real controller method, checked automatically by a new
+`RuleEnforcementAspect` for FIELD and CROSS rules. The observe/enforce split is a **runtime**
+Spring property (`bskel.rules.mode: observe|enforce`, default `observe`), read once per call --
+not baked into generated code at emit time, matching `ContractObservationAspect`'s own
+`bskel.observe.signing-key-pem` precedent exactly. This means switching a deployed app from
+observe to enforce is a config change, never a re-run of `bskel rules emit`.
+
+TRANSITION rules are deliberately excluded from `@EnforceRules`'s automatic path: a transition
+guard needs the resource's CURRENT persisted state, which a request-scoped aspect has no generic
+way to obtain (no data-access abstraction this project has). `RuleCheck.checkTransitions` stays a
+manual call, wired wherever the service layer already has that state -- the same honest boundary
+`D-resolver-scope` drew for `patchField()`, applied to this new surface rather than re-litigated.
+
+Enforce-mode rejection is `ResponseStatusException(400, <message>)`, thrown BEFORE
+`joinPoint.proceed()` -- the wrapped method genuinely never runs. The message may name a rule id,
+a JSON Pointer, or a rule's own declared bound; it inherits `RuleCheck.Violation`'s redaction
+invariant and never contains an observed request value, verified directly (not just by
+inspection) in `scripts/java-compile-smoke.mjs`'s `RuleEnforcementAspectSmokeTest` via a planted
+marker string asserted absent from the real thrown exception's message. **Fail-open on an
+internal aspect error, fail-closed only on a real computed violation**: if the aspect itself
+cannot evaluate rules (malformed body, loader issue), that is logged and the call proceeds
+unaffected in BOTH modes -- an unrelated bug in this aspect must never become an outage for every
+request through an enforced endpoint.
+
+**Verified**: `scripts/java-compile-smoke.mjs` extended with a real JVM proof beyond compilation
+-- four authored rules (2 field, 1 cross, 1 transition) checked via `RuleCheck`/`RuleSetLoader`
+directly (4/4 violations correctly detected, 0 false positives on a valid payload), plus the
+`RuleEnforcementAspect` exercised directly (Mockito-mocked `ProceedingJoinPoint`, reflection to
+set the `@Value`-injected `mode` field, since a full `@SpringBootTest` context would need a real
+or embedded datasource this DB-free script deliberately does not take on -- that is
+`scripts/java-integration-smoke.mjs`'s job): observe mode always proceeds even with real
+violations, enforce mode rejects with HTTP 400 and never runs the wrapped method, a valid payload
+always proceeds even in enforce mode, and an operation with no compiled rules is a silent no-op.
+`test/rules-emit-cli.test.mjs` added for cheap `npm test`-tier coverage of the wiring (gating,
+output paths, idempotence, unsupported-adapter refusal naming java-spring as the one supported
+adapter) -- the real-JVM proof above stays in the smoke script, not duplicated here. `npm test`
+1642/1642.

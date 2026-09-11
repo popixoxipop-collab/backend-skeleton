@@ -345,5 +345,176 @@ if (ruleExecResult.validCount !== 0) {
 }
 console.log('java-compile-smoke: PASS -- real generated RuleCheck/RuleSetLoader correctly detected all 4 real violations, and correctly passed a valid payload, in a real JVM.');
 
+// D-business-rules (R8): proves the AUTOMATIC @EnforceRules/RuleEnforcementAspect wiring itself --
+// not just the pure RuleCheck logic above, but the observe/enforce mode branch, the fail-open
+// behavior, and (critically) that an enforce-mode rejection message never contains an observed
+// payload value. Tests the aspect class directly (Mockito-mocked ProceedingJoinPoint, reflection
+// to set the @Value-injected `mode` field) rather than a full @SpringBootTest context -- this
+// fixture also carries spring-boot-starter-data-jpa, so a full context boot would need a real or
+// embedded datasource, which this DB-free script deliberately does not take on (that's
+// scripts/java-integration-smoke.mjs's job). The AOP proxy mechanism itself
+// (@Around + @annotation(...) pointcut matching) is the same infrastructure
+// ContractObservationAspect/HandleAspect already exercise elsewhere in this corpus -- what's new
+// here is this aspect's OWN logic, which is what this test isolates.
+console.log('java-compile-smoke: business rules -- @EnforceRules aspect logic (observe vs enforce, redaction, fail-open)...');
+// Same directory RuleExecSmokeTest.java already lives in (created above) -- reused, not
+// re-created, to avoid a second mkdirSync on a path that already exists.
+fs.writeFileSync(path.join(ruleExecTestDir, 'RuleEnforcementAspectSmokeTest.java'), `package com.example.demo.global.rules;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Test-only driver for scripts/java-compile-smoke.mjs -- NOT a bskel template, never generated.
+ * Drives the REAL generated RuleEnforcementAspect directly (bypassing Spring's own AOP proxy
+ * machinery, which is exercised elsewhere in this corpus by ContractObservationAspect/HandleAspect
+ * integration tests) to prove this aspect's OWN observe/enforce branching, redaction, and
+ * fail-open behavior.
+ */
+class RuleEnforcementAspectSmokeTest {
+
+	// A stand-in for a real controller method -- only its @RequestBody parameter and its own
+	// @EnforceRules annotation are ever read by the aspect, via reflection, exactly as a real
+	// AspectJ pointcut would see a real controller.
+	static class FakeController {
+		@EnforceRules(operationId = "updateWidget")
+		public String updateWidget(@PathVariable UUID widgetId, @RequestBody Map<String, Object> body) {
+			return "REAL_METHOD_RAN";
+		}
+	}
+
+	private static void setMode(RuleEnforcementAspect aspect, String mode) throws Exception {
+		Field field = RuleEnforcementAspect.class.getDeclaredField("mode");
+		field.setAccessible(true);
+		field.set(aspect, mode);
+	}
+
+	private static ProceedingJoinPoint fakeJoinPoint(Map<String, Object> body) throws Throwable {
+		Method method = FakeController.class.getMethod("updateWidget", UUID.class, Map.class);
+		MethodSignature sig = mock(MethodSignature.class);
+		when(sig.getMethod()).thenReturn(method);
+		ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+		when(joinPoint.getSignature()).thenReturn(sig);
+		when(joinPoint.getArgs()).thenReturn(new Object[]{UUID.randomUUID(), body});
+		when(joinPoint.proceed()).thenReturn("REAL_METHOD_RAN");
+		return joinPoint;
+	}
+
+	@Test
+	void observeModeLogsButAlwaysProceeds_evenWithRealViolations() throws Throwable {
+		ObjectMapper mapper = new ObjectMapper();
+		RuleSetLoader loader = new RuleSetLoader(mapper);
+		RuleEnforcementAspect aspect = new RuleEnforcementAspect(loader, mapper);
+		setMode(aspect, "observe");
+
+		Map<String, Object> violating = Map.of("capacity", 999, "ownerName", "x");
+		ProceedingJoinPoint joinPoint = fakeJoinPoint(violating);
+		EnforceRules ann = FakeController.class.getMethod("updateWidget", UUID.class, Map.class).getAnnotation(EnforceRules.class);
+
+		Object result = aspect.enforce(joinPoint, ann);
+		assertEquals("REAL_METHOD_RAN", result, "observe mode must always call the real method, even with real violations");
+		verify(joinPoint, times(1)).proceed();
+	}
+
+	@Test
+	void enforceModeRejectsBeforeTheRealMethodRuns_andNeverLeaksTheObservedValue() throws Throwable {
+		ObjectMapper mapper = new ObjectMapper();
+		RuleSetLoader loader = new RuleSetLoader(mapper);
+		RuleEnforcementAspect aspect = new RuleEnforcementAspect(loader, mapper);
+		setMode(aspect, "enforce");
+
+		String secretMarker = "SECRET_MARKER_VALUE_12345";
+		Map<String, Object> violating = Map.of("capacity", 999, "ownerName", secretMarker);
+		ProceedingJoinPoint joinPoint = fakeJoinPoint(violating);
+		EnforceRules ann = FakeController.class.getMethod("updateWidget", UUID.class, Map.class).getAnnotation(EnforceRules.class);
+
+		ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> aspect.enforce(joinPoint, ann));
+		assertEquals(400, ex.getStatusCode().value());
+		verify(joinPoint, never()).proceed();
+		String message = String.valueOf(ex.getReason());
+		assertTrue(message.contains("capacity-cap") || message.contains("owner-min"), "message should name the real rule id(s): " + message);
+		assertFalse(message.contains(secretMarker), "an enforce-mode rejection must NEVER leak an observed payload value: " + message);
+		assertFalse(message.contains("999"), "an enforce-mode rejection must NEVER leak an observed numeric value either: " + message);
+	}
+
+	@Test
+	void enforceModeProceedsNormally_whenThePayloadSatisfiesEveryRule() throws Throwable {
+		ObjectMapper mapper = new ObjectMapper();
+		RuleSetLoader loader = new RuleSetLoader(mapper);
+		RuleEnforcementAspect aspect = new RuleEnforcementAspect(loader, mapper);
+		setMode(aspect, "enforce");
+
+		Map<String, Object> valid = Map.of("capacity", 100, "ownerName", "widget-owner", "startWindow", "2026-01-01", "endWindow", "2026-01-02");
+		ProceedingJoinPoint joinPoint = fakeJoinPoint(valid);
+		EnforceRules ann = FakeController.class.getMethod("updateWidget", UUID.class, Map.class).getAnnotation(EnforceRules.class);
+
+		Object result = aspect.enforce(joinPoint, ann);
+		assertEquals("REAL_METHOD_RAN", result, "a valid payload must never be rejected, even in enforce mode");
+		verify(joinPoint, times(1)).proceed();
+	}
+
+	@Test
+	void anOperationWithNoRulesProceedsSilently() throws Throwable {
+		ObjectMapper mapper = new ObjectMapper();
+		RuleSetLoader loader = new RuleSetLoader(mapper);
+		RuleEnforcementAspect aspect = new RuleEnforcementAspect(loader, mapper);
+		setMode(aspect, "enforce");
+
+		Method method = FakeController.class.getMethod("updateWidget", UUID.class, Map.class);
+		MethodSignature sig = mock(MethodSignature.class);
+		when(sig.getMethod()).thenReturn(method);
+		ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+		when(joinPoint.getSignature()).thenReturn(sig);
+		when(joinPoint.getArgs()).thenReturn(new Object[]{UUID.randomUUID(), Map.of()});
+		when(joinPoint.proceed()).thenReturn("REAL_METHOD_RAN");
+		// A made-up operationId with no compiled rules at all.
+		EnforceRules noRules = new EnforceRules() {
+			public String operationId() { return "noSuchOperation"; }
+			public Class<? extends java.lang.annotation.Annotation> annotationType() { return EnforceRules.class; }
+		};
+
+		Object result = aspect.enforce(joinPoint, noRules);
+		assertEquals("REAL_METHOD_RAN", result);
+		verify(joinPoint, times(1)).proceed();
+	}
+
+	@Test
+	void writesResultsForNodeToVerify() throws Exception {
+		Files.writeString(Path.of("rule-aspect-output.json"), "{\\"ranAllAssertions\\":true}");
+	}
+}
+`);
+
+try {
+	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.rules.RuleEnforcementAspectSmokeTest', '--console=plain'], scratch, { quiet: true });
+} catch (err) {
+	fail(`./gradlew test (RuleEnforcementAspectSmokeTest) failed (exit ${err.status}): ${err.stdout || ''}${err.stderr || ''}`);
+}
+let aspectResult;
+try {
+	aspectResult = JSON.parse(fs.readFileSync(path.join(scratch, 'rule-aspect-output.json'), 'utf8'));
+} catch (err) {
+	fail(`could not read rule-aspect-output.json -- RuleEnforcementAspectSmokeTest did not run or did not write it (${err.message})`);
+}
+if (aspectResult.ranAllAssertions !== true) {
+	fail('RuleEnforcementAspectSmokeTest ran but did not report success');
+}
+console.log('java-compile-smoke: PASS -- @EnforceRules/RuleEnforcementAspect correctly: observe-mode always proceeds, enforce-mode rejects real violations with a fully redacted message and never runs the real method, a valid payload always proceeds even in enforce mode, and an operation with no rules is a silent no-op.');
+
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });
