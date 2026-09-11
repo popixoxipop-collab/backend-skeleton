@@ -46,6 +46,10 @@ import {
 } from '../lib/cross-feature-collisions.mjs';
 import { STACKS as NEW_STACKS, ALL_STACK_PARAMS, stacksAccepting, reusableParamsFor } from '../new/index.mjs';
 import { recordPattern, listPatterns, getPattern, isMissingPatternTable, summarizePatternFrequency } from '../patterns/store.mjs';
+// D-business-rules. rules/compile.mjs is pure (no fs/git/exit); rules/store.mjs owns all disk I/O.
+import { compileRules, summarizeArtifact } from '../rules/compile.mjs';
+import { rulesSourcePath, loadRulesSource, loadRulesArtifact, saveRulesArtifact, starterRulesSource } from '../rules/store.mjs';
+import { PREDICATE_KINDS, explainRule } from '../rules/vocabulary.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
 	requireValidPythonVersion, requireValidLicense, requireValidDatabase, requireSupportedJavaVersion,
@@ -107,6 +111,9 @@ function usage() {
   bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
   bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
   bskel dependency list --feature <id> [--json]
+  bskel rules check --feature <id> [--init] [--json]
+  bskel rules list --feature <id> [--json]
+  bskel rules explain --feature <id> --rule <id> [--json]
   bskel stack apply --choice <id> [--apply] [--port N] [--force --reason "..."] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
@@ -2013,6 +2020,169 @@ function cmdDependencyList(args) {
 		if (report.dependencies.length === 0) console.log('  (none declared)');
 	}
 	process.exit(0);
+}
+
+// D-business-rules (R6): compiles specs/<id>/rules.yaml (optional) plus the feature's own contract
+// into specs/<id>/rules/<id>.rules.json, and establishes the `rules` gate.
+//
+// Gated on `contract` having PASSED, the same posture `contract export`/`handles emit` take and
+// deliberately not the ungated posture `contract validate` takes: every rule's pointer, scalar
+// type, and enum state is verified against the contract, so compiling against a contract nobody
+// has accepted yet would bake unaccepted facts into an artifact that later drives real codegen.
+//
+// Refuses rather than approximates (R6): an ERROR-severity diagnostic is an authored mistake with
+// a real fix, not a fact to be waived -- see rules/diagnostics.mjs's own header for why this
+// command has no `waive` sibling the way `contract` does.
+function cmdRulesCheck(args) {
+	const flags = parseCommand('rules check', args);
+	if (flags.help) { console.log(renderCommandHelp('rules check')); process.exit(0); }
+	setContext('rules check', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	const contractResult = requireNamedGate(root, 'contract', flags.feature);
+	if (contractResult.code !== EXIT.PASS) {
+		const hint = contractResult.status === 'awaiting_disposition'
+			? `resolve it first -- \`bskel contract waive --feature ${flags.feature} --code <CODE> (--subject "..."|--all) --reason "..."\`, or \`bskel gate force contract --feature ${flags.feature} --reason "..."\` if intentional.`
+			: `run \`bskel contract emit --feature ${flags.feature}\` first.`;
+		fail(contractResult.code, gateReasonForCode(contractResult.code), `blocked: \`contract\` gate for ${flags.feature} is ${contractResult.status} -- ${hint}`, {
+			next_actions: [{ command: `bskel contract emit --feature ${flags.feature}`, reason: 'the contract gate has not passed yet', mutating: true }],
+		});
+	}
+
+	const contract = loadContract(root, flags.feature);
+	const contractRef = sha256File(specPath(root, flags.feature, 'contracts', `${flags.feature}.schema.json`));
+
+	const sourcePath = rulesSourcePath(root, flags.feature);
+	if (flags.init) {
+		// Never overwrites: a starter file is a convenience for an empty slot, not a reset button.
+		if (fs.existsSync(sourcePath)) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--init refuses to overwrite an existing ${path.relative(root, sourcePath)} -- edit it directly, or delete it first if you really want a fresh starter.`);
+		}
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		writeFileAtomic(sourcePath, starterRulesSource(flags.feature));
+	}
+
+	let source;
+	try {
+		source = loadRulesSource(root, flags.feature);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+	}
+
+	const { artifact, diagnostics, blocking } = compileRules({ contract, source, contractRef });
+	const errors = diagnostics.filter((d) => d.severity === 'error');
+	const warnings = diagnostics.filter((d) => d.severity === 'warn');
+
+	if (blocking) {
+		// Nothing is written on refusal -- the same "Nothing was written." posture
+		// explainMissingCapability() uses. A half-compiled artifact would be worse than none.
+		const detail = errors.map((e) => `  ${e.code}${e.subject ? ` (${e.subject})` : ''}: ${e.message}`).join('\n');
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `blocked: ${errors.length} rule error(s) in ${path.relative(root, sourcePath)} -- nothing was written.\n${detail}`, {
+			next_actions: [{ command: `bskel rules check --feature ${flags.feature}`, reason: 'fix the rule(s) above and re-run', mutating: true }],
+		});
+	}
+
+	saveRulesArtifact(root, flags.feature, artifact);
+	const summary = summarizeArtifact(artifact);
+	const gateState = passNamedGate(root, 'rules', flags.feature, {
+		rule_count: summary.field + summary.cross + summary.transition,
+		from_contract: summary.fromContract,
+		declared: summary.declared,
+		unsupported: summary.unsupported,
+	});
+
+	if (flags.json) {
+		// `gateState.gates.rules`, not the whole state object -- passNamedGate() returns the full
+		// state, and every other command's --json exposes just its own gate record (cmdScan,
+		// cmdScanDisposition, cmdScanCrossFeatureCheck all do exactly this).
+		console.log(JSON.stringify({ feature_id: flags.feature, summary, unsupported: artifact.unsupported, gate: gateState.gates.rules }, null, 2));
+	} else {
+		console.log(`rules -- feature ${flags.feature}`);
+		console.log(`  ${summary.field} field, ${summary.cross} cross-field, ${summary.transition} transition across ${summary.operations} operation(s)`);
+		console.log(`  ${summary.fromContract} projected from the contract's own schema, ${summary.declared} declared in rules.yaml`);
+		if (warnings.length > 0) {
+			// Warnings go to stderr so `--json` stdout stays exactly one JSON document, and so
+			// --quiet never suppresses them -- D-cli-contract's own rule.
+			console.error(`\n${warnings.length} constraint(s) in the contract are NOT enforced by these rules:`);
+			for (const w of warnings) console.error(`  ${w.code}: ${w.message}`);
+		}
+		if (summary.field + summary.cross + summary.transition === 0) {
+			console.log(`  (no rules yet -- run \`bskel rules check --feature ${flags.feature} --init\` for a starter rules.yaml, or point \`bskel contract emit\` at an OpenAPI document to pick up its constraints automatically)`);
+		}
+	}
+	process.exit(0);
+}
+
+function cmdRulesList(args) {
+	const flags = parseCommand('rules list', args);
+	if (flags.help) { console.log(renderCommandHelp('rules list')); process.exit(0); }
+	setContext('rules list', flags);
+	const root = requireRepoRoot();
+	const artifact = loadRulesArtifactOrExit(root, flags.feature);
+
+	if (flags.json) { console.log(JSON.stringify(artifact, null, 2)); process.exit(0); }
+
+	console.log(`rules -- feature ${artifact.feature_id}`);
+	for (const [operationId, kinds] of Object.entries(artifact.operations)) {
+		console.log(`\n  ${operationId}`);
+		for (const r of kinds.field ?? []) console.log(`    [field]      ${r.id}  ${r.pointer} ${r.assert} ${JSON.stringify(r.value)}  (${r.origin})`);
+		for (const r of kinds.cross ?? []) console.log(`    [cross]      ${r.id}  ${r.pointers.join(` ${r.assert} `)}  (${r.origin})`);
+		for (const r of kinds.transition ?? []) console.log(`    [transition] ${r.id}  ${r.pointer}: ${r.from.join('|')} -> ${r.to.join('|')}  (${r.origin})`);
+	}
+	if (Object.keys(artifact.operations).length === 0) console.log('  (none)');
+	if (artifact.unsupported.length > 0) {
+		console.log(`\n  NOT enforced (${artifact.unsupported.length}):`);
+		for (const u of artifact.unsupported) console.log(`    ${u.code}: ${u.reason}`);
+	}
+	process.exit(0);
+}
+
+function cmdRulesExplain(args) {
+	const flags = parseCommand('rules explain', args);
+	if (flags.help) { console.log(renderCommandHelp('rules explain')); process.exit(0); }
+	setContext('rules explain', flags);
+	const root = requireRepoRoot();
+	const artifact = loadRulesArtifactOrExit(root, flags.feature);
+
+	const found = [];
+	for (const [operationId, kinds] of Object.entries(artifact.operations)) {
+		for (const kind of PREDICATE_KINDS) {
+			for (const rule of kinds[kind] ?? []) {
+				if (rule.id === flags.rule) found.push({ operation: operationId, kind, rule });
+			}
+		}
+	}
+	if (found.length === 0) {
+		const known = [];
+		for (const kinds of Object.values(artifact.operations)) {
+			for (const kind of PREDICATE_KINDS) for (const r of kinds[kind] ?? []) known.push(r.id);
+		}
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no rule "${flags.rule}" in feature ${flags.feature} -- known rule ids: ${known.sort().join(', ') || '(none)'}`);
+	}
+	const [{ operation, kind, rule }] = found;
+	const explanation = explainRule({ operation, kind, rule });
+	if (flags.json) console.log(JSON.stringify({ feature_id: artifact.feature_id, operation, kind, rule, explanation }, null, 2));
+	else {
+		console.log(`rule "${rule.id}" -- feature ${artifact.feature_id}`);
+		console.log(`  operation: ${operation}`);
+		console.log(`  kind:      ${kind}`);
+		console.log(`  origin:    ${rule.origin}${rule.origin === 'contract' ? " (projected from this operation's own requestBodySchema -- change the OpenAPI document, not rules.yaml)" : ' (declared in rules.yaml)'}`);
+		console.log(`  means:     ${explanation}`);
+	}
+	process.exit(0);
+}
+
+function loadRulesArtifactOrExit(root, featureId) {
+	let artifact;
+	try {
+		artifact = loadRulesArtifact(root, featureId);
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', err.message);
+	}
+	if (!artifact) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no compiled rules for ${featureId} -- run \`bskel rules check --feature ${featureId}\` first`);
+	}
+	return artifact;
 }
 
 // D-contract-history: a derived VIEW over the contract file's own git history in whatever repo
@@ -4152,6 +4322,16 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'declare') return cmdDependencyDeclare(subArgs);
 			if (sub === 'remove') return cmdDependencyRemove(subArgs);
 			if (sub === 'list') return cmdDependencyList(subArgs);
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'rules': {
+			const sub = rest[0];
+			const subArgs = rest.slice(1);
+			if (sub === 'check') return cmdRulesCheck(subArgs);
+			if (sub === 'list') return cmdRulesList(subArgs);
+			if (sub === 'explain') return cmdRulesExplain(subArgs);
 			usage();
 			process.exit(14);
 			break;

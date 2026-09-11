@@ -13760,3 +13760,181 @@ under `specs/`/`.sbf/` was created. `test/doc-integrity.test.mjs` clean (usage()
 flag-set equality unaffected -- this item changes no CLI flag, only runtime validation behavior on
 existing optional flags -- and every `D-zero-config-scan` reference in source resolves to this
 heading).
+
+## D-business-rules: a closed, compiled rule vocabulary -- rules become data a generic checker executes, never generated per-rule source
+
+The user's framing was the inverse of a universal scaffolder: *feed in a specification document,
+get real backend logic for the framework you chose*. The constraint that shapes every decision
+below is this project's own differentiator -- no runtime LLM, deterministic and auditable codegen
+-- so "logic" here means a formal vocabulary compiled by a compiler, never prose interpreted by a
+model.
+
+Research before designing found this is **not** a greenfield build. Three mechanisms already
+covered most of the ground, and the shape of this item is mostly "widen what exists":
+`handles/observe-schema-projection.mjs` already compiles contract JSON Schema into a bounded
+instruction set executed by one generic runtime checker per language;
+`specs/<id>/dependencies.json` (`D-field-dependency`) already models derived-field edges and its
+own EXIT explicitly named codegen propagation as the next slice; and
+`handles/providers/java-spring/patch-strategy.mjs`'s `renderPatchFieldBody()` is an existing
+precedent for generating per-field code from a classification behind a human approval.
+
+User decisions taken as given, not re-litigated: code placement differs per rule kind; all four
+categories (validation, derived fields, cross-field constraints, state transitions) are in scope;
+all three stacks. Sub-decisions are labelled **R1..R9** rather than the bare `D`-plus-a-number form
+-- that form collides with this repo's own early numbered anchors through
+`test/doc-integrity.test.mjs`'s `TOKEN_RE`, a mistake made and corrected once already
+(`D-contract-csv`/`D-db-erd` needed a full relabel). Writing this very paragraph tripped the same
+check a third time, which is the strongest available argument that the convention is worth stating
+here rather than assuming it is remembered.
+
+**R1 -- rules live in their own hand-authored file, never inside the contract.**
+`specs/<id>/rules.yaml`, compiled to `specs/<id>/rules/<id>.rules.json`. WHY, two independent
+reasons: (a) the contract is the *machine-derived* record of what a scan and a real OpenAPI
+document say, and every human decision in this project already sits in a sibling file --
+`<id>.resolution.json`, `patch-approvals.json`, `dependencies.json`; a hand-authored rule belongs
+in that family. (b) The contract root and each operation object are both
+`additionalProperties: false`, so any new key there forces `sbf_contract` `"8"` -> `"9"`, which
+since S5 has a real read-time cost: `loadContract()` hard-refuses every previously-emitted
+contract until re-emitted. Keeping rules out means **zero migration for existing pilot repos** --
+`schemas/feature-contract.schema.json` is untouched by this entire item. COST: two files to keep
+coherent. EXIT: if rules ever need to travel with the contract (e.g. through `contract export`),
+add a top-level `rules` key and bump `sbf_contract` then, deliberately, as a migration.
+
+**R2 -- YAML authored, JSON compiled; the compiled artifact is schema-validated on read AND write.**
+Matches `stack/catalog/*.yml`'s existing precedent (a declarative YAML catalog validated by a JSON
+Schema and compiled into files), and `loadCrossFeatureResolution`/`saveCrossFeatureResolution`'s
+"refusing to write an invalid ..." posture. `yaml` was already a runtime dependency, so this adds
+none. **The authored YAML is deliberately NOT given its own JSON Schema**: `rules/compile.mjs`
+resolves every rule against the contract's own `requestBodySchema` and produces strictly more
+actionable refusals than a structural schema could -- it names the real known field list, the
+field's real declared type, the real enum states -- so a weaker structural gate in front of it
+would only ever produce worse messages for the same input. COST: one compile step between edit and
+effect. EXIT: accept `rules.json` as the authored form; the compiler becomes an identity pass.
+
+**R3 -- one closed vocabulary; rules compile to DATA, never to per-rule source.** Three predicate
+kinds (`field`, `cross`, `transition`) plus `derived`. Each `assert` member is mechanically
+executable in Java, Python, and TypeScript with no interpretation. WHY: this is
+`handles/observe-schema-projection.mjs`'s own stated doctrine applied unchanged -- *"What's
+checkable is decided ONCE here, in JS ... each provider's own generated checker is a dumb,
+mechanical executor of an already-simplified instruction set, never a second independent
+JSON-Schema interpreter."* It is also the only way three languages can be *guaranteed* to agree,
+and -- found while designing, not anticipated -- it removes a real injection hazard: `lib/template.mjs`
+substitutes `{{VAR}}` with raw `String(value)` and performs **no escaping whatsoever** (six
+duplicated copies of that renderer exist across the providers), so compiling a rule *expression*
+into a template variable would be a genuine code-injection vector into someone's repository.
+Rules-as-data never touches the renderer at all. COST: a rule the vocabulary cannot express must be
+refused, not approximated. EXIT: the enum is one frozen object in `rules/vocabulary.mjs`; adding a
+member is additive.
+
+**R3a -- the field vocabulary deliberately EXCLUDES `required`/`type`/`pattern`.**
+`observe-schema-projection.mjs` already projects exactly those three and every generated checker
+already enforces them. Including them here would report a single violation twice, from two
+different checkers, with two different rule ids. So this vocabulary covers precisely the
+constraints that projection DROPS (`minLength`, `maxLength`, `minimum`, `maximum`,
+`exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `enum`), and `OBSERVE_OWNED_KEYWORDS` in
+`rules/compile.mjs` names the skip-list explicitly rather than inferring it -- so a genuinely new
+JSON Schema keyword surfaces as an `unsupported` warning instead of vanishing. Unconditional
+`required` is absent for the same reason plus a second one: it is the document's own statement, not
+a business rule layered on top. Its genuinely-new sibling `requiredIf` IS present, because no
+schema keyword expresses it.
+
+**R4 -- field rules are PROJECTED from the contract by default, not authored.** Whenever
+`contract emit --openapi-file` resolved a `requestBodySchema`, its `minLength`/`maximum`/`enum`/...
+constraints compile into `field` rules automatically, carrying `origin: "contract"`; hand-authored
+ones carry `origin: "declared"` and stay distinguishable forever in the artifact. WHY: this
+satisfies `D-greenfield-parameters`' safe/unsafe line **literally rather than by argument** --
+every such rule is a fact the user's own document already asserts, transported, exactly the
+"copying is not synthesizing" posture `D-openapi-passthrough` (A7) established for the contract
+itself. Nothing is invented. It also means the common case needs **zero authoring**: point at an
+OpenAPI document and real enforcement appears. Measured on a synthetic-but-realistic 5-field
+schema during implementation: 4 rules projected with an empty `rules.yaml`. COST: a contract
+emitted without `--openapi-file` projects nothing (correctly -- there is no source to copy from).
+EXIT: drop the projection; `declared` rules keep working unchanged.
+
+**R5 -- code placement differs per rule kind, and nothing ever patches a file the user wrote.**
+Predicates (`field`/`cross`/`transition`) compile to data executed by the existing generic checker,
+already wired through the `@ObserveContract`/decorator/middleware path -- **zero new source per
+rule**. `derived` is the one kind that must produce a value inside the app's own write path, so it
+compiles to a new `<Resource>Rules` pure-function class the human wires with one call, with an
+explicit stub-and-`throw` for anything outside the expression vocabulary. WHY: that is exactly
+where `D-resolver-scope` fixed the boundary -- *"a wrong guess here would silently bypass real
+validation/business rules -- worse than leaving an honest `UnsupportedOperationException` stub"* --
+and it is the posture `ResourceResolverStub`/`renderPatchFieldBody()` already hold. COST: derived
+fields are not automatically live. EXIT: a later slice could offer call-site insertion through the
+existing content-addressed `lib/patch-transactions.mjs` lifecycle; deliberately not this slice.
+
+**R6 -- `rules check` REFUSES rather than approximates, and has no `waive` sibling.** Eleven
+ERROR-severity diagnostics (`RULE_UNKNOWN_OPERATION`, `RULE_UNKNOWN_POINTER`,
+`RULE_ASSERT_NOT_APPLICABLE`, `RULE_INCOMPARABLE_TYPES`, `RULE_TRANSITION_NOT_ENUM`, ...) each name
+the real known values, matching `requireWarningCode`/`requireGateDefinition`'s established
+"known X: ..." convention. Nothing is written on refusal -- the same "Nothing was written." posture
+`explainMissingCapability()` takes. WHY no waiver: a contract is built from whatever someone else's
+repo and document happened to contain, so its ERROR warnings describe facts a human may
+legitimately need to acknowledge -- hence `bskel contract waive`. `rules.yaml` is 100% authored by
+the person running the command; a rule naming an operation that does not exist is a **typo to fix,
+not a fact to waive**, and offering a waiver would let a rule that can never fire sit in the
+artifact looking like enforcement. The two WARN-severity codes are EXPRESSIVENESS gaps only
+(this vocabulary cannot say that), recorded in the artifact's own `unsupported[]` -- the same
+honesty mechanism `observe-schema-projection.mjs`'s `unsupported[]` JSON-Pointer list provides, so
+an auditor reading the artifact can always tell what is NOT enforced. Per
+`lib/cross-feature-collisions.mjs`'s precedent this is a **new evaluator on its own axis**, not a
+widening of `contracts/completeness.mjs`'s `WARNING_CODES`.
+
+**R6a -- two fail-closed refusals worth naming individually.** A `transition` rule on a field whose
+contract declares no `enum` is refused (`RULE_TRANSITION_NOT_ENUM`): without a closed state set a
+typo'd state name compiles into a guard that silently never fires -- the same reasoning
+`D-security-7` used when it made an unrecognized `@PreAuthorize` shape fail closed to `TODO_ROLE`
+rather than silently fall back. And an operation with **no** `requestBodySchema` resolves no
+pointers at all (`RULE_NO_CONTRACT_SCHEMA`) rather than accepting every pointer blind.
+
+**R7 -- a new `rules` gate, between `dependencies` and `handles`.** `scope: FEATURE`,
+`verifyPolicy: REQUIRED_WHEN_PRESENT` (most features will never declare a rule). WHY its own gate
+rather than widening `dependencies`: the same call `cross_feature`/`dependencies`/
+`patch_transactions`/`conformance` each made, and the two genuinely differ -- a dependency is an
+edge between two fields, a rule is a constraint checked against one feature's own contract.
+Position: after `dependencies` because a derived-field rule references a declared edge, before
+`handles` because that is where generated code appears. `recompute()` hashes `rules_source_hash`,
+`rules_compiled_hash`, **and `contract_hash`** -- the last because every pointer, type, and enum
+state in a compiled rule was verified against the contract, so re-emitting the contract can
+invalidate a rule that still looks fine on its own. `ESTABLISH_COMMAND.rules` and two
+`MUTATING_PREFIXES` entries were wired **in the same commit as the gate**: `D-field-dependency`
+records that a missing `ESTABLISH_COMMAND` entry crashes `bskel next` with a raw `TypeError`, and
+that gap has now been found live three times (`dependencies`, `conformance`, and the
+`cross_feature` near-miss), making it the most reliably-recurring mistake in that file.
+`rules list`/`rules explain` are correctly absent from `MUTATING_PREFIXES` -- read-only, the same
+per-verb split `pattern list|show|suggest` was checked against.
+
+**R8 -- `observe` by default, `enforce` only opt-in.** WHY: this is the single largest hazard in
+the feature and it has a documented precedent aimed straight at it.
+`D-openapi-request-schema` (A2) refuses to add `additionalProperties:false` to a projected body
+schema because *"a contract that rejects what the real API accepts is a false negative, not a
+safety improvement."* Turning validation on in a brownfield app is exactly that risk: requests that
+used to succeed start returning 400. Defaulting to observe routes violations into the **existing**
+signed-receipt pipeline, so `bskel observe import` shows precisely which real traffic *would* have
+been rejected -- the behaviour change is **measured before it is taken**, on machinery already
+built and verified end-to-end in CI. EXIT: drop `--mode enforce`; observe mode stands alone.
+
+**R9 -- three stacks, one semantics.** Per language: widen the existing checker template's
+instruction set (its `Violation(pointer, kind, message)` shape already carries a discriminator),
+and add one `derived` emitter. Dispatch follows `observe emit`'s explicit 3-way `if/else` on
+`scanReport.adapter`, **not** the handles provider registry -- `observe`'s own comment records why
+(no `plan` verb, operates directly on contract operations), which is equally true here, and it
+avoids touching `schemas/handles-provider.schema.json`, `PROVIDERS`, and
+`test/handles-provider-registry.test.mjs`'s exact-id-list assertion.
+
+**Sequencing (full scope, three independently shippable phases).** Phase 1: vocabulary + compiler +
+schema + gate + `rules check|list|explain`, Java runtime, observe mode. Phase 2: Python and
+TypeScript runtimes, plus `--mode enforce`. Phase 3: `derived` fields for all three, closing
+`D-field-dependency`'s named EXIT. Each phase ends with the full suite green; the phases are
+sequencing, not scope cuts.
+
+**COST (whole item)**: a new top-level command family, a tenth gate, a new schema, and three
+template families that must stay semantically in lockstep -- the last is the real ongoing tax, and
+is why the cross-language agreement test (one rule set, one payload, identical violation pointers
+in all three runtimes) is a required part of the work rather than a nice-to-have.
+
+**Out of scope, named rather than dropped**: any LLM/natural-language rule interpretation (the
+whole point is determinism); patching existing user source at any point; a general expression
+language (no loops, calls, or I/O); rules spanning features (`cross_feature` owns that); runtime
+reactivity (`D-field-dependency` already fixed that boundary at codegen-time propagation); and
+emitting DB `CHECK` constraints (`D-migration-scope`: bskel never applies migrations).

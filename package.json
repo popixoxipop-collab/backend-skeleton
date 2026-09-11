@@ -27,6 +27,7 @@
     "new/",
     "stack/",
     "patterns/",
+    "rules/",
     "schemas/",
     "scripts/preflight-base-ref.sh",
     "LICENSE",

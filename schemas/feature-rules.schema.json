@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:feature-rules:1",
+  "title": "backend-skeleton compiled feature business rules",
+  "description": "Validates specs/<feature_id>/rules/<feature_id>.rules.json -- the DETERMINISTIC, COMPILED artifact rules/compile.mjs produces from a feature contract plus an optional hand-authored specs/<feature_id>/rules.yaml. This is the only rules file any provider emitter reads. See D-business-rules in DECISIONS.md. The authored YAML source is deliberately NOT validated by a schema: rules/compile.mjs resolves every rule against the contract's own requestBodySchema and produces far more actionable refusals than a structural schema could (naming the real known fields, the field's real declared type, the real enum states), so a second, weaker structural gate in front of it would only ever produce worse messages for the same input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf_feature_rules", "feature_id", "feature_uid", "contract_ref", "operations", "derived", "unsupported"],
+  "properties": {
+    "sbf_feature_rules": { "const": "1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "contract_ref": {
+      "description": "sha256 of the contract file this artifact was compiled against. A rule is only meaningful against the contract whose pointers/types/enums it was verified against, so pairing a compiled artifact with a different contract must be detectable -- the `rules` gate hashes both, and every provider stamps this value into the emitted runtime resource (the same role observe's own contract_ref plays in <feature>.observed-schema.json).",
+      "type": "string"
+    },
+    "operations": {
+      "description": "Predicate rules, keyed by the contract's own operationId. An operation with no rules is absent entirely rather than present-and-empty.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "description": "Single-pointer constraints. `origin: contract` entries were projected from the operation's own requestBodySchema (facts the user's OpenAPI document already asserts, transported -- see R4); `origin: declared` entries were hand-authored. Deliberately excludes required/type/pattern, which handles/observe-schema-projection.mjs already projects and every generated checker already enforces -- so one violation is never reported twice.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "pointer", "assert", "value", "origin"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "pointer": { "type": "string", "pattern": "^/[^/]+$" },
+                "assert": { "enum": ["minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "enum"] },
+                "value": {},
+                "origin": { "enum": ["contract", "declared"] }
+              }
+            }
+          },
+          "cross": {
+            "description": "Multi-pointer constraints. `types` records each pointer's contract-declared scalar type at compile time, so a generated runtime never has to re-derive it -- and so a later contract change that alters a type is visible as a real diff in this artifact.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "pointers", "assert", "types", "origin"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "pointers": { "type": "array", "minItems": 2, "items": { "type": "string", "pattern": "^/[^/]+$" } },
+                "assert": { "enum": ["lt", "lte", "gt", "gte", "eq", "neq", "requiredIf", "mutuallyExclusive"] },
+                "types": { "type": "array", "minItems": 2, "items": { "enum": ["string", "number", "integer", "boolean"] } },
+                "origin": { "enum": ["contract", "declared"] }
+              }
+            }
+          },
+          "transition": {
+            "description": "State-transition guards: a literal from[] -> to[] allow-list over one scalar pointer whose contract schema declares an enum. Compilation refuses a transition on a field with no enum, because without a closed state set a typo'd state name becomes a guard that silently never fires.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "pointer", "from", "to", "origin"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "pointer": { "type": "string", "pattern": "^/[^/]+$" },
+                "from": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "to": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "origin": { "enum": ["contract", "declared"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "derived": {
+      "description": "Derived/computed field rules. Unlike the three predicate kinds above, a derived rule PRODUCES a value rather than answering true/false about one, so it cannot be executed by a predicate checker and compiles to a generated pure-function class instead (R5). Always present; empty until that phase lands, so no consumer has to branch on its absence.",
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "unsupported": {
+      "description": "Every constraint found in the contract that this vocabulary cannot express, recorded rather than silently dropped -- the same honesty mechanism handles/observe-schema-projection.mjs's own `unsupported[]` JSON-Pointer list provides. An auditor reading this artifact can always tell what is NOT enforced.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "subject", "reason"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^RULE_[A-Z_]+$" },
+          "subject": { "type": ["string", "null"] },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

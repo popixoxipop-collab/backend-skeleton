@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { run, buildFixtureRepo, initThroughScanDisposition } from './_contract-fixture.mjs';
+import { GATE_NAMES } from '../lib/gate-definitions.mjs';
 
 const FEATURE = '001-widget-management';
 
@@ -60,8 +61,11 @@ test('--out writes the report to a file and prints a summary line with a real pa
 
 	const result = run(['gate', 'export', '--feature', FEATURE, '--out', 'evidence.json'], root);
 	assert.equal(result.code, 0);
-	// D-patch-transactions: 9 gates now (preflight/scan/cross_feature/contract/dependencies/handles/stack/patch_transactions/conformance).
-	assert.match(result.stdout, /wrote evidence\.json -- \d\/9 gate\(s\) currently passing/);
+	// Derived from GATE_NAMES rather than hard-coded: this assertion has already had to be edited
+	// once per new gate (D-patch-transactions bumped it to 9, D-business-rules to 10), which is
+	// churn that proves nothing -- the real invariant is "the denominator is however many gates
+	// exist", so read it from the source of truth.
+	assert.match(result.stdout, new RegExp(`wrote evidence\\.json -- \\d+/${GATE_NAMES.length} gate\\(s\\) currently passing`));
 
 	const written = JSON.parse(fs.readFileSync(path.join(root, 'evidence.json'), 'utf8'));
 	assert.equal(written.schema, 'sbf.gate-export/1');
