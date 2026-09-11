@@ -12,13 +12,17 @@
     "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
     "confidence": { "enum": ["high", "low"] },
     "api_surface_source": { "type": "string" },
-    "verdict": { "enum": ["greenfield", "adjacent", "collision"] },
+    "verdict": { "enum": ["greenfield", "adjacent", "collision", "inventory"] },
+    "rg_available": {
+      "description": "D-zero-config-scan: whether `rg` (ripgrep) was found on PATH when this scan ran -- every real adapter's detect() silently degrades without it (see scanners/text-util.mjs's listRgFiles()), so this is the machine-checkable signal that distinguishes 'this repo genuinely has no recognizable backend structure' from 'rg is just missing'. Optional (not in the top-level `required` array below) purely because older/hand-written report objects predate this field -- every report `runScan()` itself produces always sets it.",
+      "type": "boolean"
+    },
     "path_prefix_signals": { "type": "array" },
     "related_modules": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["module", "score"],
+        "required": ["module"],
         "properties": {
           "module": { "type": "string" },
           "score": { "type": "number" },

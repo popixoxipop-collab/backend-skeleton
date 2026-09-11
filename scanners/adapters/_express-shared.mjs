@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { listRgFiles as sharedListRgFiles, byShallowestThenName } from '../text-util.mjs';
+import { listRgFiles as sharedListRgFiles, byShallowestThenName, binaryAvailable } from '../text-util.mjs';
 
 export const EXCLUDE_GLOBS = ['!**/node_modules/**', '!**/dist/**', '!**/build/**'];
 export const VERBS = ['get', 'post', 'put', 'patch', 'delete'];
@@ -220,14 +220,12 @@ export function expressDiagnostics(repoRoot) {
 	} else if (!pkgFiles.some((f) => declaresExpress(f))) {
 		messages.push({ level: 'info', code: 'express-not-a-dependency', message: `found ${pkgFiles.length} package.json file(s), but none declare an express dependency` });
 	}
-	let rgOk = true;
-	try {
-		execFileSync('rg', ['--version'], { stdio: 'pipe' });
-	} catch {
-		rgOk = false;
-	}
-	if (!rgOk) {
-		messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
+	// D-zero-config-scan: traced live -- this does NOT throw at scan time as the message used to
+	// claim. detect()'s own rg shell-outs (e.g. listCandidatePackageFiles()) are wrapped in a
+	// blanket try/catch that returns [] on failure, so a missing `rg` makes this adapter silently
+	// detect nothing (degrades to generic-grep) rather than crashing. Corrected below.
+	if (!binaryAvailable('rg')) {
+		messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it for file discovery and silently detects nothing without it (degrades to the generic-grep fallback), it does not throw' });
 	}
 	// D-openapi-extraction-hint: like FastAPI, both Express adapters declare `api.operations:
 	// false` -- --openapi-file is load-bearing for `contract emit` to adopt any operation, not just

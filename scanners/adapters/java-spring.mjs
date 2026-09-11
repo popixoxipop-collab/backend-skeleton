@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { lineNumberAt, listRgFiles, byShallowestThenName } from '../text-util.mjs';
+import { lineNumberAt, listRgFiles, byShallowestThenName, binaryAvailable } from '../text-util.mjs';
 import { maskNonCode, findClassOrRecordDeclaration, findClassLevelMappingArgs, findMappingAnnotations } from './_java-spring-analyzer.mjs';
 
 const JAVA_BUILD_FILE_GLOBS = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
@@ -423,14 +423,12 @@ export const adapter = {
 		if (!srcRoot) {
 			messages.push({ level: 'info', code: 'no-src-main-java', message: buildFiles.length > 0 ? 'found a build file, but none has a sibling src/main/java' : 'src/main/java does not exist' });
 		} else {
-			let rgOk = true;
-			try {
-				execFileSync('rg', ['--version'], { stdio: 'pipe' });
-			} catch {
-				rgOk = false;
-			}
-			if (!rgOk) {
-				messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
+			// D-zero-config-scan: traced live -- this does NOT throw at scan time as the message used
+			// to claim. detectJavaSpringRoot() itself (and every other rg shell-out at detect() time)
+			// is wrapped in a blanket try/catch that returns [] on failure, so a missing `rg` makes
+			// this adapter silently detect nothing (degrades to generic-grep) rather than crashing.
+			if (!binaryAvailable('rg')) {
+				messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it for file discovery and silently detects nothing without it (degrades to the generic-grep fallback), it does not throw' });
 			}
 		}
 		// D-openapi-extraction-hint: `contract emit --openapi-file` (A1-A12) is where real accuracy

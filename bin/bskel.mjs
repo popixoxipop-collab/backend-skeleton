@@ -68,7 +68,7 @@ import { plan as planTypeScriptExpress } from '../handles/providers/typescript-e
 import { emitObserveTypeScriptExpress } from '../handles/providers/typescript-express/observe.mjs';
 import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
-import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS } from '../lib/doctor.mjs';
+import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS, binaryAvailable } from '../lib/doctor.mjs';
 import { parseCommand, renderCommandHelp, diagnostic } from '../lib/cli.mjs';
 import { EXIT_CODES } from '../lib/exit-codes.mjs';
 import { RESIDUAL_TEMPLATE_VAR_RE } from '../lib/template.mjs';
@@ -613,8 +613,16 @@ async function cmdScan(args) {
 	setContext('scan', flags);
 	const root = requireRepoRoot();
 	const terms = deriveTerms(flags);
-	if (terms.length === 0) {
-		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel scan [--feature <id>] --terms a,b,c   (need at least one search term, from --terms or a --feature slug)');
+	// D-zero-config-scan: only refuse when the user EXPLICITLY tried to supply terms (or a
+	// --feature) and it resolved to nothing -- a real usage mistake worth catching (a `--terms ""`/
+	// `--terms ,,` typo, or a --feature slug that pathologically derives zero words), same as
+	// before this item. Neither flag given at all is no longer an error -- it's the new zero-flag
+	// "inventory" mode (every module this adapter finds, unscored -- see scanners/index.mjs's
+	// runScan()), reachable only because the block below still gates it on `!flags.feature` before
+	// any gate/file write happens, exactly like today's ad-hoc mode already does.
+	const termsFlagGiven = args.some((a) => a === '--terms' || a.startsWith('--terms='));
+	if (terms.length === 0 && (termsFlagGiven || flags.feature)) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel scan [--feature <id>] [--terms a,b,c]   (--terms was given but resolved to no real search term -- pass at least one, e.g. --terms organization, or drop --terms entirely for a full unscored inventory of every module this repo\'s adapter finds)');
 	}
 	if (flags.feature) {
 		requireValidFeatureId(flags.feature);
@@ -622,6 +630,11 @@ async function cmdScan(args) {
 	}
 
 	const dbSchema = await resolveDbSchemaOrExit(root, flags);
+	// D-zero-config-scan: the same CLI-boundary-resolved-input pattern `dbSchema` above already
+	// establishes, applied to a second external dependency -- computed once, used on BOTH the
+	// inventory and the --feature-scoped path (a real Spring repo scanned with --feature+--terms is
+	// exactly as vulnerable to the silent detect()-time degradation as the zero-flag case).
+	const rgAvailable = binaryAvailable('rg');
 
 	// G1: a broken adapter file doesn't stop the adapters that DID load, but every `scan` run
 	// says so loudly (also see `bskel doctor`, which exits 1 while any of these remain).
@@ -630,7 +643,7 @@ async function cmdScan(args) {
 	}
 	let report;
 	try {
-		report = runScan({ repoRoot: root, terms, includeDb: flags.db, dbSchema });
+		report = runScan({ repoRoot: root, terms, includeDb: flags.db, dbSchema, rgAvailable });
 	} catch (err) {
 		// Unreachable with the two shipped adapters (generic-grep's specificity-0 detect() is
 		// unconditional) -- becomes reachable the moment a future adapter's detect() is

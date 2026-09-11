@@ -32,6 +32,8 @@ check for a specific failure mode found the same way — see `DECISIONS.md` for 
 
 - [Status: 1.0.0](#status-100)
 - [Quickstart](#quickstart)
+  - [Try it in 10 seconds](#try-it-in-10-seconds)
+  - [The gated workflow](#the-gated-workflow)
   - [Starting from nothing (greenfield)](#starting-from-nothing-greenfield)
   - [Publishing a feature's contract as OpenAPI (optional)](#publishing-a-features-contract-as-openapi-optional)
   - [A CSV table of a feature's contract (optional)](#a-csv-table-of-a-features-contract-optional)
@@ -85,6 +87,21 @@ production -- which still splits the same way it always has:
   scaffold to finish by hand, not a production-ready subsystem, until a real deployment happens.
 
 ## Quickstart
+
+### Try it in 10 seconds
+
+```bash
+npm install -g backend-skeleton   # or: npx backend-skeleton <command>
+cd <any-existing-repo>            # must be a git repository -- that's the only requirement
+bskel scan                        # zero flags: every module/controller/entity/enum this repo's
+                                   #   adapter can see, unscored -- no preflight, no feature, no
+                                   #   files written, no gate touched
+```
+
+That's a read-only look, not the gated workflow — for real feature work (collision-checked against
+a specific idea, contract-gated, codegen), see below.
+
+### The gated workflow
 
 ```bash
 npm install -g backend-skeleton   # or: npx backend-skeleton <command>
@@ -467,7 +484,7 @@ below).
 |---|---|---|
 | Node.js | `>=18` | ES2022 (`Object.hasOwn`) + ESM top-level `await` — nothing newer is used anywhere in the runtime code (verified by grep across every recent-ES-addition pattern; see `D-npm-packaging` in `DECISIONS.md`) |
 | git | required | every gate is git-state-derived |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | required for `scan`/`handles` | every scanner adapter shells out to it directly, and throws (not degrades) if it's missing |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | required for `scan`/`handles` | every scanner adapter shells out to it at `detect()` time behind a blanket try/catch — traced live, missing `rg` does NOT throw, it silently makes every real adapter detect nothing (degrades to the low-confidence `generic-grep` fallback). `bskel scan`'s report now carries a `rg_available: false` field plus an explicit `unknowns` warning whenever this happens, so it stays distinguishable from a genuinely-unrecognized repo — see `D-zero-config-scan` in `DECISIONS.md` |
 | `gh` (GitHub CLI) | optional | only used for `preflight`'s 3-way default-branch cross-check; already soft-guarded, never a hard requirement |
 | `python3` | optional | only needed to run this repository's own cross-language codec test — `bskel` itself never invokes `python3` |
 | a build wrapper (`gradlew`/`pom.xml`+`mvnw`/`package.json`) | optional | only `bskel verify --build` needs one; `handles emit` never compiles anything itself |

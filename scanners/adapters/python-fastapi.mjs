@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { lineNumberAt, listRgFiles as sharedListRgFiles, byShallowestThenName } from '../text-util.mjs';
+import { lineNumberAt, listRgFiles as sharedListRgFiles, byShallowestThenName, binaryAvailable } from '../text-util.mjs';
 
 const PROJECT_FILE_GLOBS = ['pyproject.toml', 'requirements*.txt'];
 const EXCLUDE_GLOBS = ['!**/.venv/**', '!**/site-packages/**', '!**/node_modules/**', '!**/__pycache__/**'];
@@ -489,14 +489,12 @@ export const adapter = {
 		})) {
 			messages.push({ level: 'info', code: 'fastapi-not-a-dependency', message: `found ${depFiles.length} Python project file(s), but none declare a fastapi dependency` });
 		}
-		let rgOk = true;
-		try {
-			execFileSync('rg', ['--version'], { stdio: 'pipe' });
-		} catch {
-			rgOk = false;
-		}
-		if (!rgOk) {
-			messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it and will throw, not degrade, if it is missing' });
+		// D-zero-config-scan: traced live -- this does NOT throw at scan time as the message used to
+		// claim. detectPythonFastApiRoot()'s own rg shell-out is wrapped in a blanket try/catch that
+		// returns [] on failure, so a missing `rg` makes this adapter silently detect nothing
+		// (degrades to generic-grep) rather than crashing.
+		if (!binaryAvailable('rg')) {
+			messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter shells out to it for file discovery and silently detects nothing without it (degrades to the generic-grep fallback), it does not throw' });
 		}
 		// D-openapi-extraction-hint: unlike java-spring, this adapter's own capabilities already
 		// declare `api.operations: false` (FastAPI assigns operationIds at runtime) -- --openapi-file

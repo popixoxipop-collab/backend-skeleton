@@ -50,13 +50,22 @@ export function renderScanMarkdown(report) {
 	lines.push(`**Verdict**: \`${report.verdict}\``);
 	lines.push('');
 
+	// D-zero-config-scan: inventory mode has no term/collision semantics -- "greenfield for these
+	// terms" would be a lie when there were no terms to begin with, and a scored module's heading
+	// would dangle a `bskel scan explain` pointer that mode can never actually serve (it requires
+	// --feature, structurally unreachable here).
+	const isInventory = report.verdict === 'inventory';
 	if (report.related_modules.length === 0) {
-		lines.push('No related modules found -- greenfield for these terms.');
+		lines.push(isInventory
+			? `No modules detected by the \`${report.adapter}\` adapter in this repo.`
+			: 'No related modules found -- greenfield for these terms.');
 	} else {
-		lines.push('## Related modules');
+		lines.push(isInventory ? '## Modules found' : '## Related modules');
 		lines.push('');
 		for (const mod of report.related_modules) {
-			lines.push(`### \`${mod.module}\` (score: ${mod.score} -- run \`bskel scan explain ${mod.module}\` for the evidence breakdown)`);
+			lines.push(isInventory
+				? `### \`${mod.module}\``
+				: `### \`${mod.module}\` (score: ${mod.score} -- run \`bskel scan explain ${mod.module}\` for the evidence breakdown)`);
 			for (const c of mod.controllers) {
 				lines.push(`- Controller \`${c.className}\` (base path \`${c.basePath}\`), ${c.endpoints.length} endpoint(s):`);
 				for (const ep of c.endpoints) {

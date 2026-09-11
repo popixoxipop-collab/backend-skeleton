@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { computeDoctorChecks, WORKFLOWS } from '../lib/doctor.mjs';
+import { computeDoctorChecks, WORKFLOWS, binaryAvailable } from '../lib/doctor.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
@@ -104,6 +104,15 @@ test('a missing gh binary does not fail bskel doctor overall -- it is optional, 
 	assert.equal(ghCheck.required, false);
 	assert.equal(report.ok, true, 'overall doctor verdict must stay true -- gh is optional and everything else (git, rg, Node) is genuinely fine');
 	assert.equal(result.code, 0);
+});
+
+// D-zero-config-scan: binaryAvailable() itself lives in scanners/text-util.mjs (a cycle-free leaf
+// module -- see that file's own comment for the real import-cycle hang this avoids), but
+// lib/doctor.mjs re-exports it, so this is still the right file for its pure unit coverage,
+// alongside computeDoctorChecks() below. Injected execFn -- no PATH manipulation needed.
+test('binaryAvailable: false when the exec function throws (binary not found), true when it succeeds', () => {
+	assert.equal(binaryAvailable('rg', () => { throw new Error('ENOENT'); }), false);
+	assert.equal(binaryAvailable('rg', () => ''), true);
 });
 
 // Pure lib/doctor.mjs unit coverage, independent of the CLI.

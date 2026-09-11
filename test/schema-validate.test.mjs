@@ -37,6 +37,18 @@ test('scan-report.schema.json: an unrecognized verdict is rejected', () => {
 	assert.equal(ok, false);
 });
 
+// D-zero-config-scan: the new zero-terms "inventory" verdict is a real, accepted value -- and a
+// related_modules entry with no `score` (the new shape that mode produces) is valid too, since
+// `required` was relaxed from ["module", "score"] to ["module"].
+test('scan-report.schema.json: verdict "inventory" is accepted, and a related_modules entry may omit score/evidence/capped_signals', () => {
+	const { ok, errors } = validateAgainstSchema('scan-report.schema.json', {
+		schema: 'sbf.scan-report/2', terms: [], adapter: 'java-spring', verdict: 'inventory', rg_available: true,
+		related_modules: [{ module: 'widgets', controllers: [], entities: [], enums: [], dtos: [] }],
+		collisions: [], unknowns: [], files_read: [],
+	});
+	assert.equal(ok, true, ok ? '' : JSON.stringify(errors));
+});
+
 test('feature-contract.schema.json: a minimal valid contract passes', () => {
 	const { ok } = validateAgainstSchema('feature-contract.schema.json', {
 		sbf_contract: '8', feature_id: '001-widget-management', feature_uid: '4c8de69b-2a4a-40c0-9749-491bc3c41ae2',

@@ -173,3 +173,17 @@ test('a real runScan() output validates against schemas/scan-report.schema.json'
 	const ok = validate(report);
 	assert.ok(ok, `real scan report does not validate: ${JSON.stringify(validate.errors)}`);
 });
+
+// D-zero-config-scan: the same schema-accuracy bridge, for the new zero-terms "inventory" shape --
+// related_modules entries with no score/evidence/capped_signals must ALSO validate.
+test('a real runScan() output with terms:[] (inventory mode) validates against schemas/scan-report.schema.json', () => {
+	const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-report-schema-check-inventory-'));
+	const report = runScan({ repoRoot: tmp, terms: [] });
+	assert.equal(report.verdict, 'inventory');
+
+	const schema = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'schemas', 'scan-report.schema.json'), 'utf8'));
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validate = ajv.compile(schema);
+	const ok = validate(report);
+	assert.ok(ok, `real inventory-mode scan report does not validate: ${JSON.stringify(validate.errors)}`);
+});

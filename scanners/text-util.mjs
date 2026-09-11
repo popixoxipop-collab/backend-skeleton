@@ -31,3 +31,25 @@ export function byShallowestThenName(a, b) {
 	const depthB = b.split(path.sep).length;
 	return depthA !== depthB ? depthA - depthB : a.localeCompare(b);
 }
+
+// D-zero-config-scan: the pure "is this binary on PATH" check, deliberately living HERE (a
+// leaf module with zero project-internal imports) rather than in lib/doctor.mjs, where it was
+// first written. lib/doctor.mjs imports lib/verify.mjs, which imports scanners/registry.mjs --
+// and every adapter file is dynamically import()ed BY registry.mjs's own top-level await. An
+// adapter importing lib/doctor.mjs would close that cycle (adapter -> lib/doctor.mjs ->
+// lib/verify.mjs -> scanners/registry.mjs -> [import()s the adapter]) and registry.mjs's OWN
+// header comment already flags exactly this risk ("no adapter imports anything from this
+// module" -- true of registry.mjs itself, but lib/doctor.mjs transitively reaches it). Found
+// live: the first version of this change put binaryAvailable() in lib/doctor.mjs and every
+// adapter import of it hung the whole CLI (a real "Detected unsettled top-level await" Node
+// warning, reproduced against a real fixture repo, not a hypothetical). lib/doctor.mjs now
+// re-exports this for its own existing callers (bin/bskel.mjs, its own binaryCheck()) --
+// nothing outside this file needs to know it moved.
+export function binaryAvailable(name, execFn = execFileSync) {
+	try {
+		execFn(name, ['--version'], { stdio: 'pipe' });
+		return true;
+	} catch {
+		return false;
+	}
+}

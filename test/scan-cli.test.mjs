@@ -13,9 +13,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
 
-function run(args, cwd) {
+// `env` (default undefined -- execFileSync then inherits process.env unchanged, so every existing
+// call site is byte-for-byte unaffected) lets the rg-missing tests below run with a restricted
+// PATH, same technique test/doctor-cli.test.mjs's own restricted-PATH tests already use.
+function run(args, cwd, env) {
 	try {
-		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+		const stdout = execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8', env });
 		return { code: 0, stdout };
 	} catch (err) {
 		return { code: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
@@ -211,6 +214,77 @@ test('scan without --feature is ad-hoc: no files written, no gate touched', () =
 	assert.equal(scan.code, 0);
 	assert.ok(!fs.existsSync(path.join(root, 'specs')), 'ad-hoc scan must not write specs/');
 	assert.ok(!fs.existsSync(path.join(root, '.sbf')), 'ad-hoc scan must not write .sbf/');
+});
+
+// D-zero-config-scan: the true zero-flag case -- neither --terms nor --feature. Was a deterministic
+// exit 14 before this item; now a real "inventory" report, still ad-hoc (no files/gate touched).
+test('bskel scan with ZERO flags succeeds, lists every module unscored, verdict "inventory", still writes nothing', () => {
+	const root = buildFixtureRepo();
+	const scan = run(['scan'], root);
+	assert.equal(scan.code, 0, `expected zero-flag scan to succeed: ${scan.stdout}`);
+	assert.match(scan.stdout, /## Modules found/);
+	assert.match(scan.stdout, /`widget`/);
+	assert.match(scan.stdout, /unscored inventory/);
+	assert.ok(!fs.existsSync(path.join(root, 'specs')), 'zero-flag scan must not write specs/');
+	assert.ok(!fs.existsSync(path.join(root, '.sbf')), 'zero-flag scan must not write .sbf/');
+
+	const json = run(['scan', '--json'], root);
+	const report = JSON.parse(json.stdout);
+	assert.equal(report.verdict, 'inventory');
+	assert.equal(report.collisions.length, 0);
+	assert.ok(report.related_modules.some((m) => m.module === 'widget'));
+	for (const mod of report.related_modules) {
+		assert.equal(Object.hasOwn(mod, 'score'), false, 'inventory-mode modules must genuinely omit score, not set it to 0/undefined');
+		assert.equal(Object.hasOwn(mod, 'evidence'), false);
+		assert.equal(Object.hasOwn(mod, 'capped_signals'), false);
+	}
+});
+
+test('an explicit but empty --terms (or a --feature slug deriving zero words) still fails BAD_ARGS -- only the true zero-flag case became the new inventory mode', () => {
+	const root = buildFixtureRepo();
+	const emptyTerms = run(['scan', '--terms', ''], root);
+	assert.equal(emptyTerms.code, 14);
+	assert.match(emptyTerms.stderr, /resolved to no real search term/);
+
+	const emptyTermsEquals = run(['scan', '--terms='], root);
+	assert.equal(emptyTermsEquals.code, 14);
+});
+
+// D-zero-config-scan: without `rg`, every real adapter silently detects nothing (degrades to
+// generic-grep) -- `rg_available:false` + an unknowns entry must make this distinguishable from a
+// genuinely-unrecognized repo, rather than looking identical to it. Restricted-PATH technique
+// copied from test/doctor-cli.test.mjs's own rg/gh-missing tests.
+test('bskel scan reports rg_available:false and a clear warning when ripgrep is not on PATH, instead of silently looking unrecognized', () => {
+	const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+	const tmpBin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-restricted-path-'));
+	fs.symlinkSync(gitPath, path.join(tmpBin, 'git'));
+	// Deliberately no `rg` symlink -- this PATH cannot possibly find it, real machine install or not.
+	fs.symlinkSync(process.execPath, path.join(tmpBin, 'node'));
+
+	const root = buildFixtureRepo();
+	const scan = run(['scan', '--json'], root, { ...process.env, PATH: tmpBin });
+	assert.equal(scan.code, 0, `scan must still succeed without rg, just degraded: ${scan.stdout}`);
+	const report = JSON.parse(scan.stdout);
+	assert.equal(report.rg_available, false);
+	assert.ok(report.unknowns.some((u) => u.includes('ripgrep')), 'expected an rg-missing entry in unknowns');
+	// The real Spring fixture (a build.gradle + a real @RestController) degrades to generic-grep
+	// with zero matches when rg is absent -- exactly the failure mode the rg_available field exists
+	// to make distinguishable from a genuinely-unrecognized repo.
+	assert.equal(report.adapter, 'generic-grep');
+});
+
+test('bskel scan --terms widget (the scored path) ALSO reports rg_available:false when rg is missing -- not just the zero-flag inventory path', () => {
+	const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+	const tmpBin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-scan-restricted-path-2-'));
+	fs.symlinkSync(gitPath, path.join(tmpBin, 'git'));
+	fs.symlinkSync(process.execPath, path.join(tmpBin, 'node'));
+
+	const root = buildFixtureRepo();
+	const scan = run(['scan', '--terms', 'widget', '--json'], root, { ...process.env, PATH: tmpBin });
+	assert.equal(scan.code, 0);
+	const report = JSON.parse(scan.stdout);
+	assert.equal(report.rg_available, false);
+	assert.ok(report.unknowns.some((u) => u.includes('ripgrep')));
 });
 
 // Process-exit audit (post-A3): the same pipe-truncation bug class found in cmdContractEmit also

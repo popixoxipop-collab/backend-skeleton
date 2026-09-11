@@ -369,7 +369,9 @@ test('e2e: --quiet --json still prints the JSON payload', () => {
 
 test('e2e: --quiet does not suppress a blocking error message on stderr', () => {
 	const root = buildBareRepo();
-	const r = run(['scan', '--quiet'], root); // no terms -> usage error
+	// bare `scan` (zero flags) is the D-zero-config-scan inventory mode and now succeeds --
+	// an explicit but empty --terms is still a real usage mistake and stays a BAD_ARGS error.
+	const r = run(['scan', '--quiet', '--terms', ''], root);
 	assert.equal(r.code, 14);
 	assert.ok(r.stderr.length > 0);
 });

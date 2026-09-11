@@ -13597,3 +13597,166 @@ collapse with correct `+`-label, composite-PK full rendering, self-reference, pl
 FK alongside a composite one on the same child table), and the exact expected Mermaid line for
 each. `test/doc-integrity.test.mjs` clean (usage()<->COMMANDS flag-set equality for `db erd`, every
 `D-db-erd` reference in source resolves to this heading).
+
+## D-zero-config-scan: `bskel scan` with zero flags becomes a real, unscored inventory -- and a real, previously-unknown `rg`-missing silent-degradation bug gets fixed in the same pass
+
+`bskel scan --terms x` (ad-hoc mode, no `--feature`) already needed no preflight and already
+printed a real, dense per-repo report -- but a genuinely bare `bskel scan` still hard-required an
+explicit `--terms`/`--feature` and failed immediately with `BAD_ARGS`. This closes that last gap: a
+true zero-flag `bskel scan` lists every module the adapter detects, unscored, with no prior setup
+-- the last piece of the "try it in 10 seconds" adoption story this session's `D-contract-csv`/
+`D-db-erd` work already started for OpenAPI/CSV/ERD exports.
+
+Researching this surfaced a real, previously-undocumented correctness bug, fixed in the same pass
+since it directly undermines the zero-config experience being built: `rg` (ripgrep) is a required,
+unbundled external dependency every adapter's detection shells out to, wrapped in a blanket
+try/catch that silently returns `[]` on failure. Without `rg` on PATH, a real Spring/FastAPI/
+Express repo silently reported `verdict: greenfield, confidence: low` -- indistinguishable from
+"this tool doesn't recognize your framework." A first-time user without `rg` installed would have
+gotten exactly the wrong impression on their very first run.
+
+**1 -- `bskel scan` with neither `--terms` nor `--feature` becomes a new additive "inventory" mode
+on the SAME command, no new flag.** WHY: the request is specifically for a true zero-flag
+experience -- requiring a new flag (`--all`/`--inventory`) to unlock it would reintroduce the exact
+vocabulary-first friction being removed. This command already mode-switches on flag presence
+(`--feature` alone already changes behavior via `deriveTerms`), so this isn't a new paradigm. The
+guard only refuses when the user EXPLICITLY tried to supply terms (or a `--feature`) and it
+resolved to nothing (`--terms ""`/`--terms ,,`/a `--feature` slug deriving zero words -- real usage
+mistakes worth catching, unchanged from before) -- computed from the raw `args` array `cmdScan`
+already receives, no new plumbing. Everything downstream (`runScan`, the existing `if
+(!flags.feature) { print; exit 0; return; }` early return whose own comment already says "no files
+written, no gate touched") needed zero further change: inventory mode is a strict subset of the
+existing ad-hoc path.
+COST: turns a previously-always-erroring bare `bskel scan` (deterministic exit 14) into a
+succeeding invocation -- a real behavior change against this README's own "Status: 1.0.0"
+stability promise. That promise explicitly carves out "a new command is always minor-version-safe";
+treating "a previously-always-failing invocation now succeeds" the same way is a judgment call, not
+a mechanical fact, which is why it's recorded here rather than skated past -- shipped as a minor
+version bump.
+EXIT: revert is a one-line condition change back to unconditional `terms.length === 0 -> fail`.
+
+**2 -- inventory report shape: unscored modules, new `verdict: "inventory"`, minimal additive
+schema diff, no version bump.** `related_modules[]` entries carry `score`/`evidence`/
+`capped_signals` on the scored path -- fields that don't exist when term-matching
+(`collectEvidence`/`scoreModule`) never runs. Faking `score: 0` would be actively misleading (0
+already means "scored, found nothing"). Each inventory-mode module is built as an EXPLICIT
+ALLOWLIST (`module`/`controllers`/`entities`/`enums`/`dtos`), never `{...m}` -- guarantees
+`score`/`evidence`/`capped_signals` are genuinely ABSENT (`Object.hasOwn(mod, 'score') ===
+false`), not merely `undefined`, and stops any future adapter-internal field leaking by accident.
+`verdict` gets a 4th value, `'inventory'` -- the existing 3-value state machine must never lie (a
+report listing 40 real modules must never say `greenfield`; there's no candidate feature to be
+`adjacent`/`collision` against). `collisions` is always `[]` -- not because nothing collides, but
+because nothing was checked, which is why the disclaimer ("this is an unscored inventory... no
+term-matching, relevance scoring, or collision/greenfield classification was performed...") is the
+FIRST `unknowns` entry, visible in `--json` too, not just prose a human might skim past. Schema
+diff (`schemas/scan-report.schema.json`), additive only, no `sbf.scan-report/2` const bump: the
+`verdict` enum gains `"inventory"`, `related_modules.items.required` relaxes from `["module",
+"score"]` to `["module"]` (the item object has no `additionalProperties: false` of its own), and a
+new optional top-level `rg_available` boolean is added (see decision 4). `renderScanMarkdown`
+branches on `report.verdict === 'inventory'` in two places: the section banner (never "greenfield
+for these terms" when there were no terms to begin with) and each module's heading (drops the
+`bskel scan explain` pointer -- that command requires `--feature`, structurally unreachable here).
+COST: ~3-line schema diff, ~15-line render.mjs branch, ~35-line `runScan()` branch. Zero changes to
+`scoreModule`/`collectEvidence`/`COLLISION_THRESHOLD`/the existing scored path.
+EXIT: delete the `runScan()` branch and the two render.mjs branches; the schema widening is
+harmless to leave in place (an inert enum value/optional field nothing else produces).
+
+**3 -- inventory mode touches no gate, writes no file, by construction, not new code.** Reachable
+only when `!flags.feature` -- the SAME existing early-return block whose own comment already says
+"no files written, no gate touched" fires before any write/gate call. Zero new enforcement code.
+Downstream commands that read a persisted scan report (`contract emit`, `handles plan`, `scan
+explain`) all require `--feature` to exist at all, so inventory output is structurally unreachable
+from them.
+COST/EXIT: none -- verification of an existing invariant, not new work.
+
+**4 -- `rg`-availability: one shared, injectable `binaryAvailable()`, `runScan()` takes it as plain
+data (same shape as `dbSchema`).** Reuses `lib/doctor.mjs`'s existing `binaryCheck('rg', {required:
+true, ...})` primitive rather than a second detection mechanism, per the doctrine
+`resolveDbSchemaOrExit` already established (env var/live-connection resolution are CLI-boundary
+concerns, kept out of the pure scanner layer) -- applied here to a second external dependency.
+`cmdScan` computes `binaryAvailable('rg')` once, up front, for BOTH the inventory path and the
+existing `--feature`-scoped path (a real Spring repo scanned with `--feature`+`--terms` is exactly
+as vulnerable to the silent-degrade-to-generic-grep failure as the zero-flag case). `runScan({...,
+rgAvailable = true})` -- default `true` preserves every existing call site (dozens of tests call
+`runScan()` without this param) byte-for-byte. When `false`, `runScan()` sets `report.rg_available
+= false` in BOTH branches and prepends a human-readable `unknowns` entry naming the real fix
+(`brew install ripgrep`, or `bskel doctor` for full diagnostics) -- deliberately a WARNING, not a
+hard block: the scan still runs and returns whatever `generic-grep` can find, but `rg_available:
+false` is now an explicit, always-present, machine-checkable field a script can branch on instead
+of string-sniffing prose.
+
+**A real import-cycle bug, found live while building this, not anticipated**: the first version of
+this change put `binaryAvailable()` in `lib/doctor.mjs` and had the three real adapters'
+`diagnostics()` functions (`_express-shared.mjs`/`java-spring.mjs`/`python-fastapi.mjs`) import it
+from there. This silently hung the ENTIRE CLI -- reproduced live against a real fixture repo,
+confirmed via Node's own "Detected unsettled top-level await" warning, not a hypothetical. The
+cycle: an adapter file is dynamically `import()`ed BY `scanners/registry.mjs`'s own top-level
+await; `lib/doctor.mjs` imports `lib/verify.mjs`, which imports `scanners/registry.mjs` -- so an
+adapter importing `lib/doctor.mjs` closes the loop back onto the very module still in the middle of
+loading it. `scanners/registry.mjs`'s own header comment already named this exact risk ("no adapter
+imports anything from this module") but didn't anticipate a TRANSITIVE path through `lib/doctor.mjs`
+reaching it. Fixed by moving `binaryAvailable()` to `scanners/text-util.mjs` -- a genuine leaf
+module (only `node:child_process`/`node:path`) every adapter already imports from for unrelated
+helpers, with zero path back to `scanners/registry.mjs`. `lib/doctor.mjs` now re-exports it from
+there, so its own existing callers (`bin/bskel.mjs`) needed no change.
+COST: one new exported function (`scanners/text-util.mjs`), one re-export line (`lib/doctor.mjs`),
+one new default-safe `runScan()` parameter, one new schema field, three adapter call-site swaps.
+Also corrected: those same three `diagnostics()` functions' own comments (and this README's
+compatibility table) previously claimed rg-missing "will throw, not degrade" -- traced live and
+confirmed FALSE for the failure path that matters (`detectJavaSpringRoot`/`detectPythonFastApiRoot`
+call rg through a blanket `catch { return []; }`, so `detect()` silently returns `null` -- it never
+reaches the later unguarded `execFileSync('rg', ...)` calls that would genuinely throw). The bug is
+at DETECTION time, not scan time; comments corrected to say so, not just the code.
+EXIT: drop the `rgAvailable` param (falls back to default `true`, today's blind spot returns) and
+the `unknowns` prepend -- no data loss. The `scanners/text-util.mjs` placement itself has no
+reasonable EXIT beyond "move it back and reintroduce the cycle," which is not a real option.
+
+**5 -- non-fabrication guardrail: real facts only, never a synthesized recommendation.** Direct
+interaction with `D-greenfield-parameters`'s safe/unsafe line. Every module/controller/entity/enum/
+DTO listed is something the adapter's own `scan()` actually parsed from real source -- disclosure
+of fact, not fabrication, same as the existing scored path's own `related_modules`. Nowhere in the
+new `runScan()` branch, the new `render.mjs` branch, or the CLI layer does anything derive a
+"recommended term," a guessed feature slug, or a suggested module name -- auto-deriving terms from
+`package.json`/`build.gradle` names was considered and explicitly rejected for exactly this reason
+(risk of a skewed result being read as a real recommendation). The disclaimer exists specifically
+so a human OR an agent reading the output doesn't backfill a claim ("scan says this is safe to
+build here") the tool never made.
+COST/EXIT: none beyond the disclaimer text already in decision 2.
+
+**6 -- README/SKILL.md: a "try it in 10 seconds" subsection ahead of, not replacing, the gated
+workflow.** Added directly under `## Quickstart`, before the existing preflight/feature-init/gated
+sequence, with an explicit transition sentence ("That's a read-only look, not the gated workflow...
+for real feature work... see below") so it cannot read as superseding the gated workflow section.
+`SKILL.md`'s existing ad-hoc `bskel scan --terms organization` line gets a sibling line for the
+bare zero-flag form, matching its style exactly. The rg compatibility-table row is corrected per
+decision 4.
+COST: ~15-line README addition + 2 ToC entries + 1 SKILL.md block + 1 table-row correction.
+EXIT: pure documentation, revertable independently.
+
+**COST** (whole item): `bin/bskel.mjs` (`cmdScan`'s guard + `rgAvailable` boundary call),
+`scanners/index.mjs` (`runScan`'s inventory branch), `scanners/render.mjs` (two branches),
+`schemas/scan-report.schema.json` (3 additive edits), `scanners/text-util.mjs` (new
+`binaryAvailable()`), `lib/doctor.mjs` (re-export, `binaryCheck()` delegates to it), three adapter
+files (call-site swap + comment correction), `README.md`/`SKILL.md`. New:
+`test/scan-inventory.test.mjs` (pure `runScan()` unit tests, 8 cases). Extended:
+`test/scan-cli.test.mjs` (5 new CLI-level cases, including two real restricted-PATH rg-missing
+tests), `test/adapter-registry.test.mjs` (inventory-mode schema-accuracy bridge),
+`test/schema-validate.test.mjs` (`verdict: "inventory"` acceptance case), `test/doctor-cli.test.mjs`
+(pure `binaryAvailable()` cases).
+
+**Verified**: `npm test` green, zero regressions in the untouched scored/`--feature` path (in
+particular every existing `runScan({..., terms: []})` call site across
+`test/adapter-registry.test.mjs`'s arbitration tests -- confirmed live these only ever assert on
+`report.adapter`, never on the now-changed `verdict`/module shape, so none needed updating). Real
+fixture-repo reproduction of the import-cycle hang BEFORE the fix (`node -e
+"import('./scanners/registry.mjs')..."` never resolved; `bskel preflight` against a real fixture
+repo returned exit 13 for no legitimate reason) and confirmed-fixed AFTER (`registry loaded OK`,
+`bskel preflight` returns 0 against the same fixture). CLI-level restricted-PATH tests (reusing
+`test/doctor-cli.test.mjs`'s own technique: real `git` symlinked into a fresh temp bin dir,
+deliberately no `rg`) confirm `rg_available: false` and the real fixture (a genuine Spring
+controller) degrading to `generic-grep` -- exactly the failure mode this decision exists to make
+visible. `git status` diff after a zero-flag scan against a real fixture repo confirms nothing
+under `specs/`/`.sbf/` was created. `test/doc-integrity.test.mjs` clean (usage()<->COMMANDS
+flag-set equality unaffected -- this item changes no CLI flag, only runtime validation behavior on
+existing optional flags -- and every `D-zero-config-scan` reference in source resolves to this
+heading).

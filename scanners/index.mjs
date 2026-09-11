@@ -182,7 +182,12 @@ export function computeDbDrift(liveTables, relatedModules) {
 // every other env-var-driven input in this codebase is resolved at the bin/bskel.mjs layer, never
 // inside a "pure" lib/scanner function), and keeps this function synchronous (Plane C's real I/O
 // is `await`ed by the caller before ever calling this).
-export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, adapters = ADAPTERS }) {
+//
+// D-zero-config-scan: `rgAvailable` is the SAME kind of CLI-boundary-resolved input as `dbSchema`
+// -- bin/bskel.mjs computes it once via lib/doctor.mjs's binaryAvailable('rg') and hands it in as
+// plain data. Defaults to `true` so every existing call site (this whole test suite included)
+// stays byte-for-byte unchanged.
+export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, adapters = ADAPTERS, rgAvailable = true }) {
 	const detections = adapters
 		.map((a) => ({ a, d: a.detect(repoRoot) }))
 		.filter(({ d }) => d != null)
@@ -221,26 +226,73 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	// than crashing -- the gate token still falls back to hashing the report itself.
 	const filesRead = result.filesRead ?? [];
 
-	// O6: score alone isn't a deterministic sort key -- two modules tying on score fall back to
-	// whatever order they were already in, which traces back to non-deterministic rg discovery
-	// order in the adapters above (mitigated there too, but a second determinism layer here is
-	// cheap and doesn't depend on every adapter getting it right). Module name is a stable,
-	// meaningful secondary key.
-	const scored = modules
-		.map((m) => {
-			const { score, evidence, cappedSignals } = scoreModule(m, terms);
-			return { ...m, score, evidence, capped_signals: cappedSignals };
-		})
-		.sort((a, b) => b.score - a.score || a.module.localeCompare(b.module));
+	// D-zero-config-scan: an empty `terms` array is how bin/bskel.mjs's cmdScan signals its new
+	// zero-flag "inventory" mode (neither --terms nor --feature was given) -- every detected module
+	// is listed exactly as the adapter found it, with NO term-matching/scoring/collision-detection
+	// performed. Faking `score: 0` here would be actively misleading -- 0 already means "scored,
+	// found nothing" in the existing contract -- so each module is built as an explicit allowlist
+	// (never `{...m}`), which guarantees `score`/`evidence`/`capped_signals` are genuinely ABSENT
+	// from the object, not merely `undefined`, and stops any future adapter-internal field from
+	// leaking into this report shape by accident.
+	const isInventory = terms.length === 0;
+	let relatedModules;
+	let collisions;
+	let verdict;
+	if (isInventory) {
+		relatedModules = modules
+			.map((m) => ({ module: m.module, controllers: m.controllers, entities: m.entities, enums: m.enums, dtos: m.dtos }))
+			.sort((a, b) => a.module.localeCompare(b.module)); // deterministic -- no score to sort by
+		collisions = []; // not "nothing collides" -- nothing was CHECKED. See the disclaimer below.
+		verdict = 'inventory';
+	} else {
+		// O6: score alone isn't a deterministic sort key -- two modules tying on score fall back to
+		// whatever order they were already in, which traces back to non-deterministic rg discovery
+		// order in the adapters above (mitigated there too, but a second determinism layer here is
+		// cheap and doesn't depend on every adapter getting it right). Module name is a stable,
+		// meaningful secondary key.
+		const scored = modules
+			.map((m) => {
+				const { score, evidence, cappedSignals } = scoreModule(m, terms);
+				return { ...m, score, evidence, capped_signals: cappedSignals };
+			})
+			.sort((a, b) => b.score - a.score || a.module.localeCompare(b.module));
 
-	const relatedModules = scored.filter((m) => m.score > 0);
-	const collisions = relatedModules.filter((m) => m.score >= COLLISION_THRESHOLD);
+		relatedModules = scored.filter((m) => m.score > 0);
+		collisions = relatedModules.filter((m) => m.score >= COLLISION_THRESHOLD);
 
-	let verdict = 'greenfield';
-	if (collisions.length > 0) verdict = 'collision';
-	else if (relatedModules.length > 0) verdict = 'adjacent';
+		verdict = 'greenfield';
+		if (collisions.length > 0) verdict = 'collision';
+		else if (relatedModules.length > 0) verdict = 'adjacent';
+	}
 
 	const unknowns = [];
+	// D-zero-config-scan: the FIRST unknowns entry in inventory mode -- visible in --json too, not
+	// just prose a human might skim past -- so nothing downstream (human or agent) backfills a
+	// relevance/collision judgment this report never made. See D-greenfield-parameters's safe/
+	// unsafe line: every module/controller/entity listed below is a real, observed fact about this
+	// repo; this disclaimer is what keeps "here's what exists" from being read as "here's what's
+	// safe to build".
+	if (isInventory) {
+		unknowns.push(
+			'this is an unscored inventory of every module this adapter found -- no term-matching, ' +
+			'relevance scoring, or collision/greenfield classification was performed against any ' +
+			'specific feature idea. Re-run with --terms <keywords> or --feature <id> to check a ' +
+			'specific idea against this repo before treating anything here as "safe" or "colliding".',
+		);
+	}
+	// D-zero-config-scan: without `rg`, every real adapter's detect() silently degrades (a blanket
+	// try/catch around the rg shell-out returns [] on failure -- see scanners/text-util.mjs's
+	// listRgFiles()), so a real Spring/FastAPI/Express repo can look indistinguishable from one
+	// this tool genuinely doesn't recognize. `rg_available` (always present on the returned report,
+	// both modes) is the machine-checkable signal; this is the human-readable one.
+	if (!rgAvailable) {
+		unknowns.push(
+			'ripgrep (`rg`) was not found on PATH -- every real scanner adapter depends on it for file ' +
+			'discovery, so a low-confidence or apparently-empty result here may simply mean `rg` is ' +
+			'missing, not that this repo lacks recognizable backend structure. Install it (`brew ' +
+			'install ripgrep`) and re-run, or run `bskel doctor` for full diagnostics.',
+		);
+	}
 	if (!includeDb) {
 		unknowns.push('DB not scanned (Plane C is opt-in via --db --database-url-env <NAME>) -- pass --db to scan migration files, add --database-url-env for live introspection too. See A4 in CATALOG.md.');
 	} else if (!dbSchema?.live) {
@@ -271,6 +323,7 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 		confidence,
 		api_surface_source: apiSurfaceSource,
 		verdict,
+		rg_available: rgAvailable,
 		path_prefix_signals: pathPrefixSignals,
 		related_modules: relatedModules,
 		collisions,

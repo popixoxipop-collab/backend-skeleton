@@ -276,6 +276,12 @@ bskel gate export --feature <id> [--out <path>] [--json]
   #    (see D-contract-history's own rejection of that exact approach) -- git context here is
   #    capture-time provenance only, never a claimed commit<->history correlation.
 
+bskel scan                                            # D-zero-config-scan: zero flags -- lists EVERY
+                                                        # module the adapter detects, unscored, no
+                                                        # term-matching/collision-check performed at
+                                                        # all (verdict: "inventory"). Same read-only,
+                                                        # no-files/gate-touched contract as the line
+                                                        # below, just without a term to filter on.
 bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
 bskel scan --feature 001-organization-management      # writes specs/<id>/brownfield-scan.{json,md}, sets the `scan` gate
 bskel scan --feature <id> --terms ... --accept-low-confidence   # required when confidence is "low" (see below) -- otherwise exit 16
