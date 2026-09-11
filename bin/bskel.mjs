@@ -51,6 +51,7 @@ import { compileRules, summarizeArtifact } from '../rules/compile.mjs';
 import { rulesSourcePath, loadRulesSource, loadRulesArtifact, saveRulesArtifact, starterRulesSource } from '../rules/store.mjs';
 import { PREDICATE_KINDS, explainRule } from '../rules/vocabulary.mjs';
 import { emitRulesJavaSpring } from '../handles/providers/java-spring/rules.mjs';
+import { emitRulesPythonFastApi } from '../handles/providers/python-fastapi/rules.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
 	requireValidPythonVersion, requireValidLicense, requireValidDatabase, requireSupportedJavaVersion,
@@ -115,7 +116,7 @@ function usage() {
   bskel rules check --feature <id> [--init] [--json]
   bskel rules list --feature <id> [--json]
   bskel rules explain --feature <id> --rule <id> [--json]
-  bskel rules emit --feature <id> [--check] [--diff] [--force --reason "..."] [--json]
+  bskel rules emit --feature <id> [--module <name>] [--check] [--diff] [--force --reason "..."] [--json]
   bskel stack apply --choice <id> [--apply] [--port N] [--force --reason "..."] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
@@ -2220,11 +2221,25 @@ function cmdRulesEmit(args) {
 		} catch (err) {
 			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 		}
+	} else if (scanReport.adapter === 'python-fastapi') {
+		// python's own package-root detection needs a module to anchor itself -- same asymmetry
+		// observe emit's own comment already documents for this exact adapter.
+		let fastApiPlan;
+		try {
+			fastApiPlan = planPythonFastApi({ repoRoot: root, scanReport, module: flags.module, resourceFilter: null });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		try {
+			result = emitRulesPythonFastApi({ repoRoot: root, featureId: flags.feature, artifact, plan: fastApiPlan, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
 	} else {
-		// Named, not silently skipped -- python-fastapi and typescript-express runtimes are the next
-		// slice (R9/Phase 2). `rules check` already works for every adapter; only execution is
-		// java-only so far, and saying so plainly is better than an empty success.
-		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel rules emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring). \`bskel rules check\` works for every adapter -- only the generated runtime executor is java-only so far.`);
+		// Named, not silently skipped -- typescript-express is the next slice (R9/Phase 2).
+		// `rules check` already works for every adapter; only execution is java/python so far, and
+		// saying so plainly is better than an empty success.
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel rules emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring, python-fastapi). \`bskel rules check\` works for every adapter -- only the generated runtime executor is java/python so far.`);
 	}
 
 	const { written, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = result;
@@ -2240,7 +2255,7 @@ function cmdRulesEmit(args) {
 			const verb = dryRun ? 'would be blocked' : 'blocked';
 			console.error(`${verb}: ${conflicts.length} generated file(s) diverged from what backend-skeleton last wrote -- ${dryRun ? 'a real run would refuse to overwrite them' : 'refusing to overwrite'} without --force:`);
 			for (const c of conflicts) console.error(`  ${c.path} (${c.kind})\n    ${c.reason}`);
-			if (!dryRun) console.error(`\nre-run with: bskel rules emit --feature ${flags.feature} --force --reason "..."`);
+			if (!dryRun) console.error(`\nre-run with: bskel rules emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''} --force --reason "..."`);
 		}
 		process.exit(EXIT_CODES.HANDLES_CONFLICT);
 	}

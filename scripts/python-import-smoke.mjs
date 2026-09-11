@@ -81,9 +81,37 @@ establishThroughContract(scratch, fail, {
 	// D-cli-contract convention: openapi.json is written AFTER preflight, not before -- an
 	// untracked file at repo root would otherwise make preflight's own dirty-tree check fail.
 	// establishThroughContract's beforeContractStep hook exists for exactly this ordering need.
+	// D-business-rules (R9): a requestBody attached to this GET operation purely so the rules
+	// phase below has real, contract-declared fields to author rules against -- not a realistic
+	// REST shape, deliberately kept minimal rather than adding a whole new scratch-only route file
+	// (the rules phase constructs payloads directly, the same simplification
+	// scripts/java-compile-smoke.mjs's own business-rules phase already uses).
 	beforeContractStep: () => fs.writeFileSync(openApiPath, JSON.stringify({
 		openapi: '3.1.0',
-		paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } },
+		paths: {
+			'/api/v1/items/{id}': {
+				get: {
+					operationId: 'items-read_item',
+					responses: {},
+					requestBody: {
+						content: {
+							'application/json': {
+								schema: {
+									type: 'object',
+									properties: {
+										capacity: { type: 'integer' },
+										ownerName: { type: 'string' },
+										status: { type: 'string', enum: ['draft', 'published', 'archived'] },
+										startWindow: { type: 'string' },
+										endWindow: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	})),
 	contractStep: { kind: 'emit', args: ['--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'] },
 });
@@ -118,6 +146,52 @@ if (!observeResult.written.includes('backend/app/observe/observe_contract.py')) 
 	fail(`expected backend/app/observe/observe_contract.py to be written -- got ${JSON.stringify(observeResult.written)}`);
 }
 
+// D-business-rules (R9): real rules against the requestBody attached to items-read_item above.
+console.log('python-import-smoke: rules check -> rules emit --module items...');
+fs.writeFileSync(path.join(scratch, 'specs', FEATURE_ID, 'rules.yaml'), `schema: sbf.feature-rules-source/1
+rules:
+  - id: capacity-cap
+    kind: field
+    operation: items-read_item
+    pointer: /capacity
+    assert: maximum
+    value: 500
+    reason: python-import-smoke
+  - id: owner-min
+    kind: field
+    operation: items-read_item
+    pointer: /ownerName
+    assert: minLength
+    value: 3
+    reason: python-import-smoke
+  - id: window-order
+    kind: cross
+    operation: items-read_item
+    pointers: [/startWindow, /endWindow]
+    assert: lt
+    reason: python-import-smoke
+  - id: publish-flow
+    kind: transition
+    operation: items-read_item
+    pointer: /status
+    from: [draft]
+    to: [published]
+    reason: python-import-smoke
+`);
+r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`rules check: ${r.stderr || r.stdout}`);
+r = bskel(['rules', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--json'], scratch);
+if (r.code !== 0) fail(`rules emit: ${r.stderr || r.stdout}`);
+let rulesEmitResult;
+try {
+	rulesEmitResult = JSON.parse(r.stdout);
+} catch {
+	fail(`rules emit produced no parseable JSON: ${r.stdout}`);
+}
+if (!rulesEmitResult.written.includes('backend/app/rules/enforce_rules.py')) {
+	fail(`expected backend/app/rules/enforce_rules.py to be written -- got ${JSON.stringify(rulesEmitResult.written)}`);
+}
+
 console.log('python-import-smoke: creating a throwaway venv and installing fastapi + sqlmodel...');
 const backendDir = path.join(scratch, 'backend');
 try {
@@ -142,6 +216,7 @@ try {
 // every `from X import Y` -- catching a real name/API mismatch, not just a syntax error.
 const DRIVER_SOURCE = `
 import asyncio
+import os
 import app.handles.codec
 import app.handles.registry
 import app.handles.router
@@ -212,6 +287,66 @@ for actual in [{}, {"id": MARKER}]:
     violations = check.check_path_params(path_params_schema, actual)
     for v in violations:
         assert MARKER not in v.message, f"path-param violation message embedded the observed value! actual={actual!r} message={v.message!r}"
+
+# D-business-rules (R9): real generated rule_check/rule_set against the 4 authored rules (2 field,
+# 1 cross, 1 transition) -- the pure-executor proof, mirroring java-compile-smoke.mjs's own
+# RuleExecSmokeTest exactly.
+import app.rules.rule_check as rule_check
+import app.rules.rule_set as rule_set
+from app.rules.enforce_rules import enforce_rules
+
+rules = rule_set.for_operation("items-read_item")
+assert rules["field"] and rules["cross"] and rules["transition"], f"expected all three predicate kinds compiled, got {rules}"
+
+violating_body = {"capacity": 999, "ownerName": "x", "startWindow": "2026-01-02", "endWindow": "2026-01-01"}
+violating = list(rule_check.check(rules, violating_body))
+violating += list(rule_check.check_transitions(rules, {"status": "published"}, {"/status": "archived"}))
+assert len(violating) == 4, f"expected 4 violations (capacity-cap, owner-min, window-order, publish-flow), got {len(violating)}: {[v.rule_id for v in violating]}"
+assert sorted(v.rule_id for v in violating) == sorted(["capacity-cap", "owner-min", "window-order", "publish-flow"]), f"got {[v.rule_id for v in violating]}"
+
+valid_body = {"capacity": 100, "ownerName": "widget-owner", "startWindow": "2026-01-01", "endWindow": "2026-01-02"}
+valid = list(rule_check.check(rules, valid_body))
+valid += list(rule_check.check_transitions(rules, {"status": "published"}, {"/status": "draft"}))
+assert len(valid) == 0, f"expected 0 violations against a payload deliberately constructed to satisfy every rule, got {len(valid)}: {[v.rule_id for v in valid]}"
+
+# D-business-rules (R8): the @enforce_rules decorator itself -- observe mode always proceeds,
+# enforce mode rejects with HTTP 400 before the wrapped function runs and never leaks an observed
+# value, a valid payload always proceeds even in enforce mode, and an operation with no rules is a
+# silent no-op. Toggled via the real BSKEL_RULES_MODE environment variable, matching how a real
+# deployment would switch modes.
+from fastapi import HTTPException
+
+@enforce_rules(operation_id="items-read_item", body_param="body")
+async def _decorated_update(body: dict) -> str:
+    return "REAL_METHOD_RAN"
+
+os.environ["BSKEL_RULES_MODE"] = "observe"
+observe_result = asyncio.run(_decorated_update(violating_body))
+assert observe_result == "REAL_METHOD_RAN", "observe mode must always call the real method, even with real violations"
+
+os.environ["BSKEL_RULES_MODE"] = "enforce"
+secret_marker = "SECRET_MARKER_VALUE_12345"
+try:
+    asyncio.run(_decorated_update({"capacity": 999, "ownerName": secret_marker}))
+    assert False, "enforce mode must reject a real violation with HTTPException"
+except HTTPException as exc:
+    assert exc.status_code == 400
+    detail = str(exc.detail)
+    assert "capacity-cap" in detail, f"message should name the real rule id: {detail!r}"
+    assert secret_marker not in detail, f"an enforce-mode rejection must NEVER leak an observed payload value: {detail!r}"
+    assert "999" not in detail, f"an enforce-mode rejection must NEVER leak an observed numeric value either: {detail!r}"
+
+enforce_valid_result = asyncio.run(_decorated_update(valid_body))
+assert enforce_valid_result == "REAL_METHOD_RAN", "a valid payload must never be rejected, even in enforce mode"
+
+@enforce_rules(operation_id="no-such-operation-for-smoke-test", body_param="body")
+async def _decorated_no_rules(body: dict) -> str:
+    return "REAL_METHOD_RAN"
+
+no_rules_result = asyncio.run(_decorated_no_rules({}))
+assert no_rules_result == "REAL_METHOD_RAN", "an operation with no compiled rules must be a silent no-op, even in enforce mode"
+
+del os.environ["BSKEL_RULES_MODE"]
 
 print("python-import-smoke: all generated modules imported successfully")
 

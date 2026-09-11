@@ -177,101 +177,48 @@ test('a second rules emit with nothing changed leaves every file unchanged (idem
 	}
 });
 
-// A real python-fastapi-detected repo, not a synthetic one: python-fastapi's scanned operationId
-// is always null (D-fastapi-adapter), so `--openapi-file` is required for contract emit here --
-// the same fixture shape test/observe-emit-python-cli.test.mjs's own buildOpenApiFixtureRepo()
-// already established for this exact problem.
-function buildPythonFixtureRepo() {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-py-'));
+// A real typescript-express-detected repo, not a synthetic one: reuses the committed
+// test/fixtures/typescript-express/ tree, matching test/observe-emit-typescript-cli.test.mjs's own
+// buildOpenApiFixtureRepo() exactly -- typescript-express's scanned operationId is always null
+// (`api.operations: false`), so `--openapi-file` is required for contract emit here too.
+function buildTypeScriptFixtureRepo() {
+	const FIXTURE_SRC = path.join(__dirname, 'fixtures', 'typescript-express');
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-ts-'));
+	fs.cpSync(FIXTURE_SRC, root, { recursive: true });
 	execFileSync('git', ['init', '--quiet', '--initial-branch=develop'], { cwd: root });
 	execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
 	execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root });
-
-	fs.mkdirSync(path.join(root, 'backend', 'app', 'api', 'routes'), { recursive: true });
-	fs.mkdirSync(path.join(root, 'backend', 'app', 'core'), { recursive: true });
-	fs.writeFileSync(path.join(root, 'backend', 'app', '__init__.py'), '');
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', '__init__.py'), '');
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'routes', '__init__.py'), '');
-	fs.writeFileSync(path.join(root, 'backend', 'pyproject.toml'), '[project]\nname = "fixture-backend"\ndependencies = ["fastapi[standard]>=0.141.1,<1.0.0", "sqlmodel>=0.0.24"]\n');
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'core', 'config.py'), 'class Settings:\n    API_V1_STR: str = "/api/v1"\n\nsettings = Settings()\n');
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'deps.py'), `
-from typing import Annotated
-from fastapi import Depends
-from sqlmodel import Session
-
-
-def get_db():
-    pass
-
-
-SessionDep = Annotated[Session, Depends(get_db)]
-`);
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'main.py'), `
-from fastapi import FastAPI
-from app.api.main import api_router
-from app.core.config import settings
-
-app = FastAPI()
-app.include_router(api_router, prefix=settings.API_V1_STR)
-`);
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'api', 'routes', 'items.py'), `
-from fastapi import APIRouter
-from app.models import Item, ItemPublic
-
-router = APIRouter(prefix="/items", tags=["items"])
-
-
-@router.get("/{id}", response_model=ItemPublic)
-async def read_item(session: SessionDep, id: str):
-    pass
-`);
-	fs.writeFileSync(path.join(root, 'backend', 'app', 'models.py'), `
-from sqlmodel import Field, SQLModel
-import uuid
-
-
-class ItemBase(SQLModel):
-    title: str
-
-
-class Item(ItemBase, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-
-
-class ItemPublic(ItemBase):
-    id: uuid.UUID
-`);
 	fs.writeFileSync(path.join(root, '.gitignore'), 'specs/\n.sbf/\n');
 	execFileSync('git', ['add', '-A'], { cwd: root });
 	execFileSync('git', ['commit', '--quiet', '-m', 'chore: fixture'], { cwd: root });
-	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-py-origin-'));
+	const bareOrigin = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-rules-emit-ts-origin-'));
 	execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=develop'], { cwd: bareOrigin });
 	execFileSync('git', ['remote', 'add', 'origin', bareOrigin], { cwd: root });
 	execFileSync('git', ['push', '--quiet', 'origin', 'develop'], { cwd: root });
 	return root;
 }
 
-test('rules emit refuses an adapter it does not support yet, naming java-spring as the one that IS supported', () => {
-	const root = buildPythonFixtureRepo();
-	const FEATURE_ID = '001-item-management';
+test('rules emit refuses an adapter it does not support yet, naming java-spring and python-fastapi as the ones that ARE supported', () => {
+	const root = buildTypeScriptFixtureRepo();
+	const FEATURE_ID = '001-user-management';
 	run(['preflight'], root);
-	run(['feature', 'init', '--slug', 'item-management'], root);
-	run(['scan', '--feature', FEATURE_ID, '--terms', 'item', '--json'], root);
+	run(['feature', 'init', '--slug', 'user-management'], root);
+	run(['scan', '--feature', FEATURE_ID, '--terms', 'user', '--json'], root);
 	run(['scan', 'disposition', '--feature', FEATURE_ID, '--mode', 'extend', '--note', 'test'], root);
 	// D-cli-contract convention: openapi.json written AFTER preflight, not before -- an untracked
 	// file at repo root would otherwise make preflight's own dirty-tree check fail.
 	const openApiPath = path.join(root, 'openapi.json');
 	fs.writeFileSync(openApiPath, JSON.stringify({
 		openapi: '3.1.0',
-		paths: { '/api/v1/items/{id}': { get: { operationId: 'items-read_item', responses: {} } } },
+		paths: { '/v1/users/{id}': { get: { operationId: 'users-show', responses: {} } } },
 	}));
-	const contractResult = run(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'items', '--openapi-file', openApiPath, '--path-prefix', '/api/v1'], root);
+	const contractResult = run(['contract', 'emit', '--feature', FEATURE_ID, '--module', 'users', '--openapi-file', openApiPath, '--path-prefix', '/v1'], root);
 	assert.equal(contractResult.code, 0, `contract emit: ${contractResult.stderr ?? ''}`);
 	const checkResult = run(['rules', 'check', '--feature', FEATURE_ID], root);
 	assert.equal(checkResult.code, 0, `rules check: ${checkResult.stderr ?? ''}`);
 
 	const result = run(['rules', 'emit', '--feature', FEATURE_ID], root);
 	assert.notEqual(result.code, 0);
-	assert.match(result.stderr, /does not support the "python-fastapi" adapter yet \(supported: java-spring\)/);
+	assert.match(result.stderr, /does not support the "typescript-express" adapter yet \(supported: java-spring, python-fastapi\)/);
 	assert.match(result.stderr, /`bskel rules check` works for every adapter/);
 });

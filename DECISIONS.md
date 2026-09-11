@@ -13980,3 +13980,28 @@ always proceeds even in enforce mode, and an operation with no compiled rules is
 output paths, idempotence, unsupported-adapter refusal naming java-spring as the one supported
 adapter) -- the real-JVM proof above stays in the smoke script, not duplicated here. `npm test`
 1642/1642.
+
+**Update (python-fastapi runtime, R9 Phase 2)**: `bskel rules emit` now supports python-fastapi,
+mirroring java-spring's shape field-for-field so both runtimes are guaranteed to agree: `rule_check.py`
+(pure executor, `check()`/`check_transitions()`), `rule_set.py` (module-import-time discovery of
+`rules_schemas/*.rules.json`, the same pattern `observed_schema.py` already established), and
+`enforce_rules.py` (a decorator, not an annotation+aspect pair -- Python decorators natively ARE
+this ecosystem's method-interception mechanism, the same call `observe_contract.py`'s own docstring
+already made for the identical Java-vs-Python shape difference). The observe/enforce split reads
+`BSKEL_RULES_MODE` (default `"observe"`) from the environment on every call, the Python-idiomatic
+sibling of java-spring's `bskel.rules.mode` Spring property -- same "config change, not a re-emit"
+posture. Transition rules stay excluded from the automatic decorator path for the identical reason
+java's `@EnforceRules` excludes them.
+
+**Verified**: `scripts/python-import-smoke.mjs` extended -- a `requestBody` attached to the existing
+`items-read_item` operation (not a realistic REST shape; payloads are constructed directly in the
+driver, the same simplification `java-compile-smoke.mjs`'s own business-rules phase already uses)
+gives four authored rules (2 field, 1 cross, 1 transition) real contract-declared fields to target.
+A real venv-installed FastAPI import proves: `rule_check`/`rule_set` correctly detect 4/4 violations
+and 0 false positives on a valid payload; the `@enforce_rules` decorator's observe mode always
+proceeds even with real violations; enforce mode rejects with `HTTPException(400, ...)` and never
+runs the wrapped function; a valid payload always proceeds even in enforce mode; a rule-less
+operation is a silent no-op; and an enforce-mode rejection detail never leaks an observed payload
+value (planted marker string asserted absent). `test/rules-emit-cli.test.mjs`'s own
+unsupported-adapter test moved from python-fastapi (now supported) to typescript-express (still
+the one remaining gap). `npm test` 1642/1642.
