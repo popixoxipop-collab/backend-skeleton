@@ -50,6 +50,7 @@ import { recordPattern, listPatterns, getPattern, isMissingPatternTable, summari
 import { compileRules, summarizeArtifact } from '../rules/compile.mjs';
 import { rulesSourcePath, loadRulesSource, loadRulesArtifact, saveRulesArtifact, starterRulesSource } from '../rules/store.mjs';
 import { PREDICATE_KINDS, explainRule } from '../rules/vocabulary.mjs';
+import { emitRulesJavaSpring } from '../handles/providers/java-spring/rules.mjs';
 import {
 	requireSingleLineText, requireValidJavaPackageName, requireValidArtifactId,
 	requireValidPythonVersion, requireValidLicense, requireValidDatabase, requireSupportedJavaVersion,
@@ -114,6 +115,7 @@ function usage() {
   bskel rules check --feature <id> [--init] [--json]
   bskel rules list --feature <id> [--json]
   bskel rules explain --feature <id> --rule <id> [--json]
+  bskel rules emit --feature <id> [--check] [--diff] [--force --reason "..."] [--json]
   bskel stack apply --choice <id> [--apply] [--port N] [--force --reason "..."] [--json]
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
@@ -2169,6 +2171,93 @@ function cmdRulesExplain(args) {
 		console.log(`  origin:    ${rule.origin}${rule.origin === 'contract' ? " (projected from this operation's own requestBodySchema -- change the OpenAPI document, not rules.yaml)" : ' (declared in rules.yaml)'}`);
 		console.log(`  means:     ${explanation}`);
 	}
+	process.exit(0);
+}
+
+// D-business-rules (R9): emits the generic rule executor plus the compiled artifact as a classpath
+// resource. Mirrors cmdObserveEmit's own precondition chain and blocked/--check reporting shape --
+// same emitUnits() conflict machinery, same --check/--diff/--force/--reason semantics, and the same
+// explicit adapter dispatch rather than handles/registry.mjs's plan+emit provider mechanism (this
+// command has no `plan` verb either, and operates directly on an already-compiled artifact).
+//
+// Gated on the `rules` gate rather than `contract`: the artifact this emits is what `rules check`
+// produced and schema-validated, so emitting while that gate is stale would ship a runtime resource
+// that no longer matches the rules anyone reviewed.
+function cmdRulesEmit(args) {
+	const flags = parseCommand('rules emit', args);
+	if (flags.help) { console.log(renderCommandHelp('rules emit')); process.exit(0); }
+	setContext('rules emit', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	if (flags.force && (!flags.reason || !flags.reason.trim())) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel rules emit --force requires --reason "..." -- every overwrite of diverged generated code must be auditable');
+	}
+
+	const rulesResult = requireNamedGate(root, 'rules', flags.feature);
+	if (rulesResult.code !== EXIT.PASS) {
+		fail(rulesResult.code, gateReasonForCode(rulesResult.code), `blocked: \`rules\` gate for ${flags.feature} is ${rulesResult.status} -- run \`bskel rules check --feature ${flags.feature}\` first.`, {
+			next_actions: [{ command: `bskel rules check --feature ${flags.feature}`, reason: 'the rules gate has not passed yet', mutating: true }],
+		});
+	}
+
+	const scanReport = loadHydratedScanReportOrExit(root, flags.feature);
+	const artifact = loadRulesArtifactOrExit(root, flags.feature);
+	const dryRun = flags.check || flags.diff;
+
+	let result;
+	if (scanReport.adapter === 'java-spring') {
+		let basePackage;
+		try {
+			basePackage = detectBasePackage(root);
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+		if (!basePackage) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', 'could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
+		}
+		try {
+			result = emitRulesJavaSpring({ repoRoot: root, featureId: flags.feature, artifact, basePackage, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff });
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+	} else {
+		// Named, not silently skipped -- python-fastapi and typescript-express runtimes are the next
+		// slice (R9/Phase 2). `rules check` already works for every adapter; only execution is
+		// java-only so far, and saying so plainly is better than an empty success.
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `bskel rules emit does not support the "${scanReport.adapter}" adapter yet (supported: java-spring). \`bskel rules check\` works for every adapter -- only the generated runtime executor is java-only so far.`);
+	}
+
+	const { written, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [] } = result;
+	const wouldChange = actions.some((a) => a.action !== 'unchanged' && a.action !== 'adopt-unchanged');
+	const allNotes = [...notes];
+	if (flags.force && forced.length === 0 && conflicts.length === 0) allNotes.push('--force had no effect: 0 conflicts found in this run\'s scope');
+	else if (flags.force && forced.length > 0) allNotes.push(`--force overwrote ${forced.length} diverged file(s): ${forced.join(', ')}`);
+
+	if (blocked) {
+		if (flags.json) {
+			console.log(JSON.stringify({ written, conflicts, orphans, forced, notes: allNotes, actions, blocked: true, check: dryRun }, null, 2));
+		} else {
+			const verb = dryRun ? 'would be blocked' : 'blocked';
+			console.error(`${verb}: ${conflicts.length} generated file(s) diverged from what backend-skeleton last wrote -- ${dryRun ? 'a real run would refuse to overwrite them' : 'refusing to overwrite'} without --force:`);
+			for (const c of conflicts) console.error(`  ${c.path} (${c.kind})\n    ${c.reason}`);
+			if (!dryRun) console.error(`\nre-run with: bskel rules emit --feature ${flags.feature} --force --reason "..."`);
+		}
+		process.exit(EXIT_CODES.HANDLES_CONFLICT);
+	}
+
+	if (flags.json) {
+		console.log(JSON.stringify({ written, conflicts, orphans, forced, notes: allNotes, actions, blocked: false, check: dryRun, postEmitNotes }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`${dryRun ? 'would write' : 'wrote'} ${written.length} file(s):`);
+		for (const w of written) console.log(`  ${w}`);
+		if (allNotes.length > 0) {
+			console.log('\nnotes:');
+			for (const n of allNotes) console.log(`  - ${n}`);
+		}
+		if (dryRun) console.log(`\n${renderFileActions(actions)}`);
+		else for (const n of postEmitNotes) console.log(`\n${n}`);
+	}
+	if (dryRun) process.exit(wouldChange ? EXIT_CODES.CHECK_FAILED : EXIT_CODES.OK);
 	process.exit(0);
 }
 
@@ -4332,6 +4421,7 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'check') return cmdRulesCheck(subArgs);
 			if (sub === 'list') return cmdRulesList(subArgs);
 			if (sub === 'explain') return cmdRulesExplain(subArgs);
+			if (sub === 'emit') return cmdRulesEmit(subArgs);
 			usage();
 			process.exit(14);
 			break;

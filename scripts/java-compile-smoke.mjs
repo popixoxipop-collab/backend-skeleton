@@ -82,6 +82,21 @@ console.log('java-compile-smoke: observe emit...');
 r = bskel(['observe', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`observe emit: ${r.stderr || r.stdout}`);
 
+// D-business-rules (R9): rules check -> rules emit BEFORE the --build check below, so the same
+// real ./gradlew compileJava run also proves RuleCheck.java/RuleSetLoader.java compile cleanly
+// against real Jackson + Spring types. This fixture's contract is emitted without --openapi-file,
+// so it carries no requestBodySchema and therefore projects zero rules -- that is the point of
+// running it here anyway: the generated executor must compile and load correctly even with an
+// empty rule set, which is the state every repo starts in.
+console.log('java-compile-smoke: rules check -> rules emit...');
+r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`rules check: ${r.stderr || r.stdout}`);
+r = bskel(['rules', 'emit', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`rules emit: ${r.stderr || r.stdout}`);
+for (const expected of ['src/main/java/com/example/demo/global/rules/RuleCheck.java', 'src/main/resources/bskel/001-widget-management.rules.json']) {
+	if (!fs.existsSync(path.join(scratch, expected))) fail(`rules emit did not write ${expected}`);
+}
+
 console.log('java-compile-smoke: bskel verify --feature ... --build (real ./gradlew compileJava)...');
 r = bskel(['verify', '--feature', FEATURE_ID, '--build', '--json'], scratch);
 let report;
@@ -169,6 +184,166 @@ if (!verifyPayload(receipt, javaSignature, publicKeyPem)) {
 	fail('a signature produced by the real generated ReceiptSigner.java did not verify against lib/attest.mjs\'s own verifyPayload() -- cross-language canonicalization has diverged.');
 }
 console.log('java-compile-smoke: PASS -- a real Java-signed receipt verified correctly in Node.');
+
+// D-business-rules (R9): the real-toolchain proof the plan's own Verification section requires --
+// not just "compiles with zero rules" (already proven above) but "a genuine violation is detected
+// at runtime, in a real JVM, against real generated code". Re-emits the contract with a real
+// OpenAPI document carrying enough shape to exercise all three predicate kinds (field, cross,
+// transition), authors real rules against it, re-emits the runtime resources, and drives the real
+// generated RuleSetLoader/RuleCheck from a JUnit test -- same "read a Node-written input, write a
+// Node-read output" shape SignSmokeTest above already established.
+console.log('java-compile-smoke: business rules -- real OpenAPI doc, real rules, real JVM execution...');
+const rulesOpenApiDoc = {
+	openapi: '3.1.0',
+	info: { title: 'widget', version: '1' },
+	paths: {
+		'/widgets/{widgetId}': {
+			get: {
+				operationId: 'findWidget',
+				parameters: [{ name: 'widgetId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { 200: { description: 'ok' } },
+			},
+			patch: {
+				operationId: 'updateWidget',
+				parameters: [{ name: 'widgetId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								properties: {
+									capacity: { type: 'integer' },
+									ownerName: { type: 'string' },
+									status: { type: 'string', enum: ['draft', 'published', 'archived'] },
+									startWindow: { type: 'string' },
+									endWindow: { type: 'string' },
+								},
+							},
+						},
+					},
+				},
+				responses: { 200: { description: 'ok' } },
+			},
+		},
+	},
+};
+fs.writeFileSync(path.join(scratch, 'rules-openapi.json'), JSON.stringify(rulesOpenApiDoc));
+r = bskel(['contract', 'emit', '--feature', FEATURE_ID, '--openapi-file', 'rules-openapi.json'], scratch);
+if (r.code !== 0) fail(`contract emit --openapi-file (rules phase): ${r.stderr || r.stdout}`);
+
+fs.writeFileSync(path.join(scratch, 'specs', FEATURE_ID, 'rules.yaml'), `schema: sbf.feature-rules-source/1
+rules:
+  - id: capacity-cap
+    kind: field
+    operation: updateWidget
+    pointer: /capacity
+    assert: maximum
+    value: 500
+    reason: java-compile-smoke
+  - id: owner-min
+    kind: field
+    operation: updateWidget
+    pointer: /ownerName
+    assert: minLength
+    value: 3
+    reason: java-compile-smoke
+  - id: window-order
+    kind: cross
+    operation: updateWidget
+    pointers: [/startWindow, /endWindow]
+    assert: lt
+    reason: java-compile-smoke
+  - id: publish-flow
+    kind: transition
+    operation: updateWidget
+    pointer: /status
+    from: [draft]
+    to: [published]
+    reason: java-compile-smoke
+`);
+r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`rules check (real rules): ${r.stderr || r.stdout}`);
+r = bskel(['rules', 'emit', '--feature', FEATURE_ID], scratch);
+if (r.code !== 0) fail(`rules emit (real rules): ${r.stderr || r.stdout}`);
+
+const ruleExecTestDir = path.join(scratch, 'src', 'test', 'java', 'com', 'example', 'demo', 'global', 'rules');
+fs.mkdirSync(ruleExecTestDir, { recursive: true });
+fs.writeFileSync(path.join(ruleExecTestDir, 'RuleExecSmokeTest.java'), `package com.example.demo.global.rules;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Test-only driver for scripts/java-compile-smoke.mjs -- NOT a bskel template, never generated.
+ * Drives the REAL generated RuleSetLoader/RuleCheck against a violating payload and a valid one,
+ * writes both violation lists to rule-exec-output.json for the Node script to assert against.
+ */
+class RuleExecSmokeTest {
+
+	@Test
+	void checksRealPayloadsAndWritesResultsForNodeToVerify() throws Exception {
+		ObjectMapper mapper = new ObjectMapper();
+		RuleSetLoader loader = new RuleSetLoader(mapper);
+		RuleSetLoader.RuleOperation rules = loader.forOperation("updateWidget");
+
+		JsonNode violating = mapper.readTree("""
+			{"capacity": 999, "ownerName": "x", "startWindow": "2026-01-02", "endWindow": "2026-01-01", "status": "published"}
+			""");
+		JsonNode valid = mapper.readTree("""
+			{"capacity": 100, "ownerName": "widget-owner", "startWindow": "2026-01-01", "endWindow": "2026-01-02", "status": "published"}
+			""");
+
+		List<RuleCheck.Violation> violatingResult = new java.util.ArrayList<>(RuleCheck.check(rules, violating));
+		violatingResult.addAll(RuleCheck.checkTransitions(rules, violating, Map.of("/status", "archived")));
+
+		List<RuleCheck.Violation> validResult = new java.util.ArrayList<>(RuleCheck.check(rules, valid));
+		validResult.addAll(RuleCheck.checkTransitions(rules, valid, Map.of("/status", "draft")));
+
+		StringBuilder out = new StringBuilder("{");
+		out.append("\\"violatingCount\\":").append(violatingResult.size()).append(",");
+		out.append("\\"violatingRuleIds\\":[");
+		for (int i = 0; i < violatingResult.size(); i++) {
+			if (i > 0) out.append(",");
+			out.append("\\"").append(violatingResult.get(i).ruleId()).append("\\"");
+		}
+		out.append("],");
+		out.append("\\"validCount\\":").append(validResult.size());
+		out.append("}");
+		Files.writeString(Path.of("rule-exec-output.json"), out.toString());
+	}
+}
+`);
+
+try {
+	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.rules.RuleExecSmokeTest', '--console=plain'], scratch, { quiet: true });
+} catch (err) {
+	fail(`./gradlew test (RuleExecSmokeTest) failed (exit ${err.status}): ${err.stdout || ''}${err.stderr || ''}`);
+}
+
+let ruleExecResult;
+try {
+	ruleExecResult = JSON.parse(fs.readFileSync(path.join(scratch, 'rule-exec-output.json'), 'utf8'));
+} catch (err) {
+	fail(`could not read rule-exec-output.json -- RuleExecSmokeTest did not run or did not write it (${err.message})`);
+}
+if (ruleExecResult.violatingCount !== 4) {
+	fail(`expected exactly 4 violations (capacity-cap, owner-min, window-order, publish-flow) against the deliberately-violating payload, got ${ruleExecResult.violatingCount}: ${JSON.stringify(ruleExecResult.violatingRuleIds)}`);
+}
+const expectedIds = ['capacity-cap', 'owner-min', 'window-order', 'publish-flow'].sort();
+if (JSON.stringify([...ruleExecResult.violatingRuleIds].sort()) !== JSON.stringify(expectedIds)) {
+	fail(`violation rule ids did not match -- expected ${JSON.stringify(expectedIds)}, got ${JSON.stringify(ruleExecResult.violatingRuleIds)}`);
+}
+if (ruleExecResult.validCount !== 0) {
+	fail(`expected 0 violations against a payload deliberately constructed to satisfy every rule, got ${ruleExecResult.validCount}`);
+}
+console.log('java-compile-smoke: PASS -- real generated RuleCheck/RuleSetLoader correctly detected all 4 real violations, and correctly passed a valid payload, in a real JVM.');
 
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });
