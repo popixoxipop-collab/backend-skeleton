@@ -6,10 +6,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compileRules, projectContractRules, summarizeArtifact, RULES_SOURCE_SCHEMA } from '../rules/compile.mjs';
 import {
-	FIELD_ASSERTS, CROSS_ASSERTS, PREDICATE_KINDS, FIELD_ASSERT_NAMES, CROSS_ASSERT_NAMES,
+	FIELD_ASSERTS, CROSS_ASSERTS, PREDICATE_KINDS, ALL_RULE_KINDS, DERIVED_OPS,
+	FIELD_ASSERT_NAMES, CROSS_ASSERT_NAMES,
 	requireFieldAssert, requireCrossAssert, valueMatchesType, typesAreComparable, explainRule,
+	pascalCase, snakeCase,
 } from '../rules/vocabulary.mjs';
 import { RULE_DIAGNOSTICS, makeRuleDiagnostic, requireRuleDiagnostic, ruleDiagnosticKey, isBlocking } from '../rules/diagnostics.mjs';
+import { renderExprInfix, collectParams, groupDerivedByResource } from '../rules/derived.mjs';
 
 // A contract shaped exactly like contracts/emit.mjs's own output, with a projected
 // requestBodySchema carrying real constraints -- the shape `contract emit --openapi-file` produces.
@@ -264,4 +267,126 @@ test('PREDICATE_KINDS deliberately excludes `derived` -- it produces a value, so
 test('the compiled enum sets stay in lockstep with the vocabulary module (a new member must be added to both)', () => {
 	assert.deepEqual(FIELD_ASSERT_NAMES, Object.keys(FIELD_ASSERTS).sort());
 	assert.deepEqual(CROSS_ASSERT_NAMES, Object.keys(CROSS_ASSERTS).sort());
+});
+
+// ---- R5/Phase 3: derived fields ---------------------------------------------------------------
+
+function derivedRule(overrides = {}) {
+	return {
+		id: 'order-total', kind: 'derived', resource: 'Order', field: 'total',
+		expr: { op: 'sub', args: [{ op: 'mul', args: [{ ref: 'price' }, { ref: 'quantity' }] }, { ref: 'discount' }] },
+		...overrides,
+	};
+}
+
+test('a valid derived rule compiles resource-scoped (not under operations), with params in first-appearance order', () => {
+	const contract = contractWith({});
+	const result = compileRules({ contract, source: { rules: [derivedRule()] }, contractRef: 'x' });
+	assert.equal(result.blocking, false);
+	assert.deepEqual(result.artifact.operations, {}, 'derived rules must never appear under operations');
+	assert.deepEqual(result.artifact.derived, [{
+		id: 'order-total', resource: 'Order', field: 'total', params: ['price', 'quantity', 'discount'],
+		expr: derivedRule().expr, origin: 'declared',
+	}]);
+	assert.equal(summarizeArtifact(result.artifact).derived, 1);
+});
+
+test('a derived rule missing resource/field/expr is REFUSED', () => {
+	for (const overrides of [{ resource: '' }, { field: '' }, { expr: undefined }, { expr: null }]) {
+		const result = compileRules({ contract: contractWith({}), source: { rules: [derivedRule(overrides)] }, contractRef: 'x' });
+		assert.equal(result.blocking, true, JSON.stringify(overrides));
+		assert.deepEqual(result.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code), ['RULE_DERIVED_MISSING_FIELDS']);
+	}
+});
+
+test('a derived rule referencing its own field is REFUSED -- there is no defined value to read', () => {
+	const result = compileRules({ contract: contractWith({}), source: { rules: [derivedRule({ expr: { ref: 'total' } })] }, contractRef: 'x' });
+	assert.equal(result.blocking, true);
+	assert.deepEqual(result.diagnostics.map((d) => d.code), ['RULE_DERIVED_SELF_REFERENCE']);
+});
+
+test('a derived rule dividing by a compile-time-known literal zero is REFUSED', () => {
+	const result = compileRules({ contract: contractWith({}), source: { rules: [derivedRule({ expr: { op: 'div', args: [{ ref: 'price' }, { const: 0 }] } })] }, contractRef: 'x' });
+	assert.equal(result.blocking, true);
+	assert.deepEqual(result.diagnostics.map((d) => d.code), ['RULE_DERIVED_DIVIDE_BY_ZERO']);
+});
+
+test('dividing by a REF (a real runtime value, never compile-time-known) is NOT refused -- only a literal zero is', () => {
+	const result = compileRules({ contract: contractWith({}), source: { rules: [derivedRule({ expr: { op: 'div', args: [{ ref: 'price' }, { ref: 'divisor' }] } })] }, contractRef: 'x' });
+	assert.equal(result.blocking, false);
+});
+
+test('an unknown op, wrong arity, or malformed node is REFUSED as RULE_DERIVED_INVALID_EXPR', () => {
+	for (const expr of [
+		{ op: 'pow', args: [{ ref: 'a' }, { ref: 'b' }] },
+		{ op: 'add', args: [{ ref: 'a' }] },
+		{ op: 'add', args: [{ ref: 'a' }, { ref: 'b' }, { ref: 'c' }] },
+		{ notAValidNode: true },
+		{ ref: 123 },
+		{ const: 'not-a-number' },
+	]) {
+		const result = compileRules({ contract: contractWith({}), source: { rules: [derivedRule({ expr })] }, contractRef: 'x' });
+		assert.equal(result.blocking, true, JSON.stringify(expr));
+		assert.deepEqual(result.diagnostics.map((d) => d.code), ['RULE_DERIVED_INVALID_EXPR'], JSON.stringify(expr));
+	}
+});
+
+test('a `derived` kind rule and a duplicate id are still checked by the shared, kind-agnostic passes', () => {
+	const result = compileRules({
+		contract: contractWith({}),
+		source: { rules: [derivedRule({ id: 'dup' }), derivedRule({ id: 'dup', field: 'tax' })] },
+		contractRef: 'x',
+	});
+	assert.equal(result.blocking, true);
+	assert.deepEqual(result.diagnostics.map((d) => d.code), ['RULE_DUPLICATE_ID']);
+});
+
+test('ALL_RULE_KINDS accepts derived at the top-level kind check, but PREDICATE_KINDS still excludes it', () => {
+	assert.deepEqual([...ALL_RULE_KINDS], [...PREDICATE_KINDS, 'derived']);
+	assert.equal(PREDICATE_KINDS.includes('derived'), false);
+});
+
+// ---- rules/derived.mjs: pure rendering ---------------------------------------------------------
+
+test('renderExprInfix renders a nested tree as fully-parenthesized infix text', () => {
+	const expr = { op: 'sub', args: [{ op: 'mul', args: [{ ref: 'price' }, { ref: 'quantity' }] }, { ref: 'discount' }] };
+	assert.equal(renderExprInfix(expr), '((price * quantity) - discount)');
+});
+
+test('renderExprInfix supports a refName transform, for languages whose identifier casing differs', () => {
+	const expr = { op: 'add', args: [{ ref: 'unitPrice' }, { ref: 'taxAmount' }] };
+	assert.equal(renderExprInfix(expr, (name) => snakeCase(name)), '(unit_price + tax_amount)');
+});
+
+test('renderExprInfix renders a bare const/ref leaf directly, not wrapped in parens', () => {
+	assert.equal(renderExprInfix({ const: 42 }), '42');
+	assert.equal(renderExprInfix({ ref: 'x' }), 'x');
+});
+
+test('collectParams returns every distinct ref in first-appearance order, deduplicated', () => {
+	const expr = { op: 'add', args: [{ op: 'mul', args: [{ ref: 'a' }, { ref: 'b' }] }, { op: 'sub', args: [{ ref: 'a' }, { const: 1 }] }] };
+	assert.deepEqual(collectParams(expr), ['a', 'b']);
+});
+
+test('groupDerivedByResource groups by resource (sorted) and sorts each group by field name', () => {
+	const derived = [
+		{ id: 'b', resource: 'Order', field: 'total', params: [], expr: { const: 1 } },
+		{ id: 'a', resource: 'Order', field: 'tax', params: [], expr: { const: 1 } },
+		{ id: 'c', resource: 'Invoice', field: 'grandTotal', params: [], expr: { const: 1 } },
+	];
+	const grouped = groupDerivedByResource(derived);
+	assert.deepEqual(grouped.map(([resource]) => resource), ['Invoice', 'Order']);
+	assert.deepEqual(grouped.find(([r]) => r === 'Order')[1].map((r) => r.field), ['tax', 'total']);
+});
+
+test('pascalCase/snakeCase are consistent inverses of casing convention, matching what each provider needs', () => {
+	assert.equal(pascalCase('discount_percent'), 'DiscountPercent');
+	assert.equal(pascalCase('start-window'), 'StartWindow');
+	assert.equal(snakeCase('discountPercent'), 'discount_percent');
+});
+
+test('explainRule renders a derived rule by naming its resource/field/params', () => {
+	const explanation = explainRule({ kind: 'derived', rule: { resource: 'Order', field: 'total', params: ['price', 'quantity'] } });
+	assert.match(explanation, /Order\.total/);
+	assert.match(explanation, /price, quantity/);
 });

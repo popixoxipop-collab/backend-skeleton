@@ -12,11 +12,12 @@
 // PURE. No filesystem, no git, no CLI, no process.exit -- the caller owns I/O and exit codes, the
 // same split contracts/emit.mjs holds against bin/bskel.mjs.
 import {
-	FIELD_ASSERTS, CROSS_ASSERTS, PREDICATE_KINDS, RULE_SCALAR_TYPES,
+	FIELD_ASSERTS, CROSS_ASSERTS, PREDICATE_KINDS, ALL_RULE_KINDS, RULE_SCALAR_TYPES, DERIVED_OPS,
 	FIELD_ASSERT_NAMES, CROSS_ASSERT_NAMES,
 	getFieldAssert, getCrossAssert, valueMatchesType, typesAreComparable,
 } from './vocabulary.mjs';
 import { makeRuleDiagnostic, isBlocking } from './diagnostics.mjs';
+import { collectParams } from './derived.mjs';
 
 export const RULES_SCHEMA_VERSION = '1';
 export const RULES_SOURCE_SCHEMA = 'sbf.feature-rules-source/1';
@@ -242,6 +243,58 @@ const KIND_COMPILERS = Object.freeze({
 	transition: compileTransitionRule,
 });
 
+// R5/Phase 3: validates an authored expr node against the closed grammar
+// ({op,args}/{ref}/{const}), recursively. Returns {ok:true} or {ok:false, error} -- the error is
+// a plain string (not yet a full diagnostic; the caller attaches rule id/subject context, since
+// this function has no access to the enclosing rule's own id).
+function validateDerivedExpr(node, fieldName) {
+	if (node && typeof node === 'object' && Object.hasOwn(node, 'ref')) {
+		if (typeof node.ref !== 'string' || node.ref.length === 0) return { ok: false, error: 'a `ref` leaf must be a non-empty string' };
+		if (node.ref === fieldName) return { ok: false, error: 'self-reference', code: 'RULE_DERIVED_SELF_REFERENCE' };
+		return { ok: true };
+	}
+	if (node && typeof node === 'object' && Object.hasOwn(node, 'const')) {
+		if (typeof node.const !== 'number' || !Number.isFinite(node.const)) return { ok: false, error: 'a `const` leaf must be a finite number' };
+		return { ok: true };
+	}
+	if (node && typeof node === 'object' && Object.hasOwn(node, 'op')) {
+		if (!DERIVED_OPS.includes(node.op)) return { ok: false, error: `unknown op "${node.op}" -- known ops: ${DERIVED_OPS.join(', ')}` };
+		if (!Array.isArray(node.args) || node.args.length !== 2) return { ok: false, error: `op "${node.op}" needs exactly 2 args, got ${Array.isArray(node.args) ? node.args.length : 'none'}` };
+		if (node.op === 'div' && node.args[1] && typeof node.args[1] === 'object' && node.args[1].const === 0) {
+			return { ok: false, error: 'division by a compile-time-known literal zero', code: 'RULE_DERIVED_DIVIDE_BY_ZERO' };
+		}
+		for (const arg of node.args) {
+			const result = validateDerivedExpr(arg, fieldName);
+			if (!result.ok) return result;
+		}
+		return { ok: true };
+	}
+	return { ok: false, error: 'must be one of {op,args}, {ref}, or {const}' };
+}
+
+function compileDerivedRule(rule) {
+	const id = typeof rule?.id === 'string' ? rule.id : '';
+	const resource = typeof rule?.resource === 'string' ? rule.resource : '';
+	const field = typeof rule?.field === 'string' ? rule.field : '';
+	if (!resource || !field || !rule?.expr || typeof rule.expr !== 'object') {
+		return { error: makeRuleDiagnostic('RULE_DERIVED_MISSING_FIELDS', {
+			subject: id || '(unnamed rule)',
+			message: `rule "${id || '(unnamed)'}": a derived rule needs a non-empty resource, field, and expr`,
+			detail: { rule: id, resource: resource || null, field: field || null, hasExpr: Boolean(rule?.expr) },
+		}) };
+	}
+	const validated = validateDerivedExpr(rule.expr, field);
+	if (!validated.ok) {
+		return { error: makeRuleDiagnostic(validated.code ?? 'RULE_DERIVED_INVALID_EXPR', {
+			subject: id,
+			message: `rule "${id}" (${resource}.${field}): ${validated.error}`,
+			detail: { rule: id, resource, field },
+		}) };
+	}
+	const params = collectParams(rule.expr);
+	return { compiled: { id, resource, field, params, expr: rule.expr, origin: 'declared' } };
+}
+
 /**
  * Compiles an authored rules source document against a feature contract.
  *
@@ -286,15 +339,24 @@ export function compileRules({ contract, source = null, contractRef = '' }) {
 		if (projected.rules.length > 0) bucket(operationId).field.push(...projected.rules);
 	}
 
+	const derivedCompiled = [];
 	for (const rule of authored) {
 		const id = typeof rule?.id === 'string' ? rule.id : '';
 		const kind = rule?.kind;
-		if (!PREDICATE_KINDS.includes(kind)) {
+		if (!ALL_RULE_KINDS.includes(kind)) {
 			diagnostics.push(makeRuleDiagnostic('RULE_UNKNOWN_KIND', {
 				subject: id || '(unnamed rule)',
-				message: `rule "${id || '(unnamed)'}": unknown kind "${kind}" -- known kinds: ${PREDICATE_KINDS.join(', ')}`,
-				detail: { rule: id, kind: kind ?? null, known: [...PREDICATE_KINDS] },
+				message: `rule "${id || '(unnamed)'}": unknown kind "${kind}" -- known kinds: ${ALL_RULE_KINDS.join(', ')}`,
+				detail: { rule: id, kind: kind ?? null, known: [...ALL_RULE_KINDS] },
 			}));
+			continue;
+		}
+		// `derived` is resource-scoped, not operation-scoped (R5) -- it has no `operation` field
+		// to resolve against the contract at all, so it is compiled on its own path entirely.
+		if (kind === 'derived') {
+			const { compiled, error } = compileDerivedRule(rule);
+			if (error) { diagnostics.push(error); continue; }
+			derivedCompiled.push(compiled);
 			continue;
 		}
 		const opContract = operations[rule.operation];
@@ -336,9 +398,9 @@ export function compileRules({ contract, source = null, contractRef = '' }) {
 			contract_ref: contractRef,
 			operations: compiledOperations,
 			// R5/Phase 3: `derived` compiles to a generated pure function rather than a predicate,
-			// so it is a separate top-level list, always present (empty until that phase lands) so
-			// no consumer has to branch on its absence.
-			derived: [],
+			// so it is a separate top-level list, sorted by id for the same determinism guarantee
+			// every other rule list already holds.
+			derived: derivedCompiled.slice().sort((a, b) => a.id.localeCompare(b.id)),
 			unsupported: diagnostics
 				.filter((d) => d.severity === 'warn')
 				.map((d) => ({ code: d.code, subject: d.subject, reason: d.message }))
@@ -356,6 +418,7 @@ export function summarizeArtifact(artifact) {
 	if (!artifact) return summary;
 	summary.operations = Object.keys(artifact.operations ?? {}).length;
 	summary.derived = (artifact.derived ?? []).length;
+	summary.declared += summary.derived; // every derived rule is origin:"declared" -- no contract-projection equivalent exists for a computed field
 	summary.unsupported = (artifact.unsupported ?? []).length;
 	for (const kinds of Object.values(artifact.operations ?? {})) {
 		for (const kind of PREDICATE_KINDS) {

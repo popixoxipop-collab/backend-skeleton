@@ -59,6 +59,33 @@ export const CROSS_ASSERTS = Object.freeze({
 // compiler and every checker iterate them generically.
 export const PREDICATE_KINDS = Object.freeze(['field', 'cross', 'transition']);
 
+// Every kind an authored rule may declare -- PREDICATE_KINDS plus `derived`. Used only at the
+// "is this kind even real" dispatch point in rules/compile.mjs; every other consumer (the
+// checkers, `rules explain`'s search) still branches on PREDICATE_KINDS vs. `derived` separately,
+// because the two are executed through genuinely different mechanisms (R5).
+export const ALL_RULE_KINDS = Object.freeze([...PREDICATE_KINDS, 'derived']);
+
+// R5/Phase 3: the closed arithmetic vocabulary a `derived` rule's expr tree may use. Deliberately
+// tiny and binary-only (exactly 2 args per op) -- the explicit "no arbitrary arithmetic beyond the
+// frozen operator set" scope boundary this item's own plan named. A third operand is expressed by
+// nesting (`mul(mul(a,b),c)`), never by widening arity.
+export const DERIVED_OPS = Object.freeze(['add', 'sub', 'mul', 'div']);
+
+// PascalCase for Java/TypeScript method names (`computeTotal`), snake_case for Python
+// (`compute_total`) -- pure string transforms, reused by all three provider emitters so a
+// resource/field name is capitalized identically everywhere rather than three subtly different
+// regexes drifting apart.
+export function pascalCase(name) {
+	return String(name).replace(/(^\w|[-_]\w)/g, (m) => m.replace(/[-_]/, '').toUpperCase());
+}
+
+export function snakeCase(name) {
+	return String(name)
+		.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+		.replace(/[-\s]+/g, '_')
+		.toLowerCase();
+}
+
 // Where a compiled rule came from. `contract` = projected from the feature's own
 // requestBodySchema, i.e. a fact the user's OpenAPI document already asserts, transported (R4 --
 // the same "copying is not synthesizing" posture D-openapi-passthrough established). `declared` =
@@ -137,6 +164,9 @@ export function explainRule({ kind, rule }) {
 	}
 	if (kind === 'transition') {
 		return `${rule.pointer} may only change from {${rule.from.join(', ')}} to {${rule.to.join(', ')}}`;
+	}
+	if (kind === 'derived') {
+		return `${rule.resource}.${rule.field} is computed from (${rule.params.join(', ')}) -- see \`rules/derived.mjs\`'s renderExprInfix() for the exact formula, or the generated <Resource>Rules class itself`;
 	}
 	return `(no explanation available for kind "${kind}")`;
 }

@@ -6,6 +6,34 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["sbf_feature_rules", "feature_id", "feature_uid", "contract_ref", "operations", "derived", "unsupported"],
+  "$defs": {
+    "derivedExpr": {
+      "description": "R5/Phase 3's closed expression grammar for a derived field's formula -- exactly one of an op node (binary, add/sub/mul/div only -- rules/vocabulary.mjs's DERIVED_OPS), a `ref` leaf (a named input, becomes a generated function parameter), or a `const` leaf (a compile-time literal). Deliberately not a general expression language: no loops, no function calls, no I/O, no operator beyond this frozen set.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "args"],
+          "properties": {
+            "op": { "enum": ["add", "sub", "mul", "div"] },
+            "args": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/derivedExpr" } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref"],
+          "properties": { "ref": { "type": "string", "minLength": 1 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["const"],
+          "properties": { "const": { "type": "number" } }
+        }
+      ]
+    }
+  },
   "properties": {
     "sbf_feature_rules": { "const": "1" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
@@ -73,9 +101,25 @@
       }
     },
     "derived": {
-      "description": "Derived/computed field rules. Unlike the three predicate kinds above, a derived rule PRODUCES a value rather than answering true/false about one, so it cannot be executed by a predicate checker and compiles to a generated pure-function class instead (R5). Always present; empty until that phase lands, so no consumer has to branch on its absence.",
+      "description": "Derived/computed field rules. Unlike the three predicate kinds above, a derived rule PRODUCES a value rather than answering true/false about one, so it cannot be executed by a predicate checker and compiles to a generated pure-function class instead (R5). Resource-scoped, not operation-scoped -- unlike field/cross/transition, a derived rule has no `operation` and is never checked against the contract's requestBodySchema.",
       "type": "array",
-      "items": { "type": "object" }
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "resource", "field", "params", "expr", "origin"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "resource": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "params": {
+            "description": "Every distinct {ref} name in `expr`, in first-appearance order -- this becomes the generated pure function's own parameter list (rules/derived.mjs's collectParams()).",
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "expr": { "$ref": "#/$defs/derivedExpr" },
+          "origin": { "const": "declared" }
+        }
+      }
     },
     "unsupported": {
       "description": "Every constraint found in the contract that this vocabulary cannot express, recorded rather than silently dropped -- the same honesty mechanism handles/observe-schema-projection.mjs's own `unsupported[]` JSON-Pointer list provides. An auditor reading this artifact can always tell what is NOT enforced.",

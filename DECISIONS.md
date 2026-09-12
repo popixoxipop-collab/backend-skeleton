@@ -14037,3 +14037,95 @@ ships no codegen provider at all, unlike python-fastapi/typescript-express which
 (check + emit + auto-wiring + observe/enforce mode), each independently verified against a real
 toolchain (JVM/Gradle, venv/pip, tsc/npm). Remaining: Phase 3 (`derived` fields, reading
 `dependencies.json`, closing `D-field-dependency`'s own named EXIT) -- not started.
+
+## D-business-rules, Phase 3: derived/computed fields -- closing D-field-dependency's own named EXIT
+
+Closes the last named gap in the approved plan: `derived` fields, the one rule kind that
+*produces* a value rather than checking one. `D-field-dependency`'s own EXIT explicitly deferred
+this exact question -- *"codegen-side propagation (how `contract emit`/`handles emit` would
+actually reflect a derived field in generated code, per adapter -- a separate, real design
+question each provider needs its own answer to)"*. This item answers it, per provider, the same
+disciplined way every other rule kind was built.
+
+**R10a -- a deliberately tiny, binary-only arithmetic grammar.** `rules/vocabulary.mjs`'s
+`DERIVED_OPS = ['add', 'sub', 'mul', 'div']`, each taking exactly 2 args -- a third operand is
+nesting (`mul(mul(a,b),c)`), never widened arity. A `derived` rule's `expr` is one of `{op, args}`
+(recursive), `{ref: name}` (a named input), or `{const: number}` (a literal). WHY: the explicit
+"no arbitrary arithmetic beyond the frozen operator set" scope boundary this item's plan already
+named. This closed set is also what makes **`rules/derived.mjs`'s `renderExprInfix()` a single,
+shared, provider-neutral renderer** -- possible only because add/sub/mul/div happen to share
+identical infix syntax across Java, Python, and TypeScript once every operand is typed
+numerically. Named explicitly as a fragile assumption that would need splitting if a future op
+ever needed different per-language syntax -- not a coincidence to rely on silently.
+
+**R10b -- resource-scoped, not operation-scoped; authored only, never projected.** Unlike
+field/cross/transition, a derived rule has no `operation` -- it declares `{resource, field, expr}`
+directly, compiled on its own path in `rules/compile.mjs` (`ALL_RULE_KINDS` gained `derived`
+alongside `PREDICATE_KINDS`, which deliberately still excludes it). There is no contract
+equivalent to project from (no OpenAPI keyword means "this field is computed from these others"),
+so every derived rule is `origin: "declared"`.
+
+**R10c -- refuse rather than guess, same posture as every other rule kind.** Four new ERROR codes:
+`RULE_DERIVED_MISSING_FIELDS` (empty resource/field/expr), `RULE_DERIVED_INVALID_EXPR` (unknown
+op, wrong arity, malformed node), `RULE_DERIVED_SELF_REFERENCE` (a rule referencing its own field
+-- there is no defined value to read), `RULE_DERIVED_DIVIDE_BY_ZERO` (a compile-time-known
+*literal* zero divisor only -- dividing by a `ref`, a real runtime value, is not this compiler's
+concern and is left to run normally, the same way any ordinary division would).
+
+**R10d -- a complete, compiling pure function per derived field, never a stub.** This is the
+literal fulfillment of R5's own promise ("a complete, compilable pure function... the call site
+stays the human's"). Every provider emits one file per RESOURCE (grouping multiple derived fields
+on the same resource into one class/module, sorted alphabetically by resource then by field --
+`rules/derived.mjs`'s `groupDerivedByResource()`), with all parameters and the return value typed
+numerically (`double` in Java, untyped in Python, `number` in TypeScript) -- the operator set is
+numeric-only by construction, so there is no type to infer beyond "a number." Function/method
+naming: `compute<PascalCase(field)>` in Java/TypeScript, `compute_<snake_case(field)>` in Python
+(`rules/vocabulary.mjs`'s new `pascalCase`/`snakeCase` helpers, shared by all three providers so a
+name capitalizes identically everywhere rather than three regexes drifting apart).
+
+Emitted the SAME unconditional way the `*.rules.json` spec resource already is -- a complete,
+never-hand-edited file, the same category as `RuleCheck.java` itself, not a resolver stub that
+needs `emitUnits()`'s conflict-tracking machinery.
+
+**COST, named rather than silently accepted** (`groupDerivedByResource()`'s own doc comment,
+repeated in every provider's `postEmitNotes`): if two DIFFERENT features both declare a derived
+field for the SAME resource name, each feature's own `rules emit` regenerates that resource's
+WHOLE file from its own view alone -- whichever feature emits last wins, silently dropping the
+other feature's methods. Merging across features would need real cross-feature provenance
+tracking this slice does not build, on the same "no proven need yet" measurement-before-infra
+discipline `D-javascript-express-adapter` already applied elsewhere in this codebase. `dependencies.json`
+(`D-field-dependency`) is NOT consulted by this slice either, for the identical reason: without a
+real adapter capability that extracts a resource's own field-level types, there is nothing yet to
+safely cross-check a dependency edge against -- forcing an under-specified scheme now would mean
+guessing, which this project refuses to do everywhere else. Both gaps are named as the honest next
+increment, not hidden.
+
+**Verified, in a real toolchain, for all three languages** -- not just that the generated code
+compiles, but that it *computes the right answer*: `WidgetRules.computeTotal(25.0, 4, 10.0)` /
+`item_rules.compute_total(25.0, 4, 10.0)` / `computeTotal(25, 4, 10)` all assert `== 90.0`
+(`25*4-10`), called directly from each language's own extended smoke script
+(`scripts/java-compile-smoke.mjs`, `scripts/python-import-smoke.mjs`,
+`scripts/typescript-typecheck-smoke.mjs`).
+
+**A real, reproduced Gradle daemon bug found and fixed while extending the Java smoke script, not
+a code defect**: a source file created by an external process (Node's `fs.writeFileSync`, not a
+Gradle-visible build action) between two `./gradlew` invocations was sometimes NOT picked up by
+the very next invocation -- `compileTestJava` failed with "cannot find symbol" for a class that
+existed correctly on disk (confirmed by inspecting the failed run's own scratch directory
+directly, not assumed), and a second attempt hit the identical class of staleness one step later
+("No tests found for given includes" despite the file existing). Gradle's own file-system-watching
+daemon feature (default-on since Gradle 6.7) is the documented cause of exactly this race between
+an OS file-change notification and an immediately-following build. Fixed by writing
+`org.gradle.vfs.watch=false` into the scratch repo's own `gradle.properties` before the affected
+phases -- scoped to not touch the earlier, already-reliable `SignSmokeTest` phase.
+
+New unit tests in `test/rules-compile.test.mjs` (every refusal path, `renderExprInfix`/
+`collectParams`/`groupDerivedByResource`/`pascalCase`/`snakeCase` directly) and CLI-level tests in
+`test/rules-cli.test.mjs`/`test/rules-emit-cli.test.mjs` (compilation, `rules list`/`explain`
+rendering a derived rule under its own resource-scoped section, real `OrderRules.java` emission +
+idempotence). `npm test` 1663/1663.
+
+**D-business-rules is now feature-complete against its originally approved plan**: all four rule
+kinds (field, cross, transition, derived), all three target stacks, observe/enforce mode, real
+toolchain verification throughout. Nothing from the original R1-R9 design plus this Phase 3
+extension remains unimplemented.

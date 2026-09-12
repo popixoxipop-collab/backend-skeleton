@@ -177,6 +177,17 @@ rules:
     from: [draft]
     to: [published]
     reason: python-import-smoke
+  - id: item-total
+    kind: derived
+    resource: Item
+    field: total
+    expr:
+      op: sub
+      args:
+        - op: mul
+          args: [{ ref: price }, { ref: quantity }]
+        - { ref: discount }
+    reason: python-import-smoke
 `);
 r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`rules check: ${r.stderr || r.stdout}`);
@@ -190,6 +201,9 @@ try {
 }
 if (!rulesEmitResult.written.includes('backend/app/rules/enforce_rules.py')) {
 	fail(`expected backend/app/rules/enforce_rules.py to be written -- got ${JSON.stringify(rulesEmitResult.written)}`);
+}
+if (!rulesEmitResult.written.includes('backend/app/rules/item_rules.py')) {
+	fail(`expected backend/app/rules/item_rules.py (derived field) to be written -- got ${JSON.stringify(rulesEmitResult.written)}`);
 }
 
 console.log('python-import-smoke: creating a throwaway venv and installing fastapi + sqlmodel...');
@@ -347,6 +361,14 @@ no_rules_result = asyncio.run(_decorated_no_rules({}))
 assert no_rules_result == "REAL_METHOD_RAN", "an operation with no compiled rules must be a silent no-op, even in enforce mode"
 
 del os.environ["BSKEL_RULES_MODE"]
+
+# D-business-rules (R5/Phase 3): the real generated item_rules.compute_total(), called directly
+# with real numbers -- proves the derived-field pure function is not just syntactically valid
+# Python (already proven by the module import above) but computes the real formula correctly:
+# 25.0 * 4 - 10.0 = 90.0.
+import app.rules.item_rules as item_rules
+derived_total = item_rules.compute_total(25.0, 4, 10.0)
+assert derived_total == 90.0, f"expected item_rules.compute_total(25.0, 4, 10.0) to equal 90.0 (25*4-10), got {derived_total}"
 
 print("python-import-smoke: all generated modules imported successfully")
 

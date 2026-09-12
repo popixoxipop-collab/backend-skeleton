@@ -192,6 +192,19 @@ console.log('java-compile-smoke: PASS -- a real Java-signed receipt verified cor
 // transition), authors real rules against it, re-emits the runtime resources, and drives the real
 // generated RuleSetLoader/RuleCheck from a JUnit test -- same "read a Node-written input, write a
 // Node-read output" shape SignSmokeTest above already established.
+// Real, live-reproduced Gradle daemon staleness, found while adding the phases below: a
+// brand-new source file created by an EXTERNAL process (Node's fs.writeFileSync, not a
+// Gradle-visible build action) was sometimes not picked up by the VERY NEXT `./gradlew`
+// invocation -- `compileTestJava` failed with "cannot find symbol" for a class that existed
+// correctly on disk (confirmed by inspecting the failed run's scratch dir directly), and a
+// second attempt hit the same class of staleness one step later ("No tests found for given
+// includes" despite the test file existing). Gradle's own file-system-watching daemon feature
+// (default-on since Gradle 6.7, used for incremental-build performance) is the documented cause
+// of exactly this race between an OS file-change notification and an immediately-following build
+// invocation. Disabled here, for the rest of THIS scratch repo's builds only -- not touching the
+// SignSmokeTest phase above, which has run reliably without it.
+fs.appendFileSync(path.join(scratch, 'gradle.properties'), '\norg.gradle.vfs.watch=false\n');
+
 console.log('java-compile-smoke: business rules -- real OpenAPI doc, real rules, real JVM execution...');
 const rulesOpenApiDoc = {
 	openapi: '3.1.0',
@@ -261,6 +274,17 @@ rules:
     from: [draft]
     to: [published]
     reason: java-compile-smoke
+  - id: widget-total
+    kind: derived
+    resource: Widget
+    field: total
+    expr:
+      op: sub
+      args:
+        - op: mul
+          args: [{ ref: price }, { ref: quantity }]
+        - { ref: discount }
+    reason: java-compile-smoke
 `);
 r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`rules check (real rules): ${r.stderr || r.stdout}`);
@@ -306,6 +330,12 @@ class RuleExecSmokeTest {
 		List<RuleCheck.Violation> validResult = new java.util.ArrayList<>(RuleCheck.check(rules, valid));
 		validResult.addAll(RuleCheck.checkTransitions(rules, valid, Map.of("/status", "draft")));
 
+		// D-business-rules (R5/Phase 3): the real generated WidgetRules.computeTotal(), called
+		// directly with real numbers -- proves the derived-field pure function is not just
+		// syntactically valid Java (already proven by ./gradlew compileJava above) but computes
+		// the real formula correctly: 25.0 * 4 - 10.0 = 90.0.
+		double derivedTotal = com.example.demo.global.rules.WidgetRules.computeTotal(25.0, 4, 10.0);
+
 		StringBuilder out = new StringBuilder("{");
 		out.append("\\"violatingCount\\":").append(violatingResult.size()).append(",");
 		out.append("\\"violatingRuleIds\\":[");
@@ -314,7 +344,8 @@ class RuleExecSmokeTest {
 			out.append("\\"").append(violatingResult.get(i).ruleId()).append("\\"");
 		}
 		out.append("],");
-		out.append("\\"validCount\\":").append(validResult.size());
+		out.append("\\"validCount\\":").append(validResult.size()).append(",");
+		out.append("\\"derivedTotal\\":").append(derivedTotal);
 		out.append("}");
 		Files.writeString(Path.of("rule-exec-output.json"), out.toString());
 	}
@@ -343,7 +374,10 @@ if (JSON.stringify([...ruleExecResult.violatingRuleIds].sort()) !== JSON.stringi
 if (ruleExecResult.validCount !== 0) {
 	fail(`expected 0 violations against a payload deliberately constructed to satisfy every rule, got ${ruleExecResult.validCount}`);
 }
-console.log('java-compile-smoke: PASS -- real generated RuleCheck/RuleSetLoader correctly detected all 4 real violations, and correctly passed a valid payload, in a real JVM.');
+if (Math.abs(ruleExecResult.derivedTotal - 90.0) > 1e-9) {
+	fail(`expected the real generated WidgetRules.computeTotal(25.0, 4, 10.0) to equal 90.0 (25*4-10), got ${ruleExecResult.derivedTotal}`);
+}
+console.log('java-compile-smoke: PASS -- real generated RuleCheck/RuleSetLoader correctly detected all 4 real violations, correctly passed a valid payload, and WidgetRules.computeTotal() computed the real formula correctly, in a real JVM.');
 
 // D-business-rules (R8): proves the AUTOMATIC @EnforceRules/RuleEnforcementAspect wiring itself --
 // not just the pure RuleCheck logic above, but the observe/enforce mode branch, the fail-open

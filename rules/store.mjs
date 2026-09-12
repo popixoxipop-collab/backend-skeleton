@@ -125,5 +125,17 @@ rules: []
 #    assert: maximum
 #    value: 50
 #    reason: "policy cap, not expressible in the public API schema"
+#
+#  - id: order-total
+#    kind: derived
+#    resource: Order
+#    field: total
+#    expr:
+#      op: sub
+#      args:
+#        - op: mul
+#          args: [{ ref: price }, { ref: quantity }]
+#        - { ref: discount }
+#    reason: "total = price * quantity - discount; compiles to a real Order Rules pure function"
 `;
 }

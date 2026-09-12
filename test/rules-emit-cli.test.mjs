@@ -229,3 +229,54 @@ test('rules emit refuses an adapter with no codegen provider at all, naming all 
 	assert.notEqual(result.code, 0);
 	assert.match(result.stderr, /does not support the "javascript-express" adapter yet \(supported: java-spring, python-fastapi, typescript-express\)/);
 });
+
+// ---- R5/Phase 3: derived fields --------------------------------------------------------------
+
+test('R5: rules emit writes a complete, compiling <Resource>Rules.java for a derived field, and names it in postEmitNotes', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughRules(root); // no derived rule yet -- writes an empty rules.yaml-less artifact via `rules check` above
+	fs.writeFileSync(path.join(root, 'specs', '001-widget-management', 'rules.yaml'), `schema: sbf.feature-rules-source/1
+rules:
+  - id: order-total
+    kind: derived
+    resource: Order
+    field: total
+    expr:
+      op: sub
+      args:
+        - op: mul
+          args: [{ ref: price }, { ref: quantity }]
+        - { ref: discount }
+`);
+	assert.equal(run(['rules', 'check', '--feature', '001-widget-management'], root).code, 0);
+
+	const result = run(['rules', 'emit', '--feature', '001-widget-management', '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	const body = JSON.parse(result.stdout);
+	assert.ok(body.written.includes(`${RULES_DIR}/OrderRules.java`), `expected OrderRules.java in ${JSON.stringify(body.written)}`);
+	assert.match(body.postEmitNotes.join('\n'), /derived field\(s\) compiled to OrderRules/);
+	assert.match(body.postEmitNotes.join('\n'), /NOTHING calls them/);
+
+	const source = fs.readFileSync(path.join(root, RULES_DIR, 'OrderRules.java'), 'utf8');
+	assert.match(source, /public final class OrderRules/);
+	assert.match(source, /public static double computeTotal\(double price, double quantity, double discount\)/);
+	assert.match(source, /return \(\(price \* quantity\) - discount\);/);
+});
+
+test('R5: a second rules emit with the derived rule unchanged leaves OrderRules.java byte-identical', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughRules(root);
+	fs.writeFileSync(path.join(root, 'specs', '001-widget-management', 'rules.yaml'), `schema: sbf.feature-rules-source/1
+rules:
+  - id: order-total
+    kind: derived
+    resource: Order
+    field: total
+    expr: { op: mul, args: [{ ref: price }, { ref: quantity }] }
+`);
+	run(['rules', 'check', '--feature', '001-widget-management'], root);
+	run(['rules', 'emit', '--feature', '001-widget-management'], root);
+	const before = fs.readFileSync(path.join(root, RULES_DIR, 'OrderRules.java'), 'utf8');
+	run(['rules', 'emit', '--feature', '001-widget-management'], root);
+	assert.equal(fs.readFileSync(path.join(root, RULES_DIR, 'OrderRules.java'), 'utf8'), before);
+});

@@ -83,6 +83,27 @@ export const RULE_DIAGNOSTICS = Object.freeze({
 		summary: 'a rule targets an operation with no projected requestBodySchema -- re-run `bskel contract emit --openapi-file <doc>` so pointers can be verified',
 	}),
 
+	// ---- ERROR: derived-field authoring mistakes (R5/Phase 3), refused --------------------------
+	RULE_DERIVED_MISSING_FIELDS: Object.freeze({
+		severity: RULE_SEVERITY.ERROR,
+		summary: 'a derived rule is missing a resource name, a field name, or an expr',
+	}),
+	RULE_DERIVED_INVALID_EXPR: Object.freeze({
+		severity: RULE_SEVERITY.ERROR,
+		summary: 'a derived rule\'s expr is not a well-formed {op,args}/{ref}/{const} node -- see rules/derived.mjs for the closed grammar',
+	}),
+	RULE_DERIVED_DIVIDE_BY_ZERO: Object.freeze({
+		severity: RULE_SEVERITY.ERROR,
+		// Compile-time-known zero only -- a divisor that is a ref (a real runtime value) is not
+		// this compiler's concern; the generated code divides by whatever the caller passes,
+		// exactly as any ordinary division does.
+		summary: 'a derived rule divides by a compile-time-known literal zero, which would always throw/produce Infinity at runtime',
+	}),
+	RULE_DERIVED_SELF_REFERENCE: Object.freeze({
+		severity: RULE_SEVERITY.ERROR,
+		summary: 'a derived rule\'s expr references its own field as an input, which has no defined value to read',
+	}),
+
 	// ---- WARN: expressiveness gaps, recorded in `unsupported[]` --------------------------------
 	RULE_UNSUPPORTED_CONSTRAINT: Object.freeze({
 		severity: RULE_SEVERITY.WARN,

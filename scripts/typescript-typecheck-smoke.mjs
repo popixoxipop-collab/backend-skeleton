@@ -456,6 +456,17 @@ rules:
     from: [draft]
     to: [published]
     reason: typescript-typecheck-smoke
+  - id: user-total
+    kind: derived
+    resource: User
+    field: total
+    expr:
+      op: sub
+      args:
+        - op: mul
+          args: [{ ref: price }, { ref: quantity }]
+        - { ref: discount }
+    reason: typescript-typecheck-smoke
 `);
 r = bskel(['rules', 'check', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`rules check: ${r.stderr || r.stdout}`);
@@ -467,7 +478,7 @@ try {
 } catch {
 	fail(`rules emit produced no parseable JSON: ${r.stdout}`);
 }
-const expectedRulesFiles = ['backend/src/rules/ruleCheck.ts', 'backend/src/rules/ruleSet.ts', 'backend/src/rules/enforceRules.ts', 'backend/src/rules/rulesSchemas/001-user-management.rules.json'];
+const expectedRulesFiles = ['backend/src/rules/ruleCheck.ts', 'backend/src/rules/ruleSet.ts', 'backend/src/rules/enforceRules.ts', 'backend/src/rules/userRules.ts', 'backend/src/rules/rulesSchemas/001-user-management.rules.json'];
 for (const f of expectedRulesFiles) {
 	if (!rulesEmitResult.written.includes(f)) fail(`rules emit: expected ${f} in written, got ${JSON.stringify(rulesEmitResult.written)}`);
 }
@@ -484,6 +495,7 @@ import http from 'node:http';
 import * as ruleCheck from './ruleCheck';
 import * as ruleSet from './ruleSet';
 import { enforceRules } from './enforceRules';
+import { computeTotal } from './userRules';
 
 async function main() {
   // ---- pure executor proof ----
@@ -560,6 +572,14 @@ async function main() {
   delete process.env.BSKEL_RULES_MODE;
   server.close();
   console.log('typescript-typecheck-smoke: real enforceRules HTTP round trip PASSED (observe always proceeds / enforce rejects real violations without leaking values / valid payload proceeds / rule-less operation is a no-op)');
+
+  // D-business-rules (R5/Phase 3): the real generated userRules.computeTotal(), called directly
+  // with real numbers -- proves the derived-field pure function is not just compiling TypeScript
+  // (already proven by the tsc compile above) but computes the real formula correctly:
+  // 25 * 4 - 10 = 90.
+  const derivedTotal = computeTotal(25, 4, 10);
+  if (derivedTotal !== 90) throw new Error(\`expected userRules.computeTotal(25, 4, 10) to equal 90 (25*4-10), got \${derivedTotal}\`);
+  console.log('typescript-typecheck-smoke: real generated userRules.computeTotal() computed the real formula correctly');
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });

@@ -305,3 +305,83 @@ test('a second `rules check` with nothing changed leaves the artifact byte-ident
 	run(['rules', 'check', '--feature', FEATURE], root);
 	assert.equal(fs.readFileSync(artifactPath(root), 'utf8'), first);
 });
+
+// ---- R5/Phase 3: derived fields --------------------------------------------------------------
+
+test('R5: a derived rule compiles resource-scoped, alongside predicate rules, and is counted in the summary', () => {
+	const root = repoThroughContract();
+	writeRules(root, `schema: sbf.feature-rules-source/1
+rules:
+  - id: order-total
+    kind: derived
+    resource: Order
+    field: total
+    expr:
+      op: sub
+      args:
+        - op: mul
+          args: [{ ref: price }, { ref: quantity }]
+        - { ref: discount }
+    reason: "policy: total = price*qty - discount"
+`);
+	const r = run(['rules', 'check', '--feature', FEATURE, '--json'], root);
+	assert.equal(r.code, 0, r.stderr);
+	const doc = JSON.parse(r.stdout);
+	assert.equal(doc.summary.derived, 1);
+	const artifact = JSON.parse(fs.readFileSync(artifactPath(root), 'utf8'));
+	assert.deepEqual(artifact.derived, [{
+		id: 'order-total', resource: 'Order', field: 'total', params: ['price', 'quantity', 'discount'],
+		expr: { op: 'sub', args: [{ op: 'mul', args: [{ ref: 'price' }, { ref: 'quantity' }] }, { ref: 'discount' }] },
+		origin: 'declared',
+	}]);
+});
+
+test('R5: a self-referencing derived rule is refused, writes nothing, and the rules gate stays un-passed', () => {
+	const root = repoThroughContract();
+	writeRules(root, `schema: sbf.feature-rules-source/1
+rules:
+  - id: bad
+    kind: derived
+    resource: Order
+    field: total
+    expr: { ref: total }
+`);
+	const r = run(['rules', 'check', '--feature', FEATURE], root);
+	assert.equal(r.code, 14);
+	assert.match(r.stderr, /RULE_DERIVED_SELF_REFERENCE/);
+	assert.equal(fs.existsSync(artifactPath(root)), false);
+	assert.notEqual(run(['gate', 'require', 'rules', '--feature', FEATURE], root).code, 0);
+});
+
+test('`rules list` renders a derived rule under its own resource-scoped section', () => {
+	const root = repoThroughContract();
+	writeRules(root, `schema: sbf.feature-rules-source/1
+rules:
+  - id: order-total
+    kind: derived
+    resource: Order
+    field: total
+    expr: { op: mul, args: [{ ref: price }, { ref: quantity }] }
+`);
+	run(['rules', 'check', '--feature', FEATURE], root);
+	const r = run(['rules', 'list', '--feature', FEATURE], root);
+	assert.equal(r.code, 0, r.stderr);
+	assert.match(r.stdout, /\[derived\]\s+order-total\s+Order\.total <- \(price, quantity\)/);
+});
+
+test('`rules explain` on a derived rule id names its resource/field/params instead of an operation', () => {
+	const root = repoThroughContract();
+	writeRules(root, `schema: sbf.feature-rules-source/1
+rules:
+  - id: order-total
+    kind: derived
+    resource: Order
+    field: total
+    expr: { op: mul, args: [{ ref: price }, { ref: quantity }] }
+`);
+	run(['rules', 'check', '--feature', FEATURE], root);
+	const r = run(['rules', 'explain', '--feature', FEATURE, '--rule', 'order-total'], root);
+	assert.equal(r.code, 0, r.stderr);
+	assert.match(r.stdout, /resource:\s+Order\.total/);
+	assert.match(r.stdout, /kind:\s+derived/);
+});

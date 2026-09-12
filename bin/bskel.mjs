@@ -2089,7 +2089,7 @@ function cmdRulesCheck(args) {
 	saveRulesArtifact(root, flags.feature, artifact);
 	const summary = summarizeArtifact(artifact);
 	const gateState = passNamedGate(root, 'rules', flags.feature, {
-		rule_count: summary.field + summary.cross + summary.transition,
+		rule_count: summary.field + summary.cross + summary.transition + summary.derived,
 		from_contract: summary.fromContract,
 		declared: summary.declared,
 		unsupported: summary.unsupported,
@@ -2102,7 +2102,7 @@ function cmdRulesCheck(args) {
 		console.log(JSON.stringify({ feature_id: flags.feature, summary, unsupported: artifact.unsupported, gate: gateState.gates.rules }, null, 2));
 	} else {
 		console.log(`rules -- feature ${flags.feature}`);
-		console.log(`  ${summary.field} field, ${summary.cross} cross-field, ${summary.transition} transition across ${summary.operations} operation(s)`);
+		console.log(`  ${summary.field} field, ${summary.cross} cross-field, ${summary.transition} transition across ${summary.operations} operation(s), ${summary.derived} derived (resource-scoped)`);
 		console.log(`  ${summary.fromContract} projected from the contract's own schema, ${summary.declared} declared in rules.yaml`);
 		if (warnings.length > 0) {
 			// Warnings go to stderr so `--json` stdout stays exactly one JSON document, and so
@@ -2110,7 +2110,7 @@ function cmdRulesCheck(args) {
 			console.error(`\n${warnings.length} constraint(s) in the contract are NOT enforced by these rules:`);
 			for (const w of warnings) console.error(`  ${w.code}: ${w.message}`);
 		}
-		if (summary.field + summary.cross + summary.transition === 0) {
+		if (summary.field + summary.cross + summary.transition + summary.derived === 0) {
 			console.log(`  (no rules yet -- run \`bskel rules check --feature ${flags.feature} --init\` for a starter rules.yaml, or point \`bskel contract emit\` at an OpenAPI document to pick up its constraints automatically)`);
 		}
 	}
@@ -2133,7 +2133,11 @@ function cmdRulesList(args) {
 		for (const r of kinds.cross ?? []) console.log(`    [cross]      ${r.id}  ${r.pointers.join(` ${r.assert} `)}  (${r.origin})`);
 		for (const r of kinds.transition ?? []) console.log(`    [transition] ${r.id}  ${r.pointer}: ${r.from.join('|')} -> ${r.to.join('|')}  (${r.origin})`);
 	}
-	if (Object.keys(artifact.operations).length === 0) console.log('  (none)');
+	if (Object.keys(artifact.operations).length === 0 && (artifact.derived ?? []).length === 0) console.log('  (none)');
+	if ((artifact.derived ?? []).length > 0) {
+		console.log('\n  derived (resource-scoped, not operation-scoped):');
+		for (const r of artifact.derived) console.log(`    [derived]    ${r.id}  ${r.resource}.${r.field} <- (${r.params.join(', ')})  (${r.origin})`);
+	}
 	if (artifact.unsupported.length > 0) {
 		console.log(`\n  NOT enforced (${artifact.unsupported.length}):`);
 		for (const u of artifact.unsupported) console.log(`    ${u.code}: ${u.reason}`);
@@ -2156,11 +2160,17 @@ function cmdRulesExplain(args) {
 			}
 		}
 	}
+	// `derived` rules are resource-scoped, not operation-scoped (R5) -- searched separately, same
+	// reasoning compileRules() gives for compiling them on their own path.
+	for (const rule of artifact.derived ?? []) {
+		if (rule.id === flags.rule) found.push({ operation: null, kind: 'derived', rule });
+	}
 	if (found.length === 0) {
 		const known = [];
 		for (const kinds of Object.values(artifact.operations)) {
 			for (const kind of PREDICATE_KINDS) for (const r of kinds[kind] ?? []) known.push(r.id);
 		}
+		for (const r of artifact.derived ?? []) known.push(r.id);
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no rule "${flags.rule}" in feature ${flags.feature} -- known rule ids: ${known.sort().join(', ') || '(none)'}`);
 	}
 	const [{ operation, kind, rule }] = found;
@@ -2168,7 +2178,8 @@ function cmdRulesExplain(args) {
 	if (flags.json) console.log(JSON.stringify({ feature_id: artifact.feature_id, operation, kind, rule, explanation }, null, 2));
 	else {
 		console.log(`rule "${rule.id}" -- feature ${artifact.feature_id}`);
-		console.log(`  operation: ${operation}`);
+		if (operation) console.log(`  operation: ${operation}`);
+		else console.log(`  resource:  ${rule.resource}.${rule.field}`);
 		console.log(`  kind:      ${kind}`);
 		console.log(`  origin:    ${rule.origin}${rule.origin === 'contract' ? " (projected from this operation's own requestBodySchema -- change the OpenAPI document, not rules.yaml)" : ' (declared in rules.yaml)'}`);
 		console.log(`  means:     ${explanation}`);
