@@ -34,6 +34,9 @@ dependencies {
 	// enabled by any other starter here. Matches the exact new build-time requirement
 	// `handles emit`'s own postEmitNotes now names for any REAL target repo.
 	implementation 'org.springframework.boot:spring-boot-starter-aop'
+	// D-spring-data-rest-adapter: real-compile proof for NoteRepository's @RepositoryRestResource
+	// (an isolated module -- see Note.java's own comment for why it, not Widget, was chosen).
+	implementation 'org.springframework.boot:spring-boot-starter-data-rest'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
 	compileOnly 'org.projectlombok:lombok:1.18.32'
 	annotationProcessor 'org.projectlombok:lombok:1.18.32'

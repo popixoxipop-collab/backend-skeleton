@@ -13,6 +13,8 @@ import {
 	matchMethodSignatureAfter,
 	findMappingAnnotations,
 	findMethodParams,
+	findInterfaceExtendsDeclaration,
+	splitTopLevelTypeArgs,
 } from '../scanners/adapters/_java-spring-analyzer.mjs';
 
 test('maskNonCode: same length and line count as the input', () => {
@@ -191,4 +193,50 @@ test('findMethodParams: a default-value expression\'s own nested parens do not t
 
 test('findMethodParams: returns null when the method is not found', () => {
 	assert.equal(findMethodParams('public void bar() {}', 'foo'), null);
+});
+
+// D-spring-data-rest-adapter: findInterfaceExtendsDeclaration/splitTopLevelTypeArgs
+
+test('findInterfaceExtendsDeclaration: happy path, two-arg generics', () => {
+	const text = 'public interface WidgetRepository extends JpaRepository<Widget, UUID> {\n}';
+	const decl = findInterfaceExtendsDeclaration(maskNonCode(text));
+	assert.equal(decl.name, 'WidgetRepository');
+	assert.equal(decl.superName, 'JpaRepository');
+	assert.equal(text.slice(decl.typeArgsStart, decl.typeArgsEnd), 'Widget, UUID');
+});
+
+test('findInterfaceExtendsDeclaration: bare (non-public) interface is recognized too', () => {
+	const decl = findInterfaceExtendsDeclaration(maskNonCode('interface WidgetRepository extends JpaRepository<Widget, UUID> {}'));
+	assert.equal(decl.name, 'WidgetRepository');
+});
+
+test('findInterfaceExtendsDeclaration: an interface with no extends clause returns null', () => {
+	assert.equal(findInterfaceExtendsDeclaration(maskNonCode('public interface WidgetRepository {}')), null);
+});
+
+test('findInterfaceExtendsDeclaration: an interface extending a non-generic type has null typeArgsStart/End', () => {
+	const decl = findInterfaceExtendsDeclaration(maskNonCode('public interface Foo extends Bar {}'));
+	assert.equal(decl.superName, 'Bar');
+	assert.equal(decl.typeArgsStart, null);
+	assert.equal(decl.typeArgsEnd, null);
+});
+
+test('findInterfaceExtendsDeclaration: a class (not interface) is not matched', () => {
+	assert.equal(findInterfaceExtendsDeclaration(maskNonCode('public class WidgetService extends BaseService<Widget> {}')), null);
+});
+
+test('splitTopLevelTypeArgs: simple two-arg split', () => {
+	assert.deepEqual(splitTopLevelTypeArgs('Widget, UUID'), ['Widget', 'UUID']);
+});
+
+test('splitTopLevelTypeArgs: a nested generic counts as one argument, not split on its own internal comma', () => {
+	assert.deepEqual(splitTopLevelTypeArgs('Map<String, List<Foo>>, UUID'), ['Map<String, List<Foo>>', 'UUID']);
+});
+
+test('splitTopLevelTypeArgs: a single argument with no comma', () => {
+	assert.deepEqual(splitTopLevelTypeArgs('Widget'), ['Widget']);
+});
+
+test('splitTopLevelTypeArgs: empty input returns an empty array', () => {
+	assert.deepEqual(splitTopLevelTypeArgs(''), []);
 });

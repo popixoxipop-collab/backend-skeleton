@@ -14239,3 +14239,91 @@ gained a real 1:N capability -- that remains future work.
 EXIT: `expansion`/`declarations[]`/`declarationIndex` are purely additive and unused until an
 adapter populates them; removing the whitelist and reverting the version bump leaves every
 existing contract byte-identical to before this item.
+
+## D-spring-data-rest-adapter: `@RepositoryRestResource` becomes real, honestly-provenanced CRUD routes
+
+The `java-spring` scanner adapter only recognized hand-written `@RestController` classes.
+Spring Data REST auto-generates a full CRUD REST API from a repository interface annotated
+`@RepositoryRestResource` -- a real, common pattern this adapter was blind to. This item closes
+X7 (`D-route-expansion-provenance`) -- the first adapter to actually populate
+`declarations[]`/`declarationIndex`/`expansion`, resolving the operationId question X7 named but
+deliberately left open. Sub-items labelled **SR1..SR7** (distinct prefix, avoiding
+`test/doc-integrity.test.mjs`'s `TOKEN_RE`, the same reasoning `R1..R9`/`X1..X8` already used).
+
+SR1 -- `extractRepositoryResource()`'s refusal ladder (interface+known-supertype shape -> build-file
+dependency -> parseable generics -> explicit `path=` -> no `@RestResource` override), each distinct
+failure surfaced as its own `unknowns[]` diagnostic except the first (an unrecognized interface
+shape is as uninteresting as no `@Entity` match -- silent, matching this adapter's existing
+convention). Conservative by design throughout: a wrong/over-claimed route is worse than none.
+
+SR2 -- operationId is synthesized (`{verb}{Entity}{Collection|Item}Resource`, e.g.
+`getWidgetItemResource`) -- bskel's own self-describing label, not a verified claim about what a
+real springdoc-generated document would call the same operation (that was never measured). A real
+`--openapi-file` document using a different name for the same route degrades to the same
+`CONTRACT_OPENAPI_MISSING_OPERATION` warning any mismatched hand-written `@Operation(operationId=...)`
+already produces -- not a new failure mode.
+
+SR3 -- `handles/providers/java-spring/plan.mjs`'s `findFetchOperation()` needed zero code changes:
+the synthesized operationId is truthy, and `controller.className` (the repository interface's own
+name, e.g. `WidgetRepository`) already contains the entity name by ordinary Java convention, so the
+existing name-affinity gate already finds it. Both `test/handles-plan.test.mjs:598-639` and
+`test/contract.test.mjs:929-961` (hand-built forward-compatible fixtures from
+`D-route-expansion-provenance`) already pinned this exact consumer-side shape; this item's own
+`test/spring-data-rest-adapter.test.mjs` proves the producer side now genuinely satisfies it from
+real scanner output, not a hand-built stand-in.
+
+SR4 -- a new `repositoryResourceNotes[]` field on `scanJavaSpring()`'s return, threaded through
+`adapter.scan()` and merged into the existing top-level `unknowns[]` by `scanners/index.mjs` -- the
+first per-adapter diagnostic-message passthrough channel this codebase has had; no schema change
+(`unknowns` was already `{type:'array', items:{type:'string'}}`).
+
+SR5 -- a new build-file dependency check, `hasSpringDataRestDependency(repoRoot)`, added at SCAN
+time -- genuinely new territory. `@Entity`/`@RestController` are trusted by literal source
+presence alone, with zero build-file cross-check anywhere in this codebase, because they pair with
+`spring-boot-starter-data-jpa`/`-web`, dependencies virtually every real Spring Boot app already
+has. `@RepositoryRestResource` is unusually easy to add decoratively (copied from a tutorial)
+without the actual `spring-boot-starter-data-rest` starter, and without it ALL 6 synthesized
+routes would be fictional, not just one field -- severe enough to warrant a check no other
+annotation in this adapter needs. Same literal-substring-grep shape as the one existing precedent,
+`handles/providers/java-spring/emit.mjs`'s `hasSpringAopDependency()` (a codegen-time, different
+dependency, single-root-file-only check) -- but repo-wide/multi-module-aware, reusing
+`detectJavaSpringRoot()`'s own `listRgFiles()` discovery. That precedent's own history
+(`D-handles-pilot-cohort`) found a literal-string match insufficiently robust for a
+version-dependent artifact name, caught only by a real compile failure, not review -- that
+fragility is explicitly inherited here, not re-solved.
+
+SR6 -- path derivation never guesses Spring's default English-pluralized entity name -- only an
+explicit `path="..."` attribute on `@RepositoryRestResource` is trusted, matching `tableSource:
+null`'s established never-guess precedent for a structurally identical case (`@Table(name=...)`
+absent).
+
+SR7 -- custom finder methods (`findByXxx` -> `/search/findByXxx`) are out of scope, not modeled,
+not a refusal trigger -- a repository can have both standard CRUD and un-modeled finders at once.
+Only a CRUD-method `@RestResource` override triggers the whole-repository refusal (SR1).
+
+New analyzer primitives, `findInterfaceExtendsDeclaration()`/`splitTopLevelTypeArgs()`
+(`scanners/adapters/_java-spring-analyzer.mjs`) -- `interface` is otherwise unrecognized anywhere
+in this codebase's Java parsing (`CLASS_OR_RECORD_RE` is hard-gated to `class`/`record`). Both
+reuse `maskNonCode()`/`matchBalanced()` rather than reinventing masking/balancing.
+
+**Verified**: `npm test` full suite green; new unit tests for the analyzer primitives
+(`test/java-spring-analyzer.test.mjs`) and the full refusal ladder + happy path + `contracts/emit.mjs`
++ `handles/plan.mjs` integration, all against standalone temp fixtures, never the shared
+`test/fixtures/java-spring/` corpus (`test/spring-data-rest-adapter.test.mjs`). Real-toolchain,
+compile-only: an isolated `Note`/`NoteRepository` (deliberately NOT added to `Widget` --
+`WidgetController` already owns `GET/PATCH /widgets/{widgetId}`, so a `@RepositoryRestResource`
+on `WidgetRepository` would create a genuine ambiguous-mapping conflict in the real app, not a
+hypothetical one) plus a real `spring-boot-starter-data-rest` dependency added to
+`test/fixtures/java-compile/`, proven via `scripts/java-compile-smoke.mjs`'s real `./gradlew`
+path. "Does a real running app serve exactly this route set" (a live HTTP route inventory) is
+named as a follow-up, not built now -- no OTHER adapter's annotation-derived routes are
+curl-verified against a live app in this codebase either, so this is consistent with existing
+precedent, not a new gap unique to this item.
+
+COST: one new adapter function (`extractRepositoryResource`) + two small analyzer primitives + one
+new scan-time build-file check + one new diagnostic channel. No schema/`CONTRACT_SCHEMA_VERSION`
+bump (`expansion` already whitelisted by X2). No capability-flag change (fits inside `java-spring`'s
+existing all-`true` flags; capabilities are a closed, coarse, per-adapter enum with no per-feature
+room anyway).
+EXIT: purely additive -- reverting `extractRepositoryResource()`'s call site in `scanJavaSpring()`'s
+loop leaves every other adapter behavior, and `declarations[]`/`expansion`'s own EXIT, unchanged.

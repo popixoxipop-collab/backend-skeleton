@@ -218,6 +218,10 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	const confidence = chosen.confidence;
 	const modules = result.modules;
 	const pathPrefixSignals = result.pathPrefixSignals ?? [];
+	// D-spring-data-rest-adapter (SR4): the first per-adapter diagnostic-message passthrough into
+	// unknowns[] -- optional (`?? []`) so an adapter that doesn't populate it degrades to "nothing
+	// to report" rather than throwing, the same discipline apiSurfaceSource/filesRead already use.
+	const repositoryResourceNotes = result.repositoryResourceNotes ?? [];
 	const apiSurfaceSource = result.apiSurfaceSource ?? DEFAULT_API_SURFACE_SOURCE;
 	// S2 (D-gate-precision, continued): the adapter's own real read-set, persisted so
 	// lib/gate-definitions.mjs's `scan` gate can hash it for a precise staleness token instead of
@@ -300,6 +304,12 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	}
 	if (dbSchema?.live) {
 		unknowns.push(...computeDbDrift(dbSchema.live.tables, relatedModules));
+	}
+	// D-spring-data-rest-adapter (SR4): each entry names a repository the adapter recognized
+	// (found @RepositoryRestResource) but refused to synthesize routes for, and why -- a
+	// deliberate "don't guess" boundary, never silent.
+	if (repositoryResourceNotes.length > 0) {
+		unknowns.push(...repositoryResourceNotes);
 	}
 	// A1 §7: this scan can't correct a global path prefix (only --openapi-file's real-document
 	// reconciliation can, see D-openapi-reconciliation) -- but it CAN tell a user who doesn't know

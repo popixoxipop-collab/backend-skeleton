@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { lineNumberAt, listRgFiles, byShallowestThenName, binaryAvailable } from '../text-util.mjs';
-import { maskNonCode, findClassOrRecordDeclaration, findClassLevelMappingArgs, findMappingAnnotations } from './_java-spring-analyzer.mjs';
+import { maskNonCode, findClassOrRecordDeclaration, findClassLevelMappingArgs, findMappingAnnotations, matchBalanced, findInterfaceExtendsDeclaration, splitTopLevelTypeArgs } from './_java-spring-analyzer.mjs';
 
 const JAVA_BUILD_FILE_GLOBS = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
 
@@ -34,6 +34,23 @@ export function detectJavaSpringRoot(repoRoot) {
 		if (fs.existsSync(srcRoot)) return srcRoot;
 	}
 	return null;
+}
+
+// D-spring-data-rest-adapter: literal substring grep, the same shape as
+// handles/providers/java-spring/emit.mjs's hasSpringAopDependency() -- but here, at SCAN time, for
+// a different reason: @Entity/@RestController pair with spring-boot-starter-data-jpa/-web,
+// dependencies virtually every real Spring Boot app already has, so this adapter has never needed
+// to cross-check a dependency before trusting an annotation. @RepositoryRestResource is unusually
+// easy to add decoratively (copied from a tutorial) without the actual
+// spring-boot-starter-data-rest starter, and without it ALL 6 synthesized routes would be
+// fictional, not just one field -- severe enough to warrant a check no other annotation in this
+// adapter needs. Same version-drift fragility hasSpringAopDependency's own history found for a
+// different artifact name (D-handles-pilot-cohort) is inherited here, not re-solved.
+export function hasSpringDataRestDependency(repoRoot) {
+	for (const buildFile of listRgFiles(repoRoot, JAVA_BUILD_FILE_GLOBS)) {
+		if (fs.readFileSync(buildFile, 'utf8').includes('spring-boot-starter-data-rest')) return true;
+	}
+	return false;
 }
 
 // O6: `rg --files` (no `--sort`) is explicitly unordered/parallel by ripgrep's own docs -- two
@@ -163,6 +180,128 @@ function extractController(text, filePath) {
 	}
 
 	return { className, basePath, operationIds, endpoints, file: filePath, line: classLine };
+}
+
+const SPRING_DATA_REPOSITORY_SUPERTYPES = new Set(['JpaRepository', 'CrudRepository', 'PagingAndSortingRepository']);
+
+// D-spring-data-rest-adapter: Spring Data REST auto-generates a full CRUD REST API from a
+// repository interface annotated @RepositoryRestResource -- a real, common pattern extractController()
+// above is blind to (it only ever recognizes @RestController classes, and interface declarations
+// aren't recognized anywhere else in this file either). Mirrors extractController()'s shape/style,
+// but gated on a completely different annotation and declaration keyword. Populates
+// controller.declarations[]/endpoint.declarationIndex (see D-route-expansion-provenance) -- this
+// is the first adapter to do so. Every skip below is a deliberate "don't guess" refusal, not a
+// missing feature -- see this item's own DECISIONS.md entry for the full rationale per case.
+function extractRepositoryResource(text, filePath, hasDataRestDependency) {
+	if (!/@RepositoryRestResource\b/.test(text)) return { controller: null, note: null };
+
+	const masked = maskNonCode(text);
+	const decl = findInterfaceExtendsDeclaration(masked);
+	if (!decl || !SPRING_DATA_REPOSITORY_SUPERTYPES.has(decl.superName)) {
+		return { controller: null, note: null };
+	}
+	const declLine = lineNumberAt(text, decl.index);
+
+	if (!hasDataRestDependency) {
+		return {
+			controller: null,
+			note: `${filePath}:${declLine}: @RepositoryRestResource found on ${decl.name}, but no spring-boot-starter-data-rest dependency was found in this repo's build.gradle/build.gradle.kts/pom.xml -- Spring Data REST would not actually be active, so no routes are synthesized for this repository.`,
+		};
+	}
+
+	if (decl.typeArgsStart == null || decl.typeArgsEnd == null) {
+		return {
+			controller: null,
+			note: `${filePath}:${declLine}: @RepositoryRestResource found on ${decl.name}, but its "extends ${decl.superName}<...>" generic type arguments could not be parsed -- the entity type is unknown, so no routes are synthesized.`,
+		};
+	}
+	const typeArgs = splitTopLevelTypeArgs(masked.slice(decl.typeArgsStart, decl.typeArgsEnd));
+	if (typeArgs.length < 2) {
+		return {
+			controller: null,
+			note: `${filePath}:${declLine}: @RepositoryRestResource found on ${decl.name}, but "extends ${decl.superName}<...>" does not declare both an entity and id type -- no routes are synthesized.`,
+		};
+	}
+	const entityName = typeArgs[0];
+
+	// The annotation's own argument text -- scoped so a positional bare-quote grab (like
+	// extractQuotedOrValue() elsewhere in this file) can't accidentally pick a DIFFERENT string
+	// attribute (@RepositoryRestResource also has e.g. collectionResourceRel) instead of `path`.
+	const annotationMatch = masked.match(/@RepositoryRestResource\s*\(/);
+	let explicitPath = null;
+	if (annotationMatch) {
+		const openParen = annotationMatch.index + annotationMatch[0].length - 1;
+		const closeParen = matchBalanced(masked, openParen, '(', ')');
+		if (closeParen !== -1) {
+			const argsText = text.slice(openParen + 1, closeParen);
+			const pathMatch = argsText.match(/path\s*=\s*"([^"]*)"/);
+			if (pathMatch) explicitPath = pathMatch[1];
+		}
+	}
+	if (!explicitPath) {
+		return {
+			controller: null,
+			note: `${filePath}:${declLine}: @RepositoryRestResource on ${decl.name} has no explicit path="..." attribute -- Spring's default (an English-pluralized entity name) is not guessed here. Add path="..." and re-scan.`,
+		};
+	}
+
+	// Any interface-body override of an inherited CRUD action (e.g. `@Override @RestResource(exported
+	// = false) void deleteById(...)`) changes which of the 6 standard routes are actually exposed --
+	// safely determining WHICH action(s) that affects is out of scope, so the whole repository is
+	// refused rather than risk a partially-wrong route set (a resolver pointing at something that
+	// 404s/405s in the real app is worse than no resolver at all).
+	const bodyOpenBrace = masked.indexOf('{', decl.index);
+	const bodyCloseBrace = bodyOpenBrace !== -1 ? matchBalanced(masked, bodyOpenBrace, '{', '}') : -1;
+	const bodyText = bodyOpenBrace !== -1 && bodyCloseBrace !== -1 ? masked.slice(bodyOpenBrace, bodyCloseBrace) : '';
+	if (/@RestResource\b/.test(bodyText)) {
+		return {
+			controller: null,
+			note: `${filePath}:${declLine}: ${decl.name} overrides at least one CRUD method with @RestResource(...) -- which specific action(s) that suppresses or renames can't be safely determined by static scanning, so no routes are synthesized for this repository at all (a partially-correct route set is worse than none).`,
+		};
+	}
+
+	const basePath = `/${explicitPath.replace(/^\/+|\/+$/g, '')}`;
+	const declarations = [{
+		rule: 'java-spring:repository-rest-resource-crud',
+		line: declLine,
+		label: `@RepositoryRestResource(path="${explicitPath}") on ${decl.name}`,
+	}];
+	// D-spring-data-rest-adapter (SR2): operationId is bskel's OWN synthesized, self-describing
+	// label -- not a verified claim about what a real springdoc-generated document would call the
+	// same operation (that was never measured). A real --openapi-file document using a different
+	// name for the same route degrades to the existing CONTRACT_OPENAPI_MISSING_OPERATION warning
+	// every other operationId mismatch already produces, not a new failure mode. The synthesized,
+	// truthy operationId is what lets handles/providers/java-spring/plan.mjs's findFetchOperation()
+	// find these routes at all -- that function needed zero code changes (see SR3).
+	const ROUTES = [
+		{ verb: 'GET', path: basePath, suffix: 'CollectionResource' },
+		{ verb: 'POST', path: basePath, suffix: 'CollectionResource' },
+		{ verb: 'GET', path: `${basePath}/{id}`, suffix: 'ItemResource' },
+		{ verb: 'PUT', path: `${basePath}/{id}`, suffix: 'ItemResource' },
+		{ verb: 'PATCH', path: `${basePath}/{id}`, suffix: 'ItemResource' },
+		{ verb: 'DELETE', path: `${basePath}/{id}`, suffix: 'ItemResource' },
+	];
+	const endpoints = ROUTES.map((r) => ({
+		verb: r.verb,
+		path: r.path,
+		operationId: `${r.verb.toLowerCase()}${entityName}${r.suffix}`,
+		method: null,
+		line: declLine,
+		declarationIndex: 0,
+	}));
+
+	return {
+		controller: {
+			className: decl.name,
+			basePath,
+			operationIds: endpoints.map((e) => e.operationId),
+			endpoints,
+			declarations,
+			file: filePath,
+			line: declLine,
+		},
+		note: null,
+	};
 }
 
 // D-entity-id-field-inheritance: found live against a real corpus check (spring-projects/
@@ -344,6 +483,13 @@ export function scanJavaSpring(repoRoot) {
 		return modules.get(key);
 	};
 
+	// D-spring-data-rest-adapter (SR5): computed once per scan, not per file -- a repo-wide,
+	// multi-module-aware check (same discovery detectJavaSpringRoot() already uses), not the
+	// single-root-file-only shape handles/providers/java-spring/emit.mjs's own
+	// hasSpringAopDependency() has.
+	const hasDataRestDependency = hasSpringDataRestDependency(repoRoot);
+	const repositoryResourceNotes = [];
+
 	for (const file of files) {
 		const text = fileTexts.get(file);
 		const mod = moduleOf(file, srcRoot, basePackage);
@@ -355,6 +501,11 @@ export function scanJavaSpring(repoRoot) {
 		if (/@Entity\b/.test(text)) {
 			const entity = extractEntity(text, file, classIndex);
 			if (entity) moduleEntry(mod).entities.push(entity);
+		}
+		if (/@RepositoryRestResource\b/.test(text)) {
+			const { controller, note } = extractRepositoryResource(text, file, hasDataRestDependency);
+			if (controller) moduleEntry(mod).controllers.push(controller);
+			if (note) repositoryResourceNotes.push(note);
 		}
 		if (mod && file.includes(`${path.sep}domain${path.sep}`) && /public\s+enum\s+\w+/.test(text)) {
 			const en = extractDomainEnum(text, file);
@@ -370,7 +521,7 @@ export function scanJavaSpring(repoRoot) {
 	// drift, and every other manifest-shaped gate input in this codebase (stack's `applied_file:`)
 	// is repo-relative too.
 	const filesRead = files.map((f) => path.relative(repoRoot, f));
-	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot), filesRead };
+	return { srcRoot, modules: [...modules.values()], pathPrefixSignals: detectGlobalPathPrefixSignals(repoRoot), filesRead, repositoryResourceNotes };
 }
 
 // G1: adapter descriptor consumed by scanners/registry.mjs -- see D-adapter-registry in
@@ -397,7 +548,7 @@ export const adapter = {
 	detect: detectJavaSpringRoot,
 	scan(repoRoot, _detection) {
 		const result = scanJavaSpring(repoRoot);
-		return { modules: result.modules, pathPrefixSignals: result.pathPrefixSignals, filesRead: result.filesRead };
+		return { modules: result.modules, pathPrefixSignals: result.pathPrefixSignals, filesRead: result.filesRead, repositoryResourceNotes: result.repositoryResourceNotes };
 	},
 	// S2 (D-gate-precision, continued): reuses the EXACT same listJavaFiles() call scan() itself
 	// makes -- no separate file-walking logic -- so the `scan` gate's staleness token can re-derive

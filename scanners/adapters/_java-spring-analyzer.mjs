@@ -72,6 +72,55 @@ export function findClassOrRecordDeclaration(maskedText) {
 	return { keyword: m[1], name: m[2], index: m.index };
 }
 
+// D-spring-data-rest-adapter: interface-shaped counterpart to findClassOrRecordDeclaration()
+// above -- CLASS_OR_RECORD_RE is hard-gated to `class`/`record`, so a Spring Data repository
+// interface (`interface X extends JpaRepository<Widget, UUID>`) is never recognized by it. Only
+// the single common shape "interface Name extends Super<A, B>" is matched -- a second
+// extends-interface in a multi-interface list (e.g. `extends QuerydslPredicateExecutor<Widget>,
+// JpaRepository<Widget, UUID>`) is not found; the caller is expected to validate `superName`
+// against a known allow-list and fail closed rather than guess which listed interface is the real
+// Spring Data supertype. Operates on masked text.
+const INTERFACE_EXTENDS_RE = /(?:public\s+)?\binterface\s+(\w+)\s+extends\s+(\w+)/;
+
+export function findInterfaceExtendsDeclaration(maskedText) {
+	const m = maskedText.match(INTERFACE_EXTENDS_RE);
+	if (!m) return null;
+	const afterSuper = m.index + m[0].length;
+	let typeArgsStart = null;
+	let typeArgsEnd = null;
+	if (maskedText[afterSuper] === '<') {
+		const close = matchBalanced(maskedText, afterSuper, '<', '>');
+		if (close !== -1) {
+			typeArgsStart = afterSuper + 1;
+			typeArgsEnd = close;
+		}
+	}
+	return { name: m[1], superName: m[2], index: m.index, typeArgsStart, typeArgsEnd };
+}
+
+// D-spring-data-rest-adapter: depth-tracked top-level comma split on '<'/'>' only -- same
+// algorithm patch-strategy.mjs's own splitTopLevelParams() uses on '('/')' for a DTO constructor's
+// argument list. Reimplemented here rather than imported: patch-strategy.mjs lives under
+// handles/providers/java-spring/, a DOWNSTREAM consumer of this file -- importing from it here
+// would invert the dependency direction this codebase's module layout otherwise keeps one-way.
+export function splitTopLevelTypeArgs(argsText) {
+	const parts = [];
+	let depth = 0;
+	let start = 0;
+	for (let i = 0; i < argsText.length; i++) {
+		const ch = argsText[i];
+		if (ch === '<') depth++;
+		else if (ch === '>') depth--;
+		else if (ch === ',' && depth === 0) {
+			parts.push(argsText.slice(start, i).trim());
+			start = i + 1;
+		}
+	}
+	const last = argsText.slice(start).trim();
+	if (last !== '' || parts.length > 0) parts.push(last);
+	return parts.filter((p) => p !== '');
+}
+
 const WHITESPACE_RE = /^\s*/;
 // A2 Phase 2 (D-java-ast-helper): `[\w.]+`, not `\w+` -- found live while building the real
 // JavaParser/Symbol-Solver AST cross-check. A fully-qualified annotation
