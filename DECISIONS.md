@@ -14129,3 +14129,113 @@ idempotence). `npm test` 1663/1663.
 kinds (field, cross, transition, derived), all three target stacks, observe/enforce mode, real
 toolchain verification throughout. Nothing from the original R1-R9 design plus this Phase 3
 extension remains unimplemented.
+
+## D-route-expansion-provenance: 1:N route expansion becomes a named, addressable fact -- not a structural change
+
+Every one of this project's 4 adapters (java-spring, python-fastapi, typescript-express,
+javascript-express) assumes 1 source declaration = 1 route. Real frameworks routinely break that:
+Rails' `resources :users`, Laravel's `Route::resource()`, and Spring Data REST's
+`@RepositoryRestResource` each turn ONE declaration into many routes. A research pass (Explore,
+then Plan, then direct code reads during this item's own implementation) found this is NOT a
+pipeline redesign: `endpointKey(ci, ei)` (`contracts/emit.mjs`) is purely positional, so N
+`endpoints[]` entries already reconcile into N independent contract operations with zero change;
+the `contract` gate (`lib/gate-definitions.mjs`) hashes whole controller files, not per-endpoint,
+so it already invalidates correctly on any 1:N declaration's edit; `rules/compile.mjs`'s
+`operations[rule.operation]` lookup is indifferent to operation count or origin;
+`scanners/index.mjs`'s `collectEvidence()` already tolerates multiple endpoints sharing one
+`(file, line)`; and `contracts/openapi.mjs`'s existing operationId-less `adopted` reconciliation
+path already resolves a framework-synthesized route against a real `--openapi-file` document by
+verb+path. Sub-decisions labelled **X1..X8** (eXpansion) -- not a bare `D<number>` token, which
+collides with `test/doc-integrity.test.mjs`'s `TOKEN_RE`, the same reasoning `D-business-rules`
+used for its own `R1..R9` labels.
+
+X1 -- `controller.declarations[]` (scan layer) is a new array, omitted unless a declaration
+actually expanded to multiple routes: `{ rule: '<adapter-id>:<rule-slug>', line, label }`.
+`endpoint.declarationIndex` is an integer index into it, omitted (not `null`) for the ordinary 1:1
+case -- the same "never present but empty" discipline `pathParamsHeuristic` (`D-openapi-path-params`,
+A9) already established. `rule` is namespaced (`<adapter-id>:<rule-slug>`) because there is no
+single global taxonomy of expansion rules across frameworks, unlike `tableSource`'s small fixed
+set. No `file` field on a declaration -- identical to the owning `controller.file`, the same
+"shared context lives on the parent" pattern `controller.file` already establishes for every
+endpoint under it.
+
+X2 -- `operations[id].expansion` (contract layer, `contracts/emit.mjs`) is built from
+`ep.declarationIndex`/`controller.declarations[...]` inside the existing per-operation
+conditional-spread block (the same one `pathParamsHeuristic`/`sourceTags`/etc. already use):
+`{ rule, declarationLine, label }`, omitted entirely when absent. Real, precedented cost:
+`schemas/feature-contract.schema.json`'s operation object is `additionalProperties: false`, so
+`expansion` had to be whitelisted there, and `CONTRACT_SCHEMA_VERSION` (`contracts/emit.mjs`)
+bumped `"8"` -> `"9"` -- the same bump A7 through A10 each already made for their own new fields.
+This forces every previously-emitted contract to be re-emitted via `loadContract()`'s existing
+friendly-refusal path, an established mechanism, not a new one.
+
+X3 -- zero adapter code changes in this pass. None of the 4 current stacks has a real 1:N
+construct today (confirmed: FastAPI's `include_router()` is prefix-mounting, not expansion --
+still 1:1 per decorator). `declarations[]`/`declarationIndex` exist in the vocabulary, unused
+until a future adapter actually populates them -- that adapter work (Rails, Laravel, or Spring
+Data REST scanning support) is explicitly out of scope here.
+
+X4 -- confirmed, not assumed, that evidence collection (`scanners/index.mjs`), gate staleness
+(`lib/gate-definitions.mjs`), rules addressing (`rules/compile.mjs`), and OpenAPI reconciliation
+(`contracts/openapi.mjs`) all need zero code changes for this item -- see the research summary
+above; each claim was traced against the live file and line numbers before this item's own code
+was written, not carried over unverified from the design pass.
+
+X5 -- the real gap: `handles` provider `plan.mjs` files assume a literally-named, physically
+unique source method per operation, located via literal regex name search. This already fails
+closed today (proven, not hypothetical -- `D-typescript-express-inline-handlers` already hits
+exactly this for an unrelated reason: `method: null` when a route handler is an inline arrow
+function), but the degrade path was inconsistent across providers. `typescript-express/plan.mjs`
+already had the right template -- an explicit `else if (!fetchRoute.method)` branch;
+`java-spring/plan.mjs` did not (`findFetchOperation()` only required `ep.operationId` truthy, not
+`ep.method`, so a hypothetical expanded endpoint would fall through to `findRequiredAuthority()`/
+`countServiceMethodParams()`'s own `!methodName` guards -- which already fail closed (no crash),
+but produced a confusing note reading literally `"...could not find a null(...) method"`). Both
+providers now thread the resolved `declaration` (when present) through their fetch-lookup
+functions and name the real cause explicitly: "the matched endpoint (...) was expanded from
+`<label>` at `<file>:<line>` (rule: `<rule>`) -- the framework generates this handler at runtime,
+so no literal per-action source method exists to correlate to. Resolver NOT generated." Falls back
+to each provider's pre-existing wording when no declaration is present (e.g. ts-express's real,
+current inline-handler case). `willGenerateResolver` needed no code change -- it already evaluates
+`false` through the existing null-method guards; only the note text (and, in java-spring, the
+`readPath` field, which previously could read literally `"XService.null()"` when a fetch operation
+had no method) improved. `contracts/emit.mjs`'s `detectRequestBody()` also gained an explicit
+`!methodName` guard, replacing what was previously only an accidental safety net (`null` -> the
+regex-literal string `"null"`, which happened not to match anything).
+
+`python-fastapi/plan.mjs` was deliberately NOT threaded through: its `ep.method` is never `null`
+in the current adapter (every FastAPI route decorator wraps a real named function -- Python has no
+inline-handler syntax comparable to JS), so there is no existing `!fetchRoute.method` branch for a
+threaded `declaration` to improve -- adding the plumbing there now would be genuinely dead code
+with no consumer, not forward compatibility. `javascript-express` has no
+`handles/providers/javascript-express/plan.mjs` at all; X5 doesn't apply there, independent of
+this item.
+
+X6 -- non-fabrication check: an expansion `rule` value encodes a hardcoded framework
+*specification* (how many routes `@RepositoryRestResource`/`resources :x`/`Route::resource()`
+produce and why) -- the same class of hardcoded knowledge every adapter's annotation/decorator
+parsing already is, not a guess. The line `D-greenfield-parameters` draws is about inventing
+unproven facts, not about using framework knowledge; contrast `D-javascript-express-adapter` G6's
+actually-rejected-for-being-a-guess precedent (SQL-string extraction for handles resolvers,
+measured live to diverge from real app behavior -- a genuinely different class of risk).
+
+X7 -- a reference walkthrough (Spring Data REST's `@RepositoryRestResource`, worked through by
+hand against real code, not implemented) validated the design end-to-end without shipping adapter
+code. One real finding from that walkthrough: `findFetchOperation()`'s existing gate
+(`ep.operationId` truthy) means a future 1:N-aware java-spring adapter extension would ALSO need
+to decide whether/how to synthesize a scan-time `operationId` for an expanded, framework-generated
+route -- an open question for that future adapter work, not resolved by this item, and recorded
+here so it isn't silently assumed away.
+
+X8 -- named future gap, not this pass: `contracts/export.mjs`'s OpenAPI publishing has no
+vendor-neutral way to carry `expansion` (a future `x-bskel-expansion` vendor extension, or a
+disclosure line, is the likely shape). Out of scope, same as this item's whole premise: no new
+framework adapter (Rails, Laravel, NestJS, Django, Go, ASP.NET Core) and no Spring Data REST
+scanning support were built here -- this item is the pipeline/schema groundwork only.
+
+COST: one schema-version bump (forces re-emission of existing contracts, precedented); two
+provider files gained one new branch each; `contracts/emit.mjs` gained ~10 lines. No adapter
+gained a real 1:N capability -- that remains future work.
+EXIT: `expansion`/`declarations[]`/`declarationIndex` are purely additive and unused until an
+adapter populates them; removing the whitelist and reverting the version bump leaves every
+existing contract byte-identical to before this item.

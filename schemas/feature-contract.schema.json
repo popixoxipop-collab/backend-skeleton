@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["sbf_contract", "feature_id", "feature_uid", "source", "operations", "warnings", "completeness"],
   "properties": {
-    "sbf_contract": { "const": "8" },
+    "sbf_contract": { "const": "9" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
     "feature_uid": { "type": "string", "format": "uuid" },
     "source": {
@@ -103,6 +103,17 @@
             "description": "A9: names every path-parameter segment in `pathParams` whose schema still came from this contract's own name heuristic (`/id$/i` -> a UUID pattern) rather than a real source document -- because no source document was given, the source declared no schema for that segment, or the schema failed to resolve. Present only when at least one segment is still heuristic-derived; a segment absent from this list was resolved from the source document's own real schema.",
             "type": "array",
             "items": { "type": "string" }
+          },
+          "expansion": {
+            "description": "X2 (D-route-expansion-provenance): present only when this operation's scan endpoint was expanded from a multi-route declaration recognized by the scan adapter (e.g. a future Rails/Laravel-style resource declaration, or a Spring Data REST @RepositoryRestResource) -- omitted for every ordinary 1:1 declared endpoint. `rule` is a namespaced <adapter-id>:<rule-slug> naming the expansion pattern; `declarationLine` is the single source line of the declaration itself (not this operation's own route); `label` is an optional human-readable description, null when not worth composing one.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rule", "declarationLine"],
+            "properties": {
+              "rule": { "type": "string", "pattern": "^[a-z0-9-]+:[a-z0-9-]+$" },
+              "declarationLine": { "type": "integer", "minimum": 1 },
+              "label": { "type": ["string", "null"] }
+            }
           },
           "sourceDescription": {
             "description": "A10: the operation's `description`, copied verbatim from a real source document. Present only when `contract emit --descriptions` (opt-in, unlike every other source-backed field in this schema) was passed AND the source document declared one for this exact operation AND it did not exceed the length cap.",

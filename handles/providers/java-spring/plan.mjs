@@ -25,7 +25,13 @@ function findFetchOperation(controllers, entityClassName) {
 			if (ep.verb !== 'GET' || !ep.operationId) continue;
 			const suffix = ep.path.slice(controller.basePath.length);
 			if (/^\/\{[^/]+\}$/.test(suffix)) {
-				return { operationId: ep.operationId, method: ep.method, path: ep.path, controllerFile: controller.file, controllerClassName: controller.className };
+				// X5 (D-route-expansion-provenance): threaded through so the caller can name the real
+				// cause when ep.method is null instead of a bare "method not found" message -- a 1:N
+				// framework-synthesized route (e.g. Spring Data REST) has a real operationId but no
+				// literal per-action method to correlate to. null on every endpoint in today's adapter
+				// (it never populates declarationIndex) -- forward-compatible only, not yet reachable.
+				const declaration = ep.declarationIndex != null ? (controller.declarations?.[ep.declarationIndex] ?? null) : null;
+				return { operationId: ep.operationId, method: ep.method, path: ep.path, controllerFile: controller.file, controllerClassName: controller.className, declaration };
 			}
 		}
 	}
@@ -282,6 +288,12 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 		}
 
 		const fetchOp = findFetchOperation(targetModule.controllers, entity.className);
+		// X5 (D-route-expansion-provenance): a real, already-fail-closed case, checked explicitly
+		// instead of relying on findRequiredAuthority()/countServiceMethodParams()'s own `!methodName`
+		// guards to silently swallow it -- those guards return safely (no crash) either way, but
+		// without this check the notes below would read literally "...found for X.null" / "could not
+		// find a null(...) method", which is confusing, not honest. See D-resolver-scope.
+		const fetchOpMissingMethod = Boolean(fetchOp && !fetchOp.method);
 		const authorityResult = findRequiredAuthority(fetchOp?.controllerFile ?? null, fetchOp?.method ?? null);
 		const requiredAuthority = authorityResult.authority;
 		const service = pkIsNonUuid ? null : findServiceFile(javaSrcRoot, targetModule.module, entity.className);
@@ -300,6 +312,12 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 
 		if (!fetchOp) {
 			notes.push(`${entity.className}: no single-resource GET endpoint found on a controller whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
+		} else if (fetchOpMissingMethod) {
+			const declaration = fetchOp.declaration;
+			const declNote = declaration
+				? ` -- it was expanded from ${declaration.label ?? declaration.rule} at ${path.relative(javaSrcRoot, fetchOp.controllerFile)}:${declaration.line} (rule: ${declaration.rule}); the framework generates this handler at runtime, so no literal per-action source method exists to correlate to`
+				: ' -- no literal per-action source method exists to correlate to';
+			notes.push(`${entity.className}: the matched endpoint (GET ${fetchOp.path})${declNote}. Resolver NOT generated -- this is a structural boundary of static-scan-based handles codegen, not a bug. See D-resolver-scope.`);
 		} else if (authorityResult.unsupported) {
 			notes.push(`${entity.className}: @PreAuthorize found on ${fetchOp.controllerClassName}.${fetchOp.method} (or its class) but not in the simple hasRole('X')/hasAuthority('X') shape this scanner understands (e.g. hasAnyRole/SpEL) -- requiredAuthority() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
 		} else if (!requiredAuthority) {
@@ -316,12 +334,15 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			if (!pkIsNonUuid) {
 				notes.push(`${entity.className}: no ${entity.className}Service found under domain/${targetModule.module}/application/ or ${targetModule.module}/ -- resolver NOT generated for this entity (would produce a broken import). Emit it by hand once the right service is identified.`);
 			}
-		} else if (fetchOp && serviceParamCount !== 1) {
+		} else if (fetchOp && !fetchOpMissingMethod && serviceParamCount !== 1) {
 			const reason = serviceParamCount === null
 				? `could not find a ${fetchOp.method}(...) method on ${service.serviceType} to confirm its argument count`
 				: `${service.serviceType}.${fetchOp.method} takes ${serviceParamCount} argument(s), not the single resource UUID the generated resolver always passes`;
 			notes.push(`${entity.className}: ${reason} -- resolver NOT generated (would either fail to compile or silently call the wrong overload and drop a required scoping argument, e.g. an organization/cohort id). Wire it by hand -- ResourceResolver#fetch/#patchField receive the request's Authentication (D-resolver-authentication-context) for exactly this case, e.g. deriving a tenant/org id the same way the resource's own controller already does.`);
 		}
+		// X5: fetchOpMissingMethod already pushed its own single, clear note above -- suppressing
+		// this one avoids a second, confusing "could not find a null(...) method" note for the same
+		// root cause.
 
 		// A3 (D-patch-strategy): only worth computing once fetch()/the resolver itself is actually
 		// going to be generated -- an entity with no resolver has nowhere for patchField() codegen
@@ -447,7 +468,7 @@ export function plan({ repoRoot, scanReport, module: moduleName, resourceFilter 
 		module: inner.module,
 		resources: inner.resources.map((r) => ({
 			...r,
-			readPath: (r.service && r.fetchOperation) ? `${r.service.serviceType}.${r.fetchOperation.method}()` : null,
+			readPath: (r.service && r.fetchOperation && r.fetchOperation.method) ? `${r.service.serviceType}.${r.fetchOperation.method}()` : null,
 		})),
 		notes: inner.notes,
 	};

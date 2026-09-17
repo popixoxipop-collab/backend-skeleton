@@ -1103,7 +1103,7 @@ test('an on-disk contract from an older bskel (sbf_contract "4") gets a friendly
 
 	const result = run(['contract', 'tool-schema', '--feature', FEATURE, '--operation', 'createWidget'], root);
 	assert.equal(result.code, 2, 'loadContract()\'s INVALID_ARTIFACT failures share exit NOT_PASSED(2), same as MISSING_ARTIFACT');
-	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "8"\)/);
+	assert.match(result.stderr, /emitted by an older bskel \(sbf_contract "4", expected "9"\)/);
 	assert.match(result.stderr, /re-run `bskel contract emit --feature 001-widget-management`/);
 	assert.equal(result.stderr.includes('does not match schemas/feature-contract.schema.json'), false, 'the friendly message must replace the raw ajv dump for this specific, common case');
 });

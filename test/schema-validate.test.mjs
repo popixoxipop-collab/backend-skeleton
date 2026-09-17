@@ -51,7 +51,7 @@ test('scan-report.schema.json: verdict "inventory" is accepted, and a related_mo
 
 test('feature-contract.schema.json: a minimal valid contract passes', () => {
 	const { ok } = validateAgainstSchema('feature-contract.schema.json', {
-		sbf_contract: '8', feature_id: '001-widget-management', feature_uid: '4c8de69b-2a4a-40c0-9749-491bc3c41ae2',
+		sbf_contract: '9', feature_id: '001-widget-management', feature_uid: '4c8de69b-2a4a-40c0-9749-491bc3c41ae2',
 		source: { adapter: 'java-spring', module: 'widgets', provenance: 'scan' },
 		operations: {}, warnings: [], completeness: { status: 'complete', operation_count: 0, endpoint_count: 0 },
 	});

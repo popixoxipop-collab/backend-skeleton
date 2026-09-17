@@ -57,7 +57,13 @@ function findFetchRoute(controllers, entityClassName) {
 			if (ep.verb !== 'GET') continue;
 			const suffix = ep.path.slice(controller.basePath.length);
 			if (/^\/:[^/(]+(\([^)]*\))?$/.test(suffix)) {
-				return { method: ep.method, path: ep.path, file: controller.file, line: ep.line, controllerClassName: controller.className };
+				// X5 (D-route-expansion-provenance): threaded through so the caller can distinguish
+				// "inline arrow handler" (this provider's real, current no-method case) from "1:N
+				// framework-synthesized route" (a declaration is present) in its note text. null on
+				// every endpoint in today's adapter (it never populates declarationIndex) --
+				// forward-compatible only, not yet reachable.
+				const declaration = ep.declarationIndex != null ? (controller.declarations?.[ep.declarationIndex] ?? null) : null;
+				return { method: ep.method, path: ep.path, file: controller.file, line: ep.line, controllerClassName: controller.className, declaration };
 			}
 		}
 	}
@@ -183,7 +189,14 @@ export function plan({ repoRoot, scanReport, module: moduleName, resourceFilter 
 		if (!fetchRoute) {
 			notes.push(`${entity.className}: no single-resource GET route found on a router whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
 		} else if (!fetchRoute.method) {
-			notes.push(`${entity.className}: the single-resource GET route's handler is an inline function expression, not a named export -- nothing to correlate to a defining file, resolver NOT generated.`);
+			// X5 (D-route-expansion-provenance): a declaration means this route was expanded from a
+			// 1:N framework construct (no literal per-action method exists at all, not yet reachable
+			// in this adapter); no declaration keeps this provider's own real, current cause (an
+			// inline arrow-function handler) unchanged.
+			const note = fetchRoute.declaration
+				? `the matched endpoint (GET ${fetchRoute.path}) was expanded from ${fetchRoute.declaration.label ?? fetchRoute.declaration.rule} at ${path.relative(repoRoot, fetchRoute.file)}:${fetchRoute.declaration.line} (rule: ${fetchRoute.declaration.rule}) -- the framework generates this handler at runtime, so no literal per-action source method exists to correlate to. Resolver NOT generated -- this is a structural boundary of static-scan-based handles codegen, not a bug. See D-resolver-scope.`
+				: 'the single-resource GET route\'s handler is an inline function expression, not a named export -- nothing to correlate to a defining file, resolver NOT generated.';
+			notes.push(`${entity.className}: ${note}`);
 		} else if (!handlerFile) {
 			notes.push(`${entity.className}: could not resolve ${fetchRoute.method}'s own defining file (import, or one barrel hop, from ${path.relative(repoRoot, fetchRoute.file)}) -- resolver NOT generated.`);
 		} else if (!selectFields) {

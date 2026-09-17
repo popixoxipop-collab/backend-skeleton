@@ -185,6 +185,40 @@ test('plan: no single-resource GET route on a name-matching router -> resolver N
 	assert.ok(result.notes.some((n) => n.includes('Thing') && n.includes('no single-resource GET route')));
 });
 
+// X5 (D-route-expansion-provenance): extends this provider's own pre-existing !fetchRoute.method
+// branch (D-typescript-express-inline-handlers) to distinguish a 1:N framework-synthesized route
+// (a declaration is present) from this provider's real, current cause of the same null (an inline
+// arrow-function handler, no declaration) -- see the "resolver NOT generated" wording difference.
+test('plan: a matched endpoint with no literal per-action method AND a declaration -> a declaration-aware note, distinct from the inline-handler wording', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-typescript-handles-plan-expansion-'));
+	fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+	fs.writeFileSync(path.join(root, 'package.json'), '{}');
+	fs.writeFileSync(path.join(root, 'tsconfig.json'), '{}');
+	const entitiesPath = path.join(root, 'src', 'entities.ts');
+	fs.writeFileSync(entitiesPath, '');
+	const routerPath = path.join(root, 'src', 'widgets.ts');
+	fs.writeFileSync(routerPath, '');
+
+	const scanReport = {
+		related_modules: [{
+			module: 'widgets',
+			controllers: [{
+				className: 'WidgetsRouter', basePath: '/widgets', file: routerPath,
+				declarations: [{ rule: 'typescript-express:resource-router-crud', line: 4, label: 'resourceRouter(Widget) on widgets.ts' }],
+				endpoints: [{ verb: 'GET', path: '/widgets/:id', operationId: null, method: null, line: 4, declarationIndex: 0 }],
+			}],
+			entities: [{ className: 'Widget', table: 'widgets', idField: 'id', idFieldIsUuid: true, file: entitiesPath }],
+		}],
+	};
+
+	const result = planTypeScriptExpress({ repoRoot: root, scanReport, module: 'widgets', resourceFilter: ['Widget'] });
+	const widget = result.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.willGenerateResolver, false);
+	assert.ok(result.notes.some((n) => n.includes('expanded from resourceRouter(Widget) on widgets.ts')));
+	assert.ok(result.notes.some((n) => n.includes('Resolver NOT generated -- this is a structural boundary')));
+	assert.equal(result.notes.some((n) => n.includes('inline function expression')), false);
+});
+
 test('plan: --resource filter narrows to the named entity only', () => {
 	const { root, scanReport } = buildPlanFixture();
 	const result = planTypeScriptExpress({ repoRoot: root, scanReport, module: 'users', resourceFilter: ['User'] });

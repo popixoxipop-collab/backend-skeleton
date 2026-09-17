@@ -444,7 +444,7 @@ test('drift never gets a requestBodySchema, even though the doc entry has a perf
 	assert.ok(contract.warnings.some((w) => w.code === 'CONTRACT_OPENAPI_DRIFT'));
 });
 
-test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v8)', () => {
+test('a contract with a projected requestBodySchema still validates against schemas/feature-contract.schema.json (v9)', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_REQUEST_SCHEMA_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
@@ -453,7 +453,7 @@ test('a contract with a projected requestBodySchema still validates against sche
 	const validate = ajv.compile(schema);
 	const ok = validate(contract);
 	assert.equal(ok, true, JSON.stringify(validate.errors));
-	assert.equal(contract.sbf_contract, '8'); // A10: sbf_contract "7" -> "8" (sourceDescription)
+	assert.equal(contract.sbf_contract, '9'); // X2 (D-route-expansion-provenance): sbf_contract "8" -> "9" (expansion)
 });
 
 // ===== A3: response/error JSON Schema projection, buildContract() integration =====
@@ -701,11 +701,11 @@ test('openapi:null produces none of the four source* fields, nor sourceSecurityS
 	assert.equal('sourceSecuritySchemes' in contract, false);
 });
 
-test('sbf_contract is "8", and a full passthrough contract validates against schemas/feature-contract.schema.json', () => {
+test('sbf_contract is "9", and a full passthrough contract validates against schemas/feature-contract.schema.json', () => {
 	const scanReport = widgetScanReport([{ verb: 'POST', path: '/widgets', operationId: 'createWidget', method: 'createWidget' }]);
 	const openapi = reconcileFixture(scanReport, 'widget', WIDGET_PASSTHROUGH_DOC());
 	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget', openapi });
-	assert.equal(contract.sbf_contract, '8');
+	assert.equal(contract.sbf_contract, '9');
 	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
 	const ajv = new Ajv2020({ allErrors: true, strict: false });
 	const validate = ajv.compile(schema);
@@ -927,4 +927,46 @@ test('a hand-edited, uncompilable responseSchema returns {ok:false, errors}, not
 		assert.equal(result.ok, false);
 		assert.ok(result.errors.length > 0);
 	});
+});
+
+// X2 (D-route-expansion-provenance): buildContract() projects an `expansion` field onto an
+// operation only when its scan endpoint carries a resolvable declarationIndex -- the schema-
+// accuracy bridge for the new field, mirroring A9's own pathParamsHeuristic coverage. No adapter
+// populates declarationIndex yet, so this is a hand-built fixture exercising the forward-
+// compatible shape, not a real adapter's output.
+test('an endpoint with a resolved declarationIndex projects an `expansion` field, and the contract still validates against schemas/feature-contract.schema.json', () => {
+	const scanReport = {
+		adapter: 'java-spring',
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetRepository',
+				basePath: '/widgets',
+				file: null,
+				declarations: [{ rule: 'java-spring:repository-rest-resource-crud', line: 12, label: '@RepositoryRestResource(path="widgets") on WidgetRepository' }],
+				endpoints: [
+					{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'getWidgetItemResource', method: null, declarationIndex: 0 },
+				],
+			}],
+			entities: [], enums: [], dtos: [],
+		}],
+	};
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget' });
+	const op = contract.operations.getWidgetItemResource;
+	assert.deepEqual(op.expansion, {
+		rule: 'java-spring:repository-rest-resource-crud',
+		declarationLine: 12,
+		label: '@RepositoryRestResource(path="widgets") on WidgetRepository',
+	});
+
+	const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schemas', 'feature-contract.schema.json'), 'utf8'));
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	const validate = ajv.compile(schema);
+	assert.equal(validate(contract), true, JSON.stringify(validate.errors));
+});
+
+test('an ordinary 1:1 endpoint (no declarationIndex) has no `expansion` key at all -- byte-identical to before this item', () => {
+	const scanReport = widgetScanReport([{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'findWidget', method: 'findWidget' }]);
+	const contract = buildContract({ featureId: '001-x', featureUid: 'x', scanReport, module: 'widget' });
+	assert.equal('expansion' in contract.operations.findWidget, false);
 });

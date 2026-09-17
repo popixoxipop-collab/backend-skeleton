@@ -15,12 +15,12 @@ import { pathPrefixCandidates, unreflectedPathPrefixes } from './export.mjs';
 // a path param. Direction stays one-way (openapi.mjs imports from emit.mjs, never the reverse).
 export const BARE_UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
-// A7/A8/A9/A10: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
+// A7/A8/A9/A10/X2: the single source of truth for schemas/feature-contract.schema.json's `sbf_contract`
 // const -- bin/bskel.mjs's loadContract() imports this too, so the friendly "re-emit with the
-// current bskel" message and the value actually written here cannot drift apart. Bumped "7" -> "8"
-// for this item (sourceDescription) -- again cheap, the friendly re-emit pre-check needs zero
-// code change -- see D-openapi-description.
-export const CONTRACT_SCHEMA_VERSION = '8';
+// current bskel" message and the value actually written here cannot drift apart. Bumped "8" -> "9"
+// for this item (the `expansion` field, D-route-expansion-provenance) -- again cheap, the friendly
+// re-emit pre-check needs zero code change.
+export const CONTRACT_SCHEMA_VERSION = '9';
 
 // A9 (D-openapi-path-params): `sourcePathParamSchemas` (a Map<name, schema>, contracts/openapi.mjs's
 // applyPathParameterSchemas -- present only for a matched/adopted operation whose source document
@@ -66,7 +66,11 @@ function pathParamsSchema(routePath, sourcePathParamSchemas = null) {
 // Object>>`) -- findMethodParams() shares the same balanced-delimiter analyzer that fixes the
 // scanner's identical GenericWithSpaceController case.
 function detectRequestBody(filePath, methodName) {
-	if (!filePath || !fs.existsSync(filePath)) return null;
+	// X5 (D-route-expansion-provenance): explicit guard, not the incidental fact that a regex built
+	// from the literal string "null" also happens not to match anything -- a null methodName means
+	// there is genuinely no literal per-action source method to look in (see the same reasoning
+	// D-typescript-express-inline-handlers already established for resolveHandlerFile()).
+	if (!filePath || !methodName || !fs.existsSync(filePath)) return null;
 	const text = fs.readFileSync(filePath, 'utf8');
 	const params = findMethodParams(text, methodName);
 	if (params === null) return null;
@@ -377,6 +381,15 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 					}));
 				}
 				const { pathParams, pathParamsHeuristic } = pathParamsSchema(route, pathParamSchemas);
+				// X2 (D-route-expansion-provenance): present only when the scan adapter recorded which
+				// multi-route declaration this endpoint came from (ep.declarationIndex) AND that
+				// declaration actually resolves on the owning controller -- omitted for every ordinary
+				// 1:1 endpoint, the same "absent unless it applies" discipline A9's pathParamsHeuristic
+				// already established. No adapter populates declarationIndex yet (forward-compatible
+				// shape only) -- see test/contract.test.mjs's expansion-field tests for a hand-built
+				// fixture exercising this.
+				const declaration = ep.declarationIndex != null ? (controller.declarations?.[ep.declarationIndex] ?? null) : null;
+				const expansion = declaration ? { rule: declaration.rule, declarationLine: declaration.line, label: declaration.label ?? null } : null;
 				operations[operationId] = {
 					verb,
 					path: route,
@@ -397,6 +410,9 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 					...(sourceRequestBody ? { sourceRequestBody } : {}),
 					// A9: omitted (not []) when every segment resolved from source, or the route has none.
 					...(pathParamsHeuristic ? { pathParamsHeuristic } : {}),
+					// X2: omitted entirely when this endpoint wasn't expanded from a multi-route
+					// declaration -- see the computation above.
+					...(expansion ? { expansion } : {}),
 					// A10: omitted entirely when --descriptions was not passed, the source had none, or
 					// it failed the length cap -- same "omitted, never null/false" discipline as every
 					// other field above.

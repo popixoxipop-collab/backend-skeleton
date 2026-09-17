@@ -607,3 +607,37 @@ public class WidgetController {
 	assert.equal(widget.requiredAuthority, 'TODO_ROLE', 'hasAnyAuthority(...) is not one of the two recognized shapes -- must fail closed, not silently match nothing');
 	assert.ok(plan.notes.some((n) => n.includes('not in the simple hasRole') && n.includes('hasAuthority')));
 });
+
+// X5 (D-route-expansion-provenance): a matched endpoint with a real operationId but no literal
+// per-action method (ep.method: null) -- the forward-compatible shape a future 1:N-aware adapter
+// (e.g. Spring Data REST scanning support) would produce. Before this item, this would fall
+// through to the generic authority/service notes and read literally "...found for X.null" /
+// "could not find a null(...) method" -- confusing, not honest.
+test('a matched endpoint with no literal per-action method (a 1:N framework-synthesized route) gets a declaration-aware note, not a confusing "null(...)" one', () => {
+	const scanReport = {
+		related_modules: [{
+			module: 'widget',
+			controllers: [{
+				className: 'WidgetRepository',
+				basePath: '/widgets',
+				file: '/repo/src/main/java/com/example/widget/WidgetRepository.java',
+				declarations: [{ rule: 'java-spring:repository-rest-resource-crud', line: 12, label: '@RepositoryRestResource(path="widgets") on WidgetRepository' }],
+				endpoints: [
+					{ verb: 'GET', path: '/widgets/{widgetId}', operationId: 'getWidgetItemResource', method: null, declarationIndex: 0 },
+				],
+			}],
+			entities: [{ className: 'Widget', table: 'widget', idField: 'widgetId', idFieldIsUuid: true, file: null }],
+			enums: [],
+			dtos: [],
+		}],
+	};
+
+	const plan = planHandles({ javaSrcRoot: '/nonexistent', scanReport, module: 'widget', resourceFilter: null });
+	const widget = plan.resources.find((r) => r.type === 'Widget');
+	assert.equal(widget.willGenerateResolver, false);
+	assert.equal(widget.fetchOperation.declaration.rule, 'java-spring:repository-rest-resource-crud');
+	assert.ok(plan.notes.some((n) => n.includes('expanded from @RepositoryRestResource(path="widgets") on WidgetRepository')));
+	assert.ok(plan.notes.some((n) => n.includes('Resolver NOT generated -- this is a structural boundary')));
+	assert.equal(plan.notes.some((n) => n.includes('could not find a null(...)')), false, 'the confusing accidental-coercion note must be suppressed once the declaration-aware note has already explained the real cause');
+	assert.equal(plan.notes.some((n) => n.includes('WidgetController.null')), false);
+});
