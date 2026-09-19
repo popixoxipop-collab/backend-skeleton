@@ -15192,3 +15192,78 @@ filesystem); `D-config-patch`/`D-resolver-scope` (this project's long-standing "
 edit is worse than asking a human" posture, which JS1's closed vocabulary is the latest instance
 of); `D-resolver-policy-contract` (the same "freeze the provably-safe set, refuse the rest
 explicitly" discipline, applied here to source edits instead of authorization).
+
+## D-waiver-renewal: an expired waiver was permanently un-renewable -- the tool's own remediation instruction did not work
+
+**WHY**: the user asked whether Prime Intellect's "Prime Agent" Continual Harness principle
+(durable state, refined through small evidence-backed updates, distinct from an immutable base,
+audit trail + rollback) applies to `bskel`'s own design. Grounding that question turned up a
+shared shape across five real subsystems (gate force/revoke, contract waivers, cross-feature
+waivers, impact dispositions, patch approvals) -- and, along the way, two concrete, verified
+defects rather than a speculative refactor opportunity. This entry is the first: a real, shipped
+bug, not a design exercise.
+
+`contracts/completeness.mjs`'s `warningKey()` was deliberately code+subject-only (never
+`expires_at` -- see its own comment). `bin/bskel.mjs`'s `cmdContractWaive` built its "already
+exists, do nothing" set from **every stored waiver regardless of expiry**, so an expired waiver's
+key permanently "existed." Re-waiving it matched zero new entries. The command's own stderr said
+*"re-waive with `--expires` if still needed"* -- and that instruction silently did nothing.
+**Reproduced live before writing any fix** (this project's own `D-gate-history` discipline): waive
+with `--expires 1d`, hand-backdate `expires_at` into the past (the same technique
+`test/contract-cli.test.mjs`'s own expiry test already used), re-waive with `--expires 90d` -->
+`waived 0 new warning(s) (1 already waived), expiring <future date>` printed on stdout (a
+misleading, plausible-looking success message), the resolution file's `expires_at` genuinely
+unchanged, `bskel verify` still exit 1.
+
+**WR1 -- one shared predicate, not two unsynchronized inline checks.** `evaluateResolution()`
+already computed `Date.parse(w.expires_at) <= now` inline; `cmdContractWaive` never consulted it
+at all. Extracted to exported `isWaiverExpired(waiver, now)` in `contracts/completeness.mjs`, used
+by both call sites. **WHY**: the bug's root cause was exactly two independent inline
+reimplementations of the same predicate silently diverging -- fixing only the CLI's check without
+naming and sharing the predicate would leave the same divergence available to the next caller.
+**COST**: none -- `evaluateResolution()`'s own behavior is unchanged, since it already computed
+the identical expression. **EXIT**: none needed; deleting the export and inlining both call sites
+again would restore the pre-fix (broken) behavior, which is the point of the guard.
+
+**WR2 -- a renewal REPLACES the expired entry (same key never appears twice), never appends
+alongside it.** `cmdContractWaive`'s live-waiver keyset (via WR1's predicate) now decides
+inclusion; an incoming waive matching an EXPIRED key is written as a fresh entry with the new
+`reason`/`at`/`expires_at`, and the stale entry is dropped from the array in the same write.
+**WHY**: two same-key entries (one expired, one live) would leave `evaluateResolution()`'s
+`expiredKeys`/`waivedKeys` sets computing over an ambiguous pair -- which one "is" the waiver for
+that warning depends on iteration order, not intent. **COST**: none observed. **EXIT**: none --
+this is the only coherent behavior once WR1's predicate exists.
+
+**WR3 -- renewal is reported as "renewed", never conflated with "waived".** Text output prints a
+separate `renewed N expired waiver(s)` line; `--json` gains a `renewed[]` array alongside the
+existing `waived[]` (now empty on a pure-renewal call). **WHY**: a renewal is a *new* human
+decision extending an old exception's clock, not the same thing as granting a brand-new one --
+reporting it identically would hide that the exception is being extended, not freshly justified.
+**COST**: one more output line/field to keep in sync with tests. **EXIT**: none.
+
+**WR4 -- `--expires` is deliberately NOT added to `scan cross-feature-waive` or `handles patch
+approve` in this pass.** **WHY**: zero demonstrated organizational need for decay on either (unlike
+contract waivers, whose decay `D-waiver-expiry` justified from a real "temporary exception that
+quietly became permanent" failure mode) -- adding it speculatively would be exactly the kind of
+un-forced generality this project's own discipline refuses. **COST**: the asymmetry (one of four
+decision kinds decays, three don't) persists. **EXIT**: add per-kind if a real need is demonstrated
+-- `isWaiverExpired`'s shape (a nullable ISO string, `<=` now) generalizes trivially.
+
+**Regression guard, explicitly tested**: a still-LIVE (non-expired) waiver remains completely
+un-re-waivable after this fix -- re-waiving it prints the original `waived 0 new warning(s) (N
+already waived)` with no "renewed" line, and the stored entry (reason, `at`, `expires_at`) is
+byte-unchanged. The fix's blast radius is exactly "an expired waiver can now be renewed," nothing
+broader.
+
+**Verified**: 6 new tests in `test/contract-cli.test.mjs` (renewal round-trip; renewed-vs-waived
+reporting in both text and `--json`; the live-waiver regression guard; both-stale-and-expired
+combined; the `expires_at === now` inclusive boundary). `npm test`: all pre-existing
+`D-waiver-expiry` tests pass unmodified.
+
+**EXIT (whole item)**: this closes `D-waiver-expiry`'s own gap silently; no new EXIT items
+introduced.
+
+**Cross-references**: `D-waiver-expiry` (the decay mechanism this repairs the renewal path for);
+`D-gate-history` (the "reproduce live before fixing" discipline this item's own grounding
+followed); `D-decision-event-log` (the next entry -- found via the same grounding pass).
+
