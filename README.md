@@ -429,10 +429,13 @@ bskel patch apply --feature 001-organization-management --transaction <id>
 
 ### Signed gate attestations (optional)
 
-`bskel gate export` already produces a CI-independent report of every gate's current status. Add
-`--sign --key <privateKeyPath>` to detached-sign it (Ed25519, via Node's own `crypto` module — no
-new dependency), then verify it offline, on any machine, without network access or trusting
-whatever produced it:
+`bskel gate export` already produces a CI-independent report of every gate's current status,
+including a `live` verdict RECOMPUTED at export time (so a gate whose stored record still says
+`pass` but whose inputs have since changed is honestly reported as `stale`, never silently signed
+as passing), the tool's own version, git tree identity, unconditional artifact hashes, and a
+forced/revoked/waiver roll-up. Add `--sign --key <privateKeyPath>` to detached-sign it (Ed25519,
+via Node's own `crypto` module — no new dependency), then verify it offline, on any machine,
+without network access or trusting whatever produced it:
 
 ```bash
 bskel attest keygen --out ~/.bskel-keys        # writes attest-private.pem (0600) + attest-public.pem
@@ -441,8 +444,16 @@ bskel gate export --feature 001-organization-management \
 bskel attest verify --file attestation.json --pubkey ~/.bskel-keys/attest-public.pem
 ```
 
-`attest verify`'s exit code reflects signature validity only — whether the gates inside actually
-passed is a separate, printed summary. See `D-gate-attestation-signing` in `DECISIONS.md`.
+`--sign` refuses a dirty working tree (same `--allow-dirty` convention `bskel preflight` already
+uses) — the acknowledgement, if you pass it, is recorded inside the signed payload itself, not just
+a flag you happened to type. `attest verify`'s exit code reflects signature validity only — whether
+the gates inside actually passed is a separate, printed summary. Three opt-in, default-off checks
+narrow what "valid" is allowed to mean for your use case without touching that exit-code contract:
+`--expect-head <sha>` (refuse an attestation about the wrong commit), `--max-age-minutes N`
+(refuse a stale one), `--reject-dirty` (refuse one signed over an acknowledged-dirty tree) — each
+failing exits `22`, distinct from `1` (signature invalid), so "authentic but not what you asked
+for" is never confused with "not authentic". See `D-gate-attestation-signing` and
+`D-attestation-payload-completeness` in `DECISIONS.md`.
 
 ### Signed observe receipts (optional)
 

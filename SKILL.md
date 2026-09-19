@@ -266,15 +266,21 @@ bskel gate show                # dump the full gate-state JSON for this repo -- 
   #    deliberately a state DUMP: it never recomputes, so `gate require` is what tells you whether
   #    the gate is CURRENTLY satisfied.
 bskel gate show stack          # or just one gate's own record (optional <name> positional arg)
-bskel gate export --feature <id> [--out <path>] [--json]
-  #    D-gate-export: a standalone report of current state + full history for all 9 gates
-  #    (preflight/scan/cross_feature/contract/dependencies/handles/stack/patch_transactions/
-  #    conformance), plus
-  #    git provenance (branch/HEAD/dirty) at capture time -- the CI-independent answer to "what
-  #    did this actually get verified against." Pure reader, never mutates a gate. Deliberately
-  #    does NOT try to correlate a specific git commit to a specific historical gate-pass event
-  #    (see D-contract-history's own rejection of that exact approach) -- git context here is
+bskel gate export --feature <id> [--out <path>] [--sign --key <privateKeyPath> [--allow-dirty]] [--json]
+  #    D-gate-export: a standalone report of current state + full history for every gate, plus git
+  #    provenance (branch/HEAD/dirty) at capture time -- the CI-independent answer to "what did
+  #    this actually get verified against." Pure reader, never mutates a gate. Deliberately does
+  #    NOT try to correlate a specific git commit to a specific historical gate-pass event (see
+  #    D-contract-history's own rejection of that exact approach) -- git context here is
   #    capture-time provenance only, never a claimed commit<->history correlation.
+  #    D-attestation-payload-completeness: `gates.*.live` is RECOMPUTED at export time (never just
+  #    the raw stored `current` record) -- a gate whose stored record says pass but whose inputs
+  #    have since changed reports live.status "stale", never silently re-signed as passing. Also
+  #    carries tool version/git tree identity/unconditional artifact hashes/a forced-revoked-waiver
+  #    roll-up. `--sign` refuses a dirty tree unless `--allow-dirty` is given (recorded inside the
+  #    signed payload). `bskel attest verify` gains three opt-in checks
+  #    (--expect-head/--max-age-minutes/--reject-dirty), each failing with exit 22 -- distinct from
+  #    exit 1 (signature invalid), so "authentic but not what you asked for" never looks like tamper.
 
 bskel scan                                            # D-zero-config-scan: zero flags -- lists EVERY
                                                         # module the adapter detects, unscored, no

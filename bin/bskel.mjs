@@ -9,6 +9,7 @@ import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision, headSha,
 import { forceNamedGate, revokeNamedGate, requireNamedGate, passNamedGate, awaitNamedGateDisposition, EXIT } from '../lib/gates.mjs';
 import { REPO_GATE_ID, GATE_NAMES, gateScopeId, requireGateDefinition } from '../lib/gate-definitions.mjs';
 import { getGate, loadState, historyPath } from '../lib/state.mjs';
+import { buildGateExportReport, readGateHistory } from '../lib/gate-export.mjs';
 import { writeFileAtomic, sha256File, readJsonIfExists } from '../lib/fsutil.mjs';
 import { hydrateScanReportFilePaths, dehydrateScanReportFilePaths } from '../lib/scan-report-paths.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
@@ -33,7 +34,7 @@ import { evaluateResolution, loadResolution, saveResolution, requireWarningCode,
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction, listTransactions } from '../lib/patch-transactions.mjs';
 import { getPatchKind, replanTransaction, PATCH_KIND_NAMES } from '../lib/patch-kinds.mjs';
-import { generateKeypair, signPayload, verifyPayload } from '../lib/attest.mjs';
+import { generateKeypair, signPayload, verifyPayload, publicKeyIdFromPrivate, publicKeyIdFromPublic } from '../lib/attest.mjs';
 import { loadManifest, saveManifest } from '../lib/handles-manifest.mjs';
 import { createHttpServer } from '../lib/http-server.mjs';
 import {
@@ -139,9 +140,9 @@ function usage() {
   bskel gate revoke <name> --reason "..." [--feature <id>]
   bskel gate history <name> [--feature <id>] [--json]
   bskel gate show [<name>] [--feature <id>]
-  bskel gate export --feature <id> [--out <path>] [--sign --key <privateKeyPath>] [--json]
+  bskel gate export --feature <id> [--out <path>] [--sign --key <privateKeyPath> [--allow-dirty]] [--json]
   bskel attest keygen --out <dir> [--force] [--json]
-  bskel attest verify --file <path> --pubkey <path> [--json]
+  bskel attest verify --file <path> --pubkey <path> [--expect-head <sha>] [--max-age-minutes N] [--reject-dirty] [--json]
   bskel doctor [--workflow ${DOCTOR_WORKFLOWS.join('|')}] [--json]
   bskel serve [--port N] [--host <addr>] [--database-url-env <NAME>] [--schema <name>] [--sign-key <path>] [--require-sign-key] [--json]
 `);
@@ -352,32 +353,6 @@ function cmdGateRevoke(args) {
 	process.exit(EXIT_CODES.NOT_PASSED);
 }
 
-// S4 (D-gate-history): reads the append-only .sbf/<feature>.history.jsonl -- a corrupt/invalid
-// line is skipped with a warning, not a hard failure, matching JSONL's own resilience rationale
-// (see lib/state.mjs's appendGateEvent).
-function readGateHistory(root, featureId, gateName) {
-	const file = historyPath(root, featureId);
-	if (!fs.existsSync(file)) return [];
-	const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-	const events = [];
-	for (const [i, line] of lines.entries()) {
-		let parsed;
-		try {
-			parsed = JSON.parse(line);
-		} catch {
-			console.error(`warning: ${file}:${i + 1}: not valid JSON, skipped`);
-			continue;
-		}
-		const { ok, errors } = validateAgainstSchema('gate-event.schema.json', parsed);
-		if (!ok) {
-			console.error(`warning: ${file}:${i + 1}: does not match schemas/gate-event.schema.json, skipped:\n${formatSchemaErrors(errors).join('\n')}`);
-			continue;
-		}
-		if (parsed.gate === gateName) events.push(parsed);
-	}
-	return events;
-}
-
 function cmdGateHistory(args) {
 	const flags = parseCommand('gate history', args);
 	if (flags.help) { console.log(renderCommandHelp('gate history')); process.exit(0); }
@@ -386,7 +361,11 @@ function cmdGateHistory(args) {
 	const gateName = flags._[0];
 	if (!gateName) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'usage: bskel gate history <name> [--feature <id>] [--json]');
 	resolveGateArg(gateName, flags.feature);
-	const events = readGateHistory(root, flags.feature, gateName);
+	// S4 (D-gate-history): a corrupt/invalid history line is skipped with a warning, not a hard
+	// failure, matching JSONL's own resilience rationale (see lib/state.mjs's appendGateEvent).
+	const events = readGateHistory(root, flags.feature, gateName, {
+		onWarning: (msg, errors) => console.error(`warning: ${msg}${errors ? `:\n${formatSchemaErrors(errors).join('\n')}` : ''}`),
+	});
 	if (flags.json) {
 		console.log(JSON.stringify(events, null, 2));
 	} else if (events.length === 0) {
@@ -439,20 +418,15 @@ function cmdGateExport(args) {
 	if (flags.key && !flags.sign) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--key only has an effect together with --sign');
 	}
-
-	const gates = {};
-	for (const name of GATE_NAMES) {
-		const scopeId = gateScopeId(name, flags.feature);
-		gates[name] = { scope: scopeId, current: getGate(root, scopeId, name), history: readGateHistory(root, scopeId, name) };
+	// D-attestation-payload-completeness (K4): --allow-dirty only means something alongside --sign
+	// -- an unsigned export never refuses a dirty tree (unchanged behavior), so a bare --allow-dirty
+	// would otherwise be a silently-ignored flag, the exact failure mode D-cli-contract already
+	// refuses everywhere else.
+	if (flags['allow-dirty'] && !flags.sign) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--allow-dirty only has an effect together with --sign -- an unsigned gate export never refuses a dirty tree');
 	}
 
-	const report = {
-		schema: 'sbf.gate-export/1',
-		feature_id: flags.feature,
-		generated_at: new Date().toISOString(),
-		git: { branch: currentBranch(root), head_sha: headSha(root), dirty: isDirty(root) },
-		gates,
-	};
+	const report = buildGateExportReport(root, flags.feature, { dirtyAcknowledged: Boolean(flags['allow-dirty']) });
 	// D-gate-attestation-signing: validated unconditionally, signed or not -- a document that can
 	// be exported unsigned should be exactly as trustworthy in shape as one that gets signed later.
 	{
@@ -464,6 +438,20 @@ function cmdGateExport(args) {
 
 	let payload = report;
 	if (flags.sign) {
+		// D-attestation-payload-completeness (K4): refuses to sign over a dirty working tree unless
+		// explicitly acknowledged -- direct reuse of scripts/preflight-base-ref.sh's own already-
+		// shipped --allow-dirty convention (same flag name, same DIRTY exit code, same reasoning: "so
+		// evidence can honestly distinguish 'clean tree, passed' from 'dirty tree, --allow-dirty
+		// overrode it'"). Signing is a strictly stronger claim than preflighting, so it cannot be
+		// laxer. `report.git.dirty === true` is checked specifically, not truthiness -- isDirty()
+		// (and therefore this field) can be `null` when git itself failed, and "we could not
+		// determine dirtiness" must not silently pass this refusal.
+		if (report.git.dirty === null) {
+			fail(EXIT_CODES.DIRTY, 'DIRTY', 'refusing to sign an attestation: could not determine whether the working tree is dirty (git status failed) -- fix the git error, or pass --allow-dirty to sign anyway.');
+		}
+		if (report.git.dirty === true && !flags['allow-dirty']) {
+			fail(EXIT_CODES.DIRTY, 'DIRTY', `refusing to sign an attestation over a dirty working tree (${report.git.dirty_file_count} uncommitted change(s)) -- commit/stash them, or pass --allow-dirty to sign anyway (the acknowledgement is recorded inside the signed payload). The same refusal \`bskel preflight\` already makes.`);
+		}
 		let privateKeyPem;
 		try {
 			privateKeyPem = fs.readFileSync(path.resolve(process.cwd(), flags.key), 'utf8');
@@ -471,12 +459,14 @@ function cmdGateExport(args) {
 			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read --key "${flags.key}": ${err.message}`);
 		}
 		let signatureValue;
+		let keyId;
 		try {
 			signatureValue = signPayload(report, privateKeyPem);
+			keyId = publicKeyIdFromPrivate(privateKeyPem);
 		} catch (err) {
 			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--key "${flags.key}" is not a usable Ed25519 private key: ${err.message}`);
 		}
-		const attestation = { schema: 'sbf.gate-attestation/1', report, signature: { algorithm: 'ed25519', value: signatureValue } };
+		const attestation = { schema: 'sbf.gate-attestation/1', report, signature: { algorithm: 'ed25519', value: signatureValue, key_id: keyId } };
 		const { ok, errors } = validateAgainstSchema('gate-attestation.schema.json', attestation);
 		if (!ok) {
 			fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', `internal error: the computed gate attestation failed its own schema -- ${formatSchemaErrors(errors).join('; ')}`);
@@ -489,9 +479,11 @@ function cmdGateExport(args) {
 		const outPath = path.resolve(process.cwd(), flags.out);
 		writeFileAtomic(outPath, rendered);
 		if (!flags.quiet) {
-			const passCount = GATE_NAMES.filter((n) => gates[n].current?.status === 'pass').length;
+			const passCount = report.verdict.passing;
 			const signedNote = flags.sign ? ' (signed)' : '';
-			console.log(`wrote ${flags.out}${signedNote} -- ${passCount}/${GATE_NAMES.length} gate(s) currently passing, ${report.git.branch}@${report.git.head_sha?.slice(0, 12) ?? '(unknown)'}${report.git.dirty ? ' (dirty)' : ''}`);
+			const dirtyNote = report.git.dirty ? (report.git.dirty_acknowledged ? ', dirty (acknowledged)' : ', dirty') : '';
+			const blockingNote = report.verdict.blocking_gates.length > 0 ? ` -- blocking: ${report.verdict.blocking_gates.join(', ')}` : '';
+			console.log(`wrote ${flags.out}${signedNote} -- ${passCount}/${GATE_NAMES.length} gate(s) currently passing, ${report.git.branch}@${report.git.head_sha?.slice(0, 12) ?? '(unknown)'}${dirtyNote}${blockingNote}`);
 		}
 	} else {
 		console.log(rendered);
@@ -562,13 +554,64 @@ function cmdAttestVerify(args) {
 	const valid = verifyPayload(attestation.report, attestation.signature.value, publicKeyPem);
 	const passCount = GATE_NAMES.filter((n) => attestation.report.gates[n]?.current?.status === 'pass').length;
 
+	// D-attestation-payload-completeness (K5): three OPT-IN, default-off assertions, evaluated
+	// purely against fields already inside the report (so verification stays fully offline and
+	// repo-independent). They exist for both sbf.gate-export/1 and /2 reports -- head_sha/
+	// generated_at/dirty are unchanged fields from /1, nothing here needed a /2-only field.
+	const assertions = [];
+	if (flags['expect-head']) {
+		const actual = attestation.report.git?.head_sha ?? null;
+		const ok = actual === flags['expect-head'];
+		assertions.push({ name: 'expect-head', ok, detail: ok ? `head_sha matches ${flags['expect-head']}` : `report's head_sha is "${actual}", expected "${flags['expect-head']}"` });
+	}
+	const maxAgeMinutes = flags['max-age-minutes'] != null ? Number(flags['max-age-minutes']) : 0;
+	if (maxAgeMinutes > 0) {
+		const generatedAtMs = Date.parse(attestation.report.generated_at);
+		const ageSeconds = Number.isFinite(generatedAtMs) ? Math.max(0, Math.round((Date.now() - generatedAtMs) / 1000)) : null;
+		const ok = ageSeconds !== null && ageSeconds <= maxAgeMinutes * 60;
+		assertions.push({ name: 'max-age-minutes', ok, detail: ageSeconds === null ? `report's generated_at ("${attestation.report.generated_at}") is not a parseable timestamp` : `age ${ageSeconds}s, limit ${maxAgeMinutes * 60}s` });
+	}
+	if (flags['reject-dirty']) {
+		const dirty = attestation.report.git?.dirty ?? null;
+		const ok = dirty !== true;
+		assertions.push({ name: 'reject-dirty', ok, detail: ok ? 'report is not dirty' : 'report.git.dirty === true' });
+	}
+	const assertionsOk = assertions.every((a) => a.ok);
+
+	// D-attestation-payload-completeness (K6): key_id is a SELECTION HINT only -- it sits OUTSIDE
+	// the signed bytes (only `report` is signed), so it cannot change whether `valid` is true. It
+	// exists purely to make a wrong---pubkey mistake legible instead of an unexplained INVALID.
+	let keyIdNote = null;
+	if (attestation.signature.key_id) {
+		try {
+			const actualKeyId = publicKeyIdFromPublic(publicKeyPem);
+			if (attestation.signature.key_id !== actualKeyId) {
+				keyIdNote = `this attestation declares key_id ${attestation.signature.key_id}, but --pubkey is ${actualKeyId} -- you may have the wrong public key`;
+			}
+		} catch {
+			// A --pubkey that isn't even a parseable key already drives verifyPayload() to false
+			// above; nothing more useful to say here.
+		}
+	}
+	const legacyReport = attestation.report.schema === 'sbf.gate-export/1';
+
 	if (flags.json) {
-		console.log(JSON.stringify({ valid, report_summary: { feature_id: attestation.report.feature_id, generated_at: attestation.report.generated_at, gates_passing: `${passCount}/${GATE_NAMES.length}` } }, null, 2));
+		console.log(JSON.stringify({
+			valid,
+			report_format: attestation.report.schema ?? 'sbf.gate-export/1',
+			report_summary: { feature_id: attestation.report.feature_id, generated_at: attestation.report.generated_at, gates_passing: `${passCount}/${GATE_NAMES.length}` },
+			assertions,
+			key_id_note: keyIdNote,
+		}, null, 2));
 	} else if (!flags.quiet) {
 		console.log(valid ? 'VALID: this attestation was genuinely signed by the holder of the matching private key' : 'INVALID: signature does not match this report + public key');
+		if (legacyReport) console.log('report format: sbf.gate-export/1 (pre-D-attestation-payload-completeness -- no tool version, no live gate verdict)');
+		if (keyIdNote) console.log(`note: ${keyIdNote}`);
 		console.log(`report says: feature ${attestation.report.feature_id}, ${passCount}/${GATE_NAMES.length} gate(s) passing, generated ${attestation.report.generated_at}`);
+		for (const a of assertions) console.log(`assertion ${a.name}: ${a.ok ? 'ok' : 'FAILED'} -- ${a.detail}`);
 	}
-	process.exit(valid ? EXIT_CODES.OK : EXIT_CODES.CHECK_FAILED);
+	if (!valid) process.exit(EXIT_CODES.CHECK_FAILED);
+	process.exit(assertionsOk ? EXIT_CODES.OK : EXIT_CODES.ATTESTATION_ASSERTION_FAILED);
 }
 
 // Structural enforcement of "preflight blocks everything below it" (see the workflow table in

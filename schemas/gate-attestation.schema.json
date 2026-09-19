@@ -15,7 +15,12 @@
       "required": ["algorithm", "value"],
       "properties": {
         "algorithm": { "const": "ed25519" },
-        "value": { "type": "string", "description": "base64-encoded raw Ed25519 signature bytes over canonicalize(report)." }
+        "value": { "type": "string", "description": "base64-encoded raw Ed25519 signature bytes over canonicalize(report)." },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{32}$",
+          "description": "D-attestation-payload-completeness (K6): a SELECTION HINT, not a trust claim. It sits OUTSIDE the signed bytes (only `report` is signed) and is therefore attacker-modifiable -- `bskel attest verify` uses it only to produce a better error message when the wrong --pubkey is supplied. Verification depends solely on the signature over canonicalize(report)."
+        }
       }
     }
   }

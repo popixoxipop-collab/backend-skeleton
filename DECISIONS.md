@@ -14435,3 +14435,146 @@ function that walks the raw `doc` directly, not through `indexOpenApiDocument()`
 by this item -- still undercounts unsupported keywords reachable only through a requestBodies/
 responses $ref, since it has no access to the resolved component maps. Named here as an explicit,
 unscoped follow-up, not silently left inconsistent.
+
+## D-attestation-payload-completeness: the signed gate attestation now says what it claims to say -- tool version, git tree, live gate verdict, artifact hashes, forced/waived roll-up, and a dirty-tree refusal it inherits from preflight
+
+**WHY**: `D-gate-attestation-signing` shipped a real, offline-verifiable Ed25519 attestation over
+`bskel gate export`'s report and closed the mechanism. This item closes the PAYLOAD. Re-reading the
+original growth-idea ask against the actually-shipped code (`lib/attest.mjs`, `cmdGateExport`,
+`schemas/gate-export.schema.json`) found six named things -- "tool version, git tree, declared gate
+inputs, contract/OpenAPI hashes, manifest state, and forced/waived decisions" -- only partially
+present:
+
+1. `cmdGateExport` called `getGate()` (the RAW STORED record), never `requireNamedGate()` -- and
+   `schemas/state.schema.json` confirms only `pass|awaiting_disposition|revoked` are ever WRITTEN
+   to disk (`not_run`/`stale`/`pass (forced)` are read-time-derived). **A gate that is stale RIGHT
+   NOW was exported, and signed, as `"status": "pass"`.** The signature was authentic; the claim
+   inside it was not -- the single most serious gap this item closes.
+2. No tool version anywhere in the report, while `bin/bskel.mjs` read `package.json`'s version
+   ad-hoc in three unrelated places.
+3. `.sbf/handles-manifest.json` was hashed by NO gate anywhere.
+4. Contract/OpenAPI hashes existed only INSIDE `gates.contract.current.inputs` -- `null` whenever
+   that gate had never passed, so a signable report could carry zero contract hashes.
+
+**Design (K1-K8, full text with WHY/COST/EXIT per decision in the implementation itself -- see
+`lib/attest.mjs`, `lib/repo.mjs`, `lib/gate-export.mjs`)**:
+
+- **K1** -- canonicalization stays `JSON.stringify(sortKeysDeep(v))` (`lib/attest.mjs`'s
+  `CANONICALIZATION_ID = 'sortkeysdeep-json'`, now recorded inside the signed payload itself so a
+  future verifier can tell which dialect it's speaking), byte-compatible with every attestation
+  already signed. RFC 8785/JCS was considered and rejected: functionally equivalent over this
+  payload's value space (strings/booleans/null/safe integers/arrays/plain objects), and adopting it
+  would buy spec-compliance on paper for zero real determinism gain while invalidating nothing (no
+  format actually changed) but adding a dependency. What WAS genuinely missing is the fail-closed
+  half -- `assertCanonicalizable()`, called only from `signPayload()` (never `verifyPayload()`,
+  which keeps its shipped never-throws contract), rejects `NaN`/`Infinity`/`undefined`/`BigInt`/a
+  `Date`/a class instance/etc. before they can silently serialize to something other than
+  themselves and get signed as a lie.
+- **K2** -- the exact `sbf.gate-export/2` payload, additive over `/1`: every `/1` field keeps its
+  name/position/meaning; new content is `tool{name,version,gate_names,canonicalization}`, 5 new
+  `git.*` fields (`head_tree_sha`, `dirty_acknowledged`, `dirty_file_count`,
+  `dirty_files_truncated`, `dirty_files[]`), `artifacts{...}` (13 hashes, unconditionally computed,
+  independent of whether any gate ever passed), `gates.*.live` (see K3), `decisions{forced,
+  revoked, waiver_files}`, and `verdict{blocking_gates, passing, total, ok}`. `current` and `live`
+  deliberately coexist on each gate rather than `live` replacing `current` -- one is "what was last
+  written", the other is "what is honestly true right now", and collapsing them would throw away
+  exactly the distinction this item exists to draw.
+- **K3** -- `gates.*.live` is RECOMPUTED at export time by reusing `lib/verify.mjs`'s
+  `collectGateStatuses()` **verbatim** -- the same anti-drift argument `D-gate-definitions` made for
+  one shared gate list: `bskel gate export` and `bskel verify` now structurally cannot disagree
+  about the same repo's current state, because there is only one implementation computing it.
+- **K4** -- dirty trees: `gate export --sign` refuses (`EXIT_CODES.DIRTY`, 13) unless `--allow-dirty`
+  is passed, which is itself recorded INSIDE the signed payload
+  (`git.dirty_acknowledged`/`dirty_file_count`/`dirty_files[]`). Direct reuse of
+  `scripts/preflight-base-ref.sh`'s already-shipped `--allow-dirty` convention -- same flag name,
+  same exit code, same reasoning ("so evidence can honestly distinguish 'clean tree, passed' from
+  'dirty tree, --allow-dirty overrode it'"). Signing is a strictly stronger claim than preflighting,
+  so it cannot be laxer. **This is the one behavior-breaking change in this item**: a script that
+  ran `gate export --sign` against a dirty tree before this item now gets exit 13 and must add
+  `--allow-dirty`. Unsigned `gate export` is completely unaffected (verified by its own dedicated
+  test). `git.dirty === null` (git itself failed) is refused too, not treated as "probably fine" --
+  fail-closed on "we could not determine dirtiness" the same way every other ambiguity in this
+  codebase fails closed.
+- **K5** -- `bskel attest verify`'s exit 1 still means, and only ever means, "the signature does not
+  verify" (the shipped `D-gate-attestation-signing` contract, unchanged). Three new, all opt-in,
+  all default-off assertions -- `--expect-head <sha>` (cheap offline replay defense: a genuinely
+  valid attestation for commit A can no longer be silently presented as evidence for commit B),
+  `--max-age-minutes N` (`0` disables, same convention `D-preflight-freshness`/`D-waiver-expiry`
+  already established), `--reject-dirty` -- failing produces a NEW exit code,
+  `EXIT_CODES.ATTESTATION_ASSERTION_FAILED` (22), never a reuse of `CHECK_FAILED` (1): folding
+  "authentic but not what you asked for" into the same number as "not authentic" would destroy
+  exactly the distinction `D-gate-attestation-signing` was written to preserve. All three assertions
+  happen to target fields that already existed in schema `/1` (`git.head_sha`, `generated_at`,
+  `git.dirty`), so they work identically against an old or a new report with zero special-casing.
+- **K6** -- `signature.key_id` (`'ed25519:' + sha256(public key SPKI DER).slice(0,16 bytes)`,
+  derived from the private key at sign time via `createPublicKey()`, so the signer never touches the
+  public key file) is a SELECTION HINT, not a trust claim -- it sits OUTSIDE the signed bytes (only
+  `report` is signed), so it is exactly as attacker-modifiable as any other envelope field.
+  `attest verify` uses it only to upgrade an unexplained INVALID into "you supplied the wrong
+  `--pubkey`" when the ids mismatch. Stated explicitly in the schema `description` and in verify's
+  own printed output so it is never misread as an identity assertion.
+- **K7** -- `sbf.gate-export/1` attestations verify forever: they cannot be re-signed, and
+  `schemas/gate-attestation.schema.json`'s `report` field stays `{"type":"object"}` (unconstrained),
+  `key_id` stays optional (not in `required`), `schema.const` on the ENVELOPE stays
+  `"sbf.gate-attestation/1"` (no version bump there -- only the inner `report.schema` moved). A
+  fixture-creation-time-signed real `/1` attestation (`test/fixtures/gate-attestation-v1.json` +
+  `.pub.pem`, a genuine keypair generated once for this fixture, checked in) proves this, not just
+  asserts it.
+- **K8** -- `lib/gate-export.mjs`'s `ARTIFACT_SOURCES` table is the ONE place an attestation-bound
+  artifact is declared (mirrors `GATE_NAMES` being the one place a gate is declared) -- a dedicated
+  test asserts its key set equals `schemas/gate-export.schema.json`'s own `artifacts.properties` key
+  set, so the two cannot silently drift apart.
+
+**Report construction moved to `lib/gate-export.mjs` (new)**, pulled out of `bin/bskel.mjs` --
+`buildGateExportReport(root, featureId, {now, dirtyAcknowledged, dirtyCap})`, a pure function
+matching the same "CLI stays thin, real logic lives in lib/" split `lib/verify.mjs`/`lib/gates.mjs`
+already follow. `bin/bskel.mjs`'s own `readGateHistory()` moved into this module too (was
+previously duplicated logic risk between `cmdGateHistory` and `cmdGateExport`; now one
+implementation, `cmdGateHistory` imports it).
+
+**Deviation from the original implementation plan, disclosed**: the plan's step-3 sketch of
+`buildGateExportReport` called `readGateHistory` with console.error side effects for corrupt
+history lines (matching `cmdGateHistory`'s own diagnostic behavior). The shipped version keeps
+`buildGateExportReport` a genuinely pure function -- corrupt history lines are silently skipped
+inside the report builder, with no stderr output -- matching this module's own stated purpose
+("pure report-construction logic... unit-testable without spawning a CLI process"). `cmdGateHistory`
+alone still prints the `warning: ...` diagnostic, via an `onWarning` callback `readGateHistory` now
+accepts. Net effect: `gate export` on a repo with a corrupted `.history.jsonl` line silently drops
+that line from the report instead of also warning on stderr (unchanged: the line was always dropped
+either way). Not covered by an existing test either before or after this change.
+
+**Verified**: `npm test` -- 1690 tests before this item, 1717 after (27 new: 6 in
+`test/attest.test.mjs`, 11 in `test/attest-cli.test.mjs`, 10 in new
+`test/gate-export-report.test.mjs`), **0 regressions**, 10 pre-existing skips unrelated to this
+item. The headline claim (K1's "stale gate exported as pass" fix) has a dedicated test:
+`test/gate-export-report.test.mjs`'s "the headline fix" case emits a contract, mutates the emitted
+file on disk, and asserts `current.status === 'pass'` while `live.status === 'stale'` on the SAME
+re-exported report. Manually re-verified end-to-end afterward too: real `attest keygen` -> real
+`gate export --sign` -> inspected every new payload field for a real (non-null/non-placeholder)
+value -> real `attest verify` (valid) -> byte-flip tamper (invalid) -> wrong `--pubkey` (invalid,
+with the key_id mismatch note) -> dirty-tree refusal (exit 13) -> `--allow-dirty` override (exit 0,
+`dirty_acknowledged: true` inside the signed payload) -> `--expect-head`/`--max-age-minutes`/
+`--reject-dirty` each independently exiting 22 with `valid: true` when the signature itself was
+genuine.
+
+**COST**: payload growth (roughly +2-6 KB typical; `gates.*.history` already dominates). `gate
+export` now costs one `requireNamedGate()` call per gate (re-hashes every gate's declared input
+set) -- turns what was a cheap disk read into real recomputation work; accepted, because a fast
+attestation that can say `pass` for a stale gate is worthless. `gate export --sign` on a dirty tree
+now requires `--allow-dirty` where it silently worked before (K4's named breaking change).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- Full worktree CONTENT hashing (hashing dirty files' bytes, not just their paths/status) -- today's
+  `dirty_files[]` discloses WHAT changed, not the actual diff.
+- Embedding waiver DOCUMENT content -- today `decisions.waiver_files` is presence+hash only, bound
+  to the same hash already carried in `artifacts.contract_resolution_hash`/
+  `cross_feature_resolution_hash`, never duplicated as embedded content.
+- RFC 8785/JCS as a second, explicitly-named canonicalization algorithm, if cross-language
+  verification (a Java or Python verifier) ever becomes real -- `tool.canonicalization` already
+  names the current algorithm so this can be introduced as a distinct, opt-in value later without
+  breaking anything signed under the default.
+- Making `key_id` authoritative by moving it inside the signed `report` itself -- a heavier,
+  different decision (binds a report to a specific key) that would need its own `sbf.gate-export/3`.
+- Everything `D-gate-attestation-signing`'s own EXIT list already deferred (PKI/trust anchors,
+  OIDC/keyless signing, key rotation/revocation lists, multi-signer thresholds, timestamping/
+  transparency logs, CI-run correlation) -- unchanged, still deferred, not reopened here.
