@@ -14327,3 +14327,111 @@ existing all-`true` flags; capabilities are a closed, coarse, per-adapter enum w
 room anyway).
 EXIT: purely additive -- reverting `extractRepositoryResource()`'s call site in `scanJavaSpring()`'s
 loop leaves every other adapter behavior, and `declarations[]`/`expansion`'s own EXIT, unchanged.
+
+## D-openapi-request-response-refs: resolving `#/components/requestBodies/*` and `#/components/responses/*` -- closing a gap D-oracle-corpus-openapi-remeasurement already found and deferred
+
+**WHY**: A2/A3 (`applyRequestBodySchema`/`projectResponseSchemas`) only ever read
+`operation.requestBody`/`operation.responses` entries as inline objects -- a Reference Object
+form of EITHER (`{"$ref": "#/components/requestBodies/<Name>"}` on the whole requestBody, or the
+same on an individual response status) was explicitly out of scope, documented at the time as "0
+real occurrences against the Team-IZ-Backend oracle" (A2's own comment) and "named rather than
+built... same 'don't build for zero real cases' discipline" (A8's `applyPerStatusResponses`/
+`applyRequestMediaTypes` comments). `D-oracle-corpus-openapi-remeasurement` already found a real
+counter-example while re-deriving other constants against a second corpus
+(`1chz/realworld-java21-springboot3`, one of this project's own 13-entry `test/fixtures/
+oracle-manifest.json` oracles) and explicitly deferred it: "Treated as a secondary, informal data
+point only." This item closes that deferral with a second, independently-found real document
+that DOES exercise the fix end to end.
+
+**The new finding**: contract-bench (this project's own frontend-harness companion, a separate
+repo) was validated against a real, unrelated external app -- the official RealWorld/Conduit
+Node.js reference implementation (`gothinkster/node-express-realworld-example-app`) paired with
+RealWorld's own official OpenAPI 3.1.0 spec (`gothinkster/realworld`'s `specs/api/openapi.yml`).
+That spec uses `#/components/requestBodies/*`/`#/components/responses/*` pervasively -- EVERY one
+of its 19 operations' request/response bodies are referenced this way, never inlined. Before this
+fix: `bskel contract emit --openapi-file` against it produced `0 request body schema(s) projected,
+0 unresolved` / `0 response + 0 error schema(s) projected, 0 unresolved` / `0 operation(s) with
+per-status responses copied` -- for all 11 matched operations, despite the source document
+genuinely documenting real, well-formed schemas for every one of them. Not a corrupted or
+non-standard document -- a widely-used (3,794 GitHub stars), actively maintained, spec-compliant
+reference implementation authoring OpenAPI the normal way for a document meant to be shared across
+many language implementations (avoiding duplicated inline schemas across every operation is
+precisely why `requestBodies`/`responses` components exist in the OpenAPI spec at all).
+
+**Design**: a new `resolveComponentObjectRef(node, refPrefix, componentMap)` in `contracts/
+openapi.mjs`, applied ONCE, inside `indexOpenApiDocument()`'s own per-operation loop, before
+`entry.requestBody`/`entry.responses` are ever stored -- not at each of the four downstream
+consumers (`applyRequestBodySchema`, `projectResponseSchemas`/`applyResponseSchemas`,
+`applyPerStatusResponses`, `applyRequestMediaTypes`) individually. Every one of those four
+functions needed ZERO code changes beyond removing their now-dead `Object.hasOwn(x, '$ref')`/
+`typeof resp.$ref === 'string'` checks (impossible to hit once resolution happens upstream) and
+updating their own stale "0 real occurrences, named not built" comments -- they already handled
+"requestBody/response entry is a plain object" vs "requestBody/response entry is absent" correctly;
+this change only widens what "the source document already gave us a plain object" MEANS, from
+"was authored inline" to "was authored inline OR resolves to one via a single-level component
+reference." Two new Maps mirror `componentSchemas`/`securitySchemes`'s own established pattern
+exactly: `componentRequestBodies`/`componentResponses` (from `doc.components.requestBodies`/
+`doc.components.responses`), same `COMPONENT_SCHEMA_NAME_RE` whitelist (this is still just a named
+component becoming a downstream lookup key -- same prototype-pollution class), same size-capped
+(`MAX_COMPONENT_REQUEST_BODIES`/`MAX_COMPONENT_RESPONSES`, both 512 -- a conservative,
+not-yet-real-corpus-measured default explicitly flagged for revisit, reusing
+`MAX_SECURITY_SCHEMES`'s own "small named component map" precedent rather than
+`MAX_COMPONENT_SCHEMAS`'s much larger one) malformed-entry-skipping discipline.
+
+**Deliberately NOT recursive** -- `resolveComponentObjectRef()` resolves exactly one level and
+fails closed (returns `null`) rather than chaining. No real document measured so far (RealWorld's
+own official spec, its Java and Node reference implementations, Team-IZ-Backend,
+polarsource/polar) ever references a requestBodies/responses component FROM another
+requestBodies/responses component -- a document that did would degrade gracefully to "nothing to
+project for that operation/status", the same outcome an unresolvable ref already produces, not a
+crash or a wrong answer.
+
+**Unresolvable ref still resolves to "skip gracefully," matching pre-existing, tested behavior,
+not schema_unresolved**: this was a deliberate choice, not an oversight -- `test/contract-openapi.
+test.mjs` already had a real test locking in "a Response Object $ref is skipped, not fabricated as
+a description-only entry" for a ref that doesn't resolve (the component genuinely isn't defined in
+that test's document). That test's expectation is UNCHANGED by this fix and still passes: an
+unresolvable ref (bad prefix, sibling keys, invalid name, name not present in the component map)
+now, as before, is treated identically to a genuinely bodyless operation or an undocumented
+response status -- never a new failure mode, never a fabricated entry.
+
+**Measured against 2 independent real documents**:
+- `gothinkster/node-express-realworld-example-app`'s official spec (OpenAPI 3.1.0, the schema
+  dialect this project's schema projection requires): 6 real `components.requestBodies`, 13 real
+  `components.responses`, all named validly, 0 rejected. Full pipeline re-run via `bskel contract
+  emit --openapi-file`: **3 request body schemas projected (0 unresolved), 9 response + 11 error
+  schemas projected (0 unresolved), 11/11 operations got per-status responses copied** -- up from
+  0/0/0 before this fix, with the exact same source document.
+- `1chz/realworld-java21-springboot3`'s own spec (already in this project's own pinned
+  `test/fixtures/oracle-manifest.json` corpus, the one D-oracle-corpus-openapi-remeasurement found
+  this gap against): OpenAPI 3.0.1, not 3.1 -- `schemaDialectSupported` is false for the whole
+  document (a separate, pre-existing, unrelated gate: `reconcileModule()`'s own dialect check,
+  because OpenAPI 3.0's `exclusiveMinimum`/`nullable` mean something different under the 2020-12
+  JSON Schema dialect Ajv2020 speaks), so schema projection never runs regardless of this fix.
+  Confirmed this fix does not crash or regress against it: `indexOpenApiDocument()` still cleanly
+  parses 6 real `components.requestBodies`/10 real `components.responses` with 0 rejections. Named
+  honestly as a non-validating second data point for THIS specific fix (blocked by the unrelated
+  3.0-vs-3.1 gate), not claimed as a second positive confirmation it isn't.
+
+**Verified**: `npm test` full suite green (209/209 in `test/contract-openapi.test.mjs` alone,
+including every pre-existing $ref-related test, unchanged), plus new tests covering: a resolvable
+requestBody ref projecting a real schema; a resolvable response ref projecting a real schema
+across multiple statuses; an unresolvable ref (name not in the component map) still skipping
+gracefully; a malformed ref (sibling key, wrong prefix, invalid name) failing closed; the new
+`MAX_COMPONENT_REQUEST_BODIES`/`MAX_COMPONENT_RESPONSES` caps.
+
+**COST**: one new function (`resolveComponentObjectRef`), two new Maps + their indexing loops
+(mirroring `securitySchemes`'s existing shape exactly), two new size caps with an honestly-flagged
+provisional value. Four stale comments updated (`applyRequestBodySchema`,
+`projectResponseSchemas`'s sibling `applyResponseSchemas`, `applyPerStatusResponses`,
+`applyRequestMediaTypes`) to stop asserting "0 real occurrences" now that real data contradicts it.
+
+**EXIT**: purely additive at the index layer -- reverting `resolveComponentObjectRef()`'s two call
+sites in `indexOpenApiDocument()`'s per-operation loop back to storing the raw
+`operation.requestBody`/`operation.responses` values restores the exact prior behavior (every
+downstream consumer's own "$ref, skip" logic still exists in git history, easy to restore
+alongside if ever needed). `findUnsupportedAnnotations()` (a separate, informational diagnostic
+function that walks the raw `doc` directly, not through `indexOpenApiDocument()`) is NOT updated
+by this item -- still undercounts unsupported keywords reachable only through a requestBodies/
+responses $ref, since it has no access to the resolved component maps. Named here as an explicit,
+unscoped follow-up, not silently left inconsistent.

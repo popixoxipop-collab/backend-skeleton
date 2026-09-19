@@ -54,6 +54,24 @@ const SCHEMA_REF_PREFIX = '#/components/schemas/';
 // cyclic component, resolved into a top-level `$defs` map -- see inlineSchema()). Distinct from
 // SCHEMA_REF_PREFIX, which is what this module RESOLVES on the way IN from a source document.
 const DEFS_REF_PREFIX = '#/$defs/';
+// D-openapi-request-response-refs: the two remaining Reference Object forms a real OpenAPI 3.1
+// document can use besides a schema-level $ref -- a whole Request Body Object
+// (`operation.requestBody: {$ref: "#/components/requestBodies/<Name>"}`) or a whole Response
+// Object (`operation.responses.<status>: {$ref: "#/components/responses/<Name>"}`). Previously
+// out of scope entirely (see the stale comments this change updates); see DECISIONS.md for the
+// real-data finding that reopened it.
+const REQUEST_BODY_REF_PREFIX = '#/components/requestBodies/';
+const RESPONSE_REF_PREFIX = '#/components/responses/';
+// D-openapi-request-response-refs: no dedicated real-corpus size measurement yet for these two
+// specific component maps (unlike MAX_COMPONENT_SCHEMAS above, which has one) -- every real
+// document measured so far (RealWorld/Conduit's own official spec; Team-IZ-Backend;
+// polarsource/polar, neither of which uses this ref form at all) has far fewer requestBodies/
+// responses components than schemas components. Reuses MAX_SECURITY_SCHEMES' own "small named
+// component map, conservative round default" precedent rather than MAX_COMPONENT_SCHEMAS' much
+// larger one. Revisit with real corpus data once a document large enough to test it exists, per
+// this project's own data-first-numerics discipline.
+const MAX_COMPONENT_REQUEST_BODIES = 512;
+const MAX_COMPONENT_RESPONSES = 512;
 
 // A3: response/error JSON Schema projection. Reuses every inlineSchema() defense above
 // unchanged (keyword/format whitelist, MAX_SCHEMA_DEPTH/NODES/PATTERN_LENGTH) -- measured by
@@ -488,6 +506,38 @@ export function loadOpenApiDocument(filePath) {
 // route is ambiguous even within the document itself). `$ref` path items are skipped, not
 // resolved (out of scope for this vertical slice -- see DECISIONS.md).
 //
+// D-openapi-request-response-refs: resolves ONE level of "#/components/requestBodies/<Name>" or
+// "#/components/responses/<Name>" indirection against the document's own componentRequestBodies/
+// componentResponses map -- the two remaining Reference Object forms a real OpenAPI 3.1 document
+// uses besides a schema-level $ref (RealWorld/Conduit's own official spec uses this pervasively,
+// for every single operation; see DECISIONS.md). Not a schema-level resolution (inlineSchema()'s
+// own job, unchanged) -- this operates one level up, on the Request Body Object / Response Object
+// itself, and returns a plain object exactly as if the source document had inlined it directly.
+//   - `node` not an object, or an object with no `$ref` key: returned unchanged (the overwhelming
+//     common case -- most operations never use this indirection at all).
+//   - a `$ref` with any sibling key, an unsupported prefix, a name failing COMPONENT_SCHEMA_NAME_RE
+//     (same prototype-pollution-safe whitelist inlineSchema() already applies one layer down), or a
+//     name not present in `componentMap`: resolution fails -- returns `null`, the exact same "skip
+//     gracefully, never fabricate" outcome this module already used for a genuinely bodyless
+//     operation or an undocumented response status, so every existing caller's null-handling already
+//     covers it with no further change.
+//   Deliberately NOT recursive -- no real document measured (RealWorld's official spec, its Java
+//   and Node reference implementations, Team-IZ-Backend, polarsource/polar) ever chains a
+//   requestBodies/responses $ref to ANOTHER requestBodies/responses $ref; a document that did would
+//   fail closed here rather than this module guessing at a chain no real case has ever needed.
+function resolveComponentObjectRef(node, refPrefix, componentMap) {
+	if (!node || typeof node !== 'object' || Array.isArray(node)) return null;
+	if (!Object.hasOwn(node, '$ref')) return node;
+	const siblingKeys = Object.keys(node).filter((k) => k !== '$ref');
+	if (siblingKeys.length > 0) return null;
+	const ref = node['$ref'];
+	if (typeof ref !== 'string' || !ref.startsWith(refPrefix)) return null;
+	const name = ref.slice(refPrefix.length);
+	if (name.includes('~') || name.includes('%') || !COMPONENT_SCHEMA_NAME_RE.test(name)) return null;
+	const resolved = componentMap.get(name);
+	return resolved && typeof resolved === 'object' && !Array.isArray(resolved) ? resolved : null;
+}
+
 // A2: also builds `componentSchemas` (Map<name, schemaNode>, from `doc.components.schemas`) and
 // retains each operation's raw `requestBody` node on its `entry` -- both were previously
 // discarded entirely (A1 only needed {verb, path, operationId}). Indexing stays O(top-level
@@ -503,10 +553,20 @@ export function indexOpenApiDocument(doc) {
 	// security scheme name becomes an object key downstream, in the contract's own root-level
 	// sourceSecuritySchemes).
 	const securitySchemes = new Map();
+	// D-openapi-request-response-refs: Map<name, Request Body Object | Response Object>, same
+	// "Map, never a plain object" + COMPONENT_SCHEMA_NAME_RE whitelist reasoning as
+	// componentSchemas/securitySchemes above -- resolveComponentObjectRef() below is the one
+	// consumer, used to dereference an operation's own requestBody/responses entries in place,
+	// once, right here at index time, so every downstream function keeps reading a plain
+	// (already-resolved) object exactly as it always has.
+	const componentRequestBodies = new Map();
+	const componentResponses = new Map();
 	const stats = {
 		path_count: 0, operation_count: 0, skipped_path_refs: 0, rejected_operation_ids: 0,
 		component_schema_count: 0, rejected_component_schemas: 0,
 		security_scheme_count: 0, rejected_security_schemes: 0,
+		component_request_body_count: 0, rejected_component_request_bodies: 0,
+		component_response_count: 0, rejected_component_responses: 0,
 	};
 
 	const openapiVersion = typeof doc.openapi === 'string' ? doc.openapi : null;
@@ -545,9 +605,39 @@ export function indexOpenApiDocument(doc) {
 		stats.security_scheme_count = securitySchemes.size;
 	}
 
+	const rawComponentRequestBodies = rawComponents ? rawComponents.requestBodies : null;
+	if (rawComponentRequestBodies && typeof rawComponentRequestBodies === 'object' && !Array.isArray(rawComponentRequestBodies)) {
+		const names = Object.keys(rawComponentRequestBodies);
+		if (names.length > MAX_COMPONENT_REQUEST_BODIES) {
+			return { ok: false, error: `OpenAPI document has ${names.length} component request bodies, exceeds the ${MAX_COMPONENT_REQUEST_BODIES}-request-body limit` };
+		}
+		for (const name of names) {
+			const value = rawComponentRequestBodies[name];
+			if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+			if (!COMPONENT_SCHEMA_NAME_RE.test(name)) { stats.rejected_component_request_bodies++; continue; }
+			componentRequestBodies.set(name, value);
+		}
+		stats.component_request_body_count = componentRequestBodies.size;
+	}
+
+	const rawComponentResponses = rawComponents ? rawComponents.responses : null;
+	if (rawComponentResponses && typeof rawComponentResponses === 'object' && !Array.isArray(rawComponentResponses)) {
+		const names = Object.keys(rawComponentResponses);
+		if (names.length > MAX_COMPONENT_RESPONSES) {
+			return { ok: false, error: `OpenAPI document has ${names.length} component responses, exceeds the ${MAX_COMPONENT_RESPONSES}-response limit` };
+		}
+		for (const name of names) {
+			const value = rawComponentResponses[name];
+			if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+			if (!COMPONENT_SCHEMA_NAME_RE.test(name)) { stats.rejected_component_responses++; continue; }
+			componentResponses.set(name, value);
+		}
+		stats.component_response_count = componentResponses.size;
+	}
+
 	const paths = doc.paths;
 	if (typeof paths !== 'object' || paths === null || Array.isArray(paths)) {
-		return { ok: true, byOperationId, byRoute, componentSchemas, securitySchemes, stats, servers: [], openapiVersion, schemaDialectSupported };
+		return { ok: true, byOperationId, byRoute, componentSchemas, securitySchemes, componentRequestBodies, componentResponses, stats, servers: [], openapiVersion, schemaDialectSupported };
 	}
 
 	const pathKeys = Object.keys(paths);
@@ -589,16 +679,31 @@ export function indexOpenApiDocument(doc) {
 			}
 
 			// A2: raw requestBody node retained verbatim (bounded by the document's own
-			// MAX_DOCUMENT_BYTES cap -- no new read, no new size limit needed). A `$ref` requestBody
-			// (`#/components/requestBodies/*`) is out of scope -- reconcileModule treats it as "no
-			// body to project" rather than resolving it, same as a genuinely bodyless operation.
-			const requestBody = typeof operation.requestBody === 'object' && operation.requestBody !== null && !Array.isArray(operation.requestBody)
+			// MAX_DOCUMENT_BYTES cap -- no new read, no new size limit needed).
+			// D-openapi-request-response-refs: a `$ref` requestBody (`#/components/requestBodies/*`)
+			// is resolved HERE, once, at index time -- every downstream function (applyRequestBodySchema,
+			// applyRequestMediaTypes) keeps reading `entry.requestBody` as a plain Request Body Object
+			// exactly as before, unaware whether the source document inlined it or referenced it.
+			// resolveComponentObjectRef() falls back to null on any failure to resolve (missing/
+			// malformed $ref target, name not in componentRequestBodies, unsupported prefix, a sibling
+			// key alongside $ref) -- the same "skip gracefully, never fabricate" posture this module
+			// already takes for a genuinely bodyless operation.
+			const rawRequestBody = typeof operation.requestBody === 'object' && operation.requestBody !== null && !Array.isArray(operation.requestBody)
 				? operation.requestBody
 				: null;
+			const requestBody = resolveComponentObjectRef(rawRequestBody, REQUEST_BODY_REF_PREFIX, componentRequestBodies);
 			// A3: raw responses map retained verbatim, same "no new read, no new size cap" reasoning
 			// as requestBody above -- bounded by MAX_DOCUMENT_BYTES already.
-			const responses = typeof operation.responses === 'object' && operation.responses !== null && !Array.isArray(operation.responses)
+			// D-openapi-request-response-refs: each STATUS's own value is independently resolved the
+			// same way requestBody is above -- a Response Object `$ref` (`#/components/responses/*`)
+			// resolves to the real object; an unresolvable one becomes `null` at that status key,
+			// which every existing downstream consumer (projectResponseSchemas, applyPerStatusResponses)
+			// already treats as "nothing documented for this status", not a failure.
+			const rawResponses = typeof operation.responses === 'object' && operation.responses !== null && !Array.isArray(operation.responses)
 				? operation.responses
+				: null;
+			const responses = rawResponses
+				? Object.fromEntries(Object.keys(rawResponses).map((status) => [status, resolveComponentObjectRef(rawResponses[status], RESPONSE_REF_PREFIX, componentResponses)]))
 				: null;
 			// A7: raw parameters/security/summary/tags retained verbatim, same "no new read, no new
 			// size cap" reasoning as requestBody/responses above. `security` is deliberately
@@ -632,7 +737,7 @@ export function indexOpenApiDocument(doc) {
 		? doc.servers.filter((s) => s && typeof s.url === 'string').map((s) => s.url)
 		: [];
 
-	return { ok: true, byOperationId, byRoute, componentSchemas, securitySchemes, stats, servers, openapiVersion, schemaDialectSupported };
+	return { ok: true, byOperationId, byRoute, componentSchemas, securitySchemes, componentRequestBodies, componentResponses, stats, servers, openapiVersion, schemaDialectSupported };
 }
 
 // `S` (scan path) always starts with "/" (scanners/adapters/java-spring.mjs's joinPath guarantees
@@ -1015,9 +1120,12 @@ function walkSchemaNode(node, componentSchemas, depth, visiting, state, limits) 
 // let alone body shape. `docEntry` is the OpenAPI-side entry (from byOperationId or byRoute) whose
 // `.requestBody` indexOpenApiDocument() retained. Never treats "nothing to project" as a failure --
 // only an actual unresolvable schema increments schema_unresolved / sets schemaUnresolvedReason.
+// D-openapi-request-response-refs: `docEntry.requestBody` is never `{$ref: ...}` by the time it
+// reaches here -- indexOpenApiDocument() already resolved a `#/components/requestBodies/*` $ref
+// (or fell back to null if it couldn't) at index time, once, for every consumer.
 function applyRequestBodySchema(result, docEntry, componentSchemas, stats, includeFieldDocs) {
 	const requestBody = docEntry.requestBody;
-	if (!requestBody || Object.hasOwn(requestBody, '$ref')) {
+	if (!requestBody) {
 		stats.schema_none++;
 		return;
 	}
@@ -1471,16 +1579,13 @@ function applyPerStatusResponses(result, docEntry, componentSchemas, stats, sche
 	for (const key of Object.keys(responses)) {
 		if (!RESPONSE_STATUS_KEY_RE.test(key)) continue; // not a legal status key -- dropped, not a failure
 		const resp = responses[key];
+		// D-openapi-request-response-refs: `resp` is never `{$ref: ...}` by the time it reaches here
+		// -- indexOpenApiDocument() already resolved a `#/components/responses/*` $ref (or replaced
+		// it with null if it couldn't) at index time, once, for every consumer. A genuinely
+		// unresolvable ref lands here as `null` and is skipped by the check below, same as before:
+		// still no fabricated description-only entry carrying the synthetic
+		// PER_STATUS_NO_DESCRIPTION_STANDIN for a status this document didn't really document.
 		if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) continue;
-		// A8 follow-up (Codex review): a Response Object `$ref` (`components.responses.<Name>`, legal
-		// per the official 3.1 meta-schema's `response-or-reference`) is not resolved here -- 0 real
-		// occurrences against the Team-IZ-Backend oracle (694 response objects, 0 $ref), named rather
-		// than built, same "don't build for zero real cases" discipline as non-json-response-schemas/
-		// response-headers below. Skipping is the fail-closed choice: falling through with
-		// resp.description/resp.content both undefined would produce a description-only entry carrying
-		// the synthetic PER_STATUS_NO_DESCRIPTION_STANDIN as if the source truly documented this status
-		// with no description -- false. A referenced response is simply omitted for this status.
-		if (typeof resp.$ref === 'string') continue;
 
 		const entry = {};
 		if (typeof resp.description === 'string' && resp.description.length > 0 && resp.description !== PER_STATUS_NO_DESCRIPTION_STANDIN) {
@@ -1528,6 +1633,8 @@ function applyPerStatusResponses(result, docEntry, componentSchemas, stats, sche
 // schemas/feature-contract.schema.json too). Gated on schemaProjectionEnabled for the same reason
 // as applyPerStatusResponses above -- a media-type schema resolves through the same inlineSchema()
 // path.
+// D-openapi-request-response-refs: `docEntry.requestBody` is never `{$ref: ...}` by the time it
+// reaches here -- see applyRequestBodySchema's own identical note.
 function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schemaProjectionEnabled, includeFieldDocs) {
 	if (!schemaProjectionEnabled) {
 		result.requestMediaTypesSkippedDialect = true;
@@ -1535,7 +1642,7 @@ function applyRequestMediaTypes(result, docEntry, componentSchemas, stats, schem
 		return;
 	}
 	const requestBody = docEntry.requestBody;
-	if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody) || Object.hasOwn(requestBody, '$ref')) {
+	if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
 		stats.request_media_types_none++;
 		return;
 	}

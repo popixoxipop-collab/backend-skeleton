@@ -1636,6 +1636,104 @@ function reconcileCreateWidgetFields(doc) {
 	return { recon, result: recon.byEndpoint.get('0:0') };
 }
 
+// --- D-openapi-request-response-refs: components.requestBodies / components.responses $ref ---
+
+function docWithComponentRefs({ requestBody, responses }, { componentSchemas = {}, componentRequestBodies = {}, componentResponses = {}, openapiVersion = '3.1.0' } = {}) {
+	return {
+		openapi: openapiVersion,
+		components: { schemas: componentSchemas, requestBodies: componentRequestBodies, responses: componentResponses },
+		paths: { '/api/v0/widgets': { post: { operationId: 'createWidget', requestBody, responses } } },
+	};
+}
+
+test('indexOpenApiDocument: componentRequestBodies/componentResponses are indexed the same way componentSchemas/securitySchemes already are', () => {
+	const doc = docWithComponentRefs({}, { componentRequestBodies: { CreateWidget: { content: {} } } });
+	// A real own "__proto__" key (a JS object LITERAL `{ __proto__: x }` sets the prototype instead
+	// of creating an own property -- JSON.parse is what every other __proto__ test in this file
+	// already uses to construct a genuine one, same reasoning here).
+	doc.components.responses = JSON.parse('{"NotFound":{"description":"not found"},"__proto__":{"description":"rejected"}}');
+	const indexed = indexOpenApiDocument(doc);
+	assert.equal(indexed.ok, true);
+	assert.equal(indexed.componentRequestBodies.size, 1);
+	assert.equal(indexed.componentRequestBodies.get('CreateWidget').content !== undefined, true);
+	// __proto__ fails COMPONENT_SCHEMA_NAME_RE (same whitelist componentSchemas/securitySchemes use) --
+	// rejected, not silently ignored.
+	assert.equal(indexed.componentResponses.size, 1);
+	assert.equal(indexed.componentResponses.has('__proto__'), false);
+	assert.equal(indexed.stats.rejected_component_responses, 1);
+});
+
+test('indexOpenApiDocument: exceeding MAX_COMPONENT_REQUEST_BODIES/MAX_COMPONENT_RESPONSES fails the whole document closed, same posture as MAX_COMPONENT_SCHEMAS', () => {
+	const tooManyRequestBodies = {};
+	for (let i = 0; i < 513; i++) tooManyRequestBodies[`Body${i}`] = { content: {} };
+	const doc1 = docWithComponentRefs({}, { componentRequestBodies: tooManyRequestBodies });
+	const indexed1 = indexOpenApiDocument(doc1);
+	assert.equal(indexed1.ok, false);
+	assert.match(indexed1.error, /component request bodies/);
+
+	const tooManyResponses = {};
+	for (let i = 0; i < 513; i++) tooManyResponses[`Resp${i}`] = { description: 'x' };
+	const doc2 = docWithComponentRefs({}, { componentResponses: tooManyResponses });
+	const indexed2 = indexOpenApiDocument(doc2);
+	assert.equal(indexed2.ok, false);
+	assert.match(indexed2.error, /component responses/);
+});
+
+test('D-openapi-request-response-refs: a resolvable requestBody $ref projects a real requestBodySchema -- the actual RealWorld/Conduit finding, reproduced minimally', () => {
+	const doc = docWithComponentRefs(
+		{ requestBody: { '$ref': '#/components/requestBodies/CreateWidget' } },
+		{ componentRequestBodies: { CreateWidget: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name'], properties: { name: { type: 'string' } } } } } } } },
+	);
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal(result.requestBodySchema.properties.name.type, 'string');
+	assert.deepEqual(result.requestBodySchema.required, ['name']);
+	assert.equal(result.requestBodyRequired, true);
+	assert.equal(recon.stats.schema_resolved, 1);
+	assert.equal('schemaUnresolvedReason' in result, false);
+});
+
+test('D-openapi-request-response-refs: a resolvable response $ref projects a real responseSchema, and per-status responses (A8) get the real entry too, not skipped', () => {
+	const doc = docWithComponentRefs(
+		{ responses: { '201': { '$ref': '#/components/responses/WidgetCreated' } } },
+		{ componentResponses: { WidgetCreated: { description: 'created', content: { 'application/json': { schema: { type: 'object', properties: { id: { type: 'string' } } } } } } } },
+	);
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal(result.responseSchema.properties.id.type, 'string');
+	assert.equal(recon.stats.response_schema_resolved, 1);
+	assert.ok(result.sourceResponses, 'applyPerStatusResponses (A8) must see the resolved object too, from the same index-time fix');
+	assert.deepEqual(Object.keys(result.sourceResponses), ['201']);
+});
+
+test('D-openapi-request-response-refs: an unresolvable requestBody/response $ref (name not in the component map) still skips gracefully, same as a genuinely absent body -- not schema_unresolved', () => {
+	const doc = docWithComponentRefs({
+		requestBody: { '$ref': '#/components/requestBodies/Ghost' },
+		responses: { '200': { '$ref': '#/components/responses/Ghost' } },
+	});
+	const { recon, result } = reconcileCreateWidgetFields(doc);
+	assert.equal('requestBodySchema' in result, false);
+	assert.equal('schemaUnresolvedReason' in result, false);
+	assert.equal(recon.stats.schema_none, 1);
+	assert.equal('responseSchema' in result, false);
+	assert.equal('sourceResponses' in result, false);
+});
+
+test('D-openapi-request-response-refs: a malformed ref (sibling key, wrong prefix, or an invalid name) fails closed to null, same skip-gracefully outcome', () => {
+	const withSibling = docWithComponentRefs(
+		{ requestBody: { '$ref': '#/components/requestBodies/CreateWidget', description: 'not allowed alongside $ref here' } },
+		{ componentRequestBodies: { CreateWidget: { content: { 'application/json': { schema: { type: 'object' } } } } } },
+	);
+	assert.equal('requestBodySchema' in reconcileCreateWidgetFields(withSibling).result, false);
+
+	const wrongPrefix = docWithComponentRefs({ requestBody: { '$ref': '#/components/schemas/CreateWidget' } });
+	assert.equal('requestBodySchema' in reconcileCreateWidgetFields(wrongPrefix).result, false);
+
+	const invalidName = docWithComponentRefs(
+		{ requestBody: { '$ref': '#/components/requestBodies/__proto__' } },
+		{ componentRequestBodies: {} },
+	);
+	assert.equal('requestBodySchema' in reconcileCreateWidgetFields(invalidName).result, false);
+});
+
 test('request media types: a real multipart/form-data body is copied with its schema resolved, and application/json is never present in this field', () => {
 	const doc = docWithRequestBody(
 		{ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } } } } },
