@@ -15404,3 +15404,94 @@ differently here because the shape of the gap differs -- named explicitly above 
 conflated); `D-patch-transactions` (the preimage-blob rollback model DL3 explicitly does NOT
 generalize to, and why).
 
+## D-calibration-profile: a checked support record for this project's own data-derived numeric constants -- the cap's VALUE gets evidence, the cap's SHAPE stays code
+
+**WHY**: the third and last thread from the same Continual-Harness grounding pass. An external
+review (Codex) had separately flagged "one-oracle overfitting" -- most of this project's
+data-derived numeric caps are justified only by inline `DECISIONS.md`/source-comment prose citing
+a single measured corpus, with no checked, re-derivable record of which corpus, what was measured,
+or when to re-measure. Its proposed mechanism -- "CI rejects a changed constant unless the profile
+is regenerated from the versioned corpus" -- **cannot actually be built**: neither corpus this
+project's OpenAPI caps cite is CI-reachable (Team-IZ-Backend is a private repo; the second,
+`polarsource/polar`, is a 2.7MB document from a network-fetched third-party clone -- which is
+precisely why `scripts/openapi-corpus-measure.mjs` is deliberately excluded from `npm test`'s own
+smoke-test glob already). `ROADMAP.md` had already adjudicated the deeper question, on the record:
+*"Single-oracle overfitting can be reduced by exactly one method -- more oracles -- and that method
+has diminishing returns... the correct posture is the one this project already takes elsewhere:
+state the measurement basis inline at the constant... that posture is already followed rigorously;
+the fix is more evidence, not better prose."* This item does not attempt to refute that. **It does
+not reduce overfitting.** Its only buildable job is the offline residue of Codex's idea: **drift
+detection** -- if a calibrated constant's source text changes without its support record changing
+too, `npm test` fails loudly instead of the two silently disagreeing.
+
+**CP1 -- the base/evidence split, stated precisely (the actual generalization of Continual
+Harness's "immutable base prompt vs. mutable supplemental state" this whole grounding pass was
+asked to find)**: the **shape** of a cap -- that `indexOpenApiDocument()` has a component-schema
+ceiling at all, and that exceeding it fails the WHOLE document closed rather than partially
+indexing -- is code, and stays code; changing it is a behavior decision needing its own
+`DECISIONS.md` entry, same as any other. The **value** -- the number itself, plus its corpus,
+observed max, and headroom -- is the evidence layer this item adds a checked record for.
+**Four of the five decision-record shapes DL2 covers already implement an analogous split
+(the base generates the key space a decision may occupy); this is the corresponding split for a
+numeric constant, not a new principle.**
+
+**CP2 -- `evidence/calibration.json`, one entry per constant: `{id, file, symbol, value_source,
+decision_id, basis, corpus, observed_max, headroom, measured_at, remeasure}`.** `value_source` is
+the constant's **exact initializer source text** (`"16 * 1024 * 1024"`, never the evaluated
+number) -- `test/calibration-profile.test.mjs` compares strings via an anchored regex requiring
+EXACTLY one `const <symbol> = ...;` match per file, and never evaluates anything. `basis` is a
+required enum, `"measured"` or `"uncited-default"` -- and the test enforces the pairing: measured
+always carries a real `observed_max`, uncited-default never does. **WHY the `uncited-default`
+value matters most**: it is the highest-value thing this file can surface -- which constants have
+NO evidence at all (`MAX_DOCUMENT_BYTES`/`MAX_PATHS`/`MAX_OPERATIONS`, and (independently of any
+measurement) `MAX_COMPONENT_REQUEST_BODIES`/`MAX_COMPONENT_RESPONSES`, whose own source comment
+already says *"no dedicated real-corpus size measurement yet... reuses MAX_SECURITY_SCHEMES' own
+small named component map, conservative round default precedent"* -- an honest citation of a
+PRECEDENT, not a measurement of THIS cap). This project's own `D-openapi-schema-keyword-recursion`
+found exactly this failure mode once already (`MAX_SCHEMA_NODES`'s old `2000` was, in its own
+words, *"an uncited default"* until someone happened to investigate) -- CP2 makes that
+distinguishable by inspection instead of by accident.
+
+**CP3 -- scope, this pass: `contracts/openapi.mjs` only, not the full `lib/`/`scanners/`/
+`handles/` sweep considered during design.** 17 real constants populated (15 originally
+identified, plus `MAX_TITLE_LENGTH`/`MAX_EXAMPLES_ARRAY_LENGTH`, both caught live by
+`test/calibration-profile.test.mjs`'s own coverage test refusing to pass until they were added --
+the coverage check finding a real gap on its first run is the concrete proof the check does its
+job, not a synthetic demonstration). **WHY scoped this narrowly**: `contracts/openapi.mjs` is this
+project's single densest cluster of corpus-measured constants and the one Codex's own review named
+directly; populating every numeric cap across the whole codebase by hand in one pass risks
+transcription errors the anchored-regex test can't catch (a WRONG but self-consistent
+`value_source`/`observed_max` pair would pass every check here). A narrow, fully-verified slice
+beats a broad, unverified one. **COST**: other files' calibrated constants (of which real examples
+exist, per `DECISIONS.md`'s own extensive citations elsewhere) are not yet covered -- named here,
+not silently claimed as covered. **EXIT**: widen `contracts/openapi.mjs` in CP3's own coverage
+test to `lib/**`/`scanners/**`/`handles/**` as a follow-up, one directory at a time, each addition
+gated by its own coverage-test pass (the same mechanism that caught the two missed entries this
+pass).
+
+**Verified**: 6 tests in `test/calibration-profile.test.mjs` -- every entry's `value_source`
+matches real source text exactly once; a meta-test proving the checker can genuinely FAIL (not
+just pass, mirroring `test/doc-integrity.test.mjs`'s own `findDanglingReferences()` self-test
+precedent); every non-null `decision_id` resolves to a real `DECISIONS.md` anchor; every
+non-`@private` `corpus` entry matches a real pinned `test/fixtures/oracle-manifest.json` row;
+`basis`/`observed_max` pairing enforced; full coverage of `contracts/openapi.mjs`'s numeric
+consts (17/17, the two gaps found and closed during this item's own grounding).
+`test/package-manifest.test.mjs` extended to assert `evidence/` is excluded from `npm pack`
+alongside `test/`/`DECISIONS.md`/`CATALOG.md`/`SKILL.md`.
+
+**EXIT (whole item)**: no auto-regeneration in CI (impossible per this entry's own WHY); no
+`bskel calibration show` CLI surface; does not, and cannot by itself, reduce single-oracle
+overfitting (ROADMAP.md's own prior ruling stands, restated here rather than silently
+contradicted).
+
+**Cross-references**: `D-openapi-request-schema`/`D-openapi-response-schema`/
+`D-openapi-passthrough`/`D-openapi-per-status`/`D-openapi-description`/`D-openapi-field-docs`/
+`D-openapi-field-metadata-passthrough`/`D-openapi-schema-keyword-recursion`/
+`D-oracle-corpus-openapi-remeasurement`/`D-openapi-request-response-refs` (the ten decisions whose
+own measured numbers CP2's entries cite verbatim); `D-oracle-corpus-pinning` (the
+`oracle-manifest.json` CP2's `corpus` field cross-checks against); `test/doc-integrity.test.mjs`'s
+own `D-<x>` anchor-resolution pattern (reused for `decision_id` rather than re-derived);
+`D-waiver-renewal`/`D-decision-event-log` (the other two items from this
+same grounding pass -- together, all three answer the user's original question: Continual
+Harness's principle generalizes to `bskel`, but as three independently-scoped, independently-
+droppable slices, never as one unifying abstraction).

@@ -75,9 +75,12 @@ test('npm pack includes scripts/preflight-base-ref.sh and the stack catalog + bo
 	assert.ok(files.some((f) => f.startsWith('stack/bootstrap/')), 'expected at least one stack bootstrap template');
 });
 
-test('npm pack excludes test/, DECISIONS.md, CATALOG.md, and SKILL.md (dev-only or Claude-Code-skill-only, never read by bskel at runtime)', () => {
+test('npm pack excludes test/, evidence/, DECISIONS.md, CATALOG.md, and SKILL.md (dev-only or Claude-Code-skill-only, never read by bskel at runtime)', () => {
 	const files = packManifest();
 	assert.equal(files.filter((f) => f.startsWith('test/')).length, 0);
+	// D-calibration-profile: evidence/calibration.json is a dev-only drift-detection fixture --
+	// nothing at runtime reads it, same posture as DECISIONS.md/CATALOG.md/test/ below.
+	assert.equal(files.filter((f) => f.startsWith('evidence/')).length, 0);
 	assert.ok(!files.includes('DECISIONS.md'));
 	assert.ok(!files.includes('CATALOG.md'));
 	assert.ok(!files.includes('SKILL.md'));
