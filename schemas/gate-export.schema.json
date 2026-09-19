@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "sbf.gate-export/3"
+      "const": "sbf.gate-export/4"
     },
     "feature_id": {
       "type": "string",
@@ -151,7 +151,8 @@
         "stack_record_hash",
         "impact_baseline_hash",
         "impact_report_hash",
-        "impact_resolution_hash"
+        "impact_resolution_hash",
+        "patch_approvals_hash"
       ],
       "properties": {
         "scan_report_hash": {
@@ -260,6 +261,13 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "impact_resolution_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "patch_approvals_hash": {
           "type": [
             "string",
             "null"
@@ -411,9 +419,11 @@
       "required": [
         "forced",
         "revoked",
-        "waiver_files"
+        "waiver_files",
+        "records",
+        "event_counts"
       ],
-      "description": "D-attestation-payload-completeness (K2): rolled up purely from the gate records already in `gates` above -- zero new file reads.",
+      "description": "D-attestation-payload-completeness (K2): forced/revoked rolled up purely from the gate records already in `gates` above -- zero new file reads. D-decision-event-log (D7) additive, sbf.gate-export/3 -> /4: `records`/`event_counts` cover the four spec-side decision files (contract waivers, cross-feature waivers, impact dispositions, patch approvals) -- a /3 attestation still verifies (K7's own promise), it just won't have these two keys.",
       "properties": {
         "forced": {
           "type": "array",
@@ -486,48 +496,103 @@
           "additionalProperties": false,
           "required": [
             "contract_resolution",
-            "cross_feature_resolution"
+            "cross_feature_resolution",
+            "impact_resolution",
+            "patch_approvals"
           ],
-          "description": "presence + hash only -- the CONTENT is already bound via `artifacts` above (contract_resolution_hash / cross_feature_resolution_hash), never embedded here a second time.",
+          "description": "presence + hash only -- the CONTENT is already bound via `artifacts` above, and again (live-evaluated) via `records` below, never embedded here a second time.",
           "properties": {
-            "contract_resolution": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "present",
-                "hash"
-              ],
-              "properties": {
-                "present": {
-                  "type": "boolean"
-                },
-                "hash": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+            "contract_resolution": { "$ref": "#/$defs/waiverFileRef" },
+            "cross_feature_resolution": { "$ref": "#/$defs/waiverFileRef" },
+            "impact_resolution": { "$ref": "#/$defs/waiverFileRef" },
+            "patch_approvals": { "$ref": "#/$defs/waiverFileRef" }
+          }
+        },
+        "records": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract_waivers",
+            "cross_feature_waivers",
+            "impact_dispositions",
+            "patch_approvals"
+          ],
+          "description": "D-decision-event-log (D7): LIVE-evaluated entries only (expired contract/impact entries excluded, mirroring gates.*.live's current-vs-live split) -- never the raw stored array, so an expired-but-not-yet-renewed waiver never reads as still covering its warning inside a signed attestation.",
+          "properties": {
+            "contract_waivers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "subject", "reason", "at", "expires_at"],
+                "properties": {
+                  "code": { "type": "string" },
+                  "subject": { "type": ["string", "null"] },
+                  "reason": { "type": "string" },
+                  "at": { "type": "string" },
+                  "expires_at": { "type": ["string", "null"] }
                 }
               }
             },
-            "cross_feature_resolution": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "present",
-                "hash"
-              ],
-              "properties": {
-                "present": {
-                  "type": "boolean"
-                },
-                "hash": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+            "cross_feature_waivers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["signal", "identifier", "other_feature", "reason", "at"],
+                "properties": {
+                  "signal": { "type": "string" },
+                  "identifier": { "type": "string" },
+                  "other_feature": { "type": "string" },
+                  "reason": { "type": "string" },
+                  "at": { "type": "string" }
+                }
+              }
+            },
+            "impact_dispositions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["change_key", "downstream_feature", "mode", "reason", "tracked_by", "expires_at", "acknowledged"],
+                "properties": {
+                  "change_key": { "type": "string" },
+                  "downstream_feature": { "type": "string" },
+                  "mode": { "type": "string" },
+                  "reason": { "type": "string" },
+                  "tracked_by": { "type": ["string", "null"] },
+                  "expires_at": { "type": ["string", "null"] },
+                  "acknowledged": { "type": "boolean" }
+                }
+              }
+            },
+            "patch_approvals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["resource", "field", "strategy", "reason", "at"],
+                "properties": {
+                  "resource": { "type": "string" },
+                  "field": { "type": "string" },
+                  "strategy": { "type": "string" },
+                  "reason": { "type": "string" },
+                  "at": { "type": "string" }
                 }
               }
             }
+          }
+        },
+        "event_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract_waiver", "cross_feature_waiver", "impact_disposition", "patch_approval"],
+          "description": "total decision-log events per kind (all actions combined) -- an all-zero count is informative (no log file, or no events of this kind), distinct from the file not existing at all.",
+          "properties": {
+            "contract_waiver": { "type": "integer", "minimum": 0 },
+            "cross_feature_waiver": { "type": "integer", "minimum": 0 },
+            "impact_disposition": { "type": "integer", "minimum": 0 },
+            "patch_approval": { "type": "integer", "minimum": 0 }
           }
         }
       }
@@ -560,6 +625,17 @@
         "ok": {
           "type": "boolean"
         }
+      }
+    }
+  },
+  "$defs": {
+    "waiverFileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "hash"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "hash": { "type": ["string", "null"] }
       }
     }
   }

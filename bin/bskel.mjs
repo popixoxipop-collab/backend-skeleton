@@ -32,6 +32,7 @@ import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contrac
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode, isWaiverExpired } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
+import { appendDecisionEvent, readDecisionLog } from '../lib/decision-log.mjs';
 import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction, listTransactions } from '../lib/patch-transactions.mjs';
 import { getPatchKind, replanTransaction, PATCH_KIND_NAMES } from '../lib/patch-kinds.mjs';
 import { generateKeypair, signPayload, verifyPayload, publicKeyIdFromPrivate, publicKeyIdFromPublic } from '../lib/attest.mjs';
@@ -42,7 +43,7 @@ import {
 	declareDependency, removeDependency, buildDependencyListReport,
 } from '../lib/field-dependencies.mjs';
 import {
-	ImpactOperationError, checkImpact, acceptImpact, recordDisposition, acknowledgeInbound,
+	ImpactOperationError, checkImpact, acceptImpact, recordDisposition, acknowledgeInbound, withdrawDisposition,
 } from '../lib/impact.mjs';
 import { buildImpactGraph } from '../lib/impact-graph.mjs';
 import { toGraphifyExtraction, toMermaid } from '../lib/impact-export-graphify.mjs';
@@ -103,6 +104,7 @@ function usage() {
   bskel scan repair --feature <id> [--json]
   bskel scan cross-feature-check --feature <id> [--db [--database-url-env <NAME>] [--schema public]] [--json]
   bskel scan cross-feature-waive --feature <id> --signal resource_type|table|operation_id|db_foreign_key --identifier <name> --other-feature <id> --reason "..."
+  bskel scan cross-feature-unwaive --feature <id> --signal resource_type|table|operation_id|db_foreign_key --identifier <name> --other-feature <id> --reason "..." [--json]
   bskel feature init --slug <name>
   bskel feature list [--all] [--json]
   bskel feature show <id> [--json]
@@ -117,12 +119,13 @@ function usage() {
   bskel contract validate --feature <id> --file <envelope.json>
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..." [--expires <Nd>]
+  bskel contract unwaive --feature <id> --code <CODE> --subject "VERB /path" --reason "..." [--json]
   bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
   bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
   bskel dependency list --feature <id> [--json]
   bskel impact check --feature <id> [--all] [--json]
   bskel impact accept --feature <id> [--json]
-  bskel impact disposition --feature <id> --change <change_key> --downstream <id> --mode <compatible|migrate|waive> --reason "..." [--tracked-by "..."] [--expires-days <N>] [--json]
+  bskel impact disposition --feature <id> --change <change_key> --downstream <id> (--mode <compatible|migrate|waive> [--tracked-by "..."] [--expires-days <N>] | --withdraw) --reason "..." [--json]
   bskel impact ack --feature <id> --from <id> --change <change_key> --reason "..." [--json]
   bskel impact export --format <graphify|json|mermaid> [--out <path>] [--focus <id>] [--rings <N>]
   bskel rules check --feature <id> [--init] [--json]
@@ -134,6 +137,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
+  bskel handles patch unapprove --feature <id> --resource <Type> --field <name> --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
   bskel patch propose --feature <id> [--kind config-apply|ddl-apply|java-source-splice] --choice <stackChoiceId> --target <config_check target path> --database-url-env <NAME> --schema <name> --sql-file <path> --splice-file <path> [--json]
   bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
@@ -1025,6 +1029,10 @@ function cmdScanCrossFeatureWaive(args) {
 			waivers: [...resolution.waivers.filter((w) => waiverKey(w) !== key), entry],
 		};
 		saveCrossFeatureResolution(root, flags.feature, next);
+		appendDecisionEvent(root, flags.feature, {
+			kind: 'cross_feature_waiver', action: 'record', at: entry.at, reason: entry.reason, feature_id: flags.feature,
+			subject: { signal: entry.signal, identifier: entry.identifier, other_feature: entry.other_feature },
+		});
 		return next;
 	});
 
@@ -1043,6 +1051,64 @@ function cmdScanCrossFeatureWaive(args) {
 		console.log(JSON.stringify({ waived: true, gate: gateState.gates.cross_feature }, null, 2));
 	} else if (!flags.quiet) {
 		console.log(`waived: ${flags.signal} "${flags.identifier}" (${flags['other-feature']})`);
+		console.log(`gate: cross_feature -> ${gateState.gates.cross_feature.status}`);
+	}
+	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
+}
+
+// D-decision-event-log (D6): forward-only retraction, mirroring `gate revoke` -- removes the
+// waiver entry and appends a `withdraw` decision event. Never a snapshot restore.
+function cmdScanCrossFeatureUnwaive(args) {
+	const flags = parseCommand('scan cross-feature-unwaive', args);
+	if (flags.help) { console.log(renderCommandHelp('scan cross-feature-unwaive')); process.exit(0); }
+	setContext('scan cross-feature-unwaive', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	requireValidFeatureId(flags['other-feature']);
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel scan cross-feature-unwaive requires --reason "..." -- every withdrawal must be auditable');
+	}
+	const report = loadCrossFeatureReport(root, flags.feature);
+	if (!report) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no cross-feature-report.json for feature "${flags.feature}"`);
+	}
+	const key = waiverKey({ signal: flags.signal, identifier: flags.identifier, other_feature: flags['other-feature'] });
+
+	const updated = withLockSync(root, 'state', () => {
+		const resolution = loadCrossFeatureResolution(root, flags.feature);
+		const match = resolution.waivers.find((w) => waiverKey(w) === key);
+		if (!match) {
+			fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no waiver recorded for --signal ${flags.signal} --identifier "${flags.identifier}" --other-feature ${flags['other-feature']} -- nothing to unwaive`);
+		}
+		const at = new Date().toISOString();
+		const next = {
+			schema: 'sbf.cross-feature-resolution/1',
+			feature_id: flags.feature,
+			waivers: resolution.waivers.filter((w) => waiverKey(w) !== key),
+		};
+		saveCrossFeatureResolution(root, flags.feature, next);
+		appendDecisionEvent(root, flags.feature, {
+			kind: 'cross_feature_waiver', action: 'withdraw', at, reason: flags.reason, feature_id: flags.feature,
+			subject: { signal: match.signal, identifier: match.identifier, other_feature: match.other_feature },
+		});
+		return next;
+	});
+
+	const evaluation = evaluateCrossFeatureFindings(report.findings, updated);
+	const evidence = {
+		finding_count: report.findings.length,
+		high_confidence_count: report.findings.filter((f) => f.confidence === 'high').length,
+		waived_count: evaluation.waived.length,
+		stale_waivers: evaluation.staleWaivers.length,
+	};
+	const gateState = evaluation.blocking
+		? awaitNamedGateDisposition(root, 'cross_feature', flags.feature, { ...evidence, unwaived: evaluation.unwaived })
+		: passNamedGate(root, 'cross_feature', flags.feature, evidence);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ withdrawn: true, gate: gateState.gates.cross_feature }, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`unwaived: ${flags.signal} "${flags.identifier}" (${flags['other-feature']})`);
 		console.log(`gate: cross_feature -> ${gateState.gates.cross_feature.status}`);
 	}
 	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
@@ -1938,6 +2004,12 @@ function cmdContractWaive(args) {
 			waivers: [...liveWaivers, ...entries],
 		};
 		saveResolution(root, flags.feature, next);
+		for (const e of newEntriesOut) {
+			appendDecisionEvent(root, flags.feature, { kind: 'contract_waiver', action: 'record', at: e.at, reason: e.reason, feature_id: flags.feature, subject: { code: e.code, subject: e.subject ?? null }, expires_at: e.expires_at ?? null });
+		}
+		for (const e of renewedEntriesOut) {
+			appendDecisionEvent(root, flags.feature, { kind: 'contract_waiver', action: 'renew', at: e.at, reason: e.reason, feature_id: flags.feature, subject: { code: e.code, subject: e.subject ?? null }, expires_at: e.expires_at ?? null });
+		}
 		return { resolution: next, newEntries: newEntriesOut, renewedEntries: renewedEntriesOut };
 	});
 
@@ -1974,6 +2046,65 @@ function cmdContractWaive(args) {
 			console.error(`\nstill blocked: ${evaluation.unwaived.length} unresolved warning(s) remain:`);
 			for (const w of evaluation.unwaived) console.error(`  ${w.code} (${w.subject})`);
 		}
+	}
+	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
+}
+
+// D-decision-event-log (D6): forward-only retraction of exactly one {code, subject} waiver --
+// mirrors `gate revoke`'s own precedent (the entry's absence IS the state, not a snapshot restore
+// of its prior reason/expiry, which stays recoverable only from the decision log). Re-evaluates
+// and re-sets the gate the same way `cmdContractWaive` does, since removing a waiver can turn a
+// passing gate back into an awaiting_disposition one.
+function cmdContractUnwaive(args) {
+	const flags = parseCommand('contract unwaive', args);
+	if (flags.help) { console.log(renderCommandHelp('contract unwaive')); process.exit(0); }
+	setContext('contract unwaive', flags);
+	const root = requireRepoRoot();
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel contract unwaive requires --reason "..." -- every withdrawal must be auditable');
+	}
+	const contract = loadContract(root, flags.feature);
+	const key = warningKey({ code: flags.code, subject: flags.subject });
+
+	const updatedResolution = withLockSync(root, 'state', () => {
+		const resolution = loadResolution(root, flags.feature);
+		const match = (resolution.waivers ?? []).find((w) => warningKey(w) === key);
+		if (!match) {
+			fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no waiver recorded for "${flags.code}" (${flags.subject}) on "${flags.feature}" -- nothing to unwaive`);
+		}
+		const at = new Date().toISOString();
+		const next = {
+			schema: 'sbf.contract-resolution/1',
+			feature_id: flags.feature,
+			waivers: (resolution.waivers ?? []).filter((w) => warningKey(w) !== key),
+		};
+		saveResolution(root, flags.feature, next);
+		appendDecisionEvent(root, flags.feature, {
+			kind: 'contract_waiver', action: 'withdraw', at, reason: flags.reason, feature_id: flags.feature,
+			subject: { code: match.code, subject: match.subject ?? null }, expires_at: match.expires_at ?? null,
+		});
+		return next;
+	});
+
+	const evaluation = evaluateResolution(contract, updatedResolution);
+	const evidence = {
+		operation_count: contract.completeness.operation_count,
+		endpoint_count: contract.completeness.endpoint_count,
+		completeness: evaluation.status,
+		warning_codes: countByCode(contract.warnings),
+		waived_count: evaluation.waived.length,
+		stale_waivers: evaluation.staleWaivers.length,
+		expired_waivers: evaluation.expiredWaivers.length,
+	};
+	const gateState = evaluation.blocking
+		? awaitNamedGateDisposition(root, 'contract', flags.feature, { ...evidence, unwaived: evaluation.unwaived.map(({ code, subject }) => ({ code, subject })) })
+		: passNamedGate(root, 'contract', flags.feature, evidence);
+
+	if (flags.json) {
+		console.log(JSON.stringify({ withdrawn: { code: flags.code, subject: flags.subject }, gate: gateState.gates.contract }, null, 2));
+	} else {
+		console.log(`unwaived: ${flags.code} (${flags.subject})`);
+		console.log(`gate: contract -> ${gateState.gates.contract.status}`);
 	}
 	process.exit(evaluation.blocking ? EXIT.AWAITING_DISPOSITION : EXIT.PASS);
 }
@@ -2158,11 +2289,30 @@ function cmdImpactAccept(args) {
 	process.exit(EXIT.PASS);
 }
 
+// D-decision-event-log (D6): --withdraw is a flag variant of this same command, not a separate
+// subcommand -- withdrawal needs no --mode (there is nothing left to mode-classify once the
+// disposition is gone), so branching inside cmdImpactDisposition keeps the option set honest
+// rather than requiring --mode on a withdrawal that doesn't use it.
 function cmdImpactDisposition(args) {
 	const flags = parseCommand('impact disposition', args);
 	if (flags.help) { console.log(renderCommandHelp('impact disposition')); process.exit(0); }
 	setContext('impact disposition', flags);
 	const root = requireRepoRoot();
+	if (flags.withdraw) {
+		let result;
+		try {
+			result = withdrawDisposition(root, { feature: flags.feature, changeKey: flags.change, downstreamFeature: flags.downstream, reason: flags.reason });
+		} catch (err) {
+			if (err instanceof ImpactOperationError) fail(err.exitCode, err.reasonCode, err.message);
+			throw err;
+		}
+		if (flags.json) {
+			console.log(JSON.stringify(result, null, 2));
+		} else {
+			console.log(`disposition withdrawn: ${flags.change} -> ${flags.downstream}`);
+		}
+		process.exit(EXIT.PASS);
+	}
 	let result;
 	try {
 		result = recordDisposition(root, {
@@ -3362,10 +3512,49 @@ function cmdHandlesPatchApprove(args) {
 		const withoutExisting = (current.approvals ?? []).filter((a) => approvalKey(a.resource, a.field) !== key);
 		const next = { schema: 'sbf.patch-approvals/1', feature_id: flags.feature, approvals: [...withoutExisting, entry] };
 		savePatchApprovals(root, flags.feature, next);
+		appendDecisionEvent(root, flags.feature, {
+			kind: 'patch_approval', action: 'record', at, reason: flags.reason, feature_id: flags.feature,
+			subject: { resource: flags.resource, field: flags.field }, strategy: flags.strategy,
+		});
 		return next;
 	});
 
 	console.log(flags.json ? JSON.stringify(updated, null, 2) : `approved: ${flags.resource}.${flags.field} -> ${flags.strategy}`);
+	process.exit(0);
+}
+
+// D-decision-event-log (D6): forward-only retraction, mirroring `gate revoke` -- removes the
+// approval entry and appends a `withdraw` decision event. patch-approvals.json is not itself a
+// gate input (F3's fix is binding it into signed attestations, not making it a gate -- see
+// D-decision-event-log's own EXIT), so unlike the other three withdraw commands there is no gate
+// to re-evaluate here.
+function cmdHandlesPatchUnapprove(args) {
+	const flags = parseCommand('handles patch unapprove', args);
+	if (flags.help) { console.log(renderCommandHelp('handles patch unapprove')); process.exit(0); }
+	setContext('handles patch unapprove', flags);
+	const root = requireRepoRoot();
+	if (!flags.reason || !flags.reason.trim()) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel handles patch unapprove requires --reason "..." -- every withdrawal must be auditable');
+	}
+	const key = approvalKey(flags.resource, flags.field);
+
+	const updated = withLockSync(root, 'state', () => {
+		const current = loadPatchApprovals(root, flags.feature);
+		const match = (current.approvals ?? []).find((a) => approvalKey(a.resource, a.field) === key);
+		if (!match) {
+			fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', `no approval recorded for "${flags.resource}.${flags.field}" on "${flags.feature}" -- nothing to unapprove`);
+		}
+		const at = new Date().toISOString();
+		const next = { schema: 'sbf.patch-approvals/1', feature_id: flags.feature, approvals: (current.approvals ?? []).filter((a) => approvalKey(a.resource, a.field) !== key) };
+		savePatchApprovals(root, flags.feature, next);
+		appendDecisionEvent(root, flags.feature, {
+			kind: 'patch_approval', action: 'withdraw', at, reason: flags.reason, feature_id: flags.feature,
+			subject: { resource: flags.resource, field: flags.field }, strategy: match.strategy,
+		});
+		return next;
+	});
+
+	console.log(flags.json ? JSON.stringify(updated, null, 2) : `unapproved: ${flags.resource}.${flags.field}`);
 	process.exit(0);
 }
 
@@ -4697,6 +4886,7 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'repair') return cmdScanRepair(rest.slice(1));
 			if (rest[0] === 'cross-feature-check') return cmdScanCrossFeatureCheck(rest.slice(1));
 			if (rest[0] === 'cross-feature-waive') return cmdScanCrossFeatureWaive(rest.slice(1));
+			if (rest[0] === 'cross-feature-unwaive') return cmdScanCrossFeatureUnwaive(rest.slice(1));
 			await cmdScan(rest);
 			break;
 		}
@@ -4721,6 +4911,7 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'validate') return cmdContractValidate(subArgs);
 			if (sub === 'tool-schema') return cmdContractToolSchema(subArgs);
 			if (sub === 'waive') return cmdContractWaive(subArgs);
+			if (sub === 'unwaive') return cmdContractUnwaive(subArgs);
 			usage();
 			process.exit(14);
 			break;
@@ -4784,6 +4975,7 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'plan') return cmdHandlesPlan(rest.slice(1));
 			if (rest[0] === 'emit') return cmdHandlesEmit(rest.slice(1));
 			if (rest[0] === 'patch' && rest[1] === 'approve') return cmdHandlesPatchApprove(rest.slice(2));
+			if (rest[0] === 'patch' && rest[1] === 'unapprove') return cmdHandlesPatchUnapprove(rest.slice(2));
 			if (rest[0] === 'audit') return await cmdHandlesAudit(rest.slice(1));
 			usage();
 			process.exit(14);

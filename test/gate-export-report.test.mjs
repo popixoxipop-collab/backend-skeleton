@@ -138,7 +138,7 @@ test('a report built after contract emit + handles emit validates against schema
 	const emit = run(['handles', 'emit', '--feature', FEATURE, '--json'], root);
 	assert.equal(emit.code, 0, emit.stderr);
 	const report = buildGateExportReport(root, FEATURE);
-	assert.equal(report.schema, 'sbf.gate-export/3');
+	assert.equal(report.schema, 'sbf.gate-export/4');
 	const { ok, errors } = validateAgainstSchema('gate-export.schema.json', report);
 	assert.equal(ok, true, formatSchemaErrors(errors).join('; '));
 });

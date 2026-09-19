@@ -10,6 +10,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run, runCapturingStderr, buildTwoFeatureFixtureRepo, initBothFeatures } from './_contract-fixture.mjs';
+import { readDecisionLog } from '../lib/decision-log.mjs';
 
 // A real @Entity @Table(name="item") Java class under domain/<module>/persistence/Item.java --
 // moduleOf() (scanners/adapters/java-spring.mjs) keys purely on the "domain/<x>/..." path segment,
@@ -147,6 +148,33 @@ test('scan cross-feature-waive: waiving BOTH findings passes the gate', () => {
 	const waive2 = run(['scan', 'cross-feature-waive', '--feature', '001-widget-management', '--signal', 'table', '--identifier', 'item', '--other-feature', '002-organization-management', '--reason', 'x', '--json'], root);
 	assert.equal(waive2.code, 0);
 	assert.equal(JSON.parse(waive2.stdout).gate.status, 'pass');
+});
+
+// D-decision-event-log (D6): forward-only retraction, mirroring `gate revoke` -- removes the
+// waiver entry and appends a `withdraw` decision event to .sbf/<feature>.decisions.jsonl.
+test('scan cross-feature-unwaive: removes the waiver, re-blocks the gate, and logs a withdraw event carrying the exact {signal, identifier, other_feature}', () => {
+	const root = buildCollisionFixture();
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root);
+	run(['scan', 'cross-feature-waive', '--feature', '001-widget-management', '--signal', 'resource_type', '--identifier', 'Item', '--other-feature', '002-organization-management', '--reason', 'x'], root);
+	run(['scan', 'cross-feature-waive', '--feature', '001-widget-management', '--signal', 'table', '--identifier', 'item', '--other-feature', '002-organization-management', '--reason', 'x'], root);
+	assert.equal(run(['scan', 'cross-feature-check', '--feature', '001-widget-management', '--json'], root).code, 0);
+
+	const unwaive = run(['scan', 'cross-feature-unwaive', '--feature', '001-widget-management', '--signal', 'resource_type', '--identifier', 'Item', '--other-feature', '002-organization-management', '--reason', 'reconsidered, this collision is real', '--json'], root);
+	assert.equal(unwaive.code, 3, 'removing one of two waivers re-blocks the gate');
+	assert.equal(JSON.parse(unwaive.stdout).gate.status, 'awaiting_disposition');
+
+	const events = readDecisionLog(root, '001-widget-management', { kind: 'cross_feature_waiver' });
+	const withdrawEvent = events.find((e) => e.action === 'withdraw');
+	assert.ok(withdrawEvent);
+	assert.equal(withdrawEvent.reason, 'reconsidered, this collision is real');
+	assert.deepEqual(withdrawEvent.subject, { signal: 'resource_type', identifier: 'Item', other_feature: '002-organization-management' });
+});
+
+test('scan cross-feature-unwaive on a non-existent waiver is refused, naming the known ones', () => {
+	const root = buildCollisionFixture();
+	run(['scan', 'cross-feature-check', '--feature', '001-widget-management'], root);
+	const unwaive = run(['scan', 'cross-feature-unwaive', '--feature', '001-widget-management', '--signal', 'operation_id', '--identifier', 'nope', '--other-feature', '002-organization-management', '--reason', 'x'], root);
+	assert.equal(unwaive.code, 2); // NOT_PASSED / MISSING_ARTIFACT
 });
 
 test('handles plan is unaffected by an unresolved cross-feature collision -- it never writes (dryRun-only), same precedent as the contract-gate check it also skips', () => {

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:decision-event:1",
+  "title": "backend-skeleton decision event",
+  "description": "D-decision-event-log: one line of a .sbf/<feature_id>.decisions.jsonl file, appended by lib/decision-log.mjs's appendDecisionEvent() every time one of the four spec-side decision files (contract-resolution, cross-feature-resolution, impact-resolution, patch-approvals) is written -- mirrors gate-event.schema.json's own shape and resilience contract exactly (append-only JSONL, a corrupt/invalid line is skipped with a warning at read time, never a hard failure). Deliberately NOT a unified record type across the four decision files themselves -- their on-disk shapes stay exactly as they were (different upsert semantics: contract waivers are append-if-absent, impact dispositions are replace-by-key, and forcing either into the other would be the over-unification this design explicitly rejected). `subject` is a discriminated union keyed on `kind`, carrying that decision kind's REAL key object verbatim -- never flattened to a string -- because a generic string key is exactly how the anti-wildcard property every one of the four already enforces (a decision covers ONE exact subject, never a class of future subjects) would eventually erode. This log is machine-local (.sbf/ is gitignored-by-convention) and is NOT tamper-evident on its own; its evidentiary value comes from being rolled up into a SIGNED gate-export attestation (see D-attestation-payload-completeness), exactly as gates.*.history already is.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "kind", "action", "at", "reason", "feature_id", "subject"],
+  "properties": {
+    "schema": { "const": "sbf.decision-event/1" },
+    "kind": { "enum": ["contract_waiver", "cross_feature_waiver", "impact_disposition", "patch_approval"] },
+    "action": { "enum": ["record", "renew", "withdraw", "acknowledge"] },
+    "at": { "type": "string", "format": "date-time" },
+    "reason": { "type": "string", "minLength": 1 },
+    "feature_id": { "type": "string" },
+    "subject": {
+      "description": "The exact key object for this decision, shaped per `kind` -- never a flattened string.",
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["code", "subject"],
+          "properties": { "code": { "type": "string" }, "subject": { "type": ["string", "null"] } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["signal", "identifier", "other_feature"],
+          "properties": { "signal": { "type": "string" }, "identifier": { "type": "string" }, "other_feature": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["change_key", "downstream_feature"],
+          "properties": { "change_key": { "type": "string" }, "downstream_feature": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["resource", "field"],
+          "properties": { "resource": { "type": "string" }, "field": { "type": "string" } }
+        }
+      ]
+    },
+    "mode": { "type": ["string", "null"] },
+    "expires_at": { "type": ["string", "null"] },
+    "tracked_by": { "type": ["string", "null"] },
+    "strategy": { "type": ["string", "null"] }
+  }
+}

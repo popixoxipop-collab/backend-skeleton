@@ -15267,3 +15267,140 @@ introduced.
 `D-gate-history` (the "reproduce live before fixing" discipline this item's own grounding
 followed); `D-decision-event-log` (the next entry -- found via the same grounding pass).
 
+## D-decision-event-log: the four spec-side decision files get an audit trail and a retraction command -- and the one decision file NOTHING was binding into a signed attestation now is
+
+**WHY**: the same grounding pass that found `D-waiver-renewal`'s bug looked at all five
+force/waive/dispose/approve shapes side by side (gate force/revoke, contract waivers,
+cross-feature waivers, impact dispositions, patch approvals) to answer the user's actual
+question -- does Prime Agent's Continual Harness principle (durable, evidence-backed, small
+updates, audit trail, rollback, separated from an immutable base) generalize to `bskel`?
+
+**The honest answer, stated first because it shaped everything below: no single shared RECORD
+type is built here, and that is deliberate, not a shortfall.** The five shapes' common field set is
+exactly two fields (`reason`, `at`) -- everything load-bearing is kind-specific and DIFFERENT ON
+PURPOSE: contract waivers are append-if-absent (a `--all` waive must accumulate one entry per
+occurrence); impact dispositions are replace-by-key (a disposition is always the LATEST decision
+for a pair); a generic shared record would force a decision on which semantics wins, degrading at
+least one of the five. Three good bespoke records beat one bad shared one. (This is also a hard
+technical constraint, not just a design preference: `lib/schema-validate.mjs` compiles exactly one
+schema file at a time with no `ajv.addSchema()` of siblings, and this repo has zero cross-file
+`$ref`s in `schemas/` today -- a shared `$def` referenced across files is not a cheap option here.)
+
+**What WAS genuinely missing across all four spec-side decision files (gates already had this via
+`D-gate-history`'s `.sbf/<feature>.history.jsonl` + `gate revoke`), verified by reading the real
+write paths, not assumed**:
+
+- **F2 -- every re-decision silently destroys the prior one.** `bin/bskel.mjs:1018`
+  (cross-feature) and `lib/impact.mjs:241` (disposition) both do
+  `[...current.filter((x) => key(x) !== newKey), entry]` -- the old reason/actor/timestamp is
+  simply gone. A `migrate` disposition (carrying `tracked_by` and a live downstream obligation)
+  downgraded to `waive` leaves no trace the handshake ever existed. Grepping the whole CLI surface
+  for `unwaive|rescind|--remove|withdraw` finds exactly one hit: `gate revoke`. Nothing else in
+  the tool can retract a decision at all.
+- **F3 -- `patch-approvals.json` is bound by NOTHING.** Not in `ARTIFACT_SOURCES`
+  (`lib/gate-export.mjs`), not in any gate's `recompute()`, not in `decisions.waiver_files` (which
+  covered only `contract_resolution`/`cross_feature_resolution`, not even `impact_resolution`
+  despite that one having an artifact hash already). The exact same class of gap
+  `D-attestation-payload-completeness`'s own finding #3 closed for `.sbf/handles-manifest.json` --
+  missed here, on the very next feature to add a spec-side decision file.
+
+**DL1 -- one new append-only log, `.sbf/<feature_id>.decisions.jsonl`, mirroring
+`.sbf/<feature>.history.jsonl` exactly.** Same file family (sibling, not a replacement), same
+schema-validated-JSONL-line contract, same resilience posture (a corrupt or schema-invalid line is
+skipped with a warning at read time, never a hard failure -- `lib/decision-log.mjs`'s
+`readDecisionLog()` mirrors `lib/gate-export.mjs`'s `readGateHistory()` line for line). **WHY**:
+reusing an already-proven shape (this exact JSONL-plus-lock pattern has been in production since
+`D-gate-history`) is strictly lower-risk than inventing a new persistence primitive for the same
+job. **COST**: one more `.sbf/` file per feature. Machine-local, gitignored-by-convention -- this
+log is explicitly **NOT tamper-evident on its own** (stated in
+`schemas/decision-event.schema.json`'s own description, not left implicit); its evidentiary value
+comes from being rolled into a **signed** gate-export attestation (DL4), exactly as
+`gates.*.history` already is. **EXIT**: no cross-feature aggregate view -- per-feature only,
+matching `gate history`'s own scoping.
+
+**DL2 -- `sbf.decision-event/1`'s `subject` is a `oneOf` discriminated on `kind`, carrying the
+REAL key object verbatim -- never flattened to a string.** Four variants: `{code, subject}`
+(contract), `{signal, identifier, other_feature}` (cross-feature), `{change_key,
+downstream_feature}` (impact), `{resource, field}` (patch approval). **WHY**: the single most
+valuable property already present across all four decision kinds is that a decision covers ONE
+EXACT subject, never a class of future ones -- `impact`'s own `change_key` embeds the covered
+shape's hash specifically so a later, different change is never silently covered (proven live in
+`D-cross-feature-impact-graph`'s own anti-rubber-stamp test). A generic string key (e.g.
+`` `${a}::${b}` ``) is exactly the kind of thing that quietly grows a wildcard-matching call site
+two refactors from now. Tested directly: the decision log's recorded `subject.change_key` for a
+`compatible` disposition on change A is asserted to differ from a later, genuinely different
+change B's `change_key` -- the log, not just the resolution file, proves the anti-wildcard
+property survives. **COST**: four schema variants to maintain instead of one generic shape.
+**EXIT**: a fifth decision kind means a fifth named variant -- deliberately a visible schema edit,
+not an open extension point a caller could quietly widen.
+
+**DL3 -- `withdraw`, for all four kinds, is forward-only retraction -- never a snapshot restore.**
+New: `bskel contract unwaive`, `bskel scan cross-feature-unwaive`, `bskel impact disposition
+--withdraw` (a flag variant of the existing command, not a fifth subcommand -- withdrawal needs no
+`--mode`), `bskel handles patch unapprove`. Each requires `--reason`, removes the entry from its
+resolution file (the entry's ABSENCE is the state -- matching `gate revoke`'s own `status:
+'revoked'` rather than restoring a prior pass), and appends a `withdraw` decision event. **WHY
+forward-only, not a restore**: `lib/patch-transactions.mjs`'s content-addressed preimage blobs are
+the right model for restoring FILE CONTENT (a splice/config edit has a genuine "previous byte
+sequence" worth reverting to); a DECISION has no comparable "previous value" once the change it
+covered has moved on -- `gate revoke` already established this exact distinction for gates, and
+this generalizes it, not `lib/patch-transactions.mjs`'s rollback. **COST**: four new subcommands
+(`usage()` and `lib/cli.mjs`'s `COMMANDS` table both updated -- `test/doc-integrity.test.mjs`
+enforces they agree). Three of the four re-evaluate and re-set their gate (removing a waiver can
+turn a passing gate back into `awaiting_disposition`); `handles patch unapprove` does not, because
+`patch-approvals.json` is not itself a gate input (DL4 fixes its attestation binding, not this).
+**EXIT**: no `--undo-last`, no restore-to-previous-value -- explicitly rejected as the category
+error WR/DL3's own WHY names.
+
+**DL4 -- `gate export`'s `decisions` becomes complete and structured; `sbf.gate-export/3` ->
+`/4`, additive.** `ARTIFACT_SOURCES` gains `patch_approvals_hash` (closing F3 directly).
+`waiver_files` gains `impact_resolution`/`patch_approvals` (closing the other half of F3 -- all
+four decision files are now hash-bound in every signed attestation, not two of four).
+`decisions.records{contract_waivers, cross_feature_waivers, impact_dispositions, patch_approvals}`
+carries each kind's **live-evaluated** entries (expired contract/impact entries excluded --
+mirroring `gates.*.live`'s own current-vs-live split from `D-attestation-payload-completeness`'s
+K2), so an expired-but-not-yet-renewed waiver never reads as still covering its warning inside a
+signature. `decisions.event_counts` rolls up the new log per kind, present (all-zero) even when a
+decision file itself never existed -- "no decisions of this kind were ever made" is informative,
+distinct from "the file is absent." **COST**: payload growth (a few KB; four more file reads on an
+export that already does ~16). **EXIT**: still no embedded waiver *content* (unchanged from K7's
+own EXIT) -- everything in `records` is derived from fields the resolution files already carry,
+never a second copy of prose.
+
+**The JSON Schema `additionalProperties: false` trap, named so it is not silently "fixed" the
+wrong way later**: `waiver_files`'s per-file shape is now factored into a shared `$defs/
+waiverFileRef` (an intra-file `$ref`, which IS safe here -- see DL1's WHY above for why
+CROSS-file `$ref` is not). Unlike `rollback` in `schemas/patch-transaction.schema.json`
+(`D-java-source-splice`'s DL10-equivalent trap, where a NEW field had to go in the BASE object
+because an `if-then` branch cannot widen a closed sibling schema), `decisions`'s own `records`/
+`event_counts` are genuinely new REQUIRED top-level keys on the whole object, not an attempt to
+extend a closed nested one -- no equivalent trap here, confirmed by the schema validating cleanly.
+
+**Verified**: 8 new tests in `test/decision-log.test.mjs` (record/renew events carry the exact
+`{code, subject}`, never flattened; `contract unwaive` removes+re-blocks+logs; unwaiving a
+non-existent entry refuses cleanly; the anti-wildcard property survives at the LOG level for
+impact dispositions; migrate-downgraded-to-waive leaves BOTH events, not one; `impact disposition
+--withdraw` removes+re-blocks+logs; withdrawing a non-existent disposition refuses; a corrupt and
+a schema-invalid JSONL line are both skipped, valid lines around them still read). Plus 2 in
+`test/cross-feature-check-cli.test.mjs` (`scan cross-feature-unwaive` removes+re-blocks+logs;
+unwaiving unknown is refused) and 2 in `test/patch-approve-cli.test.mjs` (`handles patch
+unapprove` removes+logs, no gate to re-evaluate; unapproving unknown is refused). `npm test`
+full suite green, zero regressions across every pre-existing test in `test/contract-cli.test.mjs`,
+`test/cross-feature-check-cli.test.mjs`, `test/impact-cli.test.mjs`, `test/patch-approve-cli.test.mjs`,
+`test/gate-export-report.test.mjs`, `test/gate-export-cli.test.mjs`, `test/attest-cli.test.mjs`,
+`test/attest.test.mjs`.
+
+**EXIT (whole item)**: no cross-feature decision-log aggregate view; no `patch_approvals` gate
+(F3's fix is attestation-binding only, not making it a gate input -- a separate, larger decision);
+no HTTP/`bskel serve` exposure of any withdraw command.
+
+**Cross-references**: `D-gate-history` (S4 -- the exact log shape DL1 mirrors);
+`D-attestation-payload-completeness` (K2's current-vs-live split DL4 reuses; K7's `/N` attestation
+promise DL4 extends to `/4`; K8's anti-drift test pattern extended to cover `patch_approvals_hash`);
+`D-cross-feature-impact-graph` (the anti-wildcard `change_key` property DL2/DL3 build on directly);
+`D-waiver-expiry` (the decay mechanism `waive`-mode dispositions and contract waivers both reuse);
+`D-java-source-splice` (JS-equivalent `additionalProperties: false` schema trap, resolved
+differently here because the shape of the gap differs -- named explicitly above so the two aren't
+conflated); `D-patch-transactions` (the preimage-blob rollback model DL3 explicitly does NOT
+generalize to, and why).
+

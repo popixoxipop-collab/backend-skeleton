@@ -71,7 +71,7 @@ test('unsigned gate export is unchanged from its pre-signing shape and passes th
 	const result = run(['gate', 'export', '--feature', FEATURE, '--json'], root);
 	assert.equal(result.code, 0);
 	const report = JSON.parse(result.stdout);
-	assert.equal(report.schema, 'sbf.gate-export/3');
+	assert.equal(report.schema, 'sbf.gate-export/4');
 	assert.equal(report.gates.preflight.current.status, 'pass');
 });
 
@@ -155,7 +155,7 @@ test('a signed attestation carries a real signature.key_id that round-trips thro
 
 	const attestation = JSON.parse(fs.readFileSync(outFile, 'utf8'));
 	assert.match(attestation.signature.key_id, /^ed25519:[0-9a-f]{32}$/);
-	assert.equal(attestation.report.schema, 'sbf.gate-export/3');
+	assert.equal(attestation.report.schema, 'sbf.gate-export/4');
 	assert.match(attestation.report.tool.version, /^\d+\.\d+\.\d+/);
 	assert.deepEqual(attestation.report.tool.gate_names.length > 0, true);
 	assert.equal(attestation.report.tool.canonicalization, 'sortkeysdeep-json');

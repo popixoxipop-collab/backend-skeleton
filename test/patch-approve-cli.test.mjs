@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readDecisionLog } from '../lib/decision-log.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(__dirname, '..', 'bin', 'bskel.mjs');
@@ -211,4 +212,33 @@ test('re-approving the same {resource, field} replaces the prior entry rather th
 	const approvals = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/handles/patch-approvals.json'), 'utf8'));
 	assert.equal(approvals.approvals.length, 1);
 	assert.equal(approvals.approvals[0].reason, 'second, corrected');
+});
+
+// D-decision-event-log (D6): forward-only retraction, mirroring `gate revoke` -- removes the
+// approval entry and appends a `withdraw` decision event. patch-approvals.json is not itself a
+// gate input, so there is no gate to re-evaluate here (unlike the other three withdraw commands).
+test('handles patch unapprove: removes the entry and logs a withdraw event carrying the exact {resource, field}', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	run(['handles', 'patch', 'approve', '--feature', '001-widget-management', '--resource', 'Widget', '--field', 'label', '--strategy', 'patch-wrapper', '--reason', 'approved for now'], root);
+
+	const unapprove = run(['handles', 'patch', 'unapprove', '--feature', '001-widget-management', '--resource', 'Widget', '--field', 'label', '--reason', 'reconsidered, needs manual review'], root);
+	assert.equal(unapprove.code, 0);
+
+	const approvals = JSON.parse(fs.readFileSync(path.join(root, 'specs/001-widget-management/handles/patch-approvals.json'), 'utf8'));
+	assert.equal(approvals.approvals.length, 0);
+
+	const events = readDecisionLog(root, '001-widget-management', { kind: 'patch_approval' });
+	assert.equal(events.length, 2, 'record + withdraw');
+	assert.equal(events[1].action, 'withdraw');
+	assert.equal(events[1].reason, 'reconsidered, needs manual review');
+	assert.deepEqual(events[1].subject, { resource: 'Widget', field: 'label' });
+});
+
+test('handles patch unapprove on a non-existent approval is refused, nothing written', () => {
+	const root = buildFixtureRepo();
+	runWorkflowThroughContract(root);
+	const unapprove = run(['handles', 'patch', 'unapprove', '--feature', '001-widget-management', '--resource', 'Widget', '--field', 'label', '--reason', 'x'], root);
+	assert.equal(unapprove.code, 2); // NOT_PASSED / MISSING_ARTIFACT
+	assert.equal(readDecisionLog(root, '001-widget-management').length, 0);
 });
