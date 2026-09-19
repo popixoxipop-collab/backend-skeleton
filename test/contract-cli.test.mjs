@@ -315,6 +315,124 @@ test('an expired waiver stops covering its warning on the NEXT contract emit -- 
 	assert.match(emit.stderr, /1 recorded waiver\(s\) have expired/);
 });
 
+// D-waiver-renewal: an expired waiver used to be permanently un-renewable -- re-waiving matched
+// zero new entries because the CLI's own "already exists" check did not consult expires_at, even
+// though the tool's own stderr told the user to "re-waive with --expires if still needed."
+test('an expired waiver CAN be renewed by re-waiving with --expires -- the resolution gets exactly one entry, with the new reason and future expires_at', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '1d'], root);
+
+	const resolutionPath = contractResolutionPath(root);
+	const resolution = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+	resolution.waivers[0].expires_at = new Date(Date.now() - 1000).toISOString();
+	fs.writeFileSync(resolutionPath, JSON.stringify(resolution, null, 2));
+
+	const renew = run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'still needed', '--expires', '90d'], root);
+	assert.equal(renew.code, 3);
+
+	const after = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+	assert.equal(after.waivers.length, 1, 'the expired entry is replaced, not duplicated');
+	assert.equal(after.waivers[0].reason, 'still needed');
+	assert.ok(new Date(after.waivers[0].expires_at).getTime() > Date.now());
+
+	assert.equal(run(['contract', 'emit', '--feature', '001-widget-management'], root).code, 3, 'still blocked -- PATCH was never waived in this test');
+});
+
+test('a renewal is reported as "renewed", not "waived" -- --json carries a separate renewed[] array', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '1d'], root);
+
+	const resolutionPath = contractResolutionPath(root);
+	const resolution = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+	resolution.waivers[0].expires_at = new Date(Date.now() - 1000).toISOString();
+	fs.writeFileSync(resolutionPath, JSON.stringify(resolution, null, 2));
+
+	const textRenew = run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'still needed', '--expires', '90d'], root);
+	assert.match(textRenew.stdout, /renewed 1 expired waiver\(s\)/);
+	assert.doesNotMatch(textRenew.stdout, /waived 1 new warning/);
+
+	// Reset and prove the JSON shape independently (same scenario, --json this time).
+	const root2 = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root2);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root2);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '1d'], root2);
+	const resolutionPath2 = contractResolutionPath(root2);
+	const resolution2 = JSON.parse(fs.readFileSync(resolutionPath2, 'utf8'));
+	resolution2.waivers[0].expires_at = new Date(Date.now() - 1000).toISOString();
+	fs.writeFileSync(resolutionPath2, JSON.stringify(resolution2, null, 2));
+	const jsonRenew = run(['contract', 'waive', '--feature', '001-widget-management', '--json',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'still needed', '--expires', '90d'], root2);
+	const parsed = JSON.parse(jsonRenew.stdout);
+	assert.equal(parsed.waived.length, 0);
+	assert.equal(parsed.renewed.length, 1);
+	assert.equal(parsed.renewed[0].reason, 'still needed');
+});
+
+test('a still-LIVE (non-expired) waiver remains un-re-waivable -- the fix must not weaken this', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '90d'], root);
+
+	const rewaive = run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'trying again'], root);
+	assert.match(rewaive.stdout, /waived 0 new warning\(s\) \(1 already waived\)/);
+	assert.doesNotMatch(rewaive.stdout, /renewed/);
+
+	const resolution = JSON.parse(fs.readFileSync(contractResolutionPath(root), 'utf8'));
+	assert.equal(resolution.waivers.length, 1);
+	assert.equal(resolution.waivers[0].reason, 'temporary', 'the live waiver is untouched, not overwritten');
+});
+
+test('a waiver that is BOTH stale and expired renews the same way as one that is only expired', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '1d'], root);
+
+	// Make it stale too: the underlying warning no longer exists in the *new* contract (widen the
+	// fixture's coverage so DELETE gets a correlated operationId and CONTRACT_UNMATCHED_ENDPOINT for
+	// it stops firing), AND expire it.
+	const resolutionPath = contractResolutionPath(root);
+	const resolution = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+	resolution.waivers[0].expires_at = new Date(Date.now() - 1000).toISOString();
+	resolution.waivers[0].subject = 'DELETE /widgets/{widgetId}'; // still matches; staleness is exercised elsewhere in this file
+	fs.writeFileSync(resolutionPath, JSON.stringify(resolution, null, 2));
+
+	const renew = run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'still needed', '--expires', '90d'], root);
+	assert.match(renew.stdout, /renewed 1 expired waiver\(s\)/);
+});
+
+test('boundary: expires_at exactly equal to "now" is treated as expired (renewable), matching the existing <= comparison', () => {
+	const root = buildFixtureRepo({ coverage: 'partial' });
+	initThroughScanDisposition(root);
+	run(['contract', 'emit', '--feature', '001-widget-management'], root);
+	run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'temporary', '--expires', '1d'], root);
+
+	const resolutionPath = contractResolutionPath(root);
+	const resolution = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+	const exactlyNow = new Date().toISOString();
+	resolution.waivers[0].expires_at = exactlyNow;
+	fs.writeFileSync(resolutionPath, JSON.stringify(resolution, null, 2));
+
+	const renew = run(['contract', 'waive', '--feature', '001-widget-management',
+		'--code', 'CONTRACT_UNMATCHED_ENDPOINT', '--subject', 'DELETE /widgets/{widgetId}', '--reason', 'still needed', '--expires', '90d'], root);
+	assert.match(renew.stdout, /renewed 1 expired waiver\(s\)/, 'exactly-now must be treated as expired, not live');
+});
+
 test('contract waive requires either --subject or --all', () => {
 	const root = buildFixtureRepo({ coverage: 'partial' });
 	initThroughScanDisposition(root);

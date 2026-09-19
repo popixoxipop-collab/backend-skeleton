@@ -225,11 +225,22 @@ export function saveResolution(root, featureId, resolution) {
 // its warning, so `unwaived`/`blocking` treat it exactly as if it had never been recorded. A
 // waiver can be BOTH stale and expired at once (nothing prevents that combination); the two
 // lists are independent, not mutually exclusive.
+// D-waiver-renewal: the single shared expiry predicate. Previously inlined once here and NOT
+// consulted by `cmdContractWaive`'s own "is this already waived" check (bin/bskel.mjs) -- that
+// second, unsynchronized check meant an expired waiver was `waived` for evaluateResolution's
+// purposes (correctly stops blocking) but simultaneously "already exists" for the CLI's own
+// existingKeys set, so re-waiving it silently matched zero new entries and never updated the
+// stored expires_at. Exporting one function closes that gap at the source instead of requiring
+// two call sites to independently reimplement `Date.parse(w.expires_at) <= now` in sync forever.
+export function isWaiverExpired(waiver, now = Date.now()) {
+	return typeof waiver.expires_at === 'string' && Date.parse(waiver.expires_at) <= now;
+}
+
 export function evaluateResolution(contract, resolution) {
 	const status = classifyContract(contract);
 	const waivers = resolution.waivers ?? [];
 	const now = Date.now();
-	const expiredWaivers = waivers.filter((w) => typeof w.expires_at === 'string' && Date.parse(w.expires_at) <= now);
+	const expiredWaivers = waivers.filter((w) => isWaiverExpired(w, now));
 	const expiredKeys = new Set(expiredWaivers.map(warningKey));
 	const waivedKeys = new Set(waivers.filter((w) => !expiredKeys.has(warningKey(w))).map(warningKey));
 

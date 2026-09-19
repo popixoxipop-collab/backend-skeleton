@@ -30,7 +30,7 @@ import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contracts/emit.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
-import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode } from '../contracts/completeness.mjs';
+import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode, isWaiverExpired } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
 import { proposeTransaction, approveTransaction, applyTransaction, rollbackTransaction, loadTransaction, listTransactions } from '../lib/patch-transactions.mjs';
 import { getPatchKind, replanTransaction, PATCH_KIND_NAMES } from '../lib/patch-kinds.mjs';
@@ -1913,20 +1913,32 @@ function cmdContractWaive(args) {
 	// entries). Locking only the final write (inside saveResolution()) would NOT close this race --
 	// the window is between this function's own loadResolution() read and its save, not inside the
 	// write call itself.
-	const { resolution: updatedResolution, newEntries } = withLockSync(root, 'state', () => {
+	// D-waiver-renewal: `existingKeys` -- the "already waived, do nothing" set -- must only contain
+	// keys of waivers that are still LIVE. Before this fix it was built from every stored waiver
+	// regardless of expires_at, so an expired waiver's key permanently "existed" and every renewal
+	// attempt matched it and produced zero new entries (see contracts/completeness.mjs's
+	// isWaiverExpired() for the shared predicate this now shares with evaluateResolution() -- the
+	// two were previously two unsynchronized inline checks). A renewal replaces the expired entry
+	// (same key never appears twice) rather than appending alongside it, which would otherwise leave
+	// evaluateResolution()'s expiredKeys/waivedKeys sets computing over two same-key entries.
+	const { resolution: updatedResolution, newEntries, renewedEntries } = withLockSync(root, 'state', () => {
 		const resolution = loadResolution(root, flags.feature);
-		const existingKeys = new Set((resolution.waivers ?? []).map(warningKey));
+		const now = Date.now();
+		const liveWaivers = (resolution.waivers ?? []).filter((w) => !isWaiverExpired(w, now));
+		const expiredKeys = new Set((resolution.waivers ?? []).filter((w) => isWaiverExpired(w, now)).map(warningKey));
+		const liveKeys = new Set(liveWaivers.map(warningKey));
 		const at = new Date().toISOString();
-		const entries = toWaive
-			.filter((w) => !existingKeys.has(warningKey(w)))
-			.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at, ...(expiresAt ? { expires_at: expiresAt } : {}) }));
+		const toRecord = toWaive.filter((w) => !liveKeys.has(warningKey(w)));
+		const entries = toRecord.map((w) => ({ code: w.code, subject: w.subject, reason: flags.reason, at, ...(expiresAt ? { expires_at: expiresAt } : {}) }));
+		const newEntriesOut = entries.filter((e) => !expiredKeys.has(warningKey(e)));
+		const renewedEntriesOut = entries.filter((e) => expiredKeys.has(warningKey(e)));
 		const next = {
 			schema: 'sbf.contract-resolution/1',
 			feature_id: flags.feature,
-			waivers: [...(resolution.waivers ?? []), ...entries],
+			waivers: [...liveWaivers, ...entries],
 		};
 		saveResolution(root, flags.feature, next);
-		return { resolution: next, newEntries: entries };
+		return { resolution: next, newEntries: newEntriesOut, renewedEntries: renewedEntriesOut };
 	});
 
 	const evaluation = evaluateResolution(contract, updatedResolution);
@@ -1944,10 +1956,14 @@ function cmdContractWaive(args) {
 		: passNamedGate(root, 'contract', flags.feature, evidence);
 
 	if (flags.json) {
-		console.log(JSON.stringify({ waived: newEntries, gate: gateState.gates.contract }, null, 2));
+		console.log(JSON.stringify({ waived: newEntries, renewed: renewedEntries, gate: gateState.gates.contract }, null, 2));
 	} else {
 		if (!flags.quiet) {
-			console.log(`waived ${newEntries.length} new warning(s)${newEntries.length < toWaive.length ? ` (${toWaive.length - newEntries.length} already waived)` : ''}${expiresAt ? `, expiring ${expiresAt}` : ''}`);
+			const alreadyWaived = toWaive.length - newEntries.length - renewedEntries.length;
+			console.log(`waived ${newEntries.length} new warning(s)${alreadyWaived > 0 ? ` (${alreadyWaived} already waived)` : ''}${expiresAt ? `, expiring ${expiresAt}` : ''}`);
+			if (renewedEntries.length > 0) {
+				console.log(`renewed ${renewedEntries.length} expired waiver(s)${expiresAt ? `, expiring ${expiresAt}` : ''}`);
+			}
 			console.log(`gate: contract -> ${gateState.gates.contract.status}`);
 		}
 		if (evaluation.expiredWaivers.length > 0) {
