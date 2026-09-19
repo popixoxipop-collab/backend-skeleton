@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:impact-baseline:1",
+  "title": "backend-skeleton impact surface baseline",
+  "description": "Validates specs/<feature_id>/impact-baseline.json, written only by `bskel impact accept` -- a projection of ONE feature's own public surface at the moment it was last accepted as the reference point for change detection. Git-independent by design (specs/ is commonly gitignored, see D-contract-history's own finding) -- this file itself is the durable record of 'what did this feature's surface look like last time a human/CI accepted it'. Every *_shape_hash is sha256(JSON.stringify(sortKeysDeep(subtree))), the exact canonicalization lib/attest.mjs already implements and is reused unchanged (see D-attestation-payload-completeness's K1). See D-cross-feature-impact-graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "captured_at", "surface"],
+  "properties": {
+    "schema": { "const": "sbf.impact-baseline/1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operations", "resources", "fields"],
+      "properties": {
+        "operations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["verb", "path", "request_shape_hash", "response_shape_hash", "error_shape_hash"],
+            "properties": {
+              "verb": { "type": "string" },
+              "path": { "type": "string" },
+              "request_shape_hash": { "type": ["string", "null"] },
+              "response_shape_hash": { "type": ["string", "null"] },
+              "error_shape_hash": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file_sha256", "table", "table_source"],
+            "properties": {
+              "file_sha256": { "type": ["string", "null"] },
+              "table": { "type": ["string", "null"] },
+              "table_source": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "fields": {
+          "description": "Only fields named by a declared dependencies.json edge -- this project has no per-adapter field enumerator (see D-field-dependency's own EXIT), so a field only exists here where something else already named it. Keyed \"<ResourceType>.<field>\".",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_file_sha256"],
+            "properties": { "source_file_sha256": { "type": ["string", "null"] } }
+          }
+        }
+      }
+    }
+  }
+}

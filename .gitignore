@@ -1,6 +1,12 @@
 node_modules/
 .DS_Store
 *.log
+# graphify's own exploration-cache output when someone runs `graphify query`/`/graphify` against
+# this repo itself (a development convenience, unrelated to anything this skill ships) -- never a
+# real artifact, must never be committed. Named while writing D-cross-feature-impact-graph, whose
+# own `bskel impact export --format graphify` writes to a caller-chosen --out path instead, never
+# here.
+graphify-out/
 # D-runtime-conformance-receipts: a local `python3 -m py_compile`/`ast.parse` syntax check run
 # directly against handles/providers/python-fastapi/templates/*.py.tmpl (a real, useful local
 # verification step for hand-written Python codegen templates) leaves this behind next to the

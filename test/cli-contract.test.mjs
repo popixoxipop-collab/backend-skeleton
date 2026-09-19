@@ -129,6 +129,11 @@ const EXPECTED_DEFAULTS = {
 	'feature link': { _: [], reason: '', json: false, quiet: false, help: false },
 	'feature archive': { _: [], reason: '', json: false, quiet: false, help: false },
 	'db erd': { _: [], 'database-url-env': null, schema: 'public', out: null, json: false, quiet: false, help: false },
+	// D-cross-feature-impact-graph: `impact check` is the one `impact *` command with no
+	// `required` field (either --feature or --all satisfies it; that alternative is checked at
+	// runtime in cmdImpactCheck, not by parseCommand()) -- every other `impact *` command has at
+	// least one required flag and is listed in the required-throws loop below instead.
+	'impact check': { _: [], feature: null, all: false, json: false, quiet: false, help: false },
 };
 
 for (const [name, expected] of Object.entries(EXPECTED_DEFAULTS)) {
@@ -139,14 +144,14 @@ for (const [name, expected] of Object.entries(EXPECTED_DEFAULTS)) {
 
 // Commands with `required` fields: empty argv must throw (this itself proves the migration was
 // lossless for the "missing required flag" behavior class too).
-for (const name of ['scan disposition', 'scan explain', 'scan repair', 'scan cross-feature-check', 'scan cross-feature-waive', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract export-csv', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'pattern list', 'pattern show', 'pattern suggest', 'verify', 'dependency declare', 'dependency remove', 'dependency list', 'rules check', 'rules list', 'rules explain', 'rules emit', 'patch propose', 'patch approve', 'patch apply', 'patch rollback', 'patch list', 'attest keygen', 'attest verify']) {
+for (const name of ['scan disposition', 'scan explain', 'scan repair', 'scan cross-feature-check', 'scan cross-feature-waive', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract export-csv', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'pattern list', 'pattern show', 'pattern suggest', 'verify', 'dependency declare', 'dependency remove', 'dependency list', 'rules check', 'rules list', 'rules explain', 'rules emit', 'patch propose', 'patch approve', 'patch apply', 'patch rollback', 'patch list', 'attest keygen', 'attest verify', 'impact accept', 'impact disposition', 'impact ack', 'impact export']) {
 	test(`parseCommand("${name}", []) throws CliUsageError (required field missing)`, () => {
 		assert.throws(() => parseCommand(name, []), CliUsageError);
 	});
 }
 
 test('every command in COMMANDS is exercised by the default-value snapshot or the required-field test above', () => {
-	const covered = new Set([...Object.keys(EXPECTED_DEFAULTS), 'scan disposition', 'scan explain', 'scan repair', 'scan cross-feature-check', 'scan cross-feature-waive', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract export-csv', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'pattern list', 'pattern show', 'pattern suggest', 'verify', 'dependency declare', 'dependency remove', 'dependency list', 'rules check', 'rules list', 'rules explain', 'rules emit', 'patch propose', 'patch approve', 'patch apply', 'patch rollback', 'patch list', 'attest keygen', 'attest verify']);
+	const covered = new Set([...Object.keys(EXPECTED_DEFAULTS), 'scan disposition', 'scan explain', 'scan repair', 'scan cross-feature-check', 'scan cross-feature-waive', 'feature init', 'feature rename', 'contract emit', 'contract export', 'contract export-csv', 'contract history', 'contract waive', 'contract validate', 'contract tool-schema', 'gate export', 'handles plan', 'handles emit', 'handles patch approve', 'handles audit', 'observe emit', 'observe import', 'new', 'pattern list', 'pattern show', 'pattern suggest', 'verify', 'dependency declare', 'dependency remove', 'dependency list', 'rules check', 'rules list', 'rules explain', 'rules emit', 'patch propose', 'patch approve', 'patch apply', 'patch rollback', 'patch list', 'attest keygen', 'attest verify', 'impact accept', 'impact disposition', 'impact ack', 'impact export']);
 	assert.deepEqual([...covered].sort(), Object.keys(COMMANDS).sort());
 });
 

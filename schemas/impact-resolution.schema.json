@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:impact-resolution:1",
+  "title": "backend-skeleton impact dispositions",
+  "description": "Validates specs/<feature_id>/impact-resolution.json, written by `bskel impact disposition`/`bskel impact ack`. Three modes with three genuinely different mechanical consequences (see D-cross-feature-impact-graph's D6): 'compatible' unblocks one {change_key, downstream_feature} pair and nothing else; 'migrate' requires --tracked-by and creates a two-sided handshake (an inbound obligation on the downstream feature, cleared only by that feature's own `impact ack`); 'waive' requires --expires and decays via the same mechanism D-waiver-expiry already ships for `contract waive`. Keyed by {change_key, downstream_feature} -- never a wildcard, matching cross-feature-resolution.schema.json's own stated discipline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "dispositions"],
+  "properties": {
+    "schema": { "const": "sbf.impact-resolution/1" },
+    "feature_id": { "type": "string" },
+    "dispositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["change_key", "downstream_feature", "mode", "reason", "at"],
+        "properties": {
+          "change_key": { "type": "string" },
+          "downstream_feature": { "type": "string" },
+          "mode": { "enum": ["compatible", "migrate", "waive"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "tracked_by": { "type": ["string", "null"], "description": "Required (non-empty) iff mode is 'migrate'." },
+          "expires_at": { "type": ["string", "null"], "format": "date-time", "description": "Required iff mode is 'waive' -- ISO instant this disposition stops covering its change_key." },
+          "acknowledged": { "type": "boolean", "default": false, "description": "Only meaningful for mode 'migrate' -- flipped true by the DOWNSTREAM feature's own `bskel impact ack`." },
+          "acknowledged_at": { "type": ["string", "null"] },
+          "acknowledged_reason": { "type": ["string", "null"] },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

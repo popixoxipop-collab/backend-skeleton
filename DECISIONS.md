@@ -14779,3 +14779,231 @@ the WHOLE target app from booting until acknowledged -- mitigated by the pre-wri
 - Every framework but java-spring (PC9).
 - `SecurityFilterChain`/`HttpSecurity` parsing (PC11).
 - Flipping `--enforce-registry` on by default -- orthogonal axis, zero lines touched here.
+
+## D-cross-feature-impact-graph: a deterministic reference-links graph over exact identities becomes a gate that demands a per-downstream disposition -- the LLM-driven exploration layer is kept strictly downstream of a file this tool writes and never reads back
+
+**WHY**: Codex's own review proposed "a graph linking feature operations, resource types, UUID
+field pointers, DB tables/columns, and other feature contracts. When a contract or field changes,
+the next gate identifies downstream features and requires an explicit disposition" -- CATALOG.md's
+O10 entry records that what shipped there was deliberately narrower ("rather than the full
+impact-graph vision"): `lib/cross-feature-collisions.mjs` (name-identity collisions + live-DB FK
+inference) and `lib/field-dependencies.mjs` (declared field edges, a best-effort downstream nudge)
+are the first two-thirds of this feature, already built. This item closes the remaining third:
+field-level CHANGE detection, and a gate that blocks the feature that CHANGED (not just the one
+that depends on it) until every downstream impact has an explicit, auditable disposition. It also
+closes `D-contract-history`'s own named EXIT ("field-level diffing ... is out of scope for this
+item -- only the operation NAME set is diffed").
+
+The user separately asked this be designed with reference to Lamping/Rao/Pirolli's 1995
+Focus+Context hyperbolic-tree technique, Karpathy's "LLM Wiki" concept, and this machine's
+installed `graphify` skill/Obsidian -- with an explicit requirement that the exploration/
+visualization layer stay architecturally separate from the deterministic reference-links data the
+gate actually blocks on. IG8/IG9 below are that resolution.
+
+**Scope cuts from the original design pass, disclosed, not silent**: a `handle` node type (backed
+by a UUID field pointer) was designed but is NOT built in this implementation pass -- verified
+live that `bskel handles plan` never persists a `handles-plan.json` (`cmdHandlesPlan`'s own code:
+"that command never writes, dryRun always"), so producing a handle node here would mean calling
+`provider.plan()` live inside a graph builder, with its own adapter-capability-gating and error
+surface this pass did not have room to build and test properly. Node/edge types below are
+`feature`/`operation`/`resource`/`table`/`field` and `declares_operation`/`owns_resource`/
+`maps_to_table`/`derives_from`/`fk_references`/`name_collides_with` -- no `addressed_by_handle`,
+no `handle_id_field_changed`/`handle_id_field_uuid_changed`/`handle_authority_changed` change
+kinds. Named as a follow-up (see EXIT), not half-built.
+
+**IG1 -- exact identities only, zero new scanning.** `lib/impact-graph.mjs`'s `buildImpactGraph()`
+reads only files an EXISTING gate already hashes (contract JSON, brownfield-scan.json,
+dependencies.json, cross-feature-report.json) -- no adapter changes, no new source parsing, no
+live DB access, no `calls` relation. A missing edge is honest; Codex's own named risk (service-to-
+service/dynamic-client inference) is never approximated, and there is no `AMBIGUOUS`-style third
+confidence tier invented to paper over it -- every edge is `proven` or `heuristic`, mirroring
+`cross-feature-collisions.mjs`'s own high/medium split exactly (`confidence === 'high' ?
+'proven' : 'heuristic'`).
+  WHY: an edge this tool cannot prove from a persisted artifact is not a fact worth gating on.
+  COST: no cross-feature graph edge for anything not already tracked by an existing artifact --
+  e.g. two features that genuinely call each other over HTTP show up nowhere here.
+  EXIT: a `handle` node (see scope-cut above) is additive once a live-handles-plan helper is
+  factored out of the CLI layer for reuse; nothing here needs to change shape to add it.
+
+**IG2 -- `impact-baseline.json`: a feature's own surface, git-independent.** `lib/impact-
+surface.mjs`'s `computeSurface()`/`diffSurface()` -- git cannot be the baseline mechanism because
+`specs/` is commonly gitignored (the same finding `D-contract-history` already made). Every
+`*_shape_hash` reuses `lib/attest.mjs`'s canonicalization (`canonicalize`/`assertCanonicalizable`,
+K1) verbatim -- one implementation of "are two JSON values the same", not a second one that could
+quietly disagree. Change kinds are NAMED, not structurally diffed (`operation_request_shape_
+changed`, not "field X was removed from the request") -- this project has no schema differ, and
+inventing a partial one would risk a wrong narrative next to a right hash. Deliberately no
+`field_added`/`field_removed`: `computeSurface()`'s `fields` map is sparse (only fields an already-
+declared `dependencies.json` edge names, per `D-field-dependency`'s own established limitation),
+so this tool cannot honestly claim a field was added or removed -- only that the file backing an
+ALREADY-DECLARED field moved (`field_source_moved`).
+  WHY: field-level detection with zero schema-differ machinery, zero risk of a differ disagreeing
+  with itself release to release.
+  COST: "what changed inside the schema" stays a hash move, not a narrative -- a human reading a
+  report sees THAT an operation's response shape moved, not what specifically inside it did.
+  EXIT: a real structural differ is a strictly additive refinement of `operation_*_shape_changed`,
+  since dispositions key on `change_key` (IG3), not the change's own free-text narrative.
+
+**IG3 -- `change_key` embeds the NEW hash; there is no wildcard.** `changeKey()`
+(`lib/impact-surface.mjs`) = `"<kind>:<subject>:<sha256(kind,subject,to).slice(0,12)>"`. A
+disposition recorded for one shape can never cover a LATER, different change to the same subject
+-- verified directly (this is the property `test/impact-cli.test.mjs`'s anti-rubber-stamp test
+exists to prove). Same discipline `cross-feature-resolution.schema.json` already states for
+itself.
+
+**IG4 -- one new gate, `impact`, feature-scoped, `REQUIRED_WHEN_PRESENT`, between `dependencies`
+and `rules`.** Complements (does not replace) the existing `dependencies` gate: `dependencies`
+blocks the DOWNSTREAM side when what it depends on moves; `impact` blocks the UPSTREAM side --
+the feature that CHANGED -- which is Codex's literal ask. `recompute()` is pure `sha256File()`
+over `impact-baseline.json`/`impact-report.json`/`impact-resolution.json` plus the same
+`contract_hash`/`dependencies_hash`/`scan_report_hash` `contract`/`dependencies`/`scan` already
+hash, with the SAME `OTHER_FEATURE_*` counterparty-narrowing convention `cross_feature` already
+uses (one pair of keys per OTHER feature the LAST persisted report actually named, not every
+feature in the repo) -- same accepted limitation: a brand-new counterparty is only caught at the
+next explicit `bskel impact check --all`. `buildImpactGraph()` is NEVER called from `recompute()`
+-- real work (O(features x artifacts) file reads) stays entirely out of the fast verify/require
+path, only reachable from `bskel impact check`/`export`. Path builders for the three impact files
+are duplicated locally inside `lib/gate-definitions.mjs` rather than imported from `lib/impact.mjs`
+-- importing them would close a real circular-import loop (gate-definitions.mjs -> lib/impact.mjs
+-> lib/impact-graph.mjs -> lib/field-dependencies.mjs -> lib/gates.mjs -> gate-definitions.mjs),
+confirmed by actually trying it before writing the workaround, not assumed.
+  WHY: this is the genuinely new capability -- without an upstream-blocking gate, a breaking
+  change merges freely and the downstream discovers it later, exactly what `describeDownstreamImpact()`
+  already admits it cannot fix ("a best-effort nudge, never the source of truth").
+  COST: one more gate in `bskel verify`'s roll-up; the three-line path-builder duplication (same
+  tradeoff `TARGET_FIELD_FILE_PREFIX`'s own header comment already accepts).
+  EXIT: if the counterparty narrowing proves too aggressive in practice, `bskel impact check --all`
+  (already shipped, IG7) is the existing mitigation; nothing about the gate's shape needs to change.
+
+**IG5 -- `impact check` reports; `impact accept` decides.** Mirrors `lib/cross-feature-
+collisions.mjs`'s own check/waive split. `checkImpact()` (`lib/impact.mjs`) is read-mostly: computes
+the current surface, diffs it against the baseline, walks the graph one hop from each change's own
+node, writes `impact-report.json`, and NEVER advances the baseline. `acceptImpact()` refuses
+(`AWAITING_DISPOSITION`) if any proven outbound impact is undisposed or any inbound migration
+unacknowledged; otherwise atomically (`withLockSync`) rewrites `impact-baseline.json` from the
+CURRENT surface. A feature with no prior baseline reports every operation as `operation_added`
+with zero downstream impacts (nothing can depend on what didn't exist), so the first `accept`
+captures trivially -- no bootstrap special case needed.
+  WHY: folding report+decide into one command would let a check silently launder a change into the
+  baseline, the same risk `contract waive`'s own separation already avoids.
+  COST: two commands to learn; a forgotten `accept` leaves the gate stale.
+  EXIT: none needed -- this is the permanent shape.
+
+**IG6 -- three disposition modes, three different mechanical consequences.**
+`recordDisposition()`/`acknowledgeInbound()` (`lib/impact.mjs`). `compatible` unblocks exactly one
+`{change_key, downstream_feature}` pair and nothing else (change-scoped, so it cannot accumulate
+as blanket permission -- IG3). `migrate` requires `--tracked-by` (non-empty) and creates a real
+two-sided handshake: an INBOUND obligation on the downstream feature's own `impact` gate, cleared
+only by that feature's own `bskel impact ack`. `waive` requires `--expires-days` (a positive
+integer) and decays -- the same posture `D-waiver-expiry` already ships for `contract waive`.
+Gate-fatigue control (Codex's own named risk, answered directly): only a `proven`-confidence
+outbound impact blocks (`evaluateImpacts()`); a `heuristic` one is always reported, never blocking
+on its own -- reusing `evaluateCrossFeatureFindings()`'s own high/medium split, not a new policy.
+  WHY: three modes that all just "make the gate green" would train humans to pick whichever is
+  shortest to type -- `migrate`'s mandatory `--tracked-by` is what stops it being a silent no-op.
+  COST: `migrate` requires cooperation from a second feature's owner; `bskel gate force impact
+  --feature <id> --reason "..."` remains the documented escape hatch (recorded in signed
+  attestations per `D-attestation-payload-completeness`'s `decisions.forced`).
+  EXIT: auto-deriving `compatible` from a provably-additive schema change (new optional field
+  only) is deliberately not attempted -- a real design question of its own, not guessed at here.
+
+**IG7 -- NOT a `handles emit` prerequisite; gated only at `bskel verify`.** This repo's OWN
+production incident is the evidence: `cross_feature`'s identical hard-prerequisite-on-`handles
+emit` mistake broke `main` for hours (a fix that reached every `node --test` file but not several
+CI-only smoke scripts outside `npm test`'s own glob, per this project's own CI history). `bskel
+impact check --all` (no `--feature`) sweeps every active feature and is the recommended CI
+invocation -- the only thing that closes IG4's brand-new-counterparty narrowing gap.
+  WHY: empirical, from this repo's own incident record, not a guess.
+  COST: a developer can `handles emit` with an undisposed impact; `verify` catches it before merge.
+  EXIT: a soft (non-blocking) warning inside `contract emit`/`handles emit`'s existing
+  `describeDownstreamImpact()` notes can be added later if impacts routinely reach `verify` too
+  late in practice.
+
+**IG8 -- `bskel impact export --format graphify|json|mermaid`: the one LLM-free seam to the
+exploration layer.** `lib/impact-export-graphify.mjs`'s `toGraphifyExtraction()` writes graphify's
+OWN native extraction file shape directly (`{nodes, edges, input_tokens: 0, output_tokens: 0}`),
+bypassing its Steps 1-3 (install/detect/extract) entirely -- a consumer runs `graphify.build.
+build_from_json()` + `cluster()` + `to_obsidian()` on this file with no LLM call, no subagent, no
+network, matching this project's own established "ship a format exporter, not a foreign-tool
+dependency" posture (`contract export`'s OpenAPI, `contract export --csv`, `db erd`'s Mermaid).
+The confidence mapping is the keystone and is not invented: `proven` -> `EXTRACTED`, `heuristic`
+-> `INFERRED`. **`AMBIGUOUS` is never emitted** -- this graph has no guessed edges (IG1), so there
+is nothing honest to put there.
+  WHY: reuses graphify as-is at the only seam where "as-is" is actually possible -- graphify's own
+  `detect.py` classifies `.json` as `None` (verified live), so pointing graphify directly at
+  `.sbf/` cannot work at all; `build_from_json()` is graphify's real, already-existing injection
+  point for exactly this case.
+  COST: this file encodes a foreign tool's field names (`file_type`, `confidence_score`, ...) --
+  mitigated by `test/impact-export-graphify.test.mjs` asserting the exporter's output against
+  graphify's own real `REQUIRED_NODE_FIELDS`/`REQUIRED_EDGE_FIELDS`/`VALID_FILE_TYPES`/
+  `VALID_CONFIDENCES` constants, checked in as data -- the same "one declared place, asserted
+  equal" device `D-attestation-payload-completeness`'s K8 uses for `ARTIFACT_SOURCES`.
+  EXIT: if graphify's extraction schema ever changes shape, the fix is this one file.
+
+**IG9 -- Focus+Context (Lamping/Rao/Pirolli, CHI '95) as a DATA PROJECTION, not a renderer.**
+`--focus <node-id> --rings <N>` computes `ring` (BFS hop distance from the focus node over the
+graph's own edges, undirected) and `detail` (`full` at ring 0, `resource` at ring 1, `feature` at
+ring 2, `collapsed` beyond `--rings`, where every node past the cutoff merges into one synthetic
+node carrying the real count) -- written ONLY into the export, never into anything a gate reads
+(verified: `lib/gate-definitions.mjs`'s `impact.recompute()` never calls `buildImpactGraph()` at
+all, let alone this exporter). `d3-hypertree` (npm, last modified 2022-06-14, GitHub pushed
+2022-12-29, 31 open issues) was considered and rejected as a dependency -- stale, and it would sit
+in the consumer for zero gain since the actual reusable content of the 1995 technique (uniform
+"room" for every node regardless of depth, smooth focus->context compression) is a DATA property,
+not a rendering algorithm; every downstream consumer (Obsidian's graph view, graphify's own
+`--html`, Mermaid, Neo4j) inherits the compression for free once it's in the data.
+  WHY: the visualization must not be the thing that makes this feature valuable, and a four-year-
+  stale dependency for a 1995 layout would be a liability sitting outside the value it provides.
+  COST: not literally hyperbolic (no continuous zoom) -- re-focusing means re-running the export.
+  For a reviewer asking "who is downstream of this change", that is the right interaction anyway.
+  EXIT: a literal Poincare-disk renderer (vendored, not `d3-hypertree`) is a real but genuinely
+  separate, consumer-side-only follow-up -- named, not half-built.
+
+**Verified**: `npm test` -- 1739 tests before this item, 1781 after (42 new: 8 in
+`test/impact-cli.test.mjs`, 6 in `test/impact-graph.test.mjs`, 11 in `test/impact-surface.test.mjs`,
+10 in `test/impact-export-graphify.test.mjs`, 2 in `test/gate-definitions.test.mjs` (T6), 5 more
+generated by extending `test/cli-contract.test.mjs`'s existing default-value-snapshot/required-field
+loops for the five new `impact *` commands), **0 regressions, 0 new failures, the same 10
+pre-existing skips as before**. The headline property (IG3's anti-rubber-stamp guarantee: the same
+field changed twice, differently, blocks `impact accept` twice, and a `compatible` disposition
+recorded for the first change never covers the second) has a dedicated, real-CLI, real-fixture
+test (`test/impact-cli.test.mjs`'s `anti-rubber-stamp: ...` case) -- not a synthetic unit test.
+The full two-sided `migrate` handshake (an inbound obligation blocking the DOWNSTREAM feature's own
+`impact` gate until its own `bskel impact ack`) is also proven end to end against real files, not
+asserted structurally. `scripts/impact-graphify-smoke.mjs` (S1) proves the real, installed graphify
+skill's `build_from_json()`/`cluster()`/`to_obsidian()` genuinely accept this exporter's output and
+produce a real Obsidian vault (verified manually first: a real 6-node/3-edge extraction -> 3 Leiden
+communities -> 10 real vault files, before the script was written to make that repeatable).
+`test/gate-definitions.test.mjs`'s T6 tests statically walk `lib/gate-definitions.mjs`'s entire
+transitive relative-import closure and assert `pg`/`node:http`/`node:https` are unreachable (a
+structural proof, not a convention), and that `impact.recompute()` is byte-identical across two
+calls -- both automated, both re-run on every future change to this module, not one-time claims.
+
+**COST**: a 5th artifact family under `specs/<fid>/`; one more gate in `verify`'s roll-up;
+`migrate` requires a second feature owner's cooperation; this repo now encodes one foreign tool's
+field names in one file (guarded by a checked-in-constants test).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- A `handle` node type (UUID field pointer) -- deferred behind a live-handles-plan helper factored
+  out of the CLI layer for reuse outside `cmdHandlesPlan` (see this entry's own scope-cut note).
+- Full dynamic/service-to-service dependency inference -- Codex's own named boundary. No `calls`
+  relation, no HTTP-client scanning, no message-queue topology, and no `AMBIGUOUS` edge as a
+  consolation prize: a missing edge is honest, a guessed one is gate fatigue.
+- Per-adapter field enumeration -- `D-field-dependency`'s own EXIT already argued this reintroduces
+  provider coupling; `field` nodes stay sparse, the gap is named in `unknowns`.
+- A real structural schema differ refining `operation_*_shape_changed` into field-level detail --
+  strictly additive over `change_key` whenever it lands.
+- Auto-deriving a `compatible` disposition from a provably-additive change.
+- A literal Poincare-disk hyperbolic renderer (IG9's V2) -- consumer-side only, not `d3-hypertree`.
+- Any LLM or network call anywhere inside `bskel`'s own gate/CLI process -- confirmed absent by
+  construction (`buildImpactGraph()`/the exporter are only ever called from `impact check`/
+  `export`, never from `recompute()`), not merely claimed.
+
+Cross-references: `D-cross-feature-collision`/`D-cross-feature-fk-inference` (the two-thirds of
+this feature already shipped as O10); `D-field-dependency` (`resolveClassFile()`'s addressing
+reused verbatim, and its own sparse-fields precedent this entry inherits); `D-contract-history`
+(whose EXIT this closes, and whose "`specs/` is commonly gitignored" finding is why the baseline
+is not git-based); `D-attestation-payload-completeness` (K1's canonicalization reused verbatim,
+K8's checked-in-constants test pattern); `D-waiver-expiry` (`waive`'s decay mechanism); O10 in
+CATALOG.md (the deferred half this closes, and its production CI incident this entry's IG7 avoids
+repeating).

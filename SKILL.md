@@ -761,6 +761,35 @@ bskel dependency list --feature <id> [--json]
   #    `{source_resolved: false, source_unresolved_reason: "class_not_found"}` (or
   #    `no_scan_report`/`no_disposition`/`module_not_found`) rather than a bare failure.
 
+bskel impact check --feature <id> [--all] [--json]
+  # -> D-cross-feature-impact-graph: read-mostly -- diffs the feature's own current surface
+  #    (operations/resources/declared-dependency fields) against specs/<id>/impact-baseline.json,
+  #    walks the deterministic reference-links graph one hop, writes impact-report.json. NEVER
+  #    advances the baseline. `--all` sweeps every active feature (the recommended CI invocation --
+  #    the only thing that catches a brand-new downstream counterparty the `impact` gate's own
+  #    narrowed recompute() can't see until then).
+bskel impact accept --feature <id> [--json]
+  # -> the DECIDE half -- refuses (exit 3) if any `proven`-confidence outbound impact is undisposed
+  #    or any inbound `migrate` is unacknowledged; otherwise atomically rewrites impact-baseline.json
+  #    from the CURRENT surface and passes the `impact` gate (feature-scoped, REQUIRED_WHEN_PRESENT,
+  #    between `dependencies` and `rules`). Complements `dependencies` (blocks the downstream side)
+  #    by blocking the UPSTREAM side -- the feature that changed.
+bskel impact disposition --feature <id> --change <change_key> --downstream <id> --mode compatible|migrate|waive --reason "..." [--tracked-by "..."] [--expires-days N]
+  # -> `compatible` unblocks exactly ONE {change_key, downstream_feature} pair, nothing else
+  #    (change_key embeds the new hash, so a LATER different change to the same subject is never
+  #    covered -- no wildcard). `migrate` requires --tracked-by, creates a two-sided handshake (an
+  #    inbound obligation the downstream feature's own `impact ack` clears). `waive` requires
+  #    --expires-days and decays, same mechanism `contract waive --expires` already ships.
+bskel impact ack --feature <id> --from <upstream_id> --change <change_key> --reason "..."
+  # -> the downstream feature's own acknowledgement of a `migrate` obligation -- flips
+  #    `acknowledged` on the UPSTREAM feature's own resolution record (the obligation lives there).
+bskel impact export --format graphify|json|mermaid [--out <path>] [--focus <node-id>] [--rings N]
+  # -> the ONE LLM-free seam to the exploration layer -- writes graphify's own native extraction
+  #    shape directly (bypasses its install/detect/extract steps entirely), `proven`->EXTRACTED,
+  #    `heuristic`->INFERRED, AMBIGUOUS never emitted (this graph has no guessed edges).
+  #    `--focus`/`--rings` write ring/detail (Focus+Context, Lamping/Rao/Pirolli CHI'95) into the
+  #    export only -- confirmed never read by lib/gate-definitions.mjs's `impact.recompute()`.
+
 bskel stack apply --choice ngrok                # dry-run (default): prints the plan, writes nothing
 bskel stack apply --choice ngrok --apply        # actually writes; always idempotent to re-run
 bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run on 8080

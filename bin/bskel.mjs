@@ -42,6 +42,11 @@ import {
 	declareDependency, removeDependency, buildDependencyListReport,
 } from '../lib/field-dependencies.mjs';
 import {
+	ImpactOperationError, checkImpact, acceptImpact, recordDisposition, acknowledgeInbound,
+} from '../lib/impact.mjs';
+import { buildImpactGraph } from '../lib/impact-graph.mjs';
+import { toGraphifyExtraction, toMermaid } from '../lib/impact-export-graphify.mjs';
+import {
 	findCollisions, evaluateCrossFeatureFindings, waiverKey,
 	crossFeatureReportPath, loadCrossFeatureReport, loadCrossFeatureResolution, saveCrossFeatureResolution,
 } from '../lib/cross-feature-collisions.mjs';
@@ -115,6 +120,11 @@ function usage() {
   bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
   bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
   bskel dependency list --feature <id> [--json]
+  bskel impact check --feature <id> [--all] [--json]
+  bskel impact accept --feature <id> [--json]
+  bskel impact disposition --feature <id> --change <change_key> --downstream <id> --mode <compatible|migrate|waive> --reason "..." [--tracked-by "..."] [--expires-days <N>] [--json]
+  bskel impact ack --feature <id> --from <id> --change <change_key> --reason "..." [--json]
+  bskel impact export --format <graphify|json|mermaid> [--out <path>] [--focus <id>] [--rings <N>]
   bskel rules check --feature <id> [--init] [--json]
   bskel rules list --feature <id> [--json]
   bskel rules explain --feature <id> --rule <id> [--json]
@@ -2067,6 +2077,143 @@ function cmdDependencyList(args) {
 		if (report.dependencies.length === 0) console.log('  (none declared)');
 	}
 	process.exit(0);
+}
+
+// D-cross-feature-impact-graph: `bskel impact check` -- read-mostly, never advances the baseline.
+// `--all` sweeps every active feature; this is the only thing that closes the `impact` gate's own
+// counterparty-narrowing limitation (a brand-new downstream feature is otherwise only caught at the
+// next explicit check, see D4/D7 in DECISIONS.md) -- the recommended CI invocation.
+function cmdImpactCheck(args) {
+	const flags = parseCommand('impact check', args);
+	if (flags.help) { console.log(renderCommandHelp('impact check')); process.exit(0); }
+	setContext('impact check', flags);
+	const root = requireRepoRoot();
+	if (!flags.all && !flags.feature) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel impact check requires --feature <id> or --all');
+	const featureIds = flags.all ? listFeatures(root).map((r) => r.feature_id) : [flags.feature];
+
+	const results = [];
+	for (const featureId of featureIds) {
+		let outcome;
+		try {
+			outcome = checkImpact(root, featureId);
+		} catch (err) {
+			if (err instanceof ImpactOperationError) fail(err.exitCode, err.reasonCode, err.message);
+			throw err;
+		}
+		results.push({ feature_id: featureId, ...outcome });
+	}
+
+	if (flags.json) {
+		console.log(JSON.stringify(flags.all ? results : results[0], null, 2));
+	} else {
+		for (const r of results) {
+			console.log(`impact check -- ${r.feature_id}`);
+			console.log(`  changes: ${r.report.changes.length}, outbound: ${r.report.outbound.length}, inbound: ${r.report.inbound.length}`);
+			console.log(`  gate: ${r.evaluation.blocking ? 'awaiting_disposition' : 'pass'}`);
+			for (const o of r.evaluation.blockingOutbound) console.log(`    BLOCKING: ${o.change_key} -> ${o.downstream_feature} (${o.via}, ${o.confidence})`);
+			for (const i of r.evaluation.blockingInbound) console.log(`    BLOCKING (inbound): ${i.change_key} from ${i.upstream_feature}, unacknowledged`);
+		}
+	}
+	const anyBlocking = results.some((r) => r.evaluation.blocking);
+	process.exit(anyBlocking ? EXIT_CODES.AWAITING_DISPOSITION : EXIT.PASS);
+}
+
+// D-cross-feature-impact-graph: the DECIDE half -- refuses (exit 3) if anything proven is
+// undisposed, otherwise atomically rewrites impact-baseline.json from the CURRENT surface.
+function cmdImpactAccept(args) {
+	const flags = parseCommand('impact accept', args);
+	if (flags.help) { console.log(renderCommandHelp('impact accept')); process.exit(0); }
+	setContext('impact accept', flags);
+	const root = requireRepoRoot();
+	let result;
+	try {
+		result = acceptImpact(root, flags.feature);
+	} catch (err) {
+		if (err instanceof ImpactOperationError) fail(err.exitCode, err.reasonCode, err.message);
+		throw err;
+	}
+	const gateState = passNamedGate(root, 'impact', flags.feature);
+	if (flags.json) {
+		console.log(JSON.stringify({ ...result, gate: gateState.gates.impact }, null, 2));
+	} else {
+		console.log(`accepted: ${flags.feature} -- baseline captured at ${result.baseline.captured_at}`);
+		console.log(`gate: impact -> ${gateState.gates.impact.status}`);
+	}
+	process.exit(EXIT.PASS);
+}
+
+function cmdImpactDisposition(args) {
+	const flags = parseCommand('impact disposition', args);
+	if (flags.help) { console.log(renderCommandHelp('impact disposition')); process.exit(0); }
+	setContext('impact disposition', flags);
+	const root = requireRepoRoot();
+	let result;
+	try {
+		result = recordDisposition(root, {
+			feature: flags.feature, changeKey: flags.change, downstreamFeature: flags.downstream,
+			mode: flags.mode, reason: flags.reason, trackedBy: flags['tracked-by'],
+			expiresDays: flags['expires-days'] != null ? Number(flags['expires-days']) : null,
+		});
+	} catch (err) {
+		if (err instanceof ImpactOperationError) fail(err.exitCode, err.reasonCode, err.message);
+		throw err;
+	}
+	if (flags.json) {
+		console.log(JSON.stringify(result, null, 2));
+	} else {
+		console.log(`disposition recorded: ${flags.change} -> ${flags.downstream} (${flags.mode})`);
+	}
+	process.exit(EXIT.PASS);
+}
+
+function cmdImpactAck(args) {
+	const flags = parseCommand('impact ack', args);
+	if (flags.help) { console.log(renderCommandHelp('impact ack')); process.exit(0); }
+	setContext('impact ack', flags);
+	const root = requireRepoRoot();
+	let result;
+	try {
+		result = acknowledgeInbound(root, { feature: flags.feature, from: flags.from, changeKey: flags.change, reason: flags.reason });
+	} catch (err) {
+		if (err instanceof ImpactOperationError) fail(err.exitCode, err.reasonCode, err.message);
+		throw err;
+	}
+	if (flags.json) {
+		console.log(JSON.stringify(result, null, 2));
+	} else {
+		console.log(`acknowledged: ${flags.change} from ${flags.from}`);
+	}
+	process.exit(EXIT.PASS);
+}
+
+// D-cross-feature-impact-graph (IG8/IG9): the one seam to the LLM-driven exploration layer -- writes
+// data only, spawns nothing, never touches a gate. `--format graphify` writes graphify's own native
+// extraction shape directly (see lib/impact-export-graphify.mjs's header for why this bypasses its
+// own Steps 1-3 entirely).
+function cmdImpactExport(args) {
+	const flags = parseCommand('impact export', args);
+	if (flags.help) { console.log(renderCommandHelp('impact export')); process.exit(0); }
+	setContext('impact export', flags);
+	const root = requireRepoRoot();
+	if (!['graphify', 'json', 'mermaid'].includes(flags.format)) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--format must be one of graphify|json|mermaid (got "${flags.format}")`);
+	}
+	const graph = buildImpactGraph(root);
+	const rings = flags.rings != null ? Number(flags.rings) : null;
+	if (rings != null && !flags.focus) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', '--rings only has an effect together with --focus');
+
+	let output;
+	if (flags.format === 'json') output = `${JSON.stringify(graph, null, 2)}\n`;
+	else if (flags.format === 'mermaid') output = `${toMermaid(graph)}\n`;
+	else output = `${JSON.stringify(toGraphifyExtraction(graph, { focus: flags.focus, rings }), null, 2)}\n`;
+
+	if (flags.out) {
+		writeFileAtomic(flags.out, output);
+		console.log(`wrote ${flags.out}`);
+	} else {
+		process.stdout.write(output);
+	}
+	process.exit(EXIT.PASS);
 }
 
 // D-business-rules (R6): compiles specs/<id>/rules.yaml (optional) plus the feature's own contract
@@ -4519,6 +4666,18 @@ async function dispatchCommand(cmd, rest) {
 			if (sub === 'declare') return cmdDependencyDeclare(subArgs);
 			if (sub === 'remove') return cmdDependencyRemove(subArgs);
 			if (sub === 'list') return cmdDependencyList(subArgs);
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'impact': {
+			const sub = rest[0];
+			const subArgs = rest.slice(1);
+			if (sub === 'check') return cmdImpactCheck(subArgs);
+			if (sub === 'accept') return cmdImpactAccept(subArgs);
+			if (sub === 'disposition') return cmdImpactDisposition(subArgs);
+			if (sub === 'ack') return cmdImpactAck(subArgs);
+			if (sub === 'export') return cmdImpactExport(subArgs);
 			usage();
 			process.exit(14);
 			break;

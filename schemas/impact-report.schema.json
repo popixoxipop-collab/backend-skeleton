@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:impact-report:1",
+  "title": "backend-skeleton impact check report",
+  "description": "Validates specs/<feature_id>/impact-report.json, written by `bskel impact check` -- READ-mostly: diffs the current surface against impact-baseline.json and walks the impact graph, but never advances the baseline itself (only `bskel impact accept` does that). `unknowns` follows cross-feature-report.schema.json's own 'detect and warn, never silently omit' posture verbatim. See D-cross-feature-impact-graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "feature_id", "generated_at", "baseline", "changes", "outbound", "inbound", "unknowns"],
+  "properties": {
+    "schema": { "const": "sbf.impact-report/1" },
+    "feature_id": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "captured_at": { "type": ["string", "null"] }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["change_key", "kind", "subject"],
+        "properties": {
+          "change_key": { "type": "string", "description": "\"<kind>:<subject>:<new_hash_12>\" -- embeds the NEW hash, so a disposition recorded for one shape can never cover a later, different change to the same subject." },
+          "kind": {
+            "enum": [
+              "operation_added", "operation_removed", "operation_verb_changed", "operation_path_changed",
+              "operation_request_shape_changed", "operation_response_shape_changed", "operation_error_shape_changed",
+              "resource_removed", "resource_table_changed", "field_source_moved"
+            ]
+          },
+          "subject": { "type": "string" },
+          "from": {},
+          "to": {}
+        }
+      }
+    },
+    "outbound": {
+      "description": "Impact THIS feature's changes have on other, downstream features -- what `bskel impact accept` blocks on when confidence is 'proven'.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["change_key", "downstream_feature", "via", "confidence", "disposition"],
+        "properties": {
+          "change_key": { "type": "string" },
+          "downstream_feature": { "type": "string" },
+          "via": { "enum": ["derives_from", "fk_references", "name_collides_with"] },
+          "basis": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "artifact": { "type": "string" },
+              "artifact_sha256": { "type": ["string", "null"] },
+              "locator": { "type": "string" }
+            }
+          },
+          "confidence": { "enum": ["proven", "heuristic"] },
+          "disposition": { "enum": ["compatible", "migrate", "waive", null] }
+        }
+      }
+    },
+    "inbound": {
+      "description": "Migration obligations another feature's own impact accept recorded AGAINST this feature -- what `bskel impact ack` clears.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["upstream_feature", "change_key", "mode", "tracked_by", "acknowledged"],
+        "properties": {
+          "upstream_feature": { "type": "string" },
+          "change_key": { "type": "string" },
+          "mode": { "const": "migrate" },
+          "tracked_by": { "type": "string" },
+          "acknowledged": { "type": "boolean" }
+        }
+      }
+    },
+    "unknowns": { "type": "array", "items": { "type": "string" } }
+  }
+}

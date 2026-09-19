@@ -399,6 +399,44 @@ bskel dependency remove --feature 001-widget-management --resource WidgetDto --f
   --reason "no longer coupled"
 ```
 
+### Cross-feature impact graph: field-level change detection with a mandatory disposition (optional)
+
+`bskel dependency declare` above records that an edge EXISTS; it does not, by itself, tell the
+*source* feature when its own contract/resource shape actually changes in a way that breaks the
+downstream side. `bskel impact check`/`bskel impact accept` close that gap -- an `impact` gate,
+complementing `dependencies`, that blocks the feature that CHANGED (not just the one depending on
+it) until every downstream impact has an explicit `compatible`/`migrate`/`waive` disposition:
+
+```bash
+bskel impact accept --feature 002-organization-management            # capture the first baseline
+# ... later, OrganizationDto.taxRate's backing file changes ...
+bskel impact check --feature 002-organization-management --json      # names the exact change_key + downstream feature
+bskel impact disposition --feature 002-organization-management \
+  --change <change_key> --downstream 001-widget-management \
+  --mode compatible --reason "purely additive"                       # or --mode migrate --tracked-by "ISSUE-42"
+                                                                       #    or --mode waive --expires-days 14
+bskel impact accept --feature 002-organization-management            # unblocked; advances the baseline
+bskel impact check --all --json                                      # the recommended CI invocation -- sweeps every feature
+```
+
+A `migrate` disposition creates a real two-sided handshake: it records an INBOUND obligation on the
+downstream feature (`001-widget-management` here), whose own `impact` gate stays blocked until it
+runs `bskel impact ack --feature 001-widget-management --from 002-organization-management --change
+<change_key> --reason "..."`. Every disposition key embeds a hash of the NEW change, so a
+disposition recorded for one shape never silently covers a later, different change to the same
+field -- there is no wildcard. Only `proven` (exact-identity) impacts block; `heuristic` ones
+(a guessed table name, a lower-confidence collision) are always reported, never blocking on their
+own. Not a `handles emit` prerequisite (gated only at `bskel verify`) -- this repo's own
+`cross_feature`-gate CI incident is why. See `D-cross-feature-impact-graph` in `DECISIONS.md`.
+
+`bskel impact export --format graphify|json|mermaid [--out <path>] [--focus <node-id>] [--rings N]`
+is the one LLM-free seam to an exploration layer: `--format graphify` writes the locally-installed
+`graphify` skill's own native extraction file shape directly (no install/detect/extract steps, no
+LLM call, no network) -- a consumer runs `graphify.build.build_from_json()` + `cluster()` +
+`to_obsidian()` on it to get a browsable Obsidian vault of the whole cross-feature graph.
+`--focus`/`--rings` write a Focus+Context data projection (`ring`/`detail`, inspired by Lamping/
+Rao/Pirolli's 1995 hyperbolic-tree technique) into the export only -- never read back by any gate.
+
 `bskel serve [--port N] [--host <addr>]` starts a small local HTTP server (loopback-only by
 default, matching this project's "safe default, explicit override" convention) that serves a
 read-only browser UI at `/` for the whole repo's dependency graph, backed by `GET /api/graph`. The

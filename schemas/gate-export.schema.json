@@ -5,44 +5,127 @@
   "description": "D-attestation-payload-completeness: additive bump from sbf.gate-export/1 (D-gate-attestation-signing) -- every /1 field keeps its exact name, position, and meaning; new content (tool, artifacts, decisions, verdict, gates.*.live, and 5 new git.* fields) is added alongside. `current` mirrors schemas/state.schema.json's own per-gate record shape exactly (the raw, stored record getGate() returns -- status constrained to the 3 values ever WRITTEN to disk). `gates.*.live` is RECOMPUTED at export time (lib/verify.mjs's collectGateStatuses(), the same function `bskel verify` uses) so `current` (what was last written) and `live` (what is honestly true right now) can be compared side by side -- a gate whose stored record says pass but whose inputs have since changed shows current.status:\"pass\" and live.status:\"stale\" together. `additionalProperties` stays open on `gates` itself (keyed by gate name) so this schema never needs editing when a new gate is added -- GATE_NAMES in lib/gate-definitions.mjs is the one place that list lives.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "feature_id", "generated_at", "tool", "git", "artifacts", "gates", "decisions", "verdict"],
+  "required": [
+    "schema",
+    "feature_id",
+    "generated_at",
+    "tool",
+    "git",
+    "artifacts",
+    "gates",
+    "decisions",
+    "verdict"
+  ],
   "properties": {
-    "schema": { "const": "sbf.gate-export/2" },
-    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
-    "generated_at": { "type": "string", "format": "date-time" },
+    "schema": {
+      "const": "sbf.gate-export/3"
+    },
+    "feature_id": {
+      "type": "string",
+      "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "tool": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "version", "gate_names", "canonicalization"],
+      "required": [
+        "name",
+        "version",
+        "gate_names",
+        "canonicalization"
+      ],
       "properties": {
-        "name": { "const": "bskel" },
-        "version": { "type": "string", "description": "backend-skeleton's own package.json version -- lib/gate-export.mjs's toolVersion(), never the TARGET repo's version." },
-        "gate_names": { "type": "array", "items": { "type": "string" }, "description": "GATE_NAMES at export time -- lets a verifier on a different bskel build see that the signer's gate set differs from its own." },
-        "canonicalization": { "const": "sortkeysdeep-json", "description": "lib/attest.mjs's CANONICALIZATION_ID -- the named algorithm this payload was canonicalized with before signing." }
+        "name": {
+          "const": "bskel"
+        },
+        "version": {
+          "type": "string",
+          "description": "backend-skeleton's own package.json version -- lib/gate-export.mjs's toolVersion(), never the TARGET repo's version."
+        },
+        "gate_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "GATE_NAMES at export time -- lets a verifier on a different bskel build see that the signer's gate set differs from its own."
+        },
+        "canonicalization": {
+          "const": "sortkeysdeep-json",
+          "description": "lib/attest.mjs's CANONICALIZATION_ID -- the named algorithm this payload was canonicalized with before signing."
+        }
       }
     },
     "git": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["branch", "head_sha", "dirty", "head_tree_sha", "dirty_acknowledged", "dirty_file_count", "dirty_files_truncated", "dirty_files"],
+      "required": [
+        "branch",
+        "head_sha",
+        "dirty",
+        "head_tree_sha",
+        "dirty_acknowledged",
+        "dirty_file_count",
+        "dirty_files_truncated",
+        "dirty_files"
+      ],
       "properties": {
-        "branch": { "type": ["string", "null"], "description": "lib/repo.mjs's currentBranch() -- null on failure, or the literal string \"HEAD\" for a detached HEAD (not a real branch name)." },
-        "head_sha": { "type": "string" },
-        "dirty": { "type": ["boolean", "null"], "description": "lib/repo.mjs's isDirty()-equivalent (derived from worktreeStatus()) -- null on failure. true covers BOTH modified tracked files and untracked files (git status --porcelain, no -uno)." },
-        "head_tree_sha": { "type": ["string", "null"], "description": "git rev-parse HEAD^{tree} -- the CONTENT identity of HEAD, distinct from head_sha (its commit identity). null on git failure." },
-        "dirty_acknowledged": { "type": "boolean", "description": "true iff `--allow-dirty` was passed to `gate export --sign` for THIS export -- see D-attestation-payload-completeness K4. Always false for an unsigned export." },
-        "dirty_file_count": { "type": "integer", "minimum": 0 },
-        "dirty_files_truncated": { "type": "boolean", "description": "true iff dirty_file_count exceeds the cap and dirty_files below was truncated." },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "lib/repo.mjs's currentBranch() -- null on failure, or the literal string \"HEAD\" for a detached HEAD (not a real branch name)."
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "dirty": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "lib/repo.mjs's isDirty()-equivalent (derived from worktreeStatus()) -- null on failure. true covers BOTH modified tracked files and untracked files (git status --porcelain, no -uno)."
+        },
+        "head_tree_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "git rev-parse HEAD^{tree} -- the CONTENT identity of HEAD, distinct from head_sha (its commit identity). null on git failure."
+        },
+        "dirty_acknowledged": {
+          "type": "boolean",
+          "description": "true iff `--allow-dirty` was passed to `gate export --sign` for THIS export -- see D-attestation-payload-completeness K4. Always false for an unsigned export."
+        },
+        "dirty_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dirty_files_truncated": {
+          "type": "boolean",
+          "description": "true iff dirty_file_count exceeds the cap and dirty_files below was truncated."
+        },
         "dirty_files": {
           "type": "array",
           "description": "sorted by path, capped (see dirty_files_truncated). Deliberately NO file content hashes -- see D-attestation-payload-completeness's EXIT list.",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["status", "path"],
+            "required": [
+              "status",
+              "path"
+            ],
             "properties": {
-              "status": { "type": "string", "description": "the raw 2-character `git status --porcelain` status code (e.g. \" M\", \"??\", \"R \")." },
-              "path": { "type": "string" }
+              "status": {
+                "type": "string",
+                "description": "the raw 2-character `git status --porcelain` status code (e.g. \" M\", \"??\", \"R \")."
+              },
+              "path": {
+                "type": "string"
+              }
             }
           }
         }
@@ -53,24 +136,136 @@
       "additionalProperties": false,
       "description": "D-attestation-payload-completeness (K2/K8): every key here comes from lib/gate-export.mjs's ARTIFACT_SOURCES table, unconditionally -- hashed FRESH at export time, independent of whether any gate ever passed. sha256 hex digest, or null when the file does not exist.",
       "required": [
-        "scan_report_hash", "spec_hash", "contract_hash", "contract_resolution_hash", "openapi_snapshot_hash",
-        "cross_feature_report_hash", "cross_feature_resolution_hash", "dependencies_hash",
-        "rules_source_hash", "rules_compiled_hash", "conformance_report_hash", "handles_manifest_hash", "stack_record_hash"
+        "scan_report_hash",
+        "spec_hash",
+        "contract_hash",
+        "contract_resolution_hash",
+        "openapi_snapshot_hash",
+        "cross_feature_report_hash",
+        "cross_feature_resolution_hash",
+        "dependencies_hash",
+        "rules_source_hash",
+        "rules_compiled_hash",
+        "conformance_report_hash",
+        "handles_manifest_hash",
+        "stack_record_hash",
+        "impact_baseline_hash",
+        "impact_report_hash",
+        "impact_resolution_hash"
       ],
       "properties": {
-        "scan_report_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "spec_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "contract_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "contract_resolution_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "openapi_snapshot_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "cross_feature_report_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "cross_feature_resolution_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "dependencies_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "rules_source_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "rules_compiled_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "conformance_report_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "handles_manifest_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "stack_record_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+        "scan_report_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "spec_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract_resolution_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "openapi_snapshot_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cross_feature_report_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cross_feature_resolution_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dependencies_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rules_source_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rules_compiled_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "conformance_report_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "handles_manifest_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "stack_record_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "impact_baseline_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "impact_report_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "impact_resolution_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
       }
     },
     "gates": {
@@ -78,24 +273,56 @@
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["scope", "current", "live", "history"],
+        "required": [
+          "scope",
+          "current",
+          "live",
+          "history"
+        ],
         "properties": {
-          "scope": { "type": "string", "description": "the resolved scope id this gate was read from -- REPO_GATE_ID (\"_repo\") for a repo-scoped gate, or the feature_id itself." },
+          "scope": {
+            "type": "string",
+            "description": "the resolved scope id this gate was read from -- REPO_GATE_ID (\"_repo\") for a repo-scoped gate, or the feature_id itself."
+          },
           "current": {
             "anyOf": [
-              { "type": "null" },
+              {
+                "type": "null"
+              },
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["status", "token", "at"],
+                "required": [
+                  "status",
+                  "token",
+                  "at"
+                ],
                 "properties": {
-                  "status": { "enum": ["pass", "awaiting_disposition", "revoked"] },
-                  "token": { "type": "string" },
-                  "at": { "type": "string" },
-                  "forced": { "type": "boolean" },
-                  "reason": { "type": "string" },
-                  "evidence": { "type": "object" },
-                  "inputs": { "type": "object" }
+                  "status": {
+                    "enum": [
+                      "pass",
+                      "awaiting_disposition",
+                      "revoked"
+                    ]
+                  },
+                  "token": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "forced": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "evidence": {
+                    "type": "object"
+                  },
+                  "inputs": {
+                    "type": "object"
+                  }
                 }
               }
             ]
@@ -103,21 +330,77 @@
           "live": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["policy", "status", "blocking", "ran", "current_token", "stale_reason", "changed_inputs"],
+            "required": [
+              "policy",
+              "status",
+              "blocking",
+              "ran",
+              "current_token",
+              "stale_reason",
+              "changed_inputs"
+            ],
             "description": "RECOMPUTED at export time via the same lib/verify.mjs#collectGateStatuses() `bskel verify` uses -- the honest, read-time-derived verdict, as opposed to `current` (the raw stored record).",
             "properties": {
-              "policy": { "enum": ["required", "required-when-present"] },
-              "status": { "enum": ["pass", "pass (forced)", "stale", "not_run", "awaiting_disposition", "revoked"] },
-              "blocking": { "type": "boolean", "description": "whether THIS gate's current live status blocks bskel verify's overall verdict (lib/verify.mjs#isBlockingGateResult)." },
-              "ran": { "type": "boolean" },
-              "current_token": { "type": ["string", "null"] },
-              "stale_reason": { "type": ["string", "null"], "enum": ["inputs_changed", "no_recorded_inputs", "recorded_inputs_mismatch", "unknown", "ttl_expired", "invalid_timestamp", null] },
-              "changed_inputs": { "type": ["array", "null"], "items": { "type": "string" } }
+              "policy": {
+                "enum": [
+                  "required",
+                  "required-when-present"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "pass",
+                  "pass (forced)",
+                  "stale",
+                  "not_run",
+                  "awaiting_disposition",
+                  "revoked"
+                ]
+              },
+              "blocking": {
+                "type": "boolean",
+                "description": "whether THIS gate's current live status blocks bskel verify's overall verdict (lib/verify.mjs#isBlockingGateResult)."
+              },
+              "ran": {
+                "type": "boolean"
+              },
+              "current_token": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "stale_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "inputs_changed",
+                  "no_recorded_inputs",
+                  "recorded_inputs_mismatch",
+                  "unknown",
+                  "ttl_expired",
+                  "invalid_timestamp",
+                  null
+                ]
+              },
+              "changed_inputs": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           },
           "history": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object"
+            }
           }
         }
       }
@@ -125,44 +408,125 @@
     "decisions": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["forced", "revoked", "waiver_files"],
+      "required": [
+        "forced",
+        "revoked",
+        "waiver_files"
+      ],
       "description": "D-attestation-payload-completeness (K2): rolled up purely from the gate records already in `gates` above -- zero new file reads.",
       "properties": {
         "forced": {
           "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["gate", "scope", "reason", "at"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gate",
+              "scope",
+              "reason",
+              "at"
+            ],
             "properties": {
-              "gate": { "type": "string" }, "scope": { "type": "string" },
-              "reason": { "type": ["string", "null"] }, "at": { "type": ["string", "null"] }
+              "gate": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           }
         },
         "revoked": {
           "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["gate", "scope", "reason", "at"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gate",
+              "scope",
+              "reason",
+              "at"
+            ],
             "properties": {
-              "gate": { "type": "string" }, "scope": { "type": "string" },
-              "reason": { "type": ["string", "null"] }, "at": { "type": ["string", "null"] }
+              "gate": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           }
         },
         "waiver_files": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["contract_resolution", "cross_feature_resolution"],
+          "required": [
+            "contract_resolution",
+            "cross_feature_resolution"
+          ],
           "description": "presence + hash only -- the CONTENT is already bound via `artifacts` above (contract_resolution_hash / cross_feature_resolution_hash), never embedded here a second time.",
           "properties": {
             "contract_resolution": {
-              "type": "object", "additionalProperties": false, "required": ["present", "hash"],
-              "properties": { "present": { "type": "boolean" }, "hash": { "type": ["string", "null"] } }
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "present",
+                "hash"
+              ],
+              "properties": {
+                "present": {
+                  "type": "boolean"
+                },
+                "hash": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             },
             "cross_feature_resolution": {
-              "type": "object", "additionalProperties": false, "required": ["present", "hash"],
-              "properties": { "present": { "type": "boolean" }, "hash": { "type": ["string", "null"] } }
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "present",
+                "hash"
+              ],
+              "properties": {
+                "present": {
+                  "type": "boolean"
+                },
+                "hash": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         }
@@ -171,13 +535,31 @@
     "verdict": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["blocking_gates", "passing", "total", "ok"],
+      "required": [
+        "blocking_gates",
+        "passing",
+        "total",
+        "ok"
+      ],
       "description": "D-attestation-payload-completeness (K2/K3): pure derivation from gates[*].live -- what a human or CI actually greps for.",
       "properties": {
-        "blocking_gates": { "type": "array", "items": { "type": "string" } },
-        "passing": { "type": "integer", "minimum": 0 },
-        "total": { "type": "integer", "minimum": 0 },
-        "ok": { "type": "boolean" }
+        "blocking_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "passing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok": {
+          "type": "boolean"
+        }
       }
     }
   }

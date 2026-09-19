@@ -18,7 +18,7 @@ test('a freshly-initialized feature (no gates run yet beyond preflight/scan) exp
 	const result = run(['gate', 'export', '--feature', FEATURE], root);
 	assert.equal(result.code, 0);
 	const report = JSON.parse(result.stdout);
-	assert.equal(report.schema, 'sbf.gate-export/2');
+	assert.equal(report.schema, 'sbf.gate-export/3');
 	assert.equal(report.feature_id, FEATURE);
 	assert.equal(report.gates.preflight.current.status, 'pass');
 	assert.equal(report.gates.scan.current.status, 'pass');
@@ -68,7 +68,7 @@ test('--out writes the report to a file and prints a summary line with a real pa
 	assert.match(result.stdout, new RegExp(`wrote evidence\\.json -- \\d+/${GATE_NAMES.length} gate\\(s\\) currently passing`));
 
 	const written = JSON.parse(fs.readFileSync(path.join(root, 'evidence.json'), 'utf8'));
-	assert.equal(written.schema, 'sbf.gate-export/2');
+	assert.equal(written.schema, 'sbf.gate-export/3');
 	assert.equal(written.git.branch, 'develop');
 	assert.equal(written.git.dirty, false);
 	const realHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();

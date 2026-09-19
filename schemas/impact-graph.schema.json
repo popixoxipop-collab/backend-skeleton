@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:impact-graph:1",
+  "title": "backend-skeleton cross-feature impact graph",
+  "description": "Validates the return shape of lib/impact-graph.mjs's buildImpactGraph(root) and `bskel impact export --format json`'s output. D-cross-feature-impact-graph. Every node id is an already-persisted exact identity (a feature id, a contract operation key, a scan-report resourceType, a table name, or a declared dependency field) -- there is no inferred/guessed node. Every edge carries `basis` (which artifact, and its sha256, proves this edge exists) and `confidence` ('proven'|'heuristic') so a consumer can tell a name-identity match backed by an explicit @Table/@Column from one backed by an adapter's guessed fallback. Deliberately no `calls` relation and no third confidence value -- service-to-service/dynamic-client inference is out of scope (see DECISIONS.md's EXIT list), and a missing edge is honest while a guessed one is not.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generated_at", "nodes", "edges"],
+  "properties": {
+    "schema": { "const": "sbf.impact-graph/1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "label"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["feature", "operation", "resource", "table", "field"] },
+          "label": { "type": "string" },
+          "feature_id": { "type": ["string", "null"] },
+          "file": { "type": ["string", "null"], "description": "Repo-relative source file, when this node resolves to one (resource/field)." },
+          "attrs": { "type": "object", "description": "Type-specific extra facts (verb/path for operation, table/tableSource for resource, etc.) -- open, since node types genuinely carry different metadata." }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "target", "relation", "confidence", "basis"],
+        "properties": {
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "relation": { "enum": ["declares_operation", "owns_resource", "maps_to_table", "derives_from", "fk_references", "name_collides_with"] },
+          "confidence": { "enum": ["proven", "heuristic"] },
+          "basis": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["artifact", "artifact_sha256", "locator"],
+            "properties": {
+              "artifact": { "type": "string", "description": "Repo-relative path to the persisted file this edge was read from." },
+              "artifact_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+              "locator": { "type": "string", "description": "Where inside the artifact, e.g. a JSON pointer or field name -- human-navigable, not machine-parsed." }
+            }
+          }
+        }
+      }
+    }
+  }
+}

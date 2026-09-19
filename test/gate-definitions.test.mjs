@@ -6,12 +6,18 @@
 // lib/verify.mjs's old local GATE_SPECS, so `bskel verify` never even looked at it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	GATE_DEFINITIONS, GATE_NAMES, SCOPE, VERIFY_POLICY, REPO_GATE_ID,
 	getGateDefinition, requireGateDefinition, gateScopeId, gateInputs,
 } from '../lib/gate-definitions.mjs';
 import { isBlockingGateResult } from '../lib/verify.mjs';
 import { EXIT } from '../lib/gates.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LIB_DIR = path.join(__dirname, '..', 'lib');
 
 test('every gate definition has name/scope/verifyPolicy/recompute', () => {
 	for (const name of GATE_NAMES) {
@@ -44,7 +50,7 @@ test('gateScopeId: repo-scoped gates always resolve to REPO_GATE_ID, feature-sco
 test('getGateDefinition returns null and requireGateDefinition throws for an unknown gate name', () => {
 	assert.equal(getGateDefinition('bogus-gate'), null);
 	assert.throws(() => requireGateDefinition('bogus-gate'), /unknown gate "bogus-gate"/);
-	assert.throws(() => requireGateDefinition('bogus-gate'), /preflight, scan, cross_feature, contract, dependencies, rules, handles, stack, patch_transactions, conformance/);
+	assert.throws(() => requireGateDefinition('bogus-gate'), /preflight, scan, cross_feature, contract, dependencies, impact, rules, handles, stack, patch_transactions, conformance/);
 });
 
 // D-security-3-shaped defense: `constructor`/`__proto__`/`toString` must not resolve to
@@ -136,4 +142,51 @@ test('only preflight declares a freshness policy; every other gate has none', ()
 		if (name === 'preflight') continue;
 		assert.equal(GATE_DEFINITIONS[name].freshness, undefined, `"${name}" must not declare a freshness policy`);
 	}
+});
+
+// D-cross-feature-impact-graph (T6, IG4): the `impact` gate's own recompute() must stay pure
+// sha256File() -- real work (lib/impact-graph.mjs's buildImpactGraph(), and anything it pulls in
+// transitively) must be structurally UNREACHABLE from this module, not merely absent by
+// convention. A static import-graph walk (relative imports only, one file per visit) starting at
+// lib/gate-definitions.mjs itself, asserting no forbidden module is ever reached.
+function transitiveLocalImports(entryFile) {
+	const seen = new Set();
+	const queue = [path.resolve(entryFile)];
+	const externalSpecifiers = new Set();
+	while (queue.length > 0) {
+		const file = queue.shift();
+		if (seen.has(file)) continue;
+		seen.add(file);
+		if (!fs.existsSync(file)) continue;
+		const src = fs.readFileSync(file, 'utf8');
+		for (const m of src.matchAll(/^import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"];?/gm)) {
+			const spec = m[1];
+			if (spec.startsWith('.')) {
+				queue.push(path.resolve(path.dirname(file), spec));
+			} else {
+				externalSpecifiers.add(spec);
+			}
+		}
+	}
+	return { localFiles: seen, externalSpecifiers };
+}
+
+// Deliberately does NOT forbid node:child_process -- lib/repo.mjs (already imported here, pre-
+// dating this item) legitimately shells out to `git` for head_sha/etc, and that is not the risk
+// this test guards against. The actual guarantee: no live-DB driver (`pg`) and no HTTP/network
+// primitive reach this module's closure -- a gate whose recompute() could open a socket or a live
+// database connection is a different availability/risk class this project has consistently
+// refused elsewhere (see D-db-schema-plane's own "no gate whose recomputation requires a live DB
+// connection" boundary).
+test('T6: lib/gate-definitions.mjs\'s transitive import closure contains no node:http/pg -- buildImpactGraph() and any live-DB/network path are structurally unreachable from the fast verify/require path', () => {
+	const { externalSpecifiers } = transitiveLocalImports(path.join(LIB_DIR, 'gate-definitions.mjs'));
+	for (const forbidden of ['node:http', 'node:https', 'pg']) {
+		assert.ok(!externalSpecifiers.has(forbidden), `gate-definitions.mjs's import closure must never reach "${forbidden}" -- found it. Specifiers seen: ${[...externalSpecifiers].sort().join(', ')}`);
+	}
+});
+
+test('T6: the impact gate\'s recompute() is byte-identical across two calls over an unchanged tree', () => {
+	const inputsA = JSON.stringify(GATE_DEFINITIONS.impact.recompute(process.cwd(), '001-does-not-exist'));
+	const inputsB = JSON.stringify(GATE_DEFINITIONS.impact.recompute(process.cwd(), '001-does-not-exist'));
+	assert.equal(inputsA, inputsB);
 });
