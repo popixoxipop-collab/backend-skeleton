@@ -2,7 +2,7 @@ package {{BASE_PACKAGE}}.domain.{{MODULE}}.infrastructure;
 
 import {{BASE_PACKAGE}}.global.handle.ResourceResolver;
 import {{SERVICE_IMPORT}};
-{{PATCH_IMPORTS}}import lombok.RequiredArgsConstructor;
+{{PATCH_IMPORTS}}{{POLICY_IMPORT}}import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -38,7 +38,7 @@ import java.util.UUID;
 public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 
 	private final {{SERVICE_TYPE}} {{SERVICE_FIELD}};
-{{PATCH_FIELDS}}
+{{PATCH_FIELDS}}{{POLICY_FIELD}}
 	// D-resolver-policy-split: these five delegate to {{RESOURCE_TYPE}}ResolverPolicy (a separate
 	// generated file) rather than implementing the values directly -- see that class's own
 	// javadoc for why. Their TEXT never changes when the underlying value changes, which is what
@@ -83,4 +83,4 @@ public class {{RESOURCE_TYPE}}Resolver implements ResourceResolver {
 	public UUID featureUid() {
 		return {{RESOURCE_TYPE}}ResolverPolicy.featureUid();
 	}
-}
+{{POLICY_OVERRIDES}}}

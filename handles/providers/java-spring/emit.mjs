@@ -7,6 +7,7 @@ import { computeCodegenNeeds, renderPatchFieldBody } from './patch-strategy.mjs'
 import { sha256File } from '../../../lib/fsutil.mjs';
 import { specPath } from '../../../lib/paths.mjs';
 import { loadFeatureFile } from '../../../lib/featurelifecycle.mjs';
+import { policyRequiresResolution } from './plan.mjs';
 
 const PROVIDER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(PROVIDER_ROOT, 'templates');
@@ -17,6 +18,10 @@ const RESOLVER_TEMPLATE = path.join(TEMPLATES_DIR, 'ResourceResolverStub.java.tm
 // this separate, always-safe-to-regenerate companion file rather than the same file as the
 // hand-editable patchField() body -- see the template's own javadoc and DECISIONS.md.
 const RESOLVER_POLICY_TEMPLATE = path.join(TEMPLATES_DIR, 'ResourceResolverPolicyStub.java.tmpl');
+// D-resolver-policy-contract (PC4): only ever emitted for a resource whose authorizationMode is
+// 'delegated' -- a generated interface bskel deliberately never implements (see the template's
+// own javadoc for the startup-failure mechanism this relies on).
+const AUTHZ_POLICY_TEMPLATE = path.join(TEMPLATES_DIR, 'AuthorizationPolicyStub.java.tmpl');
 
 const INFRA_FILES = [
 	{ template: 'HandleCodec.java.tmpl', target: 'global/handle/HandleCodec.java' },
@@ -128,6 +133,56 @@ function buildPatchFields() {
 	return '\tprivate final Validator validator;\n\tprivate final ObjectMapper objectMapper;\n';
 }
 
+// D-resolver-policy-contract (PC4): the three ResourceResolverStub.java.tmpl token builders below
+// all render '' for a materialized resource -- byte-identical output to before this item existed.
+// Only a 'delegated' resource (see plan.mjs's authorizationMode) gets non-empty values.
+function buildPolicyImport(basePackage, module, resourceType) {
+	return `import ${basePackage}.domain.${module}.infrastructure.${resourceType}AuthorizationPolicy;\n`;
+}
+
+function buildPolicyField(resourceType) {
+	return `\tprivate final ${resourceType}AuthorizationPolicy authorizationPolicy;\n`;
+}
+
+function buildPolicyOverrides(resourceType) {
+	return [
+		'',
+		'\t@Override',
+		'\tpublic String authorizationMode() {',
+		`\t\treturn ${resourceType}ResolverPolicy.authorizationMode();`,
+		'\t}',
+		'',
+		'\t@Override',
+		'\tpublic boolean authorize(Authentication authentication, String action, UUID resourceUid, String pointer) {',
+		'\t\treturn authorizationPolicy.authorize(authentication, action, resourceUid, pointer);',
+		'\t}',
+		'',
+	].join('\n');
+}
+
+function escapeJavadoc(s) {
+	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// The AuthorizationPolicyStub.java.tmpl's own javadoc body -- one block per policies[] record that
+// actually NEEDS resolution (policyRequiresResolution() -- excludes the benign 'endpoint-absent'/
+// 'endpoint-method-absent' case, e.g. a read-only resource's nonexistent PATCH endpoint, so the
+// generated javadoc names only the real reason this file exists, never a distracting non-issue).
+// Only ever called for a resource that already has at least one such record (see the 'delegated'
+// gate below) -- the '' fallback exists for defensive completeness, not an expected path.
+function buildPolicyEvidenceJavadoc(policies) {
+	const lines = [];
+	for (const p of policies) {
+		if (!policyRequiresResolution(p)) continue;
+		const loc = p.evidence.file ? `${p.evidence.file}${p.evidence.line ? `:${p.evidence.line}` : ''}` : '(no source location)';
+		lines.push(` * <p><b>${escapeJavadoc(p.action)}</b>: {@code ${escapeJavadoc(p.evidence.kind)}} at ${escapeJavadoc(loc)}`);
+		if (p.evidence.symbol) lines.push(` * ({@code ${escapeJavadoc(p.evidence.symbol)}})`);
+		if (p.evidence.text) lines.push(` * <br>source: {@code ${escapeJavadoc(p.evidence.text)}}`);
+		if (p.reason) lines.push(` * <br>${escapeJavadoc(p.reason)}`);
+	}
+	return lines.length > 0 ? `${lines.join('\n')}\n` : '';
+}
+
 // The set of {resource, field} approvals whose recorded strategy still matches what the
 // classifier computes RIGHT NOW -- a stale approval (the DTO changed since approval) is excluded
 // here, not just skipped at codegen time, so callers never even have to reason about staleness
@@ -217,6 +272,11 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 			const { needsValidation, needsPatchFieldImport } = computeCodegenNeeds(patchable, approvedFields);
 			const serviceField = lowerFirst(resource.service.serviceType);
 			const sharedVars = { BASE_PACKAGE: basePackage, MODULE: plan.module, RESOURCE_TYPE: resource.type, FEATURE_ID: featureId };
+			// D-resolver-policy-contract (PC4): true only when plan.mjs's own refusal ladder
+			// (derivePolicy(), see plan.mjs) couldn't safely auto-derive a role-only check for
+			// fetch AND/OR patch -- one resource = one resolver bean = one mode, so either action
+			// being unresolved delegates the whole resolver (fail-closed by construction).
+			const delegated = resource.authorizationMode === 'delegated';
 			// D-resolver-policy-split: the resolver's own vars no longer include the four
 			// live-derived/security-relevant tokens -- those move to policyVars below, into a
 			// separate generated file, specifically so a hand-edited patchField() (which stales
@@ -238,6 +298,11 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 					approvedFields,
 					blockedReason: resource.updateServiceBlockedReason,
 				}),
+				// D-resolver-policy-contract (PC4): all three render '' for a materialized
+				// resource -- byte-identical output to before this item existed.
+				POLICY_IMPORT: delegated ? buildPolicyImport(basePackage, plan.module, resource.type) : '',
+				POLICY_FIELD: delegated ? buildPolicyField(resource.type) : '',
+				POLICY_OVERRIDES: delegated ? buildPolicyOverrides(resource.type) : '',
 			};
 			const policyVars = {
 				...sharedVars,
@@ -247,8 +312,11 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 				REQUIRED_AUTHORITY_PATCH: resource.requiredAuthorityForPatch,
 				CONTRACT_REF: contractRef,
 				FEATURE_UID: featureUid,
+				// D-resolver-policy-contract (PC2): always regenerated, regardless of mode -- see
+				// ResourceResolverPolicyStub.java.tmpl's own comment for why this is safe.
+				AUTHORIZATION_MODE: resource.authorizationMode ?? 'role',
 			};
-			return [
+			const units = [
 				{
 					id: 'ResourceResolverStub.java.tmpl',
 					resourceType: resource.type,
@@ -274,15 +342,32 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 					}),
 				},
 			];
+			if (delegated) {
+				const authzVars = { ...sharedVars, POLICY_EVIDENCE_JAVADOC: buildPolicyEvidenceJavadoc(resource.policies ?? []) };
+				units.push({
+					id: 'AuthorizationPolicyStub.java.tmpl',
+					resourceType: resource.type,
+					module: plan.module,
+					templatePath: AUTHZ_POLICY_TEMPLATE,
+					targetAbs: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure', `${resource.type}AuthorizationPolicy.java`),
+					rendered: render(AUTHZ_POLICY_TEMPLATE, authzVars),
+					pristineRenderFor: (ownerId) => render(AUTHZ_POLICY_TEMPLATE, { ...authzVars, FEATURE_ID: ownerId }),
+				});
+			}
+			return units;
 		});
 
 	const orphanScan = (!resourceFilter && plan.module) ? {
 		dir: path.join(javaSrcRoot, 'domain', plan.module, 'infrastructure'),
 		module: plan.module,
-		// D-resolver-policy-split: recognize both generated suffixes -- longest-first so
-		// 'FooResolverPolicy.java' isn't misclassified as a plain '...Policy' resource type.
-		matchesFile: (file) => file.endsWith('ResolverPolicy.java') || file.endsWith('Resolver.java'),
-		resourceTypeOf: (file, _content) => file.replace(/ResolverPolicy\.java$|Resolver\.java$/, ''),
+		// D-resolver-policy-split / D-resolver-policy-contract (PC11): recognize all three
+		// generated suffixes -- longest-first so 'FooAuthorizationPolicy.java'/'FooResolverPolicy.java'
+		// are never misclassified as a plain '...Policy'/'...Resolver' resource type. A resource
+		// that transitions unresolved -> materialized leaves its AuthorizationPolicy.java as a
+		// reported orphan (never auto-deleted, same never-delete bias D-migration-scope/
+		// D-config-patch already take for generated files bskel stops needing).
+		matchesFile: (file) => file.endsWith('AuthorizationPolicy.java') || file.endsWith('ResolverPolicy.java') || file.endsWith('Resolver.java'),
+		resourceTypeOf: (file, _content) => file.replace(/AuthorizationPolicy\.java$|ResolverPolicy\.java$|Resolver\.java$/, ''),
 	} : null;
 
 	// D-write-safety-phase0 (item 1): migration.sql used to be regenerated fresh every run,
@@ -331,5 +416,40 @@ export function emitJavaSpring({ repoRoot, featureId, plan, basePackage, resourc
 		}
 	}
 
-	return { ...result, postEmitNotes, registrationGaps };
+	// D-resolver-policy-contract (PC9): unconditional -- unlike registrationGaps above, this is NOT
+	// gated on enforceRegistry (an orthogonal axis: registry enforcement is about revocation/
+	// lifecycle and produces 404s; this is about authorization and produces a 403 or, for an
+	// unresolved resource, a boot failure). Ships default-on: bin/bskel.mjs blocks the gate on this
+	// unless --force --reason acknowledges it (same acknowledgement mechanism as registrationGaps).
+	const unresolvedPolicies = [];
+	for (const resource of plan.resources) {
+		if (!resource.willGenerateResolver) continue;
+		for (const p of resource.policies ?? []) {
+			// D-resolver-policy-contract (PC2 follow-up): excludes 'endpoint-absent'/
+			// 'endpoint-method-absent' -- see plan.mjs's policyRequiresResolution() for why (a
+			// read-only resource with no PATCH endpoint at all is a normal, common shape with
+			// nothing to protect, not the gap this item exists to close).
+			if (!policyRequiresResolution(p)) continue;
+			unresolvedPolicies.push({
+				resourceType: resource.type,
+				action: p.action,
+				kind: p.evidence.kind,
+				file: p.evidence.file,
+				line: p.evidence.line,
+				note: p.reason,
+			});
+		}
+	}
+	if (unresolvedPolicies.length > 0) {
+		const byResource = new Map();
+		for (const u of unresolvedPolicies) {
+			if (!byResource.has(u.resourceType)) byResource.set(u.resourceType, []);
+			byResource.get(u.resourceType).push(u.action);
+		}
+		for (const [resourceType, actions] of byResource) {
+			postEmitNotes.push(`${resourceType}: authorization could not be safely auto-derived for ${actions.join('/')} -- ${resourceType}AuthorizationPolicy.java was generated but is NOT implemented by anything. Your application will not start until a @Component implementing it exists. See that file's own javadoc for the exact evidence and reason.`);
+		}
+	}
+
+	return { ...result, postEmitNotes, registrationGaps, unresolvedPolicies };
 }

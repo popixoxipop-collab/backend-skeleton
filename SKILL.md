@@ -82,8 +82,16 @@ unsupported expression like `hasAnyRole`/SpEL rather than guessing). O5
 (`D-resolver-authorization-action-aware`): `patch()` no longer reuses `requiredAuthority()` --
 `requiredAuthorityForPatch()` is resolved independently from the entity's own UPDATE (PATCH/PUT)
 endpoint, since a real app's GET and PATCH roles can genuinely differ (fails closed to `TODO_ROLE`
-the same way when no update endpoint is found). Still spot-check both before trusting a generated
-resolver in anything sensitive -- this is a regex scanner, not a compiler.
+the same way when no update endpoint is found). A companion annotation this scanner cannot safely
+evaluate alongside an otherwise-safe `@PreAuthorize` (`@PostAuthorize`, `@Secured`, `@RolesAllowed`
+-- e.g. an ownership check) now refuses auto-materialization entirely, not just falls back to
+`TODO_ROLE` (`D-resolver-policy-contract` -- closes a real IDOR the old TODO_ROLE-only fallback
+missed: a companion `@PostAuthorize` ownership check used to be silently ignored while
+`@PreAuthorize(hasRole(...))` alone materialized). For such a resource, `handles emit` also writes
+an `{Type}AuthorizationPolicy.java` interface it never implements -- the target app will not START
+(not fail to build) until a `@Component` implementing it exists -- and `handles emit` itself exits
+23 until you implement it or acknowledge with `--force --reason`. Still spot-check both before
+trusting a generated resolver in anything sensitive -- this is a regex scanner, not a compiler.
 `patchField()` is ALWAYS a stub requiring a human/agent to finish it, because this codebase uses
 at least three different partial-update DTO conventions (see `D-resolver-scope` in
 `DECISIONS.md`) and guessing wrong would silently bypass real validation. Do not "helpfully"

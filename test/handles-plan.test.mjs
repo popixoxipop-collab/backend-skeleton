@@ -193,7 +193,13 @@ public class WidgetController {
 	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
 	const widget = plan.resources.find((r) => r.type === 'Widget');
 	assert.equal(widget.requiredAuthority, 'TODO_ROLE', 'must fail closed, not fall back to the weaker class-level role');
-	assert.ok(plan.notes.some((n) => n.includes('hasAnyRole/SpEL')), 'must explain why it fell back to TODO_ROLE');
+	// D-resolver-policy-contract: wording updated -- the ladder's own pre-authorize-unrecognized
+	// reason names what it does NOT evaluate (SpEL, hasAnyRole/hasAnyAuthority/compound included)
+	// rather than the old "not in the simple hasRole('X')/hasAuthority('X') shape" phrasing.
+	assert.ok(plan.notes.some((n) => n.includes('does not evaluate SpEL') && n.includes('hasAnyRole')), 'must explain why it fell back to TODO_ROLE');
+	const widgetFetchPolicy = widget.policies.find((p) => p.action === 'fetch');
+	assert.equal(widgetFetchPolicy.status, 'unresolved');
+	assert.equal(widgetFetchPolicy.evidence.kind, 'pre-authorize-unrecognized');
 });
 
 // O5 (D-resolver-authorization-action-aware): before this item, requiredAuthorityForPatch didn't
@@ -605,7 +611,7 @@ public class WidgetController {
 	const plan = planHandles({ javaSrcRoot, scanReport, module: 'widget', resourceFilter: null });
 	const widget = plan.resources.find((r) => r.type === 'Widget');
 	assert.equal(widget.requiredAuthority, 'TODO_ROLE', 'hasAnyAuthority(...) is not one of the two recognized shapes -- must fail closed, not silently match nothing');
-	assert.ok(plan.notes.some((n) => n.includes('not in the simple hasRole') && n.includes('hasAuthority')));
+	assert.ok(plan.notes.some((n) => n.includes('is not exactly hasRole') && n.includes('hasAuthority')));
 });
 
 // X5 (D-route-expansion-provenance): a matched endpoint with a real operationId but no literal

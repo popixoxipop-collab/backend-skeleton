@@ -2762,6 +2762,15 @@ function renderHandlesPlan(plan, actions) {
 		lines.push(`- read via: ${r.readPath ?? '(not found)'}`);
 		lines.push(`- requiredAuthority (fetch/recover): ${r.requiredAuthority}`);
 		if (r.requiredAuthorityForPatch !== undefined) lines.push(`- requiredAuthorityForPatch: ${r.requiredAuthorityForPatch}`);
+		// D-resolver-policy-contract (PC2): one line per policies[] record -- java-spring only
+		// (the field is absent on python-fastapi/typescript-express plans).
+		for (const p of r.policies ?? []) {
+			if (p.status === 'materialized') {
+				lines.push(`- policy[${p.action}]: materialized (${p.mode}) ${p.authority} -- ${p.evidence.kind}${p.evidence.file ? ` @ ${p.evidence.file}${p.evidence.line ? `:${p.evidence.line}` : ''}` : ''}`);
+			} else {
+				lines.push(`- policy[${p.action}]: UNRESOLVED (${p.mode}) -- ${p.evidence.kind}${p.evidence.file ? ` @ ${p.evidence.file}${p.evidence.line ? `:${p.evidence.line}` : ''}` : ''} -- ${p.reason}`);
+			}
+		}
 		lines.push('');
 	}
 	if (plan.notes.length > 0) {
@@ -3002,7 +3011,7 @@ function cmdHandlesEmit(args) {
 	// a diff" that also means "and actually write it", so --diff forces dryRun the same as --check
 	// does, without requiring both flags together.
 	const dryRun = flags.check || flags.diff;
-	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [], registrationGaps = [] } = provider.emit({
+	const { written, resolverStubs, conflicts, orphans, notes, forced, blocked, actions, postEmitNotes = [], registrationGaps = [], unresolvedPolicies = [] } = provider.emit({
 		repoRoot: root, featureId: flags.feature, plan, resourceFilter, force: flags.force, reason: flags.reason, dryRun, computeDiff: flags.diff, enforceRegistry,
 	});
 
@@ -3082,6 +3091,24 @@ function cmdHandlesEmit(args) {
 		process.exit(EXIT_CODES.HANDLES_REGISTRATION_GAP);
 	}
 
+	// D-resolver-policy-contract (PC9): unconditional -- NOT gated on enforceRegistry (orthogonal
+	// axis: that one is about revocation/lifecycle and produces 404s; this one is about
+	// authorization and produces 403s/boot failures). Same acknowledgement mechanism as
+	// registrationGaps above (--force --reason, no new flag) -- the AuthorizationPolicy.java
+	// file(s) ARE still written either way; only the overall command's reported success, and the
+	// `handles` gate passing, are gated on acknowledging the gap.
+	if (unresolvedPolicies.length > 0 && !flags.force) {
+		if (flags.json) {
+			console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, unresolvedPolicies, blocked: true, gate: null, check: dryRun }, null, 2));
+		} else {
+			const verb = dryRun ? 'would refuse to report success' : 'refusing to report success';
+			console.error(`${verb}: ${unresolvedPolicies.length} resource action(s) could not have their authorization safely auto-derived:`);
+			for (const u of unresolvedPolicies) console.error(`  ${u.resourceType} [${u.action}] (${u.kind}${u.file ? ` @ ${u.file}${u.line ? `:${u.line}` : ''}` : ''})\n    ${u.note}`);
+			if (!dryRun) console.error(`\nthe resolver/AuthorizationPolicy file(s) above were still written -- nothing about their content is wrong. Implement the generated AuthorizationPolicy interface(s) by hand and re-run, or acknowledge and proceed with: bskel handles emit --feature ${flags.feature}${flags.module ? ` --module ${flags.module}` : ''}${flags.resource ? ` --resource ${flags.resource}` : ''} --force --reason "..."`);
+		}
+		process.exit(EXIT_CODES.HANDLES_UNRESOLVED_POLICY);
+	}
+
 	// D4: dryRun never marks the gate passed -- nothing real happened this run.
 	const gateState = dryRun ? null : passNamedGate(root, 'handles', flags.feature, { resolverStubs });
 
@@ -3091,7 +3118,7 @@ function cmdHandlesEmit(args) {
 	postEmitNotes.push(...describeDownstreamImpact(root, flags.feature));
 
 	if (flags.json) {
-		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, blocked: false, gate: gateState?.gates.handles ?? null, check: dryRun, postEmitNotes }, null, 2));
+		console.log(JSON.stringify({ written, resolverStubs, conflicts, orphans, forced, notes: allNotes, actions, unresolvedPolicies, blocked: false, gate: gateState?.gates.handles ?? null, check: dryRun, postEmitNotes }, null, 2));
 	} else if (!flags.quiet) {
 		console.log(`${dryRun ? 'would write' : 'wrote'} ${written.length} file(s):`);
 		for (const w of written) console.log(`  ${w}`);

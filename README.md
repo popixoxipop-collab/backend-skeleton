@@ -77,8 +77,14 @@ production -- which still splits the same way it always has:
   `DECISIONS.md`'s `D-handle-registry-enforcement`/`D-resolver-authorization-action-aware`. Real
   gaps remain and are explicitly still open, not closed: registry enforcement is opt-in, off by
   default; authorization inference now recognizes both `@PreAuthorize(hasRole(...))` and
-  `hasAuthority(...)` (see `DECISIONS.md`'s `D-resolver-authorization-action-aware`), but
-  `hasAnyRole`/`hasAnyAuthority` (list-shape), ownership, and tenant policy are still unaddressed.
+  `hasAuthority(...)` (see `DECISIONS.md`'s `D-resolver-authorization-action-aware`) via an explicit
+  per-action policy contract (`D-resolver-policy-contract`) -- a companion annotation this scanner
+  cannot safely evaluate (`@PostAuthorize`, `@Secured`, `@RolesAllowed`, ownership/tenant checks,
+  `hasAnyRole`/`hasAnyAuthority`) now refuses auto-materialization and generates an
+  `AuthorizationPolicy` interface that blocks the target app from starting until a human implements
+  it -- ships default-on, `handles emit` exits non-zero (23) until acknowledged with `--force
+  --reason` or the policy is implemented. `hasAnyRole`/`hasAnyAuthority` list-shapes remain
+  unaddressed (deliberately, see `D-resolver-policy-contract`'s own EXIT).
   All three providers (Java/Python/TypeScript) now generate a real `sbf_handle`/
   `sbf_handle_snapshot` schema and support `--enforce-registry`/`recover()` -- TypeScript's own
   registration mechanism is a higher-order wrapper function, not a decorator (no Java-AOP or
@@ -563,6 +569,12 @@ checking" pass). Highlights (full record in `DECISIONS.md`'s "Security hardening
 - **Authority derivation is per-method, not per-file** — a controller's first `@PreAuthorize` match
   no longer silently applies to every resolver generated from that file; an unsupported annotation
   shape (`hasAnyRole`, SpEL) fails closed to a `TODO_ROLE` placeholder rather than guessing.
+- **A companion authorization annotation (`@PostAuthorize`, `@Secured`, `@RolesAllowed`) next to an
+  otherwise-safe `@PreAuthorize` refuses auto-materialization entirely** (`D-resolver-policy-contract`)
+  — a real, closed IDOR: `@PreAuthorize("hasRole('USER')")` sitting beside
+  `@PostAuthorize("returnObject.ownerId == authentication.name")` used to auto-materialize `ROLE_USER`
+  and silently ignore the ownership check. `handles emit` now generates an `AuthorizationPolicy`
+  interface that blocks the target app from starting (not the build) until a human implements it.
 - **Handle recovery cross-checks type/kind/pointer against the registry row**, not just the raw
   UUID — the most severe finding: an attacker who controls the handle's `type` field could
   otherwise request a different, more sensitive resource's snapshot history that happens to share

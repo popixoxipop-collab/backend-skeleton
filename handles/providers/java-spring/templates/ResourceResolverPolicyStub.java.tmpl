@@ -51,4 +51,13 @@ final class {{RESOURCE_TYPE}}ResolverPolicy {
 	static UUID featureUid() {
 		return FEATURE_UID;
 	}
+
+	// D-resolver-policy-contract (PC2): always regenerated (this file is always safe to
+	// regenerate), unconditionally -- "role" for a materialized resource, "delegated" for an
+	// unresolved one. {{RESOURCE_TYPE}}Resolver only overrides ResourceResolver#authorizationMode()
+	// to delegate here when delegated; a materialized resolver relies on the interface's own
+	// default ("role"), so this value is inspectable even though nothing calls it in that case.
+	static String authorizationMode() {
+		return "{{AUTHORIZATION_MODE}}";
+	}
 }

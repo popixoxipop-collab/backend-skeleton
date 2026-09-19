@@ -90,4 +90,30 @@ public interface ResourceResolver {
 
 	/** O4 (D-handle-lifecycle): the feature_uid this resolver was generated for, baked in the same way as {@link #contractRef()}. */
 	UUID featureUid();
+
+	/**
+	 * D-resolver-policy-contract (PC4): {@code "role"} (the default) means {@link HandleController}
+	 * performs its historical {@code requireAuthority()}/{@code requiredAuthorityForPatch()}
+	 * equality check before calling {@link #authorize}. {@code "delegated"} means it SKIPS that
+	 * check entirely and {@link #authorize} is the whole gate. A {@code default} method (not
+	 * abstract) so every resolver implemented before this existed keeps compiling and behaving
+	 * identically -- overriding it is opt-in, never required.
+	 */
+	default String authorizationMode() {
+		return "role";
+	}
+
+	/**
+	 * D-resolver-policy-contract (PC4): a policy hook alongside the role check above.
+	 * {@code action} is exactly one of {@code "fetch"}, {@code "patch"}, {@code "recover"}. Return
+	 * {@code false} to deny (a 403 is raised); the {@code default} body returns {@code true} --
+	 * the historical no-op, since in {@code "role"} mode {@link #requiredAuthority()}/
+	 * {@link #requiredAuthorityForPatch()} already did the real check. A hand-written resolver
+	 * that needs ownership/tenant scoping beyond a single role string overrides this (and usually
+	 * also {@link #authorizationMode()} to return {@code "delegated"}), using {@code authentication}
+	 * the same way {@link #fetch}'s own javadoc already describes.
+	 */
+	default boolean authorize(Authentication authentication, String action, UUID resourceUid, String pointer) {
+		return true;
+	}
 }

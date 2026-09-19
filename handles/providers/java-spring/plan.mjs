@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { findMappingAnnotations, findMethodParams, maskNonCode, skipAnnotationsAndWhitespace } from '../../../scanners/adapters/_java-spring-analyzer.mjs';
+import { findMappingAnnotations, findMethodParams, maskNonCode, matchBalanced } from '../../../scanners/adapters/_java-spring-analyzer.mjs';
+import { lineNumberAt } from '../../../scanners/text-util.mjs';
 import { classifyDtoFields, splitTopLevelParams, extractTypeAndName } from './patch-strategy.mjs';
 
 // The "canonical fetch" for an entity: a GET endpoint whose path is exactly
@@ -126,21 +127,62 @@ function planPatchable({ javaSrcRoot, module: moduleName, controllers, entityCla
 	return { patchable: classified.fields, updateOperation, updateDtoFile, dtoTypeName, notes };
 }
 
-// A2 Phase 1 (D-java-analyzer): this used to duplicate scanners/adapters/java-spring.mjs's own
-// (then-brittle) mapping regex, kept separate only because THIS function needs each match's
-// source *position* (to locate the region immediately above one specific method), not just the
-// endpoint list plan.mjs already has -- the earlier comment here explicitly earmarked "a
-// different catalog item's territory" for whoever eventually fixed the regex itself. That's this
-// item: findMappingAnnotations() (shared with the scanner) now owns the actual matching, this
-// file only maps its richer records down to the {index, methodName} shape findRequiredAuthority()
-// below already consumes -- findRequiredAuthority()/extractPreAuthorize()/classBodyStart() are
-// completely unchanged, D-security-7's own region-carving logic untouched.
+// D-resolver-policy-contract (PC1/PC2/PC3): replaces the old extractPreAuthorize()/
+// findRequiredAuthority()/methodMappingBoundaries() with an explicit refusal ladder producing a
+// full policy RECORD (not just a scalar authority string) -- see DECISIONS.md's
+// D-resolver-policy-contract for the WHY: a @PreAuthorize("hasRole('USER')") sitting next to a
+// @PostAuthorize("returnObject.ownerId == authentication.name") ownership check used to
+// auto-materialize ROLE_USER and silently ignore the ownership check entirely -- a real IDOR bskel
+// itself would introduce. The provably-safe set (hasRole('X') / hasAuthority('X') alone, nothing
+// else in the region) is UNCHANGED from before (O5) -- this item only adds refusal rungs in FRONT
+// of it, so every case that materialized correctly before still does (frozen, not widened).
+//
+// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): hasRole('X') and
+// hasAuthority('X') are NOT interchangeable at the Spring Security level -- hasRole('X') checks
+// for the granted authority "ROLE_X" (an implicit prefix Spring itself applies), hasAuthority('X')
+// checks for "X" verbatim. The returned `authority` string is the LITERAL granted-authority value
+// the generated code must match, decided HERE (plan time), not left for the template to re-derive.
 const HAS_ROLE_RE = /@PreAuthorize\(\s*"hasRole\('([^']+)'\)"\s*\)/;
 const HAS_AUTHORITY_RE = /@PreAuthorize\(\s*"hasAuthority\('([^']+)'\)"\s*\)/;
-const PRE_AUTH_RE = /@PreAuthorize\(/;
 
-function methodMappingBoundaries(text) {
-	return findMappingAnnotations(text).map((m) => ({ index: m.index, methodName: m.methodName }));
+// D-resolver-policy-contract (PC3): companion annotations that can carry authorization logic
+// @PreAuthorize's own simple-shape check can never see (ownership/SpEL/etc.) -- their mere
+// PRESENCE in a method's or class's authorization region refuses auto-materialization outright,
+// regardless of whether a perfectly-shaped @PreAuthorize ALSO sits in the same region. Verified
+// live: none of these five appear anywhere in this repository today (grep, zero hits) -- so this
+// rung changes nothing for any case this codebase currently exercises; it exists for target repos
+// that DO use them.
+const COMPANION_AUTHZ_RE = /@(PostAuthorize|Secured|RolesAllowed|PreFilter|PostFilter)\s*\(/g;
+const PRE_AUTHORIZE_SCAN_RE = /@PreAuthorize\s*\(/g;
+const EVIDENCE_TEXT_MAX = 200;
+
+// D-resolver-policy-contract (PC2): the 8 evidence.kind values the ladder below can produce, in
+// the exact order DECISIONS.md documents them. Exported so schemas/handles-plan.schema.json's own
+// enum and test/handles-policy-contract.test.mjs can be asserted to never drift apart silently.
+export const POLICY_EVIDENCE_KINDS = Object.freeze([
+	'endpoint-absent',
+	'endpoint-method-absent',
+	'companion-annotation-present',
+	'pre-authorize-ambiguous',
+	'pre-authorize-unrecognized',
+	'authorization-annotation-absent',
+	'pre-authorize-has-role',
+	'pre-authorize-has-authority',
+]);
+
+// D-resolver-policy-contract (PC2 follow-up, found live): an unresolved record whose
+// evidence.kind is 'endpoint-absent'/'endpoint-method-absent' means the underlying route
+// STRUCTURALLY DOES NOT EXIST for this action -- e.g. a read-only resource with no PATCH/PUT
+// endpoint at all. That is the SAME "nothing to protect" case this codebase has silently accepted
+// via TODO_ROLE forever (planHandles()'s own `requiredAuthorityForPatch ?? 'TODO_ROLE'`, unnoted
+// when no update endpoint exists) -- NOT the gap this item exists to close (an endpoint that DOES
+// exist but couldn't be safely verified). Found live: without this exclusion, willGenerateResolver
+// (which never depends on the UPDATE endpoint existing at all -- a read-only resource is a normal,
+// common shape) would delegate/block emit for every read-only resource, a real regression this
+// project's own real fixtures caught immediately. Exported so emit.mjs's unresolvedPolicies gate
+// uses the exact same rule -- one place decides "does this unresolved record need a human."
+export function policyRequiresResolution(p) {
+	return p.status === 'unresolved' && p.evidence.kind !== 'endpoint-absent' && p.evidence.kind !== 'endpoint-method-absent';
 }
 
 // Index just after the class body's opening brace -- the lower bound for a method-level search
@@ -153,56 +195,146 @@ function classBodyStart(text) {
 	return m ? m.index + m[0].length : 0;
 }
 
-// Returns { authority, unsupported } for an @PreAuthorize search over one region of source text.
-// `unsupported: true` means an @PreAuthorize annotation IS present but isn't one of the two
-// simple shapes this regex-based scanner understands (hasAnyRole, hasAnyAuthority, SpEL, etc.) --
-// the caller must fail closed (TODO_ROLE) rather than silently treating it as "no authority
-// found" and falling back to a weaker/wrong source.
-//
-// O5 (D-resolver-authorization-action-aware, hasAuthority follow-up): hasRole('X') and
-// hasAuthority('X') are NOT interchangeable at the Spring Security level -- hasRole('X') checks
-// for the granted authority "ROLE_X" (an implicit prefix Spring itself applies), hasAuthority('X')
-// checks for "X" verbatim. The returned `authority` string is the LITERAL granted-authority value
-// the generated code must match, decided HERE (plan time), not left for the template to re-derive
-// -- HandleController.java.tmpl's requireAuthority() does one plain equality check regardless of
-// which shape produced the value. This is the real discriminant this item's own EXIT note named:
-// widening the regex alone, without this prefix decision, would generate an incorrect check.
-function extractPreAuthorize(region) {
-	if (!PRE_AUTH_RE.test(region)) return null;
-	const hasRoleMatch = region.match(HAS_ROLE_RE);
-	if (hasRoleMatch) return { authority: `ROLE_${hasRoleMatch[1]}`, unsupported: false };
-	const hasAuthorityMatch = region.match(HAS_AUTHORITY_RE);
-	if (hasAuthorityMatch) return { authority: hasAuthorityMatch[1], unsupported: false };
-	return { authority: null, unsupported: true };
+function normalizeEvidenceText(s) {
+	const collapsed = s.replace(/\s+/g, ' ').trim();
+	return collapsed.length > EVIDENCE_TEXT_MAX ? `${collapsed.slice(0, EVIDENCE_TEXT_MAX)}…` : collapsed;
 }
 
-// D-security-7: a controller with more than one method can require DIFFERENT roles per method --
-// the previous version always used the file's FIRST @PreAuthorize match, which for a controller
-// whose first-declared method happens to carry a weaker role than the actual fetch method being
-// planned would silently generate a resolver enforcing that weaker role instead. Found by the
-// Codex security review. Now searches method-level first: the region from the previous method's
-// mapping annotation (exclusive) up to this method's mapping annotation (exclusive) is exactly
-// the span that can only contain this method's own annotations, never the previous method's (its
-// own @PreAuthorize, if any, sits before that boundary). Only falls back to a genuine class-level
-// @PreAuthorize -- the region before the FIRST method mapping in the file -- when the method
-// level has nothing at all.
-function findRequiredAuthority(controllerFilePath, methodName) {
-	if (!controllerFilePath || !methodName || !fs.existsSync(controllerFilePath)) {
-		return { authority: null, unsupported: false };
+// Finds every match of a global annotation-start regex (`re`, must end in a literal `\(` so its
+// own match always ends exactly on the opening paren) whose `@` sits within [start, end) of
+// `masked`, resolving each one's balanced `(...)` via matchBalanced() and slicing the ORIGINAL
+// (unmasked) `text` for `.text` -- values are never read off masked/blanked content, matching
+// this analyzer's own established convention.
+function collectAnnotations(masked, text, re, start, end) {
+	const found = [];
+	re.lastIndex = start;
+	let m;
+	while ((m = re.exec(masked))) {
+		if (m.index >= end) break;
+		const openParen = m.index + m[0].length - 1;
+		const close = matchBalanced(masked, openParen, '(', ')');
+		if (close === -1) continue; // malformed -- skip, don't misattribute
+		found.push({ index: m.index, text: normalizeEvidenceText(text.slice(m.index, close + 1)) });
 	}
-	const text = fs.readFileSync(controllerFilePath, 'utf8');
-	const boundaries = methodMappingBoundaries(text);
-	const target = boundaries.find((b) => b.methodName === methodName);
-	if (!target) return { authority: null, unsupported: false };
+	return found;
+}
 
-	const priorBoundaries = boundaries.filter((b) => b.index < target.index);
-	const methodRegionStart = priorBoundaries.length > 0 ? priorBoundaries[priorBoundaries.length - 1].index : classBodyStart(text);
-	const methodLevel = extractPreAuthorize(text.slice(methodRegionStart, target.index));
-	if (methodLevel) return methodLevel;
+function evidenceRecord({ kind, scope, file, line, symbol, text }) {
+	return { kind, scope: scope ?? null, file: file ?? null, line: line ?? null, symbol: symbol ?? null, text: text ?? null };
+}
 
-	const classRegion = text.slice(0, boundaries[0].index);
-	const classLevel = extractPreAuthorize(classRegion);
-	return classLevel ?? { authority: null, unsupported: false };
+function policyRecord({ action, mode, status, authority, evidence, reason }) {
+	return { action, mode, status, authority: authority ?? null, evidence, reason: reason ?? null };
+}
+
+// Runs the companion-annotation / @PreAuthorize-count / exact-shape rungs (D3's rungs 2-4) over
+// one region ([start, end) of `masked`/`text`). Returns null (not a refusal, just "nothing here")
+// when the region has neither a companion annotation nor any @PreAuthorize at all -- the caller
+// tries the next scope (method -> class) before finally refusing with
+// 'authorization-annotation-absent'.
+function derivePolicyFromRegion({ masked, text, start, end, scope, action, controllerFile, controllerFileRel, symbol }) {
+	const companions = collectAnnotations(masked, text, COMPANION_AUTHZ_RE, start, end);
+	if (companions.length > 0) {
+		const line = lineNumberAt(text, companions[0].index);
+		const names = companions.map((c) => c.text).join(', ');
+		return policyRecord({
+			action, mode: 'delegated', status: 'unresolved',
+			evidence: evidenceRecord({ kind: 'companion-annotation-present', scope, file: controllerFileRel, line, symbol, text: companions.map((c) => c.text).join(' | ') }),
+			reason: `${controllerFileRel}:${line}: ${symbol} carries ${names} -- this scanner cannot safely verify what a companion authorization annotation enforces (ownership/tenant checks are common here), so authorization is NOT auto-materialized even though a @PreAuthorize may also be present. Implement the generated AuthorizationPolicy interface by hand, using the annotation text above as the specification.`,
+		});
+	}
+	const preAuths = collectAnnotations(masked, text, PRE_AUTHORIZE_SCAN_RE, start, end);
+	if (preAuths.length > 1) {
+		const line = lineNumberAt(text, preAuths[0].index);
+		return policyRecord({
+			action, mode: 'delegated', status: 'unresolved',
+			evidence: evidenceRecord({ kind: 'pre-authorize-ambiguous', scope, file: controllerFileRel, line, symbol, text: preAuths.map((p) => p.text).join(' | ') }),
+			reason: `${controllerFileRel}:${line}: ${symbol} carries ${preAuths.length} @PreAuthorize annotations in the same ${scope}-level region -- ambiguous which one governs ${action}. Write authorize() by hand.`,
+		});
+	}
+	if (preAuths.length === 1) {
+		const p = preAuths[0];
+		const line = lineNumberAt(text, p.index);
+		const hasRoleMatch = p.text.match(HAS_ROLE_RE);
+		if (hasRoleMatch) {
+			return policyRecord({
+				action, mode: 'role', status: 'materialized', authority: `ROLE_${hasRoleMatch[1]}`,
+				evidence: evidenceRecord({ kind: 'pre-authorize-has-role', scope, file: controllerFileRel, line, symbol, text: p.text }),
+			});
+		}
+		const hasAuthorityMatch = p.text.match(HAS_AUTHORITY_RE);
+		if (hasAuthorityMatch) {
+			return policyRecord({
+				action, mode: 'role', status: 'materialized', authority: hasAuthorityMatch[1],
+				evidence: evidenceRecord({ kind: 'pre-authorize-has-authority', scope, file: controllerFileRel, line, symbol, text: p.text }),
+			});
+		}
+		return policyRecord({
+			action, mode: 'delegated', status: 'unresolved',
+			evidence: evidenceRecord({ kind: 'pre-authorize-unrecognized', scope, file: controllerFileRel, line, symbol, text: p.text }),
+			reason: `${controllerFileRel}:${line}: ${symbol}'s @PreAuthorize (${p.text}) is not exactly hasRole('X') or hasAuthority('X') -- this scanner does not evaluate SpEL (hasAnyRole/hasAnyAuthority/compound expressions included). Write authorize() by hand.`,
+		});
+	}
+	return null;
+}
+
+// D-resolver-policy-contract (PC3): the refusal ladder's entry point. `operation` is whatever
+// findFetchOperation()/findUpdateOperation() returned (or null). Modeled directly on
+// scanners/adapters/java-spring.mjs's extractRepositoryResource() -- an ordered sequence of
+// checks, each non-matching rung returning an explicit, reasoned refusal rather than a best-effort
+// guess. The companion-annotation rung runs BEFORE any @PreAuthorize matching, on purpose: this is
+// the rung that closes the @PostAuthorize-ownership-check gap named in DECISIONS.md's WHY.
+function derivePolicy({ action, operation, repoRoot }) {
+	const rel = (p) => (repoRoot && p ? path.relative(repoRoot, p) : p);
+
+	if (!operation) {
+		return policyRecord({
+			action, mode: 'delegated', status: 'unresolved',
+			evidence: evidenceRecord({ kind: 'endpoint-absent' }),
+			reason: `no ${action === 'fetch' ? 'single-resource GET' : 'single-resource PATCH/PUT'} endpoint found for this action -- write authorize() by hand once one exists`,
+		});
+	}
+	if (!operation.method || !operation.controllerFile) {
+		const declNote = operation.declaration
+			? ` -- it was expanded from ${operation.declaration.label ?? operation.declaration.rule}, a framework-synthesized route with no literal per-action source method to correlate to`
+			: ' -- no literal per-action source method exists to correlate to';
+		return policyRecord({
+			action, mode: 'delegated', status: 'unresolved',
+			evidence: evidenceRecord({ kind: 'endpoint-method-absent', file: rel(operation.controllerFile) }),
+			reason: `matched endpoint (${action} ${operation.path ?? ''})${declNote}. Write authorize() by hand.`,
+		});
+	}
+
+	const controllerFile = operation.controllerFile;
+	const controllerFileRel = rel(controllerFile);
+	const symbol = `${operation.controllerClassName}.${operation.method}`;
+	const text = fs.readFileSync(controllerFile, 'utf8');
+	const masked = maskNonCode(text);
+	const mappings = findMappingAnnotations(text);
+	const target = mappings.find((m) => m.methodName === operation.method);
+	if (!target) {
+		return policyRecord({
+			action, mode: 'delegated', status: 'unresolved',
+			evidence: evidenceRecord({ kind: 'endpoint-method-absent', file: controllerFileRel, symbol }),
+			reason: `${controllerFileRel}: could not re-locate ${symbol} via its own mapping annotation -- write authorize() by hand.`,
+		});
+	}
+	const priorSameFile = mappings.filter((m) => m.index < target.index);
+	const methodStart = priorSameFile.length > 0 ? priorSameFile[priorSameFile.length - 1].signatureIndex : classBodyStart(text);
+	const methodEnd = target.signatureIndex;
+	const classRegionEnd = mappings[0].index;
+
+	const methodResult = derivePolicyFromRegion({ masked, text, start: methodStart, end: methodEnd, scope: 'method', action, controllerFile, controllerFileRel, symbol });
+	if (methodResult) return methodResult;
+
+	const classResult = derivePolicyFromRegion({ masked, text, start: 0, end: classRegionEnd, scope: 'class', action, controllerFile, controllerFileRel, symbol });
+	if (classResult) return classResult;
+
+	return policyRecord({
+		action, mode: 'delegated', status: 'unresolved',
+		evidence: evidenceRecord({ kind: 'authorization-annotation-absent', file: controllerFileRel, symbol }),
+		reason: `no @PreAuthorize (method- or class-level) found for ${symbol} -- authorization may be enforced elsewhere (service layer, a SecurityFilterChain) that this scanner cannot see. Write authorize() by hand.`,
+	});
 }
 
 // Heuristic (this codebase's convention, verified for Organization -> OrganizationService, not
@@ -257,7 +389,11 @@ function countServiceMethodParams(serviceFilePath, methodName) {
 	return argsText === '' ? 0 : countTopLevelCommas(argsText) + 1;
 }
 
-export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resourceFilter }) {
+// D-resolver-policy-contract (PC2): `repoRoot` defaults to `javaSrcRoot` so existing direct
+// callers (test/handles-plan.test.mjs among them) keep working unmodified -- derivePolicy()'s
+// evidence.file is only genuinely repo-relative when the real repoRoot is threaded through by
+// plan() below; a caller that omits it still gets a (less pretty, still correct) path.
+export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resourceFilter, repoRoot = javaSrcRoot }) {
 	const targetModule = moduleName
 		? scanReport.related_modules.find((m) => m.module === moduleName)
 		: scanReport.related_modules[0];
@@ -294,8 +430,8 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 		// without this check the notes below would read literally "...found for X.null" / "could not
 		// find a null(...) method", which is confusing, not honest. See D-resolver-scope.
 		const fetchOpMissingMethod = Boolean(fetchOp && !fetchOp.method);
-		const authorityResult = findRequiredAuthority(fetchOp?.controllerFile ?? null, fetchOp?.method ?? null);
-		const requiredAuthority = authorityResult.authority;
+		const fetchPolicy = derivePolicy({ action: 'fetch', operation: fetchOp, repoRoot });
+		const requiredAuthority = fetchPolicy.authority;
 		const service = pkIsNonUuid ? null : findServiceFile(javaSrcRoot, targetModule.module, entity.className);
 		const serviceParamCount = (service && fetchOp) ? countServiceMethodParams(service.file, fetchOp.method) : null;
 
@@ -307,8 +443,8 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 		// requiredAuthorityForPatch is meaningful even when resolver codegen itself ends up
 		// blocked, exactly like requiredAuthority already is unconditional above.
 		const updateOpForAuthority = findUpdateOperation(targetModule.controllers, entity.className);
-		const patchAuthorityResult = findRequiredAuthority(updateOpForAuthority?.controllerFile ?? null, updateOpForAuthority?.method ?? null);
-		const requiredAuthorityForPatch = patchAuthorityResult.authority;
+		const patchPolicy = derivePolicy({ action: 'patch', operation: updateOpForAuthority, repoRoot });
+		const requiredAuthorityForPatch = patchPolicy.authority;
 
 		if (!fetchOp) {
 			notes.push(`${entity.className}: no single-resource GET endpoint found on a controller whose name contains "${entity.className}" -- fetch() will need to be hand-written`);
@@ -318,15 +454,15 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 				? ` -- it was expanded from ${declaration.label ?? declaration.rule} at ${path.relative(javaSrcRoot, fetchOp.controllerFile)}:${declaration.line} (rule: ${declaration.rule}); the framework generates this handler at runtime, so no literal per-action source method exists to correlate to`
 				: ' -- no literal per-action source method exists to correlate to';
 			notes.push(`${entity.className}: the matched endpoint (GET ${fetchOp.path})${declNote}. Resolver NOT generated -- this is a structural boundary of static-scan-based handles codegen, not a bug. See D-resolver-scope.`);
-		} else if (authorityResult.unsupported) {
-			notes.push(`${entity.className}: @PreAuthorize found on ${fetchOp.controllerClassName}.${fetchOp.method} (or its class) but not in the simple hasRole('X')/hasAuthority('X') shape this scanner understands (e.g. hasAnyRole/SpEL) -- requiredAuthority() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
-		} else if (!requiredAuthority) {
-			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)/hasAuthority(...)) found for ${fetchOp.controllerClassName}.${fetchOp.method} -- requiredAuthority() defaults to "TODO_ROLE", fix before relying on it`);
+		} else if (fetchPolicy.reason) {
+			// D-resolver-policy-contract (PC2): the ladder's own reason IS the note now -- see
+			// derivePolicy()'s per-rung wording (companion-annotation-present, pre-authorize-
+			// ambiguous/unrecognized, authorization-annotation-absent all produce their own precise
+			// explanation, replacing the old two-case unsupported/absent note here).
+			notes.push(fetchPolicy.reason);
 		}
-		if (updateOpForAuthority && patchAuthorityResult.unsupported) {
-			notes.push(`${entity.className}: @PreAuthorize found on ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} (or its class) but not in the simple hasRole('X')/hasAuthority('X') shape this scanner understands -- requiredAuthorityForPatch() defaults to "TODO_ROLE" (fails closed) until a human fixes it`);
-		} else if (updateOpForAuthority && !requiredAuthorityForPatch) {
-			notes.push(`${entity.className}: no method-level or class-level @PreAuthorize(hasRole(...)/hasAuthority(...)) found for ${updateOpForAuthority.controllerClassName}.${updateOpForAuthority.method} -- requiredAuthorityForPatch() defaults to "TODO_ROLE", fix before relying on it`);
+		if (updateOpForAuthority && patchPolicy.reason) {
+			notes.push(patchPolicy.reason);
 		}
 		if (!service) {
 			// pkIsNonUuid already explained the real reason above -- this note would be true but
@@ -397,6 +533,16 @@ export function planHandles({ javaSrcRoot, scanReport, module: moduleName, resou
 			// endpoint's own @PreAuthorize, not copied from requiredAuthority above -- see the
 			// computation and its own notes earlier in this loop.
 			requiredAuthorityForPatch: requiredAuthorityForPatch ?? 'TODO_ROLE',
+			// D-resolver-policy-contract (PC2): the source of truth -- requiredAuthority/
+			// requiredAuthorityForPatch above are its legacy scalar PROJECTION, kept for every
+			// existing consumer (test files, templates) to keep working unmodified. Exactly two
+			// records, action 'fetch' then 'patch' -- 'recover' has no record of its own (it is
+			// governed by the 'fetch' record; HandleController#recover uses requiredAuthority()).
+			policies: [fetchPolicy, patchPolicy],
+			// D-resolver-policy-contract (PC2): one resource = one resolver bean = one mode --
+			// if EITHER action is unresolved, the whole resolver is delegated (fail-closed by
+			// construction: a resource can't be "half-delegated").
+			authorizationMode: (policyRequiresResolution(fetchPolicy) || policyRequiresResolution(patchPolicy)) ? 'delegated' : 'role',
 			service,
 			willGenerateResolver: Boolean(fetchOp && service && serviceParamCount === 1),
 		});
@@ -460,7 +606,7 @@ export function plan({ repoRoot, scanReport, module: moduleName, resourceFilter 
 		throw new Error('could not detect the base package (no *Application.java found under src/main/java) -- is this a Spring Boot project?');
 	}
 	const javaSrcRoot = path.join(repoRoot, 'src', 'main', 'java', ...basePackage.split('.'));
-	const inner = planHandles({ javaSrcRoot, scanReport, module: moduleName, resourceFilter });
+	const inner = planHandles({ javaSrcRoot, scanReport, module: moduleName, resourceFilter, repoRoot });
 	return {
 		schema: 'sbf.handles-plan/1',
 		provider: 'java-spring',

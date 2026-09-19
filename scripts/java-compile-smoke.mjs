@@ -27,6 +27,69 @@ const fail = makeFail('java-compile-smoke');
 console.log('java-compile-smoke: copying fixture to a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-java-compile-smoke-'));
 fs.cpSync(FIXTURE, scratch, { recursive: true });
+
+// D-resolver-policy-contract (PC12): a SCRATCH-ONLY resource (never added to test/fixtures/
+// java-compile/ on disk) -- scripts/java-integration-smoke.mjs boots that on-disk fixture with a
+// real @SpringBootTest, which would fail to start with an unimplemented AuthorizationPolicy bean
+// in the way. Injected here, into this script's own throwaway copy, before the first commit.
+// LedgerController deliberately carries BOTH a valid @PreAuthorize AND a @PostAuthorize ownership
+// check on the SAME method -- the exact real-world shape DECISIONS.md's D-resolver-policy-contract
+// WHY names: a naive scanner would materialize ROLE_USER and silently ignore the ownership check.
+console.log('java-compile-smoke: injecting a scratch-only Ledger resource (companion-annotation case)...');
+const ledgerDomain = path.join(scratch, 'src/main/java/com/example/demo/domain/ledger');
+fs.mkdirSync(path.join(ledgerDomain, 'domain'), { recursive: true });
+fs.mkdirSync(path.join(ledgerDomain, 'application'), { recursive: true });
+fs.mkdirSync(path.join(ledgerDomain, 'presentation'), { recursive: true });
+fs.writeFileSync(path.join(ledgerDomain, 'domain', 'Ledger.java'), `package com.example.demo.domain.ledger.domain;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+import java.util.UUID;
+
+@Entity
+@Table(name = "ledger")
+public class Ledger {
+	@Id
+	private UUID ledgerId;
+}
+`);
+fs.writeFileSync(path.join(ledgerDomain, 'application', 'LedgerService.java'), `package com.example.demo.domain.ledger.application;
+
+import java.util.UUID;
+
+public interface LedgerService {
+	Object findLedger(UUID ledgerId);
+}
+`);
+fs.writeFileSync(path.join(ledgerDomain, 'presentation', 'LedgerController.java'), `package com.example.demo.domain.ledger.presentation;
+
+import io.swagger.v3.oas.annotations.Operation;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/ledgers")
+public class LedgerController {
+
+	// D-resolver-policy-contract: a perfectly-shaped hasRole('USER') sitting next to a
+	// @PostAuthorize ownership check this scanner cannot verify -- must NOT auto-materialize.
+	@PreAuthorize("hasRole('USER')")
+	@PostAuthorize("returnObject.ownerId == authentication.name")
+	@Operation(summary = "Fetch a single ledger", operationId = "findLedger")
+	@GetMapping("/{ledgerId}")
+	public String findLedger(@PathVariable UUID ledgerId) {
+		return "ok";
+	}
+}
+`);
 // D-fixture-corpus (P3): `gradle wrapper` (below) runs AFTER this commit and writes gradlew/
 // gradlew.bat/gradle/wrapper/* into the scratch repo -- all of that must be gitignored here too
 // (matching this skill's own root .gitignore for test/fixtures/java-compile/), or `bskel
@@ -73,6 +136,48 @@ if (r.code !== 0) fail(`handles patch approve (capacity): ${r.stderr || r.stdout
 r = bskel(['handles', 'emit', '--feature', FEATURE_ID], scratch);
 if (r.code !== 0) fail(`handles emit: ${r.stderr || r.stdout}`);
 
+// Commits the widget feature's own generated output before starting the ledger feature below --
+// `establishThroughContract()` runs `bskel preflight` as its first step, which fails DIRTY on the
+// uncommitted files `handles emit` just wrote. Matches how a real user actually works (commit one
+// feature's generated code before starting the next), not a smoke-test-only workaround.
+sh('git', ['add', '-A'], scratch, { quiet: true });
+sh('git', ['commit', '--quiet', '-m', 'chore: widget handles emit'], scratch, { quiet: true });
+sh('git', ['push', '--quiet', 'origin', 'develop'], scratch, { quiet: true });
+
+// D-resolver-policy-contract (PC12): the Ledger resource injected above, as its OWN feature (not
+// widget's) -- proves, against a REAL scan (not a hand-built scanReport, unlike
+// test/handles-policy-contract.test.mjs) that `handles emit` genuinely refuses (exit 23) an
+// unresolved policy, that --force --reason genuinely bypasses it, and that the materialized
+// Widget resource above stays completely unaffected (no WidgetAuthorizationPolicy.java).
+const LEDGER_FEATURE_ID = '002-ledger-management';
+console.log('java-compile-smoke: ledger feature (companion-annotation-present case) -> scan -> contract -> handles emit (expect refusal)...');
+establishThroughContract(scratch, fail, {
+	featureId: LEDGER_FEATURE_ID, slug: 'ledger-management', terms: 'ledger', mode: 'reuse', note: 'java-compile-smoke',
+	contractStep: { kind: 'emit', args: [] },
+});
+
+r = bskel(['handles', 'emit', '--feature', LEDGER_FEATURE_ID, '--json'], scratch);
+if (r.code !== 23) fail(`handles emit (ledger, unresolved policy): expected exit 23, got ${r.code}: ${r.stderr || r.stdout}`);
+let ledgerRefusal;
+try {
+	ledgerRefusal = JSON.parse(r.stdout);
+} catch {
+	fail(`handles emit (ledger, unresolved policy) exited 23 but produced no parseable JSON: ${r.stdout}`);
+}
+const ledgerGap = (ledgerRefusal.unresolvedPolicies ?? []).find((u) => u.resourceType === 'Ledger' && u.action === 'fetch');
+if (!ledgerGap) fail(`handles emit (ledger) exited 23 but unresolvedPolicies did not name Ledger/fetch: ${JSON.stringify(ledgerRefusal.unresolvedPolicies)}`);
+if (ledgerGap.kind !== 'companion-annotation-present') fail(`expected Ledger/fetch's unresolved kind to be companion-annotation-present, got ${ledgerGap.kind}`);
+console.log('java-compile-smoke: PASS -- handles emit correctly refused (exit 23) an unresolved policy, naming Ledger/fetch/companion-annotation-present.');
+
+const widgetAuthzPolicyPath = path.join(scratch, 'src/main/java/com/example/demo/domain/widget/infrastructure/WidgetAuthorizationPolicy.java');
+if (fs.existsSync(widgetAuthzPolicyPath)) fail('WidgetAuthorizationPolicy.java should not exist -- Widget is fully materialized, not delegated');
+
+r = bskel(['handles', 'emit', '--feature', LEDGER_FEATURE_ID, '--force', '--reason', 'java-compile-smoke'], scratch);
+if (r.code !== 0) fail(`handles emit (ledger, --force --reason): ${r.stderr || r.stdout}`);
+const ledgerAuthzPolicyPath = path.join(scratch, 'src/main/java/com/example/demo/domain/ledger/infrastructure/LedgerAuthorizationPolicy.java');
+if (!fs.existsSync(ledgerAuthzPolicyPath)) fail(`handles emit --force wrote no LedgerAuthorizationPolicy.java at ${ledgerAuthzPolicyPath}`);
+console.log('java-compile-smoke: PASS -- --force --reason acknowledged the gap and proceeded; LedgerAuthorizationPolicy.java was written.');
+
 // D-runtime-conformance-receipts (cryptographic receipt attestation): observe emit BEFORE the
 // --build check below, so the same real ./gradlew compileJava run also proves ReceiptSigner.java/
 // ContractObservationAspect.java compile cleanly (spring-boot-starter-aop is already on this
@@ -110,6 +215,114 @@ if (report.pass !== true) {
 }
 
 console.log('java-compile-smoke: PASS -- generated Java compiled cleanly via bskel verify --build.');
+
+// D-resolver-policy-contract (PC12): the load-bearing proof -- a REAL Spring application context,
+// not just a compile check, showing the unresolved LedgerAuthorizationPolicy genuinely blocks
+// LedgerResolver from being constructed (negative), a hand-supplied policy bean genuinely
+// unblocks it (positive), and the materialized WidgetResolver boots with no policy bean at all
+// (no-regression) -- the same "does a real component graph actually behave this way" rigor
+// test/handles-java-codec.test.mjs already established for a different claim.
+console.log('java-compile-smoke: real Spring context -- unresolved policy blocks bean construction, a hand-supplied one unblocks it...');
+const unresolvedPolicyTestDir = path.join(scratch, 'src/test/java/com/example/demo/domain/ledger/infrastructure');
+fs.mkdirSync(unresolvedPolicyTestDir, { recursive: true });
+fs.writeFileSync(path.join(unresolvedPolicyTestDir, 'UnresolvedPolicySmokeTest.java'), `package com.example.demo.domain.ledger.infrastructure;
+
+import com.example.demo.domain.ledger.application.LedgerService;
+import com.example.demo.domain.widget.application.WidgetService;
+import com.example.demo.domain.widget.infrastructure.WidgetResolver;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Validator;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+
+/**
+ * Test-only driver for scripts/java-compile-smoke.mjs -- NOT a bskel template, never generated.
+ * Proves, in a REAL Spring application context (not a compile-only check), that an unresolved
+ * authorization policy genuinely blocks its resolver bean from being constructed, that a
+ * hand-supplied policy bean genuinely unblocks it, and that a fully-materialized resource
+ * (Widget) needs no such bean at all.
+ */
+class UnresolvedPolicySmokeTest {
+
+	@Test
+	void negative_noPolicyBean_contextRefreshFails() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+		ctx.registerBean(LedgerService.class, () -> mock(LedgerService.class));
+		ctx.register(LedgerResolver.class);
+		Exception ex = assertThrows(Exception.class, ctx::refresh);
+		String chain = causeChainMessages(ex);
+		assertTrue(chain.contains("LedgerAuthorizationPolicy"), "cause chain must name LedgerAuthorizationPolicy: " + chain);
+		ctx.close();
+	}
+
+	@Test
+	void positive_withPolicyBean_contextRefreshSucceeds() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+		ctx.registerBean(LedgerService.class, () -> mock(LedgerService.class));
+		ctx.registerBean(LedgerAuthorizationPolicy.class, () -> (authentication, action, resourceUid, pointer) -> false);
+		ctx.register(LedgerResolver.class);
+		ctx.refresh();
+		LedgerResolver resolver = ctx.getBean(LedgerResolver.class);
+		assertEquals("delegated", resolver.authorizationMode());
+		assertFalse(resolver.authorize(null, "fetch", UUID.randomUUID(), null));
+		ctx.close();
+	}
+
+	@Test
+	void noRegression_materializedWidgetResolver_bootsWithNoPolicyBean() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+		ctx.registerBean(WidgetService.class, () -> mock(WidgetService.class));
+		ctx.registerBean(Validator.class, () -> mock(Validator.class));
+		ctx.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+		ctx.register(WidgetResolver.class);
+		ctx.refresh();
+		WidgetResolver resolver = ctx.getBean(WidgetResolver.class);
+		assertEquals("role", resolver.authorizationMode());
+		assertTrue(resolver.authorize(null, "fetch", UUID.randomUUID(), null));
+		ctx.close();
+	}
+
+	@Test
+	void writesResultsForNodeToVerify() throws Exception {
+		Files.writeString(Path.of("unresolved-policy-output.json"), "{\\"ranAllAssertions\\":true}");
+	}
+
+	private static String causeChainMessages(Throwable t) {
+		StringBuilder sb = new StringBuilder();
+		while (t != null) {
+			sb.append(t.getClass().getName()).append(": ").append(t.getMessage()).append(" | ");
+			t = t.getCause();
+		}
+		return sb.toString();
+	}
+}
+`);
+
+try {
+	sh('./gradlew', ['test', '--tests', 'com.example.demo.domain.ledger.infrastructure.UnresolvedPolicySmokeTest', '--console=plain'], scratch, { quiet: true });
+} catch (err) {
+	fail(`./gradlew test (UnresolvedPolicySmokeTest) failed (exit ${err.status}): ${err.stdout || ''}${err.stderr || ''}`);
+}
+let unresolvedPolicyResult;
+try {
+	unresolvedPolicyResult = JSON.parse(fs.readFileSync(path.join(scratch, 'unresolved-policy-output.json'), 'utf8'));
+} catch (err) {
+	fail(`could not read unresolved-policy-output.json -- UnresolvedPolicySmokeTest did not run or did not write it (${err.message})`);
+}
+if (unresolvedPolicyResult.ranAllAssertions !== true) {
+	fail('UnresolvedPolicySmokeTest ran but did not report success');
+}
+console.log('java-compile-smoke: PASS -- a real Spring context: unresolved policy blocks bean construction, a hand-supplied policy bean unblocks it, and the materialized Widget resolver boots with no policy bean at all.');
 
 // D-runtime-conformance-receipts (cryptographic receipt attestation): the real cross-language
 // proof -- sign a receipt in a REAL running JVM via the REAL generated ReceiptSigner.java, verify

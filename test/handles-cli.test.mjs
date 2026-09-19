@@ -222,9 +222,12 @@ test('handles emit writes a patch() that checks the PATCH-specific authority, no
 	// D-resolver-authentication-context: requireAuthority() now also takes the already-fetched
 	// Authentication (threaded into resolver.fetch()/patchField() too) -- match on the
 	// resolver.requiredAuthority()/requiredAuthorityForPatch() argument only, not the full call.
-	assert.match(controllerContent.slice(fetchIdx, patchIdx), /requireAuthority\([^,]+,\s*resolver\.requiredAuthority\(\)\)/, 'fetch() must keep using the fetch/recover authority');
-	assert.match(controllerContent.slice(patchIdx, recoverIdx), /requireAuthority\([^,]+,\s*resolver\.requiredAuthorityForPatch\(\)\)/, 'patch() must use the patch-specific authority');
-	assert.match(controllerContent.slice(recoverIdx), /requireAuthority\([^,]+,\s*resolver\.requiredAuthority\(\)\)/, 'recover() must keep using the fetch/recover authority (it is conceptually a read, not a write)');
+	// D-resolver-policy-contract (PC4): fetch/patch/recover now route through authorizeOrThrow(),
+	// which still takes the same requiredAuthority()/requiredAuthorityForPatch() value as its own
+	// argument -- match on that call shape instead of the old direct requireAuthority() call.
+	assert.match(controllerContent.slice(fetchIdx, patchIdx), /authorizeOrThrow\([^,]+,[^,]+,\s*"fetch",\s*resolver\.requiredAuthority\(\)/, 'fetch() must keep using the fetch/recover authority');
+	assert.match(controllerContent.slice(patchIdx, recoverIdx), /authorizeOrThrow\([^,]+,[^,]+,\s*"patch",\s*resolver\.requiredAuthorityForPatch\(\)/, 'patch() must use the patch-specific authority');
+	assert.match(controllerContent.slice(recoverIdx), /authorizeOrThrow\([^,]+,[^,]+,\s*"recover",\s*resolver\.requiredAuthority\(\)/, 'recover() must keep using the fetch/recover authority (it is conceptually a read, not a write)');
 
 	// ResourceResolver interface: both accessor methods present.
 	const resolverPath = path.join(root, 'src/main/java/com/example/global/handle/ResourceResolver.java');

@@ -66,7 +66,7 @@ test('security: all three @PreAuthorize branches resolve correctly against real 
 	// "no authority found".
 	assert.equal(byType.Gamma.requiredAuthority, 'TODO_ROLE');
 	assert.equal(byType.Gamma.willGenerateResolver, true);
-	assert.ok(plan.notes.some((n) => n.includes('Gamma') && n.includes('not in the simple hasRole')));
+	assert.ok(plan.notes.some((n) => n.includes('Gamma') && n.includes('is not exactly hasRole')));
 
 	// The third arity case (alongside Beta's 1-arg-success and Curriculum's 2-arg-mismatch,
 	// tested separately above): no matching *Service.java file on disk AT ALL. A real fetch

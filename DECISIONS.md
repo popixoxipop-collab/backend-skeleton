@@ -14578,3 +14578,204 @@ now requires `--allow-dirty` where it silently worked before (K4's named breakin
 - Everything `D-gate-attestation-signing`'s own EXIT list already deferred (PKI/trust anchors,
   OIDC/keyless signing, key rotation/revocation lists, multi-signer thresholds, timestamping/
   transparency logs, CI-run correlation) -- unchanged, still deferred, not reopened here.
+
+## D-resolver-policy-contract: authorization becomes an explicit per-action policy record with a refusal ladder -- and an unresolved policy stops the target app from starting, not the build
+
+**WHY**: `handles/providers/java-spring/plan.mjs`'s authorization derivation recognized exactly two
+provably-safe shapes (`hasRole('X')`/`hasAuthority('X')`, O5) and otherwise failed closed to
+`TODO_ROLE` -- but it never checked whether a COMPANION annotation sat alongside a safe-looking
+`@PreAuthorize`. A real, concrete case: `@PreAuthorize("hasRole('USER')")` next to
+`@PostAuthorize("returnObject.ownerId == authentication.name")` (an ownership check) used to
+auto-materialize `ROLE_USER` and silently ignore the ownership check entirely -- **every `ROLE_USER`
+holder could read every other user's resource through `/handles/{handle}`**, an IDOR bskel itself
+would introduce into an app that was correctly protected before. Verified live: `@PostAuthorize`/
+`@Secured`/`@RolesAllowed`/`@PreFilter`/`@PostFilter` appear zero times anywhere in this repository
+today -- this rung changes nothing for any case this codebase currently exercises; it protects a
+target repo that DOES use them. `DECISIONS.md`'s own `D-handles` entry already says the quiet part:
+"resolver implementation quality is the entire defense... revisit if a resolver ever ships without
+an explicit `requiredAuthority()`." A materialized-but-under-enforcing `requiredAuthority()` is
+**worse** than a missing one: it looks explicit, passes review, and silently downgrades row-level
+authorization to role-level. This closes `D-resolver-authorization-action-aware`'s own named EXIT
+item verbatim: "ownership/organization-membership/service-layer policy awareness and 'block the
+controller bean from activating until a human wires a real policy'... the evidence now exists."
+
+Two secondary defects found while grounding this, both fixed in the same pass:
+- **Annotation-order sensitivity**: `findMappingAnnotations()`'s `index` is the mapping
+  annotation's OWN position; a method's real annotation-set boundary is `signatureIndex` (PC8,
+  additive field on the same function) -- without it, `@GetMapping(...) @PreAuthorize(...)`
+  (mapping annotation first) attributed its `@PreAuthorize` to the NEXT method's region, a
+  reintroduction of the exact `D-security-7` bug class through a different door.
+- **Unmasked region scan**: the old `extractPreAuthorize()` ran its regexes on raw `text`; a
+  `// @PreAuthorize(...)` comment could be matched as real. The new ladder scans `maskNonCode(text)`
+  throughout, re-slicing the ORIGINAL text only for evidence values -- this file's own established
+  convention.
+
+**PC1 -- the provably-safe set is frozen at exactly today's two shapes, not widened.**
+  WHY: freezing means zero behavior change for every case that already works -- the regression
+  surface of a security change collapses to "nothing that was materialized stops being
+  materialized." `hasAnyRole('A','B')` is explicitly NOT auto-materialized even though it is
+  provably a disjunction of literals: (1) materializing it requires `ResourceResolver#
+  requiredAuthority()` to become plural -- a breaking interface change to code this project
+  explicitly tells humans to hand-implement (`ResourceResolverStub.java.tmpl`'s own "wire it by
+  hand" comments); (2) this item's whole value is additive/non-breaking; (3) `hasAnyRole` is
+  disproportionately the annotation people write when the real policy is "admin OR the owner" --
+  refusing puts the verbatim expression in front of a human instead of half-encoding it.
+  COST: `hasAnyRole` users hand-write a short `authorize()`. Accepted.
+  EXIT: additive when taken -- a `mode: "role-any"` + `authorities: [...]` policy shape, plus a
+  `default List<String> requiredAuthorities()` `HandleController` prefers over the singular method.
+
+**PC2 -- the policy record**: `{action, mode, status, authority, evidence, reason}` on each of
+  exactly two `policies[]` entries per resource (`fetch` then `patch`; `recover` has NO record of
+  its own -- it is governed by `fetch`'s, though the runtime `authorize()` call still receives the
+  distinct action string `"recover"`). `mode` (`"role"`/`"delegated"`) is the forward-compatible
+  RUNTIME axis; `status` (`"materialized"`/`"unresolved"`) is what the PLANNER concluded -- kept as
+  two fields, 1:1 today, so PC1's EXIT (`"role-any"` still `status:"materialized"`) doesn't need a
+  third status value later. `evidence` carries an 8-value closed `kind` enum (one per ladder rung),
+  `scope` (`"method"`/`"class"`/null), a repo-relative `file`+1-based `line`, `symbol`
+  (`Controller.method`), and `text` (verbatim matched annotation source, whitespace-collapsed,
+  200-char capped). `requiredAuthority`/`requiredAuthorityForPatch` (O5) are kept, unchanged in
+  meaning, as `policies[].authority ?? 'TODO_ROLE'`'s scalar PROJECTION -- every existing consumer
+  (5 test files, both stub templates) keeps working unmodified.
+
+**PC3 -- the refusal ladder** (`derivePolicy()`/`derivePolicyFromRegion()`, plan.mjs), modeled
+  directly on `scanners/adapters/java-spring.mjs`'s `extractRepositoryResource()`: rung 0 (endpoint
+  exists?) -> rung 1 (carve the method region via `signatureIndex`, PC8) -> rung 2 (a companion
+  annotation ANYWHERE in the region? refuse, `companion-annotation-present` -- **this is the rung
+  that closes the WHY's IDOR**) -> rung 3 (more than one `@PreAuthorize`? refuse,
+  `pre-authorize-ambiguous`) -> rung 4 (exact-shape match against the frozen two regexes; anything
+  else, `pre-authorize-unrecognized`) -> falls back to the class region (rungs 2-4 again) only when
+  the method region had nothing at all -> `authorization-annotation-absent`. Every refusal's
+  `reason` names the exact file:line, what was found, and what a human must do.
+
+**PC4 -- the generated `authorize()` stub, and how it concretely blocks activation**: `default
+  String authorizationMode() { return "role"; }` / `default boolean authorize(Authentication,
+  String action, UUID resourceUid, String pointer) { return true; }` added to `ResourceResolver`
+  (`default`, not abstract -- provably non-breaking: any hand-written resolver that doesn't
+  override them behaves byte-identically to before this item existed). `HandleController`'s three
+  endpoints route through one new `authorizeOrThrow()` helper: `"role"` mode keeps the historical
+  `requireAuthority()` equality check then still calls `authorize()` (a no-op `true` default);
+  `"delegated"` mode SKIPS `requireAuthority()` entirely and `authorize()` is the whole gate. For an
+  unresolved resource, `emit.mjs` also writes `{Type}AuthorizationPolicy.java` -- an interface bskel
+  deliberately NEVER implements -- and the generated `{Type}Resolver` declares it as a
+  `@RequiredArgsConstructor` field, delegating both methods to it.
+  **The block mechanism is Spring application-context STARTUP FAILURE, not a compile error**: the
+  interface exists, so `./gradlew compileJava`/`bskel verify --build` keep passing (mandatory --
+  a non-compiling emit would block unrelated code from building too); but no bean implements it, so
+  `{Type}Resolver`'s `@Component` cannot be constructed, and `refresh()` throws. Rejected
+  alternatives, with reasons: a deliberate compile error (breaks `verify --build` for unrelated
+  code); a runtime throw inside a generated `authorize()` body (the app boots, the route mounts,
+  the failure is indistinguishable from a real 403/500 -- exactly the silence being fixed);
+  `@ConditionalOnBean` on the resolver (the app boots, the route 404s indistinguishable from
+  "no handle minted yet" -- and Spring documents `@ConditionalOnBean` on a plain `@Component` as
+  unreliable outside auto-configuration classes, a subtly-broken mechanism this project's own
+  `D-resolver-scope` precedent already refuses). `requiredAuthority()` stays `"TODO_ROLE"` for an
+  unresolved resource -- not a second sentinel -- so every pre-existing `TODO_ROLE` assertion (5
+  test files) keeps passing, and if the `mode` branch were ever reverted the fallback is the
+  existing hard-403, not an open door.
+
+**PC5 -- additive schema, no version bump.** `schemas/handles-plan.schema.json`'s `$id`/
+  `schema.const` stay at `/1`; `policies`/`authorizationMode` are new, non-required properties --
+  the exact precedent `requiredAuthorityForPatch` (O5) and `idFieldType`/`idFieldIsUuid`
+  (`D-write-safety-phase1`) already set for "java-spring only" fields on this shared, provider-
+  neutral schema.
+
+**PC6 (found live, during implementation) -- `policyRequiresResolution()`: `endpoint-absent`/
+  `endpoint-method-absent` do NOT count as needing resolution, and must not force `authorizationMode:
+  "delegated"`.** The plan as designed treated "no endpoint found for this action" as its own
+  refusal rung, symmetric with fetch's. That is correct for `fetch` (`willGenerateResolver` already
+  fully depends on `fetchOp` existing, so this case never reaches the blocking check in practice) --
+  but `willGenerateResolver` does NOT depend on the UPDATE endpoint existing AT ALL. A read-only
+  resource (fetch works, no PATCH endpoint) is a normal, common shape this codebase's own real test
+  fixtures immediately exercised: without this exclusion, `test/handles-ownership-cli.test.mjs`'s
+  shared Widget fixture (fetch-only, no update endpoint) went from `handles emit` exit 0 to exit 23
+  on every one of 4 previously-green tests -- a real regression this project's own tests caught,
+  not a hypothetical one. `policyRequiresResolution(p)` (`status === 'unresolved' && kind !==
+  'endpoint-absent' && kind !== 'endpoint-method-absent'`) is the one place both `plan.mjs`'s
+  `authorizationMode` computation and `emit.mjs`'s `unresolvedPolicies`/javadoc-evidence loops
+  agree on "does this record actually need a human" -- exported so there is exactly one
+  implementation, not two that could drift. A benign `endpoint-absent` record still appears in
+  `policies[]` (schema-honest: "no materialized authority exists for this action" is still true)
+  with `mode: 'delegated'` at the RECORD level (the status/mode invariant test asserts this) --
+  only the RESOURCE-level `authorizationMode` and the emit-time gate exclude it.
+
+**PC7 -- CLI shape: extends `handles emit`, no new flag.** Ships **default-on** (per the ROI
+  discussion that scoped this item -- the safe set is frozen, so "what changes for a repo that
+  already works" is empty unless it has a companion annotation, an ambiguous region, or an
+  order-swapped annotation, i.e. unless it is one of the broken cases). `handles emit` writes the
+  resolver/`AuthorizationPolicy` files (a human needs to see the stub) then exits
+  **`HANDLES_UNRESOLVED_POLICY: 23`** without passing the `handles` gate, unless `--force --reason`
+  acknowledges it -- the exact `HANDLES_REGISTRATION_GAP: 21` shape, including its "the file(s)
+  above were still written -- nothing about their content is wrong" framing. **23, not the
+  originally-proposed 22** -- `D-attestation-payload-completeness`'s `ATTESTATION_ASSERTION_FAILED`
+  claimed 22 first (a genuine, unplanned collision between two independently-designed items; caught
+  before either shipped, not after). Orthogonal to `--enforce-registry` (untouched, zero lines
+  changed): that axis is about revocation/lifecycle and produces 404s; this one is about
+  authorization and produces 403s/boot failures -- `--enforce-registry`'s own reason for staying
+  opt-in (flipping it on would 404 every existing handle) does not transfer, since a policy
+  contract cannot invalidate an existing handle.
+
+**PC8** -- `signatureIndex` added to `findMappingAnnotations()`'s existing return records
+  (`scanners/adapters/_java-spring-analyzer.mjs`) -- the value (`afterAnnotations`) was already
+  computed internally; only returning it is new. Additive; the one other caller
+  (`scanners/adapters/java-spring.mjs`) ignores the new field.
+
+**PC9 -- java-spring only.** `python-fastapi`'s `check_access()` and `typescript-express`'s
+  `checkAccess` are already unconditional fail-closed stubs with no annotation-derived inference to
+  have a gap in the first place -- adding a policy record there would be ceremony over a nonexistent
+  problem. Named, not silently dropped.
+
+**PC10 -- orphan detection recognizes all three generated suffixes.** `AuthorizationPolicy.java`/
+  `ResolverPolicy.java`/`Resolver.java`, longest-first (same reasoning the existing
+  `ResolverPolicy`/`Resolver` pair already used). A resource that transitions unresolved ->
+  materialized leaves its old `AuthorizationPolicy.java` as a reported orphan -- never
+  auto-deleted, the same never-delete bias `D-migration-scope`/`D-config-patch` already take.
+
+**PC11 -- `SecurityFilterChain`/`HttpSecurity` path-matcher parsing is out of scope.** A second,
+  entirely separate authorization plane, unread before this item and unread after. It cannot
+  protect `/handles/{handle}` anyway -- a path it has never heard of -- which is exactly why
+  `authorization-annotation-absent` refuses rather than assumes coverage from it.
+
+**PC12 -- real-toolchain verification, `scripts/java-compile-smoke.mjs`.** A scratch-ONLY `Ledger`
+  resource (never added to `test/fixtures/java-compile/` on disk -- `java-integration-smoke.mjs`
+  boots that fixture with a real `@SpringBootTest`, which an unimplemented policy bean would break)
+  carrying `@PreAuthorize("hasRole('USER')")` + `@PostAuthorize(...)` on the same method, run as its
+  own feature (`002-ledger-management`) through a real scan/contract/`handles emit`. Proves, against
+  the real CLI (exit 23, `--force --reason` bypass) and a real `AnnotationConfigApplicationContext`
+  (not just a compile check): the unresolved `LedgerAuthorizationPolicy` genuinely blocks
+  `LedgerResolver`'s bean from being constructed; a hand-supplied policy bean genuinely unblocks it;
+  the fully-materialized `WidgetResolver` boots with zero policy bean at all.
+
+**Test coverage**: `test/handles-policy-contract.test.mjs` (new, 22 tests, self-contained temp-dir
+fixtures per this file's own convention rather than the shared `test/fixtures/java-spring/` corpus
+-- a disclosed, deliberate deviation from the original plan's suggested fixture placement, chosen
+to keep this item's cases independent of that corpus's own pinned resource counts): the two
+provably-safe shapes still materializing (A1-A4), every refusal kind including the headline
+`@PostAuthorize` case explicitly asserting `authority !== 'ROLE_USER'` (B1-B9), the two ordering/
+masking defects (C1-C2), and the status/mode/authority invariants plus PC6's endpoint-absent
+exclusion (D1-D7). `test/handles-plan.test.mjs`/`test/handles-plan-fixture.test.mjs`/
+`test/handles-cli.test.mjs`/`test/handles-ownership-cli.test.mjs` updated additively -- every
+pre-existing `requiredAuthority` expectation is UNCHANGED (PC1's frozen-safe-set claim, verified by
+running the suite, not assumed); the only edits were two note-wording assertions (the ladder's
+richer per-kind reason text replaced the old two-case wording) and `handles-cli.test.mjs`'s
+`HandleController.java` content-pattern match (`authorizeOrThrow(...)` replacing the direct
+`requireAuthority(...)` call it now wraps).
+
+**Verified**: `npm test` -- see the commit's own recorded counts (0 regressions: every pre-existing
+test that changed did so only in assertion WORDING, never in the underlying value it checks).
+`npm run test:java-compile` (real `./gradlew`, real JVM) green including the new phases above.
+`npm run test:java-integration` unaffected (the on-disk fixture was never touched).
+
+**COST**: one new template (`AuthorizationPolicyStub.java.tmpl`) + one conditional third emit unit
++ two `default` interface methods + one new exit code. A `@PostAuthorize`-carrying route that
+materialized before now refuses -- that is the fix, not a regression. One unresolved resource stops
+the WHOLE target app from booting until acknowledged -- mitigated by the pre-write CLI gate
+(the operator sees it at `handles emit` time, before ever building).
+
+**EXIT (explicitly deferred, not silently dropped)**:
+- `hasAnyRole`/`hasAnyAuthority` materialization -- PC1's own named, additive follow-up.
+- SpEL expression parsing, ownership/tenant inference, service-layer authorization detection -- a
+  real evaluator (or a partial one) would materialize a policy that LOOKS derived; the unresolved
+  stub is the honest endpoint, matching `D-resolver-scope`'s own established discipline.
+- Every framework but java-spring (PC9).
+- `SecurityFilterChain`/`HttpSecurity` parsing (PC11).
+- Flipping `--enforce-registry` on by default -- orthogonal axis, zero lines touched here.

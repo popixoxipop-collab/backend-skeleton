@@ -25,6 +25,38 @@
           "readPath": { "type": ["string", "null"] },
           "requiredAuthority": { "type": "string" },
           "requiredAuthorityForPatch": { "type": "string", "description": "O5 (D-resolver-authorization-action-aware): java-spring only -- derived independently from the entity's UPDATE endpoint, not copied from requiredAuthority (which is fetch/recover's own value)." },
+          "policies": {
+            "type": "array",
+            "description": "D-resolver-policy-contract (PC2): java-spring only -- exactly two records, action 'fetch' then 'patch'. 'recover' has no record of its own: it is governed by the 'fetch' record (HandleController#recover uses requiredAuthority()), though the runtime authorize() call still receives the distinct action string \"recover\". requiredAuthority/requiredAuthorityForPatch are the legacy scalar PROJECTION of these records; policies is the source of truth.",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action", "mode", "status", "authority", "evidence", "reason"],
+              "properties": {
+                "action": { "enum": ["fetch", "patch"] },
+                "mode": { "enum": ["role", "delegated"] },
+                "status": { "enum": ["materialized", "unresolved"] },
+                "authority": { "type": ["string", "null"] },
+                "reason": { "type": ["string", "null"] },
+                "evidence": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "scope", "file", "line", "symbol", "text"],
+                  "properties": {
+                    "kind": { "enum": ["endpoint-absent", "endpoint-method-absent", "companion-annotation-present", "pre-authorize-ambiguous", "pre-authorize-unrecognized", "authorization-annotation-absent", "pre-authorize-has-role", "pre-authorize-has-authority"] },
+                    "scope": { "enum": ["method", "class", null] },
+                    "file": { "type": ["string", "null"] },
+                    "line": { "type": ["integer", "null"], "minimum": 1 },
+                    "symbol": { "type": ["string", "null"] },
+                    "text": { "type": ["string", "null"] }
+                  }
+                }
+              }
+            }
+          },
+          "authorizationMode": { "type": "string", "enum": ["role", "delegated"], "description": "D-resolver-policy-contract (PC2): java-spring only -- 'delegated' whenever either policies[] record is unresolved. Drives HandleController.java.tmpl's authorizeOrThrow(): 'role' keeps the historical requireAuthority() equality check, 'delegated' skips it and requires an injected AuthorizationPolicy bean instead." },
           "willGenerateResolver": { "type": "boolean" }
         }
       }

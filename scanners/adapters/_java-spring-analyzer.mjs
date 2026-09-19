@@ -311,6 +311,12 @@ export function findMappingAnnotations(text) {
 			argsText: argsStart >= 0 ? text.slice(argsStart, argsEnd) : '',
 			methodName: sig.methodName,
 			methodLine: lineNumberAt(text, atIndex),
+			// D-resolver-policy-contract (PC8): the position right after ALL of this method's own
+			// annotations end (already computed above as `afterAnnotations`, just returned here too)
+			// -- the only way to carve a method region that contains every annotation regardless of
+			// source order (e.g. `@GetMapping(...) @PreAuthorize(...)`, where @PreAuthorize follows
+			// the mapping annotation instead of preceding it).
+			signatureIndex: afterAnnotations,
 		});
 	}
 	return results;
