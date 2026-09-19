@@ -10,7 +10,7 @@
     "schema": { "const": "sbf.patch-transaction/1" },
     "transaction_id": { "type": "string", "pattern": "^pt-[0-9a-f-]{36}$" },
     "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
-    "kind": { "enum": ["config-apply", "ddl-apply"] },
+    "kind": { "enum": ["config-apply", "ddl-apply", "java-source-splice"] },
     "source": {
       "type": "object",
       "description": "Kind-specific opaque context needed to re-plan this transaction fresh at approve/apply time. Shape enforced per-kind by the allOf/if-then branches below."
@@ -56,7 +56,11 @@
       "properties": {
         "reason": { "type": "string" },
         "at": { "type": "string", "format": "date-time" },
-        "forced": { "type": "boolean" }
+        "forced": { "type": "boolean" },
+        "compile_after_rollback": {
+          "enum": ["ok", "failed"],
+          "description": "D-java-source-splice: java-source-splice only. Deliberately added HERE, to the base `rollback` object, not inside a per-kind allOf/if-then branch -- `rollback` is additionalProperties:false, and a branch's `then` schema is a SEPARATE schema applied to the same instance, so it cannot widen a sibling schema's own closed property list (confirmed live: a branch-added property is still rejected by the base schema's additionalProperties:false). Optional, not required -- absent on every config-apply/ddl-apply record, and on any java-source-splice record persisted before this field existed."
+        }
       }
     }
   },
@@ -173,6 +177,87 @@
               "at": { "type": "string", "format": "date-time" },
               "postimage_schema_hash": { "type": "string" },
               "executed_statements": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "java-source-splice" } } },
+      "then": {
+        "properties": {
+          "source": {
+            "additionalProperties": false,
+            "required": ["request_file"],
+            "properties": {
+              "request_file": { "type": "string", "description": "The --splice-file path this transaction was originally proposed from -- audit trail only, never re-read at approve/apply time (paramsFromTxn() reconstructs planner params entirely from `target`)." }
+            }
+          },
+          "target": {
+            "additionalProperties": false,
+            "required": ["file", "source_root", "line_terminator", "edits"],
+            "properties": {
+              "file": { "type": "string" },
+              "source_root": { "type": "string" },
+              "line_terminator": { "enum": ["\n", "\r\n"] },
+              "edits": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["op", "region_hash", "signature_hash", "located"],
+                  "properties": {
+                    "op": { "enum": ["replace-method-body", "insert-method-body-prologue", "replace-field-initializer", "add-import"] },
+                    "locator": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["type_fqn", "member_kind", "member_name"],
+                      "properties": {
+                        "type_fqn": { "type": "string" },
+                        "member_kind": { "enum": ["method", "field"] },
+                        "member_name": { "type": "string" },
+                        "erased_param_types": { "type": "array", "items": { "type": "string" } }
+                      }
+                    },
+                    "replacement": { "type": "string" },
+                    "statements": { "type": "string" },
+                    "imports": { "type": "array", "items": { "type": "string" } },
+                    "region_hash": { "type": "string" },
+                    "signature_hash": { "type": ["string", "null"] },
+                    "located": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["start", "end", "begin_line", "end_line"],
+                      "description": "A cache of where this edit's region was found at the time of the last plan -- NEVER authoritative (re-derived fresh from `locator` on every plan; a mismatch with the current file just means something else moved, not an error).",
+                      "properties": {
+                        "start": { "type": "integer" },
+                        "end": { "type": "integer" },
+                        "begin_line": { "type": ["integer", "null"] },
+                        "end_line": { "type": ["integer", "null"] }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "postcondition": {
+            "additionalProperties": false,
+            "required": ["kind", "build_tool", "build_command"],
+            "properties": {
+              "kind": { "const": "java-compiles" },
+              "build_tool": { "type": "string" },
+              "build_command": { "type": "string" }
+            }
+          },
+          "apply": {
+            "additionalProperties": false,
+            "required": ["at", "postimage_file_hash", "build_tool"],
+            "properties": {
+              "at": { "type": "string", "format": "date-time" },
+              "postimage_file_hash": { "type": "string" },
+              "build_tool": { "type": "string" }
             }
           }
         }

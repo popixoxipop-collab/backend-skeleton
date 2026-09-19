@@ -29,8 +29,8 @@ function fakeKindPlan(originalContent, renderedContent) {
 	};
 }
 
-test('PATCH_KIND_NAMES lists exactly config-apply and ddl-apply', () => {
-	assert.deepEqual([...PATCH_KIND_NAMES].sort(), ['config-apply', 'ddl-apply']);
+test('PATCH_KIND_NAMES lists exactly config-apply, ddl-apply, and java-source-splice', () => {
+	assert.deepEqual([...PATCH_KIND_NAMES].sort(), ['config-apply', 'ddl-apply', 'java-source-splice']);
 });
 
 test('getPatchKind returns a {planFresh, paramsFromTxn, apply, rollback} shape for every known kind', () => {

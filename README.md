@@ -40,6 +40,7 @@ check for a specific failure mode found the same way — see `DECISIONS.md` for 
   - [Database schema (optional)](#database-schema-optional)
   - [An ERD of your database schema (optional)](#an-erd-of-your-database-schema-optional)
   - [Applying DDL to a live database (optional)](#applying-ddl-to-a-live-database-optional)
+  - [Splicing real Java source (optional, java-spring only)](#splicing-real-java-source-optional-java-spring-only)
   - [Declaring field-to-field dependencies (optional)](#declaring-field-to-field-dependencies-optional)
   - [Patching a config file (optional)](#patching-a-config-file-optional)
   - [Signed gate attestations (optional)](#signed-gate-attestations-optional)
@@ -381,6 +382,49 @@ through the browser UI's own propose/approve/apply routes; `--require-sign-key` 
 the DDL surface at all unless a signing key was also given. See `D-ddl-apply` in `DECISIONS.md` for
 the full design and every explicitly-deferred boundary (non-Postgres databases, connection
 pooling, production safety rails).
+
+### Splicing real Java source (optional, java-spring only)
+
+`bskel patch propose --kind java-source-splice` extends the same lifecycle to a third kind: a
+closed, four-operation vocabulary for editing REAL, hand-written `.java` source --
+`replace-method-body`, `insert-method-body-prologue`, `replace-field-initializer`, `add-import`.
+A member is located by its language-guaranteed identity (a type's fully-qualified name plus, for a
+method, its erased parameter types — the same rule javac itself uses to forbid two overloads
+sharing one erased signature), resolved via a real JavaParser+Symbol Solver pass and cross-checked
+by an independent, non-AST falsifier before anything is written. The postcondition is a real
+`./gradlew compileJava`; a failure automatically restores the original file, never leaves a broken
+one in place:
+
+```bash
+cat > splice.json <<'EOF'
+{
+  "schema": "sbf.java-source-splice/1",
+  "file": "src/main/java/com/example/demo/domain/widget/application/WidgetServiceImpl.java",
+  "edits": [{
+    "op": "replace-method-body",
+    "locator": {
+      "type_fqn": "com.example.demo.domain.widget.application.WidgetServiceImpl",
+      "member_kind": "method",
+      "member_name": "updateWidget",
+      "erased_param_types": ["java.util.UUID", "com.example.demo.domain.widget.presentation.dto.UpdateWidgetRequest"]
+    },
+    "replacement": "{\n\t\treturn widgetRepository.save(findWidget(widgetId));\n\t}"
+  }]
+}
+EOF
+bskel patch propose --feature 001-widget-management --kind java-source-splice --splice-file splice.json
+bskel patch approve --feature 001-widget-management --transaction <id> --reason "..."
+bskel patch apply   --feature 001-widget-management --transaction <id> --confirm WidgetServiceImpl#updateWidget
+```
+
+Every edit outside the four ops refuses outright (no member add/remove/rename, no signature/
+annotation edits, no nested/inner/anonymous/local types, no multi-top-level-type files, no
+`apply-diff`) — there is no general-purpose patch/diff applier here, only grammar-delimited,
+independently-verified regions. Requires the bundled AST helper (`bskel doctor` reports readiness
+under "java-source-splice prerequisites"). Python/TypeScript source splicing is not supported —
+neither has an equivalent AST helper or whole-project compile check in this repo. See
+`D-java-source-splice` in `DECISIONS.md` for the full three-mechanism node-identity design and
+every explicitly-deferred boundary.
 
 ### Declaring field-to-field dependencies (optional)
 

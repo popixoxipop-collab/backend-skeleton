@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:java-source-splice:1",
+  "title": "backend-skeleton java-source-splice request document (--splice-file)",
+  "description": "D-java-source-splice: the input document for `bskel patch propose --kind java-source-splice --splice-file <path>`. A single Java file plus an ordered, closed-vocabulary list of structural edits -- exactly the four operations handles/providers/java-spring/source-splice.mjs's planJavaSourceSplice() knows how to plan. `locator` identifies a member by its language-guaranteed identity (a type's fully-qualified name plus, for a method, its erased parameter types -- the same rule javac itself uses to forbid two same-named same-erased-signature overloads), never by line/column (those are recomputed fresh on every plan, never trusted from this file).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "file", "edits"],
+  "properties": {
+    "schema": { "const": "sbf.java-source-splice/1" },
+    "file": { "type": "string", "minLength": 1, "description": "Repo-relative path to the single Java source file every edit in this document targets." },
+    "edits": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/edit" }
+    }
+  },
+  "$defs": {
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type_fqn", "member_kind", "member_name"],
+      "properties": {
+        "type_fqn": { "type": "string", "minLength": 1, "description": "The single top-level type's fully-qualified name -- V1 refuses a file declaring more than one top-level type." },
+        "member_kind": { "enum": ["method", "field"] },
+        "member_name": { "type": "string", "minLength": 1 },
+        "erased_param_types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Method locators only -- the exact erased (generics-stripped) fully-qualified parameter types, in order. This is what disambiguates an overload; a field locator omits it entirely."
+        }
+      }
+    },
+    "edit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "locator", "replacement"],
+          "properties": {
+            "op": { "const": "replace-method-body" },
+            "locator": { "$ref": "#/$defs/locator" },
+            "replacement": { "type": "string", "minLength": 2, "description": "The whole new method body, including the enclosing braces: must start with \"{\" and end with \"}\"." }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "locator", "statements"],
+          "properties": {
+            "op": { "const": "insert-method-body-prologue" },
+            "locator": { "$ref": "#/$defs/locator" },
+            "statements": { "type": "string", "minLength": 1, "description": "Raw statement text to insert at the top of the method body -- the planner derives the actual replacement (original body text is required to survive as a verbatim suffix)." }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "locator", "replacement"],
+          "properties": {
+            "op": { "const": "replace-field-initializer" },
+            "locator": { "$ref": "#/$defs/locator" },
+            "replacement": { "type": "string", "minLength": 1, "description": "The new initializer expression only -- no leading \"=\", no trailing \";\"." }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "imports"],
+          "properties": {
+            "op": { "const": "add-import" },
+            "imports": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$" },
+              "description": "Exactly one fully-qualified import -- at most one add-import edit is permitted per transaction (see the planner's own WHY). No wildcard, no static import."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

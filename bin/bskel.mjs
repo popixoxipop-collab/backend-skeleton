@@ -135,7 +135,7 @@ function usage() {
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
-  bskel patch propose --feature <id> [--kind config-apply|ddl-apply] --choice <stackChoiceId> --target <config_check target path> --database-url-env <NAME> --schema <name> --sql-file <path> [--json]
+  bskel patch propose --feature <id> [--kind config-apply|ddl-apply|java-source-splice] --choice <stackChoiceId> --target <config_check target path> --database-url-env <NAME> --schema <name> --sql-file <path> --splice-file <path> [--json]
   bskel patch approve --feature <id> --transaction <id> --reason "..." [--json]
   bskel patch apply --feature <id> --transaction <id> [--confirm <id-or-dropped-table-name>] [--json]
   bskel patch rollback --feature <id> --transaction <id> --reason "..." [--force] [--json]
@@ -3381,7 +3381,7 @@ async function cmdPatchPropose(args) {
 		}
 		params = { choice: flags.choice, target: flags.target };
 		source = { choice: flags.choice };
-	} else {
+	} else if (kind === 'ddl-apply') {
 		if (!flags['database-url-env'] || !flags['sql-file']) {
 			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch propose --kind ddl-apply requires --database-url-env <NAME> --sql-file <path>');
 		}
@@ -3393,6 +3393,23 @@ async function cmdPatchPropose(args) {
 		}
 		params = { databaseUrlEnv: flags['database-url-env'], schema: flags.schema, sqlText };
 		source = { database_url_env: flags['database-url-env'], schema: flags.schema };
+	} else {
+		// java-source-splice
+		if (!flags['splice-file']) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel patch propose --kind java-source-splice requires --splice-file <path>');
+		}
+		let spliceDoc;
+		try {
+			spliceDoc = JSON.parse(fs.readFileSync(flags['splice-file'], 'utf8'));
+		} catch (err) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `could not read/parse --splice-file "${flags['splice-file']}": ${err.message}`);
+		}
+		const { ok: spliceOk, errors: spliceErrors } = validateAgainstSchema('java-source-splice.schema.json', spliceDoc);
+		if (!spliceOk) {
+			fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `"${flags['splice-file']}" does not match schemas/java-source-splice.schema.json:\n${formatSchemaErrors(spliceErrors).join('\n')}`);
+		}
+		params = { file: spliceDoc.file, edits: spliceDoc.edits };
+		source = { request_file: flags['splice-file'] };
 	}
 
 	let plan;
@@ -3418,6 +3435,12 @@ async function cmdPatchPropose(args) {
 function describePatchTransaction(txn) {
 	if (txn.kind === 'config-apply') {
 		return `${txn.target.file} @ ${txn.target.key_path.join('.')}: "${txn.current_value}" -> "${txn.proposed_value}"`;
+	}
+	if (txn.kind === 'java-source-splice') {
+		const members = txn.target.edits
+			.map((e) => (e.locator ? `${e.op}:${e.locator.member_name}` : `add-import:${e.imports?.[0]}`))
+			.join(', ');
+		return `[java-source-splice] ${txn.target.file}: ${members}`;
 	}
 	const sql = txn.target.sql_text.replace(/\s+/g, ' ').trim();
 	return `[${txn.kind}] ${txn.target.database_url_env}/${txn.target.schema}: ${sql.slice(0, 100)}${sql.length > 100 ? '...' : ''}`;
@@ -3448,10 +3471,31 @@ async function cmdPatchApprove(args) {
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
-	const updated = approveTransaction(root, flags.feature, flags.transaction, flags.reason, freshPlan);
+	let updated;
+	try {
+		updated = approveTransaction(root, flags.feature, flags.transaction, flags.reason, freshPlan);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', describeStaleTransactionError(err, root, txn, freshPlan));
+	}
 
 	console.log(flags.json ? JSON.stringify(updated, null, 2) : `approved: ${flags.transaction}`);
 	process.exit(0);
+}
+
+// D-java-source-splice: enriches a StaleTransactionError with the kind's own optional
+// describeStaleness() hook (only java-source-splice defines one today) -- never changes WHETHER
+// the transaction is rejected, only the diagnostic text. Checked by `.name`, not `instanceof`
+// (StaleTransactionError is intentionally not exported from lib/patch-transactions.mjs -- this is
+// its only consumer, and importing the class just to narrow a catch is unnecessary coupling).
+function describeStaleTransactionError(err, root, txn, freshPlan) {
+	if (err.name !== 'StaleTransactionError') return err.message;
+	const describe = getPatchKind(txn.kind).describeStaleness;
+	if (!describe) return err.message;
+	try {
+		return describe(root, txn, freshPlan);
+	} catch {
+		return err.message;
+	}
 }
 
 // D-ddl-apply: --confirm is required (and must exactly equal --transaction) for any kind other
@@ -3479,7 +3523,12 @@ async function cmdPatchApply(args) {
 	} catch (err) {
 		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
 	}
-	const updated = await applyTransaction(root, flags.feature, flags.transaction, freshPlan, getPatchKind(txn.kind).apply);
+	let updated;
+	try {
+		updated = await applyTransaction(root, flags.feature, flags.transaction, freshPlan, getPatchKind(txn.kind).apply);
+	} catch (err) {
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', describeStaleTransactionError(err, root, txn, freshPlan));
+	}
 
 	const evidence = { transaction_id: updated.transaction_id, kind: updated.kind, applied_at: updated.apply.at };
 	const gateState = passNamedGate(root, 'patch_transactions', flags.feature, evidence);

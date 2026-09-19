@@ -763,5 +763,177 @@ if (aspectResult.ranAllAssertions !== true) {
 }
 console.log('java-compile-smoke: PASS -- @EnforceRules/RuleEnforcementAspect correctly: observe-mode always proceeds, enforce-mode rejects real violations with a fully redacted message and never runs the real method, a valid payload always proceeds even in enforce mode, and an operation with no rules is a silent no-op.');
 
+// D-java-source-splice (T1/T3/T4/T5/T7/T8): real propose/approve/apply/rollback against the same
+// real WidgetServiceImpl.java the rest of this script already established through the gated
+// workflow, plus a scratch-only decoy overload (never added to the committed
+// test/fixtures/java-compile/ corpus -- same throwaway-injection discipline as the Ledger
+// resource above) to prove JS2/JS3 pick the RIGHT overload, not merely "a" overload.
+console.log('java-compile-smoke: java-source-splice -- decoy overload, benign upstream drift, compile-failure auto-restore, rollback...');
+sh('git', ['add', '-A'], scratch, { quiet: true });
+sh('git', ['commit', '--quiet', '-m', 'chore: pre-splice checkpoint'], scratch, { quiet: true });
+
+const widgetServiceImplPath = path.join(scratch, 'src/main/java/com/example/demo/domain/widget/application/WidgetServiceImpl.java');
+const preSpliceSource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+const DECOY_METHOD = `
+	// D-java-source-splice (T7): a decoy overload sharing the real method's NAME but not its erased
+	// parameter types -- a locator that picked the wrong overload would silently rewrite this stub.
+	public Widget updateWidget(String legacyId) {
+		throw new UnsupportedOperationException("legacy path, unused: " + legacyId);
+	}
+`;
+fs.writeFileSync(widgetServiceImplPath, preSpliceSource.replace(/\n\}\s*$/, `${DECOY_METHOD}}\n`));
+sh('git', ['add', '-A'], scratch, { quiet: true });
+sh('git', ['commit', '--quiet', '-m', 'chore: inject scratch-only decoy overload (T7)'], scratch, { quiet: true });
+const decoyMethodText = DECOY_METHOD.trim();
+
+// --- Sequence A: propose a real edit, let an UNRELATED part of the same file drift before
+// approve (T3), approve, apply (T1), verify the decoy overload was never touched (T7), verify it
+// still compiles, then roll back byte-exact (T5).
+const spliceDocA = {
+	schema: 'sbf.java-source-splice/1',
+	file: 'src/main/java/com/example/demo/domain/widget/application/WidgetServiceImpl.java',
+	edits: [
+		{
+			op: 'replace-method-body',
+			locator: {
+				type_fqn: 'com.example.demo.domain.widget.application.WidgetServiceImpl',
+				member_kind: 'method',
+				member_name: 'updateWidget',
+				erased_param_types: ['java.util.UUID', 'com.example.demo.domain.widget.presentation.dto.UpdateWidgetRequest'],
+			},
+			replacement: `{
+		// JAVA-SPLICE-TEST-MARKER (T1/T3)
+		Widget widget = findWidget(widgetId);
+		if (request.label() != null) {
+			widget.setName(request.label().value());
+		}
+		return widgetRepository.save(widget);
+	}`,
+		},
+	],
+};
+const spliceFileA = path.join(scratch, 'splice-a.json');
+fs.writeFileSync(spliceFileA, JSON.stringify(spliceDocA, null, 2));
+
+r = bskel(['patch', 'propose', '--feature', FEATURE_ID, '--kind', 'java-source-splice', '--splice-file', spliceFileA, '--json'], scratch);
+if (r.code !== 0) fail(`patch propose (splice A): ${r.stderr || r.stdout}`);
+const txnA = JSON.parse(r.stdout);
+
+// T3: an edit to a DIFFERENT method in the SAME file, between propose and approve -- must not
+// invalidate the transaction (region_hash only covers updateWidget's own region).
+const beforeApproveSource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+fs.writeFileSync(widgetServiceImplPath, beforeApproveSource.replace(
+	'public Widget findWidget(UUID widgetId) {',
+	'public Widget findWidget(UUID widgetId) {\n\t\t// benign unrelated drift (T3)',
+));
+
+r = bskel(['patch', 'approve', '--feature', FEATURE_ID, '--transaction', txnA.transaction_id, '--reason', 'java-compile-smoke T3'], scratch);
+if (r.code !== 0) fail(`patch approve (splice A) unexpectedly refused after a benign UNRELATED edit -- region_hash should only cover updateWidget's own region: ${r.stderr || r.stdout}`);
+console.log('java-compile-smoke: PASS (T3) -- an unrelated edit elsewhere in the same file did not invalidate the proposed splice.');
+
+// T4: a hand edit INSIDE the target region itself, after approve -- MUST be refused, then undone
+// so the real apply below proceeds against the approved content.
+const approvedSource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+fs.writeFileSync(widgetServiceImplPath, approvedSource.replace(
+	'public Widget updateWidget(UUID widgetId, UpdateWidgetRequest request) {',
+	'public Widget updateWidget(UUID widgetId, UpdateWidgetRequest request) {\n\t\t// T4 in-region drift, must invalidate the approval',
+));
+// D-preflight-freshness (S3): the preflight gate carries a 30-minute TTL -- by this point in the
+// script, real `gradle wrapper` generation plus several real `./gradlew`/JVM phases have already
+// run, so simply re-asserting preflight here (a cheap, local `git rev-parse`-only recompute, no
+// mutation) before every `patch apply`/`patch rollback` call is the correct, expected thing to do
+// -- exactly what a real user re-running this over a long working session would do too.
+r = bskel(['preflight', '--allow-dirty'], scratch);
+if (r.code !== 0) fail(`preflight (re-assert before T4 apply attempt): ${r.stderr || r.stdout}`);
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnA.transaction_id, '--confirm', 'WidgetServiceImpl#updateWidget'], scratch);
+if (r.code === 0) fail('patch apply (splice A) unexpectedly SUCCEEDED after the target region itself was hand-edited post-approve -- staleness detection (T4) is not working');
+fs.writeFileSync(widgetServiceImplPath, approvedSource); // undo the T4 probe edit, restore the approved state
+console.log('java-compile-smoke: PASS (T4) -- an edit to the target region itself, after approve, was correctly refused at apply time.');
+
+r = bskel(['preflight', '--allow-dirty'], scratch);
+if (r.code !== 0) fail(`preflight (re-assert before the real apply): ${r.stderr || r.stdout}`);
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnA.transaction_id, '--confirm', 'WidgetServiceImpl#updateWidget', '--json'], scratch);
+if (r.code !== 0) fail(`patch apply (splice A): ${r.stderr || r.stdout}`);
+
+const postApplySource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+if (!postApplySource.includes('JAVA-SPLICE-TEST-MARKER')) fail('patch apply (splice A) reported success, but the splice marker is not present in the file');
+if (!postApplySource.includes(decoyMethodText)) fail('patch apply (splice A) altered the decoy overload updateWidget(String) -- the locator picked the WRONG method (T7 failed)');
+console.log('java-compile-smoke: PASS (T1/T7) -- the real edit landed in the correct overload; the decoy overload with the same name is byte-for-byte untouched.');
+
+r = bskel(['verify', '--feature', FEATURE_ID, '--build', '--json'], scratch);
+report = JSON.parse(r.stdout);
+// Checks report.build.ok specifically, NOT the aggregate report.pass -- a real source splice
+// legitimately makes the unrelated `scan` gate go stale (it hashes the very file just edited,
+// exactly as it should for any real hand edit), which is correct, expected behavior this feature
+// is not responsible for preventing. The only claim this step makes is "the compile itself
+// succeeded", which report.build isolates from every other gate's own freshness.
+if (report.build?.ok !== true) fail(`bskel verify --build's compile check failed after the java-source-splice apply: ${JSON.stringify(report.build, null, 2)}`);
+console.log('java-compile-smoke: PASS -- the project still compiles (real ./gradlew compileJava) after the splice.');
+
+const postSpliceHash = sh('git', ['hash-object', widgetServiceImplPath], scratch, { quiet: true }).trim();
+r = bskel(['preflight', '--allow-dirty'], scratch);
+if (r.code !== 0) fail(`preflight (re-assert before rollback): ${r.stderr || r.stdout}`);
+r = bskel(['patch', 'rollback', '--feature', FEATURE_ID, '--transaction', txnA.transaction_id, '--reason', 'java-compile-smoke T5'], scratch);
+if (r.code !== 0) fail(`patch rollback (splice A): ${r.stderr || r.stdout}`);
+const postRollbackSource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+// The preimage blob was captured at PROPOSE time (line ~818), which is BEFORE the T3 drift edit
+// (line ~824-828) -- so rollback correctly restores to `beforeApproveSource` (decoy injected,
+// T3 drift NOT yet applied), not to a state that also carries the T3 comment. Rollback also
+// correctly reverts the T3 drift itself, since that edit happened to the same file AFTER propose
+// -- the same "rollback restores the WHOLE file, including reverting unrelated edits made after
+// apply" behavior this kind deliberately inherits from config-apply (see JS7 in DECISIONS.md).
+if (postRollbackSource !== beforeApproveSource) {
+	fail(`patch rollback (splice A) did not restore the file byte-exactly to its pre-splice (propose-time) content.\n--- expected ---\n${beforeApproveSource}\n--- actual ---\n${postRollbackSource}`);
+}
+if (postSpliceHash === sh('git', ['hash-object', widgetServiceImplPath], scratch, { quiet: true }).trim()) fail('patch rollback (splice A) did not actually change the file');
+console.log('java-compile-smoke: PASS (T5) -- rollback restored the file byte-exactly to its pre-splice content.');
+
+// --- Sequence B: a body that PARSES (passes the propose-time syntax gate) but does not COMPILE
+// (an undefined method call) -- proves the apply-time compile postcondition is real, and that a
+// compile failure auto-restores the original bytes rather than leaving a broken file in place.
+const preBrokenSource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+const spliceDocB = {
+	schema: 'sbf.java-source-splice/1',
+	file: 'src/main/java/com/example/demo/domain/widget/application/WidgetServiceImpl.java',
+	edits: [
+		{
+			op: 'replace-method-body',
+			locator: {
+				type_fqn: 'com.example.demo.domain.widget.application.WidgetServiceImpl',
+				member_kind: 'method',
+				member_name: 'findWidget',
+				erased_param_types: ['java.util.UUID'],
+			},
+			replacement: `{
+		return thisMethodDoesNotExistAnywhere(widgetId);
+	}`,
+		},
+	],
+};
+const spliceFileB = path.join(scratch, 'splice-b.json');
+fs.writeFileSync(spliceFileB, JSON.stringify(spliceDocB, null, 2));
+
+r = bskel(['patch', 'propose', '--feature', FEATURE_ID, '--kind', 'java-source-splice', '--splice-file', spliceFileB, '--json'], scratch);
+if (r.code !== 0) fail(`patch propose (splice B, T8): expected the propose-time syntax gate to ACCEPT this (it parses, it just doesn't compile): ${r.stderr || r.stdout}`);
+const txnB = JSON.parse(r.stdout);
+r = bskel(['patch', 'approve', '--feature', FEATURE_ID, '--transaction', txnB.transaction_id, '--reason', 'java-compile-smoke T8'], scratch);
+if (r.code !== 0) fail(`patch approve (splice B, T8): ${r.stderr || r.stdout}`);
+r = bskel(['preflight', '--allow-dirty'], scratch);
+if (r.code !== 0) fail(`preflight (re-assert before T8 apply): ${r.stderr || r.stdout}`);
+r = bskel(['patch', 'apply', '--feature', FEATURE_ID, '--transaction', txnB.transaction_id, '--confirm', 'WidgetServiceImpl#findWidget'], scratch);
+if (r.code === 0) fail('patch apply (splice B, T8) unexpectedly SUCCEEDED against a body that calls an undefined method -- the compile postcondition is not being enforced');
+const postFailedApplySource = fs.readFileSync(widgetServiceImplPath, 'utf8');
+if (postFailedApplySource !== preBrokenSource) {
+	fail('patch apply (splice B, T8) failed to compile but did NOT restore the original file content -- auto-restore-on-failure is broken');
+}
+console.log('java-compile-smoke: PASS (T8) -- a body that parses but does not compile was correctly rejected, and the original file was auto-restored byte-exactly.');
+
+r = bskel(['verify', '--feature', FEATURE_ID, '--build', '--json'], scratch);
+report = JSON.parse(r.stdout);
+if (report.build?.ok !== true) fail(`bskel verify --build's compile check failed after the T8 auto-restore -- the restored file should still compile: ${JSON.stringify(report.build, null, 2)}`);
+console.log('java-compile-smoke: PASS -- the project still compiles after the T8 auto-restore.');
+
+console.log('java-compile-smoke: PASS -- java-source-splice: decoy-overload correctness, benign-drift tolerance, in-region staleness detection, compile-failure auto-restore, and byte-exact rollback all verified against a real JVM.');
+
 fs.rmSync(scratch, { recursive: true, force: true });
 fs.rmSync(bareOrigin, { recursive: true, force: true });

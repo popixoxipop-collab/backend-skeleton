@@ -15007,3 +15007,188 @@ is not git-based); `D-attestation-payload-completeness` (K1's canonicalization r
 K8's checked-in-constants test pattern); `D-waiver-expiry` (`waive`'s decay mechanism); O10 in
 CATALOG.md (the deferred half this closes, and its production CI incident this entry's IG7 avoids
 repeating).
+
+## D-java-source-splice: a third patch-transaction kind -- in-file Java source editing via a
+   closed four-op vocabulary, language-guaranteed node identity, and a compile postcondition that
+   auto-restores the original file on failure
+
+**WHY**: closes `D-patch-transactions`' own first-named EXIT item ("in-file source splicing").
+Codex's original proposal envisioned a general edit-transaction system; this repo's own established
+discipline (freeze the provably-safe set, refuse everything else explicitly rather than guess --
+the same posture `D-resolver-policy-contract` took for authorization) shaped the actual design into
+a CLOSED, narrow vocabulary instead. Codex's own named central risk for this class of feature --
+"incorrect node identity" -- was reproduced LIVE before any code existed: a first design pass
+considered using `scanners/adapters/_java-spring-analyzer.mjs`'s existing regex/masking toolkit as
+the *locator*, and a hand-built decoy file proved it picks the WRONG overload
+(`findMethodParams(src,"updateWidget")` returned the first-declared overload's params, not the
+one matching the caller's real target) and cannot see past the outermost type at all
+(`findClassOrRecordDeclaration` only ever finds the FIRST type in a file). That toolkit was kept
+only as an independent second opinion (JS3 below), never as the source of truth.
+
+**JS1 -- the closed four-op vocabulary, and why each one is safe to automate:**
+`replace-method-body`, `insert-method-body-prologue` (body prologue is DERIVED from `statements`,
+never hand-assembled -- the original body's own remainder is required to survive as a verbatim
+suffix of the new body, asserted, not just intended), `replace-field-initializer`, `add-import`
+(at most one per transaction -- two would target the same file-prefix region and structurally
+overlap). Every other edit shape (constructors, member add/remove/rename, signature/annotation
+edits, deletions, reordering, lambdas/anonymous/local classes, `record` compact constructors,
+`enum` constant bodies, wildcard/static imports, files with more than one top-level type) refuses
+outright -- there is no `apply-diff` op and none is planned; the entire safety story rests on every
+edit's region being grammar-delimited, which a free-form diff cannot guarantee.
+**COST**: a genuinely useful edit outside the four ops must be hand-written.
+**EXIT**: additive -- a fifth op is a new enum value plus a new branch, no engine change.
+
+**JS2 -- node identity is established by THREE independent mechanisms, not one** (`handles/
+providers/java-spring/source-splice.mjs`):
+  1. **Authoritative**: the real JavaParser+Symbol Solver AST helper (`D-java-ast-helper`'s
+     `ast-helper/`, extended here with a new `locate` mode) resolves a member by a type's fully-
+     qualified name plus, for a method, its ERASED parameter types -- the exact rule javac itself
+     uses to forbid two same-named methods sharing one erased signature. Any `unresolvedParamTypes`
+     entry refuses outright, a deliberate divergence from the helper's existing per-field-
+     degradation policy for `--ast` classify mode (correct for a READ; wrong for a WRITE, since an
+     unresolved param breaks the uniqueness guarantee this whole mechanism rests on).
+  2. **Self-validating offset conversion**: the AST reports 1-based line/column (confirmed live
+     against javaparser-core 3.28.2's real `Position`/`Range` classes via `javap` before writing a
+     single line against them -- `Position` has `right(int)` but NOT `left(int)`, a real mistake
+     caught this way before it ever ran). `lineColToOffset()` converts to a byte offset itself and
+     `planJavaSourceSplice()` asserts `text.slice(start,end) === regionText` exactly before using
+     it -- an offset-math bug fails CLOSED (refuses) rather than silently mis-splicing.
+  3. **JS3 -- an INDEPENDENT falsifier**: `independentFalsifierAgrees()` reuses
+     `_java-spring-analyzer.mjs`'s `maskNonCode()` to confirm the located region genuinely opens
+     with `{` and that the member's own name appears immediately before it, on comment/string-safe
+     masked text. A second opinion, never the locator itself (see WHY's live-reproduced bug).
+**COST**: the AST helper becomes a hard prerequisite of this one kind (not of the base install,
+not of any pre-existing command) -- `lib/doctor.mjs`'s new `javaSourceSpliceCheck()` reports this.
+**EXIT**: none of the three mechanisms is removable without reopening the exact risk they close.
+
+**JS4 -- preimage is a two-hash split per edit, Merkle-rolled into the engine's single
+`preimage.region_hash` field, zero changes to `lib/patch-transactions.mjs`.**
+`region_hash` = the exact bytes of the edited region -- unrelated file changes (a sibling method
+edited, an import added, a comment reflowed) leave it untouched, which is what makes "the
+surrounding file can change freely" true. `signature_hash` = the exact bytes of the declaration
+header (annotations/modifiers/type/name/params/throws, or the field's `[annotations] modifiers
+Type name =` prefix) -- a body-only preimage would miss e.g. a return-type change that leaves the
+body's own bytes untouched but invalidates a stored replacement that assumed the old type.
+`computeMerkleRegionHash()` folds every edit's `(op, locator, region_hash, signature_hash)` into
+one value, so N edits ride the engine's existing single-field TOCTOU check for free.
+**COST**: `schemas/patch-transaction.schema.json` needed a genuinely new per-kind `target.edits[]`
+shape (JS8).
+**EXIT**: a future kind needing true multi-field preimage comparison would need an engine change;
+not needed here.
+
+**JS5 -- no printer is ever invoked; comment/formatting preservation is structural, not checked.**
+`D-patch-transactions`' `config-apply` kind needed `assertNoCollateralChanges()` because `yaml`'s
+`Document` API re-prints the WHOLE document and was confirmed live to reformat untouched lines.
+This kind never re-prints anything -- apply is pure string surgery
+(`text.slice(0,start)+replacement+text.slice(end)`), so everything outside every edit's own region
+is byte-identical BY CONSTRUCTION. `assertOnlyRegionsChanged()` still asserts this defensively, by
+building the same splice two independent ways (`applyEditsDescending()`/`applyEditsAscending()` --
+backward-from-end vs forward-from-start) and requiring byte-identical output; this is strictly
+stronger than diffing remainders, since it also catches an off-by-one inside either construction,
+not only a stray change outside the touched regions. What IS honestly destroyed: comments *inside*
+a replaced method body or field initializer -- inherent to "replace this region", never hidden
+(`proposed_value` carries the full `unifiedDiff()` of the whole file for review, and the original
+survives byte-exact in the rollback blob).
+**COST**: none beyond the inherent one just named.
+**EXIT**: none needed.
+
+**JS6 -- the postcondition (`java-compiles`) runs in two tiers, and a real apply-time failure
+auto-restores the original file, mirroring `D-ddl-apply`'s real-Postgres
+BEGIN/COMMIT/ROLLBACK transposed to the filesystem.** Propose time: rendered content is piped to
+the AST helper's new `parse -` mode (reads from stdin -- `build.gradle`'s `run { standardInput =
+System.in }` already supported this, added by `D-java-ast-helper`, no build-file change needed) for
+a cheap syntax gate before any repo file is touched. Apply time: `executeJavaSpliceApply()` writes
+the file, then calls `lib/verify.mjs`'s `runBuildCheck()` (reused verbatim, no new subprocess code)
+-- on failure, restores the original bytes from the CAS blob and throws, leaving the transaction
+`approved`, not `applied`.
+**Real bug found and fixed while wiring `parse -`**: Node's async `child_process.execFile` (the
+promisified version `ast-bridge.mjs` already uses for `classify`/`locate`) has NO `input` option at
+all -- only `execFileSync` does. Passing one is silently ignored; confirmed live (`cat` with no args
+and `{input:'hello'}` hung forever, reading this process's own inherited stdin instead). `parse -`
+uses `child_process.spawn` directly, writing to `child.stdin` and ending it explicitly.
+**COST**: propose/approve/apply each re-invoke the AST helper's own `gradlew run` (a few seconds
+each, unavoidable -- a fresh plan must be fresh).
+**EXIT**: a `java -cp`/`installDist` fast path is a self-contained follow-up, not attempted here
+(the committed helper jar has no bundled dependencies to run standalone yet).
+
+**JS7 -- rollback is byte-exact, mirroring `executeConfigRollback()` exactly, plus a
+non-blocking compile check afterward.** A drift check (current file hash vs. the recorded
+postimage hash) refuses rollback unless `--force`, same reasoning as `config-apply`. The
+post-rollback compile result is RECORDED (`rollback.compile_after_rollback: "ok"|"failed"`), never
+enforced -- restoring a KNOWN-GOOD prior state must never be refused just because something ELSE
+in the repo is currently broken.
+**COST**: none beyond the inherent "whole-file restore also reverts unrelated hand edits" cost
+`config-apply` already accepted.
+**EXIT**: none needed.
+
+**JS8 -- schema: additive `kind` enum value, a new `if-then` branch, and one property added to the
+BASE (not branched) `rollback` object.** `rollback` is `additionalProperties:false`; an `allOf`/
+`if-then` branch's `then` schema is a SEPARATE schema applied to the same instance, so it cannot
+widen a sibling schema's own closed property list -- confirmed live before writing the schema
+(a branch-added `compile_after_rollback` was still rejected by the base object's own
+`additionalProperties:false`). `compile_after_rollback` therefore lives in the base `rollback`
+object, marked optional (absent on every pre-existing config-apply/ddl-apply record, and on any
+java-source-splice record persisted before this field existed).
+**COST**: one non-obvious JSON Schema trap, now documented and pinned by a regression test
+(`test/schema-validate.test.mjs`) asserting existing config-apply/ddl-apply records still validate
+unchanged, and that a rollback record carrying `compile_after_rollback` validates too.
+**EXIT**: none needed.
+
+**JS9 -- `--splice-file` is a JSON request document (`schemas/java-source-splice.schema.json`,
+`sbf.java-source-splice/1`), not raw text like `--sql-file`** -- a method body cannot live in a
+shell flag, and the edit list itself needs real structure. `source = {request_file: <path>}` is
+audit-trail-only; `paramsFromTxn()` reconstructs planner input entirely from the stored `target`
+(never re-reads the original `--splice-file`, which may no longer exist by approve/apply time).
+
+**JS10 -- `bin/bskel.mjs`'s `cmdPatchApprove`/`cmdPatchApply` gained a small, kind-agnostic
+enrichment hook.** `getPatchKind(kind).describeStaleness` is OPTIONAL (only `java-source-splice`
+defines one) -- consulted only when `replanTransaction()` throws `StaleTransactionError`, to name
+which edit moved and why (region vs. signature) plus a whole-file diff recovered from the
+preimage blob. Never changes WHETHER a stale transaction is rejected, only the diagnostic text.
+`lib/gate-definitions.mjs`'s `patch_transactions` gate recompute lists `java-source-splice`
+alongside `config-apply` by an EXPLICIT kind check, deliberately not a dynamic
+`getPatchKind(txn.kind)` lookup -- that would make gate-definitions.mjs import lib/patch-kinds.mjs
+and, transitively, `pg` (`scanners/db/ddl-apply.mjs`) into EVERY gate recomputation, the exact
+live-dependency-in-a-gate coupling this gate's own header comment already refuses.
+
+**Verified**: `npm test` 1781 -> 1827 (46 new: 28 unit tests in `test/java-source-splice.test.mjs`,
+13 CLI e2e tests in `test/patch-java-splice-cli.test.mjs`, 5 schema-validate regressions), **1817
+pass, 0 fail, 10 pre-existing skips unrelated to this item** (0 regressions: every pre-existing
+test that changed did so only in an EXPLICIT, intentional widening -- `PATCH_KIND_NAMES` now lists
+three kinds, `usage()` documents `--splice-file` -- never in a value a test computed).
+`lib/patch-transactions.mjs` confirmed genuinely unchanged (`git diff --stat` empty). Real-toolchain
+(`scripts/java-compile-smoke.mjs`'s new phase, real `./gradlew compileJava`, JDK 17): a real splice
+compiles and the decoy overload sharing the target's name is proven byte-for-byte untouched (T1/T7
+-- the exact defect this design closes, reproduced live in this item's own §0 before being fixed);
+an unrelated edit elsewhere in the same file does not invalidate a proposed splice (T3); a hand
+edit inside the target region after approval is correctly refused (T4); rollback restores the file
+byte-exactly to its propose-time content (T5); a body that parses but fails to compile is rejected
+with the original file auto-restored, and the project still compiles afterward (T8).
+**Two real bugs found and fixed while running this real-toolchain proof, both live, not assumed**:
+(1) `Node#toString()` on a JavaParser AST node invokes its own PrettyPrinter (default 4-space
+reformatting), NOT literal source bytes -- a first cut of `regionText`/`signatureText` used
+`body.toString()` and silently normalized the real file's TAB indentation to spaces, caught
+immediately by the self-validating offset check (D5, mechanism 2) refusing rather than
+mis-splicing; fixed by slicing the ORIGINAL file text by Range instead (`sliceByRange()` in
+`Main.java`), never re-printing a node. (2) the first draft's JSON output never actually included
+`signatureText` at all -- masked by bug (1) always failing first; caught once (1) was fixed.
+`test/fixtures/java-compile/` (the on-disk fixture `scripts/java-integration-smoke.mjs` boots with
+a real `@SpringBootTest`) confirmed untouched (`git diff --stat` empty) -- `java-integration-smoke.mjs`
+itself could not be run in this environment (no `BSKEL_TEST_DATABASE_URL`/Postgres configured), an
+environment limitation unrelated to this change, not a result affecting it.
+
+**EXIT (explicitly deferred, not silently dropped)**: Python/TypeScript source splicing (neither
+has an AST helper or a whole-project compile-equivalent postcondition in this repo -- each would
+be its own slice); constructors, member add/remove/rename, signature/annotation edits, nested/
+inner/anonymous/local types, multi-top-level-type files (all named in JS1); cross-file atomic
+transactions (unchanged from `D-patch-transactions`' own EXIT); HTTP/`bskel serve` exposure of
+this kind; a `java -cp` AST-helper fast path (JS6).
+
+Cross-references: `D-patch-transactions` (the engine this kind plugs into with zero changes, and
+whose first-named EXIT item this closes); `D-java-ast-helper` (the AST helper this extends, and
+whose per-field-degradation policy JS2 deliberately diverges from for a write, not a read);
+`D-ddl-apply` (the real-transaction-with-auto-rollback precedent JS6/JS7 transpose to the
+filesystem); `D-config-patch`/`D-resolver-scope` (this project's long-standing "a wrong automatic
+edit is worse than asking a human" posture, which JS1's closed vocabulary is the latest instance
+of); `D-resolver-policy-contract` (the same "freeze the provably-safe set, refuse the rest
+explicitly" discipline, applied here to source edits instead of authorization).

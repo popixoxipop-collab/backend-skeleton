@@ -173,3 +173,81 @@ test('formatSchemaErrors: renders ajv errors as "path message" strings, "(root)"
 	assert.ok(formatted.every((e) => typeof e === 'string'));
 	assert.ok(formatted.some((e) => e.startsWith('(root)') || e.includes('feature_id') || e.includes('gates')));
 });
+
+// D-java-source-splice (JS8): the pinned regression for the JSON Schema trap -- `rollback` is a
+// SIBLING object (not a per-kind allOf/if-then branch), so `compile_after_rollback` had to be
+// added to the BASE `rollback` object. This test pins that it validates for java-source-splice's
+// own rollback record AND that pre-existing config-apply/ddl-apply rollback records (which never
+// carry that field) still validate completely unchanged.
+const MINIMAL_JAVA_SPLICE_TARGET = Object.freeze({
+	file: 'src/main/java/com/example/Widget.java',
+	source_root: 'src/main/java',
+	line_terminator: '\n',
+	edits: [{
+		op: 'replace-field-initializer',
+		locator: { type_fqn: 'com.example.Widget', member_kind: 'field', member_name: 'x' },
+		replacement: '1',
+		region_hash: 'a'.repeat(64),
+		signature_hash: 'b'.repeat(64),
+		located: { start: 0, end: 1, begin_line: 1, end_line: 1 },
+	}],
+});
+
+function minimalPatchTransaction(kind, overrides = {}) {
+	const base = {
+		schema: 'sbf.patch-transaction/1',
+		transaction_id: `pt-${'0'.repeat(8)}-0000-0000-0000-${'0'.repeat(12)}`,
+		feature_id: '001-widget-management',
+		kind,
+		status: 'proposed',
+		created_at: '2026-01-01T00:00:00.000Z',
+		preimage: { region_hash: 'x'.repeat(64), file_hash: 'y'.repeat(64) },
+		proposed_value: 'x',
+	};
+	if (kind === 'config-apply') {
+		return { ...base, source: { choice: 'ngrok' }, target: { file: 'a.yaml', key_path: ['a'] }, postcondition: { kind: 'regex-match', pattern: '.*' }, ...overrides };
+	}
+	if (kind === 'ddl-apply') {
+		return { ...base, source: { database_url_env: 'DB', schema: 'public' }, target: { database_url_env: 'DB', schema: 'public', sql_text: 'CREATE TABLE t (id uuid);' }, postcondition: { kind: 'db-schema-diff', schema: 'public', expected_tables: [] }, ...overrides };
+	}
+	return { ...base, source: { request_file: 'splice.json' }, target: MINIMAL_JAVA_SPLICE_TARGET, postcondition: { kind: 'java-compiles', build_tool: 'gradle', build_command: './gradlew compileJava' }, ...overrides };
+}
+
+test('patch-transaction.schema.json: a minimal java-source-splice record validates', () => {
+	const { ok, errors } = validateAgainstSchema('patch-transaction.schema.json', minimalPatchTransaction('java-source-splice'));
+	assert.equal(ok, true, JSON.stringify(errors));
+});
+
+test('patch-transaction.schema.json: a pre-existing config-apply record (no compile_after_rollback) still validates unchanged after the java-source-splice schema addition', () => {
+	const { ok, errors } = validateAgainstSchema('patch-transaction.schema.json', minimalPatchTransaction('config-apply', {
+		status: 'rolled_back',
+		rollback: { reason: 'because', at: '2026-01-01T00:00:00.000Z' },
+	}));
+	assert.equal(ok, true, JSON.stringify(errors));
+});
+
+test('patch-transaction.schema.json: a pre-existing ddl-apply record (no compile_after_rollback) still validates unchanged', () => {
+	const { ok, errors } = validateAgainstSchema('patch-transaction.schema.json', minimalPatchTransaction('ddl-apply', {
+		status: 'applied',
+		apply: { at: '2026-01-01T00:00:00.000Z', postimage_schema_hash: 'z'.repeat(64), executed_statements: ['CREATE TABLE t (id uuid);'] },
+	}));
+	assert.equal(ok, true, JSON.stringify(errors));
+});
+
+test('patch-transaction.schema.json: a java-source-splice rollback record carrying compile_after_rollback validates (the JS8 trap, pinned)', () => {
+	const { ok, errors } = validateAgainstSchema('patch-transaction.schema.json', minimalPatchTransaction('java-source-splice', {
+		status: 'rolled_back',
+		apply: { at: '2026-01-01T00:00:00.000Z', postimage_file_hash: 'z'.repeat(64), build_tool: 'gradle' },
+		rollback: { reason: 'because', at: '2026-01-01T00:00:00.000Z', compile_after_rollback: 'ok' },
+	}));
+	assert.equal(ok, true, JSON.stringify(errors));
+});
+
+test('patch-transaction.schema.json: compile_after_rollback rejects a value outside "ok"/"failed"', () => {
+	const { ok } = validateAgainstSchema('patch-transaction.schema.json', minimalPatchTransaction('java-source-splice', {
+		status: 'rolled_back',
+		apply: { at: '2026-01-01T00:00:00.000Z', postimage_file_hash: 'z'.repeat(64), build_tool: 'gradle' },
+		rollback: { reason: 'because', at: '2026-01-01T00:00:00.000Z', compile_after_rollback: 'maybe' },
+	}));
+	assert.equal(ok, false);
+});
