@@ -15495,3 +15495,74 @@ own `D-<x>` anchor-resolution pattern (reused for `decision_id` rather than re-d
 same grounding pass -- together, all three answer the user's original question: Continual
 Harness's principle generalizes to `bskel`, but as three independently-scoped, independently-
 droppable slices, never as one unifying abstraction).
+
+## D-ai-repo-shadow-validation: a second, independent real FastAPI codebase run through scan -> contract emit -> becoder emit end-to-end, no code changed as a result
+
+**WHY**: the `python-fastapi` adapter's verification tier has been `official-reference` since it
+shipped -- validated only against the framework author's own reference stack, never against a
+real third-party application someone actually runs in production. That is a single-oracle
+problem for this specific adapter, same shape (different adapter) as the one
+`D-calibration-profile` and `ROADMAP.md` already flag for the numeric-constant corpus. This item
+does not fix that gap -- it measures how wide it actually is, on one additional real app,
+honestly.
+
+**Corpus**: `popixoxipop-collab/AI` ("IZ AI", a FastAPI backend, forked from `Team-IZ/AI` --
+same broader org as the existing Java `production-repo` oracle, but a genuinely different
+language/framework instance, not a re-run of the same codebase). Cloned read-only to a scratch
+path, depth 1, `develop` branch (HEAD `abbdb6b`). No write ever touched the source repo.
+
+**Ran the real onboarding flow, not a shortcut**: `preflight` -> `scan --feature` -> hit
+`GATE_NOT_PASSED`/`MISSING_ARTIFACT` exactly as a first-time user would -> `scan disposition` ->
+`feature init` -> `contract emit --openapi-file openapi.json --path-prefix /api/v0`.
+
+**Found live, not anticipated -- a real onboarding-order gap**: `scan --feature <id>` accepts and
+mutates state for ANY `NNN-slug` feature_id, including one with no `specs/<id>/feature.json` yet
+-- it does not check that the feature exists first. `feature init --slug <name>` always
+auto-mints the next free number and has no flag to pin a specific one. Following the intuitive
+order (scan first, formalize the feature after) silently produces a `specs/001-x` scan-gate dir
+and a `specs/002-x` feature dir with two different numbers, discovered only several commands
+later at `contract emit`'s `MISSING_ARTIFACT`. Not fixed here (out of this item's scope, purely a
+CLI UX-ordering observation) -- worth a `feature init --slug` alternative that reuses an
+already-scanned-but-uninitialized feature_id, filed as a follow-up, not built now.
+
+**Scanner accuracy on this app (measured, not asserted)**: `bskel scan --json` found 6
+controllers / 9 endpoints across `app/api/*.py`. Cross-checked against `grep -c
+'@router\.(get|post|put|patch|delete)('` per file by hand: exact match, 9/9, zero false
+positives, zero missed endpoints (`deps.py`/`errors.py`/`multipart_docs.py` correctly excluded --
+no route decorators in any of them). Global path-prefix detection (`include_router(prefix=
+API_V0_PREFIX)` in `app/main.py`) correctly flagged in `unknowns[]` exactly as
+`D-openapi-reconciliation` documents it should, rather than silently guessing the prefix.
+
+**`contract emit` accuracy**: emitted contract (`reports` module, matched by real collision
+scoring against terms "analysis,curriculum,interview,report,session" -- `reports` scored 26 vs.
+21/21 for the other two real collisions found, `interview_brief`/`sessions`) validates clean
+against `schemas/feature-contract.schema.json` (Ajv2020, `strict:false`, zero errors).
+`operationId`s correctly attributed as FastAPI's own auto-generated default naming (`create_
+report_api_v0_reports_post`) via a `CONTRACT_OPENAPI_DERIVED_OPERATION_ID` warning, not silently
+adopted as if hand-authored -- matches this app's real `generate_unique_id_function`-less
+FastAPI setup exactly.
+
+**Downstream (becoder)**: same contract fed to `becoder emit` on both renderers -- react-vite-ts
+built clean (`tsc -b && vite build`, 307 modules, 0 errors) and static-html's generated
+`<script>` passed `node --check` and loaded in a real browser (`window.__bench.version === "1"`,
+both real operationIds present). Full pipeline, one real independent app, zero manual patching
+required anywhere along the chain.
+
+**Verdict on verification-tier promotion**: **not changed here, on purpose.** One additional real
+app closes exactly one data point of the single-oracle gap, not the gap itself -- promoting
+`python-fastapi` from `official-reference` to something implying broader real-world coverage off
+one more sample would be the same overclaiming this entry exists to avoid. What this DOES support:
+zero evidence yet of a scanner defect on non-reference FastAPI code. Recommendation, not a
+decision: worth another 2-3 independent FastAPI apps (different router styles, different auth
+patterns) before touching the schema's verification-tier enum.
+
+**COST**: one CLI UX-ordering gap surfaced, not fixed (see above). No code changed by this item --
+pure measurement.
+
+**EXIT**: none needed -- this is a point-in-time measurement, re-run against a different/updated
+corpus any time the adapter changes materially.
+
+**Cross-references**: `D-calibration-profile`, `D-oracle-corpus-pinning` (the same "measure
+before claiming" discipline applied to a different axis -- adapter accuracy vs. numeric
+constants); `ROADMAP.md`'s standing single-oracle-overfitting note (still open, this item narrows
+it by exactly one data point for one adapter, nothing more).
