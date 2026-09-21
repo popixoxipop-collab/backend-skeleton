@@ -65,7 +65,7 @@ test('unreal-python detects one root-level .uproject and exposes it as the scan 
 	assert.equal(unreal.capabilities['game.events'], true);
 	assert.equal(unreal.capabilities['game.population'], true);
 	assert.equal(unreal.capabilities['game.objectives'], true);
-	assert.equal(unreal.capabilities['codegen.gameplay'], false);
+	assert.equal(unreal.capabilities['codegen.gameplay'], true);
 });
 
 test('real registry: every CAPABILITY_NAMES key is declared (true or false) by every shipped adapter', () => {

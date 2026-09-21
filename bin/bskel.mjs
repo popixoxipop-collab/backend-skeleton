@@ -3309,6 +3309,8 @@ async function cmdGameplayEmit(args) {
 		completed.push({ id: step.id, receipt: step.result_file });
 	}
 	const output = { ...plan, applied: true, reason: flags.reason, completed };
+	const gateState = passNamedGate(root, 'gameplay', null, { loop_id: plan.loop_id, completed: completed.map((step) => step.id), reason: flags.reason });
+	output.gate = gateState.gates.gameplay;
 	if (flags.json) console.log(JSON.stringify(output, null, 2));
 	else console.log(`gameplay emit applied: ${completed.map((step) => step.id).join(', ')}`);
 	process.exit(0);

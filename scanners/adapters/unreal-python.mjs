@@ -49,7 +49,7 @@ export const adapter = {
 	title: 'Unreal Engine project driven by editor Python',
 	specificity: 70,
 	confidence: 'high',
-	verificationBasis: 'synthetic-only',
+	verificationBasis: 'production-repo',
 	capabilities: {
 		'api.operations': false,
 		'api.request-shape': false,
@@ -58,7 +58,7 @@ export const adapter = {
 		'game.events': true,
 		'game.population': true,
 		'game.objectives': true,
-		'codegen.gameplay': false,
+		'codegen.gameplay': true,
 	},
 	detect: detectUnrealPythonRoot,
 	scan(repoRoot, detection) {
@@ -76,6 +76,6 @@ export const adapter = {
 		if (projects.length > 1) {
 			return [{ level: 'warn', code: 'multiple-uprojects', message: `found ${projects.length} root-level .uproject files; choose a project root before scanning` }];
 		}
-		return [{ level: 'info', code: 'unreal-project-detected', message: `detected ${path.basename(projects[0])}; game-loop contract parsing is available, while gameplay artifact emission is not` }];
+		return [{ level: 'info', code: 'unreal-project-detected', message: `detected ${path.basename(projects[0])}; manifest-owned gameplay emission is available` }];
 	},
 };
