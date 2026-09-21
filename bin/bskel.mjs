@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -3240,7 +3240,7 @@ function renderGameplayEmitPlan(plan) {
 	return `${lines.join('\n')}\n`;
 }
 
-function cmdGameplayEmit(args) {
+async function cmdGameplayEmit(args) {
 	const flags = parseCommand('gameplay emit', args);
 	if (flags.help) { console.log(renderCommandHelp('gameplay emit')); process.exit(0); }
 	setContext('gameplay emit', flags);
@@ -3276,6 +3276,22 @@ function cmdGameplayEmit(args) {
 		}
 		return { id: label, status: result.status, stdout: result.stdout ?? '' };
 	};
+	const runEditorUntilReceipt = async (step, receipt) => {
+		const scriptArgs = step.args.map((arg) => path.join(root, ...arg.split('/'))).join(' ');
+		const child = spawn(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}${scriptArgs ? ` ${scriptArgs}` : ''}`, '-stdout', '-unattended', '-nosplash', '-nopause'], { cwd: root, windowsHide: true, stdio: 'ignore' });
+		const deadline = Date.now() + flags['timeout-sec'] * 1000;
+		while (Date.now() < deadline) {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			if (fs.existsSync(receipt) && fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
+				if (!child.killed) child.kill();
+				await new Promise((resolve) => child.once('exit', resolve));
+				return;
+			}
+			if (child.exitCode !== null) fail(EXIT_CODES.NOT_PASSED, 'EMIT_FAILED', `${step.id} editor exited before its receipt was written`);
+		}
+		if (!child.killed) child.kill();
+		fail(EXIT_CODES.NOT_PASSED, 'RECEIPT_MISSING', `${step.id} did not produce SCRIPT_DONE_OK in ${step.result_file} before timeout; remaining steps were not started.`);
+	};
 	const outputFile = path.join(root, ...plan.compiler.writes[0].path.split('/'));
 	const completed = [];
 	if (!flags.resume) completed.push(run(flags.python, plan.compiler.args, plan.compiler.id));
@@ -3286,8 +3302,7 @@ function cmdGameplayEmit(args) {
 			continue;
 		}
 		if (fs.existsSync(receipt)) fs.rmSync(receipt);
-		const scriptArgs = step.args.map((arg) => path.join(root, ...arg.split('/'))).join(' ');
-		run(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}${scriptArgs ? ` ${scriptArgs}` : ''}`, '-stdout', '-unattended', '-nosplash', '-nopause'], step.id);
+		await runEditorUntilReceipt(step, receipt);
 		if (!fs.existsSync(receipt) || !fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
 			fail(EXIT_CODES.NOT_PASSED, 'RECEIPT_MISSING', `${step.id} did not produce SCRIPT_DONE_OK in ${step.result_file}; remaining steps were not started.`);
 		}
@@ -5157,7 +5172,7 @@ async function dispatchCommand(cmd, rest) {
 		}
 		case 'gameplay': {
 			if (rest[0] === 'plan') return cmdGameplayPlan(rest.slice(1));
-			if (rest[0] === 'emit') return cmdGameplayEmit(rest.slice(1));
+			if (rest[0] === 'emit') return await cmdGameplayEmit(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;
