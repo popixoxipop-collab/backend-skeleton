@@ -229,9 +229,11 @@ jobs:
   # Linux-only. Replaced with the steps below: a plain `docker run`/health-poll/`docker rm -f`
   # sequence that reimplements what services: automated, using nothing but the `docker` CLI --
   # this works identically on ubuntu-latest's own preinstalled Docker and macstudio's
-  # colima-provided one, so (unlike runs-on) this needs no OS branching at all. The runner's own
-  # `.env` gained `DOCKER_HOST=unix:///Users/eoe/.colima/default/docker.sock` since colima's
-  # socket isn't at the standard `/var/run/docker.sock` path.
+  # colima-provided one. `scripts/ensure-ci-docker.sh` checks the daemon first and starts Colima
+  # idempotently on macOS when the machine rebooted or Colima otherwise stopped; Linux still
+  # fails closed instead of attempting a platform-specific recovery. The runner's own `.env`
+  # carries `DOCKER_HOST=unix:///Users/eoe/.colima/default/docker.sock` since colima's socket
+  # isn't at the standard `/var/run/docker.sock` path.
   db-introspect:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
     steps:
@@ -245,6 +247,8 @@ jobs:
       - name: install ripgrep
         if: runner.os != 'macOS'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: ensure Docker daemon
+        run: ./scripts/ensure-ci-docker.sh
       # POSTGRES_HOST_AUTH_METHOD=trust -- this container is disposable, network-isolated to this
       # one job's lifetime, and never holds anything but throwaway test tables, so it deliberately
       # carries NO password at all rather than a hardcoded one (the official postgres image
@@ -304,6 +308,8 @@ jobs:
       - name: install ripgrep
         if: runner.os != 'macOS'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: ensure Docker daemon
+        run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
           docker run -d --name bskel-pg-registry-coverage \
@@ -343,6 +349,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+      - name: ensure Docker daemon
+        run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
           docker run -d --name bskel-pg-ddl-apply \
@@ -384,6 +392,8 @@ jobs:
       - name: install ripgrep
         if: runner.os != 'macOS'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: ensure Docker daemon
+        run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
           docker run -d --name bskel-pg-cf-fk \
@@ -443,6 +453,8 @@ jobs:
       - name: install ripgrep
         if: runner.os != 'macOS'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: ensure Docker daemon
+        run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
           docker run -d --name bskel-pg-g4 \
@@ -527,6 +539,8 @@ jobs:
       - name: install ripgrep
         if: runner.os != 'macOS'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: ensure Docker daemon
+        run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
           docker run -d --name bskel-pg-o4 \

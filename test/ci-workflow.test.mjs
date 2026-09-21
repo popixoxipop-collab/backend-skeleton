@@ -155,6 +155,40 @@ test('scripts/db-introspect-smoke.mjs exists and is executable', () => {
 	assert.ok(mode & 0o111, `scripts/db-introspect-smoke.mjs is not executable (mode ${mode.toString(8)})`);
 });
 
+// A self-hosted macOS runner can stay online while its Colima VM is stopped (for example after a
+// host reboot). The Docker-backed jobs must repair that state before their first `docker run`, not
+// rely on a one-time manual `colima start` outside the repository.
+test('every Docker-backed job runs the executable Docker recovery helper before starting a container', () => {
+	const helper = path.join(REPO_ROOT, 'scripts/ensure-ci-docker.sh');
+	assert.ok(fs.existsSync(helper), 'scripts/ensure-ci-docker.sh does not exist');
+	const mode = fs.statSync(helper).mode;
+	assert.ok(mode & 0o111, `scripts/ensure-ci-docker.sh is not executable (mode ${mode.toString(8)})`);
+
+	const helperSource = fs.readFileSync(helper, 'utf8');
+	assert.match(helperSource, /docker[^\n]* info/, 'the helper should accept an already-ready daemon without restarting it');
+	assert.match(helperSource, /uname -s/, 'the helper should distinguish macOS recovery from Linux failure');
+	assert.match(helperSource, /\/opt\/homebrew\/bin\/colima/, 'the launchd runner needs an explicit Homebrew fallback for Colima');
+	assert.match(helperSource, /"\$colima_bin" start/, 'the helper should actually start Colima when Docker is unavailable');
+
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	const dockerJobs = [
+		'db-introspect',
+		'registry-coverage',
+		'ddl-apply',
+		'cross-feature-fk',
+		'python-integration',
+		'java-integration',
+	];
+	for (const name of dockerJobs) {
+		const steps = doc.jobs[name]?.steps ?? [];
+		const recoveryIndex = steps.findIndex((step) => step.run === './scripts/ensure-ci-docker.sh');
+		const containerIndex = steps.findIndex((step) => typeof step.run === 'string' && step.run.includes('docker run'));
+		assert.ok(recoveryIndex >= 0, `${name} should invoke scripts/ensure-ci-docker.sh`);
+		assert.ok(containerIndex >= 0, `${name} should start a Docker container`);
+		assert.ok(recoveryIndex < containerIndex, `${name} should recover Docker before its first docker run`);
+	}
+});
+
 // W7: GitHub Actions' native `services:` container is Linux-only ("Container operations are only
 // supported on Linux runners") -- found live when this job was first pointed at the self-hosted
 // macstudio runner. Replaced with a manual `docker run`/health-poll/`docker rm -f` sequence that
