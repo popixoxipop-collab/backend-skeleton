@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:game-contract:1",
+  "title": "backend-skeleton game-loop contract",
+  "description": "Shape contract for specs/<loop_id>/contracts/<loop_id>.game.json. Semantic reference checks live in gameplay/contracts.mjs; Unreal emission remains provider work.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf_game_contract", "loop_id", "loop_uid", "source", "state", "events", "anchors", "populations", "objectives", "rules", "warnings", "completeness"],
+  "properties": {
+    "sbf_game_contract": { "const": "1" },
+    "loop_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "loop_uid": { "type": "string", "minLength": 1 },
+    "source": { "$ref": "#/$defs/source" },
+    "state": { "$ref": "#/$defs/stateMap" },
+    "events": { "$ref": "#/$defs/eventMap" },
+    "anchors": { "$ref": "#/$defs/anchorMap" },
+    "populations": { "$ref": "#/$defs/populationMap" },
+    "objectives": { "$ref": "#/$defs/objectiveMap" },
+    "rules": { "$ref": "#/$defs/rules" },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } },
+    "completeness": { "$ref": "#/$defs/completeness" }
+  },
+  "$defs": {
+    "identifierMap": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["adapter", "world", "provenance"],
+      "properties": {
+        "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "world": { "type": "string", "minLength": 1 },
+        "provenance": { "enum": ["hand-authored", "llm-authored", "generated"] }
+      }
+    },
+    "stateScope": { "enum": ["world", "player", "agent_class", "objective"] },
+    "stateDef": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "bool" }, "initial": { "type": "boolean" } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "int" }, "initial": { "type": "integer" }, "min": { "type": "integer" }, "max": { "type": "integer" } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "float" }, "initial": { "type": "number" }, "min": { "type": "number" }, "max": { "type": "number" } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial", "values"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "enum" }, "initial": { "type": "string" }, "values": { "type": "array", "minItems": 1, "items": { "type": "string" } } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "tagset" }, "initial": { "type": "array", "items": { "type": "string" } } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "anchor_ref" }, "initial": { "type": ["string", "null"] } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "entity_ref" }, "initial": { "type": ["string", "null"] } } },
+        { "type": "object", "additionalProperties": false, "required": ["scope", "type", "initial"], "properties": { "scope": { "$ref": "#/$defs/stateScope" }, "type": { "const": "vec3" }, "initial": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } } } }
+      ]
+    },
+    "stateMap": { "allOf": [{ "$ref": "#/$defs/identifierMap" }], "additionalProperties": { "$ref": "#/$defs/stateDef" } },
+    "eventScope": { "enum": ["world", "player", "agent_class"] },
+    "eventDef": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["source", "anchor", "scope"], "properties": { "source": { "enum": ["enter", "exit", "interact"] }, "anchor": { "type": "string" }, "scope": { "$ref": "#/$defs/eventScope" } } },
+        { "type": "object", "additionalProperties": false, "required": ["source", "period_s", "scope"], "properties": { "source": { "const": "timer" }, "period_s": { "type": "number", "exclusiveMinimum": 0 }, "scope": { "$ref": "#/$defs/eventScope" } } },
+        { "type": "object", "additionalProperties": false, "required": ["source", "state", "scope"], "properties": { "source": { "const": "state_changed" }, "state": { "type": "string" }, "scope": { "$ref": "#/$defs/eventScope" } } },
+        { "type": "object", "additionalProperties": false, "required": ["source", "objective", "status", "scope"], "properties": { "source": { "const": "objective" }, "objective": { "type": "string" }, "status": { "enum": ["started", "completed", "failed"] }, "scope": { "$ref": "#/$defs/eventScope" } } },
+        { "type": "object", "additionalProperties": false, "required": ["source", "class", "tag", "scope"], "properties": { "source": { "const": "agent_event" }, "class": { "type": "string" }, "tag": { "type": "string" }, "scope": { "$ref": "#/$defs/eventScope" } } }
+      ]
+    },
+    "eventMap": { "allOf": [{ "$ref": "#/$defs/identifierMap" }], "additionalProperties": { "$ref": "#/$defs/eventDef" } },
+    "anchor": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "ref": { "type": "object", "additionalProperties": false, "required": ["world_anchor_id"], "properties": { "world_anchor_id": { "type": "string", "pattern": "^[a-z][a-z0-9_.\\-]*$" } } },
+        "extent_cm": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "anchorMap": { "allOf": [{ "$ref": "#/$defs/identifierMap" }], "additionalProperties": { "$ref": "#/$defs/anchor" } },
+    "population": {
+      "type": "object", "additionalProperties": false, "required": ["config_asset", "spawn"],
+      "properties": {
+        "config_asset": { "type": "string", "minLength": 1 },
+        "spawn": { "type": "object", "additionalProperties": false, "required": ["generator", "anchor", "count"], "properties": { "generator": { "const": "zonegraph" }, "anchor": { "type": "string" }, "count": { "type": "integer", "minimum": 1 }, "min_gap_cm": { "type": "number", "exclusiveMinimum": 0 }, "max_gap_cm": { "type": "number", "exclusiveMinimum": 0 }, "lane_tags": { "type": "array", "items": { "type": "string" } } } }
+      }
+    },
+    "populationMap": { "allOf": [{ "$ref": "#/$defs/identifierMap" }], "additionalProperties": { "$ref": "#/$defs/population" } },
+    "task": { "type": "object", "additionalProperties": false, "required": ["id", "mandatory", "target", "time_limit_s"], "properties": { "id": { "type": "string" }, "mandatory": { "type": "boolean" }, "target": { "type": "integer", "minimum": 1 }, "time_limit_s": { "type": "number", "minimum": 0 } } },
+    "objectiveNode": { "type": "object", "additionalProperties": false, "required": ["id", "sequential", "required_of", "tasks"], "properties": { "id": { "type": "string" }, "sequential": { "type": "boolean" }, "required_of": { "type": "integer", "minimum": -1 }, "tasks": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/task" } } } },
+    "objective": { "type": "object", "additionalProperties": false, "required": ["nodes"], "properties": { "title_key": { "type": "string" }, "auto_accept": { "type": "boolean" }, "prerequisites": { "type": "array", "items": { "type": "string" } }, "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/objectiveNode" } } } },
+    "objectiveMap": { "allOf": [{ "$ref": "#/$defs/identifierMap" }], "additionalProperties": { "$ref": "#/$defs/objective" } },
+    "violation": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["verb", "objective"], "properties": { "verb": { "const": "fail" }, "objective": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["verb", "message_id"], "properties": { "verb": { "const": "notify" }, "message_id": { "type": "string" } } }
+      ]
+    },
+    "require": { "type": "object", "additionalProperties": false, "required": ["id", "scope", "pred"], "properties": { "id": { "type": "string" }, "scope": { "enum": ["global", "cross_field"] }, "pred": { "type": "string", "minLength": 1 }, "on_violation": { "$ref": "#/$defs/violation" } } },
+    "derive": { "type": "object", "additionalProperties": false, "required": ["id", "name", "type", "expr"], "properties": { "id": { "type": "string" }, "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "type": { "enum": ["bool", "int", "float", "enum", "tagset", "anchor_ref", "entity_ref", "vec3"] }, "expr": { "type": "string", "minLength": 1 } } },
+    "effect": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["verb", "state", "expr"], "properties": { "verb": { "const": "set" }, "state": { "type": "string" }, "expr": { "type": "string", "minLength": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["verb", "objective", "n"], "properties": { "verb": { "const": "advance" }, "objective": { "type": "string" }, "n": { "type": "integer", "minimum": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["verb", "objective"], "properties": { "verb": { "const": "fail" }, "objective": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["verb", "population_id"], "properties": { "verb": { "enum": ["spawn", "despawn"] }, "population_id": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["verb", "anchor"], "properties": { "verb": { "enum": ["enable", "disable"] }, "anchor": { "type": "string" } } },
+        { "type": "object", "additionalProperties": false, "required": ["verb", "message_id"], "properties": { "verb": { "const": "notify" }, "message_id": { "type": "string" } } }
+      ]
+    },
+    "on": { "type": "object", "additionalProperties": false, "required": ["id", "event", "order", "effects"], "properties": { "id": { "type": "string" }, "event": { "type": "string" }, "when": { "type": "string", "minLength": 1 }, "order": { "type": "integer", "minimum": 0 }, "effects": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/effect" } } } },
+    "rules": { "type": "object", "additionalProperties": false, "required": ["require", "derive", "on"], "properties": { "require": { "type": "array", "items": { "$ref": "#/$defs/require" } }, "derive": { "type": "array", "items": { "$ref": "#/$defs/derive" } }, "on": { "type": "array", "items": { "$ref": "#/$defs/on" } } } },
+    "warning": { "type": "object", "additionalProperties": false, "required": ["code", "severity", "subject", "message"], "properties": { "code": { "type": "string", "pattern": "^LOOP_[A-Z_]+$" }, "severity": { "enum": ["error", "warn"] }, "subject": { "type": "string" }, "message": { "type": "string" }, "detail": { "type": "object" } } },
+    "completeness": { "type": "object", "additionalProperties": false, "required": ["status", "event_count", "objective_count", "anchor_count"], "properties": { "status": { "enum": ["partial", "complete"] }, "event_count": { "type": "integer", "minimum": 0 }, "objective_count": { "type": "integer", "minimum": 0 }, "anchor_count": { "type": "integer", "minimum": 0 } } }
+  }
+}

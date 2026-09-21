@@ -61,6 +61,10 @@ test('unreal-python detects one root-level .uproject and exposes it as the scan 
 	assert.equal(report.adapter, 'unreal-python');
 	assert.deepEqual(report.files_read, ['Example.uproject']);
 	assert.deepEqual(report.related_modules.map((m) => m.module), ['Example']);
+	assert.deepEqual(report.game_contracts, undefined);
+	assert.equal(unreal.capabilities['game.events'], true);
+	assert.equal(unreal.capabilities['game.population'], true);
+	assert.equal(unreal.capabilities['game.objectives'], true);
 	assert.equal(unreal.capabilities['codegen.gameplay'], false);
 });
 

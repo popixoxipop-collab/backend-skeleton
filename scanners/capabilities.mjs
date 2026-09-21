@@ -23,15 +23,15 @@ export const CAPABILITIES = Object.freeze({
 	},
 	'game.events': {
 		summary: 'the adapter can derive game event sources from a game-loop contract',
-		why: 'the Unreal adapter is registered before G6 gameplay-contract parsing exists, so it declares this false until that parser and its tests land',
+		why: 'the Unreal adapter earns this only after G6-A game-contract parsing validates and normalizes events; emitting UE artifacts remains separately gated by codegen.gameplay',
 	},
 	'game.population': {
 		summary: 'the adapter can derive population references from a game-loop contract',
-		why: 'the Unreal adapter is registered before G6 gameplay-contract parsing exists, so it declares this false until that parser and its tests land',
+		why: 'the Unreal adapter earns this only after G6-A game-contract parsing validates and normalizes populations; emitting UE artifacts remains separately gated by codegen.gameplay',
 	},
 	'game.objectives': {
 		summary: 'the adapter can derive objectives from a game-loop contract',
-		why: 'the Unreal adapter is registered before G6 gameplay-contract parsing exists, so it declares this false until that parser and its tests land',
+		why: 'the Unreal adapter earns this only after G6-A game-contract parsing validates and normalizes objectives; emitting UE artifacts remains separately gated by codegen.gameplay',
 	},
 	'codegen.gameplay': {
 		summary: 'a gameplay codegen provider exists for this adapter\'s stack',

@@ -74,6 +74,23 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "game_contracts": {
+      "description": "G6-A: normalized game-loop contracts discovered by an adapter. Their full shape is validated before it reaches this report by schemas/game-contract.schema.json and gameplay/contracts.mjs; this report carries the parser output as scan evidence, not as a second contract schema.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["schema", "file", "loop_id", "loop_uid", "source", "summary"],
+        "properties": {
+          "schema": { "const": "sbf.gameplay-contract/1" },
+          "file": { "type": "string" },
+          "loop_id": { "type": "string" },
+          "loop_uid": { "type": "string" },
+          "source": { "type": "object" },
+          "summary": { "type": "object" }
+        }
+      }
+    },
     "db_schema": {
       "description": "A4 (D-db-schema-plane): present only when `--db` was passed. `migrations` (Plane A, always local) and `live` (Plane C, present only with --database-url-env) are independent -- a repo can have one, the other, both, or (most repos, including the real oracle repo) neither.",
       "type": "object",

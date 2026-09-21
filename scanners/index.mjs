@@ -240,6 +240,10 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	// third-party adapter written before this existed) degrades to "no source-file inputs" rather
 	// than crashing -- the gate token still falls back to hashing the report itself.
 	const filesRead = result.filesRead ?? [];
+	// G6-A: game contracts are a sibling evidence plane, not REST-like modules. Their normalized
+	// representation is carried separately so existing module scoring/disposition semantics stay
+	// unchanged.
+	const gameContracts = result.gameContracts ?? [];
 
 	// D-zero-config-scan: an empty `terms` array is how bin/bskel.mjs's cmdScan signals its new
 	// zero-flag "inventory" mode (neither --terms nor --feature was given) -- every detected module
@@ -354,6 +358,7 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 		collisions,
 		unknowns,
 		files_read: filesRead,
+		...(gameContracts.length > 0 ? { game_contracts: gameContracts } : {}),
 		...(dbSchema ? { db_schema: dbSchema } : {}),
 	};
 }
