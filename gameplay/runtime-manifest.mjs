@@ -92,6 +92,7 @@ function normalizeStep(repoRoot, step, index, file, kind) {
 	return {
 		id: step.id,
 		script: resolveExistingFile(repoRoot, step.script, `${kind}_steps[${index}].script`, file),
+		args: step.args.map((arg, argIndex) => normalizeResultFile(arg, { file, label: `${kind}_steps[${index}].args[${argIndex}]` })),
 		result_file: normalizeResultFile(step.result_file, { file, label: `${kind}_steps[${index}].result_file` }),
 		[writesOrReads]: step[writesOrReads].map((write, writeIndex) => normalizeWrite(write, { file, label: `${kind}_steps[${index}].${writesOrReads}[${writeIndex}]` })),
 	};

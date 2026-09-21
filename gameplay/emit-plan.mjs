@@ -22,7 +22,7 @@ export function buildGameplayEmitPlan(manifest, contract) {
 	};
 	const editorStep = (step, phase) => ({
 		id: step.id, phase, kind: 'unreal-editor-python',
-		project_file: unix(manifest.runtime.project_file), script: unix(step.script), result_file: unix(step.result_file),
+		project_file: unix(manifest.runtime.project_file), script: unix(step.script), args: step.args.map(unix), result_file: unix(step.result_file),
 		[phase === 'emit' ? 'writes' : 'reads']: (step[phase === 'emit' ? 'writes' : 'reads'] ?? []).map(target),
 	});
 	return {

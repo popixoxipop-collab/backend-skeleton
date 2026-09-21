@@ -3276,11 +3276,18 @@ function cmdGameplayEmit(args) {
 		}
 		return { id: label, status: result.status, stdout: result.stdout ?? '' };
 	};
-	const completed = [run(flags.python, plan.compiler.args, plan.compiler.id)];
+	const outputFile = path.join(root, ...plan.compiler.writes[0].path.split('/'));
+	const completed = [];
+	if (!flags.resume) completed.push(run(flags.python, plan.compiler.args, plan.compiler.id));
 	for (const step of [...plan.emit_steps, ...plan.verify_steps]) {
 		const receipt = path.join(root, ...step.result_file.split('/'));
+		if (flags.resume && fs.existsSync(receipt) && fs.statSync(receipt).mtimeMs >= fs.statSync(outputFile).mtimeMs && fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
+			completed.push({ id: step.id, receipt: step.result_file, resumed: true });
+			continue;
+		}
 		if (fs.existsSync(receipt)) fs.rmSync(receipt);
-		run(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}`, '-stdout', '-unattended', '-nosplash', '-nopause'], step.id);
+		const scriptArgs = step.args.map((arg) => path.join(root, ...arg.split('/'))).join(' ');
+		run(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}${scriptArgs ? ` ${scriptArgs}` : ''}`, '-stdout', '-unattended', '-nosplash', '-nopause'], step.id);
 		if (!fs.existsSync(receipt) || !fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
 			fail(EXIT_CODES.NOT_PASSED, 'RECEIPT_MISSING', `${step.id} did not produce SCRIPT_DONE_OK in ${step.result_file}; remaining steps were not started.`);
 		}

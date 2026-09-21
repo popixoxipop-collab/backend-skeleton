@@ -42,8 +42,8 @@ function manifest(loopId, { session = 'shared-lvl-thirdperson', writePath = '/Ga
 		runtime: {
 			project_file: 'Example.uproject',
 			exclusive_session: session,
-			emit_steps: [{ id: 'ruleset', script, result_file: 'stage_e_emit_ruleset_result.txt', writes: [{ kind: 'ue-asset', path: writePath }] }],
-			verify_steps: [{ id: 'cold-read', script: 'cold_verify_ruleset.py', result_file: 'cold_verify_ruleset_result.txt', reads: [{ kind: 'ue-asset', path: writePath }] }],
+			emit_steps: [{ id: 'ruleset', script, args: [`specs/${loopId}/game_plan.json`], result_file: 'stage_e_emit_ruleset_result.txt', writes: [{ kind: 'ue-asset', path: writePath }] }],
+			verify_steps: [{ id: 'cold-read', script: 'cold_verify_ruleset.py', args: [], result_file: 'cold_verify_ruleset_result.txt', reads: [{ kind: 'ue-asset', path: writePath }] }],
 		},
 	};
 }
