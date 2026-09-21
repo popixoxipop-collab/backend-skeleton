@@ -55,7 +55,7 @@ deliberately offline/long-running session.
 
 **Handles (Phase 5) dispatch to a codegen provider chosen by the scan report's adapter** (G4, see
 `D-handles-providers` in DECISIONS.md) -- `java-spring`, `python-fastapi` and `typescript-express`
-each ship one today. `javascript-express` deliberately does not (see
+each ship one today. `ruby-rails` and `javascript-express` deliberately do not (see
 `D-javascript-express-adapter`), and honestly declares `codegen.handles: false` rather than
 pretending.
 The rest of this section describes the **`java-spring` provider's** specific generated shape
@@ -297,6 +297,8 @@ bskel scan                                            # D-zero-config-scan: zero
                                                         # no-files/gate-touched contract as the line
                                                         # below, just without a term to filter on.
 bskel scan --terms organization                      # ad-hoc, read-only, no files/gate touched
+bskel scan --runtime-routes                          # Rails only: explicitly boots this trusted app
+                                                        # and uses `bin/rails routes --expanded`
 bskel scan --feature 001-organization-management      # writes specs/<id>/brownfield-scan.{json,md}, sets the `scan` gate
 bskel scan --feature <id> --terms ... --accept-low-confidence   # required when confidence is "low" (see below) -- otherwise exit 16
 bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel --note "..."
@@ -348,7 +350,14 @@ Shipped today: `java-spring`
 (specificity 100 -- ripgrep + full-file regex, no real Java parser, see
 `scanners/adapters/java-spring.mjs`; detects `build.gradle`/`pom.xml` + `src/main/java`;
 declares every capability; `verificationBasis: "production-repo"` -- verified against Team-IZ-Backend,
-a real production codebase), `python-fastapi` (specificity 90 -- same ripgrep + regex philosophy,
+a real production codebase), `ruby-rails` (specificity 95 -- detects a Rails dependency plus
+`config/application.rb < Rails::Application` and `config/routes.rb`; statically expands literal
+verb/resource/namespace/scope/member/collection declarations and extracts literal ActiveRecord
+table/primary-key metadata. It declares only `api.operations: true`: operation ids are stable
+bskel syntheses, not source-pinned Rails operation ids. `--runtime-routes` is an explicit trust
+boundary that boots the application and consumes `bin/rails routes --expanded`; the default scan
+never boots Rails. `verificationBasis: "production-repo"` -- pinned Discourse, Forem, and Mastodon
+oracles), `python-fastapi` (specificity 90 -- same ripgrep + regex philosophy,
 see `scanners/adapters/python-fastapi.mjs`; detects a `fastapi` dependency declaration AND
 source-level confirmation together; declares `resource.fetch` AND `codegen.handles` true -- a real
 Python/FastAPI/SQLModel handle codegen provider exists (G4, see `D-handles-providers` in
@@ -816,7 +825,7 @@ bskel stack apply --choice ngrok --apply --port 3000   # if the app doesn't run 
 
 bskel stack apply --choice postgres-dev-db --apply   # a second, real catalog entry -- zero new code in stack/apply.mjs
   # -> P5 (D-docker-postgres-stack): a LOCAL DEV Postgres via Docker Compose, adapter-agnostic
-  #    (works the same regardless of which of the 4 scanner adapters detected the repo) --
+  #    (works the same regardless of which scanner adapter detected the repo) --
   #    deliberately NOT application containerization, which doesn't fit this mechanism (real
   #    per-language build steps, `stack apply` has no adapter awareness). Creates
   #    docker-compose.postgres.yml + scripts/db-up.sh + scripts/_bskel-lib.sh (the SAME shared

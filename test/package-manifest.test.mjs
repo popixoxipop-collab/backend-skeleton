@@ -57,13 +57,14 @@ test('npm pack includes every JSON Schema, cross-checked against every schemas/*
 	}
 });
 
-test('npm pack includes every codegen template for both handles providers, and both scanner adapters (dynamically loaded, not statically imported)', () => {
+test('npm pack includes every codegen template and every dynamically loaded scanner adapter', () => {
 	const files = packManifest();
 	const javaSpringTemplates = files.filter((f) => f.startsWith('handles/providers/java-spring/templates/') && f.endsWith('.tmpl'));
 	const pythonFastapiTemplates = files.filter((f) => f.startsWith('handles/providers/python-fastapi/templates/') && f.endsWith('.tmpl'));
 	assert.ok(javaSpringTemplates.length >= 9, `expected at least 9 java-spring templates, found ${javaSpringTemplates.length}`);
 	assert.ok(pythonFastapiTemplates.length >= 6, `expected at least 6 python-fastapi templates, found ${pythonFastapiTemplates.length}`);
 	assert.ok(files.includes('scanners/adapters/java-spring.mjs'));
+	assert.ok(files.includes('scanners/adapters/ruby-rails.mjs'));
 	assert.ok(files.includes('scanners/adapters/python-fastapi.mjs'));
 	assert.ok(files.includes('scanners/adapters/generic-grep.mjs'));
 });

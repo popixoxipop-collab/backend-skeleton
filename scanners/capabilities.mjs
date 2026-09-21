@@ -6,7 +6,7 @@
 // D-adapter-registry in DECISIONS.md.
 export const CAPABILITIES = Object.freeze({
 	'api.operations': {
-		summary: 'endpoints carry a source-pinned, non-null operationId',
+		summary: 'endpoints carry a stable, non-null operationId (source-pinned or explicitly marked as bskel-synthesized)',
 		why: 'a contract operation must be addressable by id -- generic-grep\'s route-pattern grep never correlates one (operationId is always null by construction, see D-generic-grep-reconnaissance in DECISIONS.md)',
 	},
 	'api.request-shape': {
@@ -19,7 +19,7 @@ export const CAPABILITIES = Object.freeze({
 	},
 	'codegen.handles': {
 		summary: 'a handle codegen provider exists for this adapter\'s stack',
-		why: 'two providers exist today (java-spring, python-fastapi) -- see D-handles-providers (G4) in DECISIONS.md; a stack without one still fails this capability honestly rather than pretending',
+		why: 'three providers exist today (java-spring, python-fastapi, typescript-express) -- see D-handles-providers (G4) and D-typescript-express-provider in DECISIONS.md; a stack without one still fails this capability honestly rather than pretending',
 	},
 });
 

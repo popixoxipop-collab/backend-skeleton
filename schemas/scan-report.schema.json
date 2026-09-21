@@ -18,6 +18,18 @@
       "type": "boolean"
     },
     "path_prefix_signals": { "type": "array" },
+    "runtime_introspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "command", "project_root", "rails_env", "status"],
+      "properties": {
+        "kind": { "const": "rails-routes" },
+        "command": { "type": "array", "items": { "type": "string" } },
+        "project_root": { "type": "string" },
+        "rails_env": { "type": "string" },
+        "status": { "const": "used" }
+      }
+    },
     "related_modules": {
       "type": "array",
       "items": {

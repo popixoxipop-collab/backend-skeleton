@@ -8,14 +8,14 @@ assignees: ''
 
 <!--
 This template exists because bskel's own verification confidence varies a lot by adapter --
-java-spring and python-fastapi were checked against production/official-reference repos,
-typescript-express against one community boilerplate, javascript-express against a synthetic
-fixture only. A report against a REAL repo bskel hasn't seen before is the single most useful
+java-spring and ruby-rails were checked against production repos, python-fastapi against an
+official reference, and both Express adapters against community samples. A report against a REAL
+repo bskel hasn't seen before is the single most useful
 thing an external user can give this project. See CATALOG.md/DECISIONS.md if you want the exact
 adapter-by-adapter verification basis before filing.
 -->
 
-**Which adapter/framework** (java-spring / python-fastapi / typescript-express /
+**Which adapter/framework** (java-spring / ruby-rails / python-fastapi / typescript-express /
 javascript-express / generic-grep):
 
 **`bskel doctor` output** (confirms which adapter detected, and its capabilities):

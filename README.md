@@ -105,6 +105,10 @@ bskel scan                        # zero flags: every module/controller/entity/e
                                    #   files written, no gate touched
 ```
 
+Rails projects are scanned statically by default. On a trusted Rails checkout, add
+`--runtime-routes` to boot the application and use `bin/rails routes --expanded` as the route
+source; initializers and application boot code will run.
+
 That's a read-only look, not the gated workflow — for real feature work (collision-checked against
 a specific idea, contract-gated, codegen), see below.
 
@@ -595,6 +599,11 @@ string for anything missing.
 `D-adapter-registry` in `DECISIONS.md`):
 - `java-spring` — Spring Boot (`build.gradle`/`pom.xml` + `src/main/java`). Full capability set:
   operation extraction, request-body detection, and a real codegen provider for `handles emit`.
+- `ruby-rails` — Rails 8 (`Gemfile` + `config/application.rb` + `config/routes.rb`). Statically
+  expands conventional routes/resources and extracts ActiveRecord table/primary-key metadata.
+  Operation ids are deterministic bskel syntheses, not source declarations; `--runtime-routes`
+  explicitly boots the trusted application for authoritative framework routing. Scanner only:
+  request-shape extraction and handles codegen are not supported.
 - `python-fastapi` — FastAPI + SQLModel. Real codegen provider for `handles emit`; contract-grade
   operation extraction is not supported (FastAPI generates operation ids at runtime) — pass a real
   OpenAPI document via `--openapi-file` for a trustworthy contract.

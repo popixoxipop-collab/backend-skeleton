@@ -98,7 +98,7 @@ function usage() {
   bskel pattern show <pattern_id> --pattern-database-url-env <NAME> [--json]
   bskel pattern suggest --stack spring|fastapi --pattern-database-url-env <NAME> [--json]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
-  bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--db [--database-url-env <NAME>] [--schema public]]
+  bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--runtime-routes] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
   bskel scan repair --feature <id> [--json]
@@ -711,8 +711,10 @@ async function cmdScan(args) {
 	}
 	let report;
 	try {
-		report = runScan({ repoRoot: root, terms, includeDb: flags.db, dbSchema, rgAvailable });
+		report = runScan({ repoRoot: root, terms, includeDb: flags.db, dbSchema, rgAvailable, runtimeRoutes: flags['runtime-routes'] });
 	} catch (err) {
+		if (err.code === 'RUNTIME_ROUTES_UNSUPPORTED') fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', err.message);
+		if (err.code === 'RUNTIME_ROUTES_FAILED') fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', err.message);
 		// Unreachable with the two shipped adapters (generic-grep's specificity-0 detect() is
 		// unconditional) -- becomes reachable the moment a future adapter's detect() is
 		// conditional, or two adapters tie at the same specificity. See scanners/index.mjs.

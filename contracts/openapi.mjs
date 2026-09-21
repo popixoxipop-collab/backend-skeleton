@@ -1768,7 +1768,7 @@ export function reconcileModule({ index, module, pathPrefix = null, includeDescr
 	const anchorDeltas = [];
 	for (const controller of module.controllers) {
 		for (const ep of controller.endpoints) {
-			if (!ep.operationId) continue;
+			if (!ep.operationId || ep.operationIdSource === 'bskel-synthesized') continue;
 			const docEntry = index.byOperationId.get(ep.operationId);
 			if (!docEntry || docEntry.verb !== ep.verb) continue; // verb mismatch => not a safe anchor, surfaces as drift below
 			const delta = computeDelta(ep.path, docEntry.path);
@@ -1828,7 +1828,7 @@ export function reconcileModule({ index, module, pathPrefix = null, includeDescr
 			const key = endpointKey(ci, ei);
 			let result;
 
-			if (ep.operationId) {
+			if (ep.operationId && ep.operationIdSource !== 'bskel-synthesized') {
 				const docEntry = index.byOperationId.get(ep.operationId);
 				if (!docEntry) {
 					result = { kind: 'missing', scanVerb: ep.verb, scanPath: ep.path };
@@ -1868,14 +1868,18 @@ export function reconcileModule({ index, module, pathPrefix = null, includeDescr
 						stats.drift++;
 					}
 				}
-			} else if (prefix.value == null) {
-				result = { kind: 'unresolved', reason: 'prefix-inconclusive', scanVerb: ep.verb, scanPath: ep.path };
-				stats.unresolved++;
 			} else {
-				const candidates = prefix.value === '' ? [ep.path] : [...new Set([prefix.value + ep.path, ep.path])];
+				// An explicitly bskel-synthesized operation id is useful when no source document
+				// exists, but it must never be treated as if an OpenAPI producer authored the same
+				// identifier. Reconcile it exactly like an unpinned endpoint: route first, then adopt
+				// the document's own operationId. Exact-path matching remains safe even when no
+				// prefix could be inferred; a caller only needs --path-prefix when exact matching fails.
+				const candidates = prefix.value == null
+					? [ep.path]
+					: prefix.value === '' ? [ep.path] : [...new Set([prefix.value + ep.path, ep.path])];
 				const hits = candidates.flatMap((c) => index.byRoute.get(`${ep.verb} ${canonicalRouteShape(c)}`) ?? []);
 				if (hits.length === 0) {
-					result = { kind: 'unresolved', reason: 'no-candidate', scanVerb: ep.verb, scanPath: ep.path };
+					result = { kind: 'unresolved', reason: prefix.value == null ? 'prefix-inconclusive' : 'no-candidate', scanVerb: ep.verb, scanPath: ep.path };
 					stats.unresolved++;
 				} else if (hits.length === 1 && hits[0].operationId) {
 					result = {

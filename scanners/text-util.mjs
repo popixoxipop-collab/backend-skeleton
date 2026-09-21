@@ -17,9 +17,12 @@ export function lineNumberAt(text, index) {
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-export function listRgFiles(dir, globs, excludeGlobs = []) {
+export function listRgFiles(dir, globs, excludeGlobs = [], execFn = execFileSync) {
 	try {
-		const out = execFileSync('rg', ['--files', ...globs.flatMap((g) => ['-g', g]), ...excludeGlobs.flatMap((g) => ['-g', g]), dir], { encoding: 'utf8' });
+		// A production Rails monorepo (Discourse) emits >1 MiB of paths for `-g '*.rb'`.
+		// Node's default execFileSync buffer then throws ENOBUFS, which the intentional "no files"
+		// catch below cannot distinguish and used to turn the entire scan into an empty result.
+		const out = execFn('rg', ['--files', ...globs.flatMap((g) => ['-g', g]), ...excludeGlobs.flatMap((g) => ['-g', g]), dir], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 		return out.split('\n').filter(Boolean).sort(); // O6: rg --files order isn't guaranteed.
 	} catch {
 		return []; // rg exits 1 on "no files matched" -- not an error, just nothing to report

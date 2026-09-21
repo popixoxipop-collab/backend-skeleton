@@ -39,14 +39,15 @@ export const adapter = {
 `;
 }
 
-test('real registry: loads exactly java-spring, python-fastapi, typescript-express, javascript-express, and generic-grep, sorted by specificity descending', async () => {
+test('real registry: loads every shipped adapter sorted by specificity descending', async () => {
 	assert.deepEqual(LOAD_ERRORS, []);
-	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'python-fastapi', 'typescript-express', 'javascript-express', 'generic-grep']);
+	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express', 'generic-grep']);
 	assert.equal(ADAPTERS[0].specificity, 100);
-	assert.equal(ADAPTERS[1].specificity, 90);
-	assert.equal(ADAPTERS[2].specificity, 85);
-	assert.equal(ADAPTERS[3].specificity, 80);
-	assert.equal(ADAPTERS[4].specificity, 0);
+	assert.equal(ADAPTERS[1].specificity, 95);
+	assert.equal(ADAPTERS[2].specificity, 90);
+	assert.equal(ADAPTERS[3].specificity, 85);
+	assert.equal(ADAPTERS[4].specificity, 80);
+	assert.equal(ADAPTERS[5].specificity, 0);
 });
 
 test('real registry: every CAPABILITY_NAMES key is declared (true or false) by every shipped adapter', () => {
@@ -138,6 +139,7 @@ test('files prefixed with _ or . are skipped, not treated as malformed adapters'
 
 test('adapterById finds a loaded adapter by id, and returns null for an unknown one', () => {
 	assert.equal(adapterById(ADAPTERS, 'java-spring').id, 'java-spring');
+	assert.equal(adapterById(ADAPTERS, 'ruby-rails').id, 'ruby-rails');
 	assert.equal(adapterById(ADAPTERS, 'does-not-exist'), null);
 });
 

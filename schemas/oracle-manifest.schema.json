@@ -11,7 +11,7 @@
     "adapters": {
       "type": "object",
       "propertyNames": {
-        "enum": ["java-spring", "python-fastapi", "typescript-express", "javascript-express", "generic-grep"]
+        "enum": ["java-spring", "ruby-rails", "python-fastapi", "typescript-express", "javascript-express", "generic-grep"]
       },
       "additionalProperties": {
         "type": "array",

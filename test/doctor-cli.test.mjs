@@ -148,7 +148,7 @@ test('bskel doctor --json: every real framework adapter (not generic-grep) carri
 	assert.equal(result.code, 0);
 	const { adapters } = JSON.parse(result.stdout);
 	const byId = Object.fromEntries(adapters.map((a) => [a.id, a]));
-	for (const id of ['java-spring', 'python-fastapi', 'typescript-express', 'javascript-express']) {
+	for (const id of ['java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express']) {
 		const hint = byId[id].diagnostics.find((d) => d.code === 'openapi-extraction-hint');
 		assert.ok(hint, `expected ${id} to carry an openapi-extraction-hint`);
 		assert.equal(hint.level, 'info');
@@ -187,6 +187,19 @@ test('both Express adapters honestly say there is NO framework-native OpenAPI ge
 	}
 });
 
+test('ruby-rails documents both its explicit runtime boot boundary and non-native OpenAPI path', () => {
+	const root = buildFixtureRepo();
+	const result = run(['doctor', '--json'], root);
+	const { adapters } = JSON.parse(result.stdout);
+	const rails = adapters.find((a) => a.id === 'ruby-rails');
+	const runtime = rails.diagnostics.find((d) => d.code === 'runtime-routes-hint');
+	const openapi = rails.diagnostics.find((d) => d.code === 'openapi-extraction-hint');
+	assert.match(runtime.message, /--runtime-routes/);
+	assert.match(runtime.message, /boots the target application/);
+	assert.match(openapi.message, /no framework-native OpenAPI generator/);
+	assert.match(openapi.message, /rswag/);
+});
+
 // D-adapter-verification-basis (W2/B6): bskel doctor --json surfaces each adapter's
 // verificationBasis verbatim, matching schemas/adapter.schema.json's per-adapter values --
 // turns "you find out by reading DECISIONS.md prose" into "the CLI tells you before you commit
@@ -197,6 +210,7 @@ test('bskel doctor --json: every adapter carries its real verificationBasis valu
 	const { adapters } = JSON.parse(result.stdout);
 	const byId = Object.fromEntries(adapters.map((a) => [a.id, a]));
 	assert.equal(byId['java-spring'].verificationBasis, 'production-repo');
+	assert.equal(byId['ruby-rails'].verificationBasis, 'production-repo');
 	assert.equal(byId['python-fastapi'].verificationBasis, 'official-reference');
 	assert.equal(byId['typescript-express'].verificationBasis, 'community-sample');
 	assert.equal(byId['javascript-express'].verificationBasis, 'community-sample');

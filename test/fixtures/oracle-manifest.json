@@ -30,6 +30,35 @@
         "note": "Modern Spring Boot 3 / Java 21 real app, MIT, actively maintained. Its package layout doesn't match either moduleOf()'s domain/<module>/ convention or the @SpringBootApplication-base-package fallback, so every real entity lands in the _unknown bucket -- confirmed real, honest _unknown bucketing on a SECOND real repo beyond spring-petclinic (D-module-attribution-base-package's own original oracle)."
       }
     ],
+    "ruby-rails": [
+      {
+        "id": "discourse",
+        "owner": "discourse",
+        "repo": "discourse",
+        "ref": "0be6cfbf552e4056589b9b43b873d18d42581d19",
+        "path": null,
+        "terms": ["topic"],
+        "note": "Large production Rails application with a deeply extended routes DSL. It verifies conservative static recovery and honest unknowns instead of pretending dynamic declarations were understood."
+      },
+      {
+        "id": "forem",
+        "owner": "forem",
+        "repo": "forem",
+        "ref": "5f76f390fefbd3e018722986e4c2116d504c11e0",
+        "path": null,
+        "terms": ["article"],
+        "note": "Production Rails community platform with conventional resources plus application-specific routing. It exercises controller attribution, resource expansion, and ActiveRecord metadata on a second independent codebase."
+      },
+      {
+        "id": "mastodon",
+        "owner": "mastodon",
+        "repo": "mastodon",
+        "ref": "b4d0f69a809405eb32e253529bac36f86418e9e4",
+        "path": null,
+        "terms": ["account"],
+        "note": "Production Rails API with heavy namespace/version routing. It verifies nested prefixes, controller lookup, and deterministic synthesized operation ids against a high-scale real repository."
+      }
+    ],
     "python-fastapi": [
       {
         "id": "full-stack-fastapi-template",

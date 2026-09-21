@@ -81,7 +81,7 @@ async function loadOneAdapter(file, schema) {
 
 	// Validate only the JSON-shaped fields -- detect/scan/diagnostics/listReadSet are functions,
 	// which JSON Schema has no vocabulary for; checked separately below.
-	const { detect, scan, diagnostics, listReadSet, ...data } = descriptor;
+	const { detect, scan, diagnostics, listReadSet, introspectRoutes, ...data } = descriptor;
 	const validateFn = ajv().getSchema(schema.$id) ?? ajv().compile(schema);
 	if (!validateFn(data)) {
 		const details = (validateFn.errors ?? []).map((e) => `${e.instancePath || '(root)'} ${e.message}`).join('; ');
@@ -100,6 +100,9 @@ async function loadOneAdapter(file, schema) {
 	// that adapter, never a crash. Every first-party adapter implements it.
 	if (descriptor.listReadSet !== undefined && typeof descriptor.listReadSet !== 'function') {
 		return { error: { file, message: 'adapter.listReadSet, if present, must be a function' } };
+	}
+	if (descriptor.introspectRoutes !== undefined && typeof descriptor.introspectRoutes !== 'function') {
+		return { error: { file, message: 'adapter.introspectRoutes, if present, must be a function' } };
 	}
 	return { adapter: descriptor };
 }

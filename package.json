@@ -2,7 +2,7 @@
   "name": "backend-skeleton",
   "version": "1.7.1",
   "type": "module",
-  "description": "Deterministic gate layer for AI-assisted backend changes -- blocks brownfield collisions and contract/handle drift via disk-hash checks before code ships. Scaffolding codegen included (Java/Spring, Python/FastAPI, TypeScript/Express).",
+  "description": "Deterministic gate layer for AI-assisted backend changes -- blocks brownfield collisions and contract/handle drift via disk-hash checks before code ships. Scans Spring, Rails, FastAPI, and Express; scaffolding codegen included for selected stacks.",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -49,6 +49,7 @@
     "test:java-ast": "node scripts/java-ast-smoke.mjs",
     "test:python-integration": "node scripts/python-integration-smoke.mjs",
     "test:typescript-compile": "node scripts/typescript-typecheck-smoke.mjs",
+    "test:rails-integration": "node scripts/rails-integration-smoke.mjs",
     "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs",
     "test:shadow-validation": "node scripts/shadow-validation-smoke.mjs",
     "test:oracle-corpus": "node scripts/shadow-validation-smoke.mjs --manifest test/fixtures/oracle-manifest.json",

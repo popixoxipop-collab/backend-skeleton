@@ -47,6 +47,9 @@ export function renderScanMarkdown(report) {
 	lines.push(`**Terms**: ${report.terms.join(', ') || '(none)'}`);
 	lines.push(`**Adapter**: ${report.adapter} (confidence: ${report.confidence})`);
 	lines.push(`**API surface source**: ${report.api_surface_source}`);
+	if (report.runtime_introspection) {
+		lines.push(`**Runtime routes**: ${report.runtime_introspection.command.join(' ')} (${report.runtime_introspection.rails_env}, project ${report.runtime_introspection.project_root})`);
+	}
 	lines.push(`**Verdict**: \`${report.verdict}\``);
 	lines.push('');
 

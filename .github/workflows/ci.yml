@@ -564,6 +564,32 @@ jobs:
         if: always()
         run: docker rm -f bskel-pg-o4
 
+  # D-ruby-rails-adapter: the unit fixture pins the static DSL parser, but only real Rails can
+  # prove that the explicit trust-boundary path still parses `bin/rails routes --expanded`.
+  # Test the newest patch of both supported Rails minors. The generated smoke app has a Gemfile
+  # containing only Rails, so `bundle install --local` uses exactly the gems installed here.
+  rails-integration:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rails: ['8.0.5.1', '8.1.3.1']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - run: gem install rails --version "${{ matrix.rails }}" --no-document
+      - run: npm run test:rails-integration
+        env:
+          BSKEL_RAILS_VERSION: ${{ matrix.rails }}
+
   # D-macos-runner (P3b): P3's own comment on the `test` job above said a macOS job "would mostly
   # re-test the one platform already exercised daily" locally -- true, but automated + repeatable
   # beats "exercised daily by whoever happens to be at their Mac" all the same, and P3 deferred it

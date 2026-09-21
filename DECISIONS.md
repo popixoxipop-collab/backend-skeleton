@@ -15666,3 +15666,73 @@ adapter-selection regressions. The adapter's already-current verification tier r
 All four capability flags remain false. Without a source OpenAPI document this particular 2016 app
 still cannot pass `contract emit`; inventing operationIds from anonymous inline functions would be
 a false contract, so the clean `api.operations` refusal remains the intended result.
+
+## D-ruby-rails-adapter: static Rails routing by default, explicit framework boot, and synthesized operation identity
+
+**WHY:** the existing registry covered Spring, FastAPI, and two Express shapes but no Ruby stack.
+Rails cannot be represented honestly by `generic-grep`: its conventional routes expand one DSL
+declaration into several HTTP operations, namespaces and scopes alter both paths and controller
+lookup, and the framework does not provide source-level OpenAPI-style operation ids. The requested
+next framework is therefore a new first-class `ruby-rails` scanner, not an extension of the
+framework-neutral fallback.
+
+**DETECTION AND ARBITRATION:** a candidate project root must combine a Rails dependency in
+`Gemfile` or `Gemfile.lock`, a `config/application.rb` class inheriting from
+`Rails::Application`, and `config/routes.rb`. Candidates are searched recursively and evaluated
+shallowest-first so Rails in a monorepo is visible. The adapter has specificity 95: below the
+Spring adapter's 100 and above FastAPI's 90. This preserves deterministic winner-take-all
+selection for polyglot repositories without changing the registry model.
+
+**STATIC DEFAULT:** the default scan reads source only. It recognizes literal `get`/`post`/`put`/
+`patch`/`delete` and `root` routes; plural and singular resources; `only`, `except`, `path`,
+`controller`, and `param`; and nested `namespace`, `scope`, `member`, and `collection` blocks.
+Unsupported macros and interpolated/dynamic paths become explicit unknowns. They are never
+expanded speculatively. A route is retained only when its resolved controller exists locally,
+preventing mounted engine or gem routes from being attributed to application code. ActiveRecord
+subclasses are collected with literal `self.table_name` and `self.primary_key`; the abstract
+`ApplicationRecord` base is excluded. No Rails process runs on this path.
+
+**RUNTIME TRUST BOUNDARY:** `bskel scan --runtime-routes` is a separately requested mode. It runs
+the target checkout's own `bin/rails routes --expanded`, which necessarily boots Rails and can run
+initializers. Diagnostics and documentation name that consequence before use. The command has a
+60-second bound, never falls back silently after failure, and records the command, project root,
+environment, and `used` status in `runtime_introspection`. Adapters without an introspection hook
+reject the flag instead of accepting a no-op.
+
+**OPERATION IDENTITY:** Rails has no operation-id primitive. Each recovered route gets a stable
+`rails_<verb>_<controller>_<action>_<10-char-sha256>` id derived from the normalized route tuple
+and is marked `operationIdSource: "bskel-synthesized"`. This makes `api.operations: true` useful
+without falsely claiming source provenance. When an OpenAPI document is supplied, synthesized ids
+are deliberately not used as reconciliation anchors: exact method/path matching adopts the real
+OpenAPI operation id. Without a match, contract emission preserves the synthesized id but emits
+the normal missing-operation completeness finding. Adopted operations use `scan+openapi`;
+unmatched synthesized operations use `scan-synthesized` provenance.
+
+**CAPABILITY BOUNDARY:** only `api.operations` is true. Static request/response-shape inference,
+safe resource fetch wiring, and a Rails handles provider are not included. Rails models expose
+too little authorization and safe-fetch intent for this slice to reuse a provider from another
+framework. Rails-specific field handles remain a separately justified future feature, not an
+implied follow-up hidden behind a true capability flag.
+
+**TWO REAL CORPUS DEFECTS FIXED BEFORE RELEASE:** the first Discourse run selected
+`generic-grep`. Discourse intentionally depends on component gems (`railties`, `actionpack`,
+`activerecord`, etc.) rather than the `rails` meta-gem, so detection now accepts `railties` as the
+boot marker while still requiring both `Rails::Application` and `routes.rb`. After that fix the
+adapter selected correctly but returned zero modules: Discourse's `*.rb` path list is larger than
+Node's default 1 MiB `execFileSync` buffer. Shared `listRgFiles()` caught the resulting ENOBUFS as
+if ripgrep had found no files. Its buffer is now explicitly 16 MiB, pinned by a >1 MiB regression
+test. The Rails exclude globs are project-root-relative as well; `!**/tmp/**` can otherwise match
+an entire absolute checkout cloned beneath Linux `/tmp`, exactly where the corpus harness works.
+These were silent-empty-scan bugs, not cosmetic oracle notes.
+
+**VERIFICATION:** the committed fixture pins resource expansion, namespaces, singleton routes,
+unknown handling, ActiveRecord metadata, deterministic ids, contract emission, OpenAPI route
+adoption, runtime parsing, and the non-Rails refusal path. The real verification corpus adds exact
+commits for `discourse/discourse@0be6cfbf552e4056589b9b43b873d18d42581d19`,
+`forem/forem@5f76f390fefbd3e018722986e4c2116d504c11e0`, and
+`mastodon/mastodon@b4d0f69a809405eb32e253529bac36f86418e9e4`; consequently the descriptor's
+`verificationBasis` is `production-repo`. CI also boots Rails 8.0 and 8.1 in generated smoke apps
+so static parsing and the explicit runtime path remain compatible with both supported minors. A
+post-fix pinned corpus run passed all three adapter-selection checks: Discourse reported 15
+topic-related modules, Forem 10 article-related modules, and Mastodon 22 account-related modules;
+all three correctly stopped handles planning as not applicable.

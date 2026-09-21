@@ -187,7 +187,7 @@ export function computeDbDrift(liveTables, relatedModules) {
 // -- bin/bskel.mjs computes it once via lib/doctor.mjs's binaryAvailable('rg') and hands it in as
 // plain data. Defaults to `true` so every existing call site (this whole test suite included)
 // stays byte-for-byte unchanged.
-export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, adapters = ADAPTERS, rgAvailable = true }) {
+export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, adapters = ADAPTERS, rgAvailable = true, runtimeRoutes = false }) {
 	const detections = adapters
 		.map((a) => ({ a, d: a.detect(repoRoot) }))
 		.filter(({ d }) => d != null)
@@ -213,7 +213,16 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	}
 
 	const { a: chosen, d: detection } = detections[0];
-	const result = chosen.scan(repoRoot, detection);
+	let runtimeRouteSnapshot = null;
+	if (runtimeRoutes) {
+		if (typeof chosen.introspectRoutes !== 'function') {
+			const err = new Error(`--runtime-routes is not supported by the detected ${chosen.id} adapter`);
+			err.code = 'RUNTIME_ROUTES_UNSUPPORTED';
+			throw err;
+		}
+		runtimeRouteSnapshot = chosen.introspectRoutes(repoRoot, detection);
+	}
+	const result = chosen.scan(repoRoot, detection, { runtimeRoutes: runtimeRouteSnapshot });
 	const adapter = chosen.id;
 	const confidence = chosen.confidence;
 	const modules = result.modules;
@@ -222,6 +231,8 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	// unknowns[] -- optional (`?? []`) so an adapter that doesn't populate it degrades to "nothing
 	// to report" rather than throwing, the same discipline apiSurfaceSource/filesRead already use.
 	const repositoryResourceNotes = result.repositoryResourceNotes ?? [];
+	const scanNotes = result.scanNotes ?? [];
+	const runtimeIntrospection = result.runtimeIntrospection ?? null;
 	const apiSurfaceSource = result.apiSurfaceSource ?? DEFAULT_API_SURFACE_SOURCE;
 	// S2 (D-gate-precision, continued): the adapter's own real read-set, persisted so
 	// lib/gate-definitions.mjs's `scan` gate can hash it for a precise staleness token instead of
@@ -311,6 +322,9 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 	if (repositoryResourceNotes.length > 0) {
 		unknowns.push(...repositoryResourceNotes);
 	}
+	if (scanNotes.length > 0) {
+		unknowns.push(...scanNotes);
+	}
 	// A1 §7: this scan can't correct a global path prefix (only --openapi-file's real-document
 	// reconciliation can, see D-openapi-reconciliation) -- but it CAN tell a user who doesn't know
 	// that flag exists that the defect is likely present, before they ever emit a wrong contract.
@@ -335,6 +349,7 @@ export function runScan({ repoRoot, terms, includeDb = false, dbSchema = null, a
 		verdict,
 		rg_available: rgAvailable,
 		path_prefix_signals: pathPrefixSignals,
+		...(runtimeIntrospection ? { runtime_introspection: runtimeIntrospection } : {}),
 		related_modules: relatedModules,
 		collisions,
 		unknowns,

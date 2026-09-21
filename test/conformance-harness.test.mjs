@@ -19,6 +19,7 @@ import { checkProviderConformance } from '../handles/conformance.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JAVA_FIXTURE = path.join(__dirname, 'fixtures', 'java-spring');
+const RUBY_FIXTURE = path.join(__dirname, 'fixtures', 'ruby-rails');
 const PYTHON_FIXTURE = path.join(__dirname, 'fixtures', 'python-fastapi');
 const TYPESCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-express');
 const JAVASCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'javascript-express');
@@ -34,6 +35,7 @@ function scratchCopyOf(fixtureDir) {
 // it makes no framework-specific claim, so any real repo is a fair conformance target for it.
 const ADAPTER_FIXTURES = {
 	'java-spring': JAVA_FIXTURE,
+	'ruby-rails': RUBY_FIXTURE,
 	'python-fastapi': PYTHON_FIXTURE,
 	'typescript-express': TYPESCRIPT_FIXTURE,
 	'javascript-express': JAVASCRIPT_FIXTURE,
@@ -41,7 +43,7 @@ const ADAPTER_FIXTURES = {
 };
 
 test('checkAdapterConformance passes for every shipped scanner adapter', () => {
-	assert.ok(ADAPTERS.length >= 5, 'sanity: expected java-spring, python-fastapi, typescript-express, javascript-express, generic-grep to be loaded');
+	assert.ok(ADAPTERS.length >= 6, 'sanity: expected ruby-rails and the five pre-existing adapters to be loaded');
 	for (const adapter of ADAPTERS) {
 		const repoRoot = ADAPTER_FIXTURES[adapter.id];
 		assert.ok(repoRoot, `no fixture wired for adapter "${adapter.id}" -- add one to ADAPTER_FIXTURES`);

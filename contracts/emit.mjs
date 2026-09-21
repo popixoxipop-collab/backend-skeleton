@@ -135,7 +135,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 				let operationId = ep.operationId;
 				let verb = ep.verb;
 				let route = ep.path;
-				let provenance = 'scan';
+				let provenance = ep.operationIdSource === 'bskel-synthesized' ? 'scan-synthesized' : 'scan';
 				let openapiAttempted = false;
 				let openapiReason = null;
 				// A2/A3: only ever set for matched/adopted (contracts/openapi.mjs's applyRequestBodySchema/
@@ -225,7 +225,7 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 						descriptionUnresolvedReason = res.descriptionUnresolvedReason ?? null;
 							warnings.push(makeWarning('CONTRACT_OPENAPI_DERIVED_OPERATION_ID', {
 								subject: operationId,
-								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not found in the source (no @Operation(operationId=...)) -- adopted directly from the OpenAPI document instead`,
+								message: `operationId "${operationId}" for ${res.verb} ${res.path} was not source-pinned by the scanner -- adopted directly from the OpenAPI document instead`,
 								detail: { verb: res.verb, path: res.path, scan_verb: ep.verb, scan_path: ep.path },
 							}));
 							break;
@@ -263,6 +263,13 @@ export function buildContract({ featureId, featureUid, scanReport, module: modul
 							// recording that OpenAPI reconciliation was attempted and why it didn't help.
 							openapiAttempted = true;
 							openapiReason = res.reason;
+							if (ep.operationIdSource === 'bskel-synthesized') {
+								warnings.push(makeWarning('CONTRACT_OPENAPI_MISSING_OPERATION', {
+									subject: ep.operationId,
+									message: `bskel-synthesized operationId "${ep.operationId}" (${ep.verb} ${ep.path}) could not be reconciled to a unique OpenAPI operation (${res.reason}) -- keeping the synthesized id and scan path`,
+									detail: { verb: ep.verb, path: ep.path, reason: res.reason },
+								}));
+							}
 							break;
 						default:
 							break;
