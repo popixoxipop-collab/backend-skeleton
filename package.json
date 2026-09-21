@@ -22,6 +22,7 @@
     "bin/",
     "lib/",
     "contracts/",
+    "gameplay/",
     "scanners/",
     "handles/",
     "new/",

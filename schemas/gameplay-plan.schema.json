@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gameplay-plan:1",
+  "title": "backend-skeleton gameplay provider plan",
+  "description": "Stable, read-only planning envelope emitted by one gameplay provider. It names normalized contract inputs and makes the emission boundary explicit; it is not an Unreal artifact manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "provider", "emission", "loops", "notes"],
+  "properties": {
+    "schema": { "const": "sbf.gameplay-plan/1" },
+    "provider": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "emission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "blocked_by", "deferred_outputs"],
+      "properties": {
+        "available": { "const": false },
+        "blocked_by": { "type": "array", "items": { "type": "string" } },
+        "deferred_outputs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "loops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["loop_id", "loop_uid", "contract_file", "world", "provenance", "completeness", "summary", "events", "populations", "objectives", "rules"],
+        "properties": {
+          "loop_id": { "type": "string" },
+          "loop_uid": { "type": "string" },
+          "contract_file": { "type": "string" },
+          "world": { "type": "string" },
+          "provenance": { "type": "string" },
+          "completeness": { "type": "object" },
+          "summary": { "type": "object" },
+          "events": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "source", "scope"], "properties": { "id": { "type": "string" }, "source": { "type": "string" }, "scope": { "type": "string" } } } },
+          "populations": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "config_asset", "generator", "anchor", "count"], "properties": { "id": { "type": "string" }, "config_asset": { "type": "string" }, "generator": { "type": "string" }, "anchor": { "type": "string" }, "count": { "type": "integer" } } } },
+          "objectives": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "task_count"], "properties": { "id": { "type": "string" }, "task_count": { "type": "integer", "minimum": 0 } } } },
+          "rules": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "event", "effect_verbs"], "properties": { "id": { "type": "string" }, "event": { "type": "string" }, "effect_verbs": { "type": "array", "items": { "type": "string" } } } } }
+        }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

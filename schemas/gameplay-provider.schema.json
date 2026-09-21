@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gameplay-provider:1",
+  "title": "backend-skeleton gameplay provider descriptor",
+  "description": "Validates the JSON-shaped fields of a gameplay/providers/<id>.mjs descriptor. provider.plan is checked separately by gameplay/registry.mjs because JSON Schema cannot validate functions. This descriptor intentionally represents read-only planning as well as future emitting providers; an installed planner does not itself earn codegen.gameplay.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "id", "title", "requiresCapabilities", "outputs"],
+  "properties": {
+    "contract": { "const": "sbf.gameplay-provider/1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "requiresCapabilities": {
+      "type": "array",
+      "items": { "enum": ["game.events", "game.population", "game.objectives", "codegen.gameplay"] }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spec"],
+      "properties": {
+        "spec": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -72,6 +72,8 @@ import { buildContractCsv } from '../contracts/csv.mjs';
 import { buildErdDiagram } from '../scanners/db/erd.mjs';
 import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../stack/apply.mjs';
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
+import { readGameContracts } from '../gameplay/contracts.mjs';
+import { GAMEPLAY_PROVIDERS, GAMEPLAY_PROVIDER_LOAD_ERRORS, gameplayProviderById } from '../gameplay/registry.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
 import { hasSpringAopDependency, springAopArtifactName } from '../handles/providers/java-spring/emit.mjs';
@@ -137,6 +139,7 @@ function usage() {
   bskel catalog lint [<choice>] [--json]
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
+  bskel gameplay plan [--loop <id>] [--json]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles patch unapprove --feature <id> --resource <Type> --field <name> --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
@@ -3135,6 +3138,87 @@ function requireProviderCapabilitiesOrExit(scanReport, provider, command, { feat
 	}
 }
 
+// G6-B: gameplay planning is not codegen. Contract source.adapter chooses its exact planner, and
+// the planner's read capabilities are checked against the registered adapter before it sees the
+// normalized IR. We do not reuse requireCapabilitiesOrExit here: that helper's dispatch capability
+// is codegen.gameplay, which must stay false until a real manifest-owned emitter exists.
+function requireGameplayProviderCapabilitiesOrExit(adapterId, provider) {
+	const adapter = adapterById(ADAPTERS, adapterId);
+	if (!adapter) fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', `game contract declares unknown source.adapter "${adapterId}"`);
+	for (const capability of provider.requiresCapabilities ?? []) {
+		if (adapter.capabilities[capability]) continue;
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', `blocked: gameplay planner "${provider.id}" requires adapter capability "${capability}", but adapter "${adapterId}" does not declare it. Nothing was written.`);
+	}
+}
+
+function renderGameplayPlans(output) {
+	const lines = ['# Gameplay plan', ''];
+	if (output.plans.length === 0) {
+		lines.push('No canonical game contracts found under `specs/<loop_id>/contracts/<loop_id>.game.json`.');
+	} else {
+		for (const plan of output.plans) {
+			lines.push(`## ${plan.provider}`);
+			lines.push(`Emission: ${plan.emission.available ? 'available' : `unavailable (blocked by ${plan.emission.blocked_by.join(', ')})`}`);
+			for (const loop of plan.loops) {
+				lines.push('');
+				lines.push(`- ${loop.loop_id} (${loop.world})`);
+				lines.push(`  - contract: ${loop.contract_file}`);
+				lines.push(`  - events: ${loop.events.length}; populations: ${loop.populations.length}; objectives: ${loop.objectives.length}; rules: ${loop.rules.length}`);
+			}
+			for (const note of plan.notes) lines.push(`- ${note}`);
+			lines.push('');
+		}
+	}
+	for (const note of output.notes) lines.push(`- ${note}`);
+	return `${lines.join('\n')}\n`;
+}
+
+function cmdGameplayPlan(args) {
+	const flags = parseCommand('gameplay plan', args);
+	if (flags.help) { console.log(renderCommandHelp('gameplay plan')); process.exit(0); }
+	setContext('gameplay plan', flags);
+	const root = requireRepoRoot();
+	let loaded;
+	try {
+		loaded = readGameContracts(root);
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	}
+	const contracts = flags.loop === null ? loaded.contracts : loaded.contracts.filter((contract) => contract.loop_id === flags.loop);
+	if (flags.loop !== null && contracts.length === 0) {
+		const known = loaded.contracts.map((contract) => contract.loop_id).join(', ') || '(none)';
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no canonical game contract named "${flags.loop}" -- known loop ids: ${known}`);
+	}
+	const adapterIds = [...new Set(contracts.map((contract) => contract.source.adapter))].sort();
+	const plans = [];
+	for (const adapterId of adapterIds) {
+		const provider = gameplayProviderById(GAMEPLAY_PROVIDERS, adapterId);
+		if (!provider) {
+			const loadError = GAMEPLAY_PROVIDER_LOAD_ERRORS.find((error) => path.basename(error.file, '.mjs') === adapterId);
+			const detail = loadError ? `: ${loadError.message}` : '';
+			fail(EXIT_CODES.NOT_PASSED, 'PROVIDER_UNAVAILABLE', `no gameplay planner is registered for game-contract source.adapter "${adapterId}"${detail}. Nothing was written.`);
+		}
+		requireGameplayProviderCapabilitiesOrExit(adapterId, provider);
+		try {
+			plans.push(provider.plan({ contracts, loopId: flags.loop }));
+		} catch (err) {
+			fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+		}
+	}
+	const output = {
+		schema: 'sbf.gameplay-plans/1',
+		files_read: loaded.files_read,
+		plans,
+		notes: [
+			'gameplay plan is read-only and does not require the codegen.gameplay capability.',
+			...(contracts.length === 0 ? ['Add a canonical game contract, then rerun this command.'] : []),
+		],
+	};
+	if (flags.json) console.log(JSON.stringify(output, null, 2));
+	else console.log(renderGameplayPlans(output));
+	process.exit(0);
+}
+
 // A2 Phase 2 (D-java-ast-helper): compares the AST helper's real, symbol-resolved annotation
 // names against what the always-on regex classifier (patch-strategy.mjs) actually saw. The one
 // disagreement worth surfacing: a field whose annotation was written FULLY QUALIFIED (contains a
@@ -4987,6 +5071,12 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'patch' && rest[1] === 'approve') return cmdHandlesPatchApprove(rest.slice(2));
 			if (rest[0] === 'patch' && rest[1] === 'unapprove') return cmdHandlesPatchUnapprove(rest.slice(2));
 			if (rest[0] === 'audit') return await cmdHandlesAudit(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'gameplay': {
+			if (rest[0] === 'plan') return cmdGameplayPlan(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

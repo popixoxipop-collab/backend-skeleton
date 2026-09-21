@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gameplay-plans:1",
+  "title": "backend-skeleton aggregate gameplay plan",
+  "description": "The CLI envelope for one or more provider-local sbf.gameplay-plan/1 documents. The source contract parser owns detailed game-contract validation; this schema makes the CLI read-set and provider aggregation stable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "files_read", "plans", "notes"],
+  "properties": {
+    "schema": { "const": "sbf.gameplay-plans/1" },
+    "files_read": { "type": "array", "items": { "type": "string" } },
+    "plans": { "type": "array", "items": { "$ref": "urn:sbf:gameplay-plan:1" } },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}
