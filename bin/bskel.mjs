@@ -75,6 +75,7 @@ import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/regist
 import { readGameContracts } from '../gameplay/contracts.mjs';
 import { GAMEPLAY_PROVIDERS, GAMEPLAY_PROVIDER_LOAD_ERRORS, gameplayProviderById } from '../gameplay/registry.mjs';
 import { readGameRuntimeManifests } from '../gameplay/runtime-manifest.mjs';
+import { buildGameplayEmitPlan } from '../gameplay/emit-plan.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
 import { hasSpringAopDependency, springAopArtifactName } from '../handles/providers/java-spring/emit.mjs';
@@ -141,6 +142,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel gameplay plan [--loop <id>] [--json]
+  bskel gameplay emit --loop <id> [--json]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles patch unapprove --feature <id> --resource <Type> --field <name> --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
@@ -3229,6 +3231,39 @@ function cmdGameplayPlan(args) {
 	process.exit(0);
 }
 
+function renderGameplayEmitPlan(plan) {
+	const lines = [`# Gameplay emit preview: ${plan.loop_id}`, '', `Session: ${plan.exclusive_session}`, '', '## Compiler', `- python ${plan.compiler.args.join(' ')}`, '', '## Unreal emit steps'];
+	for (const step of plan.emit_steps) lines.push(`- ${step.id}: py ${step.script} -> ${step.result_file}`);
+	lines.push('', '## Unreal verify steps');
+	for (const step of plan.verify_steps) lines.push(`- ${step.id}: py ${step.script} -> ${step.result_file}`);
+	lines.push('', ...plan.notes.map((note) => `- ${note}`));
+	return `${lines.join('\n')}\n`;
+}
+
+function cmdGameplayEmit(args) {
+	const flags = parseCommand('gameplay emit', args);
+	if (flags.help) { console.log(renderCommandHelp('gameplay emit')); process.exit(0); }
+	setContext('gameplay emit', flags);
+	const root = requireRepoRoot();
+	let loaded, runtimeManifests;
+	try {
+		loaded = readGameContracts(root);
+		runtimeManifests = readGameRuntimeManifests(root, { contracts: loaded.contracts });
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'EMIT_PLAN_FAILED', err.message);
+	}
+	const manifest = runtimeManifests.manifests.find((candidate) => candidate.loop_id === flags.loop);
+	if (!manifest) {
+		const known = runtimeManifests.manifests.map((candidate) => candidate.loop_id).join(', ') || '(none)';
+		fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `no runtime manifest is configured for loop "${flags.loop}" -- known manifest loops: ${known}`);
+	}
+	const contract = loaded.contracts.find((candidate) => candidate.loop_id === flags.loop);
+	const plan = buildGameplayEmitPlan(manifest, contract);
+	if (flags.json) console.log(JSON.stringify(plan, null, 2));
+	else console.log(renderGameplayEmitPlan(plan));
+	process.exit(0);
+}
+
 // A2 Phase 2 (D-java-ast-helper): compares the AST helper's real, symbol-resolved annotation
 // names against what the always-on regex classifier (patch-strategy.mjs) actually saw. The one
 // disagreement worth surfacing: a field whose annotation was written FULLY QUALIFIED (contains a
@@ -5087,6 +5122,7 @@ async function dispatchCommand(cmd, rest) {
 		}
 		case 'gameplay': {
 			if (rest[0] === 'plan') return cmdGameplayPlan(rest.slice(1));
+			if (rest[0] === 'emit') return cmdGameplayEmit(rest.slice(1));
 			usage();
 			process.exit(14);
 			break;

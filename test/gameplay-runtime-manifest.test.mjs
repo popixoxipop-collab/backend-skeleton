@@ -42,8 +42,8 @@ function manifest(loopId, { session = 'shared-lvl-thirdperson', writePath = '/Ga
 		runtime: {
 			project_file: 'Example.uproject',
 			exclusive_session: session,
-			emit_steps: [{ id: 'ruleset', script, writes: [{ kind: 'ue-asset', path: writePath }] }],
-			verify_steps: [{ id: 'cold-read', script: 'cold_verify_ruleset.py', reads: [{ kind: 'ue-asset', path: writePath }] }],
+			emit_steps: [{ id: 'ruleset', script, result_file: 'stage_e_emit_ruleset_result.txt', writes: [{ kind: 'ue-asset', path: writePath }] }],
+			verify_steps: [{ id: 'cold-read', script: 'cold_verify_ruleset.py', result_file: 'cold_verify_ruleset_result.txt', reads: [{ kind: 'ue-asset', path: writePath }] }],
 		},
 	};
 }
@@ -70,6 +70,7 @@ test('runtime manifests normalize an explicit, canonical game-plan compiler and 
 	assert.equal(result.manifests[0].schema, 'sbf.gameplay-runtime/1');
 	assert.equal(result.manifests[0].compiler.output, path.join('specs', '001-game-loop', 'game_plan.json'));
 	assert.equal(result.manifests[0].runtime.emit_steps[0].writes[0].path, '/Game/Game/DT_Rules');
+	assert.equal(result.manifests[0].runtime.emit_steps[0].result_file, 'stage_e_emit_ruleset_result.txt');
 	assert.equal(result.manifests[0].summary.write_target_count, 1);
 });
 

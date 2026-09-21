@@ -57,21 +57,23 @@
     "step": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "script", "writes"],
-      "properties": {
-        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "script": { "$ref": "#/$defs/repoRelativePath" },
-        "writes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/writeTarget" } }
+          "required": ["id", "script", "result_file", "writes"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+            "script": { "$ref": "#/$defs/repoRelativePath" },
+            "result_file": { "$ref": "#/$defs/repoRelativePath" },
+            "writes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/writeTarget" } }
       }
     },
     "verifyStep": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "script", "reads"],
-      "properties": {
-        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "script": { "$ref": "#/$defs/repoRelativePath" },
-        "reads": { "type": "array", "items": { "$ref": "#/$defs/writeTarget" } }
+          "required": ["id", "script", "result_file", "reads"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+            "script": { "$ref": "#/$defs/repoRelativePath" },
+            "result_file": { "$ref": "#/$defs/repoRelativePath" },
+            "reads": { "type": "array", "items": { "$ref": "#/$defs/writeTarget" } }
       }
     }
   }

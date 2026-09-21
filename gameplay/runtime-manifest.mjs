@@ -80,11 +80,19 @@ function normalizeWrite(write, { file, label }) {
 	return { kind: 'ue-asset', path: write.path };
 }
 
+function normalizeResultFile(resultFile, { file, label }) {
+	if (path.isAbsolute(resultFile) || path.win32.isAbsolute(resultFile) || resultFile.split('/').some((part) => part === '.' || part === '..')) {
+		throw new GameRuntimeManifestError(`${label} must be a repository-relative path without . or ..: "${resultFile}"`, { file });
+	}
+	return resultFile.split('/').join(path.sep);
+}
+
 function normalizeStep(repoRoot, step, index, file, kind) {
 	const writesOrReads = kind === 'emit' ? 'writes' : 'reads';
 	return {
 		id: step.id,
 		script: resolveExistingFile(repoRoot, step.script, `${kind}_steps[${index}].script`, file),
+		result_file: normalizeResultFile(step.result_file, { file, label: `${kind}_steps[${index}].result_file` }),
 		[writesOrReads]: step[writesOrReads].map((write, writeIndex) => normalizeWrite(write, { file, label: `${kind}_steps[${index}].${writesOrReads}[${writeIndex}]` })),
 	};
 }
