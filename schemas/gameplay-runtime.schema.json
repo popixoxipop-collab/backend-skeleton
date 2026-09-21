@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:gameplay-runtime:1",
+  "title": "backend-skeleton Unreal gameplay runtime manifest",
+  "description": "Declares the project-local compiler and the ordered, exclusive Unreal Editor steps that may consume one game loop. It is an ownership boundary, not executable arbitrary command configuration: only repository-relative Python script paths and explicit file/UE-asset write targets are allowed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf_gameplay_runtime", "loop_id", "compiler", "runtime"],
+  "properties": {
+    "sbf_gameplay_runtime": { "const": "1" },
+    "loop_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["script", "world_anchors", "output"],
+      "properties": {
+        "script": { "$ref": "#/$defs/repoRelativePath" },
+        "world_anchors": { "$ref": "#/$defs/repoRelativePath" },
+        "output": { "$ref": "#/$defs/repoRelativePath" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_file", "exclusive_session", "emit_steps", "verify_steps"],
+      "properties": {
+        "project_file": { "$ref": "#/$defs/repoRelativePath" },
+        "exclusive_session": { "type": "string", "minLength": 1 },
+        "emit_steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "verify_steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/verifyStep" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "writeTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "enum": ["file", "ue-asset"] },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "script", "writes"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "script": { "$ref": "#/$defs/repoRelativePath" },
+        "writes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/writeTarget" } }
+      }
+    },
+    "verifyStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "script", "reads"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "script": { "$ref": "#/$defs/repoRelativePath" },
+        "reads": { "type": "array", "items": { "$ref": "#/$defs/writeTarget" } }
+      }
+    }
+  }
+}

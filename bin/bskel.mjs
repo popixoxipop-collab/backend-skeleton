@@ -74,6 +74,7 @@ import { loadCatalogEntry, listCatalogChoices, planApply, applyPlan } from '../s
 import { PROVIDERS, PROVIDER_LOAD_ERRORS, providerById } from '../handles/registry.mjs';
 import { readGameContracts } from '../gameplay/contracts.mjs';
 import { GAMEPLAY_PROVIDERS, GAMEPLAY_PROVIDER_LOAD_ERRORS, gameplayProviderById } from '../gameplay/registry.mjs';
+import { readGameRuntimeManifests } from '../gameplay/runtime-manifest.mjs';
 import { detectAstHelperAvailable, runAstClassify } from '../handles/providers/java-spring/ast-bridge.mjs';
 import { detectBasePackage } from '../handles/providers/java-spring/plan.mjs';
 import { hasSpringAopDependency, springAopArtifactName } from '../handles/providers/java-spring/emit.mjs';
@@ -3169,6 +3170,7 @@ function renderGameplayPlans(output) {
 			lines.push('');
 		}
 	}
+	lines.push(`Runtime manifests: ${output.runtime_manifests.length} configured loop(s).`);
 	for (const note of output.notes) lines.push(`- ${note}`);
 	return `${lines.join('\n')}\n`;
 }
@@ -3181,6 +3183,12 @@ function cmdGameplayPlan(args) {
 	let loaded;
 	try {
 		loaded = readGameContracts(root);
+	} catch (err) {
+		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
+	}
+	let runtimeManifests;
+	try {
+		runtimeManifests = readGameRuntimeManifests(root, { contracts: loaded.contracts });
 	} catch (err) {
 		fail(EXIT_CODES.NOT_PASSED, 'PLAN_FAILED', err.message);
 	}
@@ -3207,10 +3215,12 @@ function cmdGameplayPlan(args) {
 	}
 	const output = {
 		schema: 'sbf.gameplay-plans/1',
-		files_read: loaded.files_read,
+		files_read: [...new Set([...loaded.files_read, ...runtimeManifests.files_read])].sort((left, right) => left.localeCompare(right)),
 		plans,
+		runtime_manifests: runtimeManifests.manifests,
 		notes: [
 			'gameplay plan is read-only and does not require the codegen.gameplay capability.',
+			...(runtimeManifests.manifests.length === 0 ? ['No runtime manifest is configured yet; gameplay emit remains unavailable.'] : []),
 			...(contracts.length === 0 ? ['Add a canonical game contract, then rerun this command.'] : []),
 		],
 	};

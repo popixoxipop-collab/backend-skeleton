@@ -554,6 +554,13 @@ export const adapter = {
 		'api.request-shape': false,
 		'resource.fetch': false,
 		'codegen.handles': false,
+		// Rails has no game-loop contract parser or Unreal emitter. Keep the newer capability
+		// vocabulary explicit rather than relying on omission, so adapter/schema and every
+		// capability consumer retain their fail-closed boolean invariant.
+		'game.events': false,
+		'game.population': false,
+		'game.objectives': false,
+		'codegen.gameplay': false,
 	},
 	detect: detectRubyRailsRoot,
 	scan(repoRoot, projectRoot, options) {

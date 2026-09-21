@@ -5,11 +5,27 @@
   "description": "The CLI envelope for one or more provider-local sbf.gameplay-plan/1 documents. The source contract parser owns detailed game-contract validation; this schema makes the CLI read-set and provider aggregation stable.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "files_read", "plans", "notes"],
+  "required": ["schema", "files_read", "plans", "runtime_manifests", "notes"],
   "properties": {
     "schema": { "const": "sbf.gameplay-plans/1" },
     "files_read": { "type": "array", "items": { "type": "string" } },
     "plans": { "type": "array", "items": { "$ref": "urn:sbf:gameplay-plan:1" } },
+    "runtime_manifests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["schema", "file", "loop_id", "compiler", "runtime", "summary"],
+        "properties": {
+          "schema": { "const": "sbf.gameplay-runtime/1" },
+          "file": { "type": "string" },
+          "loop_id": { "type": "string" },
+          "compiler": { "type": "object" },
+          "runtime": { "type": "object" },
+          "summary": { "type": "object" }
+        }
+      }
+    },
     "notes": { "type": "array", "items": { "type": "string" } }
   }
 }

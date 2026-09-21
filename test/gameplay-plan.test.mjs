@@ -74,6 +74,7 @@ test('gameplay plan CLI reads every canonical contract, can select one loop, and
 	assert.equal(result.schema, 'sbf.gameplay-plans/1');
 	assert.equal(result.files_read.length, 2);
 	assert.equal(result.plans.length, 1);
+	assert.deepEqual(result.runtime_manifests, []);
 	assert.deepEqual(result.plans[0].loops.map((loop) => loop.loop_id), ['001-game-loop', '002-game-loop']);
 	const planSchema = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'schemas', 'gameplay-plan.schema.json'), 'utf8'));
 	const plansSchema = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'schemas', 'gameplay-plans.schema.json'), 'utf8'));
