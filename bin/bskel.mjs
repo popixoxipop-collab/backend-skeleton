@@ -86,6 +86,7 @@ import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS, binaryAvailable } f
 import { parseCommand, renderCommandHelp, diagnostic } from '../lib/cli.mjs';
 import { EXIT_CODES } from '../lib/exit-codes.mjs';
 import { RESIDUAL_TEMPLATE_VAR_RE } from '../lib/template.mjs';
+import { resolvePreflightRunner } from '../lib/preflight-runner.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
@@ -235,6 +236,13 @@ function cmdPreflight(args) {
 	if (flags.offline || flags['no-fetch']) scriptArgs.push('--offline');
 	if (flags['allow-dirty']) scriptArgs.push('--allow-dirty');
 	scriptArgs.push('--json');
+	const runner = resolvePreflightRunner();
+	if (process.platform === 'win32' && !runner) {
+		fail(EXIT_CODES.REFRESH_FAILED, 'PREFLIGHT_SHELL_UNAVAILABLE',
+			'Windows preflight requires Git Bash. Install Git for Windows or set BSKEL_BASH to bash.exe.');
+	}
+	const command = runner?.command ?? scriptPath;
+	const commandArgs = [...(runner?.argsPrefix ?? []), ...(runner ? [scriptPath] : []), ...scriptArgs];
 
 	let stdout;
 	let exitCode = 0;
@@ -243,7 +251,7 @@ function cmdPreflight(args) {
 		// `http.lowSpeedTime` (set inside the script) don't cover -- a local-path or ssh remote
 		// that simply hangs. +10s over the script's own fetch timeout so the script's own
 		// REFRESH_FAILED message (which explains WHY) has a chance to win the race.
-		stdout = execFileSync(scriptPath, scriptArgs, { cwd: root, encoding: 'utf8', timeout: (fetchTimeoutSeconds + 10) * 1000 });
+		stdout = execFileSync(command, commandArgs, { cwd: root, encoding: 'utf8', timeout: (fetchTimeoutSeconds + 10) * 1000 });
 	} catch (err) {
 		stdout = err.stdout ?? '';
 		exitCode = err.status ?? 1;

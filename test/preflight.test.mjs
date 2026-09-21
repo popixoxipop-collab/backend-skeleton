@@ -8,13 +8,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolvePreflightRunner } from '../lib/preflight-runner.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(__dirname, '..', 'scripts', 'preflight-base-ref.sh');
 
 function sh(cmd, args, cwd) {
-	return execFileSync(cmd, args, { cwd, encoding: 'utf8' });
+	const runner = cmd === SCRIPT ? resolvePreflightRunner() : null;
+	if (process.platform === 'win32' && cmd === SCRIPT && !runner) {
+		throw new Error('Git Bash is required to run the preflight shell integration test on Windows');
+	}
+	return execFileSync(runner?.command ?? cmd, [...(runner ? [cmd] : []), ...args], { cwd, encoding: 'utf8' });
 }
 
 function runPreflight(cwd, extraArgs = []) {
@@ -29,6 +34,7 @@ function runPreflight(cwd, extraArgs = []) {
 function buildFixture() {
 	const base = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-preflight-fixture-'));
 	const originDir = path.join(base, 'origin.git');
+	const originUrl = pathToFileURL(originDir).href;
 	const workDir = path.join(base, 'work');
 
 	fs.mkdirSync(originDir);
@@ -41,7 +47,10 @@ function buildFixture() {
 	fs.writeFileSync(path.join(workDir, 'a.txt'), 'first\n');
 	sh('git', ['add', 'a.txt'], workDir);
 	sh('git', ['commit', '--quiet', '-m', 'chore: first commit'], workDir);
-	sh('git', ['remote', 'add', 'origin', originDir], workDir);
+	// A native Windows path in .git/config is not a portable remote URL when this test later
+	// invokes the shell preflight through Git Bash. file:// works for native Git, Git Bash, and
+	// Unix alike, while still remaining entirely local/no-network.
+	sh('git', ['remote', 'add', 'origin', originUrl], workDir);
 	sh('git', ['push', '--quiet', 'origin', 'develop'], workDir);
 
 	// One more commit on develop, pushed, so a clone that stops at the first commit is "behind".
@@ -49,7 +58,7 @@ function buildFixture() {
 	sh('git', ['commit', '--quiet', '-am', 'chore: second commit'], workDir);
 	sh('git', ['push', '--quiet', 'origin', 'develop'], workDir);
 
-	return { base, originDir, workDir };
+	return { base, originDir, originUrl, workDir };
 }
 
 test('PASS: a checkout at the current tip of the real default branch', () => {
@@ -63,11 +72,11 @@ test('PASS: a checkout at the current tip of the real default branch', () => {
 });
 
 test('FAIL/STALE_BASE: a checkout one commit behind the real default branch', () => {
-	const { base, originDir, workDir } = buildFixture();
+	const { base, originUrl, workDir } = buildFixture();
 	const staleClone = path.join(base, 'stale-clone');
 	// Clone at the first commit only, before the second commit was pushed.
 	const firstCommit = sh('git', ['log', '--format=%H', '--reverse'], workDir).trim().split('\n')[0];
-	sh('git', ['clone', '--quiet', originDir, staleClone]);
+	sh('git', ['clone', '--quiet', originUrl, staleClone]);
 	sh('git', ['checkout', '--quiet', firstCommit], staleClone);
 	sh('git', ['checkout', '--quiet', '-b', 'stale-branch'], staleClone);
 	sh('git', ['fetch', '--quiet', 'origin'], staleClone);
@@ -119,9 +128,9 @@ test('a non-numeric --max-behind is rejected outright (exit 14), not silently tr
 // branch must resolve from the LOCAL symbolic-ref alone (the whole point is that origin is
 // unreachable when the freshness fetch runs).
 function buildClonedFixture() {
-	const { base, originDir } = buildFixture();
+	const { base, originUrl } = buildFixture();
 	const cloneDir = path.join(base, 'clone');
-	sh('git', ['clone', '--quiet', originDir, cloneDir]);
+	sh('git', ['clone', '--quiet', originUrl, cloneDir]);
 	sh('git', ['config', 'user.email', 'test@example.com'], cloneDir);
 	sh('git', ['config', 'user.name', 'Test'], cloneDir);
 	return { base, originDir, cloneDir };

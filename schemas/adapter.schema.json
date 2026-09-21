@@ -15,7 +15,7 @@
     "capabilities": {
       "type": "object",
       "propertyNames": {
-        "enum": ["api.operations", "api.request-shape", "resource.fetch", "codegen.handles"]
+        "enum": ["api.operations", "api.request-shape", "resource.fetch", "codegen.handles", "game.events", "game.population", "game.objectives", "codegen.gameplay"]
       },
       "additionalProperties": { "type": "boolean" }
     },

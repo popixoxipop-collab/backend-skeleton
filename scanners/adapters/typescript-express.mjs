@@ -346,6 +346,10 @@ export const adapter = {
 		// true (G5): handles/providers/typescript-express/ is a real, executed-and-verified codegen
 		// provider -- see D-typescript-express-provider in DECISIONS.md.
 		'codegen.handles': true,
+		'game.events': false,
+		'game.population': false,
+		'game.objectives': false,
+		'codegen.gameplay': false,
 	},
 	detect: detectTypeScriptExpressRoot,
 	scan(repoRoot, detection) {

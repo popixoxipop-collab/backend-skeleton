@@ -5,6 +5,7 @@
 // itself would introduce (see DECISIONS.md D-resolver-policy-contract). Section B below (test 8
 // specifically) is the direct regression guard for that exact case.
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,7 +13,7 @@ import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { planHandles } from '../handles/providers/java-spring/plan.mjs';
 
-const REPO_ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Self-contained temp-dir fixtures (this file's own convention, matching test/handles-plan.test.mjs
 // rather than the shared on-disk test/fixtures/java-spring/ corpus) -- keeps this item's 22 cases

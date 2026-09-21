@@ -7,12 +7,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { loadAdapters, adapterById, ADAPTERS, LOAD_ERRORS } from '../scanners/registry.mjs';
 import { runScan } from '../scanners/index.mjs';
 import { CAPABILITY_NAMES, COMMAND_CAPABILITIES } from '../scanners/capabilities.mjs';
 
-const REPO_ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function tmpAdaptersDir() {
 	return fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-adapter-registry-'));
@@ -39,15 +40,28 @@ export const adapter = {
 `;
 }
 
-test('real registry: loads every shipped adapter sorted by specificity descending', async () => {
+test('real registry: loads every first-party adapter, including unreal-python, sorted by specificity descending', async () => {
 	assert.deepEqual(LOAD_ERRORS, []);
-	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express', 'generic-grep']);
+	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express', 'unreal-python', 'generic-grep']);
 	assert.equal(ADAPTERS[0].specificity, 100);
 	assert.equal(ADAPTERS[1].specificity, 95);
 	assert.equal(ADAPTERS[2].specificity, 90);
 	assert.equal(ADAPTERS[3].specificity, 85);
 	assert.equal(ADAPTERS[4].specificity, 80);
-	assert.equal(ADAPTERS[5].specificity, 0);
+	assert.equal(ADAPTERS[5].specificity, 70);
+	assert.equal(ADAPTERS[6].specificity, 0);
+});
+
+test('unreal-python detects one root-level .uproject and exposes it as the scan read-set', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-unreal-project-'));
+	fs.writeFileSync(path.join(root, 'Example.uproject'), JSON.stringify({ FileVersion: 3, EngineAssociation: '5.8' }));
+	const unreal = adapterById(ADAPTERS, 'unreal-python');
+	const report = runScan({ repoRoot: root, terms: ['example'] });
+	assert.equal(unreal.detect(root).projectFile, path.join(root, 'Example.uproject'));
+	assert.equal(report.adapter, 'unreal-python');
+	assert.deepEqual(report.files_read, ['Example.uproject']);
+	assert.deepEqual(report.related_modules.map((m) => m.module), ['Example']);
+	assert.equal(unreal.capabilities['codegen.gameplay'], false);
 });
 
 test('real registry: every CAPABILITY_NAMES key is declared (true or false) by every shipped adapter', () => {

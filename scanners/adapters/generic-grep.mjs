@@ -115,6 +115,10 @@ export const adapter = {
 		'api.request-shape': false,
 		'resource.fetch': false,
 		'codegen.handles': false,
+		'game.events': false,
+		'game.population': false,
+		'game.objectives': false,
+		'codegen.gameplay': false,
 	},
 	detect() {
 		return true;

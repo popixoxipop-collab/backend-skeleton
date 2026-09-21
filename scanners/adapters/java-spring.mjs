@@ -544,6 +544,10 @@ export const adapter = {
 		'api.request-shape': true,
 		'resource.fetch': true,
 		'codegen.handles': true,
+		'game.events': false,
+		'game.population': false,
+		'game.objectives': false,
+		'codegen.gameplay': false,
 	},
 	detect: detectJavaSpringRoot,
 	scan(repoRoot, _detection) {

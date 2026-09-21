@@ -467,6 +467,10 @@ export const adapter = {
 		// provider -- see D-handles-providers in DECISIONS.md for what it generates, what it always
 		// stubs (check_access, patch_field), and what it deliberately excludes (recover(), migration).
 		'codegen.handles': true,
+		'game.events': false,
+		'game.population': false,
+		'game.objectives': false,
+		'codegen.gameplay': false,
 	},
 	detect: detectPythonFastApiRoot,
 	scan(repoRoot, detection) {

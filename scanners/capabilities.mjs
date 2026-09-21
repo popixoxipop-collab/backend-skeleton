@@ -21,6 +21,22 @@ export const CAPABILITIES = Object.freeze({
 		summary: 'a handle codegen provider exists for this adapter\'s stack',
 		why: 'three providers exist today (java-spring, python-fastapi, typescript-express) -- see D-handles-providers (G4) and D-typescript-express-provider in DECISIONS.md; a stack without one still fails this capability honestly rather than pretending',
 	},
+	'game.events': {
+		summary: 'the adapter can derive game event sources from a game-loop contract',
+		why: 'the Unreal adapter is registered before G6 gameplay-contract parsing exists, so it declares this false until that parser and its tests land',
+	},
+	'game.population': {
+		summary: 'the adapter can derive population references from a game-loop contract',
+		why: 'the Unreal adapter is registered before G6 gameplay-contract parsing exists, so it declares this false until that parser and its tests land',
+	},
+	'game.objectives': {
+		summary: 'the adapter can derive objectives from a game-loop contract',
+		why: 'the Unreal adapter is registered before G6 gameplay-contract parsing exists, so it declares this false until that parser and its tests land',
+	},
+	'codegen.gameplay': {
+		summary: 'a gameplay codegen provider exists for this adapter\'s stack',
+		why: 'no gameplay provider is registered before G6; declaring this false prevents a scanner stub from being mistaken for working code generation',
+	},
 });
 
 export const CAPABILITY_NAMES = Object.freeze(Object.keys(CAPABILITIES));

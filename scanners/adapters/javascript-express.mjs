@@ -493,6 +493,10 @@ export const adapter = {
 		// false: no handles/providers/javascript-express/ exists, by design. The biconditional test
 		// in test/handles-provider-registry.test.mjs enforces that this stays honest.
 		'codegen.handles': false,
+		'game.events': false,
+		'game.population': false,
+		'game.objectives': false,
+		'codegen.gameplay': false,
 	},
 	detect: detectJavaScriptExpressRoot,
 	scan(repoRoot, detection) {
