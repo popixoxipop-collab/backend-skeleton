@@ -99,6 +99,15 @@
     ],
     "javascript-express": [
       {
+        "id": "node-express-realworld-commonjs",
+        "owner": "rtfeldman",
+        "repo": "node-express-realworld-example-app",
+        "ref": "ba04b70c31af81ca7935096740a6e083563b3a4a",
+        "path": null,
+        "terms": ["articles", "users", "profiles", "tags", "comments"],
+        "note": "CommonJS RealWorld/Conduit regression oracle added after D-js-express-shadow-validation exposed the ESM-only detect() gap. Uses require('express').Router(), direct require() router mounts, module.exports, member-expression auth.required/auth.optional middleware, and 19/19 inline-handler routes. The committed compact CLI regression fixture asserts exact route/prefix behavior; this pinned entry independently prevents adapter-selection drift on the real third-party corpus."
+      },
+      {
         "id": "employees-api-mysql",
         "owner": "JeanCaicedo",
         "repo": "employees-api-mysql",

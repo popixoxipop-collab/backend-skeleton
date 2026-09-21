@@ -365,15 +365,17 @@ dependency AND a `.ts` file importing and calling `Router()`; declares `resource
 `D-typescript-express-provider` in DECISIONS.md; `verificationBasis: "community-sample"` -- no
 framework-maintained Express reference exists, verified instead against one hand-read community
 boilerplate, `mkosir/typeorm-express-typescript`), `javascript-express` (specificity 80 -- plain
-JavaScript ESM Express with **no ORM**, calling `mysql2`/`mariadb` directly, commonly deployed to
-Lambda behind `serverless-http`; see `scanners/adapters/javascript-express.mjs`. Route paths are
-resolved through a full mount-graph walk over (file, router-variable) nodes, so an intra-file
-`app.use('/api', route)` prefix is recovered, but **every capability is honestly `false`**: this
+JavaScript Express, both ESM and CommonJS, with **no ORM**, calling `mysql2`/`mariadb` directly,
+commonly deployed to Lambda behind `serverless-http`; see
+`scanners/adapters/javascript-express.mjs`. Route paths are resolved through a full mount-graph
+walk over (file, router-variable) nodes, so both an intra-file `app.use('/api', route)` prefix and
+direct CommonJS `use('/api', require('./router'))` edges are recovered, but **every capability is
+honestly `false`**: this
 stack has no ORM metadata to read, and raw SQL string literals cannot safely supply a table,
 primary key or column allow-list -- see `D-javascript-express-adapter` in DECISIONS.md for the
 measured reasoning, and note it is nonetheless `confidence: "high"`, since what it *does* report is
-trustworthy; `verificationBasis: "synthetic-only"` -- no real-world oracle at all, only a committed
-synthetic fixture), and `generic-grep` (specificity 0,
+trustworthy; `verificationBasis: "community-sample"` -- backed by pinned real-world oracles plus a
+committed exact-count regression fixture), and `generic-grep` (specificity 0,
 unconditional last-resort fallback -- route-pattern grep for Express/Flask/FastAPI-shaped code,
 see `D-generic-grep-reconnaissance` in DECISIONS.md; declares no capabilities;
 `verificationBasis: "not-applicable"` -- reconnaissance only by design, no codegen output to ever

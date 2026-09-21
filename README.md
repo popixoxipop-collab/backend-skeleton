@@ -602,9 +602,10 @@ string for anything missing.
   (entities come from `@Entity`/`@PrimaryGeneratedColumn`); no operation extraction — plain Express
   has no operationId concept, so pass `--openapi-file` for a contract. See
   `D-typescript-express-provider` in `DECISIONS.md`.
-- `javascript-express` — plain-JavaScript ESM Express with **no ORM** (raw `mysql2`/`mariadb`),
-  including `serverless-http`/Lambda deployments. **Scanner only** — routes and their real absolute
-  paths are resolved through a full mount-graph walk, but every capability is honestly `false`:
+- `javascript-express` — plain-JavaScript Express, both ESM and CommonJS, with **no ORM** (raw
+  `mysql2`/`mariadb`), including `serverless-http`/Lambda deployments. **Scanner only** — routes
+  and their real absolute paths are resolved through a full mount-graph walk (including direct
+  CommonJS `require()` mounts and `module.exports`), but every capability is honestly `false`:
   there is no codegen provider, because raw SQL string literals carry no trustworthy
   table/primary-key/column-allow-list metadata. See `D-javascript-express-adapter` in `DECISIONS.md`
   for the measured reasoning.

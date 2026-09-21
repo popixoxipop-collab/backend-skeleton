@@ -203,21 +203,72 @@ test('handles plan refuses cleanly at exit 17 naming codegen.handles -- G6 ships
 	assert.ok(!fs.existsSync(path.join(root, 'backend', 'src', 'handles')), 'nothing may be written on a capability refusal');
 });
 
-// Scope honesty: CommonJS is out of scope BY CONSTRUCTION (a `require()` app has no `import ...
-// from 'express'` for detect() to find), not by a special-case exclusion. It must fall back
-// cleanly rather than be half-detected.
-test('a CommonJS Express app is NOT claimed by this adapter -- it falls back to generic-grep', () => {
+// D-js-express-shadow-validation: a real CommonJS RealWorld app exposed that the old ESM-only
+// detect() excluded an ordinary, ecosystem-defining Express shape. This compact case proves the
+// adapter now claims direct require('express').Router(), module.exports, and an inline handler as
+// one coherent path -- detecting it but returning zero routes would be a worse false success.
+test('a CommonJS Express app is claimed by this adapter and reports its inline-handler route', () => {
 	const root = writeRepo({
 		'package.json': JSON.stringify({ name: 'cjs-app', dependencies: { express: '^4.18.2' } }, null, 2),
 		'src/routes/user.js': [
 			"const express = require('express');",
 			'const router = express.Router();',
-			"router.get('/:id', (req, res) => res.json({}));",
+			"router.get('/:id', function(req, res) { res.json({}); });",
 			'module.exports = router;',
 		].join('\n'),
 	});
 	const report = JSON.parse(run(['scan', '--terms', 'user', '--json'], root).stdout);
-	assert.equal(report.adapter, 'generic-grep');
+	assert.equal(report.adapter, 'javascript-express');
+	const users = report.related_modules.find((m) => m.module === 'user');
+	assert.ok(users, 'expected a user module');
+	assert.deepEqual(users.controllers[0].endpoints.map((e) => ({ verb: e.verb, path: e.path, method: e.method })), [
+		{ verb: 'GET', path: '/:id', method: null },
+	]);
+});
+
+// Mirrors the actual Conduit mounting idiom without copying the third-party project: every edge
+// is a direct require(), including the prefixless app.use(require('./routes')) hand-off; leaf
+// routes use member-expression auth middleware and inline functions. The full /api prefix only
+// exists if CommonJS resolution works through all three files.
+test('CommonJS mount graph resolves direct require() edges, prefixless use(), auth middleware refs, and inline handlers', () => {
+	const root = writeRepo({
+		'package.json': JSON.stringify({ name: 'cjs-realworld-shape', dependencies: { express: '^4.18.2' } }, null, 2),
+		'app.js': [
+			"var express = require('express');",
+			'var app = express();',
+			"app.use(require('./routes'));",
+		].join('\n'),
+		'routes/index.js': [
+			"var router = require('express').Router();",
+			"router.use('/api', require('./api'));",
+			'module.exports = router;',
+		].join('\n'),
+		'routes/api/index.js': [
+			"var router = require('express').Router();",
+			"router.use('/articles', require('./articles'));",
+			'module.exports = router;',
+		].join('\n'),
+		'routes/api/articles.js': [
+			"var router = require('express').Router();",
+			"var auth = require('../auth');",
+			"router.get('/', auth.optional, function(req, res) { res.json([]); });",
+			"router.post('/', auth.required, function(req, res) { res.json({}); });",
+			'module.exports = router;',
+		].join('\n'),
+		'routes/auth.js': 'module.exports = { required: function required() {}, optional: function optional() {} };',
+	});
+	const result = run(['scan', '--terms', 'articles', '--json'], root);
+	assert.equal(result.code, 0, result.stderr);
+	const report = JSON.parse(result.stdout);
+	assert.equal(report.adapter, 'javascript-express');
+	const articles = report.related_modules.find((m) => m.module === 'articles');
+	assert.ok(articles, `expected articles module, got ${report.related_modules.map((m) => m.module).join(', ')}`);
+	assert.equal(articles.controllers[0].basePath, '/api/articles');
+	assert.deepEqual(articles.controllers[0].endpoints.map((e) => `${e.verb} ${e.path}`), [
+		'GET /api/articles',
+		'POST /api/articles',
+	]);
+	assert.ok(articles.controllers[0].endpoints.every((e) => e.method === null));
 });
 
 // The same package with "type": "module" IS in scope -- proving the gate is Node's own ESM rule,
@@ -236,6 +287,22 @@ test('an .mjs source file is detected even without "type": "module" -- Node\'s o
 	assert.equal(report.adapter, 'javascript-express');
 	const widgets = report.related_modules.find((m) => m.module === 'widget');
 	assert.ok(widgets, 'expected a "widget" module');
+	assert.equal(widgets.controllers[0].endpoints[0].path, '/:widgetId');
+});
+
+test('a .cjs source file is detected even inside a "type": "module" package -- explicit CommonJS wins', () => {
+	const root = writeRepo({
+		'package.json': JSON.stringify({ name: 'mixed-app', type: 'module', dependencies: { express: '^4.18.2' } }, null, 2),
+		'src/routes/widget.route.cjs': [
+			"const router = require('express').Router();",
+			"router.get('/:widgetId', showWidget);",
+			'module.exports = router;',
+		].join('\n'),
+	});
+	const report = JSON.parse(run(['scan', '--terms', 'widget', '--json'], root).stdout);
+	assert.equal(report.adapter, 'javascript-express');
+	const widgets = report.related_modules.find((m) => m.module === 'widget');
+	assert.ok(widgets, 'expected a widget module');
 	assert.equal(widgets.controllers[0].endpoints[0].path, '/:widgetId');
 });
 

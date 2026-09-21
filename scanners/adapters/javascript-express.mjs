@@ -1,5 +1,6 @@
 // G6 (D-javascript-express-adapter): the fourth first-class scanner adapter -- plain-JavaScript
-// ESM Express, with NO ORM and NO TypeScript anywhere. Sibling of `typescript-express.mjs` (G5),
+// Express (ESM or CommonJS), with NO ORM and NO TypeScript anywhere. Sibling of
+// `typescript-express.mjs` (G5),
 // not a generalization of it: they share the low-level Express primitives (`_express-shared.mjs`)
 // and deliberately do NOT share endpoint/mount-tree extraction, because a plain-JS app's routing
 // is written differently in three ways that each break G5's own regexes (see below).
@@ -9,7 +10,7 @@
 // `typescript-express`'s detect() greps `-g '*.ts'` only, so a repo with zero `.ts` files fell all
 // the way through to the low-confidence `generic-grep` fallback.
 //
-// THREE real divergences from G5, each grounded in what plain-JS Express code actually looks like,
+// FOUR real divergences from G5, each grounded in what plain-JS Express code actually looks like,
 // not anticipated defensively:
 //   1. `import express from 'express'; const r = express.Router()` is the dominant plain-JS idiom.
 //      G5's detect() requires a NAMED `import { Router } from 'express'`, which a repo using only
@@ -22,6 +23,10 @@
 //      application to a locally-declared Router (`app.use('/api', route)`) -- no import involved,
 //      so G5's file-to-file edge model cannot represent it and would silently drop `/api` from
 //      every route below it. Mount-tree nodes here are (file, variable) pairs, not files.
+//   4. Express predates Node ESM by years, so real applications commonly use
+//      `require('express').Router()`, direct `router.use('/api', require('./api'))` mounts, and
+//      `module.exports = router`. The CommonJS path is first-class rather than falling through to
+//      generic-grep; `rtfeldman/node-express-realworld-example-app` exposed this gap with 19 routes.
 //
 // **`codegen.handles` is false, and that is the whole shipped scope.** There is no
 // `handles/providers/javascript-express/`. See D-javascript-express-adapter's EXCLUDED section in
@@ -46,55 +51,63 @@ import {
 	expressDiagnostics,
 } from './_express-shared.mjs';
 
-// detect()'s ripgrep candidate filter -- deliberately just the `from 'express'` tail, not a whole
-// import statement: rg matches line by line, so a clause spread over several lines would be missed
-// by a fuller pattern. This is only a cheap pre-filter; the masked re-read in detect() is the real
-// gate, so a false positive here costs nothing.
-const FROM_EXPRESS_SRC = "from\\s*['\"]express['\"]";
+// detect()'s ripgrep candidate filter. The ESM half is deliberately just the `from 'express'`
+// tail, not a whole import statement: rg matches line by line, so a clause spread over several
+// lines would be missed by a fuller pattern. The CommonJS half recognizes the module load itself,
+// whether it is assigned (`const express = require(...)`) or immediately dereferenced
+// (`require('express').Router()`). This is only a cheap pre-filter; the masked re-read plus the
+// file's real Node module kind is the gate, so a false positive here costs nothing.
+const EXPRESS_MODULE_SRC = "(?:from\\s*['\"]express['\"]|require\\s*\\(\\s*['\"]express['\"]\\s*\\))";
 const FROM_EXPRESS_RE = /\bfrom\s*['"]express['"]/g;
+const REQUIRE_EXPRESS_RE = /\brequire\s*\(\s*['"]express['"]\s*\)/g;
 
 // The exact shapes an express import clause may legally take: `express`, `{ Router }`,
 // `express, { Router }`. Anything else is REFUSED rather than parsed optimistically.
 const IMPORT_CLAUSE_RE = /^(?:([\w$]+))?(?:\s*,\s*)?(?:\{([^}]*)\})?$/;
 
-// Node's OWN module-resolution rule, not a heuristic: `.mjs` is unconditionally ESM; `.js` is ESM
-// only when the nearest package.json says `"type": "module"`. A CommonJS app
-// (`const express = require('express')`) is therefore out of scope BY CONSTRUCTION rather than by
-// a separate exclusion check -- its files never match IMPORT_EXPRESS_SRC either way.
-function esmExtensionsFor(pkg) {
-	return pkg?.type === 'module' ? ['*.js', '*.mjs'] : ['*.mjs'];
+// Node's own top-level module-kind rule for the package root this adapter detected. `.mjs` and
+// `.cjs` are unconditional; `.js` follows package.json's `type`. This keeps an `import` written in
+// a non-module `.js` file from being treated as live ESM while still supporting mixed packages
+// containing both explicit extensions.
+function moduleKindFor(file, packageType) {
+	if (path.extname(file) === '.mjs') return 'esm';
+	if (path.extname(file) === '.cjs') return 'commonjs';
+	return packageType === 'module' ? 'esm' : 'commonjs';
 }
 
 function extensionSuffixes(globs) {
-	return globs.map((g) => g.replace(/^\*/, '')); // ['*.js','*.mjs'] -> ['.js','.mjs']
+	return globs.map((g) => g.replace(/^\*/, '')); // ['*.js','*.mjs','*.cjs'] -> suffixes
 }
 
 // Two independent signals required, the same combined bar java-spring ("build file AND src
 // layout"), python-fastapi ("dependency declared AND source-confirmed") and typescript-express all
-// use: (a) a package.json declares express, (b) at least one ESM source file under it both imports
-// express and calls `Router()` / `<something>.Router()`. Walks the whole repo for candidate
+// use: (a) a package.json declares express, (b) at least one JavaScript source file under it both
+// loads express in the syntax valid for that file's Node module kind and calls `Router()` /
+// `<something>.Router()`. Walks the whole repo for candidate
 // package.json files (not just repoRoot) for the same monorepo reason python-fastapi does.
 export function detectJavaScriptExpressRoot(repoRoot) {
 	for (const pkgFile of listCandidatePackageFiles(repoRoot)) {
 		if (!declaresExpress(pkgFile)) continue;
 		const projectRoot = path.dirname(pkgFile);
-		const globs = esmExtensionsFor(readPackageJson(pkgFile));
+		const packageType = readPackageJson(pkgFile)?.type ?? 'commonjs';
+		const globs = ['*.js', '*.mjs', '*.cjs'];
 		// rg is a cheap candidate filter over raw bytes and can match inside a comment; the real
 		// gate is the masked re-read below, which is why detection needs both the import AND a
 		// Router() call to be genuine code.
-		const sourceFiles = rgFilesMatching(FROM_EXPRESS_SRC, globs, projectRoot);
+		const sourceFiles = rgFilesMatching(EXPRESS_MODULE_SRC, globs, projectRoot);
 		// `\bRouter\s*\(` matches BOTH `Router(...)` and `express.Router(...)` -- there is a word
 		// boundary between `.` and `R`, and none inside `makeRouter(`. Not `\(\s*\)`: an options
 		// object (`Router({ mergeParams: true })`) is ordinary Express and must still detect.
 		const callsRouter = sourceFiles.some((f) => {
 			try {
 				const masked = maskJsComments(fs.readFileSync(f, 'utf8'));
-				return expressBindings(masked) !== null && /\bRouter\s*\(/.test(masked);
+				const kind = moduleKindFor(f, packageType);
+				return expressBindings(masked, kind) !== null && /\bRouter\s*\(/.test(masked);
 			} catch {
 				return false;
 			}
 		});
-		if (callsRouter) return { projectRoot, globs };
+		if (callsRouter) return { projectRoot, globs, packageType };
 	}
 	return null;
 }
@@ -103,9 +116,10 @@ function listSourceFiles(projectRoot, globs) {
 	return listRgFiles(projectRoot, globs);
 }
 
-// What THIS file named its express bindings. `import express, { Router } from 'express'` yields
-// {defaultName: 'express', hasNamedRouter: true}. Returns null when the file doesn't import
-// express at all, which is how non-routing files are skipped without reading them twice.
+// What THIS file named its express bindings. `import express, { Router } from 'express'` and
+// `const express = require('express')` both yield defaultNames containing `express`; destructuring
+// `Router` sets hasNamedRouter, and `require('express').Router()` sets hasDirectRouter. Returns
+// null when the file does not load express in the syntax valid for its Node module kind.
 //
 // Anchors on `from 'express'` and scans BACKWARD to the nearest `import` keyword, rather than
 // matching a whole `import ... from 'express'` statement forward. A forward
@@ -115,25 +129,37 @@ function listSourceFiles(projectRoot, globs) {
 // express`; and a clause spread over several lines. The backward scan handles both, and the
 // strict IMPORT_CLAUSE_RE shape check means an unparseable clause is REFUSED (skipped), never
 // parsed optimistically into a wrong binding name.
-function expressBindings(text) {
-	let defaultName = null;
+function expressBindings(text, moduleKind) {
+	const defaultNames = new Set();
 	let hasNamedRouter = false;
+	let hasDirectRouter = false;
 	let found = false;
-	for (const m of text.matchAll(FROM_EXPRESS_RE)) {
-		const before = text.slice(0, m.index);
-		const importIdx = before.lastIndexOf('import');
-		if (importIdx === -1) continue; // e.g. `export * from 'express'` -- not an import binding
-		const clause = before.slice(importIdx + 'import'.length).replace(/\s+/g, ' ').trim();
-		const parsed = clause.match(IMPORT_CLAUSE_RE);
-		if (!parsed) continue;
-		found = true;
-		if (parsed[1]) defaultName = parsed[1];
-		// `Router as R` aliasing is deliberately NOT resolved -- a documented, narrow limitation
-		// (see D-javascript-express-adapter COST), not a silent guess at which local name means
-		// Router.
-		if (parsed[2] && parsed[2].split(',').some((s) => s.trim() === 'Router')) hasNamedRouter = true;
+	if (moduleKind === 'esm') {
+		for (const m of text.matchAll(FROM_EXPRESS_RE)) {
+			const before = text.slice(0, m.index);
+			const importIdx = before.lastIndexOf('import');
+			if (importIdx === -1) continue; // e.g. `export * from 'express'` -- not a binding
+			const clause = before.slice(importIdx + 'import'.length).replace(/\s+/g, ' ').trim();
+			const parsed = clause.match(IMPORT_CLAUSE_RE);
+			if (!parsed) continue;
+			found = true;
+			if (parsed[1]) defaultNames.add(parsed[1]);
+			// `Router as R` aliasing is deliberately NOT resolved -- a documented, narrow
+			// limitation, not a silent guess at which local name means Router.
+			if (parsed[2] && parsed[2].split(',').some((s) => s.trim() === 'Router')) hasNamedRouter = true;
+		}
+	} else {
+		for (const m of text.matchAll(REQUIRE_EXPRESS_RE)) {
+			found = true;
+			const beforeLine = text.slice(Math.max(text.lastIndexOf('\n', m.index) + 1, 0), m.index);
+			const defaultMatch = beforeLine.match(/([\w$]+)\s*=\s*$/);
+			if (defaultMatch) defaultNames.add(defaultMatch[1]);
+			if (/\{\s*Router\s*\}\s*=\s*$/.test(beforeLine)) hasNamedRouter = true;
+			const after = text.slice(m.index + m[0].length);
+			if (/^\s*\.\s*Router\s*\(/.test(after)) hasDirectRouter = true;
+		}
 	}
-	return found ? { defaultName, hasNamedRouter } : null;
+	return found ? { defaultNames, hasNamedRouter, hasDirectRouter } : null;
 }
 
 // Every locally-declared mountable value in this file, with what it is. Both kinds matter: an
@@ -150,7 +176,7 @@ function declaredMountables(text, bindings) {
 	// completely ordinary Express, and requiring `()` dropped the declaration entirely -- which,
 	// here, means the file yields no routes at all rather than merely losing an option. Matching
 	// the opening paren is sufficient to identify the variable; the argument list is never read.
-	const routerDeclRe = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:[\w$]+\s*\.\s*)?Router\s*\(/g;
+	const routerDeclRe = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*((?:[\w$]+\s*\.\s*)?Router|require\s*\(\s*['"]express['"]\s*\)\s*\.\s*Router)\s*\(/g;
 	for (const m of text.matchAll(routerDeclRe)) {
 		// A bare `Router()` only counts when Router is genuinely imported from express; a
 		// `<name>.Router()` member call always counts (that IS the default-import idiom).
@@ -158,11 +184,15 @@ function declaredMountables(text, bindings) {
 		// past the member call, so it classified EVERY `express.Router()` as a bare call -- which,
 		// with no named `Router` import in the file, dropped the declaration entirely and collapsed
 		// the whole mount graph. Found by running the real fixture, not by review.
-		const isMemberCall = /[\w$]\s*\.\s*Router\s*\(/.test(m[0]);
-		if (isMemberCall || bindings.hasNamedRouter) mountables.set(m[1], 'router');
+		const initializer = m[2];
+		const memberMatch = initializer.match(/^([\w$]+)\s*\.\s*Router$/);
+		const isBoundMemberCall = memberMatch && bindings.defaultNames.has(memberMatch[1]);
+		const isDirectRequireCall = /^require\b/.test(initializer) && bindings.hasDirectRouter;
+		const isBareCall = initializer === 'Router' && bindings.hasNamedRouter;
+		if (isBoundMemberCall || isDirectRequireCall || isBareCall) mountables.set(m[1], 'router');
 	}
-	if (bindings.defaultName) {
-		const appDeclRe = new RegExp(`\\b(?:const|let|var)\\s+([\\w$]+)\\s*=\\s*${bindings.defaultName}\\s*\\(\\s*\\)`, 'g');
+	for (const defaultName of bindings.defaultNames) {
+		const appDeclRe = new RegExp(`\\b(?:const|let|var)\\s+([\\w$]+)\\s*=\\s*${defaultName}\\s*\\(\\s*\\)`, 'g');
 		for (const m of text.matchAll(appDeclRe)) mountables.set(m[1], 'app');
 	}
 	return mountables;
@@ -179,7 +209,11 @@ function nodeKey(file, varName) {
 
 // LOCAL endpoints only (verb/path/handler/line), with an EMPTY prefix -- exactly like G5, because
 // no path prefix is ever visible at an Express route-registration call site. The mount-tree walk in
-// scanJavaScriptExpress() joins the real prefix chain afterward.
+// scanJavaScriptExpress() joins the real prefix chain afterward. Inline handlers are real route
+// declarations too; they carry method:null rather than a fabricated name, matching the existing
+// typescript-express contract.
+const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
+
 function extractEndpoints(text, mountableNames) {
 	if (mountableNames.length === 0) return [];
 	const re = new RegExp(`\\b(${alternationOf(mountableNames)})\\.(${VERBS.join('|')})\\s*\\(`, 'gi');
@@ -196,22 +230,19 @@ function extractEndpoints(text, mountableNames) {
 
 		const args = splitTopLevelArgs(argsText);
 		const lastArg = args[args.length - 1]?.trim();
-		// A bare identifier only -- an inline arrow-function handler has no name to correlate to a
-		// controller file, so it's skipped rather than guessed at (same discipline as G5's and
-		// FastAPI's own "no path literal -> skip").
 		const handlerMatch = lastArg?.match(/^([\w$]+)$/);
-		if (!handlerMatch) continue;
+		const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
+		if (!handlerMatch && !isInlineHandler) continue;
 
-		endpoints.push({ varName, verb, path: pathMatch[1], operationId: null, method: handlerMatch[1], line: lineNumberAt(text, m.index) });
+		endpoints.push({ varName, verb, path: pathMatch[1], operationId: null, method: handlerMatch ? handlerMatch[1] : null, line: lineNumberAt(text, m.index) });
 	}
 	return endpoints;
 }
 
-// Resolves a relative ESM specifier the way Node itself would, plus the two extensionless forms
-// people write anyway. Node's real ESM resolver requires the full extension (`./x.js`); a bundler-
-// or TypeScript-influenced codebase often omits it, so both are probed. Never guesses: returns
-// null if nothing on disk matches.
-function resolveEsmImport(fromFile, specifier, suffixes) {
+// Resolves a relative ESM import or CommonJS require. Explicit files are accepted first; the
+// extension/index probes cover ordinary CommonJS (`require('./routes')`) and the extensionless ESM
+// people write through bundlers. Never guesses beyond the adapter's three JavaScript suffixes.
+function resolveRelativeModule(fromFile, specifier, suffixes) {
 	if (!specifier.startsWith('.')) return null; // only relative specifiers resolve mount edges
 	const base = path.resolve(path.dirname(fromFile), specifier);
 	const candidates = [base];
@@ -234,11 +265,12 @@ function resolveEsmImport(fromFile, specifier, suffixes) {
 // export-prefixed declaration (`export const router = Router();`, ordinary and common) previously
 // had no path to being recognized as this file's "the" exported mountable at all.
 //
-// Three real ways a module hands a locally-declared mountable to whoever imports it -- `export
-// { router as r }` aliasing is deliberately NOT resolved, same restraint as this file's own
-// `Router as R` import-aliasing decision (D-javascript-express-adapter COST): a documented, narrow
-// limitation, not a silent guess at which local name an alias refers to.
+// ESM's three real hand-off forms plus CommonJS's direct `module.exports = router`. ESM aliasing
+// (`export { router as r }`) is deliberately NOT resolved, same restraint as this file's own
+// `Router as R` import-aliasing decision: a documented, narrow limitation, not a silent guess.
 function exportedMountableName(text, mountables) {
+	const commonJsMatch = text.match(/\bmodule\s*\.\s*exports\s*=\s*([\w$]+)\s*;?/);
+	if (commonJsMatch && mountables.has(commonJsMatch[1])) return commonJsMatch[1];
 	const defaultMatch = text.match(/export\s+default\s+([\w$]+)\s*;?/);
 	if (defaultMatch && mountables.has(defaultMatch[1])) return defaultMatch[1];
 	const namedMatch = text.match(/export\s*\{\s*([\w$]+)\s*\}/);
@@ -248,12 +280,12 @@ function exportedMountableName(text, mountables) {
 	return null;
 }
 
-// `import target from '...'` (default) OR `import { target } from '...'` (named, unaliased) --
-// two real ways an imported mountable's LOCAL name reaches this file. `import { target as alias }`
-// is deliberately not resolved, same restraint as exportedMountableName's own aliasing decision
-// above -- a bare, unaliased single-name clause only, matching this file's existing default-import
-// regex's own narrow scope (never a general multi-specifier import-clause parser).
+// ESM default/named imports OR a CommonJS `const target = require('./relative')`. Alias forms stay
+// deliberately unresolved; this is only the source lookup for an already-observed mount target.
 function importSourceFor(text, target) {
+	const requireRe = new RegExp(`(?:\\b(?:const|let|var)\\s+|[,;]\\s*)${target}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']\\s*\\)`);
+	const requireMatch = text.match(requireRe);
+	if (requireMatch) return requireMatch[1];
 	const defaultImportRe = new RegExp(`import\\s+${target}\\s*(?:,\\s*\\{[^}]*\\})?\\s*from\\s*["']([^"']+)["']`);
 	const defaultMatch = text.match(defaultImportRe);
 	if (defaultMatch) return defaultMatch[1];
@@ -262,12 +294,13 @@ function importSourceFor(text, target) {
 	return namedMatch ? namedMatch[1] : null;
 }
 
-// Builds the mount graph over (file, variable) nodes. Two edge kinds, both from the same
-// `X.use('/literal', Y)` call shape:
+// Builds the mount graph over (file, variable) nodes. Two edge kinds, from either
+// `X.use('/literal', Y)`, `X.use('/literal', require('./y'))`, or `X.use(require('./y'))`:
 //   - INTRA-FILE: Y is another mountable declared in this same file (`app.use('/api', route)`)
 //   - CROSS-FILE: Y is imported from a RELATIVE specifier whose file default-exports a mountable
-// A computed/dynamic mount (`route.use(prefix, buildRouter())`), a bare/package specifier, or a
-// single-argument `use()` (a middleware mount, not a prefixed module) is skipped, never guessed at.
+// A computed/dynamic mount (`route.use(prefix, buildRouter())`) or a bare/package specifier is
+// skipped, never guessed. A one-argument identifier remains middleware and is skipped; only a
+// one-argument relative `require()` is unambiguously a CommonJS sub-router hand-off.
 function buildMountEdges(files, fileInfo, suffixes) {
 	const edges = []; // { from: nodeKey, to: nodeKey, prefix }
 	for (const file of files) {
@@ -281,24 +314,40 @@ function buildMountEdges(files, fileInfo, suffixes) {
 			const closeIdx = matchBalancedParens(info.text, openIdx);
 			if (closeIdx === -1) continue;
 			const args = splitTopLevelArgs(info.text.slice(openIdx + 1, closeIdx));
-			if (args.length !== 2) continue;
-			const pathMatch = args[0].match(STRING_LITERAL_RE);
-			const identMatch = args[1].match(/^([\w$]+)$/);
-			if (!pathMatch || !identMatch) continue;
-			const target = identMatch[1];
-
-			if (info.mountables.has(target)) {
-				edges.push({ from: nodeKey(file, fromVar), to: nodeKey(file, target), prefix: pathMatch[1] });
+			let prefix;
+			let targetExpression;
+			if (args.length === 2) {
+				const pathMatch = args[0].match(STRING_LITERAL_RE);
+				if (!pathMatch) continue;
+				prefix = pathMatch[1];
+				targetExpression = args[1].trim();
+			} else if (args.length === 1) {
+				prefix = '';
+				targetExpression = args[0].trim();
+			} else {
 				continue;
 			}
-			const importSource = importSourceFor(info.text, target);
+
+			const identMatch = targetExpression.match(/^([\w$]+)$/);
+			const directRequireMatch = targetExpression.match(/^require\s*\(\s*["']([^"']+)["']\s*\)$/);
+			if (!identMatch && !directRequireMatch) continue;
+			const target = identMatch?.[1] ?? null;
+
+			if (target && info.mountables.has(target)) {
+				edges.push({ from: nodeKey(file, fromVar), to: nodeKey(file, target), prefix });
+				continue;
+			}
+			// A one-argument identifier is ordinary middleware, not a router mount. Reaching this
+			// branch means it was not a local mountable; only a real import/require binding can turn
+			// it into a cross-file edge.
+			const importSource = directRequireMatch?.[1] ?? (target ? importSourceFor(info.text, target) : null);
 			if (!importSource) continue;
-			const toFile = resolveEsmImport(file, importSource, suffixes);
+			const toFile = resolveRelativeModule(file, importSource, suffixes);
 			if (!toFile || !fileInfo.has(toFile)) continue;
 			const toInfo = fileInfo.get(toFile);
 			const toVar = exportedMountableName(toInfo.text, toInfo.mountables);
 			if (!toVar) continue;
-			edges.push({ from: nodeKey(file, fromVar), to: nodeKey(toFile, toVar), prefix: pathMatch[1] });
+			edges.push({ from: nodeKey(file, fromVar), to: nodeKey(toFile, toVar), prefix });
 		}
 	}
 	return edges;
@@ -331,7 +380,8 @@ function moduleNameFor(file) {
 }
 
 const API_SURFACE_SOURCE = 'route paths are resolved by walking the Express mount graph over (file, router-variable) ' +
-	'nodes -- both cross-file `use(\'/literal\', importedRouter)` edges (RELATIVE specifiers only) and intra-file ' +
+	'nodes -- ESM imports and CommonJS require()/module.exports are both supported; cross-file ' +
+	'`use(\'/literal\', importedRouter)` / `use(\'/literal\', require(\'./router\'))` edges (RELATIVE specifiers only) and intra-file ' +
 	'`app.use(\'/literal\', localRouter)` edges, where a global prefix usually lives. A computed/dynamic mount is ' +
 	'skipped, never guessed. Plain Express has no operationId concept at all, so they are never statically ' +
 	'derivable here. This adapter also reports NO persistence entities: the target stack calls a raw SQL driver ' +
@@ -340,10 +390,10 @@ const API_SURFACE_SOURCE = 'route paths are resolved by walking the Express moun
 	'--openapi-file <path> --path-prefix <prefix>` for trustworthy operation identity, if this app has one.';
 
 export function scanJavaScriptExpress(repoRoot, detection) {
-	const { projectRoot, globs } = detection;
+	const { projectRoot, globs, packageType = 'commonjs' } = detection;
 	const suffixes = extensionSuffixes(globs);
 	// Normalized to absolute up front: `rg --files` echoes back paths in whatever style its `dir`
-	// argument used, but `resolveEsmImport()` builds candidates with `path.resolve()`, which is
+	// argument used, but `resolveRelativeModule()` builds candidates with `path.resolve()`, which is
 	// ALWAYS absolute. With a relative repoRoot the two never compare equal, every cross-file mount
 	// edge is silently dropped, and every route loses its prefix while still looking successfully
 	// scanned. Real callers happen to pass an absolute repoRoot today (`git rev-parse
@@ -360,7 +410,7 @@ export function scanJavaScriptExpress(repoRoot, detection) {
 		// routing can never be mistaken for routing. String literals survive intact, so every path
 		// value is still read from the real source. See maskJsComments in _express-shared.mjs.
 		const text = maskJsComments(fs.readFileSync(file, 'utf8'));
-		const bindings = expressBindings(text);
+		const bindings = expressBindings(text, moduleKindFor(file, packageType));
 		fileInfo.set(file, { text, bindings, mountables: bindings ? declaredMountables(text, bindings) : new Map() });
 	}
 	const edges = buildMountEdges(files, fileInfo, suffixes);
@@ -413,7 +463,7 @@ export function scanJavaScriptExpress(repoRoot, detection) {
 export const adapter = {
 	contract: 'sbf.adapter/2',
 	id: 'javascript-express',
-	title: 'JavaScript / Express (ESM, no ORM)',
+	title: 'JavaScript / Express (ESM/CommonJS, no ORM)',
 	specificity: 80,
 	// high, matching python-fastapi's own G2 shipping state: confidence describes trust in what the
 	// scan REPORTS (routes and their real absolute paths, resolved through a genuine mount-graph

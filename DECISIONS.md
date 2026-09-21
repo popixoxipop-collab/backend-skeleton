@@ -15566,3 +15566,103 @@ corpus any time the adapter changes materially.
 before claiming" discipline applied to a different axis -- adapter accuracy vs. numeric
 constants); `ROADMAP.md`'s standing single-oracle-overfitting note (still open, this item narrows
 it by exactly one data point for one adapter, nothing more).
+
+## D-js-express-shadow-validation: a real, plain-CommonJS Express app run through scan -> contract emit -- and a real detect() gap found, not just measured
+
+**WHY**: `javascript-express` (G6) has been `synthetic-only` verification tier since it shipped --
+zero third-party apps, fixtures only. `D-ai-repo-shadow-validation` closed one data point of this
+same single-oracle problem for `python-fastapi` and found no scanner defect. This item runs the
+same real-toolchain exercise for `javascript-express` -- and this time the result is different: a
+real defect, not a clean bill of health.
+
+**Corpus**: `rtfeldman/node-express-realworld-example-app` ("Conduit", the original plain-JS
+RealWorld/Conduit reference API -- a 2018 fork of `gothinkster/node-express-realworld-example-app`
+preserving the pre-rewrite plain-JS structure; the current `gothinkster` HEAD has since been
+rewritten in TypeScript+Nx+Prisma and is no longer a `javascript-express` candidate at all,
+confirmed via `gh api` before cloning). Cloned read-only, depth 1. No write ever touched the
+source repo. `app.js` + `routes/{index,auth,api/{index,users,profiles,articles,tags}}.js` +
+`models/` (Mongoose) + `config/passport.js`, `passport`/`passport-local` (login) and
+`express-jwt` (bearer-token `auth.required`/`auth.optional` middleware, referenced by name, not
+inlined) as two distinct real auth mechanisms in the same app.
+
+**Real onboarding flow**: `preflight` -> `feature init --slug articles-management` (001) ->
+`scan --feature 001-articles-management --terms articles,users,profiles,tags,comments`.
+
+**The defect**: `bskel scan` reported `"adapter": "generic-grep"` -- the dedicated
+`javascript-express` adapter never activated at all. Root cause, read directly off
+`scanners/adapters/javascript-express.mjs`'s own detect() constant:
+```
+const FROM_EXPRESS_RE = /\bfrom\s*['"]express['"]/g;
+```
+This adapter's own header comment names `import express from 'express'` as "the dominant plain-JS
+idiom" it was built for -- but this repo, like a large fraction of real-world Express code
+(Express predates widespread Node ESM adoption), uses CommonJS throughout:
+`var router = require('express').Router();` / `module.exports = router;`. Confirmed exhaustively:
+zero `import` statements anywhere in the repo, no `"type": "module"` in `package.json`. detect()'s
+ripgrep pre-filter greps for the `from 'express'` tail specifically, which a `require()`-only
+codebase never contains, so the adapter silently never engages and `runScan()` falls through to
+the `generic-grep` last-resort adapter (`D-generic-grep-reconnaissance`) instead. **This is a real
+gap in the adapter, not a limitation of the corpus this item happened to pick** -- CommonJS
+Express is not an edge case.
+
+**The fallback partially compensated, but the pipeline still hard-stops**: `generic-grep`'s
+route-pattern grep found all 19 real routes with zero false positives and zero misses (manually
+cross-checked against `grep -rn "router\.\(get\|post\|put\|patch\|delete\)"` across every routes
+file -- exact match, 19/19). But `bskel contract emit` then refused outright:
+```
+blocked: `bskel contract emit` requires the `api.operations` capability, which the
+`generic-grep` adapter ... does not declare (operationId is always null by construction).
+```
+No `--openapi-file` exists for this 2016-era pre-OpenAPI reference app, so the pipeline stops
+here by design -- `gate force` was deliberately NOT used to push past it (that command means "I
+attest this artifact is correct," and nothing about a null-operationId, no-auth-metadata scan
+report justifies that attestation). **`becoder emit` was never reached** -- there is no contract
+for it to consume. Distinct from the FastAPI item: this is not "not yet tried on a third app," it
+is "the real pipeline is currently non-functional, end to end, for this entire class of
+real-world JS Express app (CommonJS, no OpenAPI doc)."
+
+**Also unmeasurable as a result**: whether `javascript-express`'s auth-middleware recognition
+(`auth.required`/`auth.optional`, referenced by name rather than inlined) works at all --
+`generic-grep` carries zero middleware/auth metadata, so this app's actual interesting stress
+test (two real auth mechanisms, named-reference middleware, multi-level router mounting under
+`/api`) was never exercised by the adapter meant to handle it.
+
+**COST**: no code changed by this item -- pure measurement, per the same discipline
+`D-ai-repo-shadow-validation` set. **Verdict on verification-tier: `synthetic-only` stays
+exactly where it is** (a defect, not a promotion candidate).
+
+**Recommendation, not a decision**: fix detect() to also recognize
+`require\s*\(\s*['"]express['"]\s*\)` (CommonJS) alongside the existing ESM `from 'express'`
+pattern -- the rest of the adapter (Router-binding tracking, route extraction) may well already
+be import-syntax-agnostic once detect() actually lets it run; that's untested by this item and
+should be the very next thing checked before writing new extraction code. Re-run this same corpus
+(`rtfeldman/node-express-realworld-example-app`) after any such fix as the regression check --
+19/19 routes plus the two auth middleware refs is a concrete, real target.
+
+**Update -- implemented and remeasured**: the recommendation above was necessary but not
+sufficient. Enabling detect() alone made the dedicated adapter select this repo and then report
+zero endpoints: all 19 handlers are inline `function (...) { ... }`, every cross-file mount is a
+direct `require('./relative')` expression rather than an imported identifier, routers leave their
+files through `module.exports`, and the root uses the prefixless
+`app.use(require('./routes'))` form. The shipped fix therefore treats the CommonJS path as one
+coherent unit: Node-module-kind-aware `require('express')` detection (`.js` follows package
+`type`, `.mjs`/`.cjs` stay unconditional), `require('express').Router()` and assigned express
+bindings, direct relative-require mount edges with or without a literal prefix,
+`module.exports = router`, and recognizable inline function/arrow handlers recorded honestly as
+`method: null` rather than given a fabricated name. Named middleware expressions between path and
+handler (`auth.required`/`auth.optional`) survive the same balanced-argument extraction; no auth
+semantics are invented from their project-local names.
+
+The exact pinned corpus (`ba04b70c31af81ca7935096740a6e083563b3a4a`) was re-run after the fix:
+adapter `javascript-express`, confidence `high`, verdict `collision`, **19/19 routes**, split
+articles 11 / profiles 3 / users 4 / tags 1, every one carrying its real `/api` prefix. A compact,
+network-free CLI regression asserts the same three-level CommonJS mount shape and middleware
+placement, and the real repo is added to `test/fixtures/oracle-manifest.json` so corpus runs catch
+adapter-selection regressions. The adapter's already-current verification tier remains
+`community-sample` (the earlier `synthetic-only stays` sentence above was stale relative to
+`D-oracle-corpus-pinning`, not a reason to demote it).
+
+**Boundary unchanged**: this closes scan-layer support, not Express's lack of operation identity.
+All four capability flags remain false. Without a source OpenAPI document this particular 2016 app
+still cannot pass `contract emit`; inventing operationIds from anonymous inline functions would be
+a false contract, so the clean `api.operations` refusal remains the intended result.
