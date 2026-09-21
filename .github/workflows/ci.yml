@@ -256,6 +256,7 @@ jobs:
       # this file entirely, not just a low-stakes one).
       - name: start postgres
         run: |
+          docker rm -f bskel-pg-a4 2>/dev/null || true
           docker run -d --name bskel-pg-a4 \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
             -e POSTGRES_DB=bskel_a4_test \
@@ -312,6 +313,7 @@ jobs:
         run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
+          docker rm -f bskel-pg-registry-coverage 2>/dev/null || true
           docker run -d --name bskel-pg-registry-coverage \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
             -e POSTGRES_DB=bskel_registry_coverage_test \
@@ -353,6 +355,7 @@ jobs:
         run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
+          docker rm -f bskel-pg-ddl-apply 2>/dev/null || true
           docker run -d --name bskel-pg-ddl-apply \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
             -e POSTGRES_DB=bskel_ddl_apply_test \
@@ -396,6 +399,7 @@ jobs:
         run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
+          docker rm -f bskel-pg-cf-fk 2>/dev/null || true
           docker run -d --name bskel-pg-cf-fk \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
             -e POSTGRES_DB=bskel_cf_fk_test \
@@ -457,6 +461,7 @@ jobs:
         run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
+          docker rm -f bskel-pg-g4 2>/dev/null || true
           docker run -d --name bskel-pg-g4 \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
             -e POSTGRES_DB=bskel_g4_python_test \
@@ -543,6 +548,7 @@ jobs:
         run: ./scripts/ensure-ci-docker.sh
       - name: start postgres
         run: |
+          docker rm -f bskel-pg-o4 2>/dev/null || true
           docker run -d --name bskel-pg-o4 \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
             -e POSTGRES_DB=bskel_o4_test \
