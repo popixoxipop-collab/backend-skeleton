@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -142,7 +142,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel gameplay plan [--loop <id>] [--json]
-  bskel gameplay emit --loop <id> [--json]
+  bskel gameplay emit --loop <id> [--apply --reason "..." --unreal-editor <file>] [--python <file>] [--timeout-sec N] [--json]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles patch unapprove --feature <id> --resource <Type> --field <name> --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
@@ -3259,8 +3259,36 @@ function cmdGameplayEmit(args) {
 	}
 	const contract = loaded.contracts.find((candidate) => candidate.loop_id === flags.loop);
 	const plan = buildGameplayEmitPlan(manifest, contract);
-	if (flags.json) console.log(JSON.stringify(plan, null, 2));
-	else console.log(renderGameplayEmitPlan(plan));
+	if (!flags.apply) {
+		if (flags.json) console.log(JSON.stringify(plan, null, 2));
+		else console.log(renderGameplayEmitPlan(plan));
+		process.exit(0);
+	}
+	if (!flags.reason.trim()) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel gameplay emit --apply requires --reason "..."');
+	if (!flags['unreal-editor']) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel gameplay emit --apply requires --unreal-editor <file>');
+	const editor = path.resolve(flags['unreal-editor']);
+	if (!fs.existsSync(editor) || !fs.statSync(editor).isFile()) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--unreal-editor must name an existing file: ${flags['unreal-editor']}`);
+	const run = (program, commandArgs, label) => {
+		const result = spawnSync(program, commandArgs, { cwd: root, encoding: 'utf8', timeout: flags['timeout-sec'] * 1000, windowsHide: true });
+		if (result.error || result.status !== 0) {
+			const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`;
+			fail(EXIT_CODES.NOT_PASSED, 'EMIT_FAILED', `${label} failed: ${detail}`);
+		}
+		return { id: label, status: result.status, stdout: result.stdout ?? '' };
+	};
+	const completed = [run(flags.python, plan.compiler.args, plan.compiler.id)];
+	for (const step of [...plan.emit_steps, ...plan.verify_steps]) {
+		const receipt = path.join(root, ...step.result_file.split('/'));
+		if (fs.existsSync(receipt)) fs.rmSync(receipt);
+		run(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}`, '-stdout', '-unattended', '-nosplash', '-nopause'], step.id);
+		if (!fs.existsSync(receipt) || !fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
+			fail(EXIT_CODES.NOT_PASSED, 'RECEIPT_MISSING', `${step.id} did not produce SCRIPT_DONE_OK in ${step.result_file}; remaining steps were not started.`);
+		}
+		completed.push({ id: step.id, receipt: step.result_file });
+	}
+	const output = { ...plan, applied: true, reason: flags.reason, completed };
+	if (flags.json) console.log(JSON.stringify(output, null, 2));
+	else console.log(`gameplay emit applied: ${completed.map((step) => step.id).join(', ')}`);
 	process.exit(0);
 }
 

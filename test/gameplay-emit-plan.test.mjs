@@ -23,3 +23,9 @@ test('gameplay emit previews the manifest-owned compiler and UE receipts without
 	const plan = JSON.parse(output); assert.equal(plan.schema, 'sbf.gameplay-emit-plan/1'); assert.deepEqual(plan.compiler.args.slice(1, 3), ['--contract', 'specs/001-game-loop/contracts/001-game-loop.game.json']); assert.equal(plan.emit_steps[0].result_file, 'emit.result.txt');
 	assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }), before);
 });
+
+test('gameplay emit refuses apply without its audited reason and explicit editor binary', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-gameplay-emit-')); execFileSync('git', ['init', '--quiet'], { cwd: root }); setup(root);
+	assert.throws(() => execFileSync('node', [CLI, 'gameplay', 'emit', '--loop', '001-game-loop', '--apply'], { cwd: root, encoding: 'utf8', stdio: 'pipe' }), /requires --reason/);
+	assert.throws(() => execFileSync('node', [CLI, 'gameplay', 'emit', '--loop', '001-game-loop', '--apply', '--reason', 'test'], { cwd: root, encoding: 'utf8', stdio: 'pipe' }), /requires --unreal-editor/);
+});
