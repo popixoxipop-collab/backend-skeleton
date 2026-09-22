@@ -41,6 +41,7 @@ test('npm pack includes bin/bskel.mjs, package.json, and LICENSE', () => {
 	assert.ok(files.includes('bin/bskel.mjs'));
 	assert.ok(files.includes('package.json'));
 	assert.ok(files.includes('LICENSE'), 'npm always special-cases LICENSE/LICENCE regardless of the files field');
+	assert.ok(files.includes('action.yml'), 'the root composite action must ship with npm consumers too');
 });
 
 test('npm pack includes every JSON Schema, cross-checked against every schemas/*.schema.json reference in source', () => {

@@ -1,0 +1,76 @@
+name: backend-skeleton PR check
+description: Run read-only backend-skeleton feature gates for the changed pull-request surface.
+inputs:
+  base:
+    description: Base commit or ref. Defaults to the GitHub PR base SHA/ref, then origin/HEAD.
+    required: false
+  feature:
+    description: Optional comma-separated active feature IDs; overrides changed-file selection.
+    required: false
+  build:
+    description: Run the existing bskel build check for every selected feature.
+    required: false
+    default: 'false'
+  allow-skip-build:
+    description: Permit --build when no recognized build tool exists.
+    required: false
+    default: 'false'
+  sarif:
+    description: Emit a SARIF 2.1.0 file. Upload policy remains the caller's responsibility.
+    required: false
+    default: 'true'
+outputs:
+  result:
+    description: One of pass, fail, or noop.
+    value: ${{ steps.check.outputs.result }}
+  sarif-file:
+    description: Absolute path to the generated SARIF file when sarif=true; empty otherwise.
+    value: ${{ steps.check.outputs.sarif-file }}
+runs:
+  using: composite
+  steps:
+    - name: Install action dependencies
+      shell: bash
+      run: npm ci --ignore-scripts --prefix "$GITHUB_ACTION_PATH"
+    - id: check
+      shell: bash
+      env:
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_FEATURE: ${{ inputs.feature }}
+        INPUT_BUILD: ${{ inputs.build }}
+        INPUT_ALLOW_SKIP_BUILD: ${{ inputs.allow-skip-build }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        EVENT_NAME: ${{ github.event_name }}
+        RUNNER_ENVIRONMENT: ${{ runner.environment }}
+      run: |
+        set -uo pipefail
+        if [ "$EVENT_NAME" = "pull_request" ] && [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+          printf '%s\n' '::error title=backend-skeleton PR check::Refusing untrusted pull_request code on a self-hosted runner.'
+          exit 1
+        fi
+        summary_file="$RUNNER_TEMP/bskel-pr-check-summary.md"
+        result_file="$RUNNER_TEMP/bskel-pr-check-result.json"
+        sarif_file="$RUNNER_TEMP/bskel-pr-check.sarif"
+        args=(ci check --summary-file "$summary_file" --json)
+        if [ -n "$INPUT_BASE" ]; then args+=(--base "$INPUT_BASE"); fi
+        if [ -n "$INPUT_FEATURE" ]; then args+=(--feature "$INPUT_FEATURE"); fi
+        if [ "$INPUT_BUILD" = "true" ]; then args+=(--build); fi
+        if [ "$INPUT_ALLOW_SKIP_BUILD" = "true" ]; then args+=(--allow-skip-build); fi
+        if [ "$INPUT_SARIF" = "true" ]; then args+=(--sarif-file "$sarif_file"); else sarif_file=''; fi
+
+        set +e
+        node "$GITHUB_ACTION_PATH/bin/bskel.mjs" "${args[@]}" > "$result_file"
+        status=$?
+        set -e
+
+        cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
+        result="$(node -e 'const fs=require("fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).outcome || "fail")' "$result_file")"
+        printf 'result=%s\n' "$result" >> "$GITHUB_OUTPUT"
+        printf 'sarif-file<<EOF\n%s\nEOF\n' "$sarif_file" >> "$GITHUB_OUTPUT"
+
+        if [ "$status" -ne 0 ]; then
+          # Keep workflow-command data fixed: no changed filename, diagnostic, or user input is
+          # interpolated here. This avoids command injection through %/CR/LF in untrusted paths.
+          printf '%s\n' '::error title=backend-skeleton PR check::Blocking bskel issues found; see the job summary.'
+          exit "$status"
+        fi

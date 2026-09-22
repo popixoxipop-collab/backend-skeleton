@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { COMMANDS, parseCommand, CliUsageError, diagnostic } from '../lib/cli.mjs';
+import { COMMANDS, parseCommand, renderCommandHelp, CliUsageError, diagnostic } from '../lib/cli.mjs';
 import { EXIT_CODES } from '../lib/exit-codes.mjs';
 import { EXIT } from '../lib/gates.mjs';
 
@@ -106,6 +106,11 @@ test('--help short-circuits before required-field validation', () => {
 	assert.equal(flags.help, true);
 });
 
+test('ci check help renders the global --json flag exactly once', () => {
+	const help = renderCommandHelp('ci check');
+	assert.equal([...help.matchAll(/^  --json\s/mg)].length, 1);
+});
+
 // Default-value snapshot: every COMMANDS entry parsed with zero argv must reproduce exactly the
 // old parseFlags() defaults -- this is the machine-checked proof that the migration off
 // parseFlags lost nothing. Commands with a `required` field throw on empty argv (expected, listed
@@ -120,6 +125,7 @@ const EXPECTED_DEFAULTS = {
 	scan: { _: [], feature: null, terms: '', db: false, 'database-url-env': null, schema: 'public', json: false, 'accept-low-confidence': false, 'runtime-routes': false, quiet: false, help: false },
 	'stack apply': { _: [], choice: null, apply: false, port: '8080', force: false, reason: '', json: false, quiet: false, help: false },
 	'catalog lint': { _: [], json: false, quiet: false, help: false },
+	'ci check': { _: [], base: null, feature: null, build: false, 'allow-skip-build': false, 'summary-file': null, 'sarif-file': null, json: false, quiet: false, help: false },
 	status: { _: [], feature: null, json: false, quiet: false, help: false },
 	next: { _: [], feature: null, json: false, quiet: false, help: false },
 	doctor: { _: [], workflow: null, json: false, quiet: false, help: false },

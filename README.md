@@ -34,6 +34,7 @@ check for a specific failure mode found the same way — see `DECISIONS.md` for 
 - [Quickstart](#quickstart)
   - [Try it in 10 seconds](#try-it-in-10-seconds)
   - [The gated workflow](#the-gated-workflow)
+  - [Pull-request gate checks](#pull-request-gate-checks)
   - [Starting from nothing (greenfield)](#starting-from-nothing-greenfield)
   - [Publishing a feature's contract as OpenAPI (optional)](#publishing-a-features-contract-as-openapi-optional)
   - [A CSV table of a feature's contract (optional)](#a-csv-table-of-a-features-contract-optional)
@@ -142,6 +143,45 @@ bskel verify --feature 001-organization-management --build
                                    # aggregates every gate's current status; --build also runs the
                                    #   target repo's own build wrapper (gradlew/mvnw/npm), if present
 ```
+
+### Pull-request gate checks
+
+`bskel ci check` is the read-only CI counterpart to `verify`: it computes the merge-base with a
+PR base ref, selects changed active features, and runs the same gate/artifact/build calculation
+and `bskel next` remediation. It never refreshes preflight, passes a gate, or runs remediation.
+
+```bash
+bskel ci check --base origin/main --build \
+  --summary-file "$GITHUB_STEP_SUMMARY" \
+  --sarif-file bskel.sarif
+```
+
+`--feature 001-a,002-b` overrides automatic selection. Without it, changes confined to one or
+more `specs/<feature-id>/` directories select those active features; a non-document change outside
+feature specs checks all active features; documentation-only diffs are an explicit successful
+no-op. `--json` writes exactly one report document even when checks fail. SARIF generation only
+creates a file; uploading it is your workflow's policy.
+
+The repository root is also a composite action:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0 # ci check needs the PR base and merge-base locally
+- uses: popixoxipop-collab/backend-skeleton@main
+  id: bskel
+  with:
+    build: 'true'
+
+# Optional: the action output is only a local file. Uploading requires this explicit policy.
+- uses: github/codeql-action/upload-sarif@v3
+  if: always() && steps.bskel.outputs.sarif-file != ''
+  with:
+    sarif_file: ${{ steps.bskel.outputs.sarif-file }}
+```
+
+Use this action only on GitHub-hosted or otherwise trusted runners for pull requests; it executes
+the checked-out repository's configured build command when `build: 'true'` is selected.
 
 `bskel status`/`bskel next` are what you actually run over and over — real output, captured against
 a fixture repo partway through the flow above, not written by hand:

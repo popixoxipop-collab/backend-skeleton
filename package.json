@@ -30,6 +30,7 @@
     "rules/",
     "schemas/",
     "scripts/preflight-base-ref.sh",
+    "action.yml",
     "LICENSE",
     "COMMERCIAL-LICENSE.md",
     "COMMERCIAL-LICENSE-AGREEMENT.md"

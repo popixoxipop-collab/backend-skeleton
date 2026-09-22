@@ -15736,3 +15736,34 @@ so static parsing and the explicit runtime path remain compatible with both supp
 post-fix pinned corpus run passed all three adapter-selection checks: Discourse reported 15
 topic-related modules, Forem 10 article-related modules, and Mastodon 22 account-related modules;
 all three correctly stopped handles planning as not applicable.
+
+---
+
+## D-pr-native-ci-check: diff selection composes existing verification; it does not create a CI-only gate
+
+**Decision:** `bskel ci check` is a read-only orchestration command. It resolves an explicit base
+first, then GitHub's immutable PR base SHA/ref, then local `origin/HEAD` (never a guessed `main`),
+computes the merge-base and changed file set, and selects active features deterministically. An
+explicit comma-separated feature list wins. Changes inside active `specs/<id>/` select those
+features; any non-document file outside feature specs conservatively checks every active feature;
+documentation-only or empty diffs are a successful, explicit no-op.
+
+**Why:** a PR check needs a dependable answer to “which feature claims are affected?” without
+silently treating a shared controller, package manifest, or workflow change as unrelated. The
+conservative all-active fallback may do extra work, but a false negative would publish an
+unchanged-looking gate result for a changed shared surface. Documentation remains a no-op so a
+README edit does not demand feature state that it cannot affect.
+
+**Mechanism:** CI calls `evaluateFeatureVerification()` — the same gate/artifact/conflict/build
+calculation used by `bskel verify` — and calls `computeWorkflowState()` for the exact remediation
+already selected by `bskel next`. It does not spawn the CLI recursively, create another gate,
+refresh preflight, or execute a suggested command. Its only writes are explicitly requested
+Markdown summary and SARIF files. A malformed/unresolvable/unrelated base is exit 14; a real
+feature failure is exit 1; `--json` retains the global one-document stdout invariant on both.
+
+**GitHub Actions boundary:** the root composite action writes its summary to the job summary and
+uses a fixed workflow-command annotation rather than interpolating untrusted filename/diagnostic
+text into `::error`. It emits a SARIF path but deliberately does not upload it: uploading requires
+the caller to make a permissions and retention decision (the README shows `upload-sarif@v3`). The
+action does not select a runner and must not be used to run untrusted PR code on a self-hosted
+runner.

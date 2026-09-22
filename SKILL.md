@@ -997,6 +997,16 @@ bskel status [--feature <id>] [--json]
   #    (feature-scoped gates have nothing to look up without a feature_id). Also reports which
   #    optional gates (handles/stack) haven't run yet.
 
+bskel ci check [--base <ref>] [--feature <id[,id...]>] [--build [--allow-skip-build]] [--summary-file <path>] [--sarif-file <path>] [--json]
+  # -> read-only PR aggregation: resolves an explicit base (or GitHub PR base SHA/ref, then
+  #    origin/HEAD), computes merge-base changed files, and selects active features. Explicit
+  #    --feature wins; a shared non-document change checks all active features; docs-only/no
+  #    relevant feature changes is a successful no-op. Every selected feature uses the SAME
+  #    gate/artifact/build calculation as `verify` and the SAME one-command `next` remediation.
+  #    It never refreshes/passes a gate or runs remediation. `--summary-file` is GitHub Markdown;
+  #    `--sarif-file` is SARIF 2.1.0 but generation does not upload it. An unresolvable base is
+  #    exit 14; blocking verification is exit 1; JSON stdout remains exactly one document.
+
 bskel next [--feature <id>] [--json]
   # -> D1: prints exactly ONE copy-pasteable next command -- the earliest gate (in GATE_NAMES
   #    order) that's currently blocking, with the remediation matching its ACTUAL status: a

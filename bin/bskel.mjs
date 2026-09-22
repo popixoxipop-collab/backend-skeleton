@@ -80,7 +80,8 @@ import { plan as planPythonFastApi } from '../handles/providers/python-fastapi/p
 import { emitObservePythonFastApi } from '../handles/providers/python-fastapi/observe.mjs';
 import { plan as planTypeScriptExpress } from '../handles/providers/typescript-express/plan.mjs';
 import { emitObserveTypeScriptExpress } from '../handles/providers/typescript-express/observe.mjs';
-import { collectGateStatuses, runBuildCheck, checkArtifacts, checkResolverConflicts } from '../lib/verify.mjs';
+import { evaluateFeatureVerification } from '../lib/verify.mjs';
+import { runCiCheck, renderCiSummary, toSarif } from '../lib/ci-check.mjs';
 import { computeWorkflowState } from '../lib/workflow.mjs';
 import { computeDoctorChecks, WORKFLOWS as DOCTOR_WORKFLOWS, binaryAvailable } from '../lib/doctor.mjs';
 import { parseCommand, renderCommandHelp, diagnostic } from '../lib/cli.mjs';
@@ -120,6 +121,7 @@ function usage() {
   bskel contract tool-schema --feature <id> --operation <operationId>
   bskel contract waive --feature <id> --code <CODE> (--subject "VERB /path"|--all) --reason "..." [--expires <Nd>]
   bskel contract unwaive --feature <id> --code <CODE> --subject "VERB /path" --reason "..." [--json]
+  bskel ci check [--base <ref>] [--feature <id[,id...]>] [--build] [--allow-skip-build] [--summary-file <path>] [--sarif-file <path>] [--json]
   bskel dependency declare --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..." [--memo "..."]
   bskel dependency remove --feature <id> --resource <Type> --field <name> --source-feature <id> --source-resource <Type> --source-field <name> --reason "..."
   bskel dependency list --feature <id> [--json]
@@ -4275,15 +4277,9 @@ function cmdVerify(args) {
 	if (flags.help) { console.log(renderCommandHelp('verify')); process.exit(0); }
 	setContext('verify', flags);
 	const root = requireRepoRoot();
-	const gates = collectGateStatuses(root, flags.feature, { getGate, requireNamedGate });
-	const artifacts = checkArtifacts(root, flags.feature, gates);
-	const handlesRan = gates.find((g) => g.gate === 'handles')?.ran ?? false;
-	const conflicts = checkResolverConflicts(root, flags.feature, handlesRan);
-	const build = flags.build ? runBuildCheck(root) : null;
 	const allowSkipBuild = flags['allow-skip-build'];
-
-	const gatesOk = gates.every((g) => !g.blocking);
-	const artifactsPresent = artifacts.every((a) => a.exists);
+	const verification = evaluateFeatureVerification(root, flags.feature, { build: flags.build, allowSkipBuild });
+	const { gates, artifacts, conflicts, build, pass: overallPass } = verification;
 	// S6 (D-verify-integrity): `conflicts` is deliberately NON-BLOCKING, same "detect and warn,
 	// never gate" precedent as A1 §7's path-prefix signals and A4's DB drift reporting -- and the
 	// SAME reasoning D-gate-precision (S2) already used to keep generated content OUT of the
@@ -4297,9 +4293,6 @@ function cmdVerify(args) {
 	// used to be silently treated as "doesn't block" -- confirmed live that this let `bskel verify
 	// --build` report an overall PASS even though the build assurance the user explicitly asked
 	// for never actually ran. Now only acceptable with the explicit --allow-skip-build opt-out.
-	const buildOk = !build || build.ok || (!build.ran && allowSkipBuild);
-	const overallPass = gatesOk && artifactsPresent && buildOk;
-
 	if (flags.json) {
 		console.log(JSON.stringify({ feature: flags.feature, pass: overallPass, gates, artifacts, conflicts, build }, null, 2));
 	} else if (!flags.quiet) {
@@ -4309,6 +4302,44 @@ function cmdVerify(args) {
 	// This exit code (0/1) carries a real payload (the report just printed) -- never a diagnostic
 	// envelope on top of it, matching the "one execution, one JSON document" rule.
 	process.exit(overallPass ? 0 : 1);
+}
+
+function cmdCiCheck(args) {
+	const flags = parseCommand('ci check', args);
+	if (flags.help) { console.log(renderCommandHelp('ci check')); process.exit(0); }
+	setContext('ci check', flags);
+	const root = requireRepoRoot();
+	const report = runCiCheck(root, {
+		base: flags.base,
+		feature: flags.feature,
+		build: flags.build,
+		allowSkipBuild: flags['allow-skip-build'],
+	});
+	if (report.badBase || report.badArgs) {
+		if (flags['summary-file']) writeFileAtomic(path.resolve(process.cwd(), flags['summary-file']), renderCiSummary({ ...report, outcome: 'error' }));
+		if (flags['sarif-file']) writeFileAtomic(path.resolve(process.cwd(), flags['sarif-file']), `${JSON.stringify(toSarif(report), null, 2)}\n`);
+		fail(EXIT_CODES.BAD_ARGS, report.badBase ? 'BAD_BASE' : 'BAD_ARGS', report.message);
+	}
+	if (flags['summary-file']) {
+		writeFileAtomic(path.resolve(process.cwd(), flags['summary-file']), renderCiSummary(report));
+	}
+	if (flags['sarif-file']) {
+		writeFileAtomic(path.resolve(process.cwd(), flags['sarif-file']), `${JSON.stringify(toSarif(report), null, 2)}\n`);
+	}
+	if (flags.json) {
+		console.log(JSON.stringify(report, null, 2));
+	} else if (!flags.quiet) {
+		console.log(`CI CHECK: ${report.outcome.toUpperCase()} — ${report.selected_features.length} feature(s), ${report.changed_file_count} changed file(s) [${report.selection_reason}]`);
+		for (const feature of report.features) {
+			console.log(`- [${feature.pass ? 'PASS' : 'FAIL'}] ${feature.feature}${feature.remediation ? ` — next: ${feature.remediation.command}` : ''}`);
+		}
+		if (report.outcome === 'noop') console.log('- no active feature requires verification');
+		if (report.issues.length > 0) console.log(`- blocking issues: ${report.issues.length}`);
+	}
+	// CI reports can include a large changed-file list and many feature reports. Do not force an
+	// immediate process exit after writing JSON: Node may truncate a still-buffered pipe, violating
+	// the command's one-document JSON contract. Let the event loop flush like contract export does.
+	process.exitCode = report.ok ? EXIT_CODES.OK : EXIT_CODES.CHECK_FAILED;
 }
 
 // D1: same per-gate line shape renderVerifyReport uses (reusing describeStale), but framed as
@@ -4992,6 +5023,11 @@ async function dispatchCommand(cmd, rest) {
 		}
 		case 'verify':
 			cmdVerify(rest);
+			break;
+		case 'ci':
+			if (rest[0] === 'check') return cmdCiCheck(rest.slice(1));
+			usage();
+			process.exit(14);
 			break;
 		case 'status':
 			cmdStatus(rest);
