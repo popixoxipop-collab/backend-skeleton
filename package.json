@@ -1,6 +1,6 @@
 {
   "name": "backend-skeleton",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "type": "module",
   "description": "Deterministic gate layer for AI-assisted backend changes -- blocks brownfield collisions and contract/handle drift via disk-hash checks before code ships. Scans Spring, Rails, FastAPI, and Express; scaffolding codegen included for selected stacks.",
   "license": "AGPL-3.0-or-later",
