@@ -13,7 +13,7 @@ import { buildGateExportReport, readGateHistory } from '../lib/gate-export.mjs';
 import { writeFileAtomic, sha256File, readJsonIfExists } from '../lib/fsutil.mjs';
 import { hydrateScanReportFilePaths, dehydrateScanReportFilePaths } from '../lib/scan-report-paths.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
-import { withLockSync } from '../lib/lock.mjs';
+import { withLockSync, withLockAsync } from '../lib/lock.mjs';
 import { specDir, specPath, sbfPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
 import {
@@ -3293,6 +3293,7 @@ async function cmdGameplayEmit(args) {
 	}
 	if (!flags.reason.trim()) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel gameplay emit --apply requires --reason "..."');
 	if (!flags['unreal-editor']) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', 'bskel gameplay emit --apply requires --unreal-editor <file>');
+	return await withLockAsync(root, `gameplay-${manifest.runtime.exclusive_session}`, async () => {
 	const editor = path.resolve(flags['unreal-editor']);
 	if (!fs.existsSync(editor) || !fs.statSync(editor).isFile()) fail(EXIT_CODES.BAD_ARGS, 'BAD_ARGS', `--unreal-editor must name an existing file: ${flags['unreal-editor']}`);
 	const run = (program, commandArgs, label) => {
@@ -3357,6 +3358,7 @@ async function cmdGameplayEmit(args) {
 	if (flags.json) console.log(JSON.stringify(output, null, 2));
 	else console.log(`gameplay emit applied: ${completed.map((step) => step.id).join(', ')}`);
 	process.exit(0);
+	});
 }
 
 // A2 Phase 2 (D-java-ast-helper): compares the AST helper's real, symbol-resolved annotation
