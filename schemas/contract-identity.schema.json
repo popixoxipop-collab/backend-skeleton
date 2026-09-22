@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:contract-identity:1",
+  "title": "bskel contract identity references",
+  "oneOf": [
+    { "$ref": "#/$defs/contractRef" },
+    { "$ref": "#/$defs/actionRef" },
+    { "$ref": "#/$defs/fieldRef" }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contractRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_ref", "contract_hash", "sbf_contract", "feature_id", "feature_uid"],
+      "properties": {
+        "contract_ref": { "const": "sbf.contract-ref/1" },
+        "contract_hash": { "$ref": "#/$defs/hash" },
+        "sbf_contract": { "type": "string", "pattern": "^[0-9]+$" },
+        "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "feature_uid": { "type": "string", "format": "uuid" }
+      }
+    },
+    "actionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_ref", "contract", "operation_id"],
+      "properties": {
+        "action_ref": { "const": "sbf.action-ref/1" },
+        "contract": { "$ref": "#/$defs/contractRef" },
+        "operation_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "fieldRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field_ref", "action", "location", "pointer"],
+      "properties": {
+        "field_ref": { "const": "sbf.field-ref/1" },
+        "action": { "$ref": "#/$defs/actionRef" },
+        "location": { "enum": ["path", "query", "header", "cookie", "body"] },
+        "pointer": { "type": "string", "pattern": "^(?:|/.*)$" }
+      }
+    }
+  }
+}
