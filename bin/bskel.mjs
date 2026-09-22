@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync, spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import { repoRoot, localDefaultBranch, fileHistory, showFileAtRevision, headSha, currentBranch, isDirty } from '../lib/repo.mjs';
@@ -3240,6 +3240,33 @@ function renderGameplayEmitPlan(plan) {
 	return `${lines.join('\n')}\n`;
 }
 
+function gameplayStepFingerprint(root, plan, step) {
+	const files = [plan.contract_file, plan.manifest_file, plan.compiler.program === 'python' ? plan.compiler.args[0] : null, ...plan.compiler.args.filter((arg) => arg.endsWith('.json')), step.project_file, step.script, ...step.args]
+		.filter(Boolean)
+		.map((file) => [file, sha256File(path.join(root, ...file.split('/')))]);
+	return createHash('sha256').update(JSON.stringify({ loop_id: plan.loop_id, step: step.id, files })).digest('hex');
+}
+
+function gameplayReceiptPath(root, loopId, stepId) {
+	return path.join(root, '.sbf', 'gameplay-receipts', loopId, `${stepId}.json`);
+}
+
+function hasCurrentGameplayReceipt(root, plan, step, externalReceipt) {
+	const file = gameplayReceiptPath(root, plan.loop_id, step.id);
+	if (!fs.existsSync(file) || !fs.existsSync(externalReceipt)) return false;
+	try {
+		const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+		return record.schema === 'sbf.gameplay-receipt/1' && record.fingerprint === gameplayStepFingerprint(root, plan, step)
+			&& fs.readFileSync(externalReceipt, 'utf8').includes('SCRIPT_DONE_OK');
+	} catch { return false; }
+}
+
+function saveGameplayReceipt(root, plan, step, externalReceipt) {
+	const record = { schema: 'sbf.gameplay-receipt/1', loop_id: plan.loop_id, step_id: step.id, fingerprint: gameplayStepFingerprint(root, plan, step), external_receipt: step.result_file, external_receipt_hash: sha256File(externalReceipt), at: new Date().toISOString() };
+	writeFileAtomic(gameplayReceiptPath(root, plan.loop_id, step.id), `${JSON.stringify(record, null, 2)}\n`);
+	return record;
+}
+
 async function cmdGameplayEmit(args) {
 	const flags = parseCommand('gameplay emit', args);
 	if (flags.help) { console.log(renderCommandHelp('gameplay emit')); process.exit(0); }
@@ -3279,12 +3306,15 @@ async function cmdGameplayEmit(args) {
 	const runEditorUntilReceipt = async (step, receipt) => {
 		const scriptArgs = step.args.map((arg) => path.join(root, ...arg.split('/'))).join(' ');
 		const child = spawn(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}${scriptArgs ? ` ${scriptArgs}` : ''}`, '-stdout', '-unattended', '-nosplash', '-nopause'], { cwd: root, windowsHide: true, stdio: 'ignore' });
+		let exited = false;
+		const exitedPromise = new Promise((resolve) => child.once('exit', (code) => { exited = true; resolve(code); }));
 		const deadline = Date.now() + flags['timeout-sec'] * 1000;
 		while (Date.now() < deadline) {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			if (fs.existsSync(receipt) && fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
-				if (!child.killed) child.kill();
-				await new Promise((resolve) => child.once('exit', resolve));
+				if (!exited && !child.killed) child.kill();
+				await Promise.race([exitedPromise, new Promise((resolve) => setTimeout(resolve, 5000))]);
+				if (!exited) fail(EXIT_CODES.NOT_PASSED, 'EDITOR_CLEANUP_FAILED', `${step.id} wrote its receipt but its Unreal editor process did not exit within 5 seconds`);
 				return;
 			}
 			if (child.exitCode !== null) fail(EXIT_CODES.NOT_PASSED, 'EMIT_FAILED', `${step.id} editor exited before its receipt was written`);
@@ -3294,10 +3324,12 @@ async function cmdGameplayEmit(args) {
 	};
 	const outputFile = path.join(root, ...plan.compiler.writes[0].path.split('/'));
 	const completed = [];
-	if (!flags.resume) completed.push(run(flags.python, plan.compiler.args, plan.compiler.id));
-	for (const step of [...plan.emit_steps, ...plan.verify_steps]) {
+	const allSteps = [...plan.emit_steps, ...plan.verify_steps];
+	const allCurrent = allSteps.every((step) => hasCurrentGameplayReceipt(root, plan, step, path.join(root, ...step.result_file.split('/'))));
+	if (!flags.resume || !allCurrent) completed.push(run(flags.python, plan.compiler.args, plan.compiler.id));
+	for (const step of allSteps) {
 		const receipt = path.join(root, ...step.result_file.split('/'));
-		if (flags.resume && fs.existsSync(receipt) && fs.statSync(receipt).mtimeMs >= fs.statSync(outputFile).mtimeMs && fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
+		if (flags.resume && hasCurrentGameplayReceipt(root, plan, step, receipt)) {
 			completed.push({ id: step.id, receipt: step.result_file, resumed: true });
 			continue;
 		}
@@ -3306,7 +3338,18 @@ async function cmdGameplayEmit(args) {
 		if (!fs.existsSync(receipt) || !fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
 			fail(EXIT_CODES.NOT_PASSED, 'RECEIPT_MISSING', `${step.id} did not produce SCRIPT_DONE_OK in ${step.result_file}; remaining steps were not started.`);
 		}
+		saveGameplayReceipt(root, plan, step, receipt);
 		completed.push({ id: step.id, receipt: step.result_file });
+	}
+	for (const otherManifest of runtimeManifests.manifests) {
+		const otherContract = loaded.contracts.find((candidate) => candidate.loop_id === otherManifest.loop_id);
+		const otherPlan = buildGameplayEmitPlan(otherManifest, otherContract);
+		for (const otherStep of [...otherPlan.emit_steps, ...otherPlan.verify_steps]) {
+			const otherReceipt = path.join(root, ...otherStep.result_file.split('/'));
+			if (!hasCurrentGameplayReceipt(root, otherPlan, otherStep, otherReceipt)) {
+				fail(EXIT_CODES.NOT_PASSED, 'GAMEPLAY_EVIDENCE_INCOMPLETE', `cannot pass the repo gameplay gate: loop "${otherPlan.loop_id}" step "${otherStep.id}" lacks a current fingerprinted receipt`);
+			}
+		}
 	}
 	const output = { ...plan, applied: true, reason: flags.reason, completed };
 	const gateState = passNamedGate(root, 'gameplay', null, { loop_id: plan.loop_id, completed: completed.map((step) => step.id), reason: flags.reason });
