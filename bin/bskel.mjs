@@ -3257,6 +3257,8 @@ function hasCurrentGameplayReceipt(root, plan, step, externalReceipt) {
 	try {
 		const record = JSON.parse(fs.readFileSync(file, 'utf8'));
 		return record.schema === 'sbf.gameplay-receipt/1' && record.fingerprint === gameplayStepFingerprint(root, plan, step)
+			&& typeof record.external_receipt_hash === 'string'
+			&& record.external_receipt_hash === sha256File(externalReceipt)
 			&& fs.readFileSync(externalReceipt, 'utf8').includes('SCRIPT_DONE_OK');
 	} catch { return false; }
 }

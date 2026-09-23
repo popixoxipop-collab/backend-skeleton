@@ -8,10 +8,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
 	GATE_DEFINITIONS, GATE_NAMES, SCOPE, VERIFY_POLICY, REPO_GATE_ID,
-	getGateDefinition, requireGateDefinition, gateScopeId, gateInputs,
+	getGateDefinition, requireGateDefinition, gateScopeId, gateInputs, gameplayReceiptIntegrityInputs,
 } from '../lib/gate-definitions.mjs';
 import { isBlockingGateResult } from '../lib/verify.mjs';
 import { EXIT } from '../lib/gates.mjs';
@@ -189,4 +191,40 @@ test('T6: the impact gate\'s recompute() is byte-identical across two calls over
 	const inputsA = JSON.stringify(GATE_DEFINITIONS.impact.recompute(process.cwd(), '001-does-not-exist'));
 	const inputsB = JSON.stringify(GATE_DEFINITIONS.impact.recompute(process.cwd(), '001-does-not-exist'));
 	assert.equal(inputsA, inputsB);
+});
+
+test('gameplay gate scopes contract inputs to runtime-manifest loops and binds receipt integrity', () => {
+	const src = fs.readFileSync(path.join(LIB_DIR, 'gate-definitions.mjs'), 'utf8');
+	assert.match(src, /runtimeContractFiles = contracts\.contracts\.filter\(\(contract\) => runtimeLoopIds\.has\(contract\.loop_id\)\)/);
+	assert.match(src, /Object\.assign\(inputs, gameplayReceiptIntegrityInputs\(root, manifests\.manifests\)\)/);
+});
+
+test('gameplay receipt integrity flips invalid when the external result changes', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-gameplay-receipt-integrity-'));
+	const loopId = '001-game-loop';
+	const stepId = 'emit';
+	const resultFile = 'emit.result.txt';
+	const resultPath = path.join(root, resultFile);
+	const receiptPath = path.join(root, '.sbf', 'gameplay-receipts', loopId, `${stepId}.json`);
+	fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+	fs.writeFileSync(resultPath, 'SCRIPT_DONE_OK\n');
+	const hash = createHash('sha256').update(fs.readFileSync(resultPath)).digest('hex');
+	fs.writeFileSync(receiptPath, JSON.stringify({
+		schema: 'sbf.gameplay-receipt/1',
+		loop_id: loopId,
+		step_id: stepId,
+		external_receipt_hash: hash,
+	}));
+	const manifests = [{
+		loop_id: loopId,
+		runtime: {
+			emit_steps: [{ id: stepId, result_file: resultFile }],
+			verify_steps: [],
+		},
+	}];
+	const before = gameplayReceiptIntegrityInputs(root, manifests);
+	assert.equal(before[`gameplay:receipt-integrity:${loopId}:${stepId}`], `ok:${hash}`);
+	fs.appendFileSync(resultPath, 'tampered\n');
+	const after = gameplayReceiptIntegrityInputs(root, manifests);
+	assert.match(after[`gameplay:receipt-integrity:${loopId}:${stepId}`], /^invalid:expected=/);
 });
