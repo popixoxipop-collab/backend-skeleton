@@ -24,7 +24,10 @@ test('owned process timeout rejects even when termination emits exit synchronous
   const session = createOwnedProcessSession({
     repoRoot: '/repo',
     spawnImpl() { return child; },
-    spawnSyncImpl() {},
+    spawnSyncImpl() {
+      child.exitCode = 137;
+      child.emit('exit', 137, 'SIGKILL');
+    },
   });
 
   await assert.rejects(

@@ -104,6 +104,18 @@ test('camera-only movement is rejected even while frames advance', () => {
   assert.equal(result.verdict, 'failed');
   assert.equal(result.assertions.find((entry) => entry.type === 'camera_only_reject').passed, false);
 });
+test('ignored input is rejected even when frames continue to advance', () => {
+  const scenario = contract().scenarios[0];
+  const samples = [
+    sample(0, { frame: 10 }),
+    sample(1, { frame: 12 }),
+    sample(2, { frame: 15 }),
+  ];
+  const result = evaluateScenarioEvidence(scenario, samples);
+  assert.equal(result.verdict, 'failed');
+  assert.equal(result.assertions.find((entry) => entry.type === 'render_frames').passed, true);
+  assert.equal(result.assertions.find((entry) => entry.type === 'player_displacement').passed, false);
+});
 
 test('teleport-sized player step is rejected', () => {
   const scenario = contract().scenarios[0];
