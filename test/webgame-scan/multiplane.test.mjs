@@ -114,3 +114,13 @@ test('nested example package keeps package dependency and runtime evidence refer
   assert.equal(game.capabilities.playable_runtime_claimed, false);
   assert.ok(game.evidence.every((e) => e.role === 'reference'));
 });
+
+test('ws dependency plus unrelated http.Server does not claim a WebSocket server', () => {
+  const report = scan('ws-http-server');
+  const net = report.domains.find((d) => d.kind === 'network');
+  assert.ok(net);
+  assert.equal(net.capabilities.websocket_client, true);
+  assert.equal(net.capabilities.websocket_server, false);
+  assert.equal(net.capabilities.multiplayer_server_claimed, false);
+  assert.ok(!net.evidence.some((e) => e.kind === 'websocket-server'));
+});
