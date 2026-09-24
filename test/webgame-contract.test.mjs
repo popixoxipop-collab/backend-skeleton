@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { scanWebgame } from '../scanners/webgame.mjs';
-import { buildWebgameContract } from '../contracts/webgame.mjs';
+import { buildWebgameContract, verifyWebgameContractSnapshot } from '../contracts/webgame.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -56,6 +56,7 @@ animate();
 
   assert.equal(scan.completeness.status, 'complete');
   assert.deepEqual(scan.engines, ['three']);
+  assert.equal(scan.adapter_revision, 1);
   assert.deepEqual(scan.engine_packages, [{ package: 'three', version: '^0.180.0', project_root: '.' }]);
   assert.ok(scan.files_read.includes('package.json'));
   assert.ok(scan.scenes.some((x) => x.symbol === 'scene'));
@@ -77,12 +78,49 @@ animate();
     scan,
   });
   validateSchema('webgame-contract.schema.json', contract);
+  assert.equal(contract.source.adapter_revision, 1);
   assert.deepEqual(contract.source.engine_packages, [{ package: 'three', version: '^0.180.0', project_root: '.' }]);
   assert.equal(contract.planes.scene.scenes[0].symbol, 'scene');
   assert.match(contract.planes.scene.scenes[0].id, /^scene:[a-f0-9]{20}$/);
   assert.ok(contract.planes.behavior.triggers.every((x) => /^behavior-trigger:[a-f0-9]{20}$/.test(x.id)));
   assert.ok(contract.planes.behavior.triggers.some((x) => x.kind === 'key-check' && x.value === 'KeyW'));
   assert.ok(!JSON.stringify(contract).includes('position.z += dt'), 'contract must not copy arbitrary source bodies');
+});
+
+test('webgame contract freshness is exact on feature identity, scanner revision and source hash', () => {
+  const root = fixture("import * as THREE from 'three';\nconst scene = new THREE.Scene();\nfunction animate(){ requestAnimationFrame(animate); }\n");
+  const scan = scanWebgame(root);
+  const contract = buildWebgameContract({
+    featureId: '001-gameplay',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+    scan,
+  });
+  assert.deepEqual(verifyWebgameContractSnapshot({
+    contract,
+    scan,
+    featureId: '001-gameplay',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+  }), { current: true, changes: [], source_hash: scan.source_hash, adapter_revision: 1 });
+
+  fs.appendFileSync(path.join(root, 'src', 'game.ts'), 'const changed = true;\n');
+  const changedScan = scanWebgame(root);
+  const stale = verifyWebgameContractSnapshot({
+    contract,
+    scan: changedScan,
+    featureId: '001-gameplay',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+  });
+  assert.equal(stale.current, false);
+  assert.ok(stale.changes.some((x) => x.field === 'source.source_hash'));
+
+  const revisionDrift = verifyWebgameContractSnapshot({
+    contract,
+    scan: { ...scan, adapter_revision: 2 },
+    featureId: '001-gameplay',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+  });
+  assert.equal(revisionDrift.current, false);
+  assert.ok(revisionDrift.changes.some((x) => x.field === 'source.adapter_revision'));
 });
 
 test('React Three Fiber Canvas and JSX mesh are recognized as scene/render/entity declarations', () => {
