@@ -76,6 +76,8 @@ animate();
   });
   validateSchema('webgame-contract.schema.json', contract);
   assert.equal(contract.planes.scene.scenes[0].symbol, 'scene');
+  assert.match(contract.planes.scene.scenes[0].id, /^scene:[a-f0-9]{20}$/);
+  assert.ok(contract.planes.behavior.triggers.every((x) => /^behavior-trigger:[a-f0-9]{20}$/.test(x.id)));
   assert.ok(contract.planes.behavior.triggers.some((x) => x.kind === 'key-check' && x.value === 'KeyW'));
   assert.ok(!JSON.stringify(contract).includes('position.z += dt'), 'contract must not copy arbitrary source bodies');
 });
