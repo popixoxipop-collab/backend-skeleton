@@ -203,8 +203,8 @@ test('Playwright driver samples the declared probe and releases keys/context/bro
   const samples = await driver.runScenario(plan.scenarios[0]);
   await driver.close();
   assert.ok(samples.length >= 2);
-  assert.ok(events.includes('down:KeyW'));
-  assert.ok(events.includes('up:KeyW'));
+  assert.ok(events.includes('down:w'));
+  assert.ok(events.includes('up:w'));
   assert.deepEqual(events.slice(-2), ['context-close', 'browser-close']);
 });
 

@@ -11,6 +11,7 @@ const allowed = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/vendor/three.module.js', ['vendor/three.module.js', 'text/javascript; charset=utf-8']],
+  ['/vendor/three.core.js', ['vendor/three.core.js', 'text/javascript; charset=utf-8']],
 ]);
 const server = http.createServer((request, response) => {
   const entry = allowed.get(new URL(request.url, 'http://127.0.0.1').pathname);

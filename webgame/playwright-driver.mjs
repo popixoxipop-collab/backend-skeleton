@@ -11,6 +11,12 @@ function isLoopbackUrl(value) {
   }
 }
 
+function playwrightKey(key) {
+  if (/^Key[A-Z]$/.test(key)) return key.slice(3).toLowerCase();
+  if (/^Digit[0-9]$/.test(key)) return key.slice(5);
+  return key;
+}
+
 export class WebgameBrowserUnavailableError extends Error {
   constructor(message) {
     super(message);
@@ -31,7 +37,11 @@ async function loadPlaywright(explicit) {
   try {
     return await import('playwright');
   } catch (error) {
-    throw new WebgameBrowserUnavailableError(`Playwright is not installed: ${error.message}`);
+    try {
+      return await import('playwright-core');
+    } catch (coreError) {
+      throw new WebgameBrowserUnavailableError(`Playwright is not installed: ${error.message}; playwright-core: ${coreError.message}`);
+    }
   }
 }
 
@@ -135,17 +145,18 @@ export function createPlaywrightDriver({ playwright = null, browserExecutablePat
       if (!page) throw new Error('Playwright driver is not open');
       const action = scenario.action;
       if (action.type === 'key') {
-        await page.keyboard.down(action.key);
+        const key = playwrightKey(action.key);
+        await page.keyboard.down(key);
         try {
           return await collectFor(action.duration_ms);
         } finally {
-          await page.keyboard.up(action.key);
+          await page.keyboard.up(key);
         }
       }
       if (action.type === 'wait') return collectFor(action.duration_ms);
       if (action.type === 'interact') {
         const before = await sample();
-        await page.keyboard.press(action.key ?? 'KeyE');
+        await page.keyboard.press(playwrightKey(action.key ?? 'KeyE'));
         await page.waitForTimeout(currentPlan.probe.sample_interval_ms);
         const after = await sample();
         assertHealthy();
