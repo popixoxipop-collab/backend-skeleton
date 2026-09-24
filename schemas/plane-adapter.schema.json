@@ -4,37 +4,129 @@
   "title": "BSKEL multi-domain static plane result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "domain_id", "project_id", "kind", "status", "capabilities", "evidence", "unresolved", "notes"],
+  "required": [
+    "schema",
+    "domain_id",
+    "project_id",
+    "kind",
+    "status",
+    "capabilities",
+    "evidence",
+    "unresolved",
+    "notes"
+  ],
   "properties": {
-    "schema": { "const": "sbf.plane-adapter/1" },
-    "domain_id": { "type": "string" },
-    "project_id": { "type": "string" },
-    "kind": { "enum": ["game-runtime", "api", "asset", "worker", "network"] },
-    "status": { "enum": ["complete", "partial"] },
-    "capabilities": { "type": "object" },
-    "notes": { "type": "array", "items": { "type": "string" } },
-    "unresolved": { "type": "array" },
+    "schema": {
+      "const": "sbf.plane-adapter/1"
+    },
+    "domain_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "game-runtime",
+        "api",
+        "asset",
+        "worker",
+        "network"
+      ]
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "partial"
+      ]
+    },
+    "capabilities": {
+      "type": "object"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresolved": {
+      "type": "array"
+    },
     "evidence": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["project_id", "kind", "value", "role", "provenance"],
+        "required": [
+          "project_id",
+          "kind",
+          "value",
+          "role",
+          "provenance"
+        ],
         "properties": {
-          "project_id": { "type": "string" },
-          "kind": { "type": "string" },
+          "project_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
           "value": {},
-          "role": { "enum": ["active", "reference", "generated", "vendor", "template"] },
+          "role": {
+            "enum": [
+              "active",
+              "reference",
+              "generated",
+              "vendor",
+              "template"
+            ]
+          },
           "details": {},
           "provenance": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["source_path", "line", "column", "collector", "confidence"],
+            "required": [
+              "source_path",
+              "source_digest",
+              "line",
+              "column",
+              "collector",
+              "confidence"
+            ],
             "properties": {
-              "source_path": { "type": ["string", "null"] },
-              "line": { "type": ["integer", "null"], "minimum": 1 },
-              "column": { "type": ["integer", "null"], "minimum": 1 },
-              "collector": { "type": "string" },
-              "confidence": { "enum": ["direct", "derived", "unresolved"] }
+              "source_path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "column": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "collector": {
+                "type": "string"
+              },
+              "confidence": {
+                "enum": [
+                  "direct",
+                  "derived",
+                  "unresolved"
+                ]
+              },
+              "source_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
             }
           }
         }
