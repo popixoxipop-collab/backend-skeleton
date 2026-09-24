@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:webgame-contract:1",
+  "title": "backend-skeleton webgame contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sbf_webgame_contract", "feature_id", "feature_uid", "source", "planes", "warnings", "completeness"],
+  "properties": {
+    "sbf_webgame_contract": { "const": "1" },
+    "feature_id": { "type": "string", "pattern": "^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_uid": { "type": "string", "format": "uuid" },
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["adapter", "engines", "project_roots", "source_hash", "files"],
+      "properties": {
+        "adapter": { "const": "typescript-webgame" },
+        "engines": { "type": "array", "items": { "enum": ["three", "@react-three/fiber"] }, "uniqueItems": true },
+        "project_roots": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "source_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "files": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "planes": {
+      "type": "object", "additionalProperties": false, "required": ["scene", "entity", "input", "simulation", "render", "network", "asset", "behavior"],
+      "properties": {
+        "scene": { "type": "object", "additionalProperties": false, "required": ["scenes", "hierarchy"], "properties": { "scenes": { "type": "array" }, "hierarchy": { "type": "array" } } },
+        "entity": { "type": "object", "additionalProperties": false, "required": ["entities"], "properties": { "entities": { "type": "array" } },
+        "input": { "type": "object", "additionalProperties": false, "required": ["listeners", "keys"], "properties": { "listeners": { "type": "array" }, "keys": { "type": "array" } } },
+        "simulation": { "type": "object", "additionalProperties": false, "required": ["systems", "loops", "physics"], "properties": { "systems": { "type": "array" }, "loops": { "type": "array" }, "physics": { "type": "array" } } },
+        "render": { "type": "object", "additionalProperties": false, "required": ["renderers"], "properties": { "renderers": { "type": "array" } } },
+        "network": { "type": "object", "additionalProperties": false, "required": ["sockets"], "properties": { "sockets": { "type": "array" } } },
+        "asset": { "type": "object", "additionalProperties": false, "required": ["assets"], "properties": { "assets": { "type": "array" } } },
+        "behavior": { "type": "object", "additionalProperties": false, "required": ["triggers", "systems"], "properties": { "triggers": { "type": "array" }, "systems": { "type": "array" } } }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } } },
+    "completeness": {
+      "type": "object", "additionalProperties": false, "required": ["status", "scene_count", "entity_count", "loop_count"],
+      "properties": {
+        "status": { "enum": ["complete", "partial"] },
+        "scene_count": { "type": "integer", "minimum": 0 },
+        "entity_count": { "type": "integer", "minimum": 0 },
+        "loop_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
