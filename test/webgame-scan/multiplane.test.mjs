@@ -27,6 +27,7 @@ test('mixed frontend/backend repo preserves API and game-runtime domains simulta
   assert.equal(renderer.provenance.source_path, 'frontend/src/MessengerScene.svelte');
   assert.equal(renderer.provenance.line, 5);
   assert.ok(renderer.provenance.column > 1);
+  assert.match(renderer.provenance.source_digest, /^sha256:[a-f0-9]{64}$/);
 
   const frontendNetwork = domain(report, 'frontend', 'network');
   const backendNetwork = domain(report, 'backend', 'network');
@@ -99,4 +100,5 @@ test('scan is read-only and deterministic for the same tree', () => {
   assert.deepEqual(first, second);
   assert.ok(first.files_read.includes('frontend/src/MessengerScene.svelte'));
   assert.ok(first.files_read.includes('backend/src/server.ts'));
+  assert.ok(first.projects.every((p) => p.package_digest?.startsWith('sha256:')));
 });
