@@ -1,124 +1,78 @@
 {
-  "schema": "sbf.track-a-negative-fixtures/1",
-  "cases": {
-    "comment-only": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 0,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 0,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 0
-      },
-      "game_runtime": null,
-      "network": null,
-      "unresolved_kinds": []
+  "schema": "sbf.track-a-negative-fixtures/2",
+  "validation": {
+    "commit": "cb6049d68ba0049a4fe7fef6975c2beaab157174",
+    "workflow_run_id": 36027868011,
+    "workflow_run_number": 300,
+    "node22_job_id": 107728957374,
+    "node24_job_id": 107728957377,
+    "conclusion": "success"
+  },
+  "cases": [
+    {
+      "fixture": "comment-only",
+      "assertion": "comments/template text do not create game-runtime evidence"
     },
-    "reference-only": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 1,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 1,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 0
-      },
-      "game_runtime": {
-        "status": "partial",
-        "playable_runtime_claimed": false,
-        "evidence_roles": ["reference"]
-      },
-      "network": null,
-      "unresolved_kinds": []
+    {
+      "fixture": "reference-only",
+      "assertion": "reference runtime remains partial; playable_runtime_claimed=false"
     },
-    "syntax-error": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 1,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 1,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 1
-      },
-      "game_runtime": {
-        "status": "partial",
-        "playable_runtime_claimed": false,
-        "evidence_roles": ["active"]
-      },
-      "network": null,
-      "unresolved_kinds": ["syntax"]
+    {
+      "fixture": "reference-package",
+      "assertion": "nested example package dependency/runtime evidence remains reference-only"
     },
-    "dynamic-import": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 0,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 0,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 1
-      },
-      "game_runtime": null,
-      "network": null,
-      "unresolved_kinds": ["dynamic-import"]
+    {
+      "fixture": "syntax-error",
+      "assertion": "syntax damage is reported unresolved"
     },
-    "ws-client": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 1,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 0,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 0
-      },
-      "game_runtime": null,
-      "network": {
-        "websocket_client": true,
-        "websocket_server": false,
-        "multiplayer_server_claimed": false,
-        "http_client": false
-      },
-      "unresolved_kinds": []
+    {
+      "fixture": "dynamic-import",
+      "assertion": "non-literal dynamic import is reported unresolved"
     },
-    "dependency-only": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 1,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 1,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 0
-      },
-      "game_runtime": {
-        "status": "partial",
-        "playable_runtime_claimed": false,
-        "evidence_roles": ["active"]
-      },
-      "network": null,
-      "unresolved_kinds": []
+    {
+      "fixture": "ws-client",
+      "assertion": "WebSocket client evidence does not claim a server"
     },
-    "generator-template": {
-      "summary": {
-        "project_count": 1,
-        "domain_count": 1,
-        "active_game_runtime_count": 0,
-        "partial_game_runtime_count": 1,
-        "api_domain_count": 0,
-        "websocket_server_project_count": 0,
-        "unresolved_count": 0
-      },
-      "game_runtime": {
-        "status": "partial",
-        "playable_runtime_claimed": false,
-        "evidence_roles": ["template"]
-      },
-      "network": null,
-      "unresolved_kinds": []
+    {
+      "fixture": "ws-http-server",
+      "assertion": "ws dependency plus unrelated http.Server does not claim WebSocket server"
+    },
+    {
+      "fixture": "http-server",
+      "assertion": "plain HTTP server is not multiplayer/WebSocket proof"
+    },
+    {
+      "fixture": "ws-dependency-only",
+      "assertion": "dependency-only network remains partial"
+    },
+    {
+      "fixture": "dependency-only",
+      "assertion": "Three.js dependency without active runtime remains partial"
+    },
+    {
+      "fixture": "generator-template",
+      "assertion": "template Three.js code cannot become playable runtime"
+    },
+    {
+      "fixture": "unrelated-render",
+      "assertion": "unrelated object render call cannot complete a Three.js runtime"
+    },
+    {
+      "fixture": "three-import-bindings",
+      "assertion": "namespace and named aliases retain Three.js provenance"
+    },
+    {
+      "fixture": "fake-three-names",
+      "assertion": "same-named local renderer/scene are not promoted as Three.js"
     }
-  }
+  ],
+  "parser_guards": [
+    "Svelte HTML-commented fake script inert",
+    "unclosed Svelte HTML comment inert + unresolved",
+    "regex literal text inert",
+    "template interpolation uncertainty unresolved",
+    "long multiline Three.js imports retained",
+    "constructor assignment binding retained including TypeScript type annotation",
+    "import aliases/namespaces/type-only metadata retained"
+  ]
 }
