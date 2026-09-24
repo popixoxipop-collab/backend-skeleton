@@ -8,7 +8,7 @@ export function collectApi(project, units) {
   for (const dep of Object.keys(deps).sort()) {
     if (!API_PACKAGES.has(dep)) continue;
     evidence.push({
-      project_id: project.project_id, kind: 'api-dependency', value: dep, role: 'active',
+      project_id: project.project_id, kind: 'api-dependency', value: dep, role: project.package_role ?? 'active',
       provenance: { source_path: project.package_json, source_digest: project.package_digest, line: null, column: null, collector: 'api-static', confidence: 'direct' },
     });
   }
