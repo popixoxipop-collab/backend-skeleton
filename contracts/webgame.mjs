@@ -92,6 +92,10 @@ export function buildWebgameContract({ featureId, featureUid, scan }) {
 }
 
 
+function webgameContractDigest(value) {
+  return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
+}
+
 export function verifyWebgameContractSnapshot({ contract, scan, featureId, featureUid }) {
   const changes = [];
   if (contract?.sbf_webgame_contract !== WEBGAME_CONTRACT_VERSION) {
@@ -111,6 +115,14 @@ export function verifyWebgameContractSnapshot({ contract, scan, featureId, featu
   }
   if (contract?.source?.source_hash !== scan?.source_hash) {
     changes.push({ field: 'source.source_hash', expected: scan?.source_hash ?? null, actual: contract?.source?.source_hash ?? null });
+  }
+  if (scan?.completeness?.status !== 'blocked') {
+    const expectedContract = buildWebgameContract({ featureId, featureUid, scan });
+    const expectedDigest = webgameContractDigest(expectedContract);
+    const actualDigest = webgameContractDigest(contract);
+    if (expectedDigest !== actualDigest) {
+      changes.push({ field: 'contract_digest', expected: expectedDigest, actual: actualDigest });
+    }
   }
   return {
     current: changes.length === 0,
