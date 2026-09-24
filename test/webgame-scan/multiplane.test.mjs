@@ -158,3 +158,23 @@ test('same-named local renderer and scene are not promoted just because three is
   assert.equal(game.capabilities.render_call, false);
   assert.equal(game.capabilities.playable_runtime_claimed, false);
 });
+
+test('plain HTTP createServer is network evidence but never multiplayer/WebSocket server proof', () => {
+  const report = scan('http-server');
+  const net = report.domains.find((d) => d.kind === 'network');
+  assert.ok(net);
+  assert.equal(net.status, 'complete');
+  assert.equal(net.capabilities.http_server, true);
+  assert.equal(net.capabilities.websocket_server, false);
+  assert.equal(net.capabilities.multiplayer_server_claimed, false);
+});
+
+test('ws dependency without concrete network use remains partial', () => {
+  const report = scan('ws-dependency-only');
+  const net = report.domains.find((d) => d.kind === 'network');
+  assert.ok(net);
+  assert.equal(net.status, 'partial');
+  assert.equal(net.capabilities.websocket_client, false);
+  assert.equal(net.capabilities.websocket_server, false);
+  assert.equal(net.capabilities.multiplayer_server_claimed, false);
+});
