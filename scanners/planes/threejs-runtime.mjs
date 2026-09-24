@@ -19,7 +19,7 @@ export function collectThreeJsRuntime(project, units) {
     evidence.push({
       project_id: project.project_id,
       kind: 'dependency', value: Object.hasOwn(deps, 'three') ? 'three' : '@react-three/*', role: 'active',
-      provenance: { source_path: project.package_json, line: null, column: null, collector: 'threejs-runtime', confidence: 'direct' },
+      provenance: { source_path: project.package_json, source_digest: project.package_digest, line: null, column: null, collector: 'threejs-runtime', confidence: 'direct' },
     });
   }
 
