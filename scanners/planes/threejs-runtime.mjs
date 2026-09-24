@@ -32,14 +32,18 @@ export function collectThreeJsRuntime(project, units) {
         evidence.push(fromNode(project, unit, 'threejs-runtime', 'tsl-import', imp.specifier, imp));
       }
     }
+    const rendererBindings = new Set(unit.constructions.filter((c) => RENDERER_RE.test(c.name) && c.binding).map((c) => c.binding));
     for (const c of unit.constructions) {
-      if (RENDERER_RE.test(c.name)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'renderer', c.name, c));
+      if (RENDERER_RE.test(c.name)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'renderer', c.name, c, { binding: c.binding ?? null }));
       if (SCENE_RE.test(c.name)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'scene', c.name, c));
       if (MATERIAL_RE.test(c.name)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'material', c.name, c));
       if (LOADER_RE.test(c.name)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'loader', c.name, c));
     }
     for (const call of unit.calls) {
-      if (/(?:^|\.)render$/.test(call.name)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'render-call', call.name, call));
+      if (/(?:^|\.)render$/.test(call.name)) {
+        const receiver = call.name.replace(/\.render$/, '');
+        if (rendererBindings.has(receiver)) evidence.push(fromNode(project, unit, 'threejs-runtime', 'render-call', call.name, call, { receiver }));
+      }
       if (call.name === 'requestAnimationFrame') evidence.push(fromNode(project, unit, 'threejs-runtime', 'frame-loop', call.name, call));
     }
     for (const item of unit.unresolved) unresolved.push({ ...item, project_id: project.project_id, role: unit.role });
