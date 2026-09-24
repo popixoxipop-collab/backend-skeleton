@@ -54,16 +54,23 @@ export function createOwnedProcessSession({ repoRoot, spawnImpl = spawn, spawnSy
     child.stdout?.on('data', (chunk) => { stdout = boundedAppend(stdout, chunk, logLimit); });
     child.stderr?.on('data', (chunk) => { stderr = boundedAppend(stderr, chunk, logLimit); });
     return await new Promise((resolve, reject) => {
+      let settled = false;
       let timer = setTimeout(async () => {
+        if (settled) return;
+        settled = true;
         timer = null;
-        await terminate(child);
+        try { await terminate(child); } catch {}
         reject(new Error(`owned process timed out after ${timeoutMs}ms: ${argv[0]}`));
       }, timeoutMs);
       child.once('error', (error) => {
+        if (settled) return;
+        settled = true;
         if (timer) clearTimeout(timer);
         reject(error);
       });
       child.once('exit', (code, signal) => {
+        if (settled) return;
+        settled = true;
         if (timer) clearTimeout(timer);
         resolve({ code, signal, stdout, stderr });
       });
