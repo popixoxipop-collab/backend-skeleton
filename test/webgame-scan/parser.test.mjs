@@ -68,3 +68,9 @@ test('import bindings preserve aliases, namespaces, and type-only metadata', () 
   assert.equal(typeImport.type_only, true);
   assert.ok(typeImport.bindings.every((b) => b.type_only));
 });
+
+test('Svelte script-like text inside an HTML comment is inert', () => {
+  const parsed = parseSvelteSource(`<!-- <script>const renderer = new WebGLRenderer();</script> -->\n<p>docs</p>`, { sourcePath: 'src/Commented.svelte' });
+  assert.equal(parsed.constructions.length, 0);
+  assert.equal(parsed.imports.length, 0);
+});
