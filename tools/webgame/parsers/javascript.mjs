@@ -172,6 +172,19 @@ function evidenceFromToken(token, extra = {}) {
 
 function assignmentBindingBefore(tokens, index) {
   if (tokens[index - 1]?.value !== '=') return null;
+
+  // Variable declarations can contain TypeScript annotations between the binding and '='.
+  // Prefer the declared identifier rather than the token immediately left of '='.
+  for (let j = index - 2; j >= 0; j--) {
+    const value = tokens[j]?.value;
+    if (value === ';' || value === '{' || value === '}') break;
+    if (tokens[j]?.type === 'identifier' && ['const', 'let', 'var'].includes(value)) {
+      const declared = tokens[j + 1];
+      return declared?.type === 'identifier' ? declared.value : null;
+    }
+  }
+
+  // Plain assignments such as this.renderer = new WebGLRenderer().
   let j = index - 2;
   if (tokens[j]?.type !== 'identifier') return null;
   const parts = [tokens[j].value];
