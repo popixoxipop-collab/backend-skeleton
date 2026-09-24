@@ -16,7 +16,7 @@
 Validation commit: `b2e7255907b3cf0ccb945930772ae706bfbfeeec`  
 GitHub Actions: run `#278` / id `36024180096`
 
-The owned suite contains **19 Track A tests**. For validation only, a temporary root shim imported `test/webgame-scan/**` into the repository's existing `npm test`; that shim is removed in the final Track A diff to preserve parallel path ownership.
+The owned suite contains **20 Track A tests**. For validation only, a temporary root shim imported `test/webgame-scan/**` into the repository's existing `npm test`; that shim is removed in the final Track A diff to preserve parallel path ownership.
 
 Verified in both supported CI Node lines:
 
