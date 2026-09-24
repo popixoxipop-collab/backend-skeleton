@@ -50,7 +50,7 @@ test('template interpolations are not silently treated as inert text', () => {
 });
 
 test('constructor assignment binding is captured for renderer correlation', () => {
-  const parsed = parseJavaScriptSource('const renderer = new WebGLRenderer(); this.alt = new THREE.WebGPURenderer();', { sourcePath: 'src/main.ts' });
+  const parsed = parseJavaScriptSource('const renderer: THREE.WebGLRenderer = new WebGLRenderer(); this.alt = new THREE.WebGPURenderer();', { sourcePath: 'src/main.ts' });
   assert.equal(parsed.constructions.find((x) => x.name === 'WebGLRenderer')?.binding, 'renderer');
   assert.equal(parsed.constructions.find((x) => x.name === 'THREE.WebGPURenderer')?.binding, 'this.alt');
 });
