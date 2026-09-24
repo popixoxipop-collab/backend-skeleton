@@ -22,6 +22,7 @@ import {
 	renameFeatureArtifacts, archiveFeature, linkFeature,
 } from '../lib/featurelifecycle.mjs';
 import { runScan } from '../scanners/index.mjs';
+import { scanWebgame } from '../scanners/webgame.mjs';
 import { scanMigrations } from '../scanners/db/migrations.mjs';
 import { introspectSchema, describeConnectionError } from '../scanners/db/introspect.mjs';
 import { auditHandles, summarizeAudit, isMissingHandleTables } from '../handles/audit.mjs';
@@ -29,6 +30,7 @@ import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '..
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contracts/emit.mjs';
+import { buildWebgameContract, verifyWebgameContractSnapshot } from '../contracts/webgame.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode, isWaiverExpired } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
@@ -112,6 +114,9 @@ function usage() {
   bskel feature rename <id> --to <new-slug> --reason "..." [--json]
   bskel feature link <keepId> <aliasId> --reason "..." [--json]
   bskel feature archive <id> --reason "..." [--json]
+  bskel webgame scan [--json]
+  bskel webgame contract emit --feature <id> [--out <path>] [--json]
+  bskel webgame contract verify --feature <id> [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   bskel contract export-csv --feature <id> [--out <path>] [--bom] [--json]
@@ -1347,6 +1352,108 @@ function cmdFeatureArchive(args) {
 
 	console.log(flags.json ? JSON.stringify(updated, null, 2) : `archived ${featureId} (${flags.reason})`);
 	process.exit(0);
+}
+
+function cmdWebgameScan(args) {
+	const flags = parseCommand('webgame scan', args);
+	if (flags.help) { console.log(renderCommandHelp('webgame scan')); process.exit(0); }
+	setContext('webgame scan', flags);
+	const root = requireRepoRoot();
+	const scan = scanWebgame(root);
+	const validation = validateAgainstSchema('webgame-scan.schema.json', scan);
+	if (!validation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'internal error: computed webgame scan failed its schema:\n' + formatSchemaErrors(validation.errors).join('\n'));
+	}
+	if (flags.json) console.log(JSON.stringify(scan, null, 2));
+	else if (!flags.quiet) {
+		console.log('webgame adapter: ' + scan.adapter);
+		console.log('engines: ' + (scan.engines.join(', ') || '(none detected)'));
+		console.log('scenes: ' + scan.scenes.length + ', entities: ' + scan.entities.length + ', systems: ' + scan.simulation.systems.length + ', loops: ' + scan.simulation.loops.length);
+		console.log('renderers: ' + scan.render.renderers.length + ', inputs: ' + (scan.input.listeners.length + scan.input.keys.length) + ', assets: ' + scan.assets.length + ', sockets: ' + scan.network.sockets.length);
+		for (const warning of scan.warnings) console.error('warning ' + warning.code + ': ' + warning.message);
+	}
+	process.exitCode = scan.completeness.status === 'blocked' ? EXIT.NOT_PASSED : EXIT.PASS;
+}
+
+function cmdWebgameContractEmit(args) {
+	const flags = parseCommand('webgame contract emit', args);
+	if (flags.help) { console.log(renderCommandHelp('webgame contract emit')); process.exit(0); }
+	setContext('webgame contract emit', flags);
+	const root = requireRepoRoot();
+	requirePreflightPassed(root);
+	requireValidFeatureId(flags.feature);
+	const featureRecord = loadFeatureRecord(root, flags.feature);
+	const scan = scanWebgame(root);
+	const scanValidation = validateAgainstSchema('webgame-scan.schema.json', scan);
+	if (!scanValidation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'refusing to emit from an invalid webgame scan:\n' + formatSchemaErrors(scanValidation.errors).join('\n'));
+	}
+	if (scan.completeness.status === 'blocked') {
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', 'blocked: no supported webgame engine was detected. v1 requires a package.json declaring three or @react-three/fiber.');
+	}
+	const contract = buildWebgameContract({ featureId: flags.feature, featureUid: featureRecord.feature_uid, scan });
+	const validation = validateAgainstSchema('webgame-contract.schema.json', contract);
+	if (!validation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'refusing to write an invalid webgame contract:\n' + formatSchemaErrors(validation.errors).join('\n'));
+	}
+	const contractDir = specPath(root, flags.feature, 'contracts');
+	fs.mkdirSync(contractDir, { recursive: true });
+	const defaultOut = specPath(root, flags.feature, 'contracts', flags.feature + '.webgame.json');
+	const outPath = flags.out ? path.resolve(root, flags.out) : defaultOut;
+	fs.mkdirSync(path.dirname(outPath), { recursive: true });
+	writeFileAtomic(specPath(root, flags.feature, 'contracts', flags.feature + '.webgame.scan.json'), JSON.stringify(scan, null, 2) + '\n');
+	writeFileAtomic(outPath, JSON.stringify(contract, null, 2) + '\n');
+	if (flags.json) console.log(JSON.stringify({ contract, out: path.relative(root, outPath), scan_snapshot: path.relative(root, specPath(root, flags.feature, 'contracts', flags.feature + '.webgame.scan.json')) }, null, 2));
+	else if (!flags.quiet) {
+		console.log('webgame contract: ' + path.relative(root, outPath));
+		console.log('source hash: ' + contract.source.source_hash);
+		console.log('planes: scene/entity/input/simulation/render/network/asset/behavior');
+		console.log('completeness: ' + contract.completeness.status);
+		console.log('note: this is an independent game-runtime contract plane; it does not satisfy or mutate the HTTP contract gate.');
+	}
+	process.exitCode = EXIT.PASS;
+}
+
+function cmdWebgameContractVerify(args) {
+	const flags = parseCommand('webgame contract verify', args);
+	if (flags.help) { console.log(renderCommandHelp('webgame contract verify')); process.exit(0); }
+	setContext('webgame contract verify', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	const featureRecord = loadFeatureRecord(root, flags.feature);
+	const contractPath = specPath(root, flags.feature, 'contracts', flags.feature + '.webgame.json');
+	if (!fs.existsSync(contractPath)) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', 'no webgame contract at ' + contractPath + ' -- run `bskel webgame contract emit --feature ' + flags.feature + '` first');
+	}
+	let contract;
+	try { contract = JSON.parse(fs.readFileSync(contractPath, 'utf8')); }
+	catch (error) { fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'webgame contract is not valid JSON: ' + error.message); }
+	const validation = validateAgainstSchema('webgame-contract.schema.json', contract);
+	if (!validation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'webgame contract failed its schema:\n' + formatSchemaErrors(validation.errors).join('\n'));
+	}
+	const scan = scanWebgame(root);
+	const scanValidation = validateAgainstSchema('webgame-scan.schema.json', scan);
+	if (!scanValidation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'current webgame scan failed its schema:\n' + formatSchemaErrors(scanValidation.errors).join('\n'));
+	}
+	if (scan.completeness.status === 'blocked') {
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', 'current repo no longer exposes a supported webgame engine');
+	}
+	const result = verifyWebgameContractSnapshot({
+		contract,
+		scan,
+		featureId: flags.feature,
+		featureUid: featureRecord.feature_uid,
+	});
+	if (flags.json) console.log(JSON.stringify(result, null, 2));
+	else if (!flags.quiet) {
+		console.log('webgame contract: ' + (result.current ? 'current' : 'stale'));
+		console.log('source hash: ' + result.source_hash);
+		console.log('adapter revision: ' + result.adapter_revision);
+		for (const change of result.changes) console.error('changed ' + change.field + ': contract=' + JSON.stringify(change.actual) + ' current=' + JSON.stringify(change.expected));
+	}
+	process.exitCode = result.current ? EXIT.PASS : EXIT.STALE;
 }
 
 // G1: intercepts BEFORE any adapter-specific codegen runs (in particular, before
@@ -4930,6 +5037,14 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'rename') return cmdFeatureRename(rest.slice(1));
 			if (rest[0] === 'link') return cmdFeatureLink(rest.slice(1));
 			if (rest[0] === 'archive') return cmdFeatureArchive(rest.slice(1));
+			usage();
+			process.exit(14);
+			break;
+		}
+		case 'webgame': {
+			if (rest[0] === 'scan') return cmdWebgameScan(rest.slice(1));
+			if (rest[0] === 'contract' && rest[1] === 'emit') return cmdWebgameContractEmit(rest.slice(2));
+			if (rest[0] === 'contract' && rest[1] === 'verify') return cmdWebgameContractVerify(rest.slice(2));
 			usage();
 			process.exit(14);
 			break;

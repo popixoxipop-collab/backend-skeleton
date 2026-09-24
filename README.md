@@ -621,6 +621,22 @@ The full gated workflow, what each phase writes, and every flag is documented in
 (present in this repository, not in the installed npm package — see "What ships in the package"
 below).
 
+## Web-game contract plane
+
+Three.js / React Three Fiber projects can now be scanned into a separate, source-backed game-runtime
+contract without changing the existing HTTP contract semantics:
+
+```bash
+bskel webgame scan --json
+bskel webgame contract emit --feature 001-gameplay --json
+bskel webgame contract verify --feature 001-gameplay --json
+```
+
+The emitted `sbf.webgame-contract/1` artifact has scene, entity, input, simulation, render,
+network, asset, and behavior planes. v1 deliberately records observable declarations only and does
+not infer input-to-effect causality or runtime-only state. See
+[`docs/webgame-contract.md`](docs/webgame-contract.md).
+
 ## Compatibility
 
 | Requirement | Constraint | Why |
