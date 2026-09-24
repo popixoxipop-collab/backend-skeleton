@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // Converts a source-backed webgame scan into an immutable, deterministic contract artifact.
 // This is intentionally separate from feature-contract.schema.json: HTTP API completeness and
 // game-runtime completeness are different truth domains and must not silently satisfy each other.
@@ -5,6 +6,23 @@ export const WEBGAME_CONTRACT_VERSION = '1';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+  }
+  return value;
+}
+
+function stableItemId(plane, item) {
+  const digest = createHash('sha256').update(JSON.stringify(canonical(item))).digest('hex').slice(0, 20);
+  return plane + ':' + digest;
+}
+
+function addressed(plane, items) {
+  return sortByLocation(items).map((item) => ({ id: stableItemId(plane, item), ...item }));
 }
 
 function sortByLocation(items) {
@@ -32,37 +50,37 @@ export function buildWebgameContract({ featureId, featureUid, scan }) {
     },
     planes: {
       scene: {
-        scenes: sortByLocation(scan.scenes),
-        hierarchy: sortByLocation(scan.hierarchy),
+        scenes: addressed('scene', scan.scenes),
+        hierarchy: addressed('scene-edge', scan.hierarchy),
       },
       entity: {
-        entities: sortByLocation(scan.entities),
+        entities: addressed('entity', scan.entities),
       },
       input: {
-        listeners: sortByLocation(scan.input.listeners),
-        keys: sortByLocation(scan.input.keys),
+        listeners: addressed('input-listener', scan.input.listeners),
+        keys: addressed('input-key', scan.input.keys),
       },
       simulation: {
-        systems: sortByLocation(scan.simulation.systems),
-        loops: sortByLocation(scan.simulation.loops),
+        systems: addressed('simulation-system', scan.simulation.systems),
+        loops: addressed('simulation-loop', scan.simulation.loops),
         physics: clone(scan.simulation.physics).sort((a, b) =>
           (a.project_root + ':' + a.package).localeCompare(b.project_root + ':' + b.package)),
       },
       render: {
-        renderers: sortByLocation(scan.render.renderers),
+        renderers: addressed('render', scan.render.renderers),
       },
       network: {
-        sockets: sortByLocation(scan.network.sockets),
+        sockets: addressed('network', scan.network.sockets),
       },
       asset: {
-        assets: sortByLocation(scan.assets),
+        assets: addressed('asset', scan.assets),
       },
       behavior: {
-        triggers: sortByLocation([
+        triggers: addressed('behavior-trigger', [
           ...scan.input.listeners.map((x) => ({ kind: 'input-listener', ...x })),
           ...scan.input.keys.map((x) => ({ kind: 'key-check', ...x })),
         ]),
-        systems: sortByLocation(scan.simulation.systems),
+        systems: addressed('behavior-system', scan.simulation.systems),
       },
     },
     warnings: clone(scan.warnings),
