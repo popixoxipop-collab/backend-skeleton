@@ -67,6 +67,20 @@ export function buildWebgameFingerprint(input) {
 	};
 }
 
+export function validateWebgameFingerprint(fingerprint) {
+	const errors = [];
+	if (!fingerprint || typeof fingerprint !== 'object') {
+		return { ok: false, errors: ['fingerprint must be an object'] };
+	}
+	if (fingerprint.schema !== WEBGAME_FINGERPRINT_SCHEMA) errors.push('fingerprint schema mismatch');
+	if (!fingerprint.material || typeof fingerprint.material !== 'object') errors.push('fingerprint material missing');
+	if (typeof fingerprint.digest !== 'string') errors.push('fingerprint digest missing');
+	if (errors.length === 0 && sha256Canonical(fingerprint.material) !== fingerprint.digest) {
+		errors.push('fingerprint digest mismatch');
+	}
+	return { ok: errors.length === 0, errors };
+}
+
 export function diffWebgameFingerprints(previous, current) {
 	if (!previous?.material || !current?.material) {
 		return { current: false, changed_components: null, reason: 'missing_material' };
@@ -82,7 +96,11 @@ export function diffWebgameFingerprints(previous, current) {
 }
 
 export function isWebgameFingerprintCurrent(previous, current) {
-	return Boolean(previous?.digest && current?.digest && previous.digest === current.digest);
+	return Boolean(
+		validateWebgameFingerprint(previous).ok &&
+		validateWebgameFingerprint(current).ok &&
+		previous.digest === current.digest,
+	);
 }
 
 export function digestWebgameValue(value) {
