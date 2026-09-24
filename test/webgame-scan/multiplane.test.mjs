@@ -134,3 +134,27 @@ test('unrelated object render call does not complete a Three.js runtime', () => 
   assert.equal(game.capabilities.render_call, false);
   assert.equal(game.capabilities.playable_runtime_claimed, false);
 });
+
+test('Three.js namespace and named aliases retain runtime provenance', () => {
+  const report = scan('three-import-bindings');
+  const game = report.domains.find((d) => d.kind === 'game-runtime');
+  assert.ok(game);
+  assert.equal(game.status, 'complete');
+  assert.equal(game.capabilities.renderer, true);
+  assert.equal(game.capabilities.scene, true);
+  assert.equal(game.capabilities.render_call, true);
+  const renderer = game.evidence.find((e) => e.kind === 'renderer');
+  assert.equal(renderer.details.imported_symbol, 'WebGLRenderer');
+  assert.equal(renderer.details.binding, 'renderer');
+});
+
+test('same-named local renderer and scene are not promoted just because three is a dependency', () => {
+  const report = scan('fake-three-names');
+  const game = report.domains.find((d) => d.kind === 'game-runtime');
+  assert.ok(game);
+  assert.equal(game.capabilities.active_three_import, true);
+  assert.equal(game.capabilities.renderer, false);
+  assert.equal(game.capabilities.scene, false);
+  assert.equal(game.capabilities.render_call, false);
+  assert.equal(game.capabilities.playable_runtime_claimed, false);
+});
