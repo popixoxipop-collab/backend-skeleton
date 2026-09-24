@@ -1,4 +1,7 @@
-import assert from 'node:assert/strict';\nimport fs from 'node:fs';\nimport os from 'node:os';\nimport path from 'node:path';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import { evaluateScenarioEvidence } from '../webgame/assertions.mjs';
@@ -7,7 +10,8 @@ import { executeWebgamePlan } from '../webgame/execution.mjs';
 import { buildWebgameExecutionPlan } from '../webgame/plan.mjs';
 import { createPlaywrightDriver, WebgameBrowserUnavailableError } from '../webgame/playwright-driver.mjs';
 import { parseProbeSeries, WebgameProbeError } from '../webgame/probe-contract.mjs';
-import { createOwnedProcessSession } from '../webgame/process-session.mjs';\nimport { runWebgameRuntime, WebgameRuntimeExecutionError } from '../webgame/runtime-runner.mjs';
+import { createOwnedProcessSession } from '../webgame/process-session.mjs';
+import { runWebgameRuntime, WebgameRuntimeExecutionError } from '../webgame/runtime-runner.mjs';
 
 function contract({ trust = 'owned', assertions = null } = {}) {
   return {
