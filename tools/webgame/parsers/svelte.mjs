@@ -9,9 +9,15 @@ function lineColumn(text, offset) {
 export function parseSvelteSource(text, { sourcePath = '<memory>', role = 'active' } = {}) {
   const scripts = [];
   const unresolved = [];
+  const commentRanges = [];
+  const commentRe = /<!--[\s\S]*?-->/g;
+  let comment;
+  while ((comment = commentRe.exec(text)) != null) commentRanges.push([comment.index, commentRe.lastIndex]);
+  const inHtmlComment = (offset) => commentRanges.some(([start, end]) => offset >= start && offset < end);
   const scriptRe = /<script\b([^>]*)>/gi;
   let match;
   while ((match = scriptRe.exec(text)) != null) {
+    if (inHtmlComment(match.index)) continue;
     const openEnd = scriptRe.lastIndex;
     const close = text.toLowerCase().indexOf('</script>', openEnd);
     if (close < 0) {
