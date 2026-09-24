@@ -3,7 +3,7 @@
 ## Implemented
 
 - Project discovery with nested package-root ownership.
-- Read-only JS/TS/Svelte parsing with original source line/column evidence.
+- Read-only JS/TS/Svelte parsing with original source line/column evidence and SHA-256 source digests.
 - Active/reference/generated/vendor/template source-role separation.
 - Test/fixture directories are reference inputs, so oracle code cannot become a playable-runtime claim.
 - Three.js/WebGPU/TSL renderer, scene, material, loader and render-loop evidence.
@@ -15,8 +15,8 @@
 
 `node --test test/webgame-scan/*.test.mjs`
 
-- 15 tests
-- 15 passed
+- 16 tests
+- 16 passed
 - 0 failed
 
 Negative cases covered:
