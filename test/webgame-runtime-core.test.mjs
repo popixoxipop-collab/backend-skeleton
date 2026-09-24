@@ -49,19 +49,40 @@ function sample(seq, { player = [0, 0, 0], camera = [0, 2, -4], frame = seq * 2,
 
 const healthy = [sample(0), sample(1, { player: [0, 0, 0.25], camera: [0, 2, -3.8] }), sample(2, { player: [0, 0, 0.6], camera: [0, 2, -3.5] })];
 
+function approvalFor(parsed) {
+  return {
+    approval_id: 'test-owned-fixture',
+    allow_execute: true,
+    project_id: parsed.project_id,
+    source_root: parsed.source.root,
+  };
+}
+
+function approvedPlan(value = contract()) {
+  const parsed = parseWebgameRuntimeContract(value);
+  return buildWebgameExecutionPlan(parsed, { approval: approvalFor(parsed) });
+}
+
 test('owned contract normalizes into an executable side-effect-free plan', () => {
   const parsed = parseWebgameRuntimeContract(contract(), { file: 'specs/owned/runtime.json' });
-  const plan = buildWebgameExecutionPlan(parsed);
-  assert.equal(parsed.execution_trust, 'approved');
+  const plan = buildWebgameExecutionPlan(parsed, { approval: approvalFor(parsed) });
+  assert.equal(parsed.execution_trust, 'requires-approval');
   assert.equal(plan.execution.available, true);
   assert.equal(plan.scenarios.length, 1);
 });
 
 test('reference source stays inventory-only and cannot become executable through planning', () => {
   const parsed = parseWebgameRuntimeContract(contract({ trust: 'reference' }));
-  const plan = buildWebgameExecutionPlan(parsed);
+  const plan = buildWebgameExecutionPlan(parsed, { approval: approvalFor(parsed) });
   assert.equal(parsed.execution_trust, 'inventory-only');
   assert.deepEqual(plan.execution.blocked_by, ['source.trust']);
+});
+
+test('owned declaration without an out-of-band approval stays blocked', () => {
+  const parsed = parseWebgameRuntimeContract(contract());
+  const plan = buildWebgameExecutionPlan(parsed);
+  assert.equal(plan.execution.available, false);
+  assert.ok(plan.execution.blocked_by.includes('execution.approval'));
 });
 
 test('runtime contract rejects non-loopback servers before execution', () => {
@@ -117,7 +138,7 @@ test('probe ordering is fail-closed', () => {
 });
 
 test('execution closes the isolated driver after success and returns ungated evidence', async () => {
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   const events = [];
   const driver = {
     async open() { events.push('open'); },
@@ -131,7 +152,7 @@ test('execution closes the isolated driver after success and returns ungated evi
 });
 
 test('execution closes the driver when a scenario throws', async () => {
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   const events = [];
   const driver = {
     async open() { events.push('open'); },
@@ -164,7 +185,7 @@ test('Playwright driver samples the declared probe and releases keys/context/bro
     async close() { events.push('browser-close'); },
   };
   const fakePlaywright = { chromium: { async launch() { events.push('launch'); return browser; } } };
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   const driver = createPlaywrightDriver({ playwright: fakePlaywright });
   await driver.open(plan);
   const samples = await driver.runScenario(plan.scenarios[0]);
@@ -176,13 +197,13 @@ test('Playwright driver samples the declared probe and releases keys/context/bro
 });
 
 test('Playwright driver refuses reference/inventory-only plans', async () => {
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract({ trust: 'reference' })));
+  const plan = approvedPlan(contract({ trust: 'reference' }));
   const driver = createPlaywrightDriver({ playwright: {} });
   await assert.rejects(() => driver.open(plan), /non-executable/);
 });
 
 test('Playwright driver reports an unavailable requested browser explicitly', async () => {
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   const driver = createPlaywrightDriver({ playwright: {} });
   await assert.rejects(() => driver.open(plan), WebgameBrowserUnavailableError);
 });
@@ -196,7 +217,7 @@ test('Playwright driver rejects a 404 main document instead of treating it as re
   const context = { async route() {}, async newPage() { return page; }, async close() {} };
   const browser = { async newContext() { return context; }, async close() {} };
   const driver = createPlaywrightDriver({ playwright: { chromium: { async launch() { return browser; } } } });
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   await assert.rejects(() => driver.open(plan), /HTTP 404/);
   await driver.close();
 });
@@ -217,7 +238,7 @@ test('Playwright driver fails closed when the page raises a runtime error', asyn
   const context = { async route() {}, async newPage() { return page; }, async close() {} };
   const browser = { async newContext() { return context; }, async close() {} };
   const driver = createPlaywrightDriver({ playwright: { chromium: { async launch() { return browser; } } } });
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   await driver.open(plan);
   await assert.rejects(() => driver.runScenario(plan.scenarios[0]), /page error/);
   await driver.close();
@@ -235,7 +256,7 @@ test('Playwright driver fails when required workers do not appear before timeout
   value.browser.required_workers = 1;
   value.browser.worker_timeout_ms = 1;
   const driver = createPlaywrightDriver({ playwright: { chromium: { async launch() { return browser; } } } });
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(value));
+  const plan = approvedPlan(value);
   await assert.rejects(() => driver.open(plan), /required workers did not start/);
   await driver.close();
 });
@@ -269,7 +290,7 @@ test('owned process session starts without shell and only tracks its own child',
 test('runtime runner builds, waits for loopback readiness, executes, and always stops owned processes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-webgame-runner-'));
   fs.mkdirSync(path.join(root, 'dist'));
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   const events = [];
   const session = {
     async run(argv) { events.push(['build', ...argv]); return { code: 0, stdout: '', stderr: '' }; },
@@ -290,7 +311,7 @@ test('runtime runner builds, waits for loopback readiness, executes, and always 
 
 test('runtime runner fails closed on missing build output and still stops owned processes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-webgame-runner-missing-'));
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   let stopped = false;
   const session = {
     async run() { return { code: 0, stdout: '', stderr: '' }; },
@@ -319,7 +340,7 @@ function freeLoopbackPort() {
 test('runtime runner does not accept HTTP 404 as server readiness', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-webgame-runner-404-'));
   fs.mkdirSync(path.join(root, 'dist'));
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const plan = approvedPlan();
   let stopped = false;
   const session = {
     async run() { return { code: 0, stdout: '', stderr: '' }; },
@@ -340,7 +361,7 @@ test('owned fixture performs a real build and loopback server lifecycle before r
   value.source.root = 'fixtures/webgame-runtime/owned-singleplayer';
   value.build = { argv: ['node', 'build.mjs'], output_dir: 'dist' };
   value.serve = { argv: ['node', 'server.mjs', String(port)], url: `http://127.0.0.1:${port}`, ready_path: '/' };
-  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(value));
+  const plan = approvedPlan(value);
   const driver = {
     async open() {},
     async runScenario() { return healthy; },
