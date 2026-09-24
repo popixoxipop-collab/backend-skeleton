@@ -151,7 +151,7 @@ test('Playwright driver samples the declared probe and releases keys/context/bro
     async up(key) { events.push(`up:${key}`); },
     async press(key) { events.push(`press:${key}`); },
   };
-  page.goto = async (url) => events.push(`goto:${url}`);
+  page.goto = async (url) => { events.push(`goto:${url}`); return { status: () => 200 }; };
   page.waitForTimeout = async () => {};
   page.evaluate = async () => sample(seq++, { player: [0, 0, seq * 0.25], frame: seq * 2 });
   const context = {
@@ -185,6 +185,53 @@ test('Playwright driver reports an unavailable requested browser explicitly', as
   const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
   const driver = createPlaywrightDriver({ playwright: {} });
   await assert.rejects(() => driver.open(plan), WebgameBrowserUnavailableError);
+});
+
+test('Playwright driver rejects a 404 main document instead of treating it as ready', async () => {
+  const page = new EventEmitter();
+  page.keyboard = { async down() {}, async up() {}, async press() {} };
+  page.goto = async () => ({ status: () => 404 });
+  page.waitForTimeout = async () => {};
+  page.evaluate = async () => sample(1);
+  const context = { async route() {}, async newPage() { return page; }, async close() {} };
+  const browser = { async newContext() { return context; }, async close() {} };
+  const driver = createPlaywrightDriver({ playwright: { chromium: { async launch() { return browser; } } } });
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  await assert.rejects(() => driver.open(plan), /HTTP 404/);
+  await driver.close();
+});
+
+test('Playwright driver fails closed when the page raises a runtime error', async () => {
+  let seq = 0;
+  const page = new EventEmitter();
+  page.keyboard = { async down() {}, async up() {}, async press() {} };
+  page.goto = async () => ({ status: () => 200 });
+  page.waitForTimeout = async () => { if (seq === 1) page.emit('pageerror', new Error('fixture boom')); };
+  page.evaluate = async () => sample(seq++);
+  const context = { async route() {}, async newPage() { return page; }, async close() {} };
+  const browser = { async newContext() { return context; }, async close() {} };
+  const driver = createPlaywrightDriver({ playwright: { chromium: { async launch() { return browser; } } } });
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  await driver.open(plan);
+  await assert.rejects(() => driver.runScenario(plan.scenarios[0]), /page error/);
+  await driver.close();
+});
+
+test('Playwright driver fails when required workers do not appear before timeout', async () => {
+  const page = new EventEmitter();
+  page.keyboard = { async down() {}, async up() {}, async press() {} };
+  page.goto = async () => ({ status: () => 200 });
+  page.waitForTimeout = async () => {};
+  page.evaluate = async () => sample(1);
+  const context = { async route() {}, async newPage() { return page; }, async close() {} };
+  const browser = { async newContext() { return context; }, async close() {} };
+  const value = contract();
+  value.browser.required_workers = 1;
+  value.browser.worker_timeout_ms = 1;
+  const driver = createPlaywrightDriver({ playwright: { chromium: { async launch() { return browser; } } } });
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(value));
+  await assert.rejects(() => driver.open(plan), /required workers did not start/);
+  await driver.close();
 });
 
 test('owned process session rejects cwd escape before spawning anything', () => {
@@ -262,6 +309,23 @@ function freeLoopbackPort() {
     });
   });
 }
+
+test('runtime runner does not accept HTTP 404 as server readiness', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-webgame-runner-404-'));
+  fs.mkdirSync(path.join(root, 'dist'));
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  let stopped = false;
+  const session = {
+    async run() { return { code: 0, stdout: '', stderr: '' }; },
+    start() { return {}; },
+    async stopAll() { stopped = true; },
+  };
+  await assert.rejects(
+    () => runWebgameRuntime(plan, { repoRoot: root, processSession: session, driver: {}, fetchImpl: async () => ({ status: 404 }), readyTimeoutMs: 2, readyPollMs: 1 }),
+    (error) => error instanceof WebgameRuntimeExecutionError && error.phase === 'serve',
+  );
+  assert.equal(stopped, true);
+});
 
 test('owned fixture performs a real build and loopback server lifecycle before runtime evidence', async () => {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
