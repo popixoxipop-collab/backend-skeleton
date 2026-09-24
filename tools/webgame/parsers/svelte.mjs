@@ -10,9 +10,18 @@ export function parseSvelteSource(text, { sourcePath = '<memory>', role = 'activ
   const scripts = [];
   const unresolved = [];
   const commentRanges = [];
-  const commentRe = /<!--[\s\S]*?-->/g;
-  let comment;
-  while ((comment = commentRe.exec(text)) != null) commentRanges.push([comment.index, commentRe.lastIndex]);
+  let commentStart = 0;
+  while ((commentStart = text.indexOf('<!--', commentStart)) >= 0) {
+    const close = text.indexOf('-->', commentStart + 4);
+    if (close < 0) {
+      commentRanges.push([commentStart, text.length]);
+      const pos = lineColumn(text, commentStart);
+      unresolved.push({ kind: 'syntax', message: 'unclosed HTML comment', source_path: sourcePath, ...pos, offset: commentStart });
+      break;
+    }
+    commentRanges.push([commentStart, close + 3]);
+    commentStart = close + 3;
+  }
   const inHtmlComment = (offset) => commentRanges.some(([start, end]) => offset >= start && offset < end);
   const scriptRe = /<script\b([^>]*)>/gi;
   let match;
