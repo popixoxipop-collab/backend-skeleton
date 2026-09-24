@@ -7,8 +7,10 @@ import {
 } from '../webgame/fingerprint.mjs';
 import {
 	createWebgameReceipt,
+	computeWebgameReceiptDigest,
 	validateWebgameReceipt,
 	selectWebgameEvidenceState,
+	buildWebgameRunIndex,
 	isFreshPassingReceipt,
 } from '../webgame/receipts.mjs';
 import { evaluateWebgamePerformance } from '../webgame/performance.mjs';
@@ -104,6 +106,24 @@ test('receipt tampering is rejected even when the verdict still says passed', ()
 	assert.match(result.errors.join(' '), /digest mismatch/);
 });
 
+test('embedded fingerprint tampering is rejected even if the outer receipt digest is recomputed', () => {
+	const tampered = structuredClone(receipt());
+	tampered.fingerprint.material.source_snapshot_digest = 'sha256:forged-source';
+	tampered.receipt_digest = computeWebgameReceiptDigest(tampered);
+	const result = validateWebgameReceipt(tampered);
+	assert.equal(result.status, 'rejected');
+	assert.match(result.errors.join(' '), /fingerprint digest mismatch/);
+});
+
+test('invalid observed_at is rejected even when the outer receipt digest is recomputed', () => {
+	const tampered = structuredClone(receipt());
+	tampered.observed_at = 'not-a-time';
+	tampered.receipt_digest = computeWebgameReceiptDigest(tampered);
+	const result = validateWebgameReceipt(tampered);
+	assert.equal(result.status, 'rejected');
+	assert.match(result.errors.join(' '), /invalid observed_at/);
+});
+
 test('receipt from another run/profile/scenario cannot be reused', () => {
 	const value = receipt();
 	assert.equal(validateWebgameReceipt(value, { expectedRunId: 'run-2' }).status, 'rejected');
@@ -152,6 +172,22 @@ test('a current assertion failure is tracked independently and supersedes an old
 	});
 	assert.equal(release.status, 'blocked');
 	assert.match(release.reasons.join(' '), /newer runtime assertion failure/);
+});
+
+test('run index exposes the same four independent latest-state pointers', () => {
+	const current = fp();
+	const pass = receipt({ fingerprint: current, observed_at: '2026-09-25T00:00:00Z' });
+	const failed = receipt({
+		fingerprint: current,
+		verdict: 'failed',
+		run_id: 'run-2',
+		observed_at: '2026-09-25T00:02:00Z',
+	});
+	const index = buildWebgameRunIndex([pass, failed], { currentFingerprint: current, profileId: 'desktop-chromium' });
+	assert.equal(index.latest_attempt.verdict, 'failed');
+	assert.equal(index.latest_passing_attempt.verdict, 'passed');
+	assert.equal(index.latest_valid_attestation.verdict, 'passed');
+	assert.equal(index.latest_assertion_failure.verdict, 'failed');
 });
 
 test('a stale historical pass remains latest_passing_attempt but not latest_valid_attestation', () => {
@@ -231,4 +267,11 @@ test('profile digest changes require re-approval', () => {
 	});
 	assert.equal(result.status, 'blocked');
 	assert.match(result.reasons.join(' '), /profile digest mismatch/);
+});
+
+test('release policy can explicitly omit runtime without inventing a missing-attestation failure', () => {
+	const policy = { profile_id: 'docs-only', require_runtime: false, require_performance: false };
+	const result = evaluateWebgameRelease({ policy, evidenceState: {} });
+	assert.equal(result.status, 'passed');
+	assert.deepEqual(result.reasons, []);
 });
