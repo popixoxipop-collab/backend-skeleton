@@ -54,3 +54,17 @@ test('constructor assignment binding is captured for renderer correlation', () =
   assert.equal(parsed.constructions.find((x) => x.name === 'WebGLRenderer')?.binding, 'renderer');
   assert.equal(parsed.constructions.find((x) => x.name === 'THREE.WebGPURenderer')?.binding, 'this.alt');
 });
+
+test('import bindings preserve aliases, namespaces, and type-only metadata', () => {
+  const parsed = parseJavaScriptSource(`
+    import * as THREE from 'three';
+    import { WebGLRenderer as Renderer, type Camera } from 'three';
+    import type { Scene as SceneType } from 'three';
+  `, { sourcePath: 'src/imports.ts' });
+  const [namespaceImport, namedImport, typeImport] = parsed.imports;
+  assert.deepEqual(namespaceImport.bindings, [{ kind: 'namespace', imported: '*', local: 'THREE', type_only: false }]);
+  assert.ok(namedImport.bindings.some((b) => b.imported === 'WebGLRenderer' && b.local === 'Renderer' && b.type_only === false));
+  assert.ok(namedImport.bindings.some((b) => b.imported === 'Camera' && b.local === 'Camera' && b.type_only === true));
+  assert.equal(typeImport.type_only, true);
+  assert.ok(typeImport.bindings.every((b) => b.type_only));
+});
