@@ -32,6 +32,7 @@ gaps for a browser/game oracle to resolve later.
 ```bash
 bskel webgame scan --json
 bskel webgame contract emit --feature 001-gameplay --json
+bskel webgame contract verify --feature 001-gameplay --json
 ```
 
 The feature-scoped command writes:
@@ -44,3 +45,11 @@ simulation, render, network, asset, and behavior planes. The behavior plane copi
 triggers and systems; it does not invent causal edges between them.
 
 This plane does not satisfy, mutate, or weaken the existing HTTP `contract` gate.
+
+
+## Freshness
+
+`webgame contract verify` re-runs the source-backed scan and compares the persisted contract's
+feature identity, scanner revision, and source hash. A source/package.json change or a future
+scanner-semantics revision returns the normal stale exit code instead of silently treating the old
+game contract as current. This remains separate from the HTTP contract gate.
