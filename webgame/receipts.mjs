@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { sortKeysDeep } from '../lib/gates.mjs';
-import { WEBGAME_FINGERPRINT_SCHEMA, isWebgameFingerprintCurrent } from './fingerprint.mjs';
+import { isWebgameFingerprintCurrent, validateWebgameFingerprint } from './fingerprint.mjs';
 
 export const WEBGAME_RECEIPT_SCHEMA = 'sbf.webgame-receipt/1';
 export const WEBGAME_VERDICTS = Object.freeze(['passed', 'failed', 'blocked', 'unsupported', 'not-run']);
@@ -40,8 +40,9 @@ export function createWebgameReceipt({
 	requiredString(scenario_id, 'scenario_id');
 	requiredString(runtime_result_digest, 'runtime_result_digest');
 	if (!WEBGAME_VERDICTS.includes(verdict)) throw new Error(`unsupported verdict: ${verdict}`);
-	if (!fingerprint || fingerprint.schema !== WEBGAME_FINGERPRINT_SCHEMA || typeof fingerprint.digest !== 'string') {
-		throw new Error('fingerprint must be an sbf.webgame-fingerprint/1 object');
+	const fingerprintValidation = validateWebgameFingerprint(fingerprint);
+	if (!fingerprintValidation.ok) {
+		throw new Error(`invalid webgame fingerprint: ${fingerprintValidation.errors.join(', ')}`);
 	}
 	if (!Number.isFinite(Date.parse(observed_at))) throw new Error('observed_at must be an ISO timestamp');
 	const receipt = {
@@ -70,6 +71,9 @@ export function validateWebgameReceipt(receipt, {
 	if (!receipt || typeof receipt !== 'object') return { ok: false, status: 'rejected', errors: ['receipt must be an object'] };
 	if (receipt.schema !== WEBGAME_RECEIPT_SCHEMA) errors.push('schema mismatch');
 	if (!WEBGAME_VERDICTS.includes(receipt.verdict)) errors.push('invalid verdict');
+	if (!Number.isFinite(Date.parse(receipt.observed_at))) errors.push('invalid observed_at');
+	const fingerprintValidation = validateWebgameFingerprint(receipt.fingerprint);
+	if (!fingerprintValidation.ok) errors.push(...fingerprintValidation.errors);
 	if (!receipt.receipt_digest || computeWebgameReceiptDigest(receipt) !== receipt.receipt_digest) errors.push('receipt digest mismatch');
 	if (expectedRunId != null && receipt.run_id !== expectedRunId) errors.push('run_id mismatch');
 	if (expectedProfileId != null && receipt.profile_id !== expectedProfileId) errors.push('profile_id mismatch');
@@ -126,6 +130,10 @@ export function selectWebgameEvidenceState(receipts, {
 		latest_valid_attestation: latestValidAttestation,
 		latest_assertion_failure: latestAssertionFailure,
 	};
+}
+
+export function buildWebgameRunIndex(receipts, options = {}) {
+	return selectWebgameEvidenceState(receipts, options);
 }
 
 export function isFreshPassingReceipt(receipt, currentFingerprint, expectedProfileId = null) {
