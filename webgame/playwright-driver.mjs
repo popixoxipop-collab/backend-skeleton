@@ -18,6 +18,14 @@ export class WebgameBrowserUnavailableError extends Error {
   }
 }
 
+export class WebgameBrowserHealthError extends Error {
+  constructor(message, diagnostics = null) {
+    super(message);
+    this.name = 'WebgameBrowserHealthError';
+    this.diagnostics = diagnostics;
+  }
+}
+
 async function loadPlaywright(explicit) {
   if (explicit) return explicit;
   try {
@@ -32,19 +40,40 @@ export function createPlaywrightDriver({ playwright = null } = {}) {
   let context = null;
   let page = null;
   let currentPlan = null;
-  const diagnostics = { page_errors: [], request_failures: [], console_errors: [], workers: [] };
+  const diagnostics = { page_errors: [], request_failures: [], console_errors: [], workers: [], crashes: [] };
+
+  function healthCheckpoint() {
+    return {
+      page_errors: diagnostics.page_errors.length,
+      request_failures: diagnostics.request_failures.length,
+      console_errors: diagnostics.console_errors.length,
+      crashes: diagnostics.crashes.length,
+    };
+  }
+
+  function assertHealthy(since = { page_errors: 0, request_failures: 0, console_errors: 0, crashes: 0 }) {
+    const failures = [];
+    if (diagnostics.page_errors.length > since.page_errors) failures.push('page error');
+    if (diagnostics.request_failures.length > since.request_failures) failures.push('request failure');
+    if (diagnostics.console_errors.length > since.console_errors) failures.push('console error');
+    if (diagnostics.crashes.length > since.crashes) failures.push('page crash');
+    if (failures.length) throw new WebgameBrowserHealthError(`browser health check failed: ${failures.join(', ')}`, diagnostics);
+  }
 
   async function sample() {
+    assertHealthy();
     const value = await page.evaluate((globalName) => {
       const probe = globalThis[globalName];
       if (!probe) return null;
       return typeof probe.snapshot === 'function' ? probe.snapshot() : probe;
     }, currentPlan.probe.global);
-    if (!value) throw new Error(`webgame probe ${currentPlan.probe.global} is not available in the page`);
+    if (!value) throw new WebgameBrowserHealthError(`webgame probe ${currentPlan.probe.global} is not available in the page`, diagnostics);
+    assertHealthy();
     return value;
   }
 
   async function collectFor(durationMs) {
+    const checkpoint = healthCheckpoint();
     const samples = [await sample()];
     const interval = currentPlan.probe.sample_interval_ms;
     const steps = Math.max(1, Math.ceil(durationMs / interval));
@@ -52,7 +81,20 @@ export function createPlaywrightDriver({ playwright = null } = {}) {
       await page.waitForTimeout(interval);
       samples.push(await sample());
     }
+    assertHealthy(checkpoint);
     return samples;
+  }
+
+  async function waitForRequiredWorkers() {
+    const required = currentPlan.browser.required_workers ?? 0;
+    if (required <= 0) return;
+    const timeoutMs = currentPlan.browser.worker_timeout_ms ?? 3000;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (diagnostics.workers.length >= required) return;
+      await page.waitForTimeout(Math.min(50, timeoutMs));
+    }
+    throw new WebgameBrowserHealthError(`required workers did not start: expected ${required}, observed ${diagnostics.workers.length}`, diagnostics);
   }
 
   return {
@@ -81,7 +123,12 @@ export function createPlaywrightDriver({ playwright = null } = {}) {
       page.on?.('requestfailed', (request) => diagnostics.request_failures.push({ url: request.url(), failure: request.failure()?.errorText ?? null }));
       page.on?.('console', (message) => { if (message.type() === 'error') diagnostics.console_errors.push(message.text()); });
       page.on?.('worker', (worker) => diagnostics.workers.push(worker.url()));
-      await page.goto(joinUrl(plan.serve.url, plan.serve.ready_path), { waitUntil: 'domcontentloaded' });
+      page.on?.('crash', () => diagnostics.crashes.push({ at: Date.now() }));
+      const response = await page.goto(joinUrl(plan.serve.url, plan.serve.ready_path), { waitUntil: 'domcontentloaded' });
+      if (!response || typeof response.status !== 'function') throw new WebgameBrowserHealthError('browser navigation returned no HTTP response', diagnostics);
+      const status = response.status();
+      if (status < 200 || status >= 400) throw new WebgameBrowserHealthError(`browser navigation failed with HTTP ${status}`, diagnostics);
+      await waitForRequiredWorkers();
       await sample();
     },
     async runScenario(scenario) {
@@ -100,7 +147,9 @@ export function createPlaywrightDriver({ playwright = null } = {}) {
         const before = await sample();
         await page.keyboard.press(action.key ?? 'KeyE');
         await page.waitForTimeout(currentPlan.probe.sample_interval_ms);
-        return [before, await sample()];
+        const after = await sample();
+        assertHealthy();
+        return [before, after];
       }
       throw new Error(`unsupported browser action: ${action.type}`);
     },
