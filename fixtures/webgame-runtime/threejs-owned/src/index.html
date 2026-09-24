@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BSKEL owned Three.js fixture</title>
+<style>html,body{margin:0;background:#111}canvas{display:block}</style>
+<canvas id="game"></canvas>
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+
+const canvas = document.querySelector('#game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(1);
+renderer.setSize(640, 360, false);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, 640 / 360, 0.1, 100);
+camera.position.set(0, 2, -4);
+
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(1, 3, -2);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const player = new THREE.Mesh(
+  new THREE.BoxGeometry(0.6, 0.6, 0.6),
+  new THREE.MeshStandardMaterial({ color: 0x44aa88 }),
+);
+player.position.set(0, 0, 0);
+scene.add(player);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshStandardMaterial({ color: 0x333333 }),
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.31;
+scene.add(floor);
+
+const wall = new THREE.Mesh(
+  new THREE.BoxGeometry(4, 2, 0.2),
+  new THREE.MeshStandardMaterial({ color: 0xaa4444 }),
+);
+wall.position.set(0, 0.7, 2.1);
+scene.add(wall);
+
+const keys = new Set();
+const velocity = new THREE.Vector3();
+let frameCount = 0;
+let seq = 0;
+let interactions = 0;
+let collisions = [];
+const startedAt = performance.now();
+
+addEventListener('keydown', (event) => {
+  keys.add(event.code);
+  if (event.code === 'KeyE') interactions += 1;
+});
+addEventListener('keyup', (event) => keys.delete(event.code));
+
+let last = performance.now();
+function animate(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  velocity.set(0, 0, keys.has('KeyW') ? 2 : 0);
+  player.position.addScaledVector(velocity, dt);
+  collisions = [];
+  if (player.position.z > 1.7) {
+    player.position.z = 1.7;
+    collisions.push('wall-z2');
+  }
+  camera.position.z = player.position.z - 4;
+  camera.lookAt(player.position);
+  renderer.render(scene, camera);
+  frameCount += 1;
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+globalThis.__BSKEL_PROBE__ = {
+  snapshot() {
+    seq += 1;
+    return {
+      schema: 'sbf.webgame-probe/1',
+      seq,
+      time_ms: performance.now() - startedAt,
+      frame: frameCount,
+      player: {
+        position: { x: player.position.x, y: player.position.y, z: player.position.z },
+        velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+      },
+      camera: {
+        position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+      },
+      collisions: { active: [...collisions] },
+      interactions: { count: interactions },
+    };
+  },
+};
+</script>
