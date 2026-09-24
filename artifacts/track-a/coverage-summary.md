@@ -11,13 +11,11 @@
 - Multi-domain graph composition without changing legacy `runScan()`.
 - Explicit unresolved findings for syntax damage and non-literal dynamic imports.
 
-## Local acceptance
+## Automated acceptance
 
-`node --test test/webgame-scan/*.test.mjs`
+The owned suite contains 16 tests. It is wired into the repository's existing `npm test` through `test/webgame-static.test.mjs`, so PR CI executes it without changing `package.json`.
 
-- 16 tests
-- 16 passed
-- 0 failed
+Do not treat this section as a pass claim until the current PR head's GitHub Actions run completes.
 
 Negative cases covered:
 
