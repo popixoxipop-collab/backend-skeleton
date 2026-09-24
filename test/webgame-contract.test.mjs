@@ -121,6 +121,17 @@ test('webgame contract freshness is exact on feature identity, scanner revision 
   });
   assert.equal(revisionDrift.current, false);
   assert.ok(revisionDrift.changes.some((x) => x.field === 'source.adapter_revision'));
+
+  const tampered = structuredClone(contract);
+  tampered.planes.scene.scenes[0].symbol = 'tampered-scene';
+  const contentDrift = verifyWebgameContractSnapshot({
+    contract: tampered,
+    scan,
+    featureId: '001-gameplay',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+  });
+  assert.equal(contentDrift.current, false);
+  assert.ok(contentDrift.changes.some((x) => x.field === 'contract_digest'));
 });
 
 test('React Three Fiber Canvas and JSX mesh are recognized as scene/render/entity declarations', () => {
