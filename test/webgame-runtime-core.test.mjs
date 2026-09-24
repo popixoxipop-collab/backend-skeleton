@@ -203,10 +203,16 @@ test('Playwright driver rejects a 404 main document instead of treating it as re
 
 test('Playwright driver fails closed when the page raises a runtime error', async () => {
   let seq = 0;
+  let emitted = false;
   const page = new EventEmitter();
   page.keyboard = { async down() {}, async up() {}, async press() {} };
   page.goto = async () => ({ status: () => 200 });
-  page.waitForTimeout = async () => { if (seq === 1) page.emit('pageerror', new Error('fixture boom')); };
+  page.waitForTimeout = async () => {
+    if (!emitted) {
+      emitted = true;
+      page.emit('pageerror', new Error('fixture boom'));
+    }
+  };
   page.evaluate = async () => sample(seq++);
   const context = { async route() {}, async newPage() { return page; }, async close() {} };
   const browser = { async newContext() { return context; }, async close() {} };
