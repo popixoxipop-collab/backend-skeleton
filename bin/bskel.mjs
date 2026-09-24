@@ -30,7 +30,7 @@ import { renderScanMarkdown, renderPlanConstraints, renderScanExplain } from '..
 import { ADAPTERS, LOAD_ERRORS, adapterById } from '../scanners/registry.mjs';
 import { COMMAND_CAPABILITIES, CAPABILITY_SATISFIERS, explainMissingCapability } from '../scanners/capabilities.mjs';
 import { buildContract, selectModule, CONTRACT_SCHEMA_VERSION } from '../contracts/emit.mjs';
-import { buildWebgameContract } from '../contracts/webgame.mjs';
+import { buildWebgameContract, verifyWebgameContractSnapshot } from '../contracts/webgame.mjs';
 import { validateEnvelope, operationPayloadSchema } from '../contracts/validate.mjs';
 import { evaluateResolution, loadResolution, saveResolution, requireWarningCode, warningKey, countByCode, isWaiverExpired } from '../contracts/completeness.mjs';
 import { loadPatchApprovals, savePatchApprovals, approvalKey } from '../lib/patch-approvals.mjs';
@@ -116,6 +116,7 @@ function usage() {
   bskel feature archive <id> --reason "..." [--json]
   bskel webgame scan [--json]
   bskel webgame contract emit --feature <id> [--out <path>] [--json]
+  bskel webgame contract verify --feature <id> [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   bskel contract export-csv --feature <id> [--out <path>] [--bom] [--json]
@@ -1411,6 +1412,48 @@ function cmdWebgameContractEmit(args) {
 		console.log('note: this is an independent game-runtime contract plane; it does not satisfy or mutate the HTTP contract gate.');
 	}
 	process.exitCode = EXIT.PASS;
+}
+
+function cmdWebgameContractVerify(args) {
+	const flags = parseCommand('webgame contract verify', args);
+	if (flags.help) { console.log(renderCommandHelp('webgame contract verify')); process.exit(0); }
+	setContext('webgame contract verify', flags);
+	const root = requireRepoRoot();
+	requireValidFeatureId(flags.feature);
+	const featureRecord = loadFeatureRecord(root, flags.feature);
+	const contractPath = specPath(root, flags.feature, 'contracts', flags.feature + '.webgame.json');
+	if (!fs.existsSync(contractPath)) {
+		fail(EXIT_CODES.NOT_PASSED, 'MISSING_ARTIFACT', 'no webgame contract at ' + contractPath + ' -- run `bskel webgame contract emit --feature ' + flags.feature + '` first');
+	}
+	let contract;
+	try { contract = JSON.parse(fs.readFileSync(contractPath, 'utf8')); }
+	catch (error) { fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'webgame contract is not valid JSON: ' + error.message); }
+	const validation = validateAgainstSchema('webgame-contract.schema.json', contract);
+	if (!validation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'webgame contract failed its schema:\n' + formatSchemaErrors(validation.errors).join('\n'));
+	}
+	const scan = scanWebgame(root);
+	const scanValidation = validateAgainstSchema('webgame-scan.schema.json', scan);
+	if (!scanValidation.ok) {
+		fail(EXIT_CODES.NOT_PASSED, 'INVALID_ARTIFACT', 'current webgame scan failed its schema:\n' + formatSchemaErrors(scanValidation.errors).join('\n'));
+	}
+	if (scan.completeness.status === 'blocked') {
+		fail(EXIT_CODES.MISSING_CAPABILITY, 'MISSING_CAPABILITY', 'current repo no longer exposes a supported webgame engine');
+	}
+	const result = verifyWebgameContractSnapshot({
+		contract,
+		scan,
+		featureId: flags.feature,
+		featureUid: featureRecord.feature_uid,
+	});
+	if (flags.json) console.log(JSON.stringify(result, null, 2));
+	else if (!flags.quiet) {
+		console.log('webgame contract: ' + (result.current ? 'current' : 'stale'));
+		console.log('source hash: ' + result.source_hash);
+		console.log('adapter revision: ' + result.adapter_revision);
+		for (const change of result.changes) console.error('changed ' + change.field + ': contract=' + JSON.stringify(change.actual) + ' current=' + JSON.stringify(change.expected));
+	}
+	process.exitCode = result.current ? EXIT.PASS : EXIT.STALE;
 }
 
 // G1: intercepts BEFORE any adapter-specific codegen runs (in particular, before
@@ -5001,6 +5044,7 @@ async function dispatchCommand(cmd, rest) {
 		case 'webgame': {
 			if (rest[0] === 'scan') return cmdWebgameScan(rest.slice(1));
 			if (rest[0] === 'contract' && rest[1] === 'emit') return cmdWebgameContractEmit(rest.slice(2));
+			if (rest[0] === 'contract' && rest[1] === 'verify') return cmdWebgameContractVerify(rest.slice(2));
 			usage();
 			process.exit(14);
 			break;
