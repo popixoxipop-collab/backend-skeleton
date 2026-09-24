@@ -210,7 +210,7 @@ function extractFile(root, file) {
     sockets.push({ kind: 'socket.io', endpoint: m[1], file: fileRel, line: lineNumberAt(text, m.index), provenance: 'literal-connect-call' });
   }
 
-  for (const m of text.matchAll(/\b(?:useGLTF|useTexture|load|loadAsync)\s*\(\s*["']([^"']+)["']/g)) {
+  for (const m of text.matchAll(/\b(?:(?:useGLTF|useTexture)\s*|(?:[A-Za-z_$][\w$]*\.)?(?:load|loadAsync)\s*)\(\s*["']([^"']+)["']/g)) {
     assets.push({ uri: m[1], file: fileRel, line: lineNumberAt(text, m.index), provenance: 'literal-asset-reference' });
   }
 
