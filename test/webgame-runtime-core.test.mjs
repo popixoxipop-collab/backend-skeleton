@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
+import net from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import { evaluateScenarioEvidence } from '../webgame/assertions.mjs';
@@ -247,4 +249,35 @@ test('runtime runner fails closed on missing build output and still stops owned 
     (error) => error instanceof WebgameRuntimeExecutionError && error.phase === 'build' && /output does not exist/.test(error.message),
   );
   assert.equal(stopped, true);
+});
+
+
+function freeLoopbackPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      server.close((error) => error ? reject(error) : resolve(address.port));
+    });
+  });
+}
+
+test('owned fixture performs a real build and loopback server lifecycle before runtime evidence', async () => {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const port = await freeLoopbackPort();
+  const value = contract();
+  value.source.root = 'fixtures/webgame-runtime/owned-singleplayer';
+  value.build = { argv: ['node', 'build.mjs'], output_dir: 'dist' };
+  value.serve = { argv: ['node', 'server.mjs', String(port)], url: `http://127.0.0.1:${port}`, ready_path: '/' };
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(value));
+  const driver = {
+    async open() {},
+    async runScenario() { return healthy; },
+    async close() {},
+  };
+  const result = await runWebgameRuntime(plan, { repoRoot, driver, readyTimeoutMs: 5000 });
+  assert.equal(result.verdict, 'passed');
+  assert.equal(result.evidence_scope, 'ungated-runtime-evidence');
+  assert.ok(fs.existsSync(path.join(repoRoot, value.source.root, 'dist', 'index.html')));
 });
