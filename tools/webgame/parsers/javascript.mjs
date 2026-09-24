@@ -170,6 +170,19 @@ function evidenceFromToken(token, extra = {}) {
   };
 }
 
+function assignmentBindingBefore(tokens, index) {
+  if (tokens[index - 1]?.value !== '=') return null;
+  let j = index - 2;
+  if (tokens[j]?.type !== 'identifier') return null;
+  const parts = [tokens[j].value];
+  j--;
+  while (j >= 1 && tokens[j]?.value === '.' && tokens[j - 1]?.type === 'identifier') {
+    parts.unshift(tokens[j - 1].value);
+    j -= 2;
+  }
+  return parts.join('.');
+}
+
 function findMatchingParen(tokens, openIndex) {
   let depth = 0;
   for (let i = openIndex; i < tokens.length; i++) {
@@ -231,7 +244,7 @@ export function parseJavaScriptSource(source, opts = {}) {
     if (t.type === 'identifier' && t.value === 'new') {
       const n = dottedName(tokens, i + 1);
       if (n && tokens[n.endIndex + 1]?.value === '(') {
-        constructions.push({ name: n.name, ...evidenceFromToken(t) });
+        constructions.push({ name: n.name, binding: assignmentBindingBefore(tokens, i), ...evidenceFromToken(t) });
       }
       continue;
     }
