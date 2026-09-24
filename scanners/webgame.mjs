@@ -71,7 +71,9 @@ export function detectWebgameProjects(repoRoot) {
       root: path.dirname(packageFile),
       packageFile,
       engines,
-      physics: PHYSICS_PACKAGES.filter((name) => Object.hasOwn(deps, name)),
+      enginePackages: engines.map((name) => ({ package: name, version: String(deps[name]) })),
+      physics: PHYSICS_PACKAGES.filter((name) => Object.hasOwn(deps, name))
+        .map((name) => ({ package: name, version: String(deps[name]) })),
     });
   }
   return projects.sort((a, b) => rel(repoRoot, a.root).localeCompare(rel(repoRoot, b.root)));
@@ -224,6 +226,7 @@ export function scanWebgame(repoRoot) {
       schema: 'sbf.webgame-scan/1',
       adapter: 'typescript-webgame',
       engines: [],
+      engine_packages: [],
       project_roots: [],
       source_hash: null,
       files_read: [],
@@ -244,6 +247,10 @@ export function scanWebgame(repoRoot) {
     projects.flatMap((p) => walkFiles(p.root, (f) => SOURCE_EXTENSIONS.has(path.extname(f)))),
     (f) => f,
   ).sort();
+  const evidenceFiles = uniqueBy(
+    [...sourceFiles, ...projects.map((p) => p.packageFile)],
+    (f) => f,
+  ).sort();
 
   const merged = {
     scenes: [], entities: [], hierarchy: [], listeners: [], keys: [],
@@ -260,11 +267,15 @@ export function scanWebgame(repoRoot) {
   }
 
   const physics = uniqueBy(
-    projects.flatMap((p) => p.physics.map((name) => ({ package: name, project_root: rel(repoRoot, p.root) || '.' }))),
+    projects.flatMap((p) => p.physics.map((item) => ({ ...item, project_root: rel(repoRoot, p.root) || '.' }))),
     (x) => x.project_root + ':' + x.package,
   ).sort((a, b) => a.project_root.localeCompare(b.project_root) || a.package.localeCompare(b.package));
 
   const engines = uniqueBy(projects.flatMap((p) => p.engines), (x) => x).sort();
+  const enginePackages = uniqueBy(
+    projects.flatMap((p) => p.enginePackages.map((item) => ({ ...item, project_root: rel(repoRoot, p.root) || '.' }))),
+    (x) => x.project_root + ':' + x.package,
+  ).sort((a, b) => a.project_root.localeCompare(b.project_root) || a.package.localeCompare(b.package));
   const warnings = [];
   if (merged.scenes.length === 0) warnings.push({ code: 'WEBGAME_SCENE_UNRESOLVED', message: 'engine detected but no statically addressable Scene or React Three Fiber <Canvas> was found' });
   if (merged.loops.length === 0 && merged.systems.length === 0) warnings.push({ code: 'WEBGAME_SIMULATION_LOOP_UNRESOLVED', message: 'no named update/tick/animate system or animation-loop registration was found' });
@@ -280,9 +291,10 @@ export function scanWebgame(repoRoot) {
     schema: 'sbf.webgame-scan/1',
     adapter: 'typescript-webgame',
     engines,
+    engine_packages: enginePackages,
     project_roots: projects.map((p) => rel(repoRoot, p.root) || '.'),
-    source_hash: aggregateSourceHash(repoRoot, sourceFiles),
-    files_read: sourceFiles.map((f) => rel(repoRoot, f)),
+    source_hash: aggregateSourceHash(repoRoot, evidenceFiles),
+    files_read: evidenceFiles.map((f) => rel(repoRoot, f)),
     scenes: merged.scenes,
     entities: merged.entities,
     hierarchy: merged.hierarchy,
