@@ -110,6 +110,8 @@ export function webgameRuntimeSemanticErrors(raw) {
   if (plain(raw.browser)) {
     push(errors, ['chromium', 'firefox', 'webkit'].includes(raw.browser.name), 'browser.name must be chromium, firefox, or webkit');
     push(errors, typeof raw.browser.headless === 'boolean', 'browser.headless must be boolean');
+    if (raw.browser.required_workers !== undefined) push(errors, Number.isInteger(raw.browser.required_workers) && raw.browser.required_workers >= 0, 'browser.required_workers must be a non-negative integer');
+    if (raw.browser.worker_timeout_ms !== undefined) push(errors, Number.isInteger(raw.browser.worker_timeout_ms) && raw.browser.worker_timeout_ms > 0, 'browser.worker_timeout_ms must be a positive integer');
   }
   push(errors, plain(raw.probe), 'probe must be an object');
   if (plain(raw.probe)) {
