@@ -1,0 +1,124 @@
+{
+  "schema": "sbf.track-a-negative-fixtures/1",
+  "cases": {
+    "comment-only": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 0,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 0,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 0
+      },
+      "game_runtime": null,
+      "network": null,
+      "unresolved_kinds": []
+    },
+    "reference-only": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 1,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 1,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 0
+      },
+      "game_runtime": {
+        "status": "partial",
+        "playable_runtime_claimed": false,
+        "evidence_roles": ["reference"]
+      },
+      "network": null,
+      "unresolved_kinds": []
+    },
+    "syntax-error": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 1,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 1,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 1
+      },
+      "game_runtime": {
+        "status": "partial",
+        "playable_runtime_claimed": false,
+        "evidence_roles": ["active"]
+      },
+      "network": null,
+      "unresolved_kinds": ["syntax"]
+    },
+    "dynamic-import": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 0,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 0,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 1
+      },
+      "game_runtime": null,
+      "network": null,
+      "unresolved_kinds": ["dynamic-import"]
+    },
+    "ws-client": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 1,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 0,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 0
+      },
+      "game_runtime": null,
+      "network": {
+        "websocket_client": true,
+        "websocket_server": false,
+        "multiplayer_server_claimed": false,
+        "http_client": false
+      },
+      "unresolved_kinds": []
+    },
+    "dependency-only": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 1,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 1,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 0
+      },
+      "game_runtime": {
+        "status": "partial",
+        "playable_runtime_claimed": false,
+        "evidence_roles": ["active"]
+      },
+      "network": null,
+      "unresolved_kinds": []
+    },
+    "generator-template": {
+      "summary": {
+        "project_count": 1,
+        "domain_count": 1,
+        "active_game_runtime_count": 0,
+        "partial_game_runtime_count": 1,
+        "api_domain_count": 0,
+        "websocket_server_project_count": 0,
+        "unresolved_count": 0
+      },
+      "game_runtime": {
+        "status": "partial",
+        "playable_runtime_claimed": false,
+        "evidence_roles": ["template"]
+      },
+      "network": null,
+      "unresolved_kinds": []
+    }
+  }
+}
