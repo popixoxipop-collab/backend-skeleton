@@ -142,7 +142,7 @@ function usage() {
   bskel handles plan --feature <id> [--module <name>] [--resource type1,type2] [--diff] [--ast]
   bskel handles emit --feature <id> [--module <name>] [--resource type1,type2] [--force --reason "..."] [--check] [--diff] [--enforce-registry on|off --reason "..."]
   bskel gameplay plan [--loop <id>] [--json]
-  bskel gameplay emit --loop <id> [--apply --reason "..." --unreal-editor <file>] [--python <file>] [--timeout-sec N] [--json]
+  bskel gameplay emit --loop <id> [--apply --reason "..." --unreal-editor <file>] [--nullrhi] [--python <file>] [--timeout-sec N] [--json]
   bskel handles patch approve --feature <id> [--module <name>] --resource <Type> --field <name> --strategy patch-wrapper|null-means-unchanged --reason "..." [--json]
   bskel handles patch unapprove --feature <id> --resource <Type> --field <name> --reason "..." [--json]
   bskel handles audit --feature <id> --database-url-env <NAME> [--resource type1,type2] [--module <name>] [--check-registry-coverage] [--json]
@@ -3263,8 +3263,8 @@ function hasCurrentGameplayReceipt(root, plan, step, externalReceipt) {
 	} catch { return false; }
 }
 
-function saveGameplayReceipt(root, plan, step, externalReceipt) {
-	const record = { schema: 'sbf.gameplay-receipt/1', loop_id: plan.loop_id, step_id: step.id, fingerprint: gameplayStepFingerprint(root, plan, step), external_receipt: step.result_file, external_receipt_hash: sha256File(externalReceipt), at: new Date().toISOString() };
+function saveGameplayReceipt(root, plan, step, externalReceipt, executionMode = 'bskel-editor') {
+	const record = { schema: 'sbf.gameplay-receipt/1', loop_id: plan.loop_id, step_id: step.id, fingerprint: gameplayStepFingerprint(root, plan, step), external_receipt: step.result_file, external_receipt_hash: sha256File(externalReceipt), execution_mode: executionMode, at: new Date().toISOString() };
 	writeFileAtomic(gameplayReceiptPath(root, plan.loop_id, step.id), `${JSON.stringify(record, null, 2)}\n`);
 	return record;
 }
@@ -3308,17 +3308,28 @@ async function cmdGameplayEmit(args) {
 	};
 	const runEditorUntilReceipt = async (step, receipt) => {
 		const scriptArgs = step.args.map((arg) => path.join(root, ...arg.split('/'))).join(' ');
-		const child = spawn(editor, [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}${scriptArgs ? ` ${scriptArgs}` : ''}`, '-stdout', '-unattended', '-nosplash', '-nopause'], { cwd: root, windowsHide: true, stdio: 'ignore' });
+		const editorArgs = [path.join(root, ...step.project_file.split('/')), `-ExecCmds=py ${path.join(root, ...step.script.split('/'))}${scriptArgs ? ` ${scriptArgs}` : ''}`, '-stdout', '-unattended', '-nosplash', '-nopause'];
+		if (flags.nullrhi) editorArgs.push('-nullrhi');
+		const child = spawn(editor, editorArgs, { cwd: root, windowsHide: true, stdio: 'ignore' });
 		let exited = false;
 		const exitedPromise = new Promise((resolve) => child.once('exit', (code) => { exited = true; resolve(code); }));
 		const deadline = Date.now() + flags['timeout-sec'] * 1000;
 		while (Date.now() < deadline) {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			if (fs.existsSync(receipt) && fs.readFileSync(receipt, 'utf8').includes('SCRIPT_DONE_OK')) {
-				if (!exited && !child.killed) child.kill();
-				await Promise.race([exitedPromise, new Promise((resolve) => setTimeout(resolve, 5000))]);
-				if (!exited) fail(EXIT_CODES.NOT_PASSED, 'EDITOR_CLEANUP_FAILED', `${step.id} wrote its receipt but its Unreal editor process did not exit within 5 seconds`);
-				return;
+				if (!exited && !child.killed) {
+				if (process.platform === 'win32') {
+					spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+				} else {
+					child.kill();
+				}
+			}
+			let cleanupTimer = null;
+			const cleanupTimeout = new Promise((resolve) => { cleanupTimer = setTimeout(resolve, 10000); });
+			await Promise.race([exitedPromise, cleanupTimeout]);
+			if (cleanupTimer) clearTimeout(cleanupTimer);
+			if (process.platform !== 'win32' && !exited && child.exitCode === null) fail(EXIT_CODES.NOT_PASSED, 'EDITOR_CLEANUP_FAILED', step.id + ' wrote its receipt but its Unreal editor process tree did not exit within 10 seconds');
+			return;
 			}
 			if (child.exitCode !== null) fail(EXIT_CODES.NOT_PASSED, 'EMIT_FAILED', `${step.id} editor exited before its receipt was written`);
 		}
@@ -3328,6 +3339,37 @@ async function cmdGameplayEmit(args) {
 	const outputFile = path.join(root, ...plan.compiler.writes[0].path.split('/'));
 	const completed = [];
 	const allSteps = [...plan.emit_steps, ...plan.verify_steps];
+	const adoptMode = flags.resume ? (process.env.BSKEL_ADOPT_EXISTING_RECEIPTS ?? '') : '';
+	const adoptExisting = adoptMode === '1' || adoptMode === 'all';
+	if (adoptExisting) {
+		const compilerOutput = path.join(root, ...plan.compiler.writes[0].path.split('/'));
+		const compilerMtime = fs.existsSync(compilerOutput) ? fs.statSync(compilerOutput).mtimeMs : 0;
+		if (adoptMode === 'all') {
+			for (const step of plan.emit_steps) {
+				const externalReceipt = path.join(root, ...step.result_file.split('/'));
+				if (hasCurrentGameplayReceipt(root, plan, step, externalReceipt)) continue;
+				if (!fs.existsSync(externalReceipt) || !fs.readFileSync(externalReceipt, 'utf8').includes('SCRIPT_DONE_OK')) continue;
+				if (fs.statSync(externalReceipt).mtimeMs < compilerMtime) {
+					fail(EXIT_CODES.NOT_PASSED, 'ADOPT_RECEIPT_TOO_OLD', 'cannot adopt ' + step.id + ': external emit receipt predates the compiled game plan for loop ' + plan.loop_id);
+				}
+				saveGameplayReceipt(root, plan, step, externalReceipt, 'external-commandlet');
+			}
+		}
+		const emitEvidenceTimes = plan.emit_steps
+			.map((step) => path.join(root, ...step.result_file.split('/')))
+			.filter((file) => fs.existsSync(file))
+			.map((file) => fs.statSync(file).mtimeMs);
+		const latestEmitEvidenceMtime = emitEvidenceTimes.length ? Math.max(...emitEvidenceTimes) : 0;
+		for (const step of plan.verify_steps) {
+			const externalReceipt = path.join(root, ...step.result_file.split('/'));
+			if (hasCurrentGameplayReceipt(root, plan, step, externalReceipt)) continue;
+			if (!fs.existsSync(externalReceipt) || !fs.readFileSync(externalReceipt, 'utf8').includes('SCRIPT_DONE_OK')) continue;
+			if (fs.statSync(externalReceipt).mtimeMs < latestEmitEvidenceMtime) {
+				fail(EXIT_CODES.NOT_PASSED, 'ADOPT_RECEIPT_TOO_OLD', 'cannot adopt ' + step.id + ': external receipt predates the latest emit evidence for loop ' + plan.loop_id);
+			}
+			saveGameplayReceipt(root, plan, step, externalReceipt, 'external-interactive');
+		}
+	}
 	const allCurrent = allSteps.every((step) => hasCurrentGameplayReceipt(root, plan, step, path.join(root, ...step.result_file.split('/'))));
 	if (!flags.resume || !allCurrent) completed.push(run(flags.python, plan.compiler.args, plan.compiler.id));
 	for (const step of allSteps) {
@@ -3359,7 +3401,7 @@ async function cmdGameplayEmit(args) {
 	output.gate = gateState.gates.gameplay;
 	if (flags.json) console.log(JSON.stringify(output, null, 2));
 	else console.log(`gameplay emit applied: ${completed.map((step) => step.id).join(', ')}`);
-	process.exit(0);
+	return output;
 	});
 }
 
