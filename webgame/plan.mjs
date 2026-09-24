@@ -5,7 +5,8 @@ export function buildWebgameExecutionPlan(contract) {
     schema: 'sbf.webgame-execution-plan/1',
     project_id: contract.project_id,
     contract_file: contract.file,
-    source: { ...contract.source },\n    execution: {
+    source: { ...contract.source },
+    execution: {
       available: executable,
       blocked_by: executable ? [] : ['source.trust'],
       trust: contract.source.trust,
