@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';\nimport fs from 'node:fs';\nimport os from 'node:os';\nimport path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import { evaluateScenarioEvidence } from '../webgame/assertions.mjs';
@@ -7,7 +7,7 @@ import { executeWebgamePlan } from '../webgame/execution.mjs';
 import { buildWebgameExecutionPlan } from '../webgame/plan.mjs';
 import { createPlaywrightDriver, WebgameBrowserUnavailableError } from '../webgame/playwright-driver.mjs';
 import { parseProbeSeries, WebgameProbeError } from '../webgame/probe-contract.mjs';
-import { createOwnedProcessSession } from '../webgame/process-session.mjs';
+import { createOwnedProcessSession } from '../webgame/process-session.mjs';\nimport { runWebgameRuntime, WebgameRuntimeExecutionError } from '../webgame/runtime-runner.mjs';
 
 function contract({ trust = 'owned', assertions = null } = {}) {
   return {
@@ -204,4 +204,43 @@ test('owned process session starts without shell and only tracks its own child',
   assert.equal(session.ownedCount, 1);
   await session.stopAll();
   assert.deepEqual(calls[0], ['spawn', 'node', ['server.mjs'], false]);
+});
+
+
+test('runtime runner builds, waits for loopback readiness, executes, and always stops owned processes', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-webgame-runner-'));
+  fs.mkdirSync(path.join(root, 'dist'));
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const events = [];
+  const session = {
+    async run(argv) { events.push(['build', ...argv]); return { code: 0, stdout: '', stderr: '' }; },
+    start(argv) { events.push(['serve', ...argv]); return {}; },
+    async stopAll() { events.push(['stop']); },
+  };
+  const driver = {
+    async open() { events.push(['open']); },
+    async runScenario() { events.push(['scenario']); return healthy; },
+    async close() { events.push(['close']); },
+  };
+  const result = await runWebgameRuntime(plan, { repoRoot: root, processSession: session, driver, fetchImpl: async () => ({ status: 200 }) });
+  assert.equal(result.verdict, 'passed');
+  assert.deepEqual(events.at(-1), ['stop']);
+  assert.ok(events.some((entry) => entry[0] === 'build'));
+  assert.ok(events.some((entry) => entry[0] === 'serve'));
+});
+
+test('runtime runner fails closed on missing build output and still stops owned processes', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-webgame-runner-missing-'));
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  let stopped = false;
+  const session = {
+    async run() { return { code: 0, stdout: '', stderr: '' }; },
+    start() { throw new Error('must not serve'); },
+    async stopAll() { stopped = true; },
+  };
+  await assert.rejects(
+    () => runWebgameRuntime(plan, { repoRoot: root, processSession: session, driver: {}, fetchImpl: async () => ({ status: 200 }) }),
+    (error) => error instanceof WebgameRuntimeExecutionError && error.phase === 'build' && /output does not exist/.test(error.message),
+  );
+  assert.equal(stopped, true);
 });
