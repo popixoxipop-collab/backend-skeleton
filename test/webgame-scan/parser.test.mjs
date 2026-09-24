@@ -35,3 +35,11 @@ test('basic delimiter damage is reported instead of silently disappearing', () =
   const parsed = parseJavaScriptSource('function broken() { return 1;', { sourcePath: 'src/broken.ts' });
   assert.ok(parsed.unresolved.some((x) => x.kind === 'syntax' && /unclosed/.test(x.message)));
 });
+
+test('long multiline imports are not truncated before the module specifier', () => {
+  const parsed = parseJavaScriptSource(`import {
+    Scene, PerspectiveCamera, WebGPURenderer, Color, Vector2, Vector3, Mesh, MathUtils,
+    NeutralToneMapping, Matrix4, Quaternion, Euler, Box3, Sphere, Raycaster
+  } from 'three/webgpu';`, { sourcePath: 'src/main.js' });
+  assert.ok(parsed.imports.some((x) => x.specifier === 'three/webgpu'));
+});
