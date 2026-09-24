@@ -13,7 +13,7 @@
 
 ## Automated acceptance
 
-The owned suite contains 16 tests. It is wired into the repository's existing `npm test` through `test/webgame-static.test.mjs`, so PR CI executes it without changing `package.json`.
+The owned suite contains 18 tests. It is wired into the repository's existing `npm test` through `test/webgame-static.test.mjs`, so PR CI executes it without changing `package.json`.
 
 Do not treat this section as a pass claim until the current PR head's GitHub Actions run completes.
 
@@ -26,6 +26,8 @@ Negative cases covered:
 - WebSocket client without server
 - Three.js dependency without runtime entry
 - generator template containing Three.js runtime code
+- template interpolation is explicit unresolved evidence
+- output validates against project/plane/multiplane JSON schemas
 - source-tree digest mutation check
 - `forge/tests/fixtures/**` is classified as reference
 
