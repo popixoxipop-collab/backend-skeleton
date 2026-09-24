@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { isSupportedWebgameSource } from '../tools/webgame/parsers/index.mjs';
 
 const HARD_IGNORES = new Set(['.git', '.hg', '.svn', 'node_modules', '.bskel', 'artifacts', 'coverage', '.cache', '.turbo']);
-const REFERENCE_SEGMENTS = new Set(['reference', 'references', 'example', 'examples', 'sample', 'samples', 'upstream', 'fixtures-reference']);
+const REFERENCE_SEGMENTS = new Set(['reference', 'references', 'example', 'examples', 'sample', 'samples', 'upstream', 'fixtures-reference', 'fixture', 'fixtures', 'test', 'tests', '__tests__']);
 const GENERATED_SEGMENTS = new Set(['dist', 'build', 'generated', 'out', '.svelte-kit', '.next']);
 const VENDOR_SEGMENTS = new Set(['vendor', 'vendors', 'third_party', 'third-party']);
 const TEMPLATE_SEGMENTS = new Set(['template', 'templates', 'scaffold', 'scaffolds']);
