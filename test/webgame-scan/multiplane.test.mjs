@@ -124,3 +124,13 @@ test('ws dependency plus unrelated http.Server does not claim a WebSocket server
   assert.equal(net.capabilities.multiplayer_server_claimed, false);
   assert.ok(!net.evidence.some((e) => e.kind === 'websocket-server'));
 });
+
+test('unrelated object render call does not complete a Three.js runtime', () => {
+  const report = scan('unrelated-render');
+  const game = report.domains.find((d) => d.kind === 'game-runtime');
+  assert.ok(game);
+  assert.equal(game.capabilities.renderer, true);
+  assert.equal(game.capabilities.scene, true);
+  assert.equal(game.capabilities.render_call, false);
+  assert.equal(game.capabilities.playable_runtime_claimed, false);
+});
