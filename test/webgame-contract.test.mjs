@@ -56,6 +56,8 @@ animate();
 
   assert.equal(scan.completeness.status, 'complete');
   assert.deepEqual(scan.engines, ['three']);
+  assert.deepEqual(scan.engine_packages, [{ package: 'three', version: '^0.180.0', project_root: '.' }]);
+  assert.ok(scan.files_read.includes('package.json'));
   assert.ok(scan.scenes.some((x) => x.symbol === 'scene'));
   assert.ok(scan.entities.some((x) => x.symbol === 'player' && x.kind === 'Mesh'));
   assert.ok(scan.hierarchy.some((x) => x.parent === 'scene' && x.child === 'player'));
@@ -64,7 +66,7 @@ animate();
   assert.ok(scan.input.keys.some((x) => x.value === 'KeyW'));
   assert.ok(scan.simulation.systems.some((x) => x.symbol === 'updatePlayer'));
   assert.ok(scan.simulation.loops.some((x) => x.kind === 'requestAnimationFrame' && x.callback === 'animate'));
-  assert.ok(scan.simulation.physics.some((x) => x.package === '@dimforge/rapier3d'));
+  assert.ok(scan.simulation.physics.some((x) => x.package === '@dimforge/rapier3d' && x.version === '^0.19.0'));
   assert.ok(scan.network.sockets.some((x) => x.endpoint === 'wss://example.invalid/game'));
   assert.ok(scan.assets.some((x) => x.uri === '/assets/player.glb'));
   assert.ok(scan.warnings.some((x) => x.code === 'WEBGAME_INPUT_EFFECT_UNRESOLVED'));
@@ -75,6 +77,7 @@ animate();
     scan,
   });
   validateSchema('webgame-contract.schema.json', contract);
+  assert.deepEqual(contract.source.engine_packages, [{ package: 'three', version: '^0.180.0', project_root: '.' }]);
   assert.equal(contract.planes.scene.scenes[0].symbol, 'scene');
   assert.match(contract.planes.scene.scenes[0].id, /^scene:[a-f0-9]{20}$/);
   assert.ok(contract.planes.behavior.triggers.every((x) => /^behavior-trigger:[a-f0-9]{20}$/.test(x.id)));
@@ -122,4 +125,11 @@ test('source hash is deterministic for unchanged source and changes when source 
   fs.appendFileSync(path.join(root, 'src', 'game.ts'), 'const changed = true;\n');
   const third = scanWebgame(root);
   assert.notEqual(first.source_hash, third.source_hash);
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  pkg.dependencies.three = '^0.181.0';
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(pkg, null, 2));
+  const fourth = scanWebgame(root);
+  assert.notEqual(third.source_hash, fourth.source_hash);
+  assert.equal(fourth.engine_packages[0].version, '^0.181.0');
 });
