@@ -43,3 +43,8 @@ test('long multiline imports are not truncated before the module specifier', () 
   } from 'three/webgpu';`, { sourcePath: 'src/main.js' });
   assert.ok(parsed.imports.some((x) => x.specifier === 'three/webgpu'));
 });
+
+test('template interpolations are not silently treated as inert text', () => {
+  const parsed = parseJavaScriptSource('const label = \`scene: ${buildScene()}\`;', { sourcePath: 'src/template.ts' });
+  assert.ok(parsed.unresolved.some((x) => x.kind === 'template-expression'));
+});
