@@ -203,9 +203,18 @@ export function parseJavaScriptSource(source, opts = {}) {
         continue;
       }
       let spec = null;
-      for (let j = i + 1; j < Math.min(tokens.length, i + 24); j++) {
-        if (tokens[j].type === 'string') { spec = tokens[j]; break; }
-        if (tokens[j].value === ';') break;
+      if (tokens[i + 1]?.type === 'string') {
+        spec = tokens[i + 1]; // side-effect import: import 'module'
+      } else {
+        // For bound imports, the module specifier is the string immediately after `from`.
+        // Do not cap by token count: large multiline Three.js import lists are common.
+        for (let j = i + 1; j < tokens.length; j++) {
+          if (tokens[j].value === ';') break;
+          if (tokens[j].type === 'identifier' && tokens[j].value === 'from') {
+            if (tokens[j + 1]?.type === 'string') spec = tokens[j + 1];
+            break;
+          }
+        }
       }
       if (spec) imports.push({ kind: 'import', specifier: spec.value, ...evidenceFromToken(t) });
       continue;
