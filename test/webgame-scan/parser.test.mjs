@@ -74,3 +74,15 @@ test('Svelte script-like text inside an HTML comment is inert', () => {
   assert.equal(parsed.constructions.length, 0);
   assert.equal(parsed.imports.length, 0);
 });
+
+test('regex literal text cannot manufacture Three.js runtime evidence', () => {
+  const parsed = parseJavaScriptSource(`const docs = /new Scene\\(\\).*renderer\\.render\\(scene, camera\\)/g;`, { sourcePath: 'src/regex.ts' });
+  assert.equal(parsed.constructions.length, 0);
+  assert.equal(parsed.calls.some((x) => x.name.endsWith('.render')), false);
+});
+
+test('unclosed Svelte HTML comment keeps fake script inert and reports unresolved syntax', () => {
+  const parsed = parseSvelteSource(`<!-- docs <script>const renderer = new WebGLRenderer();</script>`, { sourcePath: 'src/Unclosed.svelte' });
+  assert.equal(parsed.constructions.length, 0);
+  assert.ok(parsed.unresolved.some((x) => x.kind === 'syntax' && /unclosed HTML comment/.test(x.message)));
+});
