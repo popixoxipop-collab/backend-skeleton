@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
-import { parseWebgameRuntimeContract, WebgameRuntimeContractError } from '../webgame/contract.mjs';
-import { buildWebgameExecutionPlan } from '../webgame/plan.mjs';
 import { evaluateScenarioEvidence } from '../webgame/assertions.mjs';
-import { parseProbeSeries, WebgameProbeError } from '../webgame/probe-contract.mjs';
+import { parseWebgameRuntimeContract, WebgameRuntimeContractError } from '../webgame/contract.mjs';
 import { executeWebgamePlan } from '../webgame/execution.mjs';
+import { buildWebgameExecutionPlan } from '../webgame/plan.mjs';
+import { createPlaywrightDriver, WebgameBrowserUnavailableError } from '../webgame/playwright-driver.mjs';
+import { parseProbeSeries, WebgameProbeError } from '../webgame/probe-contract.mjs';
+import { createOwnedProcessSession } from '../webgame/process-session.mjs';
 
 function contract({ trust = 'owned', assertions = null } = {}) {
   return {
@@ -131,4 +134,74 @@ test('execution closes the driver when a scenario throws', async () => {
   };
   await assert.rejects(() => executeWebgamePlan(plan, { driver }), /browser crashed/);
   assert.deepEqual(events, ['open', 'run', 'close']);
+});
+
+test('Playwright driver samples the declared probe and releases keys/context/browser', async () => {
+  const events = [];
+  let seq = 0;
+  const page = new EventEmitter();
+  page.keyboard = {
+    async down(key) { events.push(`down:${key}`); },
+    async up(key) { events.push(`up:${key}`); },
+    async press(key) { events.push(`press:${key}`); },
+  };
+  page.goto = async (url) => events.push(`goto:${url}`);
+  page.waitForTimeout = async () => {};
+  page.evaluate = async () => sample(seq++, { player: [0, 0, seq * 0.25], frame: seq * 2 });
+  const context = {
+    async route() {},
+    async newPage() { return page; },
+    async close() { events.push('context-close'); },
+  };
+  const browser = {
+    async newContext() { return context; },
+    async close() { events.push('browser-close'); },
+  };
+  const fakePlaywright = { chromium: { async launch() { events.push('launch'); return browser; } } };
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const driver = createPlaywrightDriver({ playwright: fakePlaywright });
+  await driver.open(plan);
+  const samples = await driver.runScenario(plan.scenarios[0]);
+  await driver.close();
+  assert.ok(samples.length >= 2);
+  assert.ok(events.includes('down:KeyW'));
+  assert.ok(events.includes('up:KeyW'));
+  assert.deepEqual(events.slice(-2), ['context-close', 'browser-close']);
+});
+
+test('Playwright driver refuses reference/inventory-only plans', async () => {
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract({ trust: 'reference' })));
+  const driver = createPlaywrightDriver({ playwright: {} });
+  await assert.rejects(() => driver.open(plan), /non-executable/);
+});
+
+test('Playwright driver reports an unavailable requested browser explicitly', async () => {
+  const plan = buildWebgameExecutionPlan(parseWebgameRuntimeContract(contract()));
+  const driver = createPlaywrightDriver({ playwright: {} });
+  await assert.rejects(() => driver.open(plan), WebgameBrowserUnavailableError);
+});
+
+test('owned process session rejects cwd escape before spawning anything', () => {
+  let spawnCount = 0;
+  const session = createOwnedProcessSession({ repoRoot: '/repo', spawnImpl() { spawnCount += 1; } });
+  assert.throws(() => session.start(['node', 'server.mjs'], { cwd: '/outside' }), /escapes repository root/);
+  assert.equal(spawnCount, 0);
+});
+
+test('owned process session starts without shell and only tracks its own child', async () => {
+  const calls = [];
+  class Child extends EventEmitter {
+    constructor() { super(); this.pid = 123; this.exitCode = null; this.stdout = new EventEmitter(); this.stderr = new EventEmitter(); }
+    kill(signal) { calls.push(['kill', signal]); this.exitCode = 0; this.emit('exit', 0, signal); }
+  }
+  const child = new Child();
+  const session = createOwnedProcessSession({
+    repoRoot: '/repo',
+    spawnImpl(command, args, options) { calls.push(['spawn', command, args, options.shell]); return child; },
+    spawnSyncImpl() {},
+  });
+  session.start(['node', 'server.mjs']);
+  assert.equal(session.ownedCount, 1);
+  await session.stopAll();
+  assert.deepEqual(calls[0], ['spawn', 'node', ['server.mjs'], false]);
 });
