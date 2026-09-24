@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:webgame-scan:1",
+  "title": "backend-skeleton webgame static scan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "adapter", "engines", "project_roots", "source_hash", "files_read", "scenes", "entities", "hierarchy", "input", "simulation", "render", "network", "assets", "warnings", "completeness"],
+  "properties": {
+    "schema": { "const": "sbf.webgame-scan/1" },
+    "adapter": { "const": "typescript-webgame" },
+    "engines": { "type": "array", "items": { "enum": ["three", "@react-three/fiber"] }, "uniqueItems": true },
+    "project_roots": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "source_hash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "files_read": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "scenes": { "type": "array", "items": { "$ref": "#/$defs/symbolRecord" } },
+    "entities": { "type": "array", "items": { "$ref": "#/$defs/symbolRecord" } },
+    "hierarchy": { "type": "array", "items": { "$ref": "#/$defs/hierarchyRecord" } },
+    "input": {
+      "type": "object", "additionalProperties": false, "required": ["listeners", "keys"],
+      "properties": {
+        "listeners": { "type": "array", "items": { "$ref": "#/$defs/listenerRecord" } },
+        "keys": { "type": "array", "items": { "$ref": "#/$defs/keyRecord" } }
+      }
+    },
+    "simulation": {
+      "type": "object", "additionalProperties": false, "required": ["systems", "loops", "physics"],
+      "properties": {
+        "systems": { "type": "array", "items": { "$ref": "#/$defs/systemRecord" } },
+        "loops": { "type": "array", "items": { "$ref": "#/$defs/loopRecord" } },
+        "physics": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["package", "project_root"],
+            "properties": { "package": { "type": "string" }, "project_root": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "render": { "type": "object", "additionalProperties": false, "required": ["renderers"], "properties": { "renderers": { "type": "array", "items": { "$ref": "#/$defs/symbolRecord" } } } },
+    "network": { "type": "object", "additionalProperties": false, "required": ["sockets"], "properties": { "sockets": { "type": "array", "items": { "$ref": "#/$defs/socketRecord" } } } },
+    "assets": { "type": "array", "items": { "$ref": "#/$defs/assetRecord" } },
+    "warnings": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string", "pattern": "^WEBGAME_[A-Z_]+$" }, "message": { "type": "string" } } } },
+    "completeness": {
+      "type": "object", "additionalProperties": false, "required": ["status", "scene_count", "entity_count", "loop_count"],
+      "properties": {
+        "status": { "enum": ["complete", "partial", "blocked"] },
+        "scene_count": { "type": "integer", "minimum": 0 },
+        "entity_count": { "type": "integer", "minimum": 0 },
+        "loop_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "symbolRecord": { "type": "object", "additionalProperties": false, "required": ["symbol", "file", "line", "kind", "provenance"], "properties": { "symbol": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "kind": { "type": "string" }, "provenance": { "type": "string" } } },
+    "hierarchyRecord": { "type": "object", "additionalProperties": false, "required": ["parent", "child", "file", "line", "provenance"], "properties": { "parent": { "type": "string" }, "child": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } },
+    "listenerRecord": { "type": "object", "additionalProperties": false, "required": ["target", "event", "handler", "file", "line", "provenance"], "properties": { "target": { "type": "string" }, "event": { "type": "string" }, "handler": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } },
+    "keyRecord": { "type": "object", "additionalProperties": false, "required": ["accessor", "value", "file", "line", "provenance"], "properties": { "accessor": { "enum": ["code", "key"] }, "value": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } },
+    "systemRecord": { "type": "object", "additionalProperties": false, "required": ["symbol", "file", "line", "provenance"], "properties": { "symbol": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } },
+    "loopRecord": { "type": "object", "additionalProperties": false, "required": ["kind", "callback", "file", "line", "provenance"], "properties": { "kind": { "enum": ["requestAnimationFrame", "setAnimationLoop"] }, "callback": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } },
+    "socketRecord": { "type": "object", "additionalProperties": false, "required": ["kind", "endpoint", "file", "line", "provenance"], "properties": { "kind": { "enum": ["WebSocket", "socket.io"] }, "endpoint": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } },
+    "assetRecord": { "type": "object", "additionalProperties": false, "required": ["uri", "file", "line", "provenance"], "properties": { "uri": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "provenance": { "type": "string" } } }
+  }
+}
