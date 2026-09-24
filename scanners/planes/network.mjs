@@ -20,7 +20,7 @@ export function collectNetwork(project, units) {
   }
   if (Object.hasOwn(deps, 'ws') || Object.hasOwn(deps, 'socket.io')) {
     evidence.push({
-      project_id: project.project_id, kind: 'network-dependency', value: Object.hasOwn(deps, 'ws') ? 'ws' : 'socket.io', role: 'active',
+      project_id: project.project_id, kind: 'network-dependency', value: Object.hasOwn(deps, 'ws') ? 'ws' : 'socket.io', role: project.package_role ?? 'active',
       provenance: { source_path: project.package_json, source_digest: project.package_digest, line: null, column: null, collector: 'network-static', confidence: 'direct' },
     });
   }
