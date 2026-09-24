@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BSKEL owned webgame fixture</title>
+<canvas id="game" width="640" height="360"></canvas>
+<script>
+(() => {
+  const canvas = document.querySelector('#game');
+  const ctx = canvas.getContext('2d');
+  const keys = new Set();
+  const state = {
+    seq: 0,
+    startedAt: performance.now(),
+    frame: 0,
+    player: { x: 0, y: 0, z: 0 },
+    velocity: { x: 0, y: 0, z: 0 },
+    camera: { x: 0, y: 2, z: -4 },
+    interactions: 0,
+    collisions: [],
+  };
+  addEventListener('keydown', (event) => {
+    keys.add(event.code);
+    if (event.code === 'KeyE') state.interactions += 1;
+  });
+  addEventListener('keyup', (event) => keys.delete(event.code));
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    state.frame += 1;
+    state.velocity.z = keys.has('KeyW') ? 2 : 0;
+    state.player.z += state.velocity.z * dt;
+    state.collisions = [];
+    if (state.player.z > 2) {
+      state.player.z = 2;
+      state.collisions.push('wall-z2');
+    }
+    state.camera.z = state.player.z - 4;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(300 + state.player.z * 20, 160, 20, 20);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  globalThis.__BSKEL_PROBE__ = {
+    snapshot() {
+      state.seq += 1;
+      return {
+        schema: 'sbf.webgame-probe/1',
+        seq: state.seq,
+        time_ms: performance.now() - state.startedAt,
+        frame: state.frame,
+        player: { position: { ...state.player }, velocity: { ...state.velocity } },
+        camera: { position: { ...state.camera } },
+        collisions: { active: [...state.collisions] },
+        interactions: { count: state.interactions },
+      };
+    },
+  };
+})();
+</script>
