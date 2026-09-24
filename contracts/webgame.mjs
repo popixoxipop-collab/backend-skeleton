@@ -44,6 +44,8 @@ export function buildWebgameContract({ featureId, featureUid, scan }) {
     source: {
       adapter: scan.adapter,
       engines: [...scan.engines].sort(),
+      engine_packages: clone(scan.engine_packages).sort((a, b) =>
+        (a.project_root + ':' + a.package).localeCompare(b.project_root + ':' + b.package)),
       project_roots: [...scan.project_roots].sort(),
       source_hash: scan.source_hash,
       files: [...scan.files_read].sort(),
