@@ -13,7 +13,7 @@
 
 ## Automated acceptance
 
-The owned suite contains 18 tests. It is wired into the repository's existing `npm test` through `test/webgame-static.test.mjs`, so PR CI executes it without changing `package.json`.
+The owned suite contains 19 tests. It is wired into the repository's existing `npm test` through `test/webgame-static.test.mjs`, so PR CI executes it without changing `package.json`.
 
 Do not treat this section as a pass claim until the current PR head's GitHub Actions run completes.
 
@@ -21,6 +21,7 @@ Negative cases covered:
 
 - comment/template string contains `new Scene()`
 - reference-only renderer
+- nested example package dependency/runtime remains reference-only
 - syntax error
 - non-literal dynamic import
 - WebSocket client without server
