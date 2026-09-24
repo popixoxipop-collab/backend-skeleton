@@ -9,16 +9,16 @@ export async function executeWebgamePlan(plan, { driver }) {
     throw new Error('executeWebgamePlan requires an explicit isolated browser driver');
   }
   const scenarios = [];
-  let opened = false;
+  let openAttempted = false;
   try {
+    openAttempted = true;
     await driver.open(plan);
-    opened = true;
     for (const scenario of plan.scenarios) {
       const samples = await driver.runScenario(scenario, plan);
       scenarios.push(evaluateScenarioEvidence(scenario, samples));
     }
   } finally {
-    if (opened) await driver.close();
+    if (openAttempted) await driver.close();
   }
   return {
     schema: 'sbf.webgame-runtime-result/1',
