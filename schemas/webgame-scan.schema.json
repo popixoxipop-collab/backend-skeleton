@@ -7,6 +7,7 @@
   "required": [
     "schema",
     "adapter",
+    "adapter_revision",
     "engines",
     "engine_packages",
     "project_roots",
@@ -261,6 +262,10 @@
           }
         }
       }
+    },
+    "adapter_revision": {
+      "type": "integer",
+      "const": 1
     }
   },
   "$defs": {
