@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { discoverProjects } from './project-discovery.mjs';
 import { parseWebgameSource } from '../tools/webgame/parsers/index.mjs';
 import { collectThreeJsRuntime } from './planes/threejs-runtime.mjs';
@@ -98,6 +99,11 @@ export function scanMultiplane({ repoRoot }) {
         const text = fs.readFileSync(abs, 'utf8');
         filesRead.add(source.path);
         const unit = parseWebgameSource({ sourcePath: source.path, text, role: source.role });
+        const sourceDigest = `sha256:${crypto.createHash('sha256').update(text).digest('hex')}`;
+        unit.source_digest = sourceDigest;
+        for (const key of ['imports', 'dynamicImports', 'constructions', 'calls', 'assets']) {
+          for (const node of unit[key] ?? []) node.source_digest = sourceDigest;
+        }
         units.push(unit);
         for (const item of unit.unresolved) unresolved.push({ ...item, project_id: project.project_id, role: source.role });
       } catch (err) {
