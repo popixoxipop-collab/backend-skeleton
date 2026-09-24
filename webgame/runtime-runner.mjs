@@ -32,7 +32,7 @@ async function waitUntilReady(plan, { fetchImpl, timeoutMs, pollMs }) {
   while (Date.now() < deadline) {
     try {
       const response = await fetchImpl(readyUrl(plan), { redirect: 'manual' });
-      if (response && response.status >= 200 && response.status < 500) return;
+      if (response && response.status >= 200 && response.status < 400) return;
       last = `HTTP ${response?.status ?? 'unknown'}`;
     } catch (error) {
       last = error.message;
