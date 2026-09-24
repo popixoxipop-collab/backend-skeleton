@@ -7,12 +7,8 @@ Required symbols/behavior: route a future `bskel webgame analyze --repo <path> [
 Compatibility: existing `scan`, adapter arbitration, scan-report schema, and exit codes must remain unchanged.  
 Tests: integration owner should add a top-level CLI contract test; Track A tests directly cover `scanMultiplane()`.
 
-## PATCH-A-02
-Target: `package.json`  
-Reason: current `npm test` glob is `test/*.test.mjs`, so Track A's owned nested suite `test/webgame-scan/*.test.mjs` is intentionally not wired by this branch.  
-Required behavior: add a separate `test:webgame-static` script or extend integration CI without changing the semantics of the existing test command.  
-Compatibility: do not remove or rename existing scripts.  
-Tests: `node --test test/webgame-scan/*.test.mjs`.
+## PATCH-A-02 — closed in Track A
+The existing `npm test` glob only sees `test/*.test.mjs`. Track A now adds a new-file-only shim, `test/webgame-static.test.mjs`, which imports the owned nested suite. No `package.json` edit is required.
 
 ## PATCH-A-03
 Target: Foundation dependency decision / `package.json` only if Integrator approves  
