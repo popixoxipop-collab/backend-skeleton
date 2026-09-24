@@ -629,6 +629,7 @@ contract without changing the existing HTTP contract semantics:
 ```bash
 bskel webgame scan --json
 bskel webgame contract emit --feature 001-gameplay --json
+bskel webgame contract verify --feature 001-gameplay --json
 ```
 
 The emitted `sbf.webgame-contract/1` artifact has scene, entity, input, simulation, render,
