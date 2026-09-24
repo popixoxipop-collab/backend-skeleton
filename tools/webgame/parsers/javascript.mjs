@@ -107,7 +107,10 @@ export function lexJavaScript(source, { baseOffset = 0, fullText = source, sourc
         raw += c;
       }
       if (!closed) error('syntax', start, 'unterminated template literal');
-      else push('template', raw, start, i, source.slice(start, i));
+      else {
+        push('template', raw, start, i, source.slice(start, i));
+        if (raw.includes('${')) error('template-expression', start, 'template literal contains an executable interpolation that the conservative lexer does not analyze');
+      }
       continue;
     }
 
