@@ -102,3 +102,15 @@ test('scan is read-only and deterministic for the same tree', () => {
   assert.ok(first.files_read.includes('backend/src/server.ts'));
   assert.ok(first.projects.every((p) => p.package_digest?.startsWith('sha256:')));
 });
+
+test('nested example package keeps package dependency and runtime evidence reference-only', () => {
+  const report = scan('reference-package');
+  const project = report.projects.find((p) => p.root === 'examples/demo');
+  assert.ok(project);
+  assert.equal(project.package_role, 'reference');
+  const game = report.domains.find((d) => d.project_id === project.project_id && d.kind === 'game-runtime');
+  assert.ok(game);
+  assert.equal(game.status, 'partial');
+  assert.equal(game.capabilities.playable_runtime_claimed, false);
+  assert.ok(game.evidence.every((e) => e.role === 'reference'));
+});
