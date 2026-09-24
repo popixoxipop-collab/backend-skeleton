@@ -1,0 +1,82 @@
+{
+  "schema": "sbf.track-a-static-fixtures-report/1",
+  "track": "A",
+  "validation": {
+    "commit": "b2e7255907b3cf0ccb945930772ae706bfbfeeec",
+    "workflow_run_id": 36024180096,
+    "workflow_run_number": 278,
+    "node22": {
+      "job_id": 107717117644,
+      "conclusion": "success"
+    },
+    "node24": {
+      "job_id": 107717117773,
+      "conclusion": "success"
+    },
+    "full_suite": {
+      "tests": 1898,
+      "pass": 1888,
+      "fail": 0,
+      "skipped": 10
+    },
+    "track_a_tests": 19
+  },
+  "fixture": {
+    "path": "fixtures/webgame-static/mixed-repo",
+    "source_tree_unchanged": true,
+    "summary": {
+      "project_count": 2,
+      "domain_count": 6,
+      "active_game_runtime_count": 1,
+      "api_domain_count": 1,
+      "websocket_server_project_count": 1,
+      "unresolved_count": 0
+    },
+    "projects": [
+      {
+        "project_id": "project:backend",
+        "root": "backend",
+        "package_role": "active",
+        "domains": [
+          "api",
+          "network"
+        ]
+      },
+      {
+        "project_id": "project:frontend",
+        "root": "frontend",
+        "package_role": "active",
+        "domains": [
+          "asset",
+          "game-runtime",
+          "network",
+          "worker"
+        ]
+      }
+    ],
+    "renderer_evidence": {
+      "source_path": "frontend/src/MessengerScene.svelte",
+      "source_digest": "sha256:4a09b95401e7c641aefd8743c4227a9c569f3cbbcc5579c0801d47855d033fea",
+      "line": 5,
+      "column": 20,
+      "collector": "threejs-runtime",
+      "confidence": "direct"
+    },
+    "package_digests": {
+      "backend": "sha256:6938522251c0aaef72618be2b257df56a26181578d1684992a944484f062b240",
+      "frontend": "sha256:92ff748e5a0ee333c11a63250454749db0e9c5a3047f4748df44afb4f2ff29d5"
+    }
+  },
+  "negative_cases": [
+    "comment/template string does not become executable Three.js evidence",
+    "reference-only renderer remains partial",
+    "syntax damage remains unresolved",
+    "non-literal dynamic import remains unresolved",
+    "WebSocket client-only evidence does not claim a multiplayer server",
+    "Three.js dependency-only project remains partial",
+    "generator template does not become a playable runtime",
+    "nested example package keeps dependency/runtime evidence reference-only",
+    "template interpolation that the conservative lexer cannot analyze remains unresolved"
+  ],
+  "note": "Acceptance summary generated from the committed fixture assertions and CI evidence; it is not represented as a raw scanMultiplane payload."
+}
