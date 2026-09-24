@@ -129,6 +129,7 @@ export function discoverProjects(repoRoot) {
       name: pkg?.name ?? (relRoot === '.' ? path.basename(absRoot) : path.basename(projectRoot)),
       package_json: fs.existsSync(packagePath) ? posixRel(absRoot, packagePath) : null,
       package_digest: fs.existsSync(packagePath) ? digestFile(packagePath) : null,
+      package_role: fs.existsSync(packagePath) ? classifySourceRole(posixRel(absRoot, packagePath)) : classifySourceRole(relRoot),
       dependencies: packageDeps(pkg),
       scripts_declared: Object.keys(pkg?.scripts ?? {}).sort(),
       source_files: [],
@@ -141,7 +142,7 @@ export function discoverProjects(repoRoot) {
     if (!projectsByRoot.has(owner)) {
       projectsByRoot.set(owner, {
         schema: 'sbf.project/1', project_id: projectId(absRoot, owner), root: posixRel(absRoot, owner),
-        name: path.basename(owner), package_json: null, package_digest: null, dependencies: {}, scripts_declared: [], source_files: [],
+        name: path.basename(owner), package_json: null, package_digest: null, package_role: classifySourceRole(posixRel(absRoot, owner)), dependencies: {}, scripts_declared: [], source_files: [],
       });
     }
     const rel = posixRel(absRoot, file);
