@@ -30,7 +30,7 @@ export function parseWebgameRuntimeContract(raw, { file = null } = {}) {
     browser: value.browser,
     probe: value.probe,
     scenarios: value.scenarios,
-    execution_trust: value.source.trust === 'owned' || value.source.trust === 'trusted' ? 'approved' : 'inventory-only',
+    execution_trust: value.source.trust === 'reference' ? 'inventory-only' : 'requires-approval',
     summary: {
       scenario_count: value.scenarios.length,
       assertion_count: value.scenarios.reduce((count, scenario) => count + scenario.assertions.length, 0),
