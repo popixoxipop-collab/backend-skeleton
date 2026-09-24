@@ -163,6 +163,18 @@ test('execution closes the driver when a scenario throws', async () => {
   assert.deepEqual(events, ['open', 'run', 'close']);
 });
 
+test('execution closes a partially opened driver when open fails', async () => {
+  const plan = approvedPlan();
+  const events = [];
+  const driver = {
+    async open() { events.push('open'); throw new Error('open failed after launch'); },
+    async runScenario() { throw new Error('must not run'); },
+    async close() { events.push('close'); },
+  };
+  await assert.rejects(() => executeWebgamePlan(plan, { driver }), /open failed after launch/);
+  assert.deepEqual(events, ['open', 'close']);
+});
+
 test('Playwright driver samples the declared probe and releases keys/context/browser', async () => {
   const events = [];
   let seq = 0;
