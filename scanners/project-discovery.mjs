@@ -14,6 +14,14 @@ function posixRel(root, target) {
   return rel || '.';
 }
 
+function digestBytes(bytes) {
+  return `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`;
+}
+
+function digestFile(absPath) {
+  return digestBytes(fs.readFileSync(absPath));
+}
+
 export function classifySourceRole(repoRelativePath) {
   const normalized = repoRelativePath.replace(/\\/g, '/');
   const segments = normalized.toLowerCase().split('/');
@@ -120,6 +128,7 @@ export function discoverProjects(repoRoot) {
       root: relRoot,
       name: pkg?.name ?? (relRoot === '.' ? path.basename(absRoot) : path.basename(projectRoot)),
       package_json: fs.existsSync(packagePath) ? posixRel(absRoot, packagePath) : null,
+      package_digest: fs.existsSync(packagePath) ? digestFile(packagePath) : null,
       dependencies: packageDeps(pkg),
       scripts_declared: Object.keys(pkg?.scripts ?? {}).sort(),
       source_files: [],
@@ -132,7 +141,7 @@ export function discoverProjects(repoRoot) {
     if (!projectsByRoot.has(owner)) {
       projectsByRoot.set(owner, {
         schema: 'sbf.project/1', project_id: projectId(absRoot, owner), root: posixRel(absRoot, owner),
-        name: path.basename(owner), package_json: null, dependencies: {}, scripts_declared: [], source_files: [],
+        name: path.basename(owner), package_json: null, package_digest: null, dependencies: {}, scripts_declared: [], source_files: [],
       });
     }
     const rel = posixRel(absRoot, file);
