@@ -16,18 +16,21 @@ export function evaluateWebgameRelease({
 	const failure = evidenceState?.latest_assertion_failure ?? null;
 	const attempt = evidenceState?.latest_attempt ?? null;
 
-	if (!attestation) reasons.push('fresh runtime attestation missing');
-	if (attestation && attestation.profile_id !== policy.profile_id) reasons.push('runtime attestation profile mismatch');
+	if (policy.require_runtime) {
+		if (!attestation) reasons.push('fresh runtime attestation missing');
+		if (attestation && attestation.profile_id !== policy.profile_id) reasons.push('runtime attestation profile mismatch');
+
+		if (failure && (!attestation || time(failure) > time(attestation))) {
+			reasons.push('newer runtime assertion failure exists');
+		}
+
+		if (attempt && attestation && time(attempt) > time(attestation) &&
+			['unsupported', 'not-run', 'blocked'].includes(attempt.verdict)) {
+			reasons.push('latest verification attempt is incomplete');
+		}
+	}
+
 	if (policy.profile_digest && currentProfileDigest !== policy.profile_digest) reasons.push('approved profile digest mismatch');
-
-	if (failure && (!attestation || time(failure) > time(attestation))) {
-		reasons.push('newer runtime assertion failure exists');
-	}
-
-	if (attempt && attestation && time(attempt) > time(attestation) &&
-		['unsupported', 'not-run', 'blocked'].includes(attempt.verdict)) {
-		reasons.push('latest verification attempt is incomplete');
-	}
 
 	if (policy.require_performance) {
 		if (!performanceResult) reasons.push('required performance evidence missing');
