@@ -31,6 +31,7 @@
       "required": [
         "adapter",
         "engines",
+        "engine_packages",
         "project_roots",
         "source_hash",
         "files"
@@ -66,6 +67,33 @@
             "type": "string"
           },
           "uniqueItems": true
+        },
+        "engine_packages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "package",
+              "version",
+              "project_root"
+            ],
+            "properties": {
+              "package": {
+                "enum": [
+                  "three",
+                  "@react-three/fiber"
+                ]
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "project_root": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
@@ -170,6 +198,7 @@
                 "additionalProperties": false,
                 "required": [
                   "package",
+                  "version",
                   "project_root"
                 ],
                 "properties": {
@@ -178,6 +207,10 @@
                   },
                   "project_root": {
                     "type": "string"
+                  },
+                  "version": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 }
               }
