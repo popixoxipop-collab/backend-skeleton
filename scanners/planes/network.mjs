@@ -1,7 +1,6 @@
 import { makeEvidence, domainRecord } from './_evidence.mjs';
 
 const CLIENT_RE = /(?:^|\.)WebSocket$/;
-const SERVER_RE = /(?:^|\.)(?:WebSocketServer|Server)$/;
 
 export function collectNetwork(project, units) {
   const evidence = [];
@@ -9,7 +8,11 @@ export function collectNetwork(project, units) {
   for (const unit of units) {
     for (const c of unit.constructions) {
       if (CLIENT_RE.test(c.name)) evidence.push(makeEvidence({ projectId: project.project_id, role: unit.role, collector: 'network-static', kind: 'websocket-client', value: c.name, node: c }));
-      if (SERVER_RE.test(c.name) && unit.imports.some((i) => i.specifier === 'ws' || i.specifier === 'socket.io')) {
+      const hasWs = unit.imports.some((i) => i.specifier === 'ws');
+      const hasSocketIo = unit.imports.some((i) => i.specifier === 'socket.io');
+      const isWsServer = hasWs && /(?:^|\.)(?:WebSocketServer|WebSocket\.Server)$/.test(c.name);
+      const isSocketIoServer = hasSocketIo && /(?:^|\.)Server$/.test(c.name);
+      if (isWsServer || isSocketIoServer) {
         evidence.push(makeEvidence({ projectId: project.project_id, role: unit.role, collector: 'network-static', kind: 'websocket-server', value: c.name, node: c }));
       }
     }
