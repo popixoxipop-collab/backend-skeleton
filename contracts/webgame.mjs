@@ -43,6 +43,7 @@ export function buildWebgameContract({ featureId, featureUid, scan }) {
     feature_uid: featureUid,
     source: {
       adapter: scan.adapter,
+      adapter_revision: scan.adapter_revision,
       engines: [...scan.engines].sort(),
       engine_packages: clone(scan.engine_packages).sort((a, b) =>
         (a.project_root + ':' + a.package).localeCompare(b.project_root + ':' + b.package)),
@@ -87,5 +88,34 @@ export function buildWebgameContract({ featureId, featureUid, scan }) {
     },
     warnings: clone(scan.warnings),
     completeness: clone(scan.completeness),
+  };
+}
+
+
+export function verifyWebgameContractSnapshot({ contract, scan, featureId, featureUid }) {
+  const changes = [];
+  if (contract?.sbf_webgame_contract !== WEBGAME_CONTRACT_VERSION) {
+    changes.push({ field: 'sbf_webgame_contract', expected: WEBGAME_CONTRACT_VERSION, actual: contract?.sbf_webgame_contract ?? null });
+  }
+  if (contract?.feature_id !== featureId) {
+    changes.push({ field: 'feature_id', expected: featureId, actual: contract?.feature_id ?? null });
+  }
+  if (contract?.feature_uid !== featureUid) {
+    changes.push({ field: 'feature_uid', expected: featureUid, actual: contract?.feature_uid ?? null });
+  }
+  if (contract?.source?.adapter !== scan?.adapter) {
+    changes.push({ field: 'source.adapter', expected: scan?.adapter ?? null, actual: contract?.source?.adapter ?? null });
+  }
+  if (contract?.source?.adapter_revision !== scan?.adapter_revision) {
+    changes.push({ field: 'source.adapter_revision', expected: scan?.adapter_revision ?? null, actual: contract?.source?.adapter_revision ?? null });
+  }
+  if (contract?.source?.source_hash !== scan?.source_hash) {
+    changes.push({ field: 'source.source_hash', expected: scan?.source_hash ?? null, actual: contract?.source?.source_hash ?? null });
+  }
+  return {
+    current: changes.length === 0,
+    changes,
+    source_hash: scan?.source_hash ?? null,
+    adapter_revision: scan?.adapter_revision ?? null,
   };
 }
