@@ -35,7 +35,7 @@ async function loadPlaywright(explicit) {
   }
 }
 
-export function createPlaywrightDriver({ playwright = null } = {}) {
+export function createPlaywrightDriver({ playwright = null, browserExecutablePath = null } = {}) {
   let browser = null;
   let context = null;
   let page = null;
@@ -106,7 +106,7 @@ export function createPlaywrightDriver({ playwright = null } = {}) {
       const module = await loadPlaywright(playwright);
       const browserType = module[plan.browser.name];
       if (!browserType?.launch) throw new WebgameBrowserUnavailableError(`Playwright browser is unavailable: ${plan.browser.name}`);
-      browser = await browserType.launch({ headless: plan.browser.headless });
+      browser = await browserType.launch({ headless: plan.browser.headless, ...(browserExecutablePath ? { executablePath: browserExecutablePath } : {}) });
       context = await browser.newContext({
         viewport: plan.browser.viewport ?? { width: 1280, height: 720 },
         serviceWorkers: 'block',
