@@ -208,6 +208,43 @@ function findMatchingParen(tokens, openIndex) {
   return -1;
 }
 
+function parseImportClause(tokens, start, end) {
+  let i = start;
+  let typeOnly = false;
+  const bindings = [];
+  if (tokens[i]?.value === 'type') { typeOnly = true; i++; }
+
+  if (tokens[i]?.type === 'identifier' && tokens[i]?.value !== 'from') {
+    bindings.push({ kind: 'default', imported: 'default', local: tokens[i].value, type_only: typeOnly });
+    i++;
+    if (tokens[i]?.value === ',') i++;
+  }
+
+  if (tokens[i]?.value === '*' && tokens[i + 1]?.value === 'as' && tokens[i + 2]?.type === 'identifier') {
+    bindings.push({ kind: 'namespace', imported: '*', local: tokens[i + 2].value, type_only: typeOnly });
+    return { bindings, type_only: typeOnly };
+  }
+
+  if (tokens[i]?.value === '{') {
+    i++;
+    while (i < end && tokens[i]?.value !== '}') {
+      if (tokens[i]?.value === ',') { i++; continue; }
+      let bindingTypeOnly = typeOnly;
+      if (tokens[i]?.value === 'type') { bindingTypeOnly = true; i++; }
+      if (tokens[i]?.type !== 'identifier') { i++; continue; }
+      const imported = tokens[i].value;
+      let local = imported;
+      i++;
+      if (tokens[i]?.value === 'as' && tokens[i + 1]?.type === 'identifier') {
+        local = tokens[i + 1].value;
+        i += 2;
+      }
+      bindings.push({ kind: 'named', imported, local, type_only: bindingTypeOnly });
+    }
+  }
+  return { bindings, type_only: typeOnly };
+}
+
 export function parseJavaScriptSource(source, opts = {}) {
   const { tokens, errors } = lexJavaScript(source, opts);
   const imports = [];
@@ -232,6 +269,7 @@ export function parseJavaScriptSource(source, opts = {}) {
         continue;
       }
       let spec = null;
+      let clause = { bindings: [], type_only: false };
       if (tokens[i + 1]?.type === 'string') {
         spec = tokens[i + 1]; // side-effect import: import 'module'
       } else {
@@ -240,17 +278,27 @@ export function parseJavaScriptSource(source, opts = {}) {
         for (let j = i + 1; j < tokens.length; j++) {
           if (tokens[j].value === ';') break;
           if (tokens[j].type === 'identifier' && tokens[j].value === 'from') {
-            if (tokens[j + 1]?.type === 'string') spec = tokens[j + 1];
+            if (tokens[j + 1]?.type === 'string') {
+              spec = tokens[j + 1];
+              clause = parseImportClause(tokens, i + 1, j);
+            }
             break;
           }
         }
       }
-      if (spec) imports.push({ kind: 'import', specifier: spec.value, ...evidenceFromToken(t) });
+      if (spec) imports.push({ kind: 'import', specifier: spec.value, bindings: clause.bindings, type_only: clause.type_only, ...evidenceFromToken(t) });
       continue;
     }
 
     if (t.type === 'identifier' && t.value === 'require' && tokens[i + 1]?.value === '(' && tokens[i + 2]?.type === 'string') {
-      imports.push({ kind: 'require', specifier: tokens[i + 2].value, ...evidenceFromToken(t) });
+      const binding = assignmentBindingBefore(tokens, i);
+      imports.push({
+        kind: 'require',
+        specifier: tokens[i + 2].value,
+        bindings: binding ? [{ kind: 'namespace', imported: '*', local: binding, type_only: false }] : [],
+        type_only: false,
+        ...evidenceFromToken(t),
+      });
       continue;
     }
 
