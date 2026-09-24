@@ -9,7 +9,7 @@ export function collectApi(project, units) {
     if (!API_PACKAGES.has(dep)) continue;
     evidence.push({
       project_id: project.project_id, kind: 'api-dependency', value: dep, role: 'active',
-      provenance: { source_path: project.package_json, line: null, column: null, collector: 'api-static', confidence: 'direct' },
+      provenance: { source_path: project.package_json, source_digest: project.package_digest, line: null, column: null, collector: 'api-static', confidence: 'direct' },
     });
   }
   const projectHasApiPackage = Object.keys(deps).some((dep) => API_PACKAGES.has(dep));
