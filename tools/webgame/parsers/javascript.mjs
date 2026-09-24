@@ -7,6 +7,16 @@ const ASSET_EXT_RE = /\.(?:glb|gltf|fbx|obj|dae|stl|ply|png|jpe?g|webp|avif|gif|
 function isIdentStart(ch) { return ch != null && IDENT_START.test(ch); }
 function isIdentCont(ch) { return ch != null && IDENT_CONT.test(ch); }
 
+const REGEX_PREFIX_PUNCT = new Set(['(', '[', '{', '=', ':', ',', ';', '!', '?', '&', '|', '+', '-', '*', '%', '~', '^', '<', '>']);
+const REGEX_PREFIX_WORDS = new Set(['return', 'throw', 'case', 'delete', 'void', 'typeof', 'instanceof', 'in', 'of', 'yield', 'await', 'else', 'do']);
+
+function canStartRegex(tokens) {
+  const prev = tokens.at(-1);
+  if (!prev) return true;
+  if (prev.type === 'punct') return REGEX_PREFIX_PUNCT.has(prev.value);
+  return prev.type === 'identifier' && REGEX_PREFIX_WORDS.has(prev.value);
+}
+
 function makeLocator(text) {
   const starts = [0];
   for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 10) starts.push(i + 1);
@@ -67,6 +77,28 @@ export function lexJavaScript(source, { baseOffset = 0, fullText = source, sourc
         i++;
       }
       if (!closed) error('syntax', start, 'unterminated block comment');
+      continue;
+    }
+
+    if (ch === '/' && canStartRegex(tokens)) {
+      const start = i++;
+      let closed = false;
+      let escaped = false;
+      let inClass = false;
+      while (i < source.length) {
+        const c = source[i++];
+        if (escaped) { escaped = false; continue; }
+        if (c === '\\') { escaped = true; continue; }
+        if (c === '[') { inClass = true; continue; }
+        if (c === ']' && inClass) { inClass = false; continue; }
+        if (c === '/' && !inClass) { closed = true; break; }
+        if (c === '\n' || c === '\r') break;
+      }
+      if (!closed) error('syntax', start, 'unterminated regex literal');
+      else {
+        while (i < source.length && /[A-Za-z]/.test(source[i])) i++;
+        push('regex', source.slice(start, i), start, i);
+      }
       continue;
     }
 
