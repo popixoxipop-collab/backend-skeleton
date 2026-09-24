@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto';
 import { lineNumberAt } from './text-util.mjs';
 import { maskJsComments } from './adapters/_express-shared.mjs';
 
+export const WEBGAME_SCANNER_REVISION = 1;
+
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx']);
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo', '.cache']);
 const THREE_PACKAGES = new Set(['three', '@react-three/fiber']);
@@ -225,6 +227,7 @@ export function scanWebgame(repoRoot) {
     return {
       schema: 'sbf.webgame-scan/1',
       adapter: 'typescript-webgame',
+      adapter_revision: WEBGAME_SCANNER_REVISION,
       engines: [],
       engine_packages: [],
       project_roots: [],
@@ -290,6 +293,7 @@ export function scanWebgame(repoRoot) {
   return {
     schema: 'sbf.webgame-scan/1',
     adapter: 'typescript-webgame',
+    adapter_revision: WEBGAME_SCANNER_REVISION,
     engines,
     engine_packages: enginePackages,
     project_roots: projects.map((p) => rel(repoRoot, p.root) || '.'),
