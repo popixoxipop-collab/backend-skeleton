@@ -91,3 +91,34 @@ test('T06 from-import stays ambiguous when a package exports a symbol and has a 
   assert.equal(resolved.name, 'models');
   assert.equal(resolved.alternateModule, 'pkg.models');
 });
+
+
+test('T06 resolves a class re-exported through a package __init__ to its defining module', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-reexport-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', 'models.py'), 'class User:\n    pass\n');
+  fs.writeFileSync(path.join(root, 'pkg', '__init__.py'), 'from .models import User\n');
+  fs.writeFileSync(path.join(root, 'consumer.py'), 'from pkg import User as UserModel\n');
+  const p = project(root, ['pkg/models.py', 'pkg/__init__.py', 'consumer.py']);
+
+  assert.deepEqual(resolvePythonSymbol(p, 'consumer', 'UserModel'), {
+    status: 'resolved',
+    locality: 'local',
+    module: 'pkg.models',
+    name: 'User',
+  });
+});
+
+test('T06 cyclic local re-exports fail closed instead of recursing forever', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-reexport-cycle-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', '__init__.py'), '');
+  fs.writeFileSync(path.join(root, 'pkg', 'a.py'), 'from .b import Thing\n');
+  fs.writeFileSync(path.join(root, 'pkg', 'b.py'), 'from .a import Thing\n');
+  fs.writeFileSync(path.join(root, 'consumer.py'), 'from pkg.a import Thing\n');
+  const p = project(root, ['pkg/__init__.py', 'pkg/a.py', 'pkg/b.py', 'consumer.py']);
+
+  const resolved = resolvePythonSymbol(p, 'consumer', 'Thing');
+  assert.equal(resolved.status, 'unknown');
+  assert.equal(resolved.reason, 'cyclic-symbol-alias');
+});

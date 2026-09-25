@@ -139,7 +139,13 @@ export function buildPythonProjectFacts(entries) {
   };
 }
 
-export function resolvePythonSymbol(project, moduleId, symbol) {
+function resolvePythonSymbolInternal(project, moduleId, symbol, seen) {
+  const resolutionKey = `${moduleId}:${symbol}`;
+  if (seen.has(resolutionKey)) {
+    return { status: 'unknown', reason: 'cyclic-symbol-alias', module: moduleId, symbol };
+  }
+  seen.add(resolutionKey);
+
   const mod = project.get(moduleId);
   if (!mod || typeof symbol !== 'string' || !symbol) return { status: 'unknown', symbol };
   const [head, ...rest] = symbol.split('.');
@@ -190,11 +196,24 @@ export function resolvePythonSymbol(project, moduleId, symbol) {
   }
 
   if (alias.kind === 'symbol') {
+    if (['unresolved-local', 'ambiguous'].includes(alias.locality)) {
+      return {
+        status: 'unknown',
+        locality: alias.locality,
+        module: alias.module,
+        name: [alias.name, ...rest].join('.'),
+        symbol,
+      };
+    }
+    const expanded = [alias.name, ...rest].join('.');
+    if (alias.locality === 'local' && project.get(alias.module)) {
+      return resolvePythonSymbolInternal(project, alias.module, expanded, seen);
+    }
     return {
-      status: ['unresolved-local', 'ambiguous'].includes(alias.locality) ? 'unknown' : 'resolved',
+      status: 'resolved',
       locality: alias.locality,
       module: alias.module,
-      name: [alias.name, ...rest].join('.'),
+      name: expanded,
     };
   }
   if (alias.kind === 'ambiguous-import') {
@@ -209,6 +228,10 @@ export function resolvePythonSymbol(project, moduleId, symbol) {
   }
 
   return { status: 'unknown', symbol };
+}
+
+export function resolvePythonSymbol(project, moduleId, symbol) {
+  return resolvePythonSymbolInternal(project, moduleId, symbol, new Set());
 }
 
 export function resolveValueSymbol(project, moduleId, value) {
