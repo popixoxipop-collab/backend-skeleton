@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:protocol-flow:1",
+  "title": "T18 shadow cross-protocol flow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sbf_protocol_flow",
+    "feature_id",
+    "feature_uid",
+    "scenario_id",
+    "steps",
+    "relations",
+    "semantics"
+  ],
+  "properties": {
+    "sbf_protocol_flow": {
+      "const": "1"
+    },
+    "feature_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "feature_uid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "action_ref",
+          "after",
+          "caused_by",
+          "correlations",
+          "idempotency",
+          "retry",
+          "timeout_ms"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "family": {
+            "enum": [
+              "grpc",
+              "graphql",
+              "asyncapi",
+              "websocket"
+            ]
+          },
+          "action_ref": {
+            "$ref": "urn:sbf:protocol-item-ref:draft-1"
+          },
+          "after": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "caused_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "correlations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "with_step",
+                "local_ref",
+                "remote_ref"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "with_step": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "local_ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "remote_ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "idempotency": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key_ref",
+                  "required"
+                ],
+                "properties": {
+                  "key_ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "required": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          },
+          "retry": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "max_attempts",
+                  "backoff_ms"
+                ],
+                "properties": {
+                  "max_attempts": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "backoff_ms": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              }
+            ]
+          },
+          "timeout_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordering",
+        "causation",
+        "correlation"
+      ],
+      "properties": {
+        "ordering": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "causation": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "correlation": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordering_does_not_imply_causation",
+        "correlation_does_not_imply_causation"
+      ],
+      "properties": {
+        "ordering_does_not_imply_causation": {
+          "const": true
+        },
+        "correlation_does_not_imply_causation": {
+          "const": true
+        }
+      }
+    }
+  }
+}
