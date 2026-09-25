@@ -221,6 +221,12 @@ function scanFile(file, text) {
   for (const [routerName, info] of routers) {
     const endpoints = [];
     const escaped = escapeRegExp(routerName);
+    const prefixCallRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*prefix\\s*\\(', 'gi');
+    const prefixMutations = [...masked.matchAll(prefixCallRe)];
+    const hasPrefixMutation = prefixMutations.length > 0;
+    for (const m of prefixMutations) {
+      notes.push('@koa/router prefix() mutation at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' is observed; routes on this router are not emitted because source-order prefix semantics are outside the T13 first slice.');
+    }
     const methodNames = [...STANDARD_METHODS.keys()].join('|');
     const methodRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*(' + methodNames + ')\\s*\\(([^;\\n]*)', 'gi');
     for (const m of masked.matchAll(methodRe)) {
@@ -233,6 +239,7 @@ function scanFile(file, text) {
         notes.push('@koa/router constructor prefix for ' + routerName + ' at ' + path.basename(file) + ' is non-literal; its routes were not emitted because absolute paths are unknown.');
         continue;
       }
+      if (hasPrefixMutation) continue;
       endpoints.push({
         verb: STANDARD_METHODS.get(m[1].toLowerCase()),
         path: joinPath(info.prefix, parsed.path),
@@ -253,11 +260,6 @@ function scanFile(file, text) {
       notes.push('@koa/router use() at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' may mount middleware or nested routers and is observed but not expanded by the T13 first slice.');
     }
 
-    const prefixCallRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*prefix\\s*\\(', 'gi');
-    for (const m of masked.matchAll(prefixCallRe)) {
-      notes.push('@koa/router prefix() mutation at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' is observed but not applied by the T13 first slice; use a literal constructor prefix for a source-backed absolute path.');
-    }
-
     if (endpoints.length) {
       controllers.push({
         className: 'KoaRouter(' + routerName + ')',
@@ -269,7 +271,7 @@ function scanFile(file, text) {
     }
   }
 
-  return { controllers, notes, hasRouterImport: routerConstructors(masked).size > 0 };
+  return { controllers, notes, hasRouterImport: routerConstructors(masked).size > 0, hasRouterInstance: routers.size > 0 };
 }
 
 export function detectKoaRouterRoot(repoRoot) {
@@ -282,7 +284,7 @@ export function detectKoaRouterRoot(repoRoot) {
       try {
         const text = fs.readFileSync(file, 'utf8');
         const result = scanFile(file, text);
-        return result.hasRouterImport && result.controllers.length > 0;
+        return result.hasRouterImport && result.hasRouterInstance;
       } catch { return false; }
     });
     if (live) return { projectRoot, packageFile: pkgFile };
@@ -309,7 +311,7 @@ export function scanKoaRouter(repoRoot, detection = detectKoaRouterRoot(repoRoot
       : [],
     filesRead: [detection.packageFile, ...files].map((file) => path.relative(repoRoot, file)).sort(),
     scanNotes: [...new Set([
-      'T13 Koa/@koa-router first slice: literal standard-method routes and literal constructor prefixes are emitted; prefix() mutation, all(), use()/nested routers, RegExp paths, host constraints and runtime middleware semantics remain unknown.',
+      'T13 Koa/@koa-router first slice: literal standard-method routes and literal constructor prefixes are emitted; routers using prefix() mutation are withheld, while all(), use()/nested routers, RegExp paths, host constraints and runtime middleware semantics remain unknown.',
       ...notes,
     ])],
     apiSurfaceSource: '@koa/router source literals only (T13 experimental leaf; operationId/schema/security/runtime semantics are not inferred)',
