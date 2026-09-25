@@ -10,3 +10,4 @@ import './trust-next/native-engine-export-requirements.test.mjs';
 import './trust-next/first-party-helper-requirements.test.mjs';
 import './trust-next/service-access-requirements.test.mjs';
 import './trust-next/artifact-trust-signature.test.mjs';
+import './trust-next/adversarial-evaluator.test.mjs';
