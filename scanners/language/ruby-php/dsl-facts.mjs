@@ -146,7 +146,7 @@ function rubyStatements(source) {
 }
 
 function firstRubyLiteral(args) {
-  const m = args.match(/^\s*(?::([a-zA-Z_]\w*)|["']([^"']+)["'])/);
+  const m = args.match(/^\s*\(?\s*(?::([a-zA-Z_]\w*)|["']([^"']+)["'])/);
   return m ? (m[1] ?? m[2]) : null;
 }
 
@@ -154,6 +154,14 @@ function rubyOptionLiteral(args, name) {
   const re = new RegExp(`(?:\\b${name}\\s*:|:${name}\\s*=>)\\s*(?:"([^"]*)"|'([^']*)'|:([a-zA-Z_]\\w*))`);
   const m = args.match(re);
   return m ? (m[1] ?? m[2] ?? m[3]) : null;
+}
+
+function rubyOptionPresent(args, name) {
+  return new RegExp(`(?:\\b${name}\\s*:|:${name}\\s*=>)`).test(args);
+}
+
+function rubyOptionNil(args, name) {
+  return new RegExp(`(?:\\b${name}\\s*:|:${name}\\s*=>)\\s*nil\\b`).test(args);
 }
 
 function rubyOptionSymbols(args, name) {
@@ -245,15 +253,31 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
     const scope = src.match(/^scope\b\s*(.*)$/);
     if (scope && /\bdo\s*$/.test(src)) {
       const args = scope[1].replace(/\s+do\s*$/, '');
-      const pathLiteral = rubyOptionLiteral(args, 'path') ?? firstRubyLiteral(args);
+      const pathPresent = rubyOptionPresent(args, 'path');
+      const modulePresent = rubyOptionPresent(args, 'module');
+      const pathNil = rubyOptionNil(args, 'path');
+      const moduleNil = rubyOptionNil(args, 'module');
+      const firstLiteral = firstRubyLiteral(args);
+      const pathLiteral = rubyOptionLiteral(args, 'path') ?? (!pathPresent ? firstLiteral : null);
       const moduleLiteral = rubyOptionLiteral(args, 'module');
-      const dynamic = (!pathLiteral && !moduleLiteral) || src.includes('#{');
+      const optionOnlyStart = /^\s*\(?\s*(?:[a-zA-Z_]\w*\s*:|:[a-zA-Z_]\w*\s*=>)/.test(args);
+      const positionalDynamic = !pathPresent && !modulePresent && !optionOnlyStart && firstLiteral == null && args.trim() !== '';
+      const dynamic = src.includes('#{')
+        || (pathPresent && pathLiteral == null && !pathNil)
+        || (modulePresent && moduleLiteral == null && !moduleNil)
+        || positionalDynamic;
       facts.push(makeFact({
         source, file, framework, language,
         kind: 'scope', status: dynamic ? 'unknown' : 'literal',
         name: pathLiteral ?? moduleLiteral,
         start: statement.start, end: statement.end, context,
-        attributes: { path: pathLiteral, module: moduleLiteral, raw: args },
+        attributes: {
+          path: pathLiteral,
+          pathExplicitNil: pathNil,
+          module: moduleLiteral,
+          moduleExplicitNil: moduleNil,
+          raw: args,
+        },
         ...(dynamic ? { unknownReason: 'scope path/module is not a supported literal form' } : {}),
       }));
       stack.push({
