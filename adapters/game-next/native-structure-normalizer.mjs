@@ -1,7 +1,7 @@
 import { verifyNativeExportEnvelope } from './native-export-envelope.mjs';
 
 export const NATIVE_STRUCTURE_SCHEMA = 'sbf.game-native-structure/draft-1';
-export const NATIVE_STRUCTURE_REVISION = 1;
+export const NATIVE_STRUCTURE_REVISION = 2;
 
 const PROFILE_SCHEMAS = Object.freeze({
   unreal: 'sbf.game-unreal-structure-export/draft-1',
@@ -242,6 +242,11 @@ export function normalizeNativeStructureExport(sourceBytes, envelope) {
     engine: envelope.engine,
     evidence_class: envelope.evidence_class,
     source_artifact: { ...envelope.artifact },
+    source_inputs: envelope.source_inputs.map((input) => ({
+      path: input.path,
+      role: input.role,
+      artifact: { ...input.artifact },
+    })),
     producer: { ...envelope.producer },
     nodes: sortedUnique(normalized.nodes, (item) => item.id, 'native node id'),
     relations: sortedUnique(normalized.relations, (item) => item.id, 'native relation id'),
@@ -265,6 +270,14 @@ export function verifyNativeStructureInvariants(value) {
   if (value?.status !== 'declared-structure-only') errors.push('status');
   for (const key of ['source_structure_verified', 'runtime_behavior_verified', 'causal_edges_verified', 'state_transitions_verified']) {
     if (value?.claims?.[key] !== false) errors.push(`claims.${key}`);
+  }
+  if (!Array.isArray(value?.source_inputs)) {
+    errors.push('source_inputs');
+  } else {
+    const sourcePaths = value.source_inputs.map((input) => input?.path);
+    if (sourcePaths.some((path) => typeof path !== 'string' || path.length === 0)) errors.push('source_inputs.path');
+    if (sourcePaths.length !== new Set(sourcePaths).size) errors.push('source_inputs.duplicate-path');
+    if (value?.evidence_class === 'source-export' && value.source_inputs.length === 0) errors.push('source_inputs.required');
   }
   const nodeIds = (value?.nodes ?? []).map((item) => item.id);
   if (nodeIds.length !== new Set(nodeIds).size) errors.push('nodes.duplicate-id');
