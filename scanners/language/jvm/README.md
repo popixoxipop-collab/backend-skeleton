@@ -26,17 +26,26 @@ are deliberately `0-draft`.
   repository interfaces. A mismatch is evidence only; it never rewrites production scan output.
 - `framework-profiles.mjs` — extension requirements for Spring Java, Quarkus/JAX-RS Java and
   Micronaut Java. Ktor is explicitly blocked because the current T05 protocol is Java-only.
+- `semantic-backend.mjs` — an injection boundary for an explicitly approved compiler-backed
+  helper. It checks request mode, exact source SHA and source-root containment before invoking the
+  helper, and labels the returned coverage narrowly as record-component semantics.
 
-The existing JavaParser + Symbol Solver helper under
-`handles/providers/java-spring/ast-helper/` is reused as the candidate compiler-backed semantic
-backend for later work; T05 does not duplicate or silently invoke it in static mode.
+The repository already contains JavaParser + Symbol Solver under
+`handles/providers/java-spring/ast-helper/` and its Node bridge. T05 does not import that
+downstream provider from the static scanner layer. An integration owner can inject the existing
+helper into `semantic-backend.mjs` after the cross-layer dependency is approved.
 
 ## Deliberate non-support
 
-This layer does not currently claim Kotlin parsing, compiler/build-plugin execution,
-Lombok/annotation-processor generated members, runtime bean activation, authorization enforcement,
-full JPA inheritance semantics, OpenAPI reconciliation, Quarkus/Micronaut route adapters, or a
-production adapter-registry switch.
+This layer does not currently claim Kotlin parsing, compiler/build-plugin or annotation-processor
+execution, Lombok-generated members, runtime bean activation, authorization enforcement, full JPA
+inheritance/access-strategy semantics, OpenAPI reconciliation, Quarkus/Micronaut semantic adapters,
+or a production adapter-registry switch.
+
+The injected semantic backend is also not a claim of a complete dependency classpath: the existing
+helper resolves JDK reflection plus its configured source root and may leave third-party types
+unresolved. The `classpathFingerprint` binds an approved input snapshot; it does not magically
+expand the helper's resolution coverage.
 
 In particular, discovering an annotation is not the same as proving its framework behavior.
 Framework semantics remain in framework-specific adapters/profiles.
@@ -53,6 +62,6 @@ Focused execution:
 node --test test/jvm-language-foundation.test.mjs test/java-spring-analyzer.test.mjs
 ```
 
-The Java corpus covers interface mappings, composed annotation cycles, generic records,
-mapped-superclass inheritance, multiple top-level declarations, UTF-8 byte spans and conservative
-JPA direct facts.
+The corpus covers interface mappings, composed annotation cycles, generic records,
+mapped-superclass inheritance, multiple top-level declarations, UTF-8 byte spans, conservative JPA
+facts, Spring shadow parity, framework profile admission, and semantic-helper hash/approval gates.

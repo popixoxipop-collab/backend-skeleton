@@ -6,3 +6,4 @@ import './language-jvm/jvm-annotation-graph.test.mjs';
 import './language-jvm/jvm-member-facts.test.mjs';
 import './language-jvm/jvm-spring-shadow.test.mjs';
 import './language-jvm/jvm-framework-profiles.test.mjs';
+import './language-jvm/jvm-semantic-backend.test.mjs';
