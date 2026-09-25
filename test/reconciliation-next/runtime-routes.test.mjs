@@ -196,3 +196,45 @@ test('duplicate exact runtime route entries are rejected at envelope validation'
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'duplicate-runtime-route-entry');
 });
+
+
+test('duplicate runtime operationId conflicts even when one duplicate is the exact expected route', () => {
+  const report = reconcileRuntimeRoutes({
+    graph: graph(),
+    binding: binding(),
+    observation: observation([
+      { method: 'GET', path: '/widgets/{id}', operationId: 'findWidget' },
+      { method: 'GET', path: '/shadow/widgets/{id}', operationId: 'findWidget' },
+    ]),
+  });
+  assert.equal(report.endpoints[0].state, 'conflict');
+  assert.equal(report.endpoints[0].reason, 'duplicate-runtime-operation-id');
+  assert.deepEqual(runtimeObservedOperationKeys(report), []);
+});
+
+test('exact route without operationId conflicts when the expected operationId is observed on another route', () => {
+  const report = reconcileRuntimeRoutes({
+    graph: graph(),
+    binding: binding(),
+    observation: observation([
+      { method: 'GET', path: '/widgets/{id}' },
+      { method: 'GET', path: '/v2/widgets/{id}', operationId: 'findWidget' },
+    ]),
+  });
+  assert.equal(report.endpoints[0].state, 'conflict');
+  assert.equal(report.endpoints[0].reason, 'runtime-operation-id-route-conflict');
+});
+
+test('runtime reconciliation is blocked until the OpenAPI context audit is attached', () => {
+  const noContext = graph();
+  delete noContext.openApiContext;
+  const report = reconcileRuntimeRoutes({
+    graph: noContext,
+    binding: binding(),
+    observation: observation([
+      { method: 'GET', path: '/widgets/{id}', operationId: 'findWidget' },
+    ]),
+  });
+  assert.equal(report.state, 'blocked');
+  assert.equal(report.reason, 'openapi-context-not-attached');
+});
