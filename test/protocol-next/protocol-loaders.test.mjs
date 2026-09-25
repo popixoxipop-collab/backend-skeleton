@@ -145,6 +145,7 @@ test('oracle request binds T01-shaped exact refs and typed protocol item refs de
     featureUid: 'uid-orders',
     scenarioId: 'create-order',
     protocolContractRefs: [eventContext.contract_ref, grpcContext.contract_ref],
+    protocolContexts: [eventContext, grpcContext],
     flowContractRef: nonProtocolRef('flow-bytes', 'protocol-flow'),
     originalRef: nonProtocolRef('original-bytes', 'repo-snapshot'),
     candidateRef: nonProtocolRef('candidate-bytes', 'repo-snapshot'),
@@ -188,10 +189,17 @@ test('oracle request rejects malformed T01 refs, duplicate assertions and unboun
     featureUid: 'uid-orders',
     scenarioId: 's',
     protocolContractRefs: [grpcContext.contract_ref],
+    protocolContexts: [grpcContext],
     originalRef: nonProtocolRef('original', 'repo-snapshot'),
     candidateRef: nonProtocolRef('candidate', 'repo-snapshot'),
     runtimeProfileRef: nonProtocolRef('profile', 'beval.runtime-profile'),
   };
+
+  assert.throws(() => buildProtocolOracleRequest({
+    ...valid,
+    protocolContexts: [],
+    assertions: [{ id: 'x', kind: 'grpc-status', action_ref: grpcAction, expect: { code: 'OK' } }],
+  }), /missing exact contract context/);
 
   assert.throws(() => buildProtocolOracleRequest({
     ...valid,
