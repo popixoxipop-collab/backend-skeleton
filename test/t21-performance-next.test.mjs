@@ -11,3 +11,4 @@ import './perf-next/t21-cache-runtime.test.mjs';
 import './perf-next/t21-legacy-cache-equivalence.test.mjs';
 import './perf-next/t21-project-cache.test.mjs';
 import './perf-next/t21-performance-policy.test.mjs';
+import './perf-next/t21-benchmark-smoke.test.mjs';
