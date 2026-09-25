@@ -16,6 +16,7 @@ import {
 	createAdapterTaskPacket,
 	createSupportExplanation,
 	makeSdkRequest,
+	reviewAdapterSubmission,
 	runAdapterSdkConformance,
 	SDK_SCHEMA_FILES,
 	SDK_SCHEMA_IDS,
@@ -41,6 +42,7 @@ function validators() {
 		conformance: ajv.compile(load('adapter-sdk-conformance.schema.json')),
 		packageInventory: ajv.compile(load('adapter-package-inventory.schema.json')),
 		supportMatrix: ajv.compile(load('support-matrix.schema.json')),
+		submissionReview: ajv.compile(load('adapter-submission-review.schema.json')),
 	};
 }
 
@@ -147,6 +149,13 @@ test('all SDK schemas compile and accept values emitted/accepted by the runtime 
 
 	const matrix = buildSupportMatrix([explain]);
 	assert.equal(v.supportMatrix(matrix), true, JSON.stringify(v.supportMatrix.errors));
+
+	const submission = reviewAdapterSubmission({
+		manifest: m,
+		inventory,
+		explanations: [explain],
+	});
+	assert.equal(v.submissionReview(submission), true, JSON.stringify(v.submissionReview.errors));
 });
 
 test('manifest schema and runtime validator both reject obvious execution/path escapes', () => {
