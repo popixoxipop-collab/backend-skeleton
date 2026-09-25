@@ -307,3 +307,39 @@ test('serialized ProjectGraph is worktree-portable while execution root stays pr
   assert.equal(projectGraphExecutionRoot(roundTrip), null);
   assert.equal(roundTrip.repo_root, '.');
 });
+
+
+test('reference/generated/template projects stay visible but are excluded from the default scan plan', () => {
+  const root = fixture({
+    'app/package.json': JSON.stringify({ name: '@demo/app' }),
+    'examples/demo/package.json': JSON.stringify({ name: '@demo/example' }),
+    'generated/client/package.json': JSON.stringify({ name: '@demo/generated' }),
+    'templates/service/package.json': JSON.stringify({ name: '@demo/template' }),
+  });
+  const exactNode = adapter('node-http', 50, (candidateRoot) =>
+    fs.existsSync(path.join(candidateRoot, 'package.json')) ? candidateRoot : null
+  );
+
+  const graph = buildProjectGraph({ repoRoot: root, adapters: [exactNode, fallback] });
+  const roles = Object.fromEntries(graph.projects.map((project) => [project.root, project.project_role]));
+  assert.deepEqual(roles, {
+    app: 'active',
+    'examples/demo': 'reference',
+    'generated/client': 'generated',
+    'templates/service': 'template',
+  });
+
+  assert.deepEqual(
+    buildProjectScanPlan(graph).map((item) => [item.project_root, item.adapter_id]),
+    [['app', 'node-http']],
+  );
+  assert.deepEqual(
+    buildProjectScanPlan(graph, { includeNonActive: true }).map((item) => [item.project_root, item.adapter_id]),
+    [
+      ['app', 'node-http'],
+      ['examples/demo', 'node-http'],
+      ['generated/client', 'node-http'],
+      ['templates/service', 'node-http'],
+    ],
+  );
+});
