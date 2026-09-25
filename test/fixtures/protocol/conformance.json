@@ -6,7 +6,7 @@
       "id": "grpc-proto-unary-and-stream",
       "family": "grpc",
       "file": "orders.proto",
-      "text": "syntax = \"proto3\";\\npackage shop.v1;\\nmessage Req { string id = 1; }\\nmessage Res { string id = 1; }\\nservice Orders { rpc Get (Req) returns (Res); rpc Watch (Req) returns (stream Res); }",
+      "text": "syntax = \"proto3\";\npackage shop.v1;\nmessage Req { string id = 1; }\nmessage Res { string id = 1; }\nservice Orders { rpc Get (Req) returns (Res); rpc Watch (Req) returns (stream Res); }",
       "expect": {
         "status": "partial",
         "services": 1,
@@ -30,7 +30,7 @@
       "id": "graphql-sdl-query",
       "family": "graphql",
       "file": "schema.graphql",
-      "text": "type Query { order(id: ID!): Order }\\ntype Order { id: ID! }",
+      "text": "type Query { order(id: ID!): Order }\ntype Order { id: ID! }",
       "expect": {
         "status": "partial",
         "types": 2,
@@ -52,7 +52,7 @@
       "id": "asyncapi-yaml-send",
       "family": "asyncapi",
       "file": "asyncapi.yaml",
-      "text": "asyncapi: 3.0.0\\nchannels:\\n  orders:\\n    address: orders\\noperations:\\n  sendOrder:\\n    action: send\\n    channel:\\n      $ref: '#/channels/orders'\\n",
+      "text": "asyncapi: 3.0.0\nchannels:\n  orders:\n    address: orders\noperations:\n  sendOrder:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n",
       "expect": {
         "status": "partial",
         "channels": 1,
@@ -74,7 +74,7 @@
       "id": "remote-ref-denied",
       "family": "asyncapi",
       "file": "remote.yaml",
-      "text": "asyncapi: 3.0.0\\nchannels:\\n  external:\\n    $ref: https://example.test/external.yaml\\n",
+      "text": "asyncapi: 3.0.0\nchannels:\n  external:\n    $ref: https://example.test/external.yaml\n",
       "expect_error": "remote $ref is disabled"
     },
     {
