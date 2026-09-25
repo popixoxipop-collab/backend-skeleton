@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { decodeNdjsonLine, normalizeBudget, validateMessage } from './protocol.mjs';
+import { DEFAULT_BUDGET, decodeNdjsonLine, normalizeBudget, validateMessage } from './protocol.mjs';
 
 const WORKER_PATH = fileURLToPath(new URL('./worker.mjs', import.meta.url));
 
@@ -47,8 +47,21 @@ function decodeWorkerOutput(stdout, budget) {
 	return decodeNdjsonLine(stdout, { maxInputBytes: budget.maxOutputBytes });
 }
 
-export function runNativeServerWorker(message, { spawnFn = spawnSync } = {}) {
+function assertBudgetWithinProfile(requestBudget, profileBudget) {
+	for (const key of ['maxInputBytes', 'maxOutputBytes', 'maxDiagnostics', 'maxRoutes', 'wallTimeMs']) {
+		if (requestBudget[key] > profileBudget[key]) {
+			throw new NativeWorkerRunError(
+				'WORKER_BUDGET_EXPANSION',
+				`request ${key}=${requestBudget[key]} exceeds runner profile limit ${profileBudget[key]}`,
+			);
+		}
+	}
+}
+
+export function runNativeServerWorker(message, { spawnFn = spawnSync, profileLimits = DEFAULT_BUDGET } = {}) {
 	const budget = normalizeBudget(message?.budget ?? {});
+	const profileBudget = normalizeBudget(profileLimits);
+	assertBudgetWithinProfile(budget, profileBudget);
 	const input = requestLine(message, budget);
 	const child = spawnFn(process.execPath, [WORKER_PATH], {
 		input,
