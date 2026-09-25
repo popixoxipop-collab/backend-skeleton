@@ -4,20 +4,31 @@
   "state": "SUBMITTED",
   "repository": "popixoxipop-collab/backend-skeleton",
   "branch": "scale/T23/release-migration-ops",
+  "covered_tasks": ["T23-01", "T23-02-preparation"],
   "dependency_state": {
-    "T00-01": "SUBMITTED in draft PR #65; not independently ACCEPTED"
+    "T00-01": "SUBMITTED_NOT_ACCEPTED",
+    "T00-04": "BLOCKED_PREFREEZE",
+    "T19-03": "PLANNED",
+    "T20-03": "PLANNED",
+    "T00-05": "PLANNED"
   },
-  "input": {
-    "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-    "t00_baseline_head": "48efe1ca5f8a94a6fa71d85563ffc3762ff6410e",
-    "captured_on": "2026-09-25"
+  "coordination_baseline": {
+    "source": "T00 epoch-3 draft PR #97",
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+  },
+  "observed_current_main": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
   },
   "test_runs": [
     {
       "command": "node --test release/next/test/release-policy.test.mjs",
       "node_version": "v22.16.0",
       "exit_code": 0,
-      "passed": 8,
+      "passed": 13,
       "failed": 0,
       "skipped": 0
     },
@@ -25,21 +36,36 @@
       "command": "node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json",
       "node_version": "v22.16.0",
       "exit_code": 0,
-      "result_ok": true
+      "result_ok": true,
+      "derived_release_blockers": ["BASELINE_NOT_ACCEPTED", "COORDINATION_BASELINE_DRIFT", "CURRENT_MAIN_CI_NOT_GREEN"]
     }
   ],
   "scope": {
-    "added_only": "release/next/**",
+    "added_or_modified_only": "release/next/**",
     "stable_entrypoints_modified": false,
     "stable_schemas_modified": false,
     "package_or_lockfile_modified": false,
+    "package_allowlist_modified": false,
     "database_migrations_modified": false,
-    "github_workflows_modified": false
+    "github_workflows_modified": false,
+    "release_or_default_flags_modified": false
   },
-  "known_limitations": [
-    "T00-01 is submitted but not accepted, so this packet cannot satisfy the formal T23-01 dependency gate yet.",
-    "Historical exact-head CI from the bootstrap inventory is not a substitute for T23-specific cross-repository release checks.",
-    "T23-03 workflow mutation remains blocked on T19/T20 prerequisites and is intentionally not implemented in this slice."
+  "overlap_reconciliation": {
+    "legacy_c_pr_62": "release semantics mapped to T23; evidence/performance/freshness remain T19/T21; no wholesale cherry-pick",
+    "shared_hot_files": "lib/gate-profiles.mjs and stable release schema remain blocked pending T00 lease"
+  },
+  "change_requests": [
+    "nested test discovery for T02/T19/T22",
+    "T17 adapters/game-next npm packaging",
+    "T22 sdk/next packaging plus nested test discovery",
+    "T15 installed R3F webgame compatibility CI"
   ],
-  "rollback": "Delete the scale/T23/release-migration-ops branch/PR. This slice only adds release/next/**."
+  "known_limitations": [
+    "T00-01 has not been independently accepted.",
+    "T00-04 is still BLOCKED_PREFREEZE.",
+    "T23-03 shared workflow/package/default integration is intentionally not implemented.",
+    "beval current-main exact-head CI was queued at the inventory capture point.",
+    "T00 epoch-3 becoder pin is behind observed current becoder main, so coordination drift blocks release."
+  ],
+  "rollback": "Delete the draft T23 branch/PR. The slice changes only release/next/** and no production migration/default/workflow/package surface."
 }
