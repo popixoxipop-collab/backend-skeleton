@@ -63,6 +63,11 @@ function runtimeDecision(source, openapi, runtime) {
   if (!openapi.ok) return { state: 'unknown', reason: openapi.reason };
   if (!runtime.ok) return { state: 'unknown', reason: runtime.reason };
 
+  const sourceSpec = sourceSpecDecision(source, openapi);
+  if (sourceSpec.state !== 'bound') {
+    return { state: sourceSpec.state, reason: sourceSpec.reason };
+  }
+
   if (runtime.value.repository !== source.value.repository) {
     return { state: 'conflict', reason: 'source-runtime-repository-mismatch' };
   }
