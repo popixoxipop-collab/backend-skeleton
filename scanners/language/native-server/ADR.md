@@ -4,13 +4,13 @@ Status: proposed pilot decision. This file does not certify a framework or compi
 
 ## Decision
 
-The native-server layer has one transport/fact boundary but does **not** force every language through one parser implementation. T08 will validate language-native analyzers behind the same deterministic fact envelope.
+The native-server layer has one transport/fact boundary but does **not** force every language through one parser implementation. Go, C# and Rust now all have conservative static pilots behind that boundary. T08 will validate language-native analyzers behind the same deterministic fact envelope.
 
 | Language | Phase 1 | Phase 2 candidate | Semantic/runtime candidate | Stop/upgrade rule |
 |---|---|---|---|---|
 | Go | current conservative source pilot | standard-library `go/parser` + `go/ast` | `go/types` with an explicitly pinned module/build context | replace/augment the pilot only when frozen route fixtures reduce false positives/unknowns without executing arbitrary build hooks |
 | C# | current conservative source pilot | Roslyn syntax trees | Roslyn semantic model plus an explicitly approved ASP.NET endpoint metadata exporter | semantic mode stays optional; unresolved references/attributes remain unknown rather than falling back to regex guesses |
-| Rust | protocol slot only | syntax parser candidate | compiler metadata only in a sandboxed, pinned toolchain profile | proc-macro/build-script execution is never implicit; Axum/Actix support waits for a separate target adapter and evidence |
+| Rust | current conservative Axum/Actix source pilot | syntax parser candidate | compiler metadata only in a sandboxed, pinned toolchain profile | proc-macro/build-script execution is never implicit; target adapter/runtime certification remains separate |
 | other native/server languages | no implementation claim | language-owned parser RFC | approved helper profile if needed | must add fixtures and a maintainer before admission |
 
 ## Why not Tree-sitter-only
@@ -66,3 +66,10 @@ A native parser backend can replace the source pilot for a target only after:
 7. no target code executes in the static profile.
 
 T08-05 will consume approved language facts only after the shared project/capability/contract interfaces are frozen. Until then these modules stay unregistered from the main scanner CLI.
+
+
+## T08-04 pilot result
+
+The Rust source pilot is now implemented behind the same unregistered native-language boundary. Its purpose is to freeze source-backed facts and abstention behavior before any compiler/proc-macro execution is considered.
+
+The local comparison corpus now covers Axum chained methods, nested routers, turbofish constructors, computed-path abstention, raw-string false-positive resistance, Rust lifetimes, Actix direct routes/scopes, unsupported method builders, and mixed-framework isolation. This is still Discovery-level evidence only; no Rust framework adapter has been registered with the main bskel scanner.
