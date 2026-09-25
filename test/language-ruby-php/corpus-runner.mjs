@@ -21,22 +21,13 @@ for (let i = 0; i < args.length; i++) {
 
 const fullManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 validateT07CorpusManifest(fullManifest);
-const manifest = onlyId
-  ? { ...fullManifest, entries: fullManifest.entries.filter((entry) => entry.id === onlyId) }
-  : fullManifest;
-
-if (onlyId && manifest.entries.length !== 1) {
+if (onlyId && !fullManifest.entries.some((entry) => entry.id === onlyId)) {
   throw new Error(`unknown corpus entry: ${onlyId}`);
 }
-// runT07Corpus's full-manifest cardinality check is intentional. A filtered execution gets a
-// one-entry wrapper only after the checked manifest has been validated, then runs through the
-// same scanner one entry at a time.
-const report = onlyId
-  ? runT07Corpus({ ...fullManifest, entries: fullManifest.entries }, { keepCheckouts: false })
-  : runT07Corpus(fullManifest, { keepCheckouts: false });
-const selected = onlyId
-  ? { ...report, results: report.results.filter((entry) => entry.id === onlyId) }
-  : report;
+const selected = runT07Corpus(fullManifest, {
+  keepCheckouts: false,
+  ids: onlyId ? [onlyId] : null,
+});
 const text = JSON.stringify(selected, null, 2) + '\n';
 if (outPath) fs.writeFileSync(outPath, text);
 else process.stdout.write(text);
