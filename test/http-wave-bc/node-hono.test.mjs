@@ -83,6 +83,23 @@ test('scan records route() mounts as unknown instead of inventing nested endpoin
   } finally { cleanup(root); }
 });
 
+test('regex literals cannot unmask commented-out Hono routes', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      'const app = new Hono()',
+      "const quoteMatcher = /'/g; // app.get('/ghost', ghost)",
+      "app.get('/live', live)",
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => x.path), ['/live']);
+  } finally { cleanup(root); }
+});
+
 test('listReadSet is deterministic and includes package + source inputs', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
