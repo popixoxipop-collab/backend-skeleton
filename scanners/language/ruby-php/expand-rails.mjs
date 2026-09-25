@@ -39,28 +39,54 @@ function resourceContextShape(ctx, base) {
 
 function baseForResourceFact(fact) {
   let base = '/';
+  let pendingResource = null;
+
+  const consumePendingNested = () => {
+    if (!pendingResource) return { ok: true };
+    if (!pendingResource.nested) {
+      return {
+        ok: false,
+        reason: `cannot conservatively derive parent nested key for resource '${pendingResource.name}'`,
+      };
+    }
+    base = pendingResource.nested;
+    pendingResource = null;
+    return { ok: true };
+  };
+
   for (const ctx of fact.context ?? []) {
     if (ctx.dynamic) return { ok: false, reason: `dynamic ${ctx.kind} context` };
+
     if (ctx.kind === 'namespace' || ctx.kind === 'scope') {
+      const consumed = consumePendingNested();
+      if (!consumed.ok) return consumed;
       if (ctx.path) base = normalizeRailsCandidatePath(joinRoute(base, ctx.path));
       continue;
     }
+
     if (ctx.kind === 'resource') {
+      const consumed = consumePendingNested();
+      if (!consumed.ok) return consumed;
       const shape = resourceContextShape(ctx, base);
       if (!shape.ok) return shape;
-      if (!shape.nested) {
-        return {
-          ok: false,
-          reason: `cannot conservatively derive parent nested key for resource '${ctx.name}'`,
-        };
-      }
-      base = shape.nested;
+      pendingResource = { ...shape, name: ctx.name };
       continue;
     }
+
     if (ctx.kind === 'route-mode') {
-      return { ok: false, reason: 'resource declaration inside member/collection route mode is unsupported' };
+      if (!pendingResource) {
+        return { ok: false, reason: 'member/collection route mode has no resolved resource context' };
+      }
+      if (ctx.routeMode === 'collection') base = pendingResource.collection;
+      else if (ctx.routeMode === 'member') base = pendingResource.member;
+      else if (ctx.routeMode === 'new') base = joinRoute(pendingResource.collection, 'new');
+      else return { ok: false, reason: `unsupported route mode '${ctx.routeMode ?? ctx.name}'` };
+      pendingResource = null;
     }
   }
+
+  const consumed = consumePendingNested();
+  if (!consumed.ok) return consumed;
   return { ok: true, path: base };
 }
 
