@@ -100,6 +100,43 @@ jobs:
         if: always()
         run: node scripts/report-repo-gated-skips.mjs "${{ runner.temp }}/npm-test-output.log"
 
+  # T23 post-04B shared integration: preserve legacy root npm test, while making approved
+  # nested next-plane suites visible in required CI. Absent tracks report NOT_PRESENT;
+  # once a source namespace exists, missing/empty nested tests fail closed.
+  nested-next:
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - name: T01 contract-next
+        run: node scripts/run-next-nested-tests.mjs T01
+      - name: T02 project-graph
+        run: node scripts/run-next-nested-tests.mjs T02
+      - name: T06 language-python
+        run: node scripts/run-next-nested-tests.mjs T06
+      - name: T08 language-native-server
+        run: node scripts/run-next-nested-tests.mjs T08
+      - name: T09 reconciliation-next
+        run: node scripts/run-next-nested-tests.mjs T09
+      - name: T11 http-legacy-next
+        run: node scripts/run-next-nested-tests.mjs T11
+      - name: T17 game-next
+        run: node scripts/run-next-nested-tests.mjs T17
+      - name: T18 protocol-next
+        run: node scripts/run-next-nested-tests.mjs T18
+      - name: T19 conformance-next
+        run: node scripts/run-next-nested-tests.mjs T19
+      - name: T20 trust-next
+        run: node scripts/run-next-nested-tests.mjs T20
+      - name: T22 sdk-next
+        run: node scripts/run-next-nested-tests.mjs T22
   # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   package-install:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}

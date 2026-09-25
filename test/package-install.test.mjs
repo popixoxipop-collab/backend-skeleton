@@ -68,6 +68,23 @@ test('npm pack -> install the real tarball -> the installed bskel binary runs an
 		assert.ok(fs.existsSync(path.join(astHelperDir, 'gradle', 'wrapper', 'gradle-wrapper.jar')), 'the installed package is missing gradle-wrapper.jar');
 		assert.ok(!fs.existsSync(path.join(astHelperDir, '.gradle')), 'the installed package must NOT ship the local .gradle/ build cache');
 		assert.ok(!fs.existsSync(path.join(astHelperDir, 'build')), 'the installed package must NOT ship the local build/ output directory');
+
+		// T23 post-04B package-shadow allowlist: game-next/protocol-next may be shipped as
+		// unregistered next-plane assets. Package presence does NOT mean production registration.
+		const installedPackageRoot = path.join(installDir, 'node_modules', 'backend-skeleton');
+		const installedPackageJson = JSON.parse(fs.readFileSync(path.join(installedPackageRoot, 'package.json'), 'utf8'));
+		for (const allowed of ['adapters/game-next/', 'adapters/protocol-next/']) {
+			assert.ok(installedPackageJson.files.includes(allowed), `installed package metadata missing T23 allowlist entry ${allowed}`);
+		}
+		for (const relativeDir of ['adapters/game-next', 'adapters/protocol-next']) {
+			const sourcePresent = fs.existsSync(path.join(REPO_ROOT, relativeDir));
+			const installedPresent = fs.existsSync(path.join(installedPackageRoot, relativeDir));
+			assert.equal(
+				installedPresent,
+				sourcePresent,
+				`${relativeDir} packed presence must exactly follow source presence under the approved T23 allowlist`
+			);
+		}
 	} finally {
 		fs.rmSync(scratch, { recursive: true, force: true });
 	}

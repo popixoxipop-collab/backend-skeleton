@@ -1,0 +1,229 @@
+{
+  "schema": "bskel.scale-integration-manifest/1",
+  "owner_track": "T23",
+  "captured_on": "2026-09-25",
+  "coordination": {
+    "core_freeze": "ACTIVE_CORE_FREEZE",
+    "core_freeze_merge": "69913af4154ff61be4f5e4e59a5781988bd4e4c5",
+    "promotion_matrix_pr": 129,
+    "promotion_matrix_head": "3c5732846035b9aa23e79710ea7790e3f6fe8c43",
+    "promotion_matrix_state": "MERGED",
+    "promotion_matrix_merge": "eca420066c67706c5cbd588e664d3f8aa698f2be"
+  },
+  "package_baseline": {
+    "package_json_head": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "included_roots": [
+      "bin/",
+      "lib/",
+      "contracts/",
+      "scanners/",
+      "handles/",
+      "new/",
+      "stack/",
+      "patterns/",
+      "rules/",
+      "schemas/",
+      "scripts/preflight-base-ref.sh",
+      "action.yml",
+      "LICENSE",
+      "COMMERCIAL-LICENSE.md",
+      "COMMERCIAL-LICENSE-AGREEMENT.md"
+    ],
+    "root_test_command": "node --test test/*.test.mjs",
+    "nested_test_discovery": "REQUIRED_ON_PRESENT_SOURCE",
+    "approved_shadow_package_roots": [
+      "adapters/game-next/",
+      "adapters/protocol-next/"
+    ]
+  },
+  "candidates": [
+    {
+      "track": "T01",
+      "pr": 82,
+      "head": "e499073aaa7fe9c116e30fbff0536cccecb6eb69",
+      "source_namespaces": [
+        "contracts/next/**",
+        "schemas/next/**"
+      ],
+      "nested_test_glob": "test/contract-next/*.test.mjs",
+      "current_package_includes_source": true,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before cross-tool shipping",
+      "runtime_gate": "T16 replay required for runtime-tested claims",
+      "intended_disposition": "test-only integration first; source already under existing package roots"
+    },
+    {
+      "track": "T02",
+      "pr": 72,
+      "head": "989e7d332761ab8bcda453b2af9e84a5102b1281",
+      "source_namespaces": [
+        "scanners/project-graph/**"
+      ],
+      "nested_test_glob": "test/project-graph/*.test.mjs",
+      "current_package_includes_source": true,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before plane promotion",
+      "runtime_gate": "none for static graph facts",
+      "intended_disposition": "test-only integration; keep plane INTERNAL_DRAFT until portable identity blocker is resolved"
+    },
+    {
+      "track": "T06",
+      "pr": 75,
+      "head": "f010722846c9b35282c11cd9b6295fabe688fae4",
+      "source_namespaces": [
+        "scanners/language/python/**"
+      ],
+      "nested_test_glob": "test/language-python/*.test.mjs",
+      "current_package_includes_source": true,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before any support-level promotion",
+      "runtime_gate": "framework runtime claims remain outside this analyzer lane",
+      "intended_disposition": "test-only integration; no production adapter registration"
+    },
+    {
+      "track": "T08",
+      "pr": 76,
+      "head": "8cf2a3b3f70c3929cb121ad49b7227e97cda5953",
+      "source_namespaces": [
+        "scanners/language/native-server/**"
+      ],
+      "nested_test_glob": "test/language-native-server/*.test.mjs",
+      "current_package_includes_source": true,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before support-level promotion",
+      "runtime_gate": "T20 review required for executable/toolchain paths",
+      "intended_disposition": "test-only integration; public adapter registration deferred"
+    },
+    {
+      "track": "T09",
+      "pr": 83,
+      "head": "7074e815e0c471ec7770f3f5f50f691c9e275b5d",
+      "source_namespaces": [
+        "contracts/reconciliation-next/**"
+      ],
+      "nested_test_glob": "test/reconciliation-next/*.test.mjs",
+      "current_package_includes_source": true,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before reconciliation plane promotion",
+      "runtime_gate": "T16 required only for claims stronger than source/spec reconciliation",
+      "intended_disposition": "package-shadow + required nested-test lane; no live writer cutover"
+    },
+    {
+      "track": "T11",
+      "pr": 77,
+      "head": "5d328f906dd81fde508c1cd652a6ab159e22a29e",
+      "source_namespaces": [
+        "adapters/http-legacy-next/**"
+      ],
+      "nested_test_glob": "test/http-legacy-next/*.test.mjs",
+      "current_package_includes_source": false,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before integration candidate promotion",
+      "runtime_gate": "legacy behavior parity/corpus evidence required",
+      "intended_disposition": "test-only first; package decision separate; no legacy behavior drift"
+    },
+    {
+      "track": "T17",
+      "pr": 68,
+      "head": "3708262853aeee8bb2f3efb5f3c8cee29456fe48",
+      "source_namespaces": [
+        "adapters/game-next/**"
+      ],
+      "nested_test_glob": "test/game-next/*.test.mjs",
+      "current_package_includes_source": false,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before game-next promotion",
+      "runtime_gate": "native execution waits T20/T16",
+      "intended_disposition": "package-shadow candidate + required nested-test lane; no production registration"
+    },
+    {
+      "track": "T18",
+      "pr": 70,
+      "head": "9fcab1f369ba93b2b30decb2d0181af50ef621d9",
+      "source_namespaces": [
+        "adapters/protocol-next/**"
+      ],
+      "nested_test_glob": "test/protocol-next/*.test.mjs",
+      "current_package_includes_source": false,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before protocol-next promotion",
+      "runtime_gate": "runtime oracle/certification owned by T16/T19",
+      "intended_disposition": "package-shadow candidate + required nested-test lane; no runtime causality claim"
+    },
+    {
+      "track": "T19",
+      "pr": 118,
+      "head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+      "source_namespaces": [
+        "test/conformance-next/**",
+        "test/corpus-next/**",
+        "evidence/next/**"
+      ],
+      "nested_test_glob": "test/conformance-next/*.test.mjs",
+      "current_package_includes_source": false,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "self is QA authority; expected outputs remain independently authored",
+      "runtime_gate": "runtime evidence is consumed, not invented",
+      "intended_disposition": "required QA test lane only"
+    },
+    {
+      "track": "T20",
+      "pr": 79,
+      "head": "281a78871723025a3598844154ad19d1dd0eb9e8",
+      "source_namespaces": [
+        "lib/trust-next/**"
+      ],
+      "nested_test_glob": "test/trust-next/*.test.mjs",
+      "current_package_includes_source": true,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "independent security/QA review required",
+      "runtime_gate": "actual T20-03 enforcement/sandbox remains blocked",
+      "intended_disposition": "test-only integration; source package exposure does not imply runtime activation"
+    },
+    {
+      "track": "T22",
+      "pr": 85,
+      "head": "d7081713724c016499d6c48186e26be2dc89671e",
+      "source_namespaces": [
+        "sdk/next/**"
+      ],
+      "nested_test_glob": "test/sdk-next/*.test.mjs",
+      "current_package_includes_source": false,
+      "current_generic_test_discovers_suite": false,
+      "t19_review": "required before SDK promotion",
+      "runtime_gate": "T20 external-adapter trust review required",
+      "intended_disposition": "defer package inclusion until trust/integration approval"
+    }
+  ],
+  "shared_integration_order": [
+    "land T00-04B promotion matrix",
+    "add required nested-test discovery without removing existing root npm test",
+    "add package allowlists only for T00-approved next namespaces",
+    "prove npm pack/install contents for each approved namespace",
+    "obtain exact-head CI execution evidence per nested lane",
+    "request T19 independent review for each claimed promotion level"
+  ],
+  "prohibitions": [
+    "manifest presence is not production support",
+    "package presence is not registry activation",
+    "do not add experimental framework adapters to live scanners/adapters registry",
+    "do not convert unknown/partial/ambiguous states to supported",
+    "do not claim runtime-tested without verifier-produced T16/beval evidence"
+  ],
+  "shared_integration": {
+    "branch": "scale/T23/shared-integration-post04b",
+    "status": "IMPLEMENTING",
+    "legacy_root_test_preserved": true,
+    "nested_ci_nodes": [
+      "22.x",
+      "24.x"
+    ],
+    "absent_suite_semantics": "NOT_PRESENT",
+    "source_without_tests_semantics": "FAIL_CLOSED",
+    "package_shadow_only": [
+      "T17 game-next",
+      "T18 protocol-next"
+    ],
+    "production_registration_changed": false
+  }
+}

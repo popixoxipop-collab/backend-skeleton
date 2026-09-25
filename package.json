@@ -33,7 +33,9 @@
     "action.yml",
     "LICENSE",
     "COMMERCIAL-LICENSE.md",
-    "COMMERCIAL-LICENSE-AGREEMENT.md"
+    "COMMERCIAL-LICENSE-AGREEMENT.md",
+    "adapters/game-next/",
+    "adapters/protocol-next/"
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
