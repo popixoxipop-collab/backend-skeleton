@@ -1,0 +1,72 @@
+{
+  "schema": "bskel.scale-core-freeze/1",
+  "task_id": "T00-04A",
+  "status": "CANDIDATE_BLOCKED_ON_BASELINE",
+  "generated_on": "2026-09-25",
+  "frozen": {
+    "legacy_http_identity": [
+      "sbf.contract-ref/1",
+      "sbf.action-ref/1",
+      "sbf.field-ref/1"
+    ],
+    "artifact_identity": {
+      "candidate": "sbf.artifact-ref/1",
+      "semantics": "exact-bytes"
+    },
+    "identity_envelope": {
+      "candidate": "sbf.identity-envelope/1",
+      "family": "http",
+      "additive": true
+    },
+    "capability_statuses": [
+      "supported",
+      "partial",
+      "unsupported",
+      "unknown",
+      "not-applicable"
+    ],
+    "runtime_tested_rule": "must bind verified runtime execution evidence",
+    "uncertainty_rule": "downstream may narrow uncertainty only with stronger evidence",
+    "parallel_write_protocol": "T00-03-r1"
+  },
+  "not_frozen": {
+    "T02": [
+      "portable project graph identity"
+    ],
+    "T03": [
+      "certification/evidence-ref wire shape"
+    ],
+    "T09": [
+      "reconciliation decision graph"
+    ],
+    "T10": [
+      "persistence IR trust boundary"
+    ],
+    "T16": [
+      "runtime binding cross-tool promotion"
+    ],
+    "T17": [
+      "game-next graph"
+    ],
+    "T18": [
+      "protocol item/action identity"
+    ],
+    "adapters": [
+      "production registration/certification"
+    ],
+    "external_adapter_execution": [
+      "sandbox/enforcement"
+    ],
+    "package_release": [
+      "T23 integration"
+    ]
+  },
+  "activation_gates": [
+    "T00-01 current baseline exact-head ACCEPTED with T19 independent review",
+    "T01 exact-head green and legacy identity compatibility intact",
+    "T03 five-state semantics exact-head green without promoting certification wire shape",
+    "T00-03 lease/fencing implementation green",
+    "no baseline drift at activation"
+  ],
+  "plane_specific_blockers_do_not_block_core_freeze": true
+}
