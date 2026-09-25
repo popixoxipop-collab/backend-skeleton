@@ -41,13 +41,22 @@ export const adapter = {
 
 test('real registry: loads every shipped adapter sorted by specificity descending', async () => {
 	assert.deepEqual(LOAD_ERRORS, []);
-	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express', 'generic-grep']);
-	assert.equal(ADAPTERS[0].specificity, 100);
-	assert.equal(ADAPTERS[1].specificity, 95);
-	assert.equal(ADAPTERS[2].specificity, 90);
-	assert.equal(ADAPTERS[3].specificity, 85);
-	assert.equal(ADAPTERS[4].specificity, 80);
-	assert.equal(ADAPTERS[5].specificity, 0);
+	const expected = [
+		['java-spring', 100],
+		['ruby-rails', 95],
+		['php-laravel', 93],
+		['typescript-nestjs', 92],
+		['csharp-aspnet-core', 91],
+		['python-fastapi', 90],
+		['python-django', 89],
+		['node-fastify', 88],
+		['python-flask', 87],
+		['go-gin', 86],
+		['typescript-express', 85],
+		['javascript-express', 80],
+		['generic-grep', 0],
+	];
+	assert.deepEqual(ADAPTERS.map((a) => [a.id, a.specificity]), expected);
 });
 
 test('real registry: every CAPABILITY_NAMES key is declared (true or false) by every shipped adapter', () => {

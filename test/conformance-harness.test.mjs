@@ -23,6 +23,13 @@ const RUBY_FIXTURE = path.join(__dirname, 'fixtures', 'ruby-rails');
 const PYTHON_FIXTURE = path.join(__dirname, 'fixtures', 'python-fastapi');
 const TYPESCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-express');
 const JAVASCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'javascript-express');
+const NESTJS_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-nestjs');
+const FASTIFY_FIXTURE = path.join(__dirname, 'fixtures', 'node-fastify');
+const FLASK_FIXTURE = path.join(__dirname, 'fixtures', 'python-flask');
+const DJANGO_FIXTURE = path.join(__dirname, 'fixtures', 'python-django');
+const ASPNET_FIXTURE = path.join(__dirname, 'fixtures', 'csharp-aspnet-core');
+const GIN_FIXTURE = path.join(__dirname, 'fixtures', 'go-gin');
+const LARAVEL_FIXTURE = path.join(__dirname, 'fixtures', 'php-laravel');
 
 function scratchCopyOf(fixtureDir) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-conformance-'));
@@ -39,11 +46,18 @@ const ADAPTER_FIXTURES = {
 	'python-fastapi': PYTHON_FIXTURE,
 	'typescript-express': TYPESCRIPT_FIXTURE,
 	'javascript-express': JAVASCRIPT_FIXTURE,
+	'typescript-nestjs': NESTJS_FIXTURE,
+	'node-fastify': FASTIFY_FIXTURE,
+	'python-flask': FLASK_FIXTURE,
+	'python-django': DJANGO_FIXTURE,
+	'csharp-aspnet-core': ASPNET_FIXTURE,
+	'go-gin': GIN_FIXTURE,
+	'php-laravel': LARAVEL_FIXTURE,
 	'generic-grep': JAVA_FIXTURE,
 };
 
 test('checkAdapterConformance passes for every shipped scanner adapter', () => {
-	assert.ok(ADAPTERS.length >= 6, 'sanity: expected ruby-rails and the five pre-existing adapters to be loaded');
+	assert.ok(ADAPTERS.length >= 13, 'sanity: expected the six existing adapters plus seven T12 Wave A adapters to be loaded');
 	for (const adapter of ADAPTERS) {
 		const repoRoot = ADAPTER_FIXTURES[adapter.id];
 		assert.ok(repoRoot, `no fixture wired for adapter "${adapter.id}" -- add one to ADAPTER_FIXTURES`);
