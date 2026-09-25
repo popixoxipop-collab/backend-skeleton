@@ -2,11 +2,17 @@
 
 Status: independent review request. The expected outcomes below are review targets, not T08 self-certification.
 
-T08 product-code revision for the initial request: `974fd99374722d9cdb931c3fed8f2b086010039a`.
+T08 verification revision: `66e804bb2b8fb08fc2c902204a7581f5605fdac1`.
+
+Self-test evidence at that revision:
+- macOS / EOE focused suite: **51/51 PASS**;
+- Windows / Alienware focused suite: **51/51 PASS**;
+- T08 package check: **1/1 PASS** on each platform;
+- existing registry/conformance/package subset: **25/25 PASS** on EOE.
+
+T08 does **not** use those self-tests as a substitute for independent QA.
 
 ## Claimed slice to review
-
-T08 claims only a conservative **static fact layer** for these subsets:
 
 - Gin literal roots/groups/routes;
 - ASP.NET Core literal Minimal API groups/routes and direct controller route attributes;
@@ -14,43 +20,43 @@ T08 claims only a conservative **static fact layer** for these subsets:
 - Actix direct route and literal scope subset;
 - bounded NDJSON worker/runner contract.
 
-It does **not** claim framework-complete discovery, request/response schemas, authorization enforcement, persistence, code generation, compiler semantics or runtime-tested framework support.
+No claim is made for framework-complete discovery, request/response schemas, auth enforcement, persistence, codegen, compiler semantics or runtime-tested framework support.
 
 ## Independent negative vectors requested
 
-Please recreate expected results independently rather than copying T08 analyzer output.
+Please derive expected outcomes independently.
 
-1. route-looking text in comments and strings must not become facts;
-2. computed/dynamic route/group paths must remain explicit unknown diagnostics;
-3. unresolved ASP.NET conventional routing must not invent `/`;
-4. Axum nested/moved/merged routers must not duplicate exposed routes;
+1. comments/string/raw-string route-looking data must not become facts;
+2. computed route/group paths must remain unknown diagnostics;
+3. ASP.NET conventional routing must not invent a route;
+4. Axum nest/move/merge must not duplicate routes;
 5. unsupported Axum intermediate chains such as `.clone()` must not be silently treated as moves;
-6. Axum and Actix in the same source must not create cross-framework unknowns;
-7. malformed UTF-8, protocol version, multiline envelope and malformed response facts must fail closed;
-8. response request ID/language substitution must be rejected;
-9. request resource budgets must not expand the trusted runner profile;
-10. worker receives no ambient environment or secret-shaped variables;
-11. timeout/output/route/diagnostic overflow paths must fail closed;
-12. repeated identical input must produce deep-equal facts.
+6. mixed Axum/Actix source must not create cross-framework false diagnostics;
+7. malformed UTF-8/protocol/multiline envelopes and malformed response facts must fail closed;
+8. response request-ID/language substitution must be rejected;
+9. request budgets must not expand the runner profile;
+10. a profile must not advertise an input ceiling beyond the worker bootstrap reader;
+11. worker must inherit no ambient environment/secrets;
+12. timeout/output/route/diagnostic overflow paths must fail closed;
+13. repeated identical input must produce deep-equal facts.
 
 ## Corpus request
 
-For each language, use at least one fixture not authored from T08's own test strings:
+Use fixtures not copied from T08 test strings:
+- Go/Gin: nested groups + wrapper/dynamic registration outside supported subset;
+- C#/ASP.NET: Minimal API + controller sample with convention/inheritance outside subset;
+- Rust/Axum: nested/merged router + macro/generated/unsupported chain;
+- Rust/Actix: scope/direct route + configure/resource-builder construct outside subset.
 
-- Go/Gin: nested groups plus one wrapper/dynamic registration that should be unknown;
-- C#/ASP.NET: one Minimal API sample and one controller sample with a convention/inheritance construct outside the claimed subset;
-- Rust/Axum: nested or merged router plus one macro/generated/unsupported chain;
-- Rust/Actix: scope/direct route plus one configure/resource-builder construct outside the subset.
-
-Please report precision/recall only for an explicitly annotated supported subset. Unknown/abstention must remain visible rather than being dropped from the denominator of a broader claim.
+Report precision/recall only for an explicitly annotated supported subset. Unknown/abstention must remain visible rather than being dropped from a broader denominator.
 
 ## Evidence requested back
 
-- exact T08 commit reviewed;
-- independent fixture/golden source and its digest;
-- command and exit code;
-- per-vector observations, including expected rejects/unknowns;
-- any false positive/false negative with source span;
-- whether the reviewed scope is Discovery-only or supports a stronger level.
+- exact T08 revision reviewed;
+- independent fixture/golden source + digest;
+- command/exit code;
+- per-vector observations;
+- false positive/negative source spans;
+- reviewed support level and limitations.
 
-T08 will not use its own 50/50 regression result as a substitute for this independent review.
+T08 will wait for T19's independent result before any profile-level support promotion.
