@@ -4,6 +4,7 @@ import {
   SERVICE_ACCESS_REQUIREMENTS_CONTRACT,
   buildDatabaseAccessRequirements,
   buildLocalServerRequirements,
+  buildNetworkCommandRequirements,
 } from '../../lib/trust-next/service-access-requirements.mjs';
 
 const policy = () => ({
@@ -114,5 +115,62 @@ test('local-server cannot smuggle secret values through secret refs', () => {
       artifactTrustPolicy: policy(),
     }),
     (e) => e?.code === 'LOCAL_SERVER_SECRET_REFS_INVALID',
+  );
+});
+
+
+test('network-command grants only exact outbound endpoints and no subprocess/listen permission', () => {
+  const r = buildNetworkCommandRequirements({
+    commandId: 'spring-initializr',
+    connectAllow: [{ host: 'start.spring.io', port: 443 }],
+    artifactTrustPolicy: policy(),
+    limits: { wall_ms: 30_000, stdout_bytes: 4_194_304 },
+  });
+  assert.equal(r.service_class, 'network-command');
+  assert.equal(r.command_id, 'spring-initializr');
+  assert.deepEqual(r.permission_manifest.network.allow, [{ host: 'start.spring.io', ports: [443] }]);
+  assert.deepEqual(r.permission_manifest.listen, { mode: 'deny', allow: [] });
+  assert.deepEqual(r.permission_manifest.process, { mode: 'deny', executables: [], max_children: 0 });
+  assert.equal(r.subprocess_allowed, false);
+  assert.equal(r.listener_allowed, false);
+  assert.equal(r.executable_now, false);
+});
+
+test('network-command may request opaque API secret refs but never raw assignments', () => {
+  const r = buildNetworkCommandRequirements({
+    commandId: 'approved-api',
+    connectAllow: [{ host: 'api.example.com', port: 443 }],
+    secretRefs: ['github.read-token'],
+    artifactTrustPolicy: policy(),
+  });
+  assert.deepEqual(r.permission_manifest.secret_refs, ['github.read-token']);
+
+  assert.throws(
+    () => buildNetworkCommandRequirements({
+      commandId: 'approved-api',
+      connectAllow: [{ host: 'api.example.com', port: 443 }],
+      secretRefs: ['TOKEN=secret'],
+      artifactTrustPolicy: policy(),
+    }),
+    (e) => e?.code === 'NETWORK_COMMAND_SECRET_REFS_INVALID',
+  );
+});
+
+test('network-command refuses empty endpoints and malformed command ids', () => {
+  assert.throws(
+    () => buildNetworkCommandRequirements({
+      commandId: 'bad command',
+      connectAllow: [{ host: 'api.example.com', port: 443 }],
+      artifactTrustPolicy: policy(),
+    }),
+    (e) => e?.code === 'NETWORK_COMMAND_ID_INVALID',
+  );
+  assert.throws(
+    () => buildNetworkCommandRequirements({
+      commandId: 'api-call',
+      connectAllow: [],
+      artifactTrustPolicy: policy(),
+    }),
+    (e) => e?.code === 'NETWORK_COMMAND_ENDPOINTS_INVALID',
   );
 });
