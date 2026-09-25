@@ -230,6 +230,7 @@ export function parsePrismaSchema(text, { file = 'schema.prisma', repoRoot = nul
 	for (const model of models) {
 		const ownFields = fieldMap(model);
 		const scalarFields = model.fields.filter((field) => isPhysicalField(field, modelNames, model.enumNames));
+		const scalarFieldNames = new Set(scalarFields.map((field) => field.logicalName));
 		for (const field of model.fields) {
 			const isRelation = /(?:^|\s)@relation(?:\s|\(|$)/.test(field.attrs) || modelNames.has(field.baseType);
 			if (!isRelation && !isPhysicalField(field, modelNames, model.enumNames)) diagnostics.push({
@@ -238,7 +239,7 @@ export function parsePrismaSchema(text, { file = 'schema.prisma', repoRoot = nul
 		}
 		let pkLogical = model.compositeId;
 		if (pkLogical.length === 0) pkLogical = model.fields.filter((field) => field.isId).map((field) => field.logicalName);
-		const pkPhysical = pkLogical.map((name) => ownFields.get(name)?.physicalName).filter(Boolean);
+		const pkPhysical = pkLogical.map((name) => scalarFieldNames.has(name) ? ownFields.get(name)?.physicalName : null).filter(Boolean);
 		if (pkLogical.length !== pkPhysical.length) diagnostics.push({
 			code: 'prisma-primary-key-unresolved', level: 'info', file: normalizedFile, model: model.name,
 			message: 'one or more @@id/@id fields could not be resolved to physical columns',
@@ -252,8 +253,9 @@ export function parsePrismaSchema(text, { file = 'schema.prisma', repoRoot = nul
 				continue;
 			}
 			const targetFields = fieldMap(target);
-			const localColumns = field.relationFields.map((name) => ownFields.get(name)?.physicalName).filter(Boolean);
-			const remoteColumns = field.relationReferences.map((name) => targetFields.get(name)?.physicalName).filter(Boolean);
+			const targetPhysical = new Set(target.fields.filter((targetField) => isPhysicalField(targetField, modelNames, target.enumNames)).map((targetField) => targetField.logicalName));
+			const localColumns = field.relationFields.map((name) => scalarFieldNames.has(name) ? ownFields.get(name)?.physicalName : null).filter(Boolean);
+			const remoteColumns = field.relationReferences.map((name) => targetPhysical.has(name) ? targetFields.get(name)?.physicalName : null).filter(Boolean);
 			const resolved = localColumns.length === field.relationFields.length
 				&& remoteColumns.length === field.relationReferences.length
 				&& localColumns.length === remoteColumns.length
@@ -314,6 +316,11 @@ export function detectPrismaPersistence(projectRoot) {
 
 export function scanPrismaPersistence(projectRoot) {
 	const files = candidateFiles(projectRoot);
+	if (files.length > 1) return createPersistenceIr({
+		provider: 'prisma', source_kind: 'source', entities: [],
+		diagnostics: [{ code: 'prisma-schema-root-ambiguous', level: 'warning', message: 'multiple default Prisma schema candidates exist; Slice 1 refuses to merge them implicitly' }],
+		metadata: { schema_files: files.map((file) => sourcePath(file, projectRoot)) },
+	});
 	const all = [];
 	const diagnostics = [];
 	for (const file of files) {

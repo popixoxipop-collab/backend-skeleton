@@ -147,3 +147,40 @@ model Child {
 	assert.deepEqual(ir.entities[0].fields.map((field) => field.name), ['parentId']);
 	assert.equal(ir.entities[0].relations.length, 0);
 });
+
+
+test('Prisma provider refuses to merge two default schema roots implicitly', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-prisma-ambiguous-'));
+	fs.mkdirSync(path.join(root, 'prisma'), { recursive: true });
+	fs.writeFileSync(path.join(root, 'prisma/schema.prisma'), 'model A {\n id String @id\n}\n');
+	fs.writeFileSync(path.join(root, 'schema.prisma'), 'model B {\n id String @id\n}\n');
+	const ir = scanPrismaPersistence(root);
+	assert.equal(ir.entities.length, 0);
+	assert.ok(ir.diagnostics.some((d) => d.code === 'prisma-schema-root-ambiguous'));
+});
+
+test('Prisma @id on an unresolved custom type stays unknown instead of becoming a physical PK', () => {
+	const ir = parsePrismaSchema(`model Strange {\n id CustomType @id\n}`);
+	assert.deepEqual(ir.entities[0].fields, []);
+	assert.deepEqual(ir.entities[0].primary_key.columns, []);
+	assert.equal(ir.entities[0].primary_key.source, 'unknown');
+	assert.ok(ir.diagnostics.some((d) => d.code === 'prisma-primary-key-unresolved'));
+});
+
+test('Prisma relation reference to a non-physical relation field stays unresolved', () => {
+	const ir = parsePrismaSchema(`
+model A {
+  id String @id
+  bs B[]
+}
+model B {
+  id String @id
+  aId String
+  a A @relation(fields: [aId], references: [bs])
+}
+`);
+	const relation = ir.entities.find((e) => e.name === 'B').relations[0];
+	assert.equal(relation.pairing, 'unknown');
+	assert.deepEqual(relation.references_columns, []);
+	assert.ok(ir.diagnostics.some((d) => d.code === 'prisma-relation-unresolved'));
+});

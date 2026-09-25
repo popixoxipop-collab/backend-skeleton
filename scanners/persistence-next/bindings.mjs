@@ -18,11 +18,16 @@ function readCapability(entity) {
 	const tableKnown = Boolean(entity.table?.name);
 	const keyColumns = entity.primary_key?.columns ?? [];
 	return {
-		read_by_primary_key: tableKnown && keyColumns.length > 0,
+		candidate_read_by_primary_key: tableKnown && keyColumns.length > 0,
+		verified_read_by_primary_key: false,
 		write: false,
 		key_shape: keyColumns.length === 0 ? 'unknown' : keyColumns.length === 1 ? 'single' : 'composite',
 		key_type: entity.primary_key?.type ?? 'unknown',
 	};
+}
+
+function sameOrdered(a, b) {
+	return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 export function composeResourceBindings({ resources = [], persistence, explicit_bindings = [] }) {
@@ -104,4 +109,43 @@ export function matchPhysicalTable({ persistence, schema = null, table }) {
 	nonEmpty(table, 'table');
 	const matches = ir.entities.filter((entity) => tableKey(entity.table) === tableKey({ schema, name: table }));
 	return matches;
+}
+
+export function verifyResourceBindingsAgainstObserved({ binding_result, observed, default_schema = null }) {
+	if (!binding_result || !Array.isArray(binding_result.bindings)) throw new TypeError('binding_result.bindings must be an array');
+	const live = assertPersistenceIr(observed);
+	if (live.source_kind !== 'live') throw new TypeError('observed persistence IR must have source_kind=live');
+	const byTable = new Map();
+	for (const entity of live.entities) {
+		if (!entity.table?.name) continue;
+		const key = tableKey({ schema: entity.table.schema ?? default_schema, name: entity.table.name });
+		if (!byTable.has(key)) byTable.set(key, []);
+		byTable.get(key).push(entity);
+	}
+	return {
+		...binding_result,
+		bindings: binding_result.bindings.map((binding) => {
+			const table = binding.table;
+			const key = table?.name ? tableKey({ schema: table.schema ?? default_schema, name: table.name }) : null;
+			const matches = key ? (byTable.get(key) ?? []) : [];
+			let tableStatus = 'unknown';
+			let keyStatus = 'unknown';
+			let verified = false;
+			if (key && matches.length === 0) tableStatus = 'missing';
+			else if (matches.length > 1) tableStatus = 'ambiguous';
+			else if (matches.length === 1) {
+				tableStatus = 'verified';
+				const expected = binding.primary_key?.columns ?? [];
+				const actual = matches[0].primary_key?.columns ?? [];
+				if (matches[0].primary_key?.source !== 'live') keyStatus = 'unknown';
+				else if (sameOrdered(expected, actual) && expected.length > 0) { keyStatus = 'verified'; verified = true; }
+				else keyStatus = 'mismatch';
+			}
+			return {
+				...binding,
+				capabilities: { ...binding.capabilities, verified_read_by_primary_key: verified },
+				verification: { source_kind: 'live', table: tableStatus, primary_key: keyStatus },
+			};
+		}),
+	};
 }
