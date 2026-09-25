@@ -91,6 +91,8 @@ test('file-count and total-byte limits return no partial graph', () => {
     { path: 'b.js', source: '' },
   ], { maxFiles: 1 });
   assert.equal(tooMany.complete, false);
+  assert.equal(tooMany.allResolved, false);
+  assert.equal(tooMany.syntaxValidated, false);
   assert.deepEqual(tooMany.files, []);
   assert.deepEqual(tooMany.moduleGraph, []);
   assert.equal(tooMany.diagnostics[0].code, 'file-limit');
@@ -100,6 +102,8 @@ test('file-count and total-byte limits return no partial graph', () => {
     { path: 'b.js', source: '5678' },
   ], { maxTotalBytes: 6 });
   assert.equal(tooLarge.complete, false);
+  assert.equal(tooLarge.allResolved, false);
+  assert.equal(tooLarge.syntaxValidated, false);
   assert.deepEqual(tooLarge.moduleGraph, []);
   assert.equal(tooLarge.diagnostics[0].code, 'snapshot-too-large');
 });
@@ -110,6 +114,8 @@ test('per-file lexical limits fail the whole graph closed instead of mixing part
     { path: 'b.js', source: '' },
   ], { maxFileBytes: 1 });
   assert.equal(result.complete, false);
+  assert.equal(result.allResolved, false);
+  assert.equal(result.syntaxValidated, false);
   assert.deepEqual(result.files, []);
   assert.deepEqual(result.moduleGraph, []);
   assert.equal(result.diagnostics[0].code, 'input-too-large');
