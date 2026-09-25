@@ -212,6 +212,7 @@ function cloneRouterState(state) {
 
 function parseAxum(source, masked, file, diagnostics) {
 	const routers = new Map();
+	const consumedRouters = new Set();
 	const declarations = [];
 	const letRe = /\blet\s+(?:mut\s+)?([A-Za-z_]\w*)\s*(?::[^=;]+)?=\s*/g;
 	for (const m of masked.matchAll(letRe)) {
@@ -224,13 +225,22 @@ function parseAxum(source, masked, file, diagnostics) {
 
 	for (const d of declarations) {
 		const exprMasked = masked.slice(d.exprStart, d.end);
-		const exprOriginal = source.slice(d.exprStart, d.end);
 		const rootMatch = exprMasked.match(/^\s*Router(?:(?:::\s*)?<[^>]+>)?::new\s*\(\s*\)/);
 		const baseMatch = rootMatch ? null : exprMasked.match(/^\s*([A-Za-z_]\w*)\b/);
 		let state = rootMatch ? cloneRouterState(null) : cloneRouterState(baseMatch ? routers.get(baseMatch[1]) : null);
 		if (!rootMatch && (!baseMatch || !routers.has(baseMatch[1]))) {
 			diagnostics.push({ code: 'RUST_AXUM_UNKNOWN_ROUTER_BASE', severity: 'unknown', file, line: lineNumberAt(source, d.index), message: `${d.variable} is derived from an unresolved Axum router expression` });
 			continue;
+		}
+		if (baseMatch) {
+			const firstSupported = exprMasked.search(/\.(?:route|nest|merge)\s*\(/);
+			const prefixEnd = baseMatch.index + baseMatch[0].length;
+			const between = firstSupported < 0 ? exprMasked.slice(prefixEnd) : exprMasked.slice(prefixEnd, firstSupported);
+			if (between.trim()) {
+				diagnostics.push({ code: 'RUST_AXUM_UNSUPPORTED_BASE_CHAIN', severity: 'unknown', file, line: lineNumberAt(source, d.index), message: `${d.variable} derives from ${baseMatch[1]} through an unsupported intermediate method; router ownership is not inferred` });
+				continue;
+			}
+			consumedRouters.add(baseMatch[1]);
 		}
 		const chainRe = /\.(route|nest|merge)\s*\(/g;
 		for (const c of exprMasked.matchAll(chainRe)) {
@@ -247,6 +257,7 @@ function parseAxum(source, masked, file, diagnostics) {
 				}
 				state.localRoutes.push(...routers.get(child).localRoutes.map((r) => ({ ...r })));
 				state.nests.push(...routers.get(child).nests.map((n) => ({ ...n })));
+				consumedRouters.add(child);
 				continue;
 			}
 			if (parsed.parts.length < 2) continue;
@@ -279,7 +290,7 @@ function parseAxum(source, masked, file, diagnostics) {
 
 	const referenced = new Set();
 	for (const state of routers.values()) for (const n of state.nests) referenced.add(n.child);
-	const roots = [...routers.keys()].filter((name) => !referenced.has(name));
+	const roots = [...routers.keys()].filter((name) => !referenced.has(name) && !consumedRouters.has(name));
 	const routes = [];
 	const expand = (name, prefix, stack = new Set()) => {
 		if (stack.has(name)) {
