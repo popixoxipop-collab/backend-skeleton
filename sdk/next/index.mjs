@@ -55,3 +55,5 @@ export {
 } from './support-evidence-matrix.mjs';
 
 export { SUBMISSION_REVIEW_CONTRACT, reviewAdapterSubmission } from './submission-review.mjs';
+
+export { FIVE_STATE_CAPABILITY_STATUSES, projectFiveStateCapabilities } from './capability-projection.mjs';
