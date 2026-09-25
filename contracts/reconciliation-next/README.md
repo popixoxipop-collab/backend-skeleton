@@ -67,19 +67,21 @@ Claim/Capability interface.
 
 ## Tests
 
-Run this slice directly:
+Run the whole T09 slice directly:
 
 ```bash
-node --test test/reconciliation-next/decision-graph.test.mjs
+node --test test/t09-reconciliation-next.test.mjs
 ```
 
-The repository's current `npm test` pattern is `test/*.test.mjs`, so this nested shadow test is not
-added to the default suite yet. Updating shared package/test wiring belongs to the integration owner,
-not this T09 leaf branch.
+The top-level entrypoint imports the focused decision tests and real legacy OpenAPI integration
+regressions, so the repository's existing `npm test` command (`test/*.test.mjs`) executes T09 as well.
+No package script or lockfile change is needed.
 
-The test suite covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs,
-prefix proof, schema resolved/unresolved/dialect-disabled states, operation security, root-security
-uncertainty, provenance requirements, and route-only promotion.
+The current T09 suite contains **22 tests**: 18 field-decision regressions plus 4 real
+`indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions. It covers
+matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof, schema
+resolved/unresolved/dialect-disabled states, explicit operation security, root-security uncertainty,
+provenance requirements, route-only promotion, and legacy-to-next integration.
 
 ## Next T09 slices
 
