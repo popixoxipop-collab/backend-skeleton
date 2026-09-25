@@ -138,7 +138,7 @@ function replaceRouteTokens(template, controllerName, actionName = '') {
 
 function attributeBlockBefore(text, start) {
   const prefix = text.slice(Math.max(0, start - 2500), start);
-  const m = prefix.match(/((?:\s*\[[^\]\r\n]+\]\s*)*)$/);
+  const m = prefix.match(/((?:\s*\[[^\r\n]*\]\s*)*)$/);
   return m ? m[1] : '';
 }
 
@@ -177,7 +177,8 @@ function controllerRoutes(text, file, mapControllersEnabled) {
     const attrs = attributeBlockBefore(text, cm.index);
     const controllerName = cm[1].replace(/Controller$/, '');
     const classTemplate = routeAttribute(attrs);
-    const basePath = replaceRouteTokens(classTemplate ?? '', controllerName);
+    const rawBasePath = replaceRouteTokens(classTemplate ?? '', controllerName);
+    const basePath = rawBasePath ? absoluteOrJoined('', rawBasePath) : '';
 
     const bodyOpen = text.indexOf('{', cm.index + cm[0].length);
     if (bodyOpen === -1) continue;
@@ -222,7 +223,7 @@ function controllerRoutes(text, file, mapControllersEnabled) {
         module: controllerName.charAt(0).toLowerCase() + controllerName.slice(1),
         controller: {
           className: cm[1],
-          basePath: basePath ? joinPath('', basePath) : '',
+          basePath,
           operationIds: [],
           endpoints,
           file,
