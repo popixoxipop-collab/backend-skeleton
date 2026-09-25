@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EXTERNAL_ADAPTER_SECURITY_REVIEW,
+  buildExternalAdapterActivationRequirements,
   reviewAdapterSdkSecurity,
   translateAdapterSdkPermissions,
 } from '../../lib/trust-next/external-adapter-permissions.mjs';
@@ -95,4 +96,92 @@ test('activation mode, manifest contract, adapter id and permission keys are ind
   const extra = manifest();
   extra.permissions.shell = true;
   assert.throws(() => translateAdapterSdkPermissions(extra), (e) => e?.code === 'EXTERNAL_ADAPTER_PERMISSIONS_INVALID');
+});
+
+
+test('activation requirements require the exact observed package digest to be trusted', () => {
+  const packageSha256 = 'a'.repeat(64);
+  const requirements = buildExternalAdapterActivationRequirements({
+    manifest: manifest(),
+    packageSha256,
+    artifactTrustPolicy: {
+      schema: 'bskel.trust-artifact-policy/1',
+      generation: 3,
+      allow: [{ usage: 'package', sha256: packageSha256 }],
+      revoked: [],
+    },
+  });
+  assert.equal(requirements.schema, 'bskel.external-adapter-activation-requirements/1');
+  assert.equal(requirements.adapter_id, 'typescript-nestjs');
+  assert.equal(requirements.package_sha256, packageSha256);
+  assert.equal(requirements.package_trust.decision, 'trusted');
+  assert.equal(requirements.executable, false);
+  assert.equal(requirements.requires_approval, true);
+  assert.equal(requirements.runtime_binding_required, true);
+  assert.match(requirements.trust_requirements.permission.sha256, /^[0-9a-f]{64}$/);
+  assert.match(requirements.trust_requirements.artifact_policy.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(requirements.trust_requirements.artifact_policy.generation, 3);
+});
+
+test('untrusted, revoked and malformed external adapter package digests fail closed', () => {
+  const trusted = 'a'.repeat(64);
+  const other = 'b'.repeat(64);
+  assert.throws(
+    () => buildExternalAdapterActivationRequirements({
+      manifest: manifest(),
+      packageSha256: other,
+      artifactTrustPolicy: {
+        schema: 'bskel.trust-artifact-policy/1',
+        generation: 1,
+        allow: [{ usage: 'package', sha256: trusted }],
+        revoked: [],
+      },
+    }),
+    (error) => error?.code === 'EXTERNAL_ADAPTER_PACKAGE_UNTRUSTED',
+  );
+
+  assert.throws(
+    () => buildExternalAdapterActivationRequirements({
+      manifest: manifest(),
+      packageSha256: other,
+      artifactTrustPolicy: {
+        schema: 'bskel.trust-artifact-policy/1',
+        generation: 2,
+        allow: [],
+        revoked: [{ sha256: other, reason: 'revoked after security review' }],
+      },
+    }),
+    (error) => error?.code === 'EXTERNAL_ADAPTER_PACKAGE_REVOKED',
+  );
+
+  assert.throws(
+    () => buildExternalAdapterActivationRequirements({
+      manifest: manifest(),
+      packageSha256: 'latest',
+      artifactTrustPolicy: {
+        schema: 'bskel.trust-artifact-policy/1',
+        generation: 1,
+        allow: [],
+        revoked: [],
+      },
+    }),
+    (error) => error?.code === 'EXTERNAL_ADAPTER_PACKAGE_DIGEST_INVALID',
+  );
+});
+
+test('package trust cannot substitute for runtime approval or execution', () => {
+  const packageSha256 = 'c'.repeat(64);
+  const result = buildExternalAdapterActivationRequirements({
+    manifest: manifest(),
+    packageSha256,
+    artifactTrustPolicy: {
+      schema: 'bskel.trust-artifact-policy/1',
+      generation: 4,
+      allow: [{ usage: 'package', sha256: packageSha256 }],
+      revoked: [],
+    },
+  });
+  assert.equal(result.executable, false);
+  assert.equal(result.runtime_binding_required, true);
+  assert.match(result.note, /T16 runtime isolation\/evidence is still required/);
 });
