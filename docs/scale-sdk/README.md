@@ -35,7 +35,7 @@ This mapping is documentation and library support; it does not create new CLI co
 - `sdk/next/sarif.mjs`: projection of structured diagnostics into SARIF 2.1.0.
 - `sdk/next/testkit.mjs`: caller-injected conformance harness. It never spawns/imports adapter code.
 - `sdk/next/package-inventory.mjs`: package-relative regular-file inventory/reference review before execution.
-- `sdk/next/support-matrix.mjs`: support explanations → deterministic machine-generated support matrix.
+- `sdk/next/support-evidence-matrix.mjs`: support explanations → deterministic machine-generated support evidence matrix.
 - `sdk/next/submission-review.mjs`: manifest + inventory + support evidence → pre-execution readiness report.
 - `sdk/next/schemas/`: nine source-tree JSON Schemas plus schema catalog for editor/CI consumers.
 
