@@ -8,7 +8,8 @@ import path from 'node:path';
 import { analyzeJsTsSource } from './source-facts.mjs';
 import { resolveJsTsModuleEdges } from './module-resolver.mjs';
 
-// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.\nexport const JS_TS_SNAPSHOT_CONTRACT = 'bskel.internal.js-ts-snapshot/0';
+// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.
+export const JS_TS_SNAPSHOT_CONTRACT = 'bskel.internal.js-ts-snapshot/0';
 
 const DEFAULT_MAX_FILES = 20_000;
 const DEFAULT_MAX_TOTAL_BYTES = 32 * 1024 * 1024;
