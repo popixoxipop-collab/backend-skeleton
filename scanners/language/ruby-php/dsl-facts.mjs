@@ -381,7 +381,11 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
     if (explicit) {
       const routePath = firstRubyLiteral(explicit[2]);
       const target = explicit[2].match(/(?:\bto\s*:|=>)\s*["']([^"']+)#([a-zA-Z_]\w*)["']/);
-      const dynamic = routePath == null || routePath.includes('#{') || context.some((entry) => entry.dynamic);
+      const inlineCondition = /\s+(?:if|unless)\s+.+$/.test(explicit[2]);
+      const dynamic = routePath == null
+        || routePath.includes('#{')
+        || inlineCondition
+        || context.some((entry) => entry.dynamic);
       facts.push(makeFact({
         source, file, framework, language,
         kind: 'route',
@@ -395,7 +399,11 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
           action: target?.[2] ?? null,
           routeMode: rubyOptionLiteral(explicit[2], 'on'),
         },
-        ...(dynamic ? { unknownReason: 'route path or enclosing context is dynamic' } : {}),
+        ...(dynamic ? {
+          unknownReason: inlineCondition
+            ? 'route is guarded by a runtime Ruby condition'
+            : 'route path or enclosing context is dynamic',
+        } : {}),
       }));
       continue;
     }
