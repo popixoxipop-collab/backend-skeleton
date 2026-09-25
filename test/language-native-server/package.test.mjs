@@ -27,6 +27,7 @@ test('T08 packaging: npm pack includes every native-server runtime module and ex
 		'scanners/language/native-server/index.mjs',
 		'scanners/language/native-server/protocol.mjs',
 		'scanners/language/native-server/rust.mjs',
+		'scanners/language/native-server/runner.mjs',
 		'scanners/language/native-server/shared.mjs',
 		'scanners/language/native-server/worker.mjs',
 	]) {
