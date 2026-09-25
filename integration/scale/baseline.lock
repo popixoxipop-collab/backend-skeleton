@@ -155,7 +155,7 @@
         "conclusion": "success"
       },
       "known_exact_head_ci_failures": [],
-      "baseline_delta": "main advanced after epoch 6 via PR #48 provider-matrix expansion and PR #49 manual-only workflow cleanup. Current main 882b1856... is 14 commits ahead of the epoch-6 pin; package.json changed while package-lock and ci.yml blobs remained stable. Exact-head push CI #930 / run 36117576104 succeeded."
+      "baseline_delta": "main advanced after epoch 6 via merged PR #48 (provider/failure-corpus expansion) and PR #49 (manual-only live workflow cleanup). Current exact-head main push CI #930 / run 36117576104 passed unit 20/22/24 plus integration."
     }
   ],
   "policy": {
