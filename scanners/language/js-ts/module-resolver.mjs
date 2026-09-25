@@ -60,9 +60,13 @@ function candidatePaths(base, specifier, extensions) {
 
   if (!endsWithSlash) {
     out.push(base);
-    if (!ext) for (const suffix of extensions) out.push(base + suffix);
+    if (!ext) {
+      for (const suffix of extensions) out.push(base + suffix);
+      for (const suffix of extensions) out.push(path.posix.join(base, 'index' + suffix));
+    }
+  } else {
+    for (const suffix of extensions) out.push(path.posix.join(base, 'index' + suffix));
   }
-  for (const suffix of extensions) out.push(path.posix.join(base, 'index' + suffix));
   return [...new Set(out)];
 }
 
