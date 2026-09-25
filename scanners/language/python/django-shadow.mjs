@@ -121,7 +121,7 @@ export function buildDjangoUrlShadow(project) {
         unknowns.push({ kind: 'django-urlpattern', module: moduleId, reason: target.reason, pattern, rawTarget: target.raw || null });
         continue;
       }
-      const nameValue = keyword(item, 'name') || item.args?.[2] || null;
+      const nameValue = keyword(item, 'name') || item.args?.[3] || null;
       const name = nameValue ? literalString(nameValue) : null;
       registrations.push({
         module: moduleId,

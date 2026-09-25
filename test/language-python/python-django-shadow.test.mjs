@@ -83,3 +83,21 @@ urlpatterns = [path("status/", StatusView.as_view(), name="status")]
     kind: 'class-view', locality: 'local', module: 'urls', name: 'StatusView', factory: 'as_view', raw: 'StatusView.as_view',
   });
 });
+
+
+test('T06 Django shadow reads the positional name argument after kwargs, not kwargs itself', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-positional-name-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+def handler(request):
+    pass
+urlpatterns = [
+    path("items/", handler, {"mode": "demo"}, "items-positional-name"),
+]
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.unknowns.length, 0, JSON.stringify(shadow, null, 2));
+  assert.equal(shadow.registrations.length, 1);
+  assert.equal(shadow.registrations[0].name, 'items-positional-name');
+  assert.equal(shadow.registrations[0].nameStatus, 'verified');
+});
