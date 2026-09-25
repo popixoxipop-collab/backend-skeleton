@@ -2,21 +2,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runScan } from '../scanners/index.mjs';
-import { ADAPTERS } from '../scanners/registry.mjs';
+import { runScan } from '../../scanners/index.mjs';
+import { ADAPTERS } from '../../scanners/registry.mjs';
 import {
 	LEGACY_HTTP_ADAPTER_IDS,
 	LEGACY_HTTP_BASELINES,
 	legacyHttpBaseline,
-} from '../adapters/http-legacy-next/baselines.mjs';
+} from '../../adapters/http-legacy-next/baselines.mjs';
 import {
 	LEGACY_HTTP_BRIDGE_SCHEMA,
 	bridgeLegacyHttpScan,
 	snapshotLegacyHttpAdapter,
 	summarizeLegacyHttpReport,
-} from '../adapters/http-legacy-next/bridge.mjs';
+} from '../../adapters/http-legacy-next/bridge.mjs';
 
-const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 function adapterById(id) {
 	const adapter = ADAPTERS.find((candidate) => candidate.id === id);

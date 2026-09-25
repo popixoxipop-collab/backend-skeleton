@@ -6,10 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCRIPT = path.join(REPO_ROOT, 'scripts', 't11-http-corpus-parity.mjs');
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const SCRIPT = path.join(REPO_ROOT, 'adapters', 'http-legacy-next', 'corpus-parity-cli.mjs');
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'javascript-express', 'backend');
-const CORPUS_BASELINES = path.join(REPO_ROOT, 'test', 'fixtures', 't11-http-corpus-baseline.json');
+const CORPUS_BASELINES = path.join(REPO_ROOT, 'test', 'http-legacy-next', 'fixtures', 'corpus-baseline.json');
 const ORACLE_MANIFEST = path.join(REPO_ROOT, 'test', 'fixtures', 'oracle-manifest.json');
 
 function fixtureRepo() {

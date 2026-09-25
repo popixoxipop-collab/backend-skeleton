@@ -8,14 +8,14 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runScan } from '../scanners/index.mjs';
-import { ADAPTERS } from '../scanners/registry.mjs';
-import { LEGACY_HTTP_ADAPTER_IDS } from '../adapters/http-legacy-next/baselines.mjs';
-import { bridgeLegacyHttpScan } from '../adapters/http-legacy-next/bridge.mjs';
-import { compareLegacyHttpReports, legacyHttpSemanticDigest, legacyHttpSemanticSnapshot } from '../adapters/http-legacy-next/parity.mjs';
+import { runScan } from '../../scanners/index.mjs';
+import { ADAPTERS } from '../../scanners/registry.mjs';
+import { LEGACY_HTTP_ADAPTER_IDS } from './baselines.mjs';
+import { bridgeLegacyHttpScan } from './bridge.mjs';
+import { compareLegacyHttpReports, legacyHttpSemanticDigest, legacyHttpSemanticSnapshot } from './parity.mjs';
 
-const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BASELINES_FILE = path.join(REPO_ROOT, 'test', 'fixtures', 't11-http-corpus-baseline.json');
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const BASELINES_FILE = path.join(REPO_ROOT, 'test', 'http-legacy-next', 'fixtures', 'corpus-baseline.json');
 
 function loadBaselines() {
 	let data;
