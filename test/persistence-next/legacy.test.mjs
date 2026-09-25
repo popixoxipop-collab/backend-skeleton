@@ -29,6 +29,22 @@ test('TypeORM non-UUID key is represented, not dropped', () => {
 	assert.deepEqual(ir.entities[0].primary_key.columns, ['id']);
 });
 
+test('legacy Rails bridge accepts only explicit table/key evidence from current adapter output', () => {
+	const ir = fromLegacyAdapterScan({ adapterId: 'ruby-rails', scan: { modules: [{ module: 'users', entities: [{ className: 'User', table: 'users', tableSource: 'explicit', idField: 'uuid', idFieldIsUuid: null, file: 'app/models/user.rb', line: 1 }] }] } });
+	assert.equal(ir.entities[0].table.name, 'users');
+	assert.equal(ir.entities[0].table.source, 'explicit');
+	assert.deepEqual(ir.entities[0].primary_key.columns, ['uuid']);
+	assert.equal(ir.entities[0].primary_key.type, 'unknown');
+});
+
+test('legacy Rails bridge keeps conventional table/key absent instead of inferring them', () => {
+	const ir = fromLegacyAdapterScan({ adapterId: 'ruby-rails', scan: { modules: [{ module: '_models', entities: [{ className: 'Person', table: null, tableSource: null, idField: null, idFieldIsUuid: null, file: 'app/models/person.rb', line: 1 }] }] } });
+	assert.equal(ir.entities[0].table.name, null);
+	assert.deepEqual(ir.entities[0].primary_key.columns, []);
+	assert.ok(ir.diagnostics.some((x) => x.code === 'table-name-unknown'));
+	assert.ok(ir.diagnostics.some((x) => x.code === 'primary-key-unknown'));
+});
+
 test('migration bridge merges table entries across files without inventing a primary key', () => {
 	const ir = fromMigrationScan({ tool: 'flyway', files: ['V1.sql','V2.sql'], generated_at: 't', tables: [
 		{ name: 'users', columns: ['id'], foreign_keys: [], source_file: 'V1.sql' },
