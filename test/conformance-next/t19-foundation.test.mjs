@@ -130,12 +130,12 @@ test('T19 external evidence registry is provenance-valid and never self-certifie
   assert.deepEqual(verdict.errors, []);
   assert.equal(verdict.ok, true);
   const summary = summarizeExternalEvidenceCandidates(externalCandidates, vectors);
-  assert.equal(summary.candidates, 5);
-  assert.equal(summary.unique_vectors, 12);
-  assert.equal(summary.direct_mappings, 10);
-  assert.equal(summary.partial_mappings, 2);
-  assert.equal(summary.exact_head_ci_success_candidates, 1);
-  assert.equal(summary.nonterminal_ci_candidates, 4);
+  assert.equal(summary.candidates, 7);
+  assert.equal(summary.unique_vectors, 14);
+  assert.equal(summary.direct_mappings, 12);
+  assert.equal(summary.partial_mappings, 4);
+  assert.equal(summary.exact_head_ci_success_candidates, 2);
+  assert.equal(summary.nonterminal_ci_candidates, 5);
   assert.equal(summary.job_observed_candidates, 1);
   assert.equal(summary.covered_vectors, 0);
 });
