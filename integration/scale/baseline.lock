@@ -147,11 +147,11 @@
         "run_id": 36099964750,
         "run_number": 909,
         "event": "push",
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success"
       },
       "known_exact_head_ci_failures": [],
-      "baseline_delta": "main advanced after epoch 4 via T00 CI hotfix PR #46. PR-head CI #908 passed unit 20/22/24 and integration; exact-head main push CI #909 is queued and remains the acceptance authority."
+      "baseline_delta": "main advanced after epoch 4 via T00 CI hotfix PR #46. PR-head CI #908 and exact-head main push CI #909 both passed unit 20/22/24 plus integration."
     }
   ],
   "policy": {

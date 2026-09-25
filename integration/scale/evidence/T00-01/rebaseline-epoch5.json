@@ -25,13 +25,16 @@
   "current_exact_head_ci": {
     "run_id": 36099964750,
     "run_number": 909,
-    "status": "queued",
-    "conclusion": null
+    "status": "completed",
+    "conclusion": "success"
   },
   "artifact_blobs": {
     "package.json": "714575e9cbaff966e4fc00138da6317ef84ac2a4",
     "package-lock.json": "a83092968a5833883ac74c5e3aad5c80f117d006",
     ".github/workflows/ci.yml": "7b1a51ee01975733c4b838de66fb83592b637f25"
   },
-  "disposition": "SUBMITTED_NOT_ACCEPTED"
+  "disposition": "READY_FOR_INDEPENDENT_REVIEW",
+  "acceptance_remaining": [
+    "T19 independent review of exact epoch-5 branch head and current remote heads"
+  ]
 }

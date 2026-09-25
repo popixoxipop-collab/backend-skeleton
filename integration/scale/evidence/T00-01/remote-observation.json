@@ -80,8 +80,8 @@
       ],
       "exact_head_ci": {
         "run_id": 36099964750,
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success"
       },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",

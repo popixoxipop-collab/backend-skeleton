@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-result-packet/1",
   "task_id": "T00-01",
-  "state": "SUBMITTED",
+  "state": "READY_FOR_ACCEPTANCE",
   "repository": "popixoxipop-collab/backend-skeleton",
   "input": {
     "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
@@ -79,8 +79,7 @@
   ],
   "known_limitations": [
     "GitHub remote state cannot prove a future local checkout is clean; the verifier therefore requires dirty=false in the worker observation and rejects unknown state.",
-    "T00-01 does not rerun the three product test suites; it records exact-head CI evidence and package-declared commands.",
-    "Epoch 5 includes beval CI hotfix main 24cd9ad3...; pre-merge CI #908 is green, but exact-head main push CI #909 is queued, so acceptance remains blocked."
+    "T00-01 does not rerun the three product test suites; it records exact-head CI evidence and package-declared commands."
   ],
   "rollback": "Delete the integration/scale bootstrap branch/PR; no product entrypoint, schema, package manifest, lockfile, or runtime behavior is modified.",
   "rebaseline_history": [
@@ -144,11 +143,30 @@
       "current_push_ci": {
         "run_id": 36099964750,
         "run_number": 909,
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success"
       },
       "acceptance_effect": "T00-01 remains SUBMITTED until exact-head main push CI #909 succeeds and T19 independently re-verifies current heads"
     }
   ],
-  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-5 rebaseline branch."
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-5 rebaseline branch.",
+  "current_acceptance": {
+    "exact_main_heads_verified_by_t00": true,
+    "exact_head_ci": {
+      "bskel": {
+        "run_id": 36040486375,
+        "conclusion": "success"
+      },
+      "becoder": {
+        "run_id": 36083442722,
+        "conclusion": "success"
+      },
+      "beval": {
+        "run_id": 36099964750,
+        "conclusion": "success"
+      }
+    },
+    "independent_review": "PENDING_T19",
+    "note": "T00 may accept only if T19 independently verifies this exact branch head and current remote heads without drift."
+  }
 }
