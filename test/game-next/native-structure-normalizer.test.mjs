@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createNativeExportEnvelope } from '../../adapters/game-next/native-export-envelope.mjs';
+import { createNativeExportEnvelope, createNativeSourceRef } from '../../adapters/game-next/native-export-envelope.mjs';
 import {
   normalizeNativeStructureExport,
   verifyNativeStructureInvariants,
@@ -18,12 +18,17 @@ function bytes(value) {
 }
 
 function envelope(raw, engine, evidenceClass = 'source-export') {
+  const sourceRaw = Buffer.from(`${engine}-source\n`, 'utf8');
+  const sourceInputs = evidenceClass === 'source-export'
+    ? [createNativeSourceRef(sourceRaw, { path: `Source/${engine}.txt`, role: 'active', mediaType: 'text/plain' })]
+    : [];
   return createNativeExportEnvelope(raw, {
     engine,
     evidenceClass,
     engineVersion: 'test-only',
     platform: 'test-only',
     producer,
+    sourceInputs,
   });
 }
 
@@ -180,6 +185,9 @@ test('source artifact identity is carried unchanged from the exact native export
   const sourceEnvelope = envelope(raw, 'unity');
   const normalized = normalizeNativeStructureExport(raw, sourceEnvelope);
   assert.deepEqual(normalized.source_artifact, sourceEnvelope.artifact);
+  assert.deepEqual(normalized.source_inputs, sourceEnvelope.source_inputs);
+  assert.equal(normalized.source_inputs.length, 1);
+  assert.equal(normalized.source_inputs[0].artifact.family, 'game-native-source');
   assert.equal(
     normalized.source_artifact.byte_sha256,
     createHash('sha256').update(raw).digest('hex'),
