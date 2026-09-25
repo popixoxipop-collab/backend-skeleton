@@ -100,9 +100,24 @@ function findUniqueEntry(index, result) {
   return exact.length === 1 ? exact[0] : null;
 }
 
-function requestSchemaPresence(entry) {
+function findRawOperation(doc, result) {
+  if (!['matched', 'adopted'].includes(result?.kind)) return null;
+  if (!isObject(doc.paths) || typeof result.path !== 'string' || typeof result.verb !== 'string') return null;
+  const pathItem = doc.paths[result.path];
+  if (!isObject(pathItem)) return null;
+  const operation = pathItem[result.verb.toLowerCase()];
+  return isObject(operation) ? operation : null;
+}
+
+function requestSchemaPresence(entry, rawOperation) {
   if (!entry) return { state: 'unknown', reason: 'openapi-entry-not-unique' };
-  if (!entry.requestBody) return { state: 'absent', reason: 'request-body-absent' };
+  if (!rawOperation) return { state: 'unknown', reason: 'raw-openapi-operation-not-found' };
+  if (!Object.hasOwn(rawOperation, 'requestBody')) {
+    return { state: 'absent', reason: 'request-body-absent' };
+  }
+  if (!entry.requestBody) {
+    return { state: 'unknown', reason: 'request-body-unresolved-or-malformed' };
+  }
 
   const content = entry.requestBody.content;
   if (!isObject(content) || !Object.hasOwn(content, 'application/json')) {
@@ -114,16 +129,27 @@ function requestSchemaPresence(entry) {
   return { state: 'present', reason: 'request-json-schema-present' };
 }
 
-function responseSchemaPresence(entry, statusRe, { includeDefault = false, kind } = {}) {
+function responseSchemaPresence(entry, rawOperation, statusRe, { includeDefault = false, kind } = {}) {
   if (!entry) return { state: 'unknown', reason: 'openapi-entry-not-unique' };
-  if (!isObject(entry.responses)) return { state: 'absent', reason: kind + '-responses-absent' };
+  if (!rawOperation) return { state: 'unknown', reason: 'raw-openapi-operation-not-found' };
+  if (!Object.hasOwn(rawOperation, 'responses')) {
+    return { state: 'absent', reason: kind + '-responses-absent' };
+  }
+  if (!isObject(rawOperation.responses) || !isObject(entry.responses)) {
+    return { state: 'unknown', reason: kind + '-responses-unresolved-or-malformed' };
+  }
 
   let sawContentWithoutJson = false;
   let sawSchema = false;
-  for (const status of Object.keys(entry.responses)) {
+  let sawUnresolved = false;
+  for (const status of Object.keys(rawOperation.responses)) {
     if (!statusRe.test(status) && !(includeDefault && status === DEFAULT_STATUS_KEY)) continue;
+    const rawResponse = rawOperation.responses[status];
     const response = entry.responses[status];
-    if (!isObject(response)) continue;
+    if (!isObject(rawResponse) || !isObject(response)) {
+      sawUnresolved = true;
+      continue;
+    }
     const content = response.content;
     if (!isObject(content)) continue;
     if (!Object.hasOwn(content, 'application/json')) {
@@ -135,11 +161,12 @@ function responseSchemaPresence(entry, statusRe, { includeDefault = false, kind 
   }
 
   if (sawSchema) return { state: 'present', reason: kind + '-json-schema-present' };
+  if (sawUnresolved) return { state: 'unknown', reason: kind + '-response-unresolved-or-malformed' };
   if (sawContentWithoutJson) return { state: 'skipped', reason: kind + '-json-media-type-absent' };
   return { state: 'absent', reason: kind + '-json-schema-absent' };
 }
 
-function collectSchemaPresence(index, reconciliation) {
+function collectSchemaPresence(doc, index, reconciliation) {
   const out = new Map();
   if (!reconciliation) return out;
   if (!(reconciliation.byEndpoint instanceof Map)) {
@@ -148,10 +175,11 @@ function collectSchemaPresence(index, reconciliation) {
 
   for (const [endpointKey, result] of reconciliation.byEndpoint.entries()) {
     const entry = findUniqueEntry(index, result);
+    const rawOperation = findRawOperation(doc, result);
     out.set(endpointKey, {
-      request: requestSchemaPresence(entry),
-      response: responseSchemaPresence(entry, SUCCESS_STATUS_RE, { kind: 'response' }),
-      error: responseSchemaPresence(entry, ERROR_STATUS_RE, { includeDefault: true, kind: 'error' }),
+      request: requestSchemaPresence(entry, rawOperation),
+      response: responseSchemaPresence(entry, rawOperation, SUCCESS_STATUS_RE, { kind: 'response' }),
+      error: responseSchemaPresence(entry, rawOperation, ERROR_STATUS_RE, { includeDefault: true, kind: 'error' }),
     });
   }
   return out;
@@ -200,7 +228,7 @@ export function buildOpenApiContext({ doc, index, reconciliation = null, openapi
     openapiRef,
     rootSecurity: validateRootSecurity(doc, index, openapiRef),
     duplicateOperationIds: collectOperationIdOccurrences(index),
-    schemaPresenceByEndpoint: collectSchemaPresence(index, reconciliation),
+    schemaPresenceByEndpoint: collectSchemaPresence(doc, index, reconciliation),
   };
 }
 
