@@ -1,7 +1,7 @@
 {
-  "schema": "bskel.t06.real-corpus/1",
+  "schema": "bskel.t06.real-corpus/2",
   "role": "development-reference-not-independent-certification",
-  "note": "Pinned public-source corpus for T06 regression development. T19 must select/review independent holdout evidence; passing this manifest is not a support certificate.",
+  "note": "Pinned public-source development corpus for T06. Each selected source file is bound to its Git blob SHA so a dirty checkout cannot masquerade as the pinned corpus. Holdouts have no T06-authored source selection or golden; T19 owns independent selection/review.",
   "cases": [
     {
       "id": "fastapi-full-stack-template",
@@ -10,8 +10,8 @@
       "license": "MIT",
       "repoSubroot": "backend",
       "files": [
-        "app/api/routes/items.py",
-        "app/models.py"
+        { "path": "app/api/routes/items.py", "blobSha": "f0eb30e4cee50ac09904df0e3e30e5949b1edb04" },
+        { "path": "app/models.py", "blobSha": "dcedf9a2f5ebc0fb90128c5719489c97c3743e9c" }
       ],
       "projection": "fastapi-shadow",
       "expect": {
@@ -23,18 +23,8 @@
           "PUT /items/{id}#update_item"
         ],
         "entities": [
-          [
-            "Item",
-            [
-              "id"
-            ]
-          ],
-          [
-            "User",
-            [
-              "id"
-            ]
-          ]
+          ["Item", ["id"]],
+          ["User", ["id"]]
         ],
         "dtoCount": 17,
         "unknownReasons": []
@@ -47,68 +37,19 @@
       "license": "BSD-3-Clause",
       "repoSubroot": "examples/tutorial",
       "files": [
-        "flaskr/auth.py",
-        "flaskr/blog.py"
+        { "path": "flaskr/auth.py", "blobSha": "34c03a204f03fdfb339640b788044174e7487eb7" },
+        { "path": "flaskr/blog.py", "blobSha": "be0d92c4354c9ffa4fa10d970995d735c2c71209" }
       ],
       "projection": "flask-shadow",
       "expect": {
         "routes": [
-          [
-            "login",
-            "/auth/login",
-            [
-              "GET",
-              "POST"
-            ],
-            "explicit-methods-list"
-          ],
-          [
-            "logout",
-            "/auth/logout",
-            [],
-            "framework-default-unresolved"
-          ],
-          [
-            "register",
-            "/auth/register",
-            [
-              "GET",
-              "POST"
-            ],
-            "explicit-methods-list"
-          ],
-          [
-            "create",
-            "/create",
-            [
-              "GET",
-              "POST"
-            ],
-            "explicit-methods-list"
-          ],
-          [
-            "delete",
-            "/<int:id>/delete",
-            [
-              "POST"
-            ],
-            "explicit-methods-list"
-          ],
-          [
-            "index",
-            "/",
-            [],
-            "framework-default-unresolved"
-          ],
-          [
-            "update",
-            "/<int:id>/update",
-            [
-              "GET",
-              "POST"
-            ],
-            "explicit-methods-list"
-          ]
+          ["login", "/auth/login", ["GET", "POST"], "explicit-methods-list"],
+          ["logout", "/auth/logout", [], "framework-default-unresolved"],
+          ["register", "/auth/register", ["GET", "POST"], "explicit-methods-list"],
+          ["create", "/create", ["GET", "POST"], "explicit-methods-list"],
+          ["delete", "/<int:id>/delete", ["POST"], "explicit-methods-list"],
+          ["index", "/", [], "framework-default-unresolved"],
+          ["update", "/<int:id>/update", ["GET", "POST"], "explicit-methods-list"]
         ],
         "unknownReasons": []
       }
@@ -120,9 +61,9 @@
       "license": "BSD-3-Clause",
       "repoSubroot": "tests",
       "files": [
-        "urlpatterns_reverse/urls.py",
-        "urlpatterns_reverse/included_urls.py",
-        "urlpatterns_reverse/views.py"
+        { "path": "urlpatterns_reverse/urls.py", "blobSha": "aca2d06ef7f86cc0d7200cd8ba591f4734d7ac7a" },
+        { "path": "urlpatterns_reverse/included_urls.py", "blobSha": "9e80cf59522fc9fa21c6e1da94a5e3091aed17e5" },
+        { "path": "urlpatterns_reverse/views.py", "blobSha": "01dfc1309eff85bffce7747f094b04819f1f7d25" }
       ],
       "projection": "django-shadow",
       "expect": {
@@ -132,29 +73,31 @@
           "regex-include-prefix-not-composed"
         ],
         "requiredRegistrations": [
-          [
-            "path",
-            "absolute_arg_view/",
-            null,
-            "urlpatterns_reverse.views",
-            "absolute_kwargs_view"
-          ],
-          [
-            "path",
-            "hello/<slug:name>/",
-            null,
-            "urlpatterns_reverse.views",
-            "view_func_from_cbv"
-          ],
-          [
-            "regex",
-            "(.+)/security/$",
-            "security",
-            "urlpatterns_reverse.views",
-            "empty_view"
-          ]
+          ["path", "absolute_arg_view/", null, "urlpatterns_reverse.views", "absolute_kwargs_view"],
+          ["path", "hello/<slug:name>/", null, "urlpatterns_reverse.views", "view_func_from_cbv"],
+          ["regex", "(.+)/security/$", "security", "urlpatterns_reverse.views", "empty_view"]
         ]
       }
+    }
+  ],
+  "reservedHoldouts": [
+    {
+      "id": "django-saleor-reserved",
+      "repository": "saleor/saleor",
+      "commit": "5ff56489737c78a9a5631d528f699303c953696a",
+      "license": "BSD-3-Clause",
+      "sourceInspectedByT06": false,
+      "golden": null,
+      "owner": "T19"
+    },
+    {
+      "id": "flask-microblog-reserved",
+      "repository": "miguelgrinberg/microblog",
+      "commit": "a975ef64864354867c88e0ed3a17ba7d17dca752",
+      "license": "MIT",
+      "sourceInspectedByT06": false,
+      "golden": null,
+      "owner": "T19"
     }
   ]
 }

@@ -12,9 +12,11 @@ import { buildPythonProjectFacts } from '../../scanners/language/python/resolver
 import { buildFastApiShadow } from '../../scanners/language/python/fastapi-shadow.mjs';
 import { buildFlaskRouteShadow } from '../../scanners/language/python/flask-shadow.mjs';
 import { buildDjangoUrlShadow } from '../../scanners/language/python/django-shadow.mjs';
+import { verifySelectedCorpusFiles } from './real-corpus-integrity.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(HERE, 'real-corpus.manifest.json'), 'utf8'));
+if (MANIFEST.schema !== 'bskel.t06.real-corpus/2') throw new Error(`unsupported corpus manifest schema ${MANIFEST.schema}`);
 
 function parseRoots(argv) {
   const roots = new Map();
@@ -55,9 +57,8 @@ function uniqSorted(values) {
   return [...new Set(values)].sort();
 }
 
-function resultFor(entry, checkout) {
-  const repoRoot = path.join(checkout, entry.repoSubroot || '');
-  const p = project(repoRoot, entry.files);
+function resultFor(entry, projectRoot, files) {
+  const p = project(projectRoot, files);
   if (entry.projection === 'fastapi-shadow') {
     const shadow = buildFastApiShadow(p);
     return {
@@ -111,7 +112,9 @@ for (const entry of MANIFEST.cases) {
   if (!checkout) throw new Error(`missing --root ${entry.id}=<checkout>`);
   const head = gitHead(checkout);
   assert.equal(head, entry.commit, `${entry.id}: checkout HEAD is not the pinned corpus commit`);
-  const actual = resultFor(entry, checkout);
+  const verified = verifySelectedCorpusFiles(checkout, entry.repoSubroot || '', entry.files);
+  const files = entry.files.map((record) => record.path);
+  const actual = resultFor(entry, verified.projectRoot, files);
   verify(entry, actual);
   reports.push({
     id: entry.id,
@@ -119,12 +122,14 @@ for (const entry of MANIFEST.cases) {
     commit: entry.commit,
     license: entry.license,
     projection: entry.projection,
+    selectedFiles: verified.selected,
     result: 'pass',
   });
 }
 console.log(JSON.stringify({
-  schema: 'bskel.t06.real-corpus-result/1',
+  schema: 'bskel.t06.real-corpus-result/2',
   role: MANIFEST.role,
   targetExecution: false,
   cases: reports,
+  reservedHoldouts: MANIFEST.reservedHoldouts.map(({ id, repository, commit, owner }) => ({ id, repository, commit, owner })),
 }, null, 2));
