@@ -90,6 +90,28 @@ test('T19 negative catalog cannot promote a candidate to covered without an exac
   assert.ok(verdict.errors.some((x) => x.includes('covered vectors need at least one exact execution ref')));
 });
 
+
+test('T19 negative catalog rejects traversal-like implementation refs', () => {
+  const bad = clone(vectors);
+  const candidate = bad.vectors.find((v) => v.status === 'evidence-candidate');
+  assert.ok(candidate);
+  candidate.implementation_refs = ['test/../secrets.test.mjs::fake'];
+  const verdict = validateNegativeCatalog(bad);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('may not traverse paths')));
+});
+
+test('T19 negative catalog rejects non-exact execution refs', () => {
+  const bad = clone(vectors);
+  const candidate = bad.vectors.find((v) => v.status === 'evidence-candidate');
+  assert.ok(candidate);
+  candidate.status = 'covered';
+  candidate.execution_refs = ['gha:owner/repo@main:run:123'];
+  const verdict = validateNegativeCatalog(bad);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('exact gha head/run')));
+});
+
 test('T19 negative catalog rejects duplicated vector identities', () => {
   const bad = clone(vectors);
   bad.vectors[1].id = bad.vectors[0].id;
