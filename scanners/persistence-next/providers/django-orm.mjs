@@ -63,7 +63,7 @@ function indentOf(line) {
 }
 
 function literalKwarg(text, name) {
-	const re = new RegExp('\\b' + name + '\\s*=\\s*(?:["\\']([^"\\']+)["\\']|([A-Za-z_][A-Za-z0-9_.]*))');
+	const re = new RegExp(`\\b${name}\\s*=\\s*(?:["']([^"']+)["']|([A-Za-z_][A-Za-z0-9_.]*))`);
 	const match = text.match(re);
 	return match ? (match[1] ?? match[2]) : null;
 }
