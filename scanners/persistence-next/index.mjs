@@ -1,3 +1,4 @@
+export * from './certification.mjs';
 export * from './generation-handoff.mjs';
 export * from './model-facts-bridge.mjs';
 export * from './source-facts.mjs';
