@@ -1,0 +1,9 @@
+{
+  "name": "t13-nextjs-official-route-handler-reference",
+  "private": true,
+  "dependencies": {
+    "next": "16.4.0-canary.45",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  }
+}
