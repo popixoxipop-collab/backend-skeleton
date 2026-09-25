@@ -27,6 +27,7 @@ test('binds exact Unreal editor-export bytes without interpreting gameplay', () 
   assert.equal(envelope.artifact.size_bytes, raw.byteLength);
   assert.equal(envelope.payload_descriptor.declared_schema, 'example.unreal/1');
   assert.deepEqual(envelope.claims, {
+    producer_identity_verified: false,
     runtime_behavior_verified: false,
     causal_edges_verified: false,
     state_transitions_verified: false,
@@ -92,9 +93,11 @@ test('mismatched source bytes and invented runtime claims are rejected', () => {
   const envelope = createNativeExportEnvelope(raw, {
     engine: 'unity', evidenceClass: 'source-export', engineVersion: '6', platform: 'x', producer,
   });
+  envelope.claims.producer_identity_verified = true;
   envelope.claims.runtime_behavior_verified = true;
   const checked = verifyNativeExportEnvelope(envelope, { sourceBytes: bytes({ schema: 'y' }) });
   assert.equal(checked.valid, false);
   assert.ok(checked.errors.includes('artifact-bytes'));
+  assert.ok(checked.errors.includes('claims.producer_identity_verified'));
   assert.ok(checked.errors.includes('claims.runtime_behavior_verified'));
 });
