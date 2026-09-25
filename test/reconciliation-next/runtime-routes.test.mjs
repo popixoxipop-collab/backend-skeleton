@@ -297,3 +297,28 @@ test('canonical route matching does not hide literal path drift', () => {
   assert.equal(report.endpoints[0].state, 'conflict');
   assert.equal(report.endpoints[0].reason, 'runtime-route-drift');
 });
+
+
+test('runtime route observation rejects invalid operationId syntax', () => {
+  const result = validateRuntimeRouteObservation(observation([
+    { method: 'GET', path: '/widgets/{id}', operationId: '__proto__' },
+  ]), binding());
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'runtime-route-0-invalid-operation-id');
+});
+
+test('runtime route observation rejects control characters in a path', () => {
+  const result = validateRuntimeRouteObservation(observation([
+    { method: 'GET', path: '/widgets\n/hidden', operationId: 'findWidget' },
+  ]), binding());
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'runtime-route-0-invalid-path');
+});
+
+test('runtime route observation rejects an overlong path before canonical matching', () => {
+  const result = validateRuntimeRouteObservation(observation([
+    { method: 'GET', path: '/' + 'a'.repeat(4097), operationId: 'findWidget' },
+  ]), binding());
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'runtime-route-0-invalid-path');
+});
