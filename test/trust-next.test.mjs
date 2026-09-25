@@ -8,3 +8,4 @@ import './trust-next/trust-requirements.test.mjs';
 import './trust-next/external-adapter-permissions.test.mjs';
 import './trust-next/native-engine-export-requirements.test.mjs';
 import './trust-next/first-party-helper-requirements.test.mjs';
+import './trust-next/service-access-requirements.test.mjs';
