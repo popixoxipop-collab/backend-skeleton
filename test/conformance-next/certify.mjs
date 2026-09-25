@@ -177,10 +177,11 @@ export function assembleCertification(input, { artifact_root = null, require_hol
 }
 
 function parseArgs(argv) {
-  const out = { artifact_root: null, require_holdout: true, holdout_manifest: null };
+  const out = { artifact_root: null, require_holdout: true, holdout_manifest: null, input: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--artifact-root') { out.artifact_root = argv[++i] ?? null; continue; }
     if (argv[i] === '--holdout-manifest') { out.holdout_manifest = argv[++i] ?? null; continue; }
+    if (argv[i] === '--input') { out.input = argv[++i] ?? null; continue; }
     if (argv[i] === '--allow-no-holdout') { out.require_holdout = false; continue; }
     throw new Error(`unknown argument: ${argv[i]}`);
   }
@@ -191,8 +192,9 @@ export async function main(argv = process.argv.slice(2), stdin = process.stdin, 
   try {
     const options = parseArgs(argv);
     let text = '';
-    for await (const chunk of stdin) text += chunk;
-    if (!text.trim()) throw new Error('expected one JSON certification input object on stdin');
+    if (options.input) text = fs.readFileSync(options.input, 'utf8');
+    else for await (const chunk of stdin) text += chunk;
+    if (!text.trim()) throw new Error(options.input ? 'input file was empty' : 'expected one JSON certification input object on stdin');
     let input = JSON.parse(text);
     if (options.holdout_manifest) {
       const holdout = JSON.parse(fs.readFileSync(options.holdout_manifest, 'utf8'));
