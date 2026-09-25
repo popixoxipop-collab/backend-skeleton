@@ -1,4 +1,4 @@
-import { joinRoutePath, lineNumberAt, maskCommentsPreserveStrings, stableSortRoutes } from './shared.mjs';
+import { joinRoutePath, lineNumberAt, maskNonCodePreserveDelimiters, stableSortRoutes } from './shared.mjs';
 
 const HTTP_ATTRS = new Map([
 	['HttpGet', 'GET'], ['HttpPost', 'POST'], ['HttpPut', 'PUT'], ['HttpPatch', 'PATCH'],
@@ -172,7 +172,7 @@ function analyzeMinimal(source, masked, file, routes, diagnostics, groups) {
 
 export function analyzeCSharpAspNetSource(source, { file = '<memory>' } = {}) {
 	if (typeof source !== 'string') throw new TypeError('source must be a string');
-	const masked = maskCommentsPreserveStrings(source);
+	const masked = maskNonCodePreserveDelimiters(source);
 	const routes = [];
 	const diagnostics = [];
 	const groups = [];
