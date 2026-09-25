@@ -1,10 +1,10 @@
 {
   "evidence": "sbf.t01-compatibility-evidence/1",
   "status": "partial-blocked-on-consumers-and-t00-freeze",
-  "observed_at": "2026-09-25T04:20:25.034Z",
+  "observed_at": "2026-09-25T04:31:13.280Z",
   "package_source": {
     "repository": "popixoxipop-collab/backend-skeleton",
-    "head": "b5a13489de78f0d11baaf4bd5685e054be97772c",
+    "head": "303358738861387524020ae07c23a1a1d0cc8b0d",
     "base": "5472a8b82655840d1d3ce76cb926987376e37ca6",
     "pull_request": 82,
     "scope": [
@@ -15,14 +15,14 @@
   },
   "direct_execution": {
     "host": "eoe",
-    "checkout_head": "b5a13489de78f0d11baaf4bd5685e054be97772c",
+    "checkout_head": "303358738861387524020ae07c23a1a1d0cc8b0d",
     "install": {
       "command": "npm ci --silent",
       "exit_code": 0
     },
     "test": {
       "command": "node --test test/contract-next/contract-identity-next.test.mjs test/contract-next/identity-conformance.test.mjs test/contract-next/package-identity-next.test.mjs test/contract-next/consumer-conformance.test.mjs",
-      "pass": 21,
+      "pass": 23,
       "fail": 0,
       "cancelled": 0,
       "skipped": 0,
@@ -32,10 +32,10 @@
   "packed_artifact": {
     "command": "npm pack ./t01-bskel-check --json",
     "filename": "backend-skeleton-1.9.0.tgz",
-    "npm_shasum_sha1": "73009f2c3ed3a9d446f5d008baaeebc7bcfb922a",
-    "npm_integrity_sha512": "sha512-SfPmAbp49PxxLM+nMWAz9OKLezpwWx+Riiu0qIhHZjt633kb1myWs479cuY+/6U9+I1yfKvXPAyWyiP0dk1yAg==",
-    "packed_size_bytes": 700759,
-    "unpacked_size_bytes": 2267144,
+    "npm_shasum_sha1": "510d9e3251f070dd4eebeafd17cbdba5cf92953c",
+    "npm_integrity_sha512": "sha512-M8Q0RIgB6G1azViIB2RRSgXlBrvzRGcP8BByV1GfHXOCG4hL5dCCHotD4rBFRXIAPOkdCMn8oocwBPyd1nhQlQ==",
+    "packed_size_bytes": 701608,
+    "unpacked_size_bytes": 2271382,
     "required_entries": [
       "contracts/next/identity.mjs",
       "contracts/next/consumer-conformance.mjs",
@@ -44,7 +44,8 @@
       "schemas/next/identity-envelope.schema.json",
       "schemas/next/identity.golden.json",
       "schemas/next/identity-conformance.json",
-      "schemas/next/identity-consumer-result.schema.json"
+      "schemas/next/identity-consumer-result.schema.json",
+      "schemas/next/identity-consumer-set.schema.json"
     ]
   },
   "consumer_result_contract": {
@@ -61,7 +62,22 @@
       "exact-byte ArtifactRef equality",
       "negative cases remain fail-closed",
       "summary cannot overstate pass count"
-    ]
+    ],
+    "consumer_set": {
+      "version": "sbf.identity-consumer-set/1",
+      "schema": "schemas/next/identity-consumer-set.schema.json",
+      "verifier_function": "verifyRequiredConsumerSet",
+      "intended_required_repositories": [
+        "popixoxipop-collab/backend-decoder",
+        "popixoxipop-collab/Backend-evaluation"
+      ],
+      "guarantees_checked": [
+        "duplicate consumer repositories rejected",
+        "missing required repositories rejected",
+        "unexpected repositories rejected",
+        "output order is locale-independent"
+      ]
+    }
   },
   "external_consumer_state": {
     "becoder": {
