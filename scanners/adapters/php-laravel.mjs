@@ -158,7 +158,7 @@ function prefixAt(index, groups) {
 function extractRoutes(text, file) {
   const groups = prefixGroups(text);
   const endpointsByPrefix = new Map();
-  const re = new RegExp('\\\\bRoute::(' + VERBS.join('|') + ')\\\\s*\\\\(', 'gi');
+  const re = new RegExp('\\bRoute::(' + VERBS.join('|') + ')\\s*\\(', 'gi');
 
   for (const m of text.matchAll(re)) {
     const open = m.index + m[0].length - 1;
