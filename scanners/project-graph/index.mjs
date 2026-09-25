@@ -156,6 +156,127 @@ function childRootsOf(root, allRoots) {
     .sort();
 }
 
+
+function readLocalPackageFacts(absRepo, project, unresolved) {
+  const marker = project.markers.find((m) => m.kind === 'node-package');
+  if (!marker) return null;
+  const file = path.resolve(absRepo, marker.path);
+  let pkg;
+  try {
+    pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    unresolved.push({
+      kind: 'package-metadata-read',
+      project_id: project.project_id,
+      path: marker.path,
+      message: err.message,
+    });
+    return null;
+  }
+  const deps = new Set();
+  for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+    const obj = pkg?.[field];
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) continue;
+    for (const name of Object.keys(obj)) deps.add(name);
+  }
+  const rawWorkspaces = Array.isArray(pkg?.workspaces)
+    ? pkg.workspaces
+    : Array.isArray(pkg?.workspaces?.packages)
+      ? pkg.workspaces.packages
+      : [];
+  return {
+    name: typeof pkg?.name === 'string' && pkg.name.length > 0 ? pkg.name : null,
+    private: pkg?.private === true,
+    dependency_names: [...deps].sort(),
+    workspace_patterns: rawWorkspaces.filter((x) => typeof x === 'string').sort(),
+    evidence: { path: marker.path, digest: marker.digest },
+  };
+}
+
+function isDescendantRoot(parent, child) {
+  if (parent === child) return false;
+  if (parent === '.') return true;
+  return child.startsWith(parent + '/');
+}
+
+function directParentOf(project, projects) {
+  const candidates = projects
+    .filter((p) => isDescendantRoot(p.root, project.root))
+    .sort((a, b) => b.root.length - a.root.length || a.root.localeCompare(b.root));
+  return candidates[0] ?? null;
+}
+
+function buildProjectEdges(projects, unresolved) {
+  const edges = [];
+
+  for (const project of projects) {
+    const parent = directParentOf(project, projects);
+    if (parent) {
+      edges.push({
+        kind: 'contains',
+        from_project_id: parent.project_id,
+        to_project_id: project.project_id,
+        evidence: [],
+      });
+    }
+  }
+
+  const packageOwners = new Map();
+  for (const project of projects) {
+    const name = project.local_package?.name;
+    if (!name) continue;
+    if (!packageOwners.has(name)) packageOwners.set(name, []);
+    packageOwners.get(name).push(project);
+  }
+  for (const owners of packageOwners.values()) {
+    owners.sort((a, b) => a.root.localeCompare(b.root));
+  }
+
+  for (const [name, owners] of [...packageOwners.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (owners.length > 1) {
+      unresolved.push({
+        kind: 'ambiguous-local-package-name',
+        package_name: name,
+        project_ids: owners.map((p) => p.project_id),
+        message: 'multiple discovered projects declare the same package name; local dependency edges will not guess an owner',
+      });
+    }
+  }
+
+  for (const project of projects) {
+    for (const dependencyName of project.local_package?.dependency_names ?? []) {
+      const owners = packageOwners.get(dependencyName) ?? [];
+      if (owners.length === 0) continue; // external package, not a project edge
+      if (owners.length > 1) {
+        unresolved.push({
+          kind: 'ambiguous-local-package-dependency',
+          project_id: project.project_id,
+          package_name: dependencyName,
+          candidate_project_ids: owners.map((p) => p.project_id),
+          message: 'dependency matches more than one local project; no edge was created',
+        });
+        continue;
+      }
+      const target = owners[0];
+      if (target.project_id === project.project_id) continue;
+      edges.push({
+        kind: 'local-package-dependency',
+        from_project_id: project.project_id,
+        to_project_id: target.project_id,
+        dependency_name: dependencyName,
+        evidence: [project.local_package.evidence],
+      });
+    }
+  }
+
+  return edges.sort((a, b) =>
+    a.kind.localeCompare(b.kind) ||
+    a.from_project_id.localeCompare(b.from_project_id) ||
+    a.to_project_id.localeCompare(b.to_project_id) ||
+    (a.dependency_name ?? '').localeCompare(b.dependency_name ?? ''),
+  );
+}
+
 export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MARKER_RULES } = {}) {
   if (!repoRoot) throw new TypeError('repoRoot is required');
   if (!Array.isArray(adapters)) throw new TypeError('adapters must be an array');
@@ -244,10 +365,16 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
     });
   }
 
+  for (const project of projects) {
+    project.local_package = readLocalPackageFacts(absRepo, project, unresolved);
+  }
+  const projectEdges = buildProjectEdges(projects, unresolved);
+
   return {
     schema: PROJECT_GRAPH_DRAFT,
     repo_root: absRepo,
     projects: projects.sort((a, b) => a.root.localeCompare(b.root)),
+    project_edges: projectEdges,
     unresolved,
     files_read: discovery.files_read,
     notes: [
