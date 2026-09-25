@@ -1,0 +1,8 @@
+{
+  "name": "t13-hono-official-readme-reference",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "hono": "4.13.9"
+  }
+}
