@@ -83,8 +83,9 @@ Produces advisory blockers only. It never mutates contract/capability state.
 
 1. bound runtime evidence,
 2. supported runtime-report version,
-3. matching runtime ref,
-4. endpoint state `observed`.
+3. matching source/OpenAPI/runtime refs,
+4. endpoint state `observed`,
+5. runtime report's expected operation/method/path exactly matches the current graph.
 
 ## Shared interface requests
 
@@ -148,16 +149,21 @@ This branch does not edit:
 - `bin/bskel.mjs`,
 - `package.json` or lockfiles.
 
-The T09 suite is wired through `test/t09-reconciliation-next.test.mjs`, which the existing
-`test/*.test.mjs` command discovers.
+The 98 focused T09 tests live entirely under `test/reconciliation-next/**`.
+The current shared `test/*.test.mjs` command does not discover them. The out-of-lease root shim was
+removed at commit `92ee509c0654ef1d235851d4abe61cf74bb5c65d`. A shared-owner change request on
+T00 PR #65 asks central CI to include `test/reconciliation-next/*.test.mjs` without granting T09 a
+root/shared-file lease. Until that lands, T09 is BLOCKED for integration and generic CI green does not
+certify the nested focused suite.
 
 ## Merge / promotion rule
 
 Do not mark this PR ready solely because tests are green. Before shared use:
 
-1. latest-head CI must be green,
-2. T01/T03 must review the local vocabulary and either adopt or map it,
-3. T16 must review the runtime observation boundary,
-4. stable writers remain unchanged until an integration PR explicitly enables a next path.
+1. latest-head generic CI must be green,
+2. central CI/shared-owner discovery must actually execute the nested 98-test T09 suite,
+3. T01/T03 must review the local vocabulary and either adopt or map it,
+4. T16 must review the runtime observation boundary,
+5. stable writers remain unchanged until an integration PR explicitly enables a next path.
 
 Until then the output is shadow diagnostics and advisory readiness only.
