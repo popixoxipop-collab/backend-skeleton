@@ -120,8 +120,10 @@ It does not convert those declarations into runtime behavior. All verification/c
 
 See `NATIVE_STRUCTURE_FORMATS.md` for the source semantics and official engine documentation used to constrain the draft formats.
 
-### Source provenance prerequisite for future source-only exporters
+### Source provenance for source-only exporters
 
-The current native envelope binds the exact **export JSON bytes**. A future parser that reads Unity `.unity` or Godot `.tscn` source directly must additionally bind the exact original source bytes; hashing only the generated JSON is insufficient provenance.
+Native export envelope revision 2 now carries `source_inputs[]`. Each item contains a repo-relative POSIX path, a source role, and an exact-byte `sbf.artifact-ref/1`-shaped reference with family `game-native-source`.
 
-Therefore T17 will not claim a source-file exporter complete until its output carries and verifies exact source ArtifactRefs. Unreal source facts supplied by T08 have the same requirement.
+`source-export` is rejected when this list is empty. The envelope verifier can additionally receive the actual source bytes by path and rejects missing or mismatched bytes. Absolute paths, parent traversal, backslashes and duplicate source paths fail closed.
+
+The normalized native structure retains the same source refs unchanged. This establishes byte identity/provenance, but does not set `source_structure_verified`; independent verification remains a separate evidence step.
