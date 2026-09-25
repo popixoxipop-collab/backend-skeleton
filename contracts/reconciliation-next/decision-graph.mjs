@@ -41,7 +41,7 @@ function decision(field, state, {
   }
   const out = { field, state, authority, evidence };
   if (value !== undefined) out.value = value;
-  if (candidates !== undefined) out.candidates = candidates;
+  if (candidates !== undefined && (!Array.isArray(candidates) || candidates.length > 0)) out.candidates = candidates;
   if (reason) out.reason = reason;
   return out;
 }
