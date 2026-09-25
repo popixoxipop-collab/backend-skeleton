@@ -36,9 +36,18 @@ function literalFromArgs(source, masked, openParen) {
 	try { return { literal: JSON.parse(raw), raw, end: j + 1 }; } catch { return { literal: null, raw, end: j + 1 }; }
 }
 
-function normalizeControllerToken(route, className) {
+function normalizeRouteTokens(route, className, actionName = null) {
 	const controller = className.replace(/Controller$/, '');
-	return route.replace(/\[controller\]/gi, controller);
+	let out = route.replace(/\[controller\]/gi, controller);
+	if (actionName) out = out.replace(/\[action\]/gi, actionName);
+	return out;
+}
+
+function combineControllerRoute(classRoute, actionRoute) {
+	if (actionRoute?.startsWith('~/')) return joinRoutePath('', actionRoute.slice(2));
+	if (actionRoute?.startsWith('/')) return joinRoutePath('', actionRoute);
+	if (classRoute == null) return actionRoute ? joinRoutePath('', actionRoute) : null;
+	return joinRoutePath(classRoute, actionRoute ?? '');
 }
 
 function attributesBefore(masked, source, absoluteStart) {
@@ -79,11 +88,11 @@ function analyzeControllers(source, masked, file, routes, diagnostics) {
 		if (close < 0) continue;
 		const classAttrs = attributesBefore(masked, source, m.index);
 		const routeAttr = classAttrs.find((a) => a.name === 'Route');
-		const classRouteRaw = routeAttr ? quotedArg(routeAttr.args) : '';
+		const classRouteRaw = routeAttr ? quotedArg(routeAttr.args) : null;
 		if (routeAttr && classRouteRaw == null) {
 			diagnostics.push({ code: 'CSHARP_DYNAMIC_CONTROLLER_ROUTE', severity: 'unknown', file, line: lineNumberAt(source, routeAttr.index), message: `${className} has a non-literal [Route(...)]` });
 		}
-		const classRoute = classRouteRaw == null ? null : normalizeControllerToken(classRouteRaw || '', className);
+		const classRoute = classRouteRaw == null ? null : normalizeRouteTokens(classRouteRaw || '', className);
 		const body = masked.slice(open + 1, close);
 		const memberRe = /\b(?:public|protected|internal|private)[ \t]+(?:async[ \t]+)?(?:[A-Za-z_][\w<>,.?\[\] \t]*[ \t]+)([A-Za-z_]\w*)[ \t]*\(/g;
 		for (const mm of body.matchAll(memberRe)) {
@@ -96,8 +105,20 @@ function analyzeControllers(source, masked, file, routes, diagnostics) {
 				diagnostics.push({ code: 'CSHARP_DYNAMIC_ACTION_ROUTE', severity: 'unknown', file, line: lineNumberAt(source, http.index), message: `${className}.${mm[1]} has a non-literal [${http.name}(...)] route` });
 				continue;
 			}
-			if (classRoute == null) continue;
-			routes.push({ method: HTTP_ATTRS.get(http.name), path: joinRoutePath(classRoute, methodPathRaw ?? ''), handler: `${className}.${mm[1]}`, framework: 'aspnet-core-controller', source: { file, line: lineNumberAt(source, http.index), index: http.index }, confidence: 'static-literal' });
+			const methodRouteAttr = attrs.find((a) => a.name === 'Route');
+			const methodRouteRaw = methodRouteAttr ? quotedArg(methodRouteAttr.args) : null;
+			if (methodRouteAttr && methodRouteRaw == null) {
+				diagnostics.push({ code: 'CSHARP_DYNAMIC_ACTION_ROUTE', severity: 'unknown', file, line: lineNumberAt(source, methodRouteAttr.index), message: `${className}.${mm[1]} has a non-literal [Route(...)]` });
+				continue;
+			}
+			let actionRoute = methodPathRaw || methodRouteRaw || '';
+			actionRoute = normalizeRouteTokens(actionRoute, className, mm[1]);
+			const finalPath = combineControllerRoute(classRoute, actionRoute);
+			if (finalPath == null) {
+				diagnostics.push({ code: 'CSHARP_ACTION_ROUTE_UNRESOLVED', severity: 'unknown', file, line: lineNumberAt(source, http.index), message: `${className}.${mm[1]} has no literal class/action route template; conventional routing is not inferred` });
+				continue;
+			}
+			routes.push({ method: HTTP_ATTRS.get(http.name), path: finalPath, handler: `${className}.${mm[1]}`, framework: 'aspnet-core-controller', source: { file, line: lineNumberAt(source, http.index), index: http.index }, confidence: 'static-literal' });
 		}
 	}
 }
