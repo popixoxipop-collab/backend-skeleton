@@ -1,0 +1,1 @@
+// Keeps Rails scope/path real-corpus regressions inside the repository-wide test lane.\nimport './language-ruby-php/rails-scope-literals.test.mjs';\n
