@@ -11,9 +11,17 @@ const MINIMAL_METHODS = new Map([
 
 function findMatchingBrace(masked, open) {
 	let depth = 0;
+	let quote = null;
 	for (let i = open; i < masked.length; i++) {
-		if (masked[i] === '{') depth++;
-		else if (masked[i] === '}' && --depth === 0) return i;
+		const ch = masked[i];
+		if (quote) {
+			if (quote === '"' && ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '"' || ch === "'") { quote = ch; continue; }
+		if (ch === '{') depth++;
+		else if (ch === '}' && --depth === 0) return i;
 	}
 	return -1;
 }
