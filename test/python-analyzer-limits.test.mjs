@@ -28,7 +28,7 @@ test('T06 rejects oversized Python input before reading it into the helper', () 
   assert.equal('sha256' in result.source, false, 'do not read/hash over-limit input just to report an error');
 });
 
-test('T06 rejects invalid UTF-8 bytes rather than silently replacing source characters', () => {
+test('T06 rejects invalid default-UTF-8 source bytes rather than silently replacing characters', { skip: !runtime }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-encoding-'));
   const bytes = Buffer.from([0x78, 0x20, 0x3d, 0x20, 0x22, 0xff, 0x22, 0x0a]);
   fs.writeFileSync(path.join(root, 'module.py'), bytes);
@@ -36,4 +36,20 @@ test('T06 rejects invalid UTF-8 bytes rather than silently replacing source char
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'PYTHON_SOURCE_ENCODING_UNSUPPORTED');
   assert.equal(result.source.sha256, crypto.createHash('sha256').update(bytes).digest('hex'));
+});
+
+
+test('T06 honors a valid PEP 263 non-UTF-8 source encoding without changing the byte hash', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-pep263-'));
+  const bytes = Buffer.concat([
+    Buffer.from('# coding: latin-1\nname = "caf', 'ascii'),
+    Buffer.from([0xe9]),
+    Buffer.from('"\n', 'ascii'),
+  ]);
+  fs.writeFileSync(path.join(root, 'module.py'), bytes);
+  const result = analyzePythonFile({ repoRoot: root, file: 'module.py' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.source.sha256, crypto.createHash('sha256').update(bytes).digest('hex'));
+  assert.equal(result.source.encoding, 'iso-8859-1');
+  assert.equal(result.facts.assignments[0].value.value, 'café');
 });
