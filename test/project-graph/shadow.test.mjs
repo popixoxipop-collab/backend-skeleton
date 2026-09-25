@@ -90,3 +90,58 @@ test('shadow execution rejects marker drift instead of running a stale graph', (
       err?.expected_digest !== err?.actual_digest,
   );
 });
+
+
+test('graph captures the selected adapter source read-set with content hashes and source roles', () => {
+  const root = fixture({
+    'app/pyproject.toml': '[project]\ndependencies = ["fastapi>=0.100"]\n',
+    'app/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+    'app/tests/helper.py': 'VALUE = 1\n',
+  });
+  const graph = buildRegisteredProjectGraph(root);
+  const project = graph.projects.find((entry) => entry.root === 'app');
+  assert.ok(project?.selected_adapter_read_set);
+  assert.equal(project.selected_adapter_read_set.adapter_id, 'python-fastapi');
+  assert.match(project.selected_adapter_read_set.fingerprint, /^sha256:[a-f0-9]{64}$/);
+  assert.deepEqual(
+    project.selected_adapter_read_set.files.map((file) => [file.path, file.role]),
+    [
+      ['app/main.py', 'active'],
+      ['app/tests/helper.py', 'reference'],
+    ],
+  );
+  assert.ok(project.selected_adapter_read_set.files.every((file) => /^sha256:[a-f0-9]{64}$/.test(file.digest)));
+  assert.ok(graph.files_read.includes('app/main.py'));
+  assert.ok(graph.files_read.includes('app/tests/helper.py'));
+});
+
+test('shadow execution rejects source-content drift even when project markers are unchanged', () => {
+  const root = fixture({
+    'app/pyproject.toml': '[project]\ndependencies = ["fastapi>=0.100"]\n',
+    'app/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+  });
+  const graph = buildRegisteredProjectGraph(root);
+  fs.appendFileSync(path.join(root, 'app', 'main.py'), '# source drift\n');
+  assert.throws(
+    () => executeProjectScanPlan({ repoRoot: root, graph, terms: [], adapters: ADAPTERS }),
+    (err) => err?.code === 'PROJECT_GRAPH_STALE' &&
+      err?.stale_kind === 'adapter-read-set' &&
+      err?.expected_fingerprint !== err?.actual_fingerprint,
+  );
+});
+
+test('shadow execution rejects a newly-added source file that changes the adapter read-set', () => {
+  const root = fixture({
+    'app/pyproject.toml': '[project]\ndependencies = ["fastapi>=0.100"]\n',
+    'app/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+  });
+  const graph = buildRegisteredProjectGraph(root);
+  fs.writeFileSync(path.join(root, 'app', 'new_module.py'), 'VALUE = 1\n');
+  assert.throws(
+    () => executeProjectScanPlan({ repoRoot: root, graph, terms: [], adapters: ADAPTERS }),
+    (err) => err?.code === 'PROJECT_GRAPH_STALE' &&
+      err?.stale_kind === 'adapter-read-set' &&
+      !err?.expected_files.includes('app/new_module.py') &&
+      err?.actual_files.includes('app/new_module.py'),
+  );
+});
