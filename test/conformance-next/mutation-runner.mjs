@@ -75,7 +75,9 @@ export function runMutationCampaign({ repoRoot, catalog }) {
         continue;
       }
       const args = ['--test', ...mutant.test_files.map((p) => path.join(scratch, p))];
-      const run = spawnSync(process.execPath, args, { cwd: scratch, encoding: 'utf8', timeout: 10_000 });
+      const env = { ...process.env };
+      delete env.NODE_TEST_CONTEXT;
+      const run = spawnSync(process.execPath, args, { cwd: scratch, encoding: 'utf8', timeout: 10_000, env });
       const code = run.status;
       const killed = Number.isInteger(code) && code !== 0;
       results.push({
