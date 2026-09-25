@@ -24,8 +24,10 @@ function fixture({ web = true } = {}) {
     'app.MapGet("/health", Health);',
     'var api = app.MapGroup("/api");',
     'var admin = api.MapGroup("/admin");',
+    'RouteGroupBuilder typed = app.MapGroup("/typed").RequireAuthorization();',
     'api.MapPost("/users", CreateUser);',
     'admin.MapDelete("/users/{id}", (int id) => Results.NoContent());',
+    'typed.MapGet("/status", TypedStatus);',
     'app.MapGet(dynamicPath, DynamicHandler);',
     ''
   ].join('\n'));
@@ -44,6 +46,14 @@ function fixture({ web = true } = {}) {
     '',
     '    [HttpDelete("/ops/widgets/{id}")]',
     '    public IActionResult DeleteWidget(int id) => NoContent();',
+    '}',
+    '',
+    '[ApiController]',
+    'public class TimeController : ControllerBase',
+    '{',
+    '    [Route("api/[controller]")]',
+    '    [HttpGet]',
+    '    public IActionResult GetTime() => Ok();',
     '}',
     ''
   ].join('\n'));
@@ -68,6 +78,14 @@ test('attribute-routed controllers combine class and action templates with route
   assert.ok(endpoints.some((e) => e.verb === 'DELETE' && e.path === '/ops/widgets/{id}' && e.method === 'DeleteWidget'));
 });
 
+test('method-level [Route] next to parameterless [HttpGet] is preserved', () => {
+  const root = fixture();
+  const report = scanCSharpAspNetCore(root, root);
+  const time = report.modules.find((m) => m.module === 'time');
+  assert.ok(time);
+  assert.ok(time.controllers[0].endpoints.some((e) => e.verb === 'GET' && e.path === '/api/Time' && e.method === 'GetTime'));
+});
+
 test('Minimal API MapGroup prefixes compose through nested groups', () => {
   const root = fixture();
   const report = scanCSharpAspNetCore(root, root);
@@ -75,6 +93,7 @@ test('Minimal API MapGroup prefixes compose through nested groups', () => {
   assert.ok(endpoints.some((e) => e.verb === 'GET' && e.path === '/health' && e.method === 'Health'));
   assert.ok(endpoints.some((e) => e.verb === 'POST' && e.path === '/api/users' && e.method === 'CreateUser'));
   assert.ok(endpoints.some((e) => e.verb === 'DELETE' && e.path === '/api/admin/users/{id}' && e.method === null));
+  assert.ok(endpoints.some((e) => e.verb === 'GET' && e.path === '/typed/status' && e.method === 'TypedStatus'));
 });
 
 test('computed Minimal API paths are skipped instead of guessed', () => {
