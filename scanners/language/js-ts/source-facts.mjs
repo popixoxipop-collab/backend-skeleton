@@ -16,6 +16,10 @@ const REGEX_PRECEDING_KEYWORDS = new Set([
   'return', 'typeof', 'case', 'in', 'of', 'new', 'delete', 'do', 'else', 'yield', 'await', 'void', 'instanceof',
 ]);
 
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function diag(code, message, start = null) {
   return { level: 'info', code, message, ...(start === null ? {} : { start }) };
 }
@@ -380,8 +384,8 @@ export function analyzeJsTsSource(source, {
   }
   const diagnostics = [...lexed.diagnostics];
   const edges = addSpans(source, extractEdges(lexed.tokens, diagnostics));
-  edges.sort((a, b) => a.source.byteStart - b.source.byteStart || a.kind.localeCompare(b.kind) || a.specifier.localeCompare(b.specifier));
-  diagnostics.sort((a, b) => (a.start ?? -1) - (b.start ?? -1) || a.code.localeCompare(b.code));
+  edges.sort((a, b) => a.source.byteStart - b.source.byteStart || compareText(a.kind, b.kind) || compareText(a.specifier, b.specifier));
+  diagnostics.sort((a, b) => (a.start ?? -1) - (b.start ?? -1) || compareText(a.code, b.code));
   const publicDiagnostics = addDiagnosticSpans(source, diagnostics);
   return {
     contract: JS_TS_FACTS_CONTRACT,
