@@ -9,11 +9,11 @@ complete.
 | Task | T22 state | Evidence / remaining dependency |
 |---|---|---|
 | T22-01 user journey / diagnostics | implemented | discover→plan→scan→reconcile→contract→verify mapping and structured diagnostics docs |
-| T22-02 minimal SDK | implemented | safe manifest builder/validator, worker protocol, seven JSON Schemas, schema catalog |
+| T22-02 minimal SDK | implemented | safe manifest builder/validator, worker protocol, nine JSON Schemas, schema catalog |
 | T22-03 external adapter certification path | implemented through pre-execution boundary | manifest → explicit caller-injected conformance; actual untrusted execution requires T20-approved executor |
-| T22-04 support/explain UX | implemented | supported/partial/unsupported/unknown/not-applicable/conflict, provenance, conflict candidates, next actions, escaped Markdown |
+| T22-04 support/explain UX | implemented | support explanations + deterministic support matrix; supported/partial/unsupported/unknown/not-applicable/conflict, provenance, conflict candidates, next actions, escaped Markdown |
 | T22-05 editor/CI projection | implemented | SARIF 2.1.0 projection, unsafe absolute/traversal locations omitted |
-| T22-06 onboarding | T22 portion implemented | task packet, source-tree quickstart, onboarding docs; npm packaging/test-script/CLI wiring require integration/package owner |
+| T22-06 onboarding | T22 portion implemented | task packet, package inventory review, composed submission review, source-tree fixture/E2E onboarding, docs; npm packaging/test-script/CLI wiring require integration/package owner |
 
 ## Fail-closed properties pinned by tests
 
@@ -27,11 +27,15 @@ complete.
 - conflict fields require at least two candidates and cannot simultaneously claim one authoritative value
 - support Markdown escapes HTML/table control characters
 - SARIF source locations cannot point outside the project using absolute/traversal/URI paths
-- schema catalog IDs are checked against the seven JSON Schema files
+- schema catalog IDs are checked against the nine JSON Schema files
+- external package inventory rejects traversal, non-regular entries, reserved names, case/Unicode collisions
+- package digest comparison is explicitly not archive-byte trust
+- support matrices are generated from explanations; contradictory support evidence becomes conflict
+- submission review can only reach `ready-for-execution-review`, never executable
 
 ## Verification
 
-EOE focused T22 suite after the latest implementation batch: **39/39 PASS**.
+EOE focused T22 suite after the latest implementation batch: **50/50 PASS**.
 
 The earlier branch head also passed the repository GitHub CI matrix, including Node test, package
 install, Java/Python/Rails integration and DB lanes. Every later head must obtain its own CI result;
