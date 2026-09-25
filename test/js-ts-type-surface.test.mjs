@@ -49,6 +49,9 @@ test('unsupported generics and intersections are partial/diagnostic, never silen
   const r=projectTypeScriptSurface(`interface Box<T> { value: T }
 type Both = A & B;`);
   assert.ok(r.diagnostics.some(d=>d.code==='generic-declaration-unprojected'));
+  const box=r.projections.find(x=>x.name==='Box');
+  assert.equal(box.status,'partial');
+  assert.ok(box.unsupported.includes('generic-parameters'));
   const both=r.projections.find(x=>x.name==='Both');
   assert.equal(both.status,'partial');
 });
@@ -58,6 +61,9 @@ test('extends is preserved but not merged',()=> {
   const b=r.declarations.find(x=>x.name==='B');
   assert.deepEqual(b.extends,['A']);
   assert.deepEqual(b.properties.map(p=>p.name),['b']);
+  const bp=r.projections.find(x=>x.name==='B');
+  assert.equal(bp.status,'partial');
+  assert.deepEqual(bp.unsupported,['extends:A']);
 });
 
 test('object type alias projects like an interface',()=> {
