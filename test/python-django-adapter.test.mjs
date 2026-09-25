@@ -42,7 +42,7 @@ function fixture({ django = true } = {}) {
     'from .views import UserViewSet, AuditViewSet',
     '',
     'router = DefaultRouter()',
-    "router.register(r'users', UserViewSet, basename='user')",
+    "router.register(r'users', views.UserViewSet, basename='user')",
     "router.register(r'audit', AuditViewSet, basename='audit')",
     "router.register(r'slugs', SlugViewSet, basename='slug')",
     "urlpatterns = [path('api/', include(router.urls))]",
