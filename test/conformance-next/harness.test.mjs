@@ -129,6 +129,29 @@ test('pass evidence cannot hide a required skipped command or mismatched artifac
   assert.ok(result.errors.some((x) => x.includes('artifact')));
 });
 
+test('failed evidence remains a valid evidence record when failure signals are explicit', () => {
+  const pack = {
+    contract: 'sbf.qa-evidence/1', scope: 'fixture:failure', source_commit: 'f'.repeat(40), adapter_id: 'fixture', target_profile: 'node-test', verdict: 'fail',
+    commands: [{ argv: 'node failing-test.mjs', status: 'executed', exit_code: 1 }],
+    assertions: [{ id: 'expected-behavior', required: true, status: 'failed' }],
+    artifacts: [],
+  };
+  const result = verifyEvidencePack(pack);
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
+test('blocked verdict is rejected when nothing required was actually blocked or skipped', () => {
+  const pack = {
+    contract: 'sbf.qa-evidence/1', scope: 'fixture:false-block', source_commit: '1'.repeat(40), adapter_id: 'fixture', target_profile: 'node-test', verdict: 'blocked',
+    commands: [{ argv: 'node --test', status: 'executed', exit_code: 0 }],
+    assertions: [{ id: 'all', required: true, status: 'passed' }],
+    artifacts: [],
+  };
+  const result = verifyEvidencePack(pack);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((x) => x.includes('blocked verdict needs')));
+});
+
 test('blocked evidence may record skipped infrastructure without masquerading as pass', () => {
   const pack = {
     contract: 'sbf.qa-evidence/1', scope: 'unreal:runtime', source_commit: 'c'.repeat(40), adapter_id: 'unreal', target_profile: 'engine-not-installed', verdict: 'blocked',
