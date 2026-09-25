@@ -48,7 +48,7 @@ function lineNumberAt(text, index) {
 }
 
 const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
-const REGEX_PRECEDING_KEYWORD_RE = /\\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\\s*$/;
+const REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
 
 function isRegexStart(lastSignificant, recentText) {
   if (lastSignificant === null) return true;
@@ -61,8 +61,8 @@ function skipRegexLiteral(text, start) {
   let inClass = false;
   while (i < text.length) {
     const ch = text[i];
-    if (ch === '\\\\') { i += 2; continue; }
-    if (ch === '\\n') return i;
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '\n') return i;
     if (inClass) {
       if (ch === ']') inClass = false;
       i++;
@@ -82,13 +82,13 @@ function maskComments(text) {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (quote) {
-      if (ch === '\\\\') { i++; continue; }
+      if (ch === '\\') { i++; continue; }
       if (ch === quote) { quote = null; lastSignificant = ch; }
       continue;
     }
     if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
     if (ch === '/' && text[i + 1] === '/') {
-      while (i < text.length && text[i] !== '\\n') { out[i] = ' '; i++; }
+      while (i < text.length && text[i] !== '\n') { out[i] = ' '; i++; }
       i--;
       continue;
     }
@@ -96,7 +96,7 @@ function maskComments(text) {
       out[i] = out[i + 1] = ' ';
       i += 2;
       while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
-        if (text[i] !== '\\n') out[i] = ' ';
+        if (text[i] !== '\n') out[i] = ' ';
         i++;
       }
       if (i < text.length) { out[i] = out[i + 1] = ' '; i++; }
@@ -108,7 +108,7 @@ function maskComments(text) {
       lastSignificant = '/';
       continue;
     }
-    if (!/\\s/.test(ch)) lastSignificant = ch;
+    if (!/\s/.test(ch)) lastSignificant = ch;
   }
   return out.join('');
 }
