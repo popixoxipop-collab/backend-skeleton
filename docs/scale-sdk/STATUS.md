@@ -11,7 +11,7 @@ complete.
 | T22-01 user journey / diagnostics | implemented | discover→plan→scan→reconcile→contract→verify mapping and structured diagnostics docs |
 | T22-02 minimal SDK | implemented | safe manifest builder/validator, worker protocol, nine JSON Schemas, schema catalog |
 | T22-03 external adapter certification path | implemented through pre-execution boundary | manifest → explicit caller-injected conformance; actual untrusted execution requires T20-approved executor |
-| T22-04 support/explain UX | implemented | support explanations + deterministic support matrix; supported/partial/unsupported/unknown/not-applicable/conflict, provenance, conflict candidates, next actions, escaped Markdown |
+| T22-04 support/explain UX | implemented | support explanations + deterministic support evidence matrix; supported/partial/unsupported/unknown/not-applicable/conflict, provenance, conflict candidates, next actions, escaped Markdown |
 | T22-05 editor/CI projection | implemented | SARIF 2.1.0 projection, unsafe absolute/traversal locations omitted |
 | T22-06 onboarding | T22 portion implemented | task packet, package inventory review, composed submission review, source-tree fixture/E2E onboarding, docs; npm packaging/test-script/CLI wiring require integration/package owner |
 
@@ -30,7 +30,7 @@ complete.
 - schema catalog IDs are checked against the nine JSON Schema files
 - external package inventory rejects traversal, non-regular entries, reserved names, case/Unicode collisions
 - package digest comparison is explicitly not archive-byte trust
-- support matrices are generated from explanations; contradictory support evidence becomes conflict
+- support evidence matrices are generated from explanations; contradictory support evidence becomes conflict
 - submission review can only reach `ready-for-execution-review`, never executable
 
 ## Verification
