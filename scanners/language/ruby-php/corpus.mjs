@@ -61,12 +61,16 @@ function exactCheckout(entry) {
   const dir = path.join(parent, 'repo');
   const url = `https://github.com/${entry.owner}/${entry.repo}.git`;
   try {
-    sh('git', ['clone', '--quiet', '--filter=blob:none', '--no-checkout', url, dir], parent);
+    fs.mkdirSync(dir);
+    sh('git', ['init', '--quiet'], dir);
+    sh('git', ['remote', 'add', 'origin', url], dir);
     sh('git', ['fetch', '--quiet', '--depth', '1', '--filter=blob:none', 'origin', entry.ref], dir);
+    sh('git', ['update-ref', 'refs/heads/t07-corpus', 'FETCH_HEAD'], dir);
+    sh('git', ['symbolic-ref', 'HEAD', 'refs/heads/t07-corpus'], dir);
     sh('git', ['sparse-checkout', 'init', '--cone'], dir);
     const roots = [...new Set([...entry.route_roots, ...entry.model_roots])];
     sh('git', ['sparse-checkout', 'set', '--skip-checks', ...roots], dir);
-    sh('git', ['checkout', '--quiet', '--detach', 'FETCH_HEAD'], dir);
+    sh('git', ['reset', '--quiet', '--hard', 'HEAD'], dir);
     const actual = sh('git', ['rev-parse', 'HEAD'], dir).trim();
     if (actual.toLowerCase() !== entry.ref.toLowerCase()) {
       throw new Error(`checkout mismatch: expected ${entry.ref}, got ${actual}`);
@@ -77,7 +81,6 @@ function exactCheckout(entry) {
     throw error;
   }
 }
-
 function trackedFiles(root) {
   return sh('git', ['ls-files', '-z'], root).split('\0').filter(Boolean).sort();
 }
