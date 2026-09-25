@@ -158,3 +158,13 @@ test('complete resolution analysis is distinct from every module edge resolving'
   assert.deepEqual(result.resolutions.map((r) => r.status), ['bare', 'missing']);
   assert.deepEqual(result.diagnostics.map((d) => d.code), ['module-bare', 'module-missing']);
 });
+
+
+test('explicit extension specifiers never fall through to directory index candidates', () => {
+  const result = resolveJsTsModuleEdge(edge('./router.js'), {
+    filePath: 'src/app.ts',
+    knownFiles: ['src/router.js/index.ts'],
+  });
+  assert.equal(result.status, 'missing');
+  assert.deepEqual(result.candidates, []);
+});
