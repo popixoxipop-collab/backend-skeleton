@@ -33,6 +33,44 @@ function toBytes(bytes) {
   throw new TypeError('contractBytes must be a UTF-8 string, Buffer, or Uint8Array');
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (plainObject(value)) {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])]));
+  }
+  return value;
+}
+
+function parseExactProtocolContractBytes(ref, bytes) {
+  if (!protocolArtifactRefMatchesBytes(ref, bytes)) {
+    throw new TypeError('ProtocolItemRef contract bytes do not match ArtifactRef');
+  }
+  const raw = toBytes(bytes);
+  let text;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(raw);
+  } catch {
+    throw new TypeError('protocol contract bytes must be valid UTF-8');
+  }
+  let contract;
+  try {
+    contract = JSON.parse(text);
+  } catch {
+    throw new TypeError('protocol contract bytes must contain valid JSON');
+  }
+  if (!plainObject(contract) || contract.sbf_protocol_contract !== PROTOCOL_CONTRACT_VERSION) {
+    throw new TypeError('ProtocolItemRef requires an sbf_protocol_contract/' + PROTOCOL_CONTRACT_VERSION + ' document');
+  }
+  return contract;
+}
+
+function assertContractViewMatchesExactBytes(contract, exactContract) {
+  if (!plainObject(contract)) throw new TypeError('protocol contract context view must be a plain object');
+  if (JSON.stringify(canonicalJson(contract)) !== JSON.stringify(canonicalJson(exactContract))) {
+    throw new TypeError('protocol contract context object does not match exact contract bytes');
+  }
+}
+
 // Shadow consumer of T01's draft sbf.artifact-ref/1 shape. T01 remains the canonical owner.
 export function assertT01ArtifactRefShape(ref) {
   exactKeys(ref, ['artifact_ref', 'family', 'version', 'media_type', 'byte_sha256', 'size_bytes'], 'ArtifactRef');
@@ -49,6 +87,7 @@ export function assertProtocolContractArtifactRef(ref) {
   assertT01ArtifactRefShape(ref);
   if (ref.family !== 'protocol-contract') throw new TypeError('protocol item ref requires ArtifactRef.family=protocol-contract');
   if (ref.version !== PROTOCOL_CONTRACT_VERSION) throw new TypeError('protocol contract ArtifactRef.version mismatch');
+  if (ref.media_type !== 'application/json') throw new TypeError('protocol contract ArtifactRef.media_type must be application/json');
   return ref;
 }
 
@@ -71,16 +110,12 @@ export function assertProtocolItemRefShape(ref) {
 
 export function assertProtocolItemRefBound({ reference, contract, contractBytes }) {
   assertProtocolItemRefShape(reference);
-  if (!protocolArtifactRefMatchesBytes(reference.contract, contractBytes)) {
-    throw new TypeError('ProtocolItemRef contract bytes do not match ArtifactRef');
-  }
-  if (!plainObject(contract) || contract.sbf_protocol_contract !== PROTOCOL_CONTRACT_VERSION) {
-    throw new TypeError('ProtocolItemRef requires an sbf_protocol_contract/' + PROTOCOL_CONTRACT_VERSION + ' document');
-  }
-  if (contract.protocol?.family !== reference.family) {
+  const exactContract = parseExactProtocolContractBytes(reference.contract, contractBytes);
+  assertContractViewMatchesExactBytes(contract, exactContract);
+  if (exactContract.protocol?.family !== reference.family) {
     throw new TypeError('ProtocolItemRef.family does not match protocol contract family');
   }
-  const items = contract.planes?.[reference.family]?.[reference.plane];
+  const items = exactContract.planes?.[reference.family]?.[reference.plane];
   if (!Array.isArray(items)) throw new TypeError('ProtocolItemRef plane is absent from protocol contract');
   const item = items.find((candidate) => candidate?.id === reference.item_id);
   if (!item) throw new TypeError('ProtocolItemRef.item_id does not exist in the exact protocol contract');
@@ -111,7 +146,8 @@ export function indexProtocolContractContexts(contexts) {
     const ref = assertProtocolContractArtifactRef(context.contract_ref);
     const key = contractContextKey(ref);
     if (index.has(key)) throw new TypeError('duplicate protocol contract context: ' + key);
-    if (!protocolArtifactRefMatchesBytes(ref, context.contract_bytes)) throw new TypeError('protocol contract context bytes do not match ArtifactRef');
+    const exactContract = parseExactProtocolContractBytes(ref, context.contract_bytes);
+    assertContractViewMatchesExactBytes(context.contract, exactContract);
     index.set(key, context);
   }
   return index;
