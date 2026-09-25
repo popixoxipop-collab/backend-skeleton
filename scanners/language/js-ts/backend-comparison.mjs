@@ -8,8 +8,25 @@ import { analyzeJsTsSource } from './source-facts.mjs';
 
 export const JS_TS_BACKEND_CONTRACT = 'bskel.internal.js-ts-backend/0';
 
+const DEFAULT_MAX_CASES = 1_000;
+const DEFAULT_MAX_CORPUS_BYTES = 32 * 1024 * 1024;
+
 function compareText(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function validatePositiveLimit(value, label) {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`${label} must be a positive safe integer`);
+}
+
+function isolatedOptions(options) {
+  // The common T04 boundary is intentionally flat. A backend cannot mutate the object seen by
+  // another backend and backend-specific executable/config objects are not smuggled through here.
+  const allowed = new Set(['filePath', 'language', 'maxBytes', 'maxTokens']);
+  for (const key of Object.keys(options)) {
+    if (!allowed.has(key)) throw new TypeError(`unsupported common analysis option: ${key}`);
+  }
+  return Object.freeze({ ...options });
 }
 
 function assertUnique(items, label, keyFn) {
@@ -102,9 +119,14 @@ function diffAgainst(reference, candidate) {
 
 export function compareJsTsBackends(backends, corpus, {
   referenceBackendId = 'bounded-lexical',
+  maxCases = DEFAULT_MAX_CASES,
+  maxCorpusBytes = DEFAULT_MAX_CORPUS_BYTES,
 } = {}) {
   if (!Array.isArray(backends) || backends.length === 0) throw new TypeError('backends must be a non-empty array');
   if (!Array.isArray(corpus) || corpus.length === 0) throw new TypeError('corpus must be a non-empty array');
+  validatePositiveLimit(maxCases, 'maxCases');
+  validatePositiveLimit(maxCorpusBytes, 'maxCorpusBytes');
+  if (corpus.length > maxCases) throw new RangeError(`corpus has ${corpus.length} cases; limit is ${maxCases}; no backend was executed`);
 
   const checkedBackends = backends.map(validateJsTsBackend);
   assertUnique(checkedBackends, 'backend id', (b) => b.id);
@@ -112,6 +134,7 @@ export function compareJsTsBackends(backends, corpus, {
     throw new TypeError(`reference backend not found: ${referenceBackendId}`);
   }
 
+  let corpusBytes = 0;
   const checkedCorpus = corpus.map((entry) => {
     if (!entry || typeof entry !== 'object') throw new TypeError('corpus entry must be an object');
     if (typeof entry.id !== 'string' || entry.id.length === 0) throw new TypeError('corpus entry.id must be non-empty');
@@ -119,7 +142,11 @@ export function compareJsTsBackends(backends, corpus, {
     if (entry.options !== undefined && (!entry.options || typeof entry.options !== 'object' || Array.isArray(entry.options))) {
       throw new TypeError(`${entry.id}: corpus options must be an object`);
     }
-    return { id: entry.id, source: entry.source, options: entry.options ?? {} };
+    corpusBytes += Buffer.byteLength(entry.source, 'utf8');
+    if (corpusBytes > maxCorpusBytes) {
+      throw new RangeError(`corpus exceeds ${maxCorpusBytes} bytes; no backend was executed`);
+    }
+    return { id: entry.id, source: entry.source, options: isolatedOptions(entry.options ?? {}) };
   });
   assertUnique(checkedCorpus, 'corpus id', (c) => c.id);
   checkedCorpus.sort((a, b) => compareText(a.id, b.id));
@@ -129,7 +156,7 @@ export function compareJsTsBackends(backends, corpus, {
     const outcomes = [];
     for (const backend of [...checkedBackends].sort((a, b) => compareText(a.id, b.id))) {
       try {
-        const result = analyzeWithJsTsBackend(backend, entry.source, entry.options);
+        const result = analyzeWithJsTsBackend(backend, entry.source, isolatedOptions(entry.options));
         outcomes.push({
           backendId: backend.id,
           status: 'ok',
@@ -174,6 +201,8 @@ export function compareJsTsBackends(backends, corpus, {
     contract: JS_TS_BACKEND_CONTRACT,
     referenceBackendId,
     backendIds: checkedBackends.map((b) => b.id).sort(compareText),
+    corpusCases: checkedCorpus.length,
+    corpusBytes,
     cases,
   };
 }
