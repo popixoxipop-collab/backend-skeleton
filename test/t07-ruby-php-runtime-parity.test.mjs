@@ -1,0 +1,1 @@
+// Keeps T07 stable-Rails runtime parser parity inside the repository-wide test lane.\nimport './language-ruby-php/runtime-stable-parity.test.mjs';\n
