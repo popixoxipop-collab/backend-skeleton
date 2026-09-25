@@ -23,14 +23,14 @@ confidence is not runtime proof.
 The same report can be consumed as JSON or rendered with
 `renderSupportExplanationMarkdown()` for a human-readable table.
 
-## Support matrix
+## Support evidence matrix
 
-`buildSupportMatrix()` deterministically projects one or more support explanations into a matrix
+`buildSupportEvidenceMatrix()` deterministically projects one or more support explanations into a matrix
 by adapter and capability. Missing evidence stays `unknown`; contradictory supported/unsupported
 reports become `conflict` rather than picking a winner. The matrix is a view over supplied
 evidence, not a new certification source.
 
-`supportMatrixDiagnostics()` turns unresolved matrix cells into structured diagnostics that can
+`supportEvidenceMatrixDiagnostics()` turns unresolved matrix cells into structured diagnostics that can
 then be projected to SARIF.
 
 ## SARIF
