@@ -1,0 +1,6 @@
+{
+  "ok": true,
+  "inventory": {"ok": true, "errors": []},
+  "release_plan": {"ok": true, "errors": []},
+  "note": "Executed locally with Node v22.16.0 before upload. This verifies T23 release-control data only, not product suites or release approval."
+}
