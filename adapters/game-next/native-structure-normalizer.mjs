@@ -267,7 +267,19 @@ export function normalizeNativeStructureExport(sourceBytes, envelope) {
 export function verifyNativeStructureInvariants(value) {
   const errors = [];
   if (value?.schema !== NATIVE_STRUCTURE_SCHEMA) errors.push('schema');
+  if (value?.normalizer_revision !== NATIVE_STRUCTURE_REVISION) errors.push('normalizer_revision');
   if (value?.status !== 'declared-structure-only') errors.push('status');
+  const sourceArtifact = value?.source_artifact;
+  if (
+    !sourceArtifact ||
+    sourceArtifact.artifact_ref !== 'sbf.artifact-ref/1' ||
+    sourceArtifact.family !== 'game-native-export' ||
+    sourceArtifact.version !== 'draft-1' ||
+    sourceArtifact.media_type !== 'application/json' ||
+    !/^[a-f0-9]{64}$/.test(sourceArtifact.byte_sha256 ?? '') ||
+    !Number.isSafeInteger(sourceArtifact.size_bytes) ||
+    sourceArtifact.size_bytes < 0
+  ) errors.push('source_artifact');
   for (const key of ['source_structure_verified', 'runtime_behavior_verified', 'causal_edges_verified', 'state_transitions_verified']) {
     if (value?.claims?.[key] !== false) errors.push(`claims.${key}`);
   }
@@ -278,6 +290,22 @@ export function verifyNativeStructureInvariants(value) {
     if (sourcePaths.some((path) => typeof path !== 'string' || path.length === 0)) errors.push('source_inputs.path');
     if (sourcePaths.length !== new Set(sourcePaths).size) errors.push('source_inputs.duplicate-path');
     if (value?.evidence_class === 'source-export' && value.source_inputs.length === 0) errors.push('source_inputs.required');
+    for (const input of value.source_inputs) {
+      const artifact = input?.artifact;
+      if (
+        !artifact ||
+        artifact.artifact_ref !== 'sbf.artifact-ref/1' ||
+        artifact.family !== 'game-native-source' ||
+        artifact.version !== 'draft-1' ||
+        typeof artifact.media_type !== 'string' ||
+        !/^[^\\s/]+\/[^\\s]+$/.test(artifact.media_type) ||
+        !/^[a-f0-9]{64}$/.test(artifact.byte_sha256 ?? '') ||
+        !Number.isSafeInteger(artifact.size_bytes) ||
+        artifact.size_bytes < 0
+      ) {
+        errors.push(`source_inputs.artifact:${String(input?.path ?? '')}`);
+      }
+    }
   }
   const nodeIds = (value?.nodes ?? []).map((item) => item.id);
   if (nodeIds.length !== new Set(nodeIds).size) errors.push('nodes.duplicate-id');
