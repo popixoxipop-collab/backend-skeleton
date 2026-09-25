@@ -156,3 +156,40 @@ urlpatterns.append(path("second/", second))
   assert.equal(shadow.registrations.length, 0);
   assert.ok(shadow.unknowns.some((x) => x.reason === 'urlpatterns-mutated'));
 });
+
+
+test('T06 Django shadow marks conditional urlpatterns mutation as unknown completeness', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-control-flow-mutation-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+DEBUG = True
+def first(request):
+    pass
+def second(request):
+    pass
+urlpatterns = [path("first/", first)]
+if DEBUG:
+    urlpatterns += [path("second/", second)]
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.registrations.length, 0);
+  assert.ok(shadow.unknowns.some((x) => x.reason === 'urlpatterns-mutated'));
+});
+
+test('T06 Django shadow does not mistake function-local urlpatterns mutation for module URLConf mutation', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-function-local-mutation-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+def first(request):
+    pass
+urlpatterns = [path("first/", first)]
+def helper():
+    urlpatterns = []
+    urlpatterns.append("not-module-urlconf")
+    return urlpatterns
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.unknowns.length, 0, JSON.stringify(shadow, null, 2));
+  assert.equal(shadow.registrations.length, 1);
+  assert.equal(shadow.registrations[0].patternSegments[0].value, 'first/');
+});

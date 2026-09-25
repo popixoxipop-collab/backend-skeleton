@@ -126,6 +126,42 @@ def augmented_assignment(node):
     }
 
 
+_CONTROL_FLOW_TYPES = tuple(
+    t for t in (
+        ast.If,
+        ast.For,
+        ast.AsyncFor,
+        ast.While,
+        ast.Try,
+        getattr(ast, "TryStar", None),
+        ast.With,
+        ast.AsyncWith,
+        getattr(ast, "Match", None),
+    )
+    if t is not None
+)
+
+
+def control_flow_mutations(node):
+    out = []
+
+    def walk(current):
+        for child in ast.iter_child_nodes(current):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            if isinstance(child, (ast.Assign, ast.AnnAssign)):
+                fact = assignment(child)
+                out.append({"kind": "assignment", **fact})
+            elif isinstance(child, ast.AugAssign):
+                out.append({"kind": "augmented-assignment", **augmented_assignment(child)})
+            elif isinstance(child, ast.Expr) and isinstance(child.value, ast.Call):
+                out.append({"kind": "call", "value": value(child.value), **span(child)})
+            walk(child)
+
+    walk(node)
+    return out
+
+
 def argument(arg, default=None, kind="positional"):
     return {
         "name": arg.arg,
@@ -207,6 +243,7 @@ def analyze(source, filename):
     assignments = []
     augmented_assignments = []
     calls = []
+    control_flow = []
     functions = []
     classes = []
     for node in tree.body:
@@ -218,6 +255,8 @@ def analyze(source, filename):
             augmented_assignments.append(augmented_assignment(node))
         elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
             calls.append({"value": value(node.value), **span(node)})
+        elif isinstance(node, _CONTROL_FLOW_TYPES):
+            control_flow.extend(control_flow_mutations(node))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             functions.append(function(node))
         elif isinstance(node, ast.ClassDef):
@@ -227,6 +266,7 @@ def analyze(source, filename):
         "assignments": assignments,
         "augmentedAssignments": augmented_assignments,
         "calls": calls,
+        "controlFlowMutations": control_flow,
         "functions": functions,
         "classes": classes,
     }

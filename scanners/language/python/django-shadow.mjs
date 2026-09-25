@@ -25,16 +25,24 @@ function keyword(call, name) {
 
 function urlPatternsValue(mod) {
   const matches = (mod.facts.assignments || []).filter((entry) => entry.targets?.[0] === 'urlpatterns');
-  if (matches.length !== 1) return { status: matches.length === 0 ? 'absent' : 'ambiguous', matches };
-
   const augmented = (mod.facts.augmentedAssignments || []).filter((entry) => entry.target === 'urlpatterns');
   const directMutations = (mod.facts.calls || []).filter((entry) => {
     const callee = entry?.value?.callee;
     return callee?.kind === 'symbol' && ['urlpatterns.append', 'urlpatterns.extend'].includes(callee.name);
   });
-  if (augmented.length > 0 || directMutations.length > 0) {
-    return { status: 'mutated', assignment: matches[0], augmented, directMutations };
+  const controlFlowMutations = (mod.facts.controlFlowMutations || []).filter((entry) => {
+    if (entry.kind === 'assignment') return (entry.targets || []).includes('urlpatterns');
+    if (entry.kind === 'augmented-assignment') return entry.target === 'urlpatterns';
+    if (entry.kind === 'call') {
+      const callee = entry?.value?.callee;
+      return callee?.kind === 'symbol' && ['urlpatterns.append', 'urlpatterns.extend'].includes(callee.name);
+    }
+    return false;
+  });
+  if (augmented.length > 0 || directMutations.length > 0 || controlFlowMutations.length > 0) {
+    return { status: 'mutated', assignment: matches[0] || null, augmented, directMutations, controlFlowMutations };
   }
+  if (matches.length !== 1) return { status: matches.length === 0 ? 'absent' : 'ambiguous', matches };
 
   const value = matches[0].value;
   if (value?.kind !== 'sequence' || !['list', 'tuple'].includes(value.container)) {
