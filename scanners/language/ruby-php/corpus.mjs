@@ -146,6 +146,7 @@ export function scanT07CorpusCheckout(entry, root) {
     route_candidates: 0,
     route_unknowns: 0,
     route_unknown_codes: {},
+    route_unknown_examples: [],
     model_files_considered: modelCandidates.length,
     model_files_with_models: 0,
     models: 0,
@@ -153,6 +154,7 @@ export function scanT07CorpusCheckout(entry, root) {
     explicit_primary_keys: 0,
     model_unknowns: 0,
     model_unknown_codes: {},
+    model_unknown_examples: [],
   };
 
   for (const file of routeCandidates) {
@@ -167,7 +169,17 @@ export function scanT07CorpusCheckout(entry, root) {
     }
     report.route_candidates += expanded.candidates.length;
     report.route_unknowns += expanded.unknowns.length;
-    for (const unknown of expanded.unknowns) bump(report.route_unknown_codes, unknown.code);
+    for (const unknown of expanded.unknowns) {
+      bump(report.route_unknown_codes, unknown.code);
+      if (report.route_unknown_examples.length < 8) {
+        report.route_unknown_examples.push({
+          code: unknown.code,
+          file: unknown.source?.file ?? file,
+          line: unknown.source?.line ?? null,
+          reason: unknown.reason,
+        });
+      }
+    }
   }
 
   for (const file of modelCandidates) {
@@ -180,7 +192,18 @@ export function scanT07CorpusCheckout(entry, root) {
       if (model.primaryKey) report.explicit_primary_keys++;
     }
     report.model_unknowns += scanned.unknowns.length;
-    for (const unknown of scanned.unknowns) bump(report.model_unknown_codes, unknown.code);
+    for (const unknown of scanned.unknowns) {
+      bump(report.model_unknown_codes, unknown.code);
+      if (report.model_unknown_examples.length < 8) {
+        report.model_unknown_examples.push({
+          code: unknown.code,
+          model: unknown.model ?? null,
+          relation: unknown.relation ?? null,
+          reason: unknown.reason,
+          file,
+        });
+      }
+    }
   }
   return report;
 }
