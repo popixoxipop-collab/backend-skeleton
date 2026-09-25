@@ -1,4 +1,4 @@
-import { baseProtocolScan, uniqueSorted } from './protocol.mjs';
+import { baseProtocolScan, canonicalObjectBytes, uniqueSorted } from './protocol.mjs';
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -95,7 +95,7 @@ export function importProtobufDescriptorSet(document, { file = 'descriptor-set.j
     dialect: 'protobuf-file-descriptor-set-json',
     adapter: 'protobuf-descriptor-object',
     file,
-    bytes: Buffer.from(JSON.stringify(document)),
+    bytes: canonicalObjectBytes(document),
     sourceHashBasis: 'canonical-parsed-object',
     warnings,
     payload: {
@@ -206,7 +206,7 @@ export function importGraphqlIntrospection(document, { file = 'graphql-introspec
     dialect: 'graphql-introspection-json',
     adapter: 'graphql-introspection-object',
     file,
-    bytes: Buffer.from(JSON.stringify(document)),
+    bytes: canonicalObjectBytes(document),
     sourceHashBasis: 'canonical-parsed-object',
     warnings,
     payload: {
