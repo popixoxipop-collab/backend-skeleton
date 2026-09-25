@@ -256,6 +256,7 @@ export function normalizeNativeStructureExport(sourceBytes, envelope) {
       signals: sortedUnique(normalized.declarations.signals, (item) => item.id, 'signal declaration id'),
     },
     claims: {
+      producer_identity_verified: false,
       source_structure_verified: false,
       runtime_behavior_verified: false,
       causal_edges_verified: false,
@@ -280,7 +281,7 @@ export function verifyNativeStructureInvariants(value) {
     !Number.isSafeInteger(sourceArtifact.size_bytes) ||
     sourceArtifact.size_bytes < 0
   ) errors.push('source_artifact');
-  for (const key of ['source_structure_verified', 'runtime_behavior_verified', 'causal_edges_verified', 'state_transitions_verified']) {
+  for (const key of ['producer_identity_verified', 'source_structure_verified', 'runtime_behavior_verified', 'causal_edges_verified', 'state_transitions_verified']) {
     if (value?.claims?.[key] !== false) errors.push(`claims.${key}`);
   }
   if (!Array.isArray(value?.source_inputs)) {
