@@ -8,7 +8,7 @@ import { adapter as railsAdapter } from '../../scanners/adapters/ruby-rails.mjs'
 import { parseRailsExpandedRoutes } from '../../scanners/language/ruby-php/runtime-route-snapshot.mjs';
 
 function routeKeys(routes) {
-  return routes.map((route) => `${route.method ?? route.verb} ${route.path}`).sort();
+  return routes.map((route) => `${route.verb ?? route.method} ${route.path}`).sort();
 }
 
 test('T07 Rails runtime snapshot parser matches the stable adapter runtime surface format', () => {
