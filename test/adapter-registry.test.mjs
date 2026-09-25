@@ -41,7 +41,7 @@ export const adapter = {
 
 test('real registry: loads every shipped adapter sorted by specificity descending', async () => {
 	assert.deepEqual(LOAD_ERRORS, []);
-	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express', 'generic-grep']);
+	assert.deepEqual(ADAPTERS.map((a) => a.id), ['java-spring', 'ruby-rails', 'typescript-nestjs', 'python-fastapi', 'typescript-express', 'javascript-express', 'generic-grep']);
 	assert.equal(ADAPTERS[0].specificity, 100);
 	assert.equal(ADAPTERS[1].specificity, 95);
 	assert.equal(ADAPTERS[2].specificity, 90);
