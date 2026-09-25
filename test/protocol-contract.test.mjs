@@ -149,3 +149,63 @@ test('empty WebSocket manifest is blocked', () => {
   assert.equal(scan.completeness.status, 'blocked');
   assert.equal(scan.warnings.at(-1).code, 'WEBSOCKET_MANIFEST_EMPTY');
 });
+
+
+test('protobuf dialect follows explicit proto2/proto3 syntax and unknown stays explicit', () => {
+  const proto2 = importProtoSource('syntax = "proto2"; message A { optional string id = 1; }');
+  const unknown = importProtoSource('message A { string id = 1; }');
+  assert.equal(proto2.dialect, 'proto2-text');
+  assert.equal(unknown.dialect, 'protobuf-text-unknown');
+  assert.ok(unknown.warnings.some((x) => x.code === 'PROTO_SYNTAX_UNRESOLVED'));
+});
+
+test('protobuf nested message fields do not leak into the parent simple-field list', () => {
+  const scan = importProtoSource('syntax = "proto3"; message Outer { message Inner { string nested = 1; } string outer = 2; }');
+  const outer = scan.grpc.messages.find((x) => x.name === 'Outer');
+  assert.deepEqual(outer.fields.map((x) => x.name), ['outer']);
+});
+
+test('GraphQL explicit schema roots disable implicit Query root naming', () => {
+  const scan = importGraphqlSDL('schema { query: RootQuery } type RootQuery { ping: String } type Query { notARoot: String }');
+  assert.deepEqual(scan.graphql.operations.map((x) => [x.root_type, x.name]), [['RootQuery', 'ping']]);
+});
+
+test('GraphQL strings cannot create fake type declarations', () => {
+  const scan = importGraphqlSDL('type Query { note: String @deprecated(reason: "type Fake { hacked: String }") }');
+  assert.equal(scan.graphql.types.some((x) => x.name === 'Fake'), false);
+});
+
+test('parsed-object protocol hashes are canonical across key insertion order', () => {
+  const a = importAsyncApiDocument({ asyncapi: '3.0.0', channels: { orders: { address: 'orders' } } });
+  const b = importAsyncApiDocument({ channels: { orders: { address: 'orders' } }, asyncapi: '3.0.0' });
+  assert.equal(a.source_hash_basis, 'canonical-parsed-object');
+  assert.equal(a.source_hash, b.source_hash);
+
+  const wsA = importWebSocketManifest({ connections: [{ id: 'c', endpoint: 'wss://x' }], version: '1' });
+  const wsB = importWebSocketManifest({ version: '1', connections: [{ endpoint: 'wss://x', id: 'c' }] });
+  assert.equal(wsA.source_hash_basis, 'canonical-parsed-object');
+  assert.equal(wsA.source_hash, wsB.source_hash);
+});
+
+test('WebSocket unresolved or duplicate connection identity blocks the manifest', () => {
+  const unresolved = importWebSocketManifest({
+    connections: [{ id: 'known' }],
+    messages: [{ connection_id: 'missing', name: 'event', direction: 'server-to-client' }],
+  });
+  assert.equal(unresolved.completeness.status, 'blocked');
+  assert.ok(unresolved.warnings.some((x) => x.code === 'WEBSOCKET_CONNECTION_UNRESOLVED'));
+
+  const duplicate = importWebSocketManifest({ connections: [{ id: 'same' }, { id: 'same', endpoint: 'wss://other' }] });
+  assert.equal(duplicate.completeness.status, 'blocked');
+  assert.ok(duplicate.warnings.some((x) => x.code === 'WEBSOCKET_DUPLICATE_CONNECTION_ID'));
+});
+
+test('contract snapshot verification binds source hash basis as well as hash bytes', () => {
+  const scan = importAsyncApiDocument({ asyncapi: '3.0.0', channels: { a: { address: 'a' } } });
+  const contract = buildProtocolContract({ ...feature, scan });
+  assert.equal(contract.source.source_hash_basis, 'canonical-parsed-object');
+  contract.source.source_hash_basis = 'raw-bytes';
+  const result = verifyProtocolContractSnapshot({ contract, scan, ...feature });
+  assert.equal(result.current, false);
+  assert.ok(result.changes.some((x) => x.field === 'source.source_hash_basis'));
+});
