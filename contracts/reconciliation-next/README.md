@@ -89,14 +89,15 @@ node --test test/t09-reconciliation-next.test.mjs
 The top-level entrypoint is matched by the repository's existing `npm test` pattern
 (`test/*.test.mjs`), so no package script or lockfile change is required.
 
-The current T09 suite contains **67 tests**:
+The current T09 suite contains **75 tests**:
 
 - 18 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
 - 14 OpenAPI context/root-security/duplicate-ID/schema-presence regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
 - 12 revision/build/runtime evidence-binding regressions,
-- 14 bound runtime-route reconciliation regressions.
+- 14 bound runtime-route reconciliation regressions,
+- 8 policy-neutral promotion-readiness regressions.
 
 It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled/absent/media-skipped states, explicit and inherited declared security,
@@ -124,11 +125,20 @@ matches are observed, same operationId at a changed route is conflict, duplicate
 
 This keeps runtime evidence as a separate plane instead of overwriting source/OpenAPI decisions.
 
+## T09-07 promotion readiness handoff
+
+`promotion-readiness.mjs` is an advisory-only bridge to T03. It does not set a stable capability or
+change a contract. For each endpoint it records whether source/spec route facts are ready, whether a
+bound runtime route was actually observed, and the exact blockers when they are not.
+
+The report requires the OpenAPI context audit, source/spec evidence binding, and resolved
+`operation.identity/http.method/http.path`. Runtime readiness additionally requires a bound runtime
+relation and an observed endpoint result. Missing/conflict/partial-runtime outcomes remain blockers.
+
 ## Next T09 slices
 
 1. Add field-level runtime observations beyond route existence only after T16 defines trusted probe semantics.
-2. Hand the decision graph and evidence conditions to the shared T01/T03 Claim/Capability policy once that
-   interface is frozen.
+2. Replace the local 0-draft vocabulary with the shared T01/T03 Claim/Capability interface once frozen.
 3. Add cross-repository conformance fixtures when T01/T03/T16 interfaces are frozen.
 
 Until those slices and cross-track gates land, this module is diagnostic shadow data only.
