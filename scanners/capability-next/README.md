@@ -18,3 +18,14 @@ The axes stay separate:
 Policy evaluation is fail-closed. A missing capability is `unknown`, and `unknown` can never be an
 accepted requirement status. `partial` and `not-applicable` are accepted only when a policy says so
 explicitly. Non-waivable integrity/trust failures remain blocked regardless of a waiver record.
+
+## Legacy compatibility bridge
+
+`compatibility.mjs` reads the stable `COMMAND_CAPABILITIES` and satisfier metadata without
+changing them. A legacy satisfier such as `--openapi-file` is only projected as a next
+`supported` record when the caller supplies an immutable evidence reference. Merely seeing the
+flag name is not certification evidence.
+
+`buildLegacyCompatibilityView()` is intentionally marked `certified:false`. It is a
+machine-generated compatibility snapshot for migration and drift checks, not the support matrix
+that T19 conformance/runtime evidence will eventually certify.

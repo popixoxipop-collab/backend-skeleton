@@ -15,3 +15,13 @@ export {
 	certificationRecord,
 	buildSupportMatrix,
 } from './certification.mjs';
+
+export {
+	legacyCommandRequirements,
+	legacyProviderRequirements,
+	legacySatisfierHints,
+	externalCapabilityFromLegacySatisfier,
+	evaluateLegacyCommandPolicy,
+	evaluateLegacyProviderPolicy,
+	buildLegacyCompatibilityView,
+} from './compatibility.mjs';

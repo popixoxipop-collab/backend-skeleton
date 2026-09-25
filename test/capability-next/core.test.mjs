@@ -9,6 +9,13 @@ import {
 	evaluateWaiver,
 	certificationRecord,
 	buildSupportMatrix,
+	legacyCommandRequirements,
+	legacyProviderRequirements,
+	legacySatisfierHints,
+	externalCapabilityFromLegacySatisfier,
+	evaluateLegacyCommandPolicy,
+	evaluateLegacyProviderPolicy,
+	buildLegacyCompatibilityView,
 } from '../../scanners/capability-next/index.mjs';
 
 test('five capability statuses are explicit and stable', () => {
@@ -114,4 +121,89 @@ test('records sort evidence refs deterministically and reject duplicates', () =>
 	const rec = capabilityRecord({ name: 'x', status: 'supported', evidenceRefs: ['z', 'a'] });
 	assert.deepEqual(rec.evidenceRefs, ['a', 'z']);
 	assert.throws(() => capabilityRecord({ name: 'x', status: 'supported', evidenceRefs: ['a', 'a'] }), /duplicates/);
+});
+
+
+test('legacy command requirements are projected from the stable command capability table', () => {
+	assert.deepEqual(legacyCommandRequirements('contract emit'), [
+		{ capability: 'api.operations', acceptedStatuses: ['supported'] },
+	]);
+	assert.deepEqual(legacyCommandRequirements('handles plan'), [
+		{ capability: 'codegen.handles', acceptedStatuses: ['supported'] },
+	]);
+	assert.deepEqual(legacyCommandRequirements('not-a-command'), []);
+});
+
+test('provider requirements stay independent from command dispatch capabilities', () => {
+	assert.deepEqual(legacyProviderRequirements({ id: 'java-spring', requiresCapabilities: ['resource.fetch'] }), [
+		{ capability: 'resource.fetch', acceptedStatuses: ['supported'] },
+	]);
+});
+
+test('legacy satisfier metadata is a hint and needs immutable evidence before it can satisfy next policy', () => {
+	const hints = legacySatisfierHints();
+	assert.equal(hints['api.operations'].flag, 'openapi-file');
+	const fastapi = {
+		id: 'python-fastapi',
+		capabilities: {
+			'api.operations': false,
+			'api.request-shape': false,
+			'resource.fetch': true,
+			'codegen.handles': true,
+		},
+	};
+	assert.equal(evaluateLegacyCommandPolicy({ adapter: fastapi, command: 'contract emit' }).allowed, false);
+	const external = externalCapabilityFromLegacySatisfier({
+		capability: 'api.operations',
+		flag: 'openapi-file',
+		evidenceRef: 'sha256:openapi-example',
+	});
+	assert.equal(evaluateLegacyCommandPolicy({
+		adapter: fastapi,
+		command: 'contract emit',
+		externalCapabilities: { 'api.operations': external },
+	}).allowed, true);
+});
+
+test('wrong satisfier flags and non-evidence external records fail closed', () => {
+	assert.throws(() => externalCapabilityFromLegacySatisfier({
+		capability: 'api.operations', flag: 'something-else', evidenceRef: 'sha256:x',
+	}), /openapi-file/);
+	const adapter = { id: 'x', capabilities: { 'api.operations': false } };
+	const fabricated = capabilityRecord({
+		name: 'api.operations', status: 'supported', evidenceRefs: ['fake:1'], source: 'manual',
+	});
+	assert.throws(() => evaluateLegacyCommandPolicy({
+		adapter, command: 'contract emit', externalCapabilities: { 'api.operations': fabricated },
+	}), /external-satisfier/);
+});
+
+test('provider policy uses the provider own requirements instead of conflating them with command dispatch', () => {
+	const adapter = {
+		id: 'fixture',
+		capabilities: {
+			'codegen.handles': true,
+			'resource.fetch': false,
+		},
+	};
+	assert.equal(evaluateLegacyCommandPolicy({ adapter, command: 'handles plan' }).allowed, true);
+	assert.equal(evaluateLegacyProviderPolicy({
+		adapter,
+		provider: { id: 'fixture', requiresCapabilities: ['resource.fetch'] },
+	}).allowed, false);
+});
+
+test('legacy compatibility view is deterministic and explicitly uncertified', () => {
+	const rows = buildLegacyCompatibilityView({
+		adapters: [
+			{ id: 'z', capabilities: { 'api.operations': true } },
+			{ id: 'a', capabilities: { 'api.operations': false, 'codegen.handles': true } },
+		],
+		providers: [{ id: 'a', requiresCapabilities: ['resource.fetch'] }],
+	});
+	assert.deepEqual(rows.map((x) => x.adapterId), ['a', 'z']);
+	assert.equal(rows[0].certified, false);
+	assert.equal(rows[0].provider.id, 'a');
+	assert.equal(rows[1].provider, null);
+	assert.ok(rows.every((x) => x.limitations.some((line) => /No discovery\/contract\/runtime-tested certification/.test(line))));
 });
