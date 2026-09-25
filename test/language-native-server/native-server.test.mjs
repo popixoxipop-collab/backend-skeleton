@@ -542,3 +542,41 @@ test('Rust/Axum: unsupported intermediate clone chain is diagnosed rather than t
 	assert.deepEqual(result.routes.map((r) => r.path), ['/users']);
 	assert.ok(result.diagnostics.some((d) => d.code === 'RUST_AXUM_UNSUPPORTED_BASE_CHAIN'));
 });
+
+
+test('transport: malformed group facts are rejected at the response boundary', () => {
+	assert.throws(() => validateMessage({
+		protocol: NATIVE_SERVER_PROTOCOL,
+		kind: 'analyze-response',
+		requestId: 'bad-group',
+		language: 'go',
+		backend: 'go-static-pilot',
+		routes: [],
+		diagnostics: [],
+		groups: [{
+			variable: 'api',
+			parent: 'app',
+			prefix: 'api',
+			path: '/api',
+			source: { file: 'main.go', line: 1, index: 0 },
+		}],
+		framework: 'gin',
+		limitations: [],
+	}), /group prefix/);
+});
+
+test('transport: malformed framework and multiline logical paths are rejected', () => {
+	assert.throws(() => validateMessage({
+		protocol: NATIVE_SERVER_PROTOCOL,
+		kind: 'analyze-response',
+		requestId: 'bad-framework',
+		language: 'rust',
+		backend: 'rust-static-pilot',
+		routes: [],
+		diagnostics: [],
+		groups: [],
+		framework: 123,
+		limitations: [],
+	}), /framework/);
+	assert.throws(() => validateMessage(request({ file: 'src/main.go\nforged' })), /single-line logical path/);
+});
