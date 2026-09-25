@@ -83,11 +83,14 @@ This is the stricter helper for T09 shadow promotion. It still does **not** cert
 Run the whole T09 slice directly:
 
 ```bash
-node --test test/t09-reconciliation-next.test.mjs
+node --test test/reconciliation-next/*.test.mjs
 ```
 
-The top-level entrypoint is matched by the repository's existing `npm test` pattern
-(`test/*.test.mjs`), so no package script or lockfile change is required.
+All T09 tests now remain inside the leased `test/reconciliation-next/**` path. The repository's
+current shared `npm test` pattern (`test/*.test.mjs`) does **not** discover nested tests, and T09
+does not own `package.json` or workflow wiring. A shared-owner change request is open on T00 PR #65
+to connect `test/reconciliation-next/*.test.mjs` to central CI. Until then, generic `npm test`
+green is not evidence that the 98 T09 focused tests ran.
 
 The current T09 suite contains **98 tests**:
 
@@ -120,8 +123,10 @@ Binding refs must also exactly match the decision graph provenance refs.
 application or define T16/beval's runner protocol. The observation must match the evidence binding's
 runtime ref, repository, revision, build fingerprint, and environment fingerprint.
 
-A complete runtime snapshot may prove a route missing; a partial snapshot may not. Exact method/path
-matches are observed, same operationId at a changed route is conflict, duplicate runtime operationIds are conflict even when one duplicate exactly matches the expected route, and routes that exist only at runtime are emitted separately as `runtimeOnlyRoutes`.
+A complete runtime snapshot may prove a route missing; a partial snapshot may not. Runtime routes are
+compared with the existing canonical parameter-shape rule (`{id}` vs `:id`/constrained parameters), while
+literal segment drift remains a conflict. Duplicate runtime operationIds conflict even when one duplicate
+exactly matches the expected route, and routes that exist only at runtime are emitted separately as `runtimeOnlyRoutes`.
 
 This keeps runtime evidence as a separate plane instead of overwriting source/OpenAPI decisions.
 
@@ -133,7 +138,8 @@ bound runtime route was actually observed, and the exact blockers when they are 
 
 The report requires the OpenAPI context audit, source/spec evidence binding, and resolved
 `operation.identity/http.method/http.path`. Runtime readiness additionally requires a bound runtime
-relation and an observed endpoint result. Missing/conflict/partial-runtime outcomes remain blockers.
+relation, matching source/OpenAPI/runtime refs, and an observed endpoint whose embedded expected
+operation/method/path exactly matches the current decision graph. Missing/conflict/partial-runtime outcomes remain blockers.
 
 ## Next T09 slices
 
