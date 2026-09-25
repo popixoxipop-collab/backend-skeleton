@@ -18,7 +18,7 @@ function explanation(adapterId, capabilities) {
 	});
 }
 
-test('support matrix is deterministic and sorts adapters/capabilities', () => {
+test('support evidence matrix is deterministic and sorts adapters/capabilities', () => {
 	const a = explanation('python-fastapi', [{
 		name: 'api.routes',
 		status: 'supported',
@@ -140,7 +140,7 @@ test('Markdown matrix escapes untrusted adapter/capability data from table struc
 });
 
 
-test('support matrix treats prototype-like capability names as ordinary data', () => {
+test('support evidence matrix treats prototype-like capability names as ordinary data', () => {
 	const report = explanation('typescript-nestjs', [
 		{
 			name: '__proto__',
