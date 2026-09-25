@@ -81,14 +81,12 @@ let createTypeScriptCompilerBackend;
 let compareJsTsBackends;
 let lexicalJsTsBackend;
 let analyzeTypeScriptSemanticSnapshot;
-let analyzeTypeScriptSemanticSnapshot;
 try {
 	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
 	const tsImported = await import(pathToFileURL(tsModulePath).href);
 	tsApi = tsImported.default ?? tsImported;
 	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
 	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
-	({ analyzeTypeScriptSemanticSnapshot } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-semantic-facts.mjs')).href));
 	({ analyzeTypeScriptSemanticSnapshot } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-semantic-facts.mjs')).href));
 } catch (err) {
 	fail(`T04 compiler backend imports failed: ${err.stack || err.message}`);
