@@ -11,19 +11,75 @@ function normalizeRailsCandidatePath(value) {
   return joinRoute(value).replace(/:([A-Za-z_]\w*)/g, '{$1}');
 }
 
-function contextPrefix(fact) {
-  const segments = [];
-  for (const ctx of fact.context ?? []) {
-    if (ctx.dynamic) return { ok: false, reason: `dynamic ${ctx.kind} context` };
-    if (ctx.kind === 'namespace' || ctx.kind === 'scope') {
-      if (ctx.path) segments.push(ctx.path);
-    } else if (ctx.kind === 'resource') {
-      return { ok: false, reason: 'nested resource context requires parent member-key resolution' };
-    }
+function resourceContextShape(ctx, prefix) {
+  const name = ctx.name;
+  const segment = ctx.path ?? name;
+  if (!name || segment == null) return { ok: false, reason: 'resource context has no literal name/path' };
+  const collection = normalizeRailsCandidatePath(joinRoute(prefix, segment));
+  if (ctx.singular) {
+    return { ok: true, collection, member: collection, nested: collection };
   }
-  return { ok: true, path: joinRoute(...segments) };
+  const memberParam = ctx.param ?? 'id';
+  const nestedParam = ctx.param ?? regularSingular(name);
+  return {
+    ok: true,
+    collection,
+    member: joinRoute(collection, `{${memberParam}}`),
+    nested: nestedParam ? joinRoute(collection, `{${nestedParam}_id}`) : null,
+  };
 }
 
+function contextPrefix(fact) {
+  let prefix = '/';
+  const context = fact.context ?? [];
+  const resourceContexts = context.filter((ctx) => ctx.kind === 'resource');
+  let resourceIndex = 0;
+  const blockMode = [...context].reverse().find((ctx) => ctx.kind === 'route-mode')?.routeMode ?? null;
+  const routeMode = fact.attributes?.routeMode ?? blockMode;
+
+  for (const ctx of context) {
+    if (ctx.dynamic) return { ok: false, reason: `dynamic ${ctx.kind} context` };
+    if (ctx.kind === 'namespace' || ctx.kind === 'scope') {
+      if (ctx.path) prefix = normalizeRailsCandidatePath(joinRoute(prefix, ctx.path));
+      continue;
+    }
+    if (ctx.kind === 'route-mode') continue;
+    if (ctx.kind !== 'resource') continue;
+
+    const shape = resourceContextShape(ctx, prefix);
+    if (!shape.ok) return shape;
+    resourceIndex++;
+    const isLastResource = resourceIndex === resourceContexts.length;
+
+    if (fact.kind === 'resource') {
+      if (!shape.nested) {
+        return { ok: false, reason: `cannot conservatively derive nested parameter for resource '${ctx.name}'` };
+      }
+      prefix = shape.nested;
+      continue;
+    }
+
+    if (fact.kind === 'route') {
+      if (!isLastResource) {
+        if (!shape.nested) {
+          return { ok: false, reason: `cannot conservatively derive nested parameter for resource '${ctx.name}'` };
+        }
+        prefix = shape.nested;
+        continue;
+      }
+      if (routeMode === 'member') {
+        prefix = shape.member;
+        continue;
+      }
+      if (routeMode === 'collection') {
+        prefix = shape.collection;
+        continue;
+      }
+      return { ok: false, reason: 'route inside resources requires explicit member/collection/on mode' };
+    }
+  }
+  return { ok: true, path: prefix };
+}
 function resourceActions(fact) {
   const actions = new Set(fact.attributes?.only ?? ALL_ACTIONS);
   for (const action of fact.attributes?.except ?? []) actions.delete(action);
@@ -38,9 +94,6 @@ function resourceShape(fact, prefix) {
   const collection = normalizeRailsCandidatePath(joinRoute(prefix, fact.attributes?.path ?? name));
   if (fact.attributes?.singular) return { ok: true, collection, member: collection, memberParam: null };
   const explicitParam = fact.attributes?.param;
-  if (!explicitParam && !regularSingular(name)) {
-    return { ok: false, reason: `cannot conservatively derive a member parameter from irregular resource '${name}'` };
-  }
   const memberParam = explicitParam ?? 'id';
   return { ok: true, collection, member: joinRoute(collection, `{${memberParam}}`), memberParam };
 }
