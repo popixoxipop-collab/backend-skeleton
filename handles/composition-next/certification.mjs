@@ -75,6 +75,13 @@ export function evaluateCompositionCertification({
     blockers.push({ code: 'preview-provider-mismatch', message: 'generation preview belongs to a different provider' });
   }
 
+  if (level === 'behavior-tested') {
+    blockers.push({
+      code: 'behavior-handoff-not-integrated',
+      message: 'behavior-tested is intentionally unavailable until accepted T10 persistence and T16 verifier-produced runtime handoffs are integrated; generic evidence records are insufficient',
+    });
+  }
+
   let required = [];
   try {
     required = requiredEvidenceFor({ providerId, level });
