@@ -9,45 +9,135 @@
   "requests": [
     {
       "id": "CR-T23-NESTED-TEST-DISCOVERY",
-      "source": ["T02 PR #72 / PR #78 comment 5825334890", "T19 PR #74"],
+      "source": [
+        "T02 PR #72 / PR #78 comment 5825334890",
+        "T17 PR #68 / PR #78 comment 5825948095",
+        "T19 PR #74",
+        "T22 PR #85"
+      ],
       "repository": "popixoxipop-collab/backend-skeleton",
       "requested_change": "discover track-owned nested suites without root test/*.test.mjs shims while preserving existing root tests",
-      "known_paths": ["test/project-graph/**/*.test.mjs", "test/conformance-next/**/*.test.mjs", "test/sdk-next/**/*.test.mjs"],
-      "shared_files_likely_needed": ["package.json and/or CI workflow"],
+      "known_paths": [
+        "test/project-graph/**/*.test.mjs",
+        "test/game-next/**/*.test.mjs",
+        "test/protocol-next/**/*.test.mjs",
+        "test/conformance-next/**/*.test.mjs",
+        "test/sdk-next/**/*.test.mjs"
+      ],
+      "shared_files_likely_needed": [
+        "package.json and/or CI workflow"
+      ],
       "status": "RECORDED_BLOCKED",
-      "unblock": ["T00-04 final freeze", "T00 exact-file integration lease"],
-      "verification_required": ["existing root tests still execute", "nested suite absence is not reported as success", "packed-package checks remain meaningful where runtime/package assets are involved"]
+      "unblock": [
+        "T00-04 final freeze",
+        "T00 exact-file integration lease"
+      ],
+      "verification_required": [
+        "existing root tests still execute",
+        "nested suite absence is not reported as success",
+        "packed-package checks remain meaningful where runtime/package assets are involved"
+      ]
     },
     {
-      "id": "CR-T23-T17-PACKAGE",
-      "source": ["T17 PR #68", "PR #78 comment 5825831481"],
+      "id": "CR-T23-ADAPTERS-PACKAGE",
+      "source": [
+        "T17 PR #68 / PR #78 comment 5825831481",
+        "T00 integration request / PR #78 comment 5826011353"
+      ],
       "repository": "popixoxipop-collab/backend-skeleton",
-      "requested_change": "either ship adapters/game-next/** in the npm files allowlist or relocate approved runtime assets into an already shipped namespace",
-      "known_paths": ["adapters/game-next/legacy-webgame-bridge.mjs"],
+      "requested_change": "make one integration decision for approved top-level adapters/** planes (currently game-next and protocol-next), with packed-package assertions; package presence must not imply production registration",
+      "known_paths": [
+        "adapters/game-next/**",
+        "adapters/protocol-next/**"
+      ],
       "status": "RECORDED_BLOCKED",
-      "unblock": ["T00-04 final freeze", "T00 package.json lease", "T17 exact-head integration review"],
-      "verification_required": ["npm pack contains the approved game-next runtime asset", "installed package test asserts the exact file", "generic existing test:pack green is not accepted as proof before the assertion exists"]
+      "unblock": [
+        "T00-04A activation/final integration lease",
+        "T00 package.json lease",
+        "owning-track exact-head integration review"
+      ],
+      "verification_required": [
+        "npm pack contains only approved adapter subtrees intended for distribution",
+        "package-install test asserts approved files are present",
+        "unapproved experimental children remain excluded/disabled by registration policy",
+        "nested owned tests actually execute",
+        "package presence alone does not advertise production registration"
+      ]
     },
     {
       "id": "CR-T23-T22-PACKAGE-TEST",
-      "source": ["T22 PR #85"],
+      "source": [
+        "T22 PR #85"
+      ],
       "repository": "popixoxipop-collab/backend-skeleton",
       "requested_change": "ship approved sdk/next/** assets and discover test/sdk-next/** only after SDK/trust integration approval",
-      "known_paths": ["sdk/next/**", "test/sdk-next/**"],
+      "known_paths": [
+        "sdk/next/**",
+        "test/sdk-next/**"
+      ],
       "status": "RECORDED_BLOCKED",
-      "unblock": ["T00-04 final freeze", "T20 external-adapter trust review", "T00 package/test-discovery lease"],
-      "verification_required": ["packed package asserts approved SDK assets", "no user-controlled dynamic-import path is introduced", "nested SDK tests are actually executed"]
+      "unblock": [
+        "T00-04 final freeze",
+        "T20 external-adapter trust review",
+        "T00 package/test-discovery lease"
+      ],
+      "verification_required": [
+        "packed package asserts approved SDK assets",
+        "no user-controlled dynamic-import path is introduced",
+        "nested SDK tests are actually executed"
+      ]
     },
     {
       "id": "CR-T23-T15-CI",
-      "source": ["backend-decoder PR #8"],
+      "source": [
+        "backend-decoder PR #8"
+      ],
       "repository": "popixoxipop-collab/backend-decoder",
       "requested_change": "add test:compatibility-webgame-r3f to the installed webgame compatibility CI lane after T15 integration approval",
-      "known_paths": [".github/workflows/ci.yml"],
+      "known_paths": [
+        ".github/workflows/ci.yml"
+      ],
       "status": "RECORDED_BLOCKED",
-      "unblock": ["T00-04 final freeze", "T00/T23 workflow lease", "T15 dependency-safe integration decision"],
-      "verification_required": ["exact R3F packed becoder artifact", "installed bskel -> installed becoder R3F compatibility smoke", "Three compatibility lane remains green"],
+      "unblock": [
+        "T00-04 final freeze",
+        "T00/T23 workflow lease",
+        "T15 dependency-safe integration decision"
+      ],
+      "verification_required": [
+        "exact R3F packed becoder artifact",
+        "installed bskel -> installed becoder R3F compatibility smoke",
+        "Three compatibility lane remains green"
+      ],
       "note": "PR #8 explicitly requests CI integration. No additional package-allowlist edit is inferred here without an exact-path request."
+    },
+    {
+      "id": "CR-T23-BEVAL-CI-RECOVERY",
+      "source": [
+        "T00 -> T23 PR #78 comments 5826024997 and 5826193954"
+      ],
+      "repository": "popixoxipop-collab/Backend-evaluation",
+      "requested_change": "restore an authorized exact-head CI path, then require current-main CI to complete green before core-freeze/release promotion",
+      "known_paths": [
+        ".github/workflows/ci.yml"
+      ],
+      "status": "PARTIALLY_RECOVERED_NON_GREEN",
+      "unblock": [
+        "exact-head beval main CI completes green on the authorized policy",
+        "T00 accepts the same pinned baseline"
+      ],
+      "verification_required": [
+        "runner assignment is not sufficient; all required jobs must complete successfully",
+        "exact head SHA must remain 7a04cb705ca4cd162091d67fea5589e19fad163f or be explicitly rebaselined",
+        "no EOE Darwin/arm64 local result substitutes for required exact-head CI"
+      ],
+      "observation": {
+        "runner_recovered": "alienware-wsl2-backend-ci runner_id 21 executed attempt 3",
+        "unit20": "success",
+        "unit24": "success",
+        "unit22": "cancelled before execution",
+        "integration": "failure after backend-decoder cross-repository checkout was cancelled; downstream package/install/integration steps skipped",
+        "cause": "not asserted from available metadata"
+      }
     }
   ]
 }
