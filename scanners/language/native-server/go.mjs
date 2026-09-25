@@ -51,10 +51,10 @@ export function analyzeGoGinSource(source, { file = '<memory>' } = {}) {
 	const diagnostics = [];
 
 	const declarations = [];
-	for (const m of masked.matchAll(/\b([A-Za-z_]\w*)\s*:?=\s*gin\.(Default|New)\s*\(\s*\)/g)) {
+	for (const m of masked.matchAll(/\b(?:var\s+)?([A-Za-z_]\w*)\s*(?::=|=)\s*gin\.(Default|New)\s*\(\s*\)/g)) {
 		declarations.push({ kind: 'root', index: m.index, variable: m[1] });
 	}
-	for (const m of masked.matchAll(/\b([A-Za-z_]\w*)\s*:?=\s*([A-Za-z_]\w*)\.Group\s*\(/g)) {
+	for (const m of masked.matchAll(/\b(?:var\s+)?([A-Za-z_]\w*)\s*(?::=|=)\s*([A-Za-z_]\w*)\.Group\s*\(/g)) {
 		const openParen = m.index + m[0].lastIndexOf('(');
 		const arg = firstArgAfter(masked, source, openParen);
 		declarations.push({ kind: 'group', index: m.index, variable: m[1], parent: m[2], arg });
