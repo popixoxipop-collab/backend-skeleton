@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
 import { PROTOCOL_FAMILIES } from './protocol.mjs';
+import {
+  assertProtocolItemRefAgainstContexts,
+  assertProtocolItemRefShape,
+  indexProtocolContractContexts,
+} from './protocol-item-ref.mjs';
 
 export const PROTOCOL_FLOW_VERSION = '1';
 
@@ -57,10 +62,14 @@ function normalizeStep(step) {
     key_ref: requireString(step.idempotency.key_ref, 'step.idempotency.key_ref'),
     required: step.idempotency.required !== false,
   };
+  const actionRef = assertProtocolItemRefShape(step.action_ref);
+  if (actionRef.family !== family) {
+    throw new Error('step ' + id + ' family does not match action_ref.family');
+  }
   return {
     id,
     family,
-    action_ref: requireString(step.action_ref, 'step.action_ref'),
+    action_ref: clone(actionRef),
     after,
     caused_by: causedBy,
     correlations,
@@ -97,13 +106,15 @@ function validateAcyclicOrdering(steps) {
   for (const step of steps) visit(step.id);
 }
 
-export function buildProtocolFlowContract({ featureId, featureUid, scenario }) {
+export function buildProtocolFlowContract({ featureId, featureUid, scenario, protocolContexts }) {
   requireString(featureId, 'featureId');
   requireString(featureUid, 'featureUid');
   if (!scenario || typeof scenario !== 'object' || Array.isArray(scenario)) throw new Error('scenario must be an object');
   const scenarioId = requireString(scenario.id, 'scenario.id');
+  const contextIndex = indexProtocolContractContexts(protocolContexts);
   const steps = (scenario.steps ?? []).map(normalizeStep).sort((a, b) => a.id.localeCompare(b.id));
   if (steps.length === 0) throw new Error('protocol flow requires at least one step');
+  for (const step of steps) assertProtocolItemRefAgainstContexts(step.action_ref, contextIndex);
   validateReferences(steps);
   validateAcyclicOrdering(steps);
 
