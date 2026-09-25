@@ -1,0 +1,95 @@
+{
+  "schema": "bskel.scale-release-compatibility/1",
+  "task_id": "T23-01",
+  "captured_on": "2026-09-25",
+  "baseline_dependency": {
+    "task_id": "T00-01",
+    "pull_request": 65,
+    "head_sha": "48efe1ca5f8a94a6fa71d85563ffc3762ff6410e",
+    "state": "SUBMITTED",
+    "accepted": false,
+    "note": "T23 may prepare release artifacts, but promotion/default-writer changes remain blocked until T00-01 is independently accepted."
+  },
+  "repositories": [
+    {
+      "role": "bskel",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "default_branch": "main",
+      "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "package": {
+        "name": "backend-skeleton",
+        "version": "1.9.0",
+        "node_engine": ">=18",
+        "bins": ["bskel"],
+        "pack_test": "npm run test:pack",
+        "files": ["bin/", "lib/", "contracts/", "scanners/", "handles/", "new/", "stack/", "patterns/", "rules/", "schemas/", "scripts/preflight-base-ref.sh", "action.yml"]
+      },
+      "compatibility_surfaces": [
+        "installed bskel CLI",
+        "HTTP contract schemas and contract emitters",
+        "webgame contract schema and scanner",
+        "handles providers/templates",
+        "database introspection/DDL/ERD runtime assets"
+      ],
+      "historical_exact_head_ci": {"workflow": "CI", "run_id": 36040486375, "conclusion": "success"}
+    },
+    {
+      "role": "becoder",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "default_branch": "main",
+      "head_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "package": {
+        "name": "backend-decoder",
+        "version": "0.5.0",
+        "node_engine": ">=18",
+        "bins": ["becoder"],
+        "pack_test": "npm run test:pack",
+        "files": ["COMPATIBILITY.md", "DESIGN.md", "ROADMAP.md", "docs/", "bin/", "lib/", "renderers/", "schemas/"]
+      },
+      "compatibility_surfaces": [
+        "installed becoder CLI",
+        "vendored HTTP/webgame contract readers",
+        "SurfacePlan/GamePlan schemas",
+        "generated React/static/Three harness assets",
+        "request-bound execution evidence formats"
+      ],
+      "historical_exact_head_ci": {"workflow": "CI", "run_id": 36070647695, "conclusion": "success"},
+      "baseline_delta": "main advanced after the original scale-plan snapshot via merged webgame repair-surface work; downstream release checks consume a575679b rather than recreating the older state."
+    },
+    {
+      "role": "beval",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "default_branch": "main",
+      "head_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "package": {
+        "name": "backend-evaluator",
+        "version": "0.1.0",
+        "node_engine": ">=20",
+        "bins": ["beval", "beval-oracle-evaluator"],
+        "pack_test": "npm run test:pack",
+        "files": ["PLAN.md", "README.md", "STATUS.md", "bin/", "lib/", "migrations/", "schemas/", "profiles/", "scripts/", "docs/contract-binding/", "docs/release/", "templates/"]
+      },
+      "compatibility_surfaces": [
+        "installed beval CLI and oracle evaluator",
+        "database migrations/readers",
+        "vendored contract/evidence schemas",
+        "runtime profiles and immutable run bindings",
+        "release and contract-binding reports"
+      ],
+      "historical_exact_head_ci": {"workflow": "ci", "run_id": 36054404469, "conclusion": "success"}
+    }
+  ],
+  "required_cross_repo_checks": [
+    "all three packages are tested from npm pack artifacts rather than source paths alone",
+    "the exact bskel contract bytes used by a consumer are preserved and re-hashed by that consumer",
+    "becoder and beval do not import or spawn bskel as a runtime dependency to reinterpret contract identity",
+    "historical beval runs remain bound to their execution-time immutable references when current case metadata changes",
+    "new writer families remain opt-in until all consumers can read them and exact-revision integration evidence is green"
+  ],
+  "known_open_release_dependencies": [
+    "T00-01 must move from SUBMITTED to independently ACCEPTED",
+    "T19 independent QA gates must be available before release certification",
+    "T20 trust/sandbox policy must be accepted before new runtime lanes are enabled",
+    "T00-05 exact-revision cross-repository integration is required before a default-writer change"
+  ]
+}
