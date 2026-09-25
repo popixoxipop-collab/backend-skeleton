@@ -12,14 +12,14 @@ const LEVELS = Object.freeze({
 
 function normalizeLocation(diagnostic) {
 	if (typeof diagnostic.file !== 'string' || diagnostic.file.length === 0) return undefined;
-	const uri = diagnostic.file.replaceAll('\\\\', '/');
+	const uri = diagnostic.file.replaceAll('\\', '/');
 	if (!validPackageRelativePath(uri)) return undefined;
 	const startLine = Number.isInteger(diagnostic.startLine) && diagnostic.startLine > 0 ? diagnostic.startLine : 1;
 	const region = { startLine };
 	if (Number.isInteger(diagnostic.endLine) && diagnostic.endLine >= startLine) region.endLine = diagnostic.endLine;
 	return {
 		physicalLocation: {
-			artifactLocation: { uri: diagnostic.file.replaceAll('\\', '/') },
+			artifactLocation: { uri },
 			region,
 		},
 	};
