@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:support-explanation:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "subject",
+    "adapterId",
+    "capabilities",
+    "fields",
+    "notes"
+  ],
+  "properties": {
+    "contract": {
+      "const": "sbf.support-explanation/1"
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapterId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "status",
+          "summary",
+          "evidenceRefs",
+          "constraints",
+          "nextActions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "supported",
+              "partial",
+              "unsupported",
+              "unknown",
+              "not-applicable",
+              "conflict"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nextActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "status",
+          "provenanceRefs",
+          "conflicts",
+          "constraints",
+          "nextActions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "supported",
+              "partial",
+              "unsupported",
+              "unknown",
+              "not-applicable",
+              "conflict"
+            ]
+          },
+          "value": {},
+          "provenanceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {}
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nextActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
