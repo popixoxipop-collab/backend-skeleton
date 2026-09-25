@@ -1,0 +1,154 @@
+{
+  "contract": "sbf.qa-corpus/1",
+  "entries": [
+    {
+      "id": "fixture-java-spring",
+      "adapter_id": "java-spring",
+      "cohort": "development",
+      "source": {
+        "kind": "repository-fixture",
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "license": "AGPL-3.0-or-later",
+        "root": "test/fixtures/java-spring",
+        "fixture_path": "test/fixtures/java-spring"
+      },
+      "golden": {
+        "basis": "pending",
+        "review_state": "pending",
+        "authored_by": "pre-existing-fixture",
+        "generated_by_candidate": false
+      },
+      "runtime": {
+        "requirement": "none",
+        "profile": null
+      },
+      "selection_reason": "Existing Spring fixture used by shipped adapter conformance; admitted only to the development cohort until an independent golden review is recorded.",
+      "tags": [
+        "fixture",
+        "spring",
+        "legacy-baseline"
+      ]
+    },
+    {
+      "id": "fixture-python-fastapi",
+      "adapter_id": "python-fastapi",
+      "cohort": "development",
+      "source": {
+        "kind": "repository-fixture",
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "license": "AGPL-3.0-or-later",
+        "root": "test/fixtures/python-fastapi",
+        "fixture_path": "test/fixtures/python-fastapi"
+      },
+      "golden": {
+        "basis": "pending",
+        "review_state": "pending",
+        "authored_by": "pre-existing-fixture",
+        "generated_by_candidate": false
+      },
+      "runtime": {
+        "requirement": "none",
+        "profile": null
+      },
+      "selection_reason": "Existing FastAPI fixture used by shipped adapter conformance; kept out of certification until its expected facts are independently reviewed.",
+      "tags": [
+        "fixture",
+        "fastapi",
+        "legacy-baseline"
+      ]
+    },
+    {
+      "id": "fixture-typescript-express",
+      "adapter_id": "typescript-express",
+      "cohort": "development",
+      "source": {
+        "kind": "repository-fixture",
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "license": "AGPL-3.0-or-later",
+        "root": "test/fixtures/typescript-express",
+        "fixture_path": "test/fixtures/typescript-express"
+      },
+      "golden": {
+        "basis": "pending",
+        "review_state": "pending",
+        "authored_by": "pre-existing-fixture",
+        "generated_by_candidate": false
+      },
+      "runtime": {
+        "requirement": "none",
+        "profile": null
+      },
+      "selection_reason": "Existing TypeScript Express fixture provides a deterministic development baseline without pretending the candidate scanner generated an independent golden.",
+      "tags": [
+        "fixture",
+        "express",
+        "typescript",
+        "legacy-baseline"
+      ]
+    },
+    {
+      "id": "fixture-javascript-express",
+      "adapter_id": "javascript-express",
+      "cohort": "development",
+      "source": {
+        "kind": "repository-fixture",
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "license": "AGPL-3.0-or-later",
+        "root": "test/fixtures/javascript-express",
+        "fixture_path": "test/fixtures/javascript-express"
+      },
+      "golden": {
+        "basis": "pending",
+        "review_state": "pending",
+        "authored_by": "pre-existing-fixture",
+        "generated_by_candidate": false
+      },
+      "runtime": {
+        "requirement": "none",
+        "profile": null
+      },
+      "selection_reason": "Existing JavaScript/CommonJS Express fixture is retained as a development regression seed while independent expected results are still pending.",
+      "tags": [
+        "fixture",
+        "express",
+        "javascript",
+        "commonjs",
+        "legacy-baseline"
+      ]
+    },
+    {
+      "id": "fixture-ruby-rails",
+      "adapter_id": "ruby-rails",
+      "cohort": "development",
+      "source": {
+        "kind": "repository-fixture",
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "license": "AGPL-3.0-or-later",
+        "root": "test/fixtures/ruby-rails",
+        "fixture_path": "test/fixtures/ruby-rails"
+      },
+      "golden": {
+        "basis": "pending",
+        "review_state": "pending",
+        "authored_by": "pre-existing-fixture",
+        "generated_by_candidate": false
+      },
+      "runtime": {
+        "requirement": "optional",
+        "profile": "rails-routes-isolated"
+      },
+      "selection_reason": "Existing Rails fixture is useful for deterministic static development while runtime route export remains a separately approved profile.",
+      "tags": [
+        "fixture",
+        "rails",
+        "legacy-baseline",
+        "runtime-optional"
+      ]
+    }
+  ]
+}
