@@ -169,3 +169,47 @@ export function verifyConsumerConformanceResult(packBytes, result) {
 		verified_cases: expected.length,
 	};
 }
+
+
+export const IDENTITY_CONSUMER_SET_VERSION = 'sbf.identity-consumer-set/1';
+
+export function verifyRequiredConsumerSet(packBytes, results, { required_repositories = [] } = {}) {
+	if (!Array.isArray(results) || results.length === 0) fail('consumer result set must be a non-empty array');
+	if (!Array.isArray(required_repositories)) fail('required_repositories must be an array');
+	if (required_repositories.some((repo) => typeof repo !== 'string' || repo.length === 0)) {
+		fail('required_repositories must contain non-empty strings');
+	}
+	if (new Set(required_repositories).size !== required_repositories.length) fail('required_repositories contains duplicates');
+
+	const verified = results.map((result) => verifyConsumerConformanceResult(packBytes, result));
+	const byRepository = new Map();
+	for (const entry of verified) {
+		const repository = entry.consumer.repository;
+		if (byRepository.has(repository)) fail(`duplicate consumer repository result: ${repository}`);
+		byRepository.set(repository, entry);
+	}
+
+	if (required_repositories.length > 0) {
+		const required = new Set(required_repositories);
+		const unexpected = [...byRepository.keys()].filter((repository) => !required.has(repository));
+		if (unexpected.length > 0) fail(`unexpected consumer repositories: ${unexpected.join(', ')}`);
+		const missing = required_repositories.filter((repository) => !byRepository.has(repository));
+		if (missing.length > 0) fail(`missing required consumer repositories: ${missing.join(', ')}`);
+	}
+
+	const { raw } = parsePack(packBytes);
+	return {
+		identity_consumer_set: IDENTITY_CONSUMER_SET_VERSION,
+		conformance_pack_sha256: sha256(raw),
+		required_repositories: [...required_repositories],
+		consumers: [...byRepository.values()]
+			.map((entry) => ({
+				name: entry.consumer.name,
+				repository: entry.consumer.repository,
+				commit_sha: entry.consumer.commit_sha,
+				implementation_path: entry.consumer.implementation_path,
+				verified_cases: entry.verified_cases,
+			}))
+			.sort((left, right) => left.repository.localeCompare(right.repository)),
+	};
+}
