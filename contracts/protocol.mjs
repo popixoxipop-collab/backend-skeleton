@@ -97,6 +97,7 @@ export function buildProtocolContract({ featureId, featureUid, scan }) {
       adapter: scan.adapter,
       adapter_revision: scan.adapter_revision,
       source_hash: scan.source_hash,
+      source_hash_basis: scan.source_hash_basis ?? 'raw-bytes',
       files: [...(scan.files_read ?? [])].sort(),
     },
     planes,
@@ -131,6 +132,10 @@ export function verifyProtocolContractSnapshot({ contract, scan, featureId, feat
   }
   if (contract?.source?.source_hash !== scan?.source_hash) {
     changes.push({ field: 'source.source_hash', expected: scan?.source_hash ?? null, actual: contract?.source?.source_hash ?? null });
+  }
+  const expectedHashBasis = scan?.source_hash_basis ?? 'raw-bytes';
+  if (contract?.source?.source_hash_basis !== expectedHashBasis) {
+    changes.push({ field: 'source.source_hash_basis', expected: expectedHashBasis, actual: contract?.source?.source_hash_basis ?? null });
   }
   if (scan?.completeness?.status !== 'blocked') {
     const expected = buildProtocolContract({ featureId, featureUid, scan });
