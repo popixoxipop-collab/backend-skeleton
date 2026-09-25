@@ -199,3 +199,60 @@ test('a legitimately syntax-validating backend stays comparable but reports the 
   assert.ok(report.corpusBytes > 0);
   assert.deepEqual(report.cases[0].comparisons[0].differences, ['syntaxValidated']);
 });
+
+test('unsupported common options are rejected before any backend executes', () => {
+  let calls = 0;
+  const counting = fakeBackend('counting', () => { calls++; return lexicalJsTsBackend().analyze('', {}); });
+  assert.throws(
+    () => compareJsTsBackends([lexicalJsTsBackend(), counting], [{
+      id: 'unsafe-option',
+      source: '',
+      options: { filePath: 'src/app.js', compilerPlugin: './run-me.js' },
+    }]),
+    /unsupported common analysis option/,
+  );
+  assert.equal(calls, 0);
+});
+
+test('corpus case and byte budgets fail before executing a backend', () => {
+  let calls = 0;
+  const counting = fakeBackend('counting', (source, options) => {
+    calls++;
+    return lexicalJsTsBackend().analyze(source, options);
+  });
+  assert.throws(
+    () => compareJsTsBackends([lexicalJsTsBackend(), counting], [
+      { id: 'a', source: '' },
+      { id: 'b', source: '' },
+    ], { maxCases: 1 }),
+    /case.*limit|cases.*limit/,
+  );
+  assert.equal(calls, 0);
+
+  assert.throws(
+    () => compareJsTsBackends([lexicalJsTsBackend(), counting], [
+      { id: 'unicode-bytes', source: '한글' },
+    ], { maxCorpusBytes: 5 }),
+    /corpus exceeds/,
+  );
+  assert.equal(calls, 0);
+});
+
+test('each backend receives a frozen isolated options object', () => {
+  const mutator = fakeBackend('mutator', (source, options) => {
+    options.filePath = 'corrupted.js';
+    return lexicalJsTsBackend().analyze(source, options);
+  });
+  const lexical = lexicalJsTsBackend();
+  const report = compareJsTsBackends([lexical, mutator], [{
+    id: 'isolation',
+    source: "import './x.js';",
+    options: { filePath: 'src/app.js', language: 'javascript' },
+  }]);
+  const mutatorOutcome = report.cases[0].outcomes.find((o) => o.backendId === 'mutator');
+  const lexicalOutcome = report.cases[0].outcomes.find((o) => o.backendId === 'bounded-lexical');
+  assert.equal(mutatorOutcome.status, 'error');
+  assert.equal(mutatorOutcome.errorName, 'TypeError');
+  assert.equal(lexicalOutcome.status, 'ok');
+});
+
