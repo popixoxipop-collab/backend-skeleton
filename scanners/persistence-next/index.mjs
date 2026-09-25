@@ -5,3 +5,4 @@ export * from './drift.mjs';
 export * from './providers/prisma.mjs';
 export * from './providers/active-record.mjs';
 export * from './providers/django-orm.mjs';
+export * from './providers/registry.mjs';
