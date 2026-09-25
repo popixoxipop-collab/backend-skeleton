@@ -136,6 +136,7 @@ test('T19 external evidence registry is provenance-valid and never self-certifie
   assert.equal(summary.partial_mappings, 2);
   assert.equal(summary.exact_head_ci_success_candidates, 1);
   assert.equal(summary.nonterminal_ci_candidates, 4);
+  assert.equal(summary.job_observed_candidates, 1);
   assert.equal(summary.covered_vectors, 0);
 });
 
@@ -227,4 +228,30 @@ test('T19 legacy oracle import never upgrades a source candidate into a golden o
     assert.deepEqual(candidate.missing_requirements, ['license-review', 'independent-golden-review']);
     assert.equal(Object.hasOwn(candidate, 'golden'), false);
   }
+});
+
+
+test('T19 external evidence job observations are bound to the candidate exact-head run', () => {
+  const bad = clone(externalCandidates);
+  const candidate = bad.candidates.find((x) => x.job_observations.length > 0);
+  assert.ok(candidate);
+  candidate.job_observations[0].run_id += 1;
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must match candidate ci.run_id')));
+});
+
+test('T19 external evidence refuses job-level observations on nonterminal CI', () => {
+  const bad = clone(externalCandidates);
+  const target = bad.candidates.find((x) => x.ci.status !== 'completed');
+  assert.ok(target);
+  target.job_observations = [{
+    run_id: target.ci.run_id,
+    job_id: 1,
+    job_name: 'untrusted-nonterminal-job',
+    subtests: ['not a terminal observation'],
+  }];
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('require completed-success candidate CI')));
 });
