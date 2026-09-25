@@ -91,6 +91,8 @@ export function analyzeJsTsSnapshot(entries, {
       return {
         contract: JS_TS_SNAPSHOT_CONTRACT,
         complete: false,
+        allResolved: false,
+        syntaxValidated: false,
         files: [],
         moduleGraph: [],
         diagnostics: [{ level: 'info', code: 'snapshot-too-large', message: `snapshot exceeds ${maxTotalBytes} bytes; no partial graph emitted` }],
@@ -116,6 +118,8 @@ export function analyzeJsTsSnapshot(entries, {
       return {
         contract: JS_TS_SNAPSHOT_CONTRACT,
         complete: false,
+        allResolved: false,
+        syntaxValidated: false,
         files: [],
         moduleGraph: [],
         diagnostics,
