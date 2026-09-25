@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-remote-observation/1",
   "observed_on": "2026-09-25",
-  "source": "GitHub repository metadata, branch metadata, package.json, package-lock.json, CI workflow, exact-head Actions run",
+  "source": "GitHub repository metadata, branch metadata, package.json, package-lock.json, CI workflow, and exact-head Actions evidence when available",
   "repositories": [
     {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -63,11 +63,11 @@
     {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
+      "head_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
       "artifacts": [
         {
           "path": "package.json",
-          "git_blob_sha": "714575e9cbaff966e4fc00138da6317ef84ac2a4"
+          "git_blob_sha": "01fce37d05e9c2793f5ed93319d533a61b43b762"
         },
         {
           "path": "package-lock.json",
@@ -79,32 +79,41 @@
         }
       ],
       "exact_head_ci": {
-        "run_id": 36099964750,
-        "status": "completed",
-        "conclusion": "success"
+        "run_id": null,
+        "run_number": null,
+        "status": "PENDING_EXACT_HEAD_CI",
+        "conclusion": null
       },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",
       "merge_event": {
-        "pr": 46,
-        "head_sha": "ec9ccde6de2223f673f646d2b7430ae5d7594d45",
-        "merge_commit_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
-        "merged_at": "2026-09-25T05:46:21Z",
-        "parent_main": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+        "pr": 47,
+        "head_sha": "1cdcb1a154d1b517d0ad92907c063d2c79c8e513",
+        "merge_commit_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+        "merged_at": "2026-09-25T07:03:51Z",
+        "parent_main": "c59f8b73a05d29a313e75a29c7f1de6264a1178d"
       },
-      "premerge_ci": {
-        "run_id": 36099699382,
-        "run_number": 908,
-        "status": "completed",
-        "conclusion": "success",
-        "jobs": [
-          "unit (20)",
-          "unit (22)",
-          "unit (24)",
-          "integration"
-        ]
+      "pr42_evidence": {
+        "pr": 42,
+        "head_sha": "36d3e9b8023d70398ecf99ffa2d3ed6fc593e579",
+        "merge_commit_sha": "c59f8b73a05d29a313e75a29c7f1de6264a1178d",
+        "merged_at": "2026-09-25T06:51:34Z",
+        "ci": {
+          "run_id": 36104244773,
+          "run_number": 921,
+          "status": "completed",
+          "conclusion": "success"
+        },
+        "live_nvidia": {
+          "run_id": 36104240694,
+          "run_number": 37,
+          "status": "completed",
+          "conclusion": "success",
+          "outcome": "repaired_and_passed"
+        },
+        "acceptance_note": "supplementary branch/live evidence only; exact-head push CI on current main remains required"
       }
     }
   ],
-  "rebaseline_epoch": 5
+  "rebaseline_epoch": 6
 }
