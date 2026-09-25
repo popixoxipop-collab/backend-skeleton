@@ -1,29 +1,637 @@
 {
   "contract": "sbf.qa-negative-vectors/1",
   "vectors": [
-    {"id":"NEG-ID-01","category":"identity","critical":true,"expected":"reject","invariant":"Exact contract byte changes do not reuse a prior artifact identity.","failure_signal":"Old identity remains trusted after byte change."},
-    {"id":"NEG-ID-02","category":"identity","critical":true,"expected":"reject","invariant":"Display aliases cannot repair a missing operation identity.","failure_signal":"Alias lookup silently chooses an operation."},
-    {"id":"NEG-PROJ-01","category":"project","critical":true,"expected":"detect","invariant":"Nested services remain independently scoped.","failure_signal":"One adapter selection hides a sibling service."},
-    {"id":"NEG-PROJ-02","category":"project","critical":false,"expected":"preserve-unknown","invariant":"Overlapping roots require explicit ownership or ambiguity.","failure_signal":"Files are silently assigned to one project."},
-    {"id":"NEG-ROUTE-01","category":"route","critical":true,"expected":"preserve-unknown","invariant":"Computed prefixes are not converted into invented literal paths.","failure_signal":"A guessed literal path is emitted as verified."},
-    {"id":"NEG-ROUTE-02","category":"route","critical":false,"expected":"detect","invariant":"A multi-mounted router may produce distinct absolute paths.","failure_signal":"Only one mount survives."},
-    {"id":"NEG-SCHEMA-01","category":"schema","critical":true,"expected":"block","invariant":"Lossy schema conversion blocks capabilities that require lost information.","failure_signal":"Generation proceeds without a loss diagnostic."},
-    {"id":"NEG-SCHEMA-02","category":"schema","critical":false,"expected":"preserve-unknown","invariant":"Remote references are not fetched without an approved immutable bundle.","failure_signal":"Analysis performs unapproved network resolution."},
-    {"id":"NEG-AUTH-01","category":"auth","critical":true,"expected":"reject","invariant":"Wrong-role and cross-tenant requests are not accepted as authorized evidence.","failure_signal":"Authorization assertion passes for an unauthorized request."},
-    {"id":"NEG-AUTH-02","category":"auth","critical":true,"expected":"preserve-unknown","invariant":"Declared security and runtime enforcement remain distinct claims.","failure_signal":"A declaration alone is marked enforced."},
-    {"id":"NEG-DB-01","category":"db","critical":true,"expected":"block","invariant":"Composite foreign-key column order is preserved.","failure_signal":"Local and referenced columns are flattened or cross-multiplied."},
-    {"id":"NEG-DB-02","category":"db","critical":true,"expected":"block","invariant":"Entity/table name similarity alone cannot create a fetch binding.","failure_signal":"An implicit binding enables fetch or codegen."},
-    {"id":"NEG-CACHE-01","category":"cache","critical":true,"expected":"reject","invariant":"Parser, resolver, policy and file-list changes invalidate dependent cache entries.","failure_signal":"A stale artifact is served as current."},
-    {"id":"NEG-CACHE-02","category":"cache","critical":false,"expected":"detect","invariant":"Deleted and newly-added files participate in invalidation.","failure_signal":"Incremental scan ignores a file-list change."},
-    {"id":"NEG-RUN-01","category":"run","critical":true,"expected":"reject","invariant":"Evidence from one run or attempt cannot be replayed into another.","failure_signal":"Nonce or scope mismatch is accepted."},
-    {"id":"NEG-RUN-02","category":"run","critical":true,"expected":"block","invariant":"Original-oracle failure blocks comparison instead of producing pass.","failure_signal":"Candidate is passed while baseline failed."},
-    {"id":"NEG-GAME-01","category":"game","critical":true,"expected":"preserve-unknown","invariant":"Nearby input and movement declarations do not prove causality.","failure_signal":"A behavior edge is invented from names or proximity."},
-    {"id":"NEG-GAME-02","category":"game","critical":false,"expected":"reject","invariant":"A candidate observation bridge cannot self-certify behavior.","failure_signal":"Candidate-reported pass is accepted without an independent probe."},
-    {"id":"NEG-TRUST-01","category":"trust","critical":true,"expected":"reject","invariant":"Static analysis does not execute target install hooks or initializers.","failure_signal":"Target-controlled code executes in static mode."},
-    {"id":"NEG-TRUST-02","category":"trust","critical":true,"expected":"reject","invariant":"Symlink and path traversal cannot escape approved roots.","failure_signal":"Read or write reaches outside the allowed root."},
-    {"id":"NEG-GEN-01","category":"generation","critical":true,"expected":"block","invariant":"Hand-edited generated files require an expected-old-hash match before overwrite.","failure_signal":"A user-modified file is silently replaced."},
-    {"id":"NEG-GEN-02","category":"generation","critical":true,"expected":"block","invariant":"Authorization stubs stay fail-closed until implemented.","failure_signal":"Generated default grants access."},
-    {"id":"NEG-RELEASE-01","category":"release","critical":true,"expected":"reject","invariant":"A green check from an older head cannot approve a new head.","failure_signal":"Release reuses stale CI status."},
-    {"id":"NEG-RELEASE-02","category":"release","critical":true,"expected":"block","invariant":"Unknown contract majors or revoked adapters do not execute.","failure_signal":"Unsupported or revoked artifacts are run."}
+    {
+      "id": "NEG-ID-01",
+      "category": "identity",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Exact contract byte changes do not reuse a prior artifact identity.",
+      "failure_signal": "Old identity remains trusted after byte change."
+    },
+    {
+      "id": "NEG-ID-02",
+      "category": "identity",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Display aliases cannot repair a missing operation identity.",
+      "failure_signal": "Alias lookup silently chooses an operation."
+    },
+    {
+      "id": "NEG-ID-03",
+      "category": "identity",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "The same field name at a different request location is not treated as the same bound field.",
+      "failure_signal": "Path/query/header/cookie location drift is accepted."
+    },
+    {
+      "id": "NEG-ID-04",
+      "category": "identity",
+      "critical": true,
+      "expected": "detect",
+      "invariant": "Identical operation names in different projects remain project-scoped.",
+      "failure_signal": "Cross-project operation lookup collapses two identities."
+    },
+    {
+      "id": "NEG-ID-05",
+      "category": "identity",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Unicode normalization is not silently applied to exact-byte contract identity.",
+      "failure_signal": "Different UTF-8 bytes reuse an old exact-byte identity."
+    },
+    {
+      "id": "NEG-ID-06",
+      "category": "identity",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Feature/profile bindings remain part of the trusted execution identity.",
+      "failure_signal": "Evidence from a different feature or profile is accepted."
+    },
+    {
+      "id": "NEG-PROJ-01",
+      "category": "project",
+      "critical": true,
+      "expected": "detect",
+      "invariant": "Nested services remain independently scoped.",
+      "failure_signal": "One adapter selection hides a sibling service."
+    },
+    {
+      "id": "NEG-PROJ-02",
+      "category": "project",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Overlapping roots require explicit ownership or ambiguity.",
+      "failure_signal": "Files are silently assigned to one project."
+    },
+    {
+      "id": "NEG-PROJ-03",
+      "category": "project",
+      "critical": false,
+      "expected": "detect",
+      "invariant": "Vendored examples and test fixtures do not silently become the primary project.",
+      "failure_signal": "A nested fixture wins project selection over the application."
+    },
+    {
+      "id": "NEG-PROJ-04",
+      "category": "project",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Project move or rename requires an explicit identity migration or new project identity.",
+      "failure_signal": "Path rename silently reuses project identity."
+    },
+    {
+      "id": "NEG-PROJ-05",
+      "category": "project",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Shared source files may belong to multiple project facets without forced single ownership.",
+      "failure_signal": "Shared source is attributed to only one project without evidence."
+    },
+    {
+      "id": "NEG-PROJ-06",
+      "category": "project",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Partial or missing manifests are reported as incomplete rather than fabricated framework certainty.",
+      "failure_signal": "A partial checkout is marked complete."
+    },
+    {
+      "id": "NEG-ROUTE-01",
+      "category": "route",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Computed prefixes are not converted into invented literal paths.",
+      "failure_signal": "A guessed literal path is emitted as verified."
+    },
+    {
+      "id": "NEG-ROUTE-02",
+      "category": "route",
+      "critical": false,
+      "expected": "detect",
+      "invariant": "A multi-mounted router may produce distinct absolute paths.",
+      "failure_signal": "Only one mount survives."
+    },
+    {
+      "id": "NEG-ROUTE-03",
+      "category": "route",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Mount cycles terminate under a bound and cannot create an infinite or duplicate route graph.",
+      "failure_signal": "Cycle traversal loops or emits unbounded paths."
+    },
+    {
+      "id": "NEG-ROUTE-04",
+      "category": "route",
+      "critical": false,
+      "expected": "detect",
+      "invariant": "Diamond mount graphs preserve each proven distinct absolute route without accidental deduplication.",
+      "failure_signal": "One valid diamond path is lost."
+    },
+    {
+      "id": "NEG-ROUTE-05",
+      "category": "route",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Optional, catch-all, and constrained route parameters preserve their framework semantics.",
+      "failure_signal": "Special path parameter semantics are flattened into an ordinary segment."
+    },
+    {
+      "id": "NEG-ROUTE-06",
+      "category": "route",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Framework method aliases or catch-all registration forms are not mislabeled as an unsupported concrete verb.",
+      "failure_signal": "router.use/all is invented as GET/POST."
+    },
+    {
+      "id": "NEG-ROUTE-07",
+      "category": "route",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Case and percent-encoding differences are not normalized into the same route without framework proof.",
+      "failure_signal": "Distinct literal routes collapse."
+    },
+    {
+      "id": "NEG-ROUTE-08",
+      "category": "route",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Host, version, and other route predicates remain attached to the route claim.",
+      "failure_signal": "Conditional routes are emitted as unconditional."
+    },
+    {
+      "id": "NEG-SCHEMA-01",
+      "category": "schema",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Lossy schema conversion blocks capabilities that require lost information.",
+      "failure_signal": "Generation proceeds without a loss diagnostic."
+    },
+    {
+      "id": "NEG-SCHEMA-02",
+      "category": "schema",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Remote references are not fetched without an approved immutable bundle.",
+      "failure_signal": "Analysis performs unapproved network resolution."
+    },
+    {
+      "id": "NEG-SCHEMA-03",
+      "category": "schema",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Recursive schema resolution is bounded and reports unresolved recursion safely.",
+      "failure_signal": "Recursive refs hang or expand without a bound."
+    },
+    {
+      "id": "NEG-SCHEMA-04",
+      "category": "schema",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "oneOf/anyOf/discriminator semantics are preserved or explicitly marked unsupported.",
+      "failure_signal": "Union discrimination is silently dropped."
+    },
+    {
+      "id": "NEG-SCHEMA-05",
+      "category": "schema",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Nullable and optional are kept distinct across schema projections.",
+      "failure_signal": "Missing and explicit null become interchangeable."
+    },
+    {
+      "id": "NEG-SCHEMA-06",
+      "category": "schema",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Request and response schema directions are not silently reused as each other.",
+      "failure_signal": "Read-only/write-only or directional fields leak across directions."
+    },
+    {
+      "id": "NEG-SCHEMA-07",
+      "category": "schema",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Multipart, binary, and media-type-specific request bodies keep their transport semantics.",
+      "failure_signal": "Binary or multipart input is flattened into ordinary JSON."
+    },
+    {
+      "id": "NEG-SCHEMA-08",
+      "category": "schema",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "int64/decimal precision and parameter serialization styles are preserved or blocked.",
+      "failure_signal": "Precision or style/explode information is silently lost."
+    },
+    {
+      "id": "NEG-AUTH-01",
+      "category": "auth",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Wrong-role and cross-tenant requests are not accepted as authorized evidence.",
+      "failure_signal": "Authorization assertion passes for an unauthorized request."
+    },
+    {
+      "id": "NEG-AUTH-02",
+      "category": "auth",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Declared security and runtime enforcement remain distinct claims.",
+      "failure_signal": "A declaration alone is marked enforced."
+    },
+    {
+      "id": "NEG-AUTH-03",
+      "category": "auth",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "A missing or invalid token cannot satisfy a protected operation assertion.",
+      "failure_signal": "Protected operation passes without valid credentials."
+    },
+    {
+      "id": "NEG-AUTH-04",
+      "category": "auth",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Per-operation security overrides do not inherit a global rule blindly.",
+      "failure_signal": "Operation-specific public/protected semantics are overwritten."
+    },
+    {
+      "id": "NEG-AUTH-05",
+      "category": "auth",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "AND versus OR security requirements retain their boolean semantics.",
+      "failure_signal": "Alternative credentials and jointly-required credentials are inverted."
+    },
+    {
+      "id": "NEG-AUTH-06",
+      "category": "auth",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Authorization evidence is revision- and run-bound; stale policy snapshots cannot approve current behavior.",
+      "failure_signal": "Old authorization evidence is reused after policy change."
+    },
+    {
+      "id": "NEG-DB-01",
+      "category": "db",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Composite foreign-key column order is preserved.",
+      "failure_signal": "Local and referenced columns are flattened or cross-multiplied."
+    },
+    {
+      "id": "NEG-DB-02",
+      "category": "db",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Entity/table name similarity alone cannot create a fetch binding.",
+      "failure_signal": "An implicit binding enables fetch or codegen."
+    },
+    {
+      "id": "NEG-DB-03",
+      "category": "db",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Same-named tables in different schemas keep their physical namespace.",
+      "failure_signal": "Schema qualification is silently discarded."
+    },
+    {
+      "id": "NEG-DB-04",
+      "category": "db",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Soft-delete or default-scope semantics are not inferred away.",
+      "failure_signal": "Deleted rows are treated as normally fetchable without evidence."
+    },
+    {
+      "id": "NEG-DB-05",
+      "category": "db",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Tenant or row-scope constraints remain part of approved fetch/write bindings.",
+      "failure_signal": "Generated data access omits required tenant scope."
+    },
+    {
+      "id": "NEG-DB-06",
+      "category": "db",
+      "critical": true,
+      "expected": "detect",
+      "invariant": "Migration metadata and live database snapshots may drift and the drift is reported explicitly.",
+      "failure_signal": "Migration/live disagreement is silently reconciled."
+    },
+    {
+      "id": "NEG-CACHE-01",
+      "category": "cache",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Parser, resolver, policy and file-list changes invalidate dependent cache entries.",
+      "failure_signal": "A stale artifact is served as current."
+    },
+    {
+      "id": "NEG-CACHE-02",
+      "category": "cache",
+      "critical": false,
+      "expected": "detect",
+      "invariant": "Deleted and newly-added files participate in invalidation.",
+      "failure_signal": "Incremental scan ignores a file-list change."
+    },
+    {
+      "id": "NEG-CACHE-03",
+      "category": "cache",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Grammar/parser revision is part of parse artifact identity.",
+      "failure_signal": "Old parse output survives a grammar change."
+    },
+    {
+      "id": "NEG-CACHE-04",
+      "category": "cache",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Adapter implementation digest participates in semantic cache identity.",
+      "failure_signal": "Adapter behavior changes while old result is reused."
+    },
+    {
+      "id": "NEG-CACHE-05",
+      "category": "cache",
+      "critical": true,
+      "expected": "detect",
+      "invariant": "Import/resolution dependency changes invalidate downstream facts even when the leaf file bytes do not change.",
+      "failure_signal": "Changed dependency leaves dependent scan cached."
+    },
+    {
+      "id": "NEG-CACHE-06",
+      "category": "cache",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Cached artifact bytes are re-hashed before trust decisions.",
+      "failure_signal": "A poisoned cache entry with a mismatched digest is accepted."
+    },
+    {
+      "id": "NEG-RUN-01",
+      "category": "run",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Evidence from one run or attempt cannot be replayed into another.",
+      "failure_signal": "Nonce or scope mismatch is accepted."
+    },
+    {
+      "id": "NEG-RUN-02",
+      "category": "run",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Original-oracle failure blocks comparison instead of producing pass.",
+      "failure_signal": "Candidate is passed while baseline failed."
+    },
+    {
+      "id": "NEG-RUN-03",
+      "category": "run",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Candidate artifact identity is frozen for the run and cannot be swapped after execution starts.",
+      "failure_signal": "Evidence from a different candidate is accepted."
+    },
+    {
+      "id": "NEG-RUN-04",
+      "category": "run",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Changing the current case catalog cannot rewrite the contract/profile refs of a historical run.",
+      "failure_signal": "Historical report follows mutable current case state."
+    },
+    {
+      "id": "NEG-RUN-05",
+      "category": "run",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Same flow ID with different flow bytes requires a new run binding.",
+      "failure_signal": "Edited flow content is accepted under the old binding."
+    },
+    {
+      "id": "NEG-RUN-06",
+      "category": "run",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Missing required assertions cannot produce PASS.",
+      "failure_signal": "A partial assertion set is promoted."
+    },
+    {
+      "id": "NEG-RUN-07",
+      "category": "run",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Queued, pending, interrupted, or outcome-unknown execution is not treated as success.",
+      "failure_signal": "Nonterminal job state is promoted to pass."
+    },
+    {
+      "id": "NEG-RUN-08",
+      "category": "run",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Evidence artifacts cannot be swapped between otherwise similar runs.",
+      "failure_signal": "Foreign evidence digest is accepted by assignment only."
+    },
+    {
+      "id": "NEG-GAME-01",
+      "category": "game",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Nearby input and movement declarations do not prove causality.",
+      "failure_signal": "A behavior edge is invented from names or proximity."
+    },
+    {
+      "id": "NEG-GAME-02",
+      "category": "game",
+      "critical": false,
+      "expected": "reject",
+      "invariant": "A candidate observation bridge cannot self-certify behavior.",
+      "failure_signal": "Candidate-reported pass is accepted without an independent probe."
+    },
+    {
+      "id": "NEG-GAME-03",
+      "category": "game",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Duplicate entity/symbol names retain scene or object identity context.",
+      "failure_signal": "Two objects collapse because their display names match."
+    },
+    {
+      "id": "NEG-GAME-04",
+      "category": "game",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Exact screenshot hash mismatch across unpinned GPU/render pipelines is not by itself a functional failure.",
+      "failure_signal": "Different renderer bytes are treated as behavioral failure."
+    },
+    {
+      "id": "NEG-GAME-05",
+      "category": "game",
+      "critical": false,
+      "expected": "preserve-unknown",
+      "invariant": "Variable-delta or nondeterministic simulation is marked with its timing/seed constraints.",
+      "failure_signal": "Nondeterministic state is certified as deterministic."
+    },
+    {
+      "id": "NEG-GAME-06",
+      "category": "game",
+      "critical": true,
+      "expected": "preserve-unknown",
+      "invariant": "Unexported Blueprint/editor-only content remains unknown in source-only Unreal analysis.",
+      "failure_signal": "Absence in C++ is reported as absence from the game."
+    },
+    {
+      "id": "NEG-GAME-07",
+      "category": "game",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Asset/GUID/UID changes invalidate bindings that depend on those exact asset identities.",
+      "failure_signal": "Old asset reference remains trusted after identity change."
+    },
+    {
+      "id": "NEG-TRUST-01",
+      "category": "trust",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Static analysis does not execute target install hooks or initializers.",
+      "failure_signal": "Target-controlled code executes in static mode."
+    },
+    {
+      "id": "NEG-TRUST-02",
+      "category": "trust",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Symlink and path traversal cannot escape approved roots.",
+      "failure_signal": "Read or write reaches outside the allowed root."
+    },
+    {
+      "id": "NEG-TRUST-03",
+      "category": "trust",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Untrusted analysis cannot use unrestricted network egress.",
+      "failure_signal": "Adapter or target contacts an unapproved endpoint."
+    },
+    {
+      "id": "NEG-TRUST-04",
+      "category": "trust",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Ambient credentials and secrets are not exposed to untrusted code or evidence logs.",
+      "failure_signal": "Secret value is readable or echoed into an artifact."
+    },
+    {
+      "id": "NEG-TRUST-05",
+      "category": "trust",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Compiler plugins, annotation processors, proc macros, and equivalent executable extensions do not run in static-only profiles.",
+      "failure_signal": "Static scan executes compiler-extension code."
+    },
+    {
+      "id": "NEG-TRUST-06",
+      "category": "trust",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Archive/decompression and parser input expansion are bounded.",
+      "failure_signal": "Zip/XML/JSON bomb exceeds approved resource limits."
+    },
+    {
+      "id": "NEG-TRUST-07",
+      "category": "trust",
+      "critical": false,
+      "expected": "detect",
+      "invariant": "Oversized stdout/stderr is truncated with an explicit diagnostic rather than silently treated as complete.",
+      "failure_signal": "Important evidence is truncated without marking incompleteness."
+    },
+    {
+      "id": "NEG-TRUST-08",
+      "category": "trust",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Candidate/runtime profiles cannot escape through Docker sockets, host process controls, or equivalent privileged handles.",
+      "failure_signal": "Untrusted code gains host-level execution control."
+    },
+    {
+      "id": "NEG-GEN-01",
+      "category": "generation",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Hand-edited generated files require an expected-old-hash match before overwrite.",
+      "failure_signal": "A user-modified file is silently replaced."
+    },
+    {
+      "id": "NEG-GEN-02",
+      "category": "generation",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Authorization stubs stay fail-closed until implemented.",
+      "failure_signal": "Generated default grants access."
+    },
+    {
+      "id": "NEG-GEN-03",
+      "category": "generation",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Generation plan/application refuses a stale manifest or source snapshot.",
+      "failure_signal": "Files are emitted against a drifted plan."
+    },
+    {
+      "id": "NEG-GEN-04",
+      "category": "generation",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Partial generation failure leaves either staged output or a verified rollback, not a half-applied tree.",
+      "failure_signal": "Partial writes remain without recovery evidence."
+    },
+    {
+      "id": "NEG-GEN-05",
+      "category": "generation",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "Generated key codecs exactly match approved physical/logical key types.",
+      "failure_signal": "UUID/integer/composite key is encoded with the wrong codec."
+    },
+    {
+      "id": "NEG-RELEASE-01",
+      "category": "release",
+      "critical": true,
+      "expected": "reject",
+      "invariant": "A green check from an older head cannot approve a new head.",
+      "failure_signal": "Release reuses stale CI status."
+    },
+    {
+      "id": "NEG-RELEASE-02",
+      "category": "release",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Unknown contract majors or revoked adapters do not execute.",
+      "failure_signal": "Unsupported or revoked artifacts are run."
+    },
+    {
+      "id": "NEG-RELEASE-03",
+      "category": "release",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Packed release artifacts contain every declared runtime file and helper.",
+      "failure_signal": "Source checkout passes while installed package is missing required files."
+    },
+    {
+      "id": "NEG-RELEASE-04",
+      "category": "release",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Old supported consumers either read the new artifact safely or the new writer remains opt-in.",
+      "failure_signal": "Producer default flips before compatible consumers exist."
+    },
+    {
+      "id": "NEG-RELEASE-05",
+      "category": "release",
+      "critical": true,
+      "expected": "block",
+      "invariant": "Rollback requires a verified prior binary/artifact path without deleting historical evidence.",
+      "failure_signal": "Release proceeds without a usable rollback artifact."
+    }
   ]
 }
