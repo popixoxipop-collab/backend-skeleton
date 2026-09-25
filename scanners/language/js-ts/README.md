@@ -22,6 +22,12 @@ This directory is the first T04 language-analysis boundary. Its `bskel.internal.
 
 It does **not** resolve package exports or tsconfig aliases, execute package hooks, infer framework semantics, evaluate TypeScript types, parse template-expression code, decode escaped module specifiers, or replace the existing Express adapters. Those are later T04 slices after the parser/backend comparison and interface freeze.
 
+## Multi-file snapshot and backend comparison
+
+`snapshot-graph.mjs` accepts an explicit in-memory repository snapshot, sorts paths deterministically, runs the lexical facts layer per file, and resolves only unambiguous relative edges against that supplied inventory. It does not walk the filesystem or execute project code. `complete`, `allResolved`, and `syntaxValidated` are separate so callers cannot confuse “the pass finished” with “every module resolved” or “JavaScript/TypeScript syntax was validated”.
+
+`backend-comparison.mjs` defines a provisional first-party parser backend boundary and a deterministic corpus comparator. The bounded lexical backend is the current reference because it is the only implemented backend in this branch; that does **not** declare it semantically superior. Future Tree-sitter or TypeScript Compiler candidates can be plugged into the comparator after their dependencies, sandboxing, packaging, and version ranges are approved. Differences are reported by field instead of automatically selecting a winner.
+
 ## Why no parser dependency yet
 
 The repository currently has no Tree-sitter or TypeScript compiler dependency in its root package. T04 begins with a small deterministic boundary and a regression corpus so candidate parser backends can be measured against stable facts before changing package/lock files or existing adapter behavior.
@@ -31,7 +37,7 @@ The repository currently has no Tree-sitter or TypeScript compiler dependency in
 The plan assigns T04 a nested test namespace, so this slice is tested directly without changing the shared root `package.json` test glob:
 
 ```bash
-node --test test/js-ts-source-facts.test.mjs test/js-ts-module-resolver.test.mjs
+node --test test/js-ts-source-facts.test.mjs test/js-ts-module-resolver.test.mjs test/js-ts-snapshot-graph.test.mjs test/js-ts-backend-comparison.test.mjs
 ```
 
 A tiny root bridge now imports the nested source-facts corpus so the existing `test/*.test.mjs` command sees it without changing `package.json`; the resolver test already lives at the root test level. No shared package/lock file was changed.
