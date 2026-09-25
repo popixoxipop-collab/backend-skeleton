@@ -3,13 +3,19 @@
   "owner_track": "T23",
   "status": "PREPARED_BLOCKED",
   "release_allowed": false,
-  "baseline": {
+  "coordination_baseline": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
     "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
-    "beval": "f87d442949be1ac81d00d47ab49fc0beccfc0424"
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+  },
+  "observed_current_main": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
   },
   "prerequisites": [
     {"id": "T00-01", "required_state": "ACCEPTED", "observed_state": "SUBMITTED"},
+    {"id": "T00-04", "required_state": "FINAL_FREEZE", "observed_state": "BLOCKED_PREFREEZE"},
     {"id": "T19-03", "required_state": "ACCEPTED", "observed_state": "PLANNED"},
     {"id": "T20-03", "required_state": "ACCEPTED", "observed_state": "PLANNED"},
     {"id": "T00-05", "required_state": "ACCEPTED", "observed_state": "PLANNED"}
@@ -41,9 +47,21 @@
   "ci_lane_plan": {
     "workflows_modified_by_T23_01_or_T23_02": false,
     "lanes": ["pr-cheap", "crossrepo", "nightly", "runtime", "native", "release"],
-    "activation_gate": "T23-03 plus T19/T20 prerequisites",
+    "activation_gate": "T00-04 final freeze + T23-03 + T19/T20 prerequisites",
     "exact_head_required": true,
-    "privileged_pull_request_target_for_untrusted_code": false
+    "privileged_pull_request_target_for_untrusted_code": false,
+    "recorded_change_requests": [
+      "nested test discovery for test/project-graph/**/*.test.mjs and test/conformance-next/**/*.test.mjs",
+      "package allowlists for approved T15/T17/T22 runtime assets"
+    ]
   },
-  "blockers": ["BASELINE_NOT_ACCEPTED", "INDEPENDENT_QA_NOT_READY", "TRUST_POLICY_NOT_READY", "CROSS_REPO_INTEGRATION_NOT_ACCEPTED"]
+  "blockers": [
+    "BASELINE_NOT_ACCEPTED",
+    "COORDINATION_BASELINE_DRIFT",
+    "CURRENT_MAIN_CI_NOT_GREEN",
+    "INTERFACE_FREEZE_NOT_READY",
+    "INDEPENDENT_QA_NOT_READY",
+    "TRUST_POLICY_NOT_READY",
+    "CROSS_REPO_INTEGRATION_NOT_ACCEPTED"
+  ]
 }
