@@ -4,7 +4,8 @@
 // framework semantics. It provides deterministic literal module edges that higher-level adapters
 // can consume while retaining explicit unknowns for constructs this bounded lexer cannot prove.
 
-export const JS_TS_FACTS_CONTRACT = 'sbf.language.js-ts-facts/1';
+// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.
+export const JS_TS_FACTS_CONTRACT = 'bskel.internal.js-ts-source-facts/0';
 
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_TOKENS = 250_000;
@@ -329,11 +330,22 @@ function addSpans(source, edges) {
   const offsets = byteOffsets(source, edges.flatMap((e) => [e.start, e.end]));
   return edges.map(({ start, end, ...e }) => ({
     ...e,
+    basis: 'lexical-literal',
+    resolution: 'unresolved',
     source: {
       byteStart: offsets.get(start),
       byteEnd: offsets.get(end),
       line: lineAt(source, start),
     },
+  }));
+}
+
+function addDiagnosticSpans(source, diagnostics) {
+  const positions = diagnostics.flatMap((d) => d.start === undefined ? [] : [d.start]);
+  const offsets = byteOffsets(source, positions);
+  return diagnostics.map(({ start, ...d }) => start === undefined ? d : ({
+    ...d,
+    source: { byteStart: offsets.get(start), line: lineAt(source, start) },
   }));
 }
 
@@ -355,6 +367,7 @@ export function analyzeJsTsSource(source, {
       filePath,
       language,
       complete: false,
+      syntaxValidated: false,
       inputBytes,
       moduleEdges: [],
       diagnostics: [diag('input-too-large', `input is ${inputBytes} bytes; limit is ${maxBytes}; no partial module facts emitted`)],
@@ -363,19 +376,21 @@ export function analyzeJsTsSource(source, {
 
   const lexed = tokenize(source, maxTokens);
   if (!lexed.complete) {
-    return { contract: JS_TS_FACTS_CONTRACT, filePath, language, complete: false, inputBytes, moduleEdges: [], diagnostics: lexed.diagnostics };
+    return { contract: JS_TS_FACTS_CONTRACT, filePath, language, complete: false, syntaxValidated: false, inputBytes, moduleEdges: [], diagnostics: addDiagnosticSpans(source, lexed.diagnostics) };
   }
   const diagnostics = [...lexed.diagnostics];
   const edges = addSpans(source, extractEdges(lexed.tokens, diagnostics));
   edges.sort((a, b) => a.source.byteStart - b.source.byteStart || a.kind.localeCompare(b.kind) || a.specifier.localeCompare(b.specifier));
   diagnostics.sort((a, b) => (a.start ?? -1) - (b.start ?? -1) || a.code.localeCompare(b.code));
+  const publicDiagnostics = addDiagnosticSpans(source, diagnostics);
   return {
     contract: JS_TS_FACTS_CONTRACT,
     filePath,
     language,
     complete: true,
+    syntaxValidated: false,
     inputBytes,
     moduleEdges: edges,
-    diagnostics,
+    diagnostics: publicDiagnostics,
   };
 }
