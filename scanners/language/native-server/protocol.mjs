@@ -76,7 +76,9 @@ export function decodeNdjsonLine(input, budgetInput = {}) {
 	} catch {
 		throw new TypeError('protocol input is not valid UTF-8');
 	}
-	const trimmed = text.endsWith('\n') ? text.slice(0, -1) : text;
+	let trimmed = text;
+	if (trimmed.endsWith('\r\n')) trimmed = trimmed.slice(0, -2);
+	else if (trimmed.endsWith('\n')) trimmed = trimmed.slice(0, -1);
 	if (!trimmed || trimmed.includes('\n') || trimmed.includes('\r')) throw new TypeError('decodeNdjsonLine expects exactly one non-empty JSON line');
 	let message;
 	try {
