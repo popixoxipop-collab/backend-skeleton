@@ -11,6 +11,14 @@ function literalString(value) {
   return value?.kind === 'constant' && typeof value.value === 'string' ? value.value : null;
 }
 
+function optionalLiteralString(value) {
+  if (value === null || value === undefined) return { status: 'verified', value: null };
+  if (value?.kind === 'constant' && (typeof value.value === 'string' || value.value === null)) {
+    return { status: 'verified', value: value.value };
+  }
+  return { status: 'unknown', value: null };
+}
+
 function keyword(call, name) {
   return (call?.keywords || []).find((item) => item.name === name)?.value || null;
 }
@@ -121,16 +129,16 @@ export function buildDjangoUrlShadow(project) {
         unknowns.push({ kind: 'django-urlpattern', module: moduleId, reason: target.reason, pattern, rawTarget: target.raw || null });
         continue;
       }
-      const nameValue = keyword(item, 'name') || item.args?.[3] || null;
-      const name = nameValue ? literalString(nameValue) : null;
+      const nameValue = keyword(item, 'name') ?? item.args?.[3] ?? null;
+      const nameFact = optionalLiteralString(nameValue);
       registrations.push({
         module: moduleId,
         source: mod.source.path,
         line: item.line || patterns.assignment.line,
         kind: segment.kind,
         patternSegments: [...prefixSegments, segment],
-        name,
-        nameStatus: nameValue && name === null ? 'unknown' : 'verified',
+        name: nameFact.value,
+        nameStatus: nameFact.status,
         target: target.target,
         methodSemantics: 'not-declared-by-urlconf',
       });

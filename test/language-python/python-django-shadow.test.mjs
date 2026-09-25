@@ -101,3 +101,25 @@ urlpatterns = [
   assert.equal(shadow.registrations[0].name, 'items-positional-name');
   assert.equal(shadow.registrations[0].nameStatus, 'verified');
 });
+
+
+test('T06 Django shadow distinguishes explicit name=None from a dynamic unresolved name', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-name-status-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+def handler(request):
+    pass
+NAME = make_name()
+urlpatterns = [
+    path("none/", handler, name=None),
+    path("dynamic/", handler, name=NAME),
+]
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.unknowns.length, 0, JSON.stringify(shadow, null, 2));
+  const byPath = Object.fromEntries(shadow.registrations.map((x) => [x.patternSegments[0].value, x]));
+  assert.equal(byPath['none/'].name, null);
+  assert.equal(byPath['none/'].nameStatus, 'verified');
+  assert.equal(byPath['dynamic/'].name, null);
+  assert.equal(byPath['dynamic/'].nameStatus, 'unknown');
+});
