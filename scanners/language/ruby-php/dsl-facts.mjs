@@ -179,8 +179,11 @@ function rubyOptionSymbols(args, name) {
 function rubyContextSnapshot(stack) {
   return stack
     .filter((entry) => entry.kind !== 'root')
-    .map(({ kind, name, path: routePath, module, dynamic }) => ({
+    .map(({ kind, name, path: routePath, module, dynamic, singular, param, routeMode }) => ({
       kind, name, path: routePath, module, dynamic: Boolean(dynamic),
+      ...(singular !== undefined ? { singular: Boolean(singular) } : {}),
+      ...(param != null ? { param } : {}),
+      ...(routeMode ? { routeMode } : {}),
     }));
 }
 
@@ -287,6 +290,46 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
       continue;
     }
 
+    const inlineRouteMode = src.match(/^(member|collection)\s*\{\s*(get|post|put|patch|delete)\b\s*(.*?)\s*\}\s*$/);
+    if (inlineRouteMode) {
+      const routeMode = inlineRouteMode[1];
+      const verb = inlineRouteMode[2];
+      const args = inlineRouteMode[3];
+      const routePath = firstRubyLiteral(args);
+      const target = args.match(/(?:\bto\s*:|=>)\s*["']([^"']+)#([a-zA-Z_]\w*)["']/);
+      const inlineContext = [...context, { kind: 'route-mode', name: routeMode, path: null, module: null, dynamic: false, routeMode }];
+      const dynamic = routePath == null || routePath.includes('#{') || context.some((entry) => entry.dynamic);
+      facts.push(makeFact({
+        source, file, framework, language,
+        kind: 'route',
+        status: dynamic ? 'unknown' : (target ? 'literal' : 'partial'),
+        name: verb,
+        start: statement.start, end: statement.end, context: inlineContext,
+        attributes: {
+          method: verb.toUpperCase(),
+          path: routePath,
+          controller: target?.[1] ?? null,
+          action: target?.[2] ?? null,
+          routeMode,
+        },
+        ...(dynamic ? { unknownReason: 'route path or enclosing context is dynamic' } : {}),
+      }));
+      continue;
+    }
+
+    const routeModeBlock = src.match(/^(member|collection)\b[\s\S]*\bdo\s*$/);
+    if (routeModeBlock) {
+      stack.push({
+        kind: 'route-mode',
+        name: routeModeBlock[1],
+        path: null,
+        module: null,
+        routeMode: routeModeBlock[1],
+        dynamic: false,
+      });
+      continue;
+    }
+
     const resource = src.match(/^(resources|resource)\b\s*(.*)$/);
     if (resource) {
       const args = resource[2].replace(/\s+do\s*$/, '');
@@ -311,6 +354,8 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
         stack.push({
           kind: 'resource', name, path: attrs.path ?? name,
           module: null, dynamic,
+          singular: attrs.singular,
+          param: attrs.param,
         });
       }
       continue;
@@ -348,6 +393,7 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
           path: routePath,
           controller: target?.[1] ?? null,
           action: target?.[2] ?? null,
+          routeMode: rubyOptionLiteral(explicit[2], 'on'),
         },
         ...(dynamic ? { unknownReason: 'route path or enclosing context is dynamic' } : {}),
       }));
