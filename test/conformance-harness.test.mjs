@@ -23,6 +23,7 @@ const RUBY_FIXTURE = path.join(__dirname, 'fixtures', 'ruby-rails');
 const PYTHON_FIXTURE = path.join(__dirname, 'fixtures', 'python-fastapi');
 const TYPESCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-express');
 const JAVASCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'javascript-express');
+const GIN_FIXTURE = path.join(__dirname, 'fixtures', 'go-gin');
 
 function scratchCopyOf(fixtureDir) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-conformance-'));
@@ -39,6 +40,7 @@ const ADAPTER_FIXTURES = {
 	'python-fastapi': PYTHON_FIXTURE,
 	'typescript-express': TYPESCRIPT_FIXTURE,
 	'javascript-express': JAVASCRIPT_FIXTURE,
+	'go-gin': GIN_FIXTURE,
 	'generic-grep': JAVA_FIXTURE,
 };
 
