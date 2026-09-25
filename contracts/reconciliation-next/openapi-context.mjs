@@ -357,10 +357,17 @@ export function applyOpenApiContext(graph, context) {
   };
 }
 
+export function hasOpenApiContextAudit(graph) {
+  return graph?.openApiContext?.attached === true
+    && graph.openApiContext.version === 'bskel.openapi-context-audit/0-draft'
+    && typeof graph.openApiContext.openapiRef === 'string'
+    && graph.openApiContext.openapiRef.length > 0;
+}
+
 export function contextBoundPromotableOperationKeys(
   graph,
   requiredFields = ROUTE_PROMOTION_FIELDS,
 ) {
-  if (graph?.openApiContext?.attached !== true) return [];
+  if (!hasOpenApiContextAudit(graph)) return [];
   return promotableOperationKeys(graph, requiredFields);
 }
