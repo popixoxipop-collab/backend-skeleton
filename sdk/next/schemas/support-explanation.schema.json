@@ -126,7 +126,92 @@
               "type": "string"
             }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "conflict"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "required": [
+                "conflicts"
+              ],
+              "properties": {
+                "conflicts": {
+                  "minItems": 2
+                },
+                "provenanceRefs": {
+                  "minItems": 1
+                }
+              },
+              "not": {
+                "required": [
+                  "value"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "unknown",
+                    "unsupported",
+                    "not-applicable"
+                  ]
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "properties": {
+                "conflicts": {
+                  "maxItems": 0
+                }
+              },
+              "not": {
+                "required": [
+                  "value"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "supported",
+                    "partial"
+                  ]
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "properties": {
+                "conflicts": {
+                  "maxItems": 0
+                },
+                "provenanceRefs": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "notes": {
