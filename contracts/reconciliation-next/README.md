@@ -89,14 +89,14 @@ node --test test/t09-reconciliation-next.test.mjs
 The top-level entrypoint is matched by the repository's existing `npm test` pattern
 (`test/*.test.mjs`), so no package script or lockfile change is required.
 
-The current T09 suite contains **64 tests**:
+The current T09 suite contains **67 tests**:
 
 - 18 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
 - 14 OpenAPI context/root-security/duplicate-ID/schema-presence regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
 - 12 revision/build/runtime evidence-binding regressions,
-- 11 bound runtime-route reconciliation regressions.
+- 14 bound runtime-route reconciliation regressions.
 
 It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled/absent/media-skipped states, explicit and inherited declared security,
@@ -120,8 +120,7 @@ application or define T16/beval's runner protocol. The observation must match th
 runtime ref, repository, revision, build fingerprint, and environment fingerprint.
 
 A complete runtime snapshot may prove a route missing; a partial snapshot may not. Exact method/path
-matches are observed, same operationId at a changed route is conflict, duplicate runtime operationIds
-are conflict, and routes that exist only at runtime are emitted separately as `runtimeOnlyRoutes`.
+matches are observed, same operationId at a changed route is conflict, duplicate runtime operationIds are conflict even when one duplicate exactly matches the expected route, and routes that exist only at runtime are emitted separately as `runtimeOnlyRoutes`.
 
 This keeps runtime evidence as a separate plane instead of overwriting source/OpenAPI decisions.
 
