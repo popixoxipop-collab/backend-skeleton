@@ -47,19 +47,48 @@ function lineNumberAt(text, index) {
   return line;
 }
 
+const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const REGEX_PRECEDING_KEYWORD_RE = /\\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\\s*$/;
+
+function isRegexStart(lastSignificant, recentText) {
+  if (lastSignificant === null) return true;
+  if (REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+  return REGEX_PRECEDING_KEYWORD_RE.test(recentText);
+}
+
+function skipRegexLiteral(text, start) {
+  let i = start + 1;
+  let inClass = false;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\\\') { i += 2; continue; }
+    if (ch === '\\n') return i;
+    if (inClass) {
+      if (ch === ']') inClass = false;
+      i++;
+      continue;
+    }
+    if (ch === '[') { inClass = true; i++; continue; }
+    if (ch === '/') return i + 1;
+    i++;
+  }
+  return i;
+}
+
 function maskComments(text) {
   const out = text.split('');
   let quote = null;
+  let lastSignificant = null;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (quote) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === quote) quote = null;
+      if (ch === '\\\\') { i++; continue; }
+      if (ch === quote) { quote = null; lastSignificant = ch; }
       continue;
     }
     if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
     if (ch === '/' && text[i + 1] === '/') {
-      while (i < text.length && text[i] !== '\n') { out[i] = ' '; i++; }
+      while (i < text.length && text[i] !== '\\n') { out[i] = ' '; i++; }
       i--;
       continue;
     }
@@ -67,11 +96,19 @@ function maskComments(text) {
       out[i] = out[i + 1] = ' ';
       i += 2;
       while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
-        if (text[i] !== '\n') out[i] = ' ';
+        if (text[i] !== '\\n') out[i] = ' ';
         i++;
       }
       if (i < text.length) { out[i] = out[i + 1] = ' '; i++; }
+      continue;
     }
+    if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+      const stop = skipRegexLiteral(text, i);
+      i = Math.max(i, stop - 1);
+      lastSignificant = '/';
+      continue;
+    }
+    if (!/\\s/.test(ch)) lastSignificant = ch;
   }
   return out.join('');
 }
