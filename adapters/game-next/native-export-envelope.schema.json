@@ -48,8 +48,9 @@
     "claims": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runtime_behavior_verified", "causal_edges_verified", "state_transitions_verified"],
+      "required": ["producer_identity_verified", "runtime_behavior_verified", "causal_edges_verified", "state_transitions_verified"],
       "properties": {
+        "producer_identity_verified": { "const": false },
         "runtime_behavior_verified": { "const": false },
         "causal_edges_verified": { "const": false },
         "state_transitions_verified": { "const": false }
