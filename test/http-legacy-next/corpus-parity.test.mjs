@@ -99,25 +99,45 @@ test('T11-05 corpus command rejects semantic drift when an expected regression d
 	}
 });
 
-test('T11-05 committed corpus baseline is a five-adapter subset of the existing pinned oracle manifest', () => {
+test('T11-05 committed corpus baseline covers every existing pinned oracle-manifest entry exactly once', () => {
 	const baselines = JSON.parse(fs.readFileSync(CORPUS_BASELINES, 'utf8'));
 	const oracle = JSON.parse(fs.readFileSync(ORACLE_MANIFEST, 'utf8'));
 	assert.equal(baselines.contract, 'sbf.t11-http-corpus-baseline/1');
-	assert.equal(baselines.entries.length, 5);
-	assert.deepEqual(new Set(baselines.entries.map((entry) => entry.adapter)), new Set([
-		'java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express',
-	]));
 
+	const expected = [];
+	for (const [adapter, entries] of Object.entries(oracle.adapters)) {
+		for (const entry of entries) expected.push({ adapter, ...entry });
+	}
+	assert.equal(baselines.entries.length, expected.length);
+	assert.equal(expected.length, 17);
+
+	const byKey = new Map();
 	for (const entry of baselines.entries) {
+		const key = `${entry.adapter}/${entry.id}`;
+		assert.equal(byKey.has(key), false, `duplicate baseline ${key}`);
+		byKey.set(key, entry);
 		assert.match(entry.ref, /^[0-9a-f]{40}$/);
 		assert.match(entry.semantic_sha256, /^[0-9a-f]{64}$/);
-		const oracleEntry = (oracle.adapters[entry.adapter] ?? []).find((candidate) => candidate.id === entry.id);
-		assert.ok(oracleEntry, `missing oracle-manifest entry for ${entry.adapter}/${entry.id}`);
+		for (const count of ['module_count', 'endpoint_count', 'entity_count', 'files_read_count', 'unknown_count']) {
+			assert.ok(Number.isInteger(entry.observed?.[count]) && entry.observed[count] >= 0, `${key} invalid observed.${count}`);
+		}
+	}
+
+	for (const oracleEntry of expected) {
+		const key = `${oracleEntry.adapter}/${oracleEntry.id}`;
+		const entry = byKey.get(key);
+		assert.ok(entry, `missing corpus baseline for ${key}`);
 		assert.equal(entry.owner, oracleEntry.owner);
 		assert.equal(entry.repo, oracleEntry.repo);
 		assert.equal(entry.ref, oracleEntry.ref);
+		assert.equal(entry.path, oracleEntry.path ?? null);
 		assert.deepEqual(entry.terms, oracleEntry.terms);
 	}
+
+	assert.deepEqual(
+		[...byKey.keys()].sort(),
+		expected.map((entry) => `${entry.adapter}/${entry.id}`).sort(),
+	);
 });
 
 test('T11-05 --baseline is fail-closed for unknown ids and for mixed explicit inputs', () => {
