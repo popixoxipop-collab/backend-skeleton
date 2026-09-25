@@ -9,6 +9,7 @@ export const PYTHON_AST_RESPONSE_PROTOCOL = 'bskel.python-ast.response/1';
 const HELPER = fileURLToPath(new URL('./ast-helper.py', import.meta.url));
 const DEFAULT_TIMEOUT_MS = 3000;
 const DEFAULT_MAX_BUFFER = 4 * 1024 * 1024;
+const DEFAULT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 
 function childEnv() {
   const env = {};
@@ -83,7 +84,11 @@ export function findPythonRuntime({ pythonCommand = null, denyRoots = [] } = {})
       windowsHide: true,
     });
     if (probe.status === 0) {
-      return { executable, version: String(probe.stdout || '').trim() };
+      const version = String(probe.stdout || '').trim();
+      const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+      if (match && (Number(match[1]) > 3 || (Number(match[1]) === 3 && Number(match[2]) >= 8))) {
+        return { executable, version };
+      }
     }
     if (pythonCommand) break;
   }
@@ -106,20 +111,43 @@ export function analyzePythonFile({
   pythonCommand = null,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxBuffer = DEFAULT_MAX_BUFFER,
+  maxSourceBytes = DEFAULT_MAX_SOURCE_BYTES,
 } = {}) {
   if (!repoRoot || !file) throw new Error('analyzePythonFile requires repoRoot and file');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) throw new Error('timeoutMs must be an integer between 1 and 30000');
   if (!Number.isInteger(maxBuffer) || maxBuffer < 65536 || maxBuffer > 16 * 1024 * 1024) throw new Error('maxBuffer must be between 65536 and 16777216');
+  if (!Number.isInteger(maxSourceBytes) || maxSourceBytes < 1024 || maxSourceBytes > 16 * 1024 * 1024) throw new Error('maxSourceBytes must be between 1024 and 16777216');
 
   const resolved = realPathInside(repoRoot, file);
-  const source = fs.readFileSync(resolved.fileReal, 'utf8');
-  const sourceSha256 = crypto.createHash('sha256').update(source, 'utf8').digest('hex');
+  const sourceStat = fs.statSync(resolved.fileReal);
+  if (!sourceStat.isFile()) throw new Error(`Python source is not a regular file: ${file}`);
+  if (sourceStat.size > maxSourceBytes) {
+    return {
+      protocol: PYTHON_AST_RESPONSE_PROTOCOL,
+      ok: false,
+      source: { path: resolved.relative, sizeBytes: sourceStat.size },
+      error: { code: 'PYTHON_SOURCE_TOO_LARGE', message: `Python source exceeds configured ${maxSourceBytes}-byte analysis limit.` },
+    };
+  }
+  const sourceBytes = fs.readFileSync(resolved.fileReal);
+  const sourceSha256 = crypto.createHash('sha256').update(sourceBytes).digest('hex');
+  let source;
+  try {
+    source = new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes);
+  } catch {
+    return {
+      protocol: PYTHON_AST_RESPONSE_PROTOCOL,
+      ok: false,
+      source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
+      error: { code: 'PYTHON_SOURCE_ENCODING_UNSUPPORTED', message: 'T06 phase 1 accepts only valid UTF-8 Python source; no lossy decoding is performed.' },
+    };
+  }
   const runtime = findPythonRuntime({ pythonCommand, denyRoots: [resolved.rootReal] });
   if (!runtime) {
     return {
       protocol: PYTHON_AST_RESPONSE_PROTOCOL,
       ok: false,
-      source: { path: resolved.relative, sha256: sourceSha256 },
+      source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
       error: { code: 'PYTHON_RUNTIME_UNAVAILABLE', message: 'No approved Python interpreter was found for the optional static AST helper.' },
     };
   }
@@ -139,13 +167,13 @@ export function analyzePythonFile({
   });
   if (child.error) {
     const code = child.error.code === 'ETIMEDOUT' ? 'PYTHON_ANALYZER_TIMEOUT' : 'PYTHON_ANALYZER_FAILED';
-    return { protocol: PYTHON_AST_RESPONSE_PROTOCOL, ok: false, source: { path: resolved.relative, sha256: sourceSha256 }, error: { code, message: child.error.message } };
+    return { protocol: PYTHON_AST_RESPONSE_PROTOCOL, ok: false, source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length }, error: { code, message: child.error.message } };
   }
   if (child.status !== 0) {
     return {
       protocol: PYTHON_AST_RESPONSE_PROTOCOL,
       ok: false,
-      source: { path: resolved.relative, sha256: sourceSha256 },
+      source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
       error: { code: 'PYTHON_ANALYZER_FAILED', message: `Python helper exited ${child.status}: ${String(child.stderr || '').slice(0, 800)}` },
     };
   }
@@ -157,7 +185,7 @@ export function analyzePythonFile({
     return {
       protocol: PYTHON_AST_RESPONSE_PROTOCOL,
       ok: false,
-      source: { path: resolved.relative, sha256: sourceSha256 },
+      source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
       error: { code: 'PYTHON_ANALYZER_PROTOCOL_ERROR', message: `Python helper returned invalid JSON: ${error.message}` },
     };
   }
@@ -165,12 +193,12 @@ export function analyzePythonFile({
     return {
       protocol: PYTHON_AST_RESPONSE_PROTOCOL,
       ok: false,
-      source: { path: resolved.relative, sha256: sourceSha256 },
+      source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
       error: { code: 'PYTHON_ANALYZER_PROTOCOL_ERROR', message: 'Python helper returned an unexpected protocol envelope.' },
     };
   }
   return {
     ...response,
-    source: { path: resolved.relative, sha256: sourceSha256 },
+    source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
   };
 }
