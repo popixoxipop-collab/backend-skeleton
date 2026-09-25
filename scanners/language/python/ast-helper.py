@@ -117,6 +117,15 @@ def assignment(node):
     return None
 
 
+def augmented_assignment(node):
+    return {
+        "target": target_name(node.target),
+        "operator": type(node.op).__name__,
+        "value": value(node.value),
+        **span(node),
+    }
+
+
 def argument(arg, default=None, kind="positional"):
     return {
         "name": arg.arg,
@@ -196,6 +205,7 @@ def analyze(source, filename):
     tree = ast.parse(source, filename=filename, type_comments=True)
     imports = []
     assignments = []
+    augmented_assignments = []
     calls = []
     functions = []
     classes = []
@@ -204,6 +214,8 @@ def analyze(source, filename):
             imports.append(import_fact(node))
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             assignments.append(assignment(node))
+        elif isinstance(node, ast.AugAssign):
+            augmented_assignments.append(augmented_assignment(node))
         elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
             calls.append({"value": value(node.value), **span(node)})
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -213,6 +225,7 @@ def analyze(source, filename):
     return {
         "imports": imports,
         "assignments": assignments,
+        "augmentedAssignments": augmented_assignments,
         "calls": calls,
         "functions": functions,
         "classes": classes,

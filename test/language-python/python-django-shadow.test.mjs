@@ -123,3 +123,36 @@ urlpatterns = [
   assert.equal(byPath['dynamic/'].name, null);
   assert.equal(byPath['dynamic/'].nameStatus, 'unknown');
 });
+
+
+test('T06 Django shadow marks augmented urlpatterns as mutated instead of silently truncating routes', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-augmented-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+def first(request):
+    pass
+def second(request):
+    pass
+urlpatterns = [path("first/", first)]
+urlpatterns += [path("second/", second)]
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.registrations.length, 0);
+  assert.ok(shadow.unknowns.some((x) => x.reason === 'urlpatterns-mutated'));
+});
+
+test('T06 Django shadow marks append/extend urlpatterns mutations as unknown completeness', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-mutation-call-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+def first(request):
+    pass
+def second(request):
+    pass
+urlpatterns = [path("first/", first)]
+urlpatterns.append(path("second/", second))
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.registrations.length, 0);
+  assert.ok(shadow.unknowns.some((x) => x.reason === 'urlpatterns-mutated'));
+});
