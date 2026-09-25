@@ -1,3 +1,4 @@
+export * from './model-facts-bridge.mjs';
 export * from './ir.mjs';
 export * from './legacy.mjs';
 export * from './bindings.mjs';
