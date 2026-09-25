@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runScan } from '../index.mjs';
 import { ADAPTERS } from '../registry.mjs';
-import { PROJECT_GRAPH_DRAFT, buildProjectScanPlan } from './index.mjs';
+import { PROJECT_GRAPH_DRAFT, buildProjectScanPlan, captureAdapterReadSetSnapshot } from './index.mjs';
 
 function resolveProjectRoot(repoRoot, relativeRoot) {
   const base = path.resolve(repoRoot);
@@ -67,6 +67,37 @@ function adapterMap(adapters) {
   return out;
 }
 
+function verifySelectedAdapterReadSet(repoRoot, projectRoot, project, adapter) {
+  const expected = project.selected_adapter_read_set ?? null;
+  if (!expected) return;
+
+  let current;
+  try {
+    current = captureAdapterReadSetSnapshot({ repoRoot, projectRoot, adapter });
+  } catch (err) {
+    const stale = new Error('could not reproduce selected adapter read-set: ' + err.message);
+    stale.code = 'PROJECT_GRAPH_STALE';
+    stale.stale_kind = 'adapter-read-set';
+    stale.project_id = project.project_id;
+    stale.adapter_id = adapter.id;
+    stale.cause = err;
+    throw stale;
+  }
+
+  if (!current || current.adapter_id !== expected.adapter_id || current.fingerprint !== expected.fingerprint) {
+    const stale = new Error('selected adapter read-set changed after graph discovery: ' + project.project_id);
+    stale.code = 'PROJECT_GRAPH_STALE';
+    stale.stale_kind = 'adapter-read-set';
+    stale.project_id = project.project_id;
+    stale.adapter_id = adapter.id;
+    stale.expected_fingerprint = expected.fingerprint ?? null;
+    stale.actual_fingerprint = current?.fingerprint ?? null;
+    stale.expected_files = expected.files?.map((file) => file.path) ?? [];
+    stale.actual_files = current?.files?.map((file) => file.path) ?? [];
+    throw stale;
+  }
+}
+
 // Shadow-only composition path for T02. It reuses legacy runScan() unchanged, one project at a
 // time, and wraps each legacy sbf.scan-report/2 with its project identity. It is intentionally
 // not wired to the CLI or contract emitter yet.
@@ -110,6 +141,7 @@ export function executeProjectScanPlan({
       throw err;
     }
     const projectRoot = resolveProjectRoot(base, item.project_root);
+    verifySelectedAdapterReadSet(base, projectRoot, project, adapter);
     let report;
     try {
       report = runScan({
@@ -154,7 +186,7 @@ export function executeProjectScanPlan({
     scans: results,
     notes: [
       'shadow-only T02 execution: every nested report is the unchanged legacy sbf.scan-report/2',
-      'project marker digests are rechecked immediately before execution; a stale graph fails closed',
+      'project marker digests and the selected adapter read-set are rechecked immediately before execution; stale graph inputs fail closed',
       'DB and runtime-route execution are intentionally disabled in this composition slice',
     ],
   };
