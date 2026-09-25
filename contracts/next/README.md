@@ -69,13 +69,21 @@ This extraction is deliberately narrow: existing contract hashes, becoder hashes
 
 Unicode non-normalization continues to use the existing golden vectors. Precomposed and decomposed strings must retain different binding digests.
 
+## Consumer conformance pack
+
+`schemas/next/identity-conformance.json` is a data-only pack for T15/T16 and future independent consumers. A consumer passes it only by running the vectors through its own reader. Importing or spawning bskel to obtain the answer is not conformance.
+
+The pack contains legacy ContractRef/ActionRef/FieldRef cases, the HTTP-only envelope, a valid-but-different operation ID that must remain different, fail-closed negatives, and exact-byte artifact vectors.
+
 ## Files owned by this T01 slice
 
 - `contracts/next/identity.mjs`
 - `schemas/next/artifact-ref.schema.json`
 - `schemas/next/identity-envelope.schema.json`
 - `schemas/next/identity.golden.json`
+- `schemas/next/identity-conformance.json`
 - `test/contract-next/contract-identity-next.test.mjs`
+- `test/contract-next/identity-conformance.test.mjs`
 - `contracts/next/README.md`
 
 No stable writer, CLI entry point, adapter descriptor, package lock, `sbf_contract: "9"` schema, or existing identity file is modified by this slice.
