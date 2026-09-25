@@ -84,6 +84,41 @@ test('detection requires both dependencies plus live Koa and @koa/router constru
   }
 });
 
+test('string literals cannot impersonate Koa imports, constructors, or router calls', () => {
+  const fakeOnly = fixture({
+    'package.json': packageJson(),
+    'src/fake.js': [
+      `const a = "import Koa from 'koa'"`,
+      `const b = "import Router from '@koa/router'"`,
+      `const c = "const app = new Koa(); const router = new Router()"`,
+    ].join('\n'),
+  });
+  try {
+    assert.equal(detectKoaRouterRoot(fakeOnly), null);
+  } finally {
+    cleanup(fakeOnly);
+  }
+
+  const real = fixture({
+    'package.json': packageJson(),
+    'src/app.js': [
+      "import Koa from 'koa'",
+      "import Router from '@koa/router'",
+      'const app = new Koa()',
+      'const router = new Router()',
+      `const example = "router.get('/ghost', ghost)"`,
+      "router.get('/live', live)",
+      'app.use(router.routes())',
+    ].join('\n'),
+  });
+  try {
+    const report = scanKoaRouter(real);
+    assert.deepEqual(report.modules[0].controllers[0].endpoints.map((endpoint) => endpoint.path), ['/live']);
+  } finally {
+    cleanup(real);
+  }
+});
+
 test('official Quick Start shape, constructor prefix, named route and app wiring emit bounded endpoints', () => {
   const root = fixture({
     'package.json': packageJson(),
