@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { scanHonoProject } from './route-graph.mjs';
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.git', 'coverage']);
@@ -230,29 +231,11 @@ export function detectHonoRoot(repoRoot) {
 
 export function scanHono(repoRoot, detection = detectHonoRoot(repoRoot)) {
   if (!detection) return { modules: [], filesRead: [], scanNotes: ['Hono was not detected.'] };
-  const files = sourceFiles(detection.projectRoot);
-  const controllers = [];
-  const scanNotes = [];
-  for (const file of files) {
-    let text;
-    try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
-    const result = scanFile(file, text);
-    controllers.push(...result.controllers);
-    scanNotes.push(...result.notes);
-  }
-  const filesRead = [detection.packageFile, ...files]
-    .map((file) => path.relative(repoRoot, file))
-    .sort();
-  const packageName = readJson(detection.packageFile)?.name || path.basename(detection.projectRoot) || '_hono';
-  return {
-    modules: controllers.length > 0 ? [{ module: packageName, controllers, entities: [], enums: [], dtos: [] }] : [],
-    filesRead,
-    scanNotes: [
-      'T13 Hono first slice: only literal per-verb routes on variables directly initialized with `new Hono()` are emitted; dynamic/basePath expressions, factory-returned apps, route() mounts and all/on/use/mount calls remain unknown.',
-      ...scanNotes,
-    ],
-    apiSurfaceSource: 'Hono source literals only (T13 experimental leaf adapter; operationId/schema/security/runtime semantics are not inferred)',
-  };
+  return scanHonoProject({
+    repoRoot,
+    projectRoot: detection.projectRoot,
+    packageFile: detection.packageFile,
+  });
 }
 
 export const adapter = {
