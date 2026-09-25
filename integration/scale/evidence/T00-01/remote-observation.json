@@ -63,11 +63,11 @@
     {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "head_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
       "artifacts": [
         {
           "path": "package.json",
-          "git_blob_sha": "01fce37d05e9c2793f5ed93319d533a61b43b762"
+          "git_blob_sha": "5ffb509ae6e4323482458527ae1bd338417222ae"
         },
         {
           "path": "package-lock.json",
@@ -79,19 +79,19 @@
         }
       ],
       "exact_head_ci": {
-        "run_id": 36105784109,
-        "run_number": 924,
+        "run_id": 36117576104,
+        "run_number": 930,
         "status": "completed",
         "conclusion": "success"
       },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",
       "merge_event": {
-        "pr": 47,
-        "head_sha": "1cdcb1a154d1b517d0ad92907c063d2c79c8e513",
-        "merge_commit_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
-        "merged_at": "2026-09-25T07:03:51Z",
-        "parent_main": "c59f8b73a05d29a313e75a29c7f1de6264a1178d"
+        "pr": 49,
+        "head_sha": "b1b950f4c3f79571bddb2f3ab87e4d81c3ce5025",
+        "merge_commit_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
+        "merged_at": "2026-09-25T09:17:07Z",
+        "parent_main": "e5f9ed5decf56fe5a45dd047400be21e7edf27c4"
       },
       "pr42_evidence": {
         "pr": 42,
@@ -112,8 +112,23 @@
           "outcome": "repaired_and_passed"
         },
         "acceptance_note": "supplementary branch/live evidence only; exact-head push CI on current main remains required"
+      },
+      "epoch7_delta": {
+        "from_epoch6_beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+        "ahead_by_commits": 14,
+        "merged_prs": [
+          48,
+          49
+        ],
+        "changed_required_blob": "package.json",
+        "prior_epoch6_review": {
+          "t19_pr": 118,
+          "review_path": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+          "verdict": "BLOCKED/DRIFT",
+          "comment_id": 5830038810
+        }
       }
     }
   ],
-  "rebaseline_epoch": 6
+  "rebaseline_epoch": 7
 }
