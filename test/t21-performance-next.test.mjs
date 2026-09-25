@@ -5,3 +5,4 @@ import './perf-next/t21-cache-key.test.mjs';
 import './perf-next/t21-file-index-invalidation.test.mjs';
 import './perf-next/t21-scheduler.test.mjs';
 import './perf-next/t21-artifact-store.test.mjs';
+import './perf-next/t21-artifact-gc.test.mjs';
