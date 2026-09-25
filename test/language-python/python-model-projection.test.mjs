@@ -119,3 +119,23 @@ class UserRead(UserBase):
   assert.deepEqual(read.bases.local, ['pkg.models#UserBase']);
   assert.deepEqual(read.fields.map((x) => x.name), ['name', 'id']);
 });
+
+
+test('T06 SQLModel with dynamic table= remains unknown instead of being mislabeled as DTO', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-dynamic-table-'));
+  fs.writeFileSync(path.join(root, 'models.py'), `
+from sqlmodel import SQLModel
+FLAG = compute_table_flag()
+class Dynamic(SQLModel, table=FLAG):
+    id: int
+`);
+
+  const project = analyzeMany(root, ['models.py']);
+  const dynamic = projectPythonModels(project).find((x) => x.ref === 'models#Dynamic');
+  assert.ok(dynamic, 'known SQLModel family with unresolved table flag should remain visible');
+  assert.equal(dynamic.family, 'sqlmodel');
+  assert.equal(dynamic.kind, 'unknown');
+  assert.equal(dynamic.table, null);
+  assert.equal(dynamic.tableStatus, 'unknown');
+  assert.ok(dynamic.limitations.some((x) => x.includes('entity-vs-DTO classification is intentionally unknown')));
+});

@@ -13,6 +13,15 @@ function constant(value, fallback = undefined) {
   return value?.kind === 'constant' ? value.value : fallback;
 }
 
+function booleanKeyword(keywords, name, defaultWhenMissing) {
+  const item = (keywords || []).find((x) => x.name === name);
+  if (!item) return { status: 'verified', value: defaultWhenMissing };
+  if (item.value?.kind === 'constant' && typeof item.value.value === 'boolean') {
+    return { status: 'verified', value: item.value.value };
+  }
+  return { status: 'unknown', value: null };
+}
+
 function callCallee(project, moduleId, value) {
   if (value?.kind !== 'call' || value.callee?.kind !== 'symbol') return null;
   return resolveValueSymbol(project, moduleId, value.callee);
@@ -75,12 +84,14 @@ export function projectPythonModels(project) {
         else if (full === 'pydantic.BaseModel' && family === 'unknown') family = 'pydantic';
       }
     }
-    const table = constant(kwValue(cls.keywords, 'table'), false) === true;
+    const tableFact = booleanKeyword(cls.keywords, 'table', false);
+    const table = tableFact.status === 'verified' ? tableFact.value === true : null;
     let kind = 'unknown';
     if (family === 'settings') kind = 'config';
+    else if (family === 'sqlmodel' && tableFact.status === 'unknown') kind = 'unknown';
     else if (family === 'sqlmodel' && table) kind = 'entity';
     else if (family === 'sqlmodel' || family === 'pydantic') kind = 'dto';
-    const result = { family, kind, localBases, externalBases, table, cycle };
+    const result = { family, kind, localBases, externalBases, table, tableStatus: tableFact.status, cycle };
     active.delete(key);
     memo.set(key, result);
     return result;
@@ -123,7 +134,7 @@ export function projectPythonModels(project) {
   const models = [];
   for (const { moduleId, cls } of rawClasses.values()) {
     const classification = classify(moduleId, cls);
-    if (classification.kind === 'unknown') continue;
+    if (classification.kind === 'unknown' && classification.family === 'unknown') continue;
     const fields = collectFields(moduleId, cls);
     models.push({
       ref: classKey(moduleId, cls.name),
@@ -132,6 +143,7 @@ export function projectPythonModels(project) {
       family: classification.family,
       kind: classification.kind,
       table: classification.table,
+      tableStatus: classification.tableStatus,
       bases: { local: classification.localBases, external: classification.externalBases },
       fields,
       primaryKeyFields: fields.filter((x) => x.metadata.primaryKey === true).map((x) => x.name),
@@ -141,6 +153,9 @@ export function projectPythonModels(project) {
         'Required/optional request semantics are not inferred from annotation/default combinations in this phase.',
         ...(classification.cycle
           ? ['Local inheritance cycle detected; inherited fields across the cycle are intentionally omitted.']
+          : []),
+        ...(classification.family === 'sqlmodel' && classification.tableStatus === 'unknown'
+          ? ['SQLModel table= expression is not a static boolean; entity-vs-DTO classification is intentionally unknown.']
           : []),
       ],
     });
