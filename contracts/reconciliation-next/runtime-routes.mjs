@@ -86,15 +86,15 @@ export function validateRuntimeRouteObservation(observation, binding) {
   }
 
   const routes = [];
-  const exactKeys = new Set();
+  const routeShapeKeys = new Set();
   for (const [index, route] of observation.routes.entries()) {
     const checked = validateRoute(route, index);
     if (!checked.ok) return checked;
-    const exactKey = checked.route.method + ' ' + checked.route.path;
-    if (exactKeys.has(exactKey)) {
+    const routeShapeKey = checked.route.method + ' ' + canonicalRouteShape(checked.route.path);
+    if (routeShapeKeys.has(routeShapeKey)) {
       return { ok: false, reason: 'duplicate-runtime-route-entry' };
     }
-    exactKeys.add(exactKey);
+    routeShapeKeys.add(routeShapeKey);
     routes.push(checked.route);
   }
 
