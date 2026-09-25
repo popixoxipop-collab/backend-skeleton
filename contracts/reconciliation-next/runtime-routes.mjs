@@ -5,6 +5,7 @@
 // observation envelope. T09 only checks that the envelope is bound to the same runtime evidence and
 // compares route facts conservatively.
 
+import { canonicalRouteShape } from '../openapi.mjs';
 import { attachEvidenceBinding } from './evidence-binding.mjs';
 import { hasOpenApiContextAudit } from './openapi-context.mjs';
 
@@ -105,7 +106,7 @@ function resolvedValue(endpoint, fieldName) {
 }
 
 function routeKey(method, path) {
-  return method + ' ' + path;
+  return method + ' ' + canonicalRouteShape(path);
 }
 
 function addIndex(map, key, index) {
@@ -203,7 +204,7 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
         endpoints.push({
           endpointKey: endpoint.endpointKey,
           state: 'observed',
-          reason: 'runtime-route-exact-match',
+          reason: route.path === path ? 'runtime-route-exact-match' : 'runtime-route-shape-match',
           expected: { operationId, method, path },
           observed: route,
         });
