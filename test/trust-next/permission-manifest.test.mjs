@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, diffPermissionManifests, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
+import { PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, diffPermissionManifests, selectApprovedEnvironment, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
 
 const minimal = () => ({ schema: PERMISSION_MANIFEST_SCHEMA });
 
@@ -16,7 +16,7 @@ test('defaults are deny-by-default and bounded', () => {
   assert.equal(policy.canWrite('out/report.json'), false);
   assert.equal(policy.canConnect('example.com', 443), false);
   assert.equal(policy.canExecute('node'), false);
-  assert.equal(policy.canReadEnv('PATH'), false);
+  assert.equal(policy.canReadEnv('LANG'), false);
   assert.equal(policy.canUseSecret('provider-token'), false);
 });
 
@@ -59,7 +59,7 @@ test('process grants only exact executable basenames and never shell fragments',
 });
 
 test('environment grants names only; secret values are rejected', () => {
-  const policy = compilePermissionPolicy({ schema: PERMISSION_MANIFEST_SCHEMA, environment: { allow: ['CI', 'PATH'] }, secret_refs: ['provider-token'] });
+  const policy = compilePermissionPolicy({ schema: PERMISSION_MANIFEST_SCHEMA, environment: { allow: ['CI', 'LANG'] }, secret_refs: ['provider-token'] });
   assert.equal(policy.canReadEnv('CI'), true);
   assert.equal(policy.canReadEnv('HOME'), false);
   assert.equal(policy.canUseSecret('provider-token'), true);
@@ -177,7 +177,7 @@ test('permission diff flags privilege expansion across every grant class', () =>
     write_roots: ['artifacts'],
     network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443, 8443] }, { host: 'db.example.com', ports: [5432] }] },
     process: { mode: 'argv-allowlist', executables: ['node', 'python3'], max_children: 2 },
-    environment: { allow: ['CI', 'PATH'] },
+    environment: { allow: ['CI', 'LANG'] },
     secret_refs: ['provider-token', 'db-primary'],
     limits: { wall_ms: 20_000, stdout_bytes: 4096, stderr_bytes: 2048 },
   };
@@ -208,12 +208,12 @@ test('permission diff is empty for semantically equivalent normalized manifests'
       { host: 'API.EXAMPLE.COM', ports: [8443, 443] },
       { host: 'api.example.com', ports: [443] },
     ] },
-    environment: { allow: ['PATH', 'CI', 'CI'] },
+    environment: { allow: ['LANG', 'CI', 'CI'] },
   };
   const after = {
     schema: PERMISSION_MANIFEST_SCHEMA,
     network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443, 8443] }] },
-    environment: { allow: ['CI', 'PATH'] },
+    environment: { allow: ['CI', 'LANG'] },
   };
   const delta = diffPermissionManifests(before, after);
   assert.equal(delta.expanded, false);
@@ -229,5 +229,54 @@ test('permission diff refuses invalid manifests rather than comparing partially 
       { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['../secret'] },
     ),
     (error) => error?.code === 'INVALID_PERMISSION_MANIFEST',
+  );
+});
+
+
+test('code-loading environment variables are forbidden even when explicitly requested', () => {
+  for (const name of [
+    'NODE_OPTIONS', 'NODE_PATH', 'PYTHONPATH', 'PYTHONSTARTUP', 'RUBYOPT',
+    'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'BASH_ENV',
+  ]) {
+    const result = validatePermissionManifest({
+      schema: PERMISSION_MANIFEST_SCHEMA,
+      environment: { allow: [name] },
+    });
+    assert.equal(result.ok, false, name);
+    assert.equal(result.errors.some((x) => x.code === 'FORBIDDEN_ENV_NAME'), true, name);
+  }
+});
+
+test('environment selection copies only approved host values into a null-prototype frozen object', () => {
+  const selected = selectApprovedEnvironment(
+    { schema: PERMISSION_MANIFEST_SCHEMA, environment: { allow: ['CI', 'LANG', 'RAILS_ENV'] } },
+    { CI: '1', LANG: 'C.UTF-8', RAILS_ENV: 'test', HOME: '/Users/example', TOKEN: 'secret' },
+  );
+  assert.deepEqual(Object.keys(selected), ['CI', 'LANG', 'RAILS_ENV']);
+  assert.equal(selected.HOME, undefined);
+  assert.equal(selected.TOKEN, undefined);
+  assert.equal(Object.getPrototypeOf(selected), null);
+  assert.equal(Object.isFrozen(selected), true);
+  assert.throws(() => { selected.EXTRA = 'x'; });
+});
+
+test('environment selection refuses non-string and NUL-bearing values', () => {
+  assert.throws(
+    () => selectApprovedEnvironment(
+      { schema: PERMISSION_MANIFEST_SCHEMA, environment: { allow: ['CI'] } },
+      { CI: 1 },
+    ),
+    (error) => error?.code === 'INVALID_ENV_VALUE',
+  );
+  assert.throws(
+    () => selectApprovedEnvironment(
+      { schema: PERMISSION_MANIFEST_SCHEMA, environment: { allow: ['CI'] } },
+      { CI: 'ok\0bad' },
+    ),
+    (error) => error?.code === 'INVALID_ENV_VALUE',
+  );
+  assert.throws(
+    () => selectApprovedEnvironment({ schema: PERMISSION_MANIFEST_SCHEMA }, []),
+    (error) => error?.code === 'INVALID_AMBIENT_ENV',
   );
 });
