@@ -265,6 +265,30 @@ test('relative default-imported Hono sub-app is resolved through route() with ch
   } finally { cleanup(root); }
 });
 
+test('relative default import binding names containing "import" still resolve from the import keyword', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.13.9' } }),
+    'src/child.ts': [
+      "import { Hono } from 'hono'",
+      'const child = new Hono()',
+      "child.get('/ok', ok)",
+      'export default child',
+    ].join('\n'),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      "import important from './child'",
+      'const app = new Hono()',
+      "app.route('/api', important)",
+      'export default app',
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules[0].controllers.flatMap((c) => c.endpoints);
+    assert.deepEqual(endpoints.map((x) => x.path), ['/api/ok']);
+  } finally { cleanup(root); }
+});
+
 test('relative named import alias resolves a Hono sub-app without name guessing', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
