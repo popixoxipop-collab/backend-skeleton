@@ -70,3 +70,30 @@ This is plumbing for T11-03, not completion of the shared normalized projection.
 It requires ownership, baseline/bridge/parity/corpus, exact-head CI, frozen T01/T03 seams,
 independent review, and nested-test integration. Even when every check is true it emits
 `apply_allowed: false`; stable wiring remains T00/T23-owned.
+
+
+## Corpus checkout completeness
+
+T11-05 now verifies sparse-checkout completeness before accepting a corpus result.
+
+Why this exists:
+- an earlier manual sparse acquisition included Rails config/controllers/models but omitted `lib/**`;
+- the FastAPI Mealie acquisition omitted tracked Python under `dev/**` and `tests/**`;
+- route/entity counts happened to remain stable, but `files_read` and semantic regression digests changed.
+
+The accepted corpus baselines were regenerated only after matching the scanner's tracked read-set:
+- Discourse: 1550 expected / 1550 materialized Rails read files
+- Forem: 668 / 668
+- Mastodon: 741 / 741
+- Polar/server: 1700 / 1700 Python files
+- Mealie: 636 / 636
+
+`checkout-completeness.mjs`:
+- treats ordinary full working trees as complete;
+- audits sparse Rails and FastAPI checkouts against the exact tracked paths their current scanners read;
+- rejects sparse checkouts for other adapters until an adapter-specific tracked-read-set rule is audited;
+- bounds `git ls-tree` output to 16 MiB and fails closed above that bound;
+- normalizes the macOS `/var` ↔ `/private/var` realpath alias before repository-root comparison.
+
+`corpus-parity-cli.mjs` exits before scanning when this guard reports an incomplete checkout.
+The semantic digest remains regression-only and never substitutes for exact ContractRef identity.

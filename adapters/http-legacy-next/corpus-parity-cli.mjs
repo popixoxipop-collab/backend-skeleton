@@ -13,6 +13,7 @@ import { ADAPTERS } from '../../scanners/registry.mjs';
 import { LEGACY_HTTP_ADAPTER_IDS } from './baselines.mjs';
 import { bridgeLegacyHttpScan } from './bridge.mjs';
 import { compareLegacyHttpReports, legacyHttpSemanticDigest, legacyHttpSemanticSnapshot } from './parity.mjs';
+import { assertLegacyCorpusCheckoutComplete } from './checkout-completeness.mjs';
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASELINES_FILE = path.join(REPO_ROOT, 'test', 'http-legacy-next', 'fixtures', 'corpus-baseline.json');
@@ -91,6 +92,19 @@ if (args.ref && observedRef.toLowerCase() !== args.ref.toLowerCase()) {
 	fail(`checkout ref mismatch: expected ${args.ref}, observed ${observedRef}`, 3);
 }
 
+let checkoutCompleteness;
+try {
+	checkoutCompleteness = assertLegacyCorpusCheckoutComplete({
+		repoRoot,
+		adapterId: args.adapter,
+	});
+} catch (err) {
+	fail(err.message, 9);
+}
+if (checkoutCompleteness.git_head.toLowerCase() !== observedRef.toLowerCase()) {
+	fail('checkout completeness guard observed a different git head', 9);
+}
+
 let report;
 try {
 	report = runScan({ repoRoot, terms: args.terms });
@@ -125,6 +139,7 @@ console.log(JSON.stringify({
 	contract: 'sbf.t11-http-corpus-parity/1',
 	repo: repoRoot,
 	baseline_id: args.baseline,
+	checkout_completeness: checkoutCompleteness,
 	observed_ref: observedRef,
 	expected_ref: args.ref,
 	expected_adapter: args.adapter,

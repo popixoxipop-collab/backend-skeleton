@@ -149,3 +149,16 @@ test('T11-05 --baseline is fail-closed for unknown ids and for mixed explicit in
 	assert.equal(mixed.code, 2);
 	assert.match(mixed.stderr, /cannot be combined/);
 });
+
+
+test('T11-05 corpus command blocks incomplete sparse checkouts before scanning', () => {
+	const { root } = fixtureRepo();
+	try {
+		execFileSync('git', ['sparse-checkout', 'init', '--cone'], { cwd: root });
+		const result = run(['--repo', root, '--adapter', 'javascript-express', '--term', 'user']);
+		assert.equal(result.code, 9);
+		assert.match(result.stderr, /corpus checkout is incomplete/);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
