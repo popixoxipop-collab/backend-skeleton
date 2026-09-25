@@ -88,12 +88,13 @@ test('Rails: literal namespace/scope/resource/route declarations preserve source
   assert.equal(health.attributes.action, 'show');
 });
 
-test('Rails: concern, computed namespace, and loop-driven scopes stay explicit unknowns', () => {
+test('Rails: literal concern use is preserved while computed namespace and loops stay unknown', () => {
   const report = extractRailsDslFacts(RAILS);
 
   const concern = byKind(report, 'concern')[0];
-  assert.equal(concern.status, 'unknown');
-  assert.match(concern.unknownReason, /separate declaration\/use-site resolution/);
+  assert.equal(concern.status, 'literal');
+  assert.equal(concern.attributes.declaration, 'concerns');
+  assert.deepEqual(concern.attributes.names, ['commentable']);
 
   const dynamicNamespace = byKind(report, 'namespace').find((fact) => fact.status === 'unknown');
   assert.ok(dynamicNamespace);
