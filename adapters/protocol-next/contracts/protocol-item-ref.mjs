@@ -62,7 +62,7 @@ export function protocolArtifactRefMatchesBytes(ref, bytes) {
 export function assertProtocolItemRefShape(ref) {
   exactKeys(ref, ['protocol_item_ref', 'contract', 'family', 'plane', 'item_id'], 'ProtocolItemRef');
   if (ref.protocol_item_ref !== PROTOCOL_ITEM_REF_VERSION) throw new TypeError('unsupported protocol_item_ref: ' + String(ref.protocol_item_ref));
-  assertT01ArtifactRefCandidate(ref.contract);
+  assertProtocolContractArtifactRef(ref.contract);
   if (!PROTOCOL_FAMILIES.includes(ref.family)) throw new TypeError('ProtocolItemRef.family is invalid');
   if (!PLANES[ref.family]?.has(ref.plane)) throw new TypeError('ProtocolItemRef.plane is invalid for family=' + ref.family);
   if (typeof ref.item_id !== 'string' || ref.item_id.length === 0) throw new TypeError('ProtocolItemRef.item_id must be a non-empty string');
