@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { bskel, makeFail, establishThroughContract, REPO_ROOT } from './_smoke-lib.mjs';
 
@@ -71,6 +72,89 @@ try {
 } catch (err) {
 	fail(`npm install failed: ${err.stderr || err.message}`);
 }
+
+// T04: exercise the injected TypeScript Compiler API backend against the exact compiler version
+// installed by this existing scratch fixture. No root devDependency/lockfile change is required.
+console.log('typescript-typecheck-smoke: T04 compiler backend -- loading scratch TypeScript Compiler API...');
+let tsApi;
+let createTypeScriptCompilerBackend;
+let compareJsTsBackends;
+let lexicalJsTsBackend;
+try {
+	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
+	tsApi = await import(pathToFileURL(tsModulePath).href);
+	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
+	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
+} catch (err) {
+	fail(`T04 compiler backend imports failed: ${err.stack || err.message}`);
+}
+
+let compilerBackend;
+try {
+	compilerBackend = createTypeScriptCompilerBackend(tsApi);
+} catch (err) {
+	fail(`T04 createTypeScriptCompilerBackend failed for installed TypeScript ${tsApi?.version}: ${err.stack || err.message}`);
+}
+if (!/^5\.9\./.test(String(tsApi.version))) {
+	fail(`T04 smoke expected the pinned fixture's TypeScript 5.9.x range, got ${tsApi.version}`);
+}
+if (compilerBackend.syntaxValidated !== true || compilerBackend.typescriptVersion !== tsApi.version) {
+	fail(`T04 compiler backend metadata mismatch: ${JSON.stringify({ backend: compilerBackend.id, syntaxValidated: compilerBackend.syntaxValidated, version: compilerBackend.typescriptVersion, ts: tsApi.version })}`);
+}
+
+const compilerGood = compilerBackend.analyze(`
+import express, { type Request, Router as ExpressRouter } from 'express';
+import type { User } from './user';
+const route = import('./route.js');
+const helper = require('./helper.cjs');
+`, { filePath: 'src/app.ts', language: 'typescript' });
+if (!compilerGood.complete || !compilerGood.syntaxValidated) {
+	fail(`T04 compiler backend rejected valid TypeScript: ${JSON.stringify(compilerGood.diagnostics)}`);
+}
+const compilerKinds = compilerGood.moduleEdges.map((edge) => [edge.kind, edge.specifier]);
+for (const expected of [
+	['import', 'express'],
+	['import', './user'],
+	['dynamic-import', './route.js'],
+	['require', './helper.cjs'],
+]) {
+	if (!compilerKinds.some((actual) => actual[0] === expected[0] && actual[1] === expected[1])) {
+		fail(`T04 compiler backend missing edge ${JSON.stringify(expected)} from ${JSON.stringify(compilerKinds)}`);
+	}
+}
+const expressEdge = compilerGood.moduleEdges.find((edge) => edge.kind === 'import' && edge.specifier === 'express');
+const requestBinding = expressEdge?.bindings?.find((binding) => binding.imported === 'Request');
+if (!requestBinding?.typeOnly) fail(`T04 compiler backend lost named type-only binding: ${JSON.stringify(expressEdge)}`);
+
+const malformed = compilerBackend.analyze('interface Broken { id: string ', { filePath: 'src/broken.ts', language: 'typescript' });
+if (malformed.complete || malformed.syntaxValidated || malformed.moduleEdges.length !== 0 || !malformed.diagnostics.some((d) => d.code === 'typescript-parse-diagnostic')) {
+	fail(`T04 malformed source must fail closed with compiler parse diagnostics: ${JSON.stringify(malformed)}`);
+}
+
+const shadowedRequire = compilerBackend.analyze(`
+function require(name: string) { return name; }
+const fake = require('./not-commonjs');
+`, { filePath: 'src/shadowed.ts', language: 'typescript' });
+if (shadowedRequire.moduleEdges.some((edge) => edge.kind === 'require')) {
+	fail(`T04 compiler backend trusted a shadowed require(): ${JSON.stringify(shadowedRequire.moduleEdges)}`);
+}
+if (!shadowedRequire.diagnostics.some((d) => d.code === 'require-shadowed')) {
+	fail(`T04 compiler backend did not explain shadowed require(): ${JSON.stringify(shadowedRequire.diagnostics)}`);
+}
+
+const comparison = compareJsTsBackends(
+	[lexicalJsTsBackend(), compilerBackend],
+	[{
+		id: 'esm-common-subset',
+		source: "import { Router } from 'express';\nimport type { User } from './user';\n",
+		options: { filePath: 'src/app.ts', language: 'typescript' },
+	}],
+);
+const compilerComparison = comparison.cases[0].comparisons.find((entry) => entry.backendId === 'typescript-compiler');
+if (!compilerComparison?.comparable || !compilerComparison.agrees) {
+	fail(`T04 lexical/compiler common-subset comparison drifted: ${JSON.stringify(compilerComparison)}`);
+}
+console.log(`typescript-typecheck-smoke: T04 compiler backend PASSED (TypeScript ${tsApi.version}, valid AST facts, malformed fail-closed, require shadowing, lexical differential)`);
 
 console.log('typescript-typecheck-smoke: running a real `npx tsc --noEmit` against the emitted tree...');
 try {
