@@ -3,6 +3,7 @@ import test from 'node:test';
 import { importGraphqlIntrospection, importProtobufDescriptorSet } from '../../adapters/protocol-next/scanners/protocol-descriptors.mjs';
 import { loadProtocolArtifact, parseStructuredProtocolText } from '../../adapters/protocol-next/scanners/protocol-loaders.mjs';
 import { buildProtocolOracleRequest, protocolOracleRequestDigest } from '../../adapters/protocol-next/contracts/protocol-oracle-request.mjs';
+import { artifactRefForBytes, protocolContext, protocolItem } from './_helpers.mjs';
 
 test('protobuf FileDescriptorSet JSON preserves nested messages and streaming flags', () => {
   const scan = importProtobufDescriptorSet({
@@ -121,27 +122,40 @@ test('loader routes descriptor and introspection JSON by family', () => {
   assert.equal(introspection.graphql.operations[0].name, 'ping');
 });
 
-function artifactRef(seed, family = 'test/artifact', version = '1') {
-  return { family, version, sha256: seed.repeat(64), size_bytes: 123 };
+function nonProtocolRef(bytes, family) {
+  return artifactRefForBytes(Buffer.from(bytes), { family, version: '1' });
 }
 
-test('oracle request binds immutable artifact refs and sorts assertions deterministically', () => {
+test('oracle request binds T01-shaped exact refs and typed protocol item refs deterministically', () => {
+  const grpcContext = protocolContext(loadProtocolArtifact({
+    family: 'grpc',
+    file: 'orders.proto',
+    text: 'syntax = "proto3"; service Orders { rpc Create (A) returns (B); }',
+  }));
+  const eventContext = protocolContext(loadProtocolArtifact({
+    family: 'asyncapi',
+    file: 'asyncapi.yaml',
+    text: 'asyncapi: 3.0.0\nchannels:\n  orders:\n    address: orders\noperations:\n  sendOrder:\n    action: send\n    channel:\n      $ref: "#/channels/orders"\n',
+  }));
+  const grpcAction = protocolItem(grpcContext, { family: 'grpc', plane: 'methods' });
+  const eventAction = protocolItem(eventContext, { family: 'asyncapi', plane: 'operations' });
+
   const base = {
     featureId: 'orders',
     featureUid: 'uid-orders',
     scenarioId: 'create-order',
-    protocolContractRef: artifactRef('a', 'sbf.protocol-contract', '1'),
-    flowContractRef: artifactRef('b', 'sbf.protocol-flow', '1'),
-    originalRef: artifactRef('c', 'repo.snapshot', '1'),
-    candidateRef: artifactRef('d', 'repo.snapshot', '1'),
-    runtimeProfileRef: artifactRef('e', 'beval.runtime-profile', '1'),
+    protocolContractRefs: [eventContext.contract_ref, grpcContext.contract_ref],
+    flowContractRef: nonProtocolRef('flow-bytes', 'protocol-flow'),
+    originalRef: nonProtocolRef('original-bytes', 'repo-snapshot'),
+    candidateRef: nonProtocolRef('candidate-bytes', 'repo-snapshot'),
+    runtimeProfileRef: nonProtocolRef('profile-bytes', 'beval.runtime-profile'),
     seed: 42,
   };
   const a = buildProtocolOracleRequest({
     ...base,
     assertions: [
-      { id: 'b', kind: 'message-observed', action_ref: 'asyncapi:orders.created', expect: { count: 1 } },
-      { id: 'a', kind: 'grpc-status', action_ref: 'grpc:Orders/Create', expect: { code: 'OK' } },
+      { id: 'b', kind: 'message-observed', action_ref: eventAction, expect: { count: 1 } },
+      { id: 'a', kind: 'grpc-status', action_ref: grpcAction, expect: { code: 'OK' } },
     ],
   });
   const b = buildProtocolOracleRequest({
@@ -149,22 +163,57 @@ test('oracle request binds immutable artifact refs and sorts assertions determin
     assertions: [...a.assertions].reverse(),
   });
   assert.deepEqual(a.assertions.map((x) => x.id), ['a', 'b']);
+  assert.equal(a.protocol_contract_refs.length, 2);
   assert.equal(protocolOracleRequestDigest(a), protocolOracleRequestDigest(b));
   assert.equal(a.semantics.request_is_not_runtime_evidence, true);
   assert.equal(a.semantics.executor_must_rehash_referenced_bytes, true);
+  assert.equal(a.semantics.executor_must_verify_protocol_item_existence, true);
 });
 
-test('oracle request rejects malformed refs, duplicate assertions and unsupported assertion kinds', () => {
+test('oracle request rejects malformed T01 refs, duplicate assertions and unbound action contracts', () => {
+  const grpcContext = protocolContext(loadProtocolArtifact({
+    family: 'grpc',
+    file: 'orders.proto',
+    text: 'syntax = "proto3"; service Orders { rpc Create (A) returns (B); }',
+  }));
+  const grpcAction = protocolItem(grpcContext, { family: 'grpc', plane: 'methods' });
+  const graphqlContext = protocolContext(loadProtocolArtifact({
+    family: 'graphql',
+    file: 'schema.graphql',
+    text: 'type Query { ping: String! }',
+  }));
+  const graphqlAction = protocolItem(graphqlContext, { family: 'graphql', plane: 'operations' });
   const valid = {
     featureId: 'orders',
     featureUid: 'uid-orders',
     scenarioId: 's',
-    protocolContractRef: artifactRef('a'),
-    originalRef: artifactRef('b'),
-    candidateRef: artifactRef('c'),
-    runtimeProfileRef: artifactRef('d'),
+    protocolContractRefs: [grpcContext.contract_ref],
+    originalRef: nonProtocolRef('original', 'repo-snapshot'),
+    candidateRef: nonProtocolRef('candidate', 'repo-snapshot'),
+    runtimeProfileRef: nonProtocolRef('profile', 'beval.runtime-profile'),
   };
-  assert.throws(() => buildProtocolOracleRequest({ ...valid, protocolContractRef: { ...artifactRef('a'), sha256: 'ABC' }, assertions: [{ id: 'x', kind: 'state', expect: true }] }), /sha256/);
-  assert.throws(() => buildProtocolOracleRequest({ ...valid, assertions: [{ id: 'x', kind: 'state', expect: true }, { id: 'x', kind: 'state', expect: false }] }), /duplicate assertion ids/);
-  assert.throws(() => buildProtocolOracleRequest({ ...valid, assertions: [{ id: 'x', kind: 'http-status', expect: 200 }] }), /unsupported protocol assertion kind/);
+
+  assert.throws(() => buildProtocolOracleRequest({
+    ...valid,
+    protocolContractRefs: [{ ...grpcContext.contract_ref, byte_sha256: 'ABC' }],
+    assertions: [{ id: 'x', kind: 'grpc-status', action_ref: grpcAction, expect: { code: 'OK' } }],
+  }), /byte_sha256/);
+
+  assert.throws(() => buildProtocolOracleRequest({
+    ...valid,
+    assertions: [
+      { id: 'x', kind: 'state', expect: true },
+      { id: 'x', kind: 'state', expect: false },
+    ],
+  }), /duplicate assertion ids/);
+
+  assert.throws(() => buildProtocolOracleRequest({
+    ...valid,
+    assertions: [{ id: 'x', kind: 'http-status', expect: 200 }],
+  }), /unsupported protocol assertion kind/);
+
+  assert.throws(() => buildProtocolOracleRequest({
+    ...valid,
+    assertions: [{ id: 'x', kind: 'graphql-result', action_ref: graphqlAction, expect: { data: { ping: 'pong' } } }],
+  }), /not bound by this oracle request/);
 });
