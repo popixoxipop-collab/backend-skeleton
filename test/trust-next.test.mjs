@@ -4,3 +4,4 @@ import './trust-next/permission-manifest.test.mjs';
 import './trust-next/static-purity.test.mjs';
 import './trust-next/adversarial-fixture-spec.test.mjs';
 import './trust-next/artifact-trust.test.mjs';
+import './trust-next/trust-requirements.test.mjs';
