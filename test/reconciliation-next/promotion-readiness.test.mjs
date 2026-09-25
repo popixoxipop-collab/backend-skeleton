@@ -49,7 +49,7 @@ function endpoint({
 function graph(endpoints = [endpoint()], { context = true } = {}) {
   return {
     version: 'bskel.reconciliation-decision-graph/0-draft',
-    ...(context ? { openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft' } } : {}),
+    ...(context ? { openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft', openapiRef } } : {}),
     endpoints,
   };
 }
