@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:adapter-submission-review:1",
+  "title": "bskel external adapter pre-execution submission review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "adapterId",
+    "status",
+    "preExecutionReviewPassed",
+    "executable",
+    "requiresApproval",
+    "packageReview",
+    "supportMatrix",
+    "diagnostics",
+    "next",
+    "note"
+  ],
+  "properties": {
+    "contract": {
+      "const": "sbf.adapter-submission-review/1"
+    },
+    "adapterId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "ready-for-execution-review",
+        "needs-fixes",
+        "support-conflict",
+        "needs-support-evidence"
+      ]
+    },
+    "preExecutionReviewPassed": {
+      "type": "boolean"
+    },
+    "executable": {
+      "const": false
+    },
+    "requiresApproval": {
+      "const": true
+    },
+    "packageReview": {
+      "type": "object"
+    },
+    "supportMatrix": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "next": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
