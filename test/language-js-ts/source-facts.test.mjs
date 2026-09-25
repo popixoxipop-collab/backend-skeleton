@@ -124,3 +124,18 @@ test('analyzer receives source bytes only and never executes target code', () =>
 test('unsupported language modes are rejected rather than guessed', () => {
   assert.throws(() => analyzeJsTsSource('', { language: 'java' }), /unsupported language mode/);
 });
+
+
+test('CommonJS member assignments remain module edges but are not invented as local bindings', () => {
+  const out = edges(`
+module.exports = require('./whole');
+exports.router = require('./router');
+const local = require('./local');
+`);
+  assert.deepEqual(out.map((e) => e.specifier), ['./whole', './router', './local']);
+  assert.deepEqual(out[0].bindings, []);
+  assert.deepEqual(out[1].bindings, []);
+  assert.deepEqual(out[2].bindings, [
+    { imported: 'module.exports', local: 'local', bindingKind: 'commonjs-default', typeOnly: false },
+  ]);
+});
