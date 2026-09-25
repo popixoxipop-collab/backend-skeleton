@@ -168,6 +168,62 @@ function extractBindings(text) {
   return { apps, blueprints };
 }
 
+function resolveRelativeModule(fromFile, moduleName) {
+  const base = path.resolve(path.dirname(fromFile), moduleName);
+  const probes = [base + '.py', path.join(base, '__init__.py')];
+  return probes.find((candidate) => fs.existsSync(candidate)) ?? null;
+}
+
+function relativeModuleImports(text, file) {
+  const out = new Map();
+  for (const m of text.matchAll(/^\s*from\s+\.\s+import\s+([A-Za-z_]\w*)(?:\s+as\s+([A-Za-z_]\w*))?/gm)) {
+    const resolved = resolveRelativeModule(file, m[1]);
+    if (resolved) out.set(m[2] ?? m[1], resolved);
+  }
+  return out;
+}
+
+function crossFileBlueprintRegistrations(texts) {
+  const byTarget = new Map();
+
+  for (const [file, text] of texts) {
+    const { apps } = extractBindings(text);
+    if (apps.size === 0) continue;
+    const imports = relativeModuleImports(text, file);
+    if (imports.size === 0) continue;
+
+    for (const app of apps) {
+      const re = new RegExp('\\b' + app + '\\.register_blueprint\\s*\\(', 'g');
+      for (const m of text.matchAll(re)) {
+        const open = m.index + m[0].length - 1;
+        const close = matchBalancedParens(text, open);
+        if (close === -1) continue;
+
+        const argsText = text.slice(open + 1, close);
+        const args = splitTopLevel(argsText);
+        const ref = args[0]?.match(/^([A-Za-z_]\w*)\.([A-Za-z_]\w*)$/);
+        if (!ref) continue;
+
+        const targetFile = imports.get(ref[1]);
+        if (!targetFile || !texts.has(targetFile)) continue;
+        const targetBindings = extractBindings(texts.get(targetFile));
+        if (!targetBindings.blueprints.has(ref[2])) continue;
+
+        const rawPrefix = kwarg(argsText, 'url_prefix');
+        const registrationPrefix = rawPrefix == null ? undefined : literalString(rawPrefix);
+        if (rawPrefix != null && registrationPrefix == null) continue;
+
+        if (!byTarget.has(targetFile)) byTarget.set(targetFile, new Map());
+        const targetVars = byTarget.get(targetFile);
+        if (!targetVars.has(ref[2])) targetVars.set(ref[2], []);
+        targetVars.get(ref[2]).push({ app, registrationPrefix, sourceFile: file });
+      }
+    }
+  }
+
+  return byTarget;
+}
+
 function routeMethods(kind, argsText) {
   if (kind !== 'route') return [kind.toUpperCase()];
   const raw = kwarg(argsText, 'methods');
@@ -209,8 +265,12 @@ function moduleNameFor(file) {
   return stem === '__init__' ? path.basename(path.dirname(file)) : stem;
 }
 
-function extractControllers(text, file) {
+function extractControllers(text, file, externalRegistrations = new Map()) {
   const { apps, blueprints } = extractBindings(text);
+  for (const [bpName, registrations] of externalRegistrations) {
+    if (!blueprints.has(bpName)) continue;
+    blueprints.get(bpName).registrations.push(...registrations);
+  }
   const grouped = new Map();
 
   for (const m of text.matchAll(ROUTE_DECORATOR_RE)) {
@@ -272,19 +332,26 @@ function extractControllers(text, file) {
 
 const API_SURFACE_SOURCE =
   'Flask static discovery: literal @app/@blueprint route decorators. Blueprint paths are emitted ' +
-  'only when that Blueprint is registered in the same file with a literal/default url_prefix. ' +
-  'Cross-file blueprint registration, app factories, add_url_rule(), dynamic methods/prefixes, ' +
+  'for same-file registrations and conservative relative-module registrations of the form ' +
+  'from . import module + app.register_blueprint(module.bp). App factories are not executed. ' +
+  'add_url_rule(), arbitrary import graphs, dynamic methods/prefixes, ' +
   'extensions, auth enforcement and runtime configuration are not inferred.';
 
 export function scanPythonFlask(repoRoot, projectRoot) {
   const files = listPythonFiles(projectRoot);
   const modules = new Map();
+  const texts = new Map();
 
   for (const file of files) {
-    let text;
-    try { text = maskPythonCommentsAndDocstrings(fs.readFileSync(file, 'utf8')); }
-    catch { continue; }
-    for (const entry of extractControllers(text, file)) {
+    try { texts.set(file, maskPythonCommentsAndDocstrings(fs.readFileSync(file, 'utf8'))); }
+    catch { texts.set(file, ''); }
+  }
+
+  const externalRegistrations = crossFileBlueprintRegistrations(texts);
+
+  for (const file of files) {
+    const text = texts.get(file);
+    for (const entry of extractControllers(text, file, externalRegistrations.get(file) ?? new Map())) {
       if (!modules.has(entry.module)) modules.set(entry.module, { module: entry.module, controllers: [], entities: [], enums: [], dtos: [] });
       modules.get(entry.module).controllers.push(entry.controller);
     }
@@ -305,7 +372,7 @@ function diagnostics(repoRoot) {
   if (depFiles.length === 0) messages.push({ level: 'info', code: 'no-python-project-file', message: 'no pyproject.toml or requirements*.txt found' });
   else if (!depFiles.some(declaresFlask)) messages.push({ level: 'info', code: 'flask-not-a-dependency', message: 'Python project files were found, but none declare Flask' });
   if (!binaryAvailable('rg')) messages.push({ level: 'warn', code: 'rg-missing', message: 'ripgrep (rg) is not on PATH -- this adapter uses it for bounded file discovery and will not detect without it' });
-  messages.push({ level: 'info', code: 'flask-static-slice-limit', message: 'Cross-file Blueprint registration and app-factory runtime state are intentionally unresolved in this first static slice; use an approved Flask url_map/runtime exporter for those claims.' });
+  messages.push({ level: 'info', code: 'flask-static-slice-limit', message: 'Only conservative relative-module Blueprint registration is resolved statically; arbitrary import graphs, app-factory runtime state, add_url_rule(), extensions and dynamic configuration still require approved runtime evidence.' });
   return messages;
 }
 
