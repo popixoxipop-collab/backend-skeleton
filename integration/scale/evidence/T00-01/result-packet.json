@@ -131,5 +131,5 @@
       "acceptance_effect": "T00-01 remains SUBMITTED until all current exact-head CI is successful and independent T19 review passes"
     }
   ],
-  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-3 rebaseline branch."
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-4 rebaseline branch."
 }
