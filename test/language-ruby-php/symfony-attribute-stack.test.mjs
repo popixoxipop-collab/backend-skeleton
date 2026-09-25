@@ -23,7 +23,7 @@ test('non-route attributes between Route and method do not break target ownershi
     '<?php',
     'final class BlogController {',
     "  #[Route('/comment/new', methods: ['POST'])]",
-    "  #[IsGranted('IS_AUTHENTICATED')]",
+    "  #[IsGranted('IS_AUTHENTICATED')] // authorization annotation comment",
     '  public function commentNew(): Response {}',
     '}',
     '',
