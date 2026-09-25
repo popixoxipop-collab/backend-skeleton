@@ -210,6 +210,6 @@ export function verifyRequiredConsumerSet(packBytes, results, { required_reposit
 				implementation_path: entry.consumer.implementation_path,
 				verified_cases: entry.verified_cases,
 			}))
-			.sort((left, right) => left.repository.localeCompare(right.repository)),
+			.sort((left, right) => left.repository < right.repository ? -1 : left.repository > right.repository ? 1 : 0),
 	};
 }
