@@ -159,3 +159,32 @@ test('Django provider detects conventional model files and emits repository-rela
 	const ir=scanDjangoOrmPersistence(root);
 	assert.equal(ir.entities[0].source_refs[0].file,'accounts/models.py');
 });
+
+
+test('Django direct field indentation is derived instead of assuming four spaces',()=>{
+	const ir=parseDjangoModels([{file:'compact/models.py',text:`
+from django.db import models
+class Compact(models.Model):
+  id = models.UUIDField(primary_key=True)
+  name = models.CharField(max_length=64)
+  class Meta:
+    db_table = "compact_rows"
+`}]);
+	assert.equal(ir.entities[0].table.name,'compact_rows');
+	assert.deepEqual(ir.entities[0].primary_key.columns,['id']);
+	assert.deepEqual(ir.entities[0].fields.map((field)=>field.name),['id','name']);
+});
+
+test('Django field-like calls nested inside methods are ignored',()=>{
+	const ir=parseDjangoModels([{file:'app/models.py',text:`
+from django.db import models
+class User(models.Model):
+    id = models.UUIDField(primary_key=True)
+    class Meta:
+        db_table = "users"
+    def helper(self):
+        fake = models.CharField(max_length=10)
+        return fake
+`}]);
+	assert.deepEqual(ir.entities[0].fields.map((field)=>field.name),['id']);
+});
