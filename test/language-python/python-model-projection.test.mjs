@@ -96,3 +96,26 @@ class B(A, SQLModel):
   assert.ok(a.limitations.some((x) => x.includes('inheritance cycle')));
   assert.ok(b.limitations.some((x) => x.includes('inheritance cycle')));
 });
+
+
+test('T06 model projection follows a local class re-export through package __init__', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-model-reexport-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', 'models.py'), `
+from sqlmodel import SQLModel
+class UserBase(SQLModel):
+    name: str
+`);
+  fs.writeFileSync(path.join(root, 'pkg', '__init__.py'), 'from .models import UserBase\n');
+  fs.writeFileSync(path.join(root, 'pkg', 'schemas.py'), `
+from pkg import UserBase
+class UserRead(UserBase):
+    id: int
+`);
+
+  const project = analyzeMany(root, ['pkg/models.py', 'pkg/__init__.py', 'pkg/schemas.py']);
+  const read = projectPythonModels(project).find((x) => x.ref === 'pkg.schemas#UserRead');
+  assert.equal(read.kind, 'dto');
+  assert.deepEqual(read.bases.local, ['pkg.models#UserBase']);
+  assert.deepEqual(read.fields.map((x) => x.name), ['name', 'id']);
+});
