@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { evaluateMutationGate } from './harness.mjs';
 
 function nonEmptyString(value) {
@@ -97,3 +98,35 @@ export function runProductMutationCampaign({repoRoot,catalog}) {
   const gate=evaluateMutationGate({mutants:results.map(({id,critical,status})=>({id,critical,status}))});
   return {pass:gate.pass,catalog_errors:[],mutants:results,gate};
 }
+
+
+function parseArgs(argv) {
+  const out={repo_root:'.',catalog:null,out:null};
+  for(let i=0;i<argv.length;i++){
+    if(argv[i]==='--repo-root'){out.repo_root=argv[++i]??null;continue;}
+    if(argv[i]==='--catalog'){out.catalog=argv[++i]??null;continue;}
+    if(argv[i]==='--out'){out.out=argv[++i]??null;continue;}
+    throw new Error(`unknown argument: ${argv[i]}`);
+  }
+  if(!out.repo_root||!out.catalog) throw new Error('--repo-root and --catalog are required');
+  return out;
+}
+
+export function main(argv=process.argv.slice(2),stdout=process.stdout,stderr=process.stderr){
+  try{
+    const options=parseArgs(argv);
+    const catalog=JSON.parse(fs.readFileSync(options.catalog,'utf8'));
+    const report=runProductMutationCampaign({repoRoot:options.repo_root,catalog});
+    const encoded=JSON.stringify({contract:'sbf.qa-product-mutation-report/1',...report},null,2)+'\n';
+    if(options.out) fs.writeFileSync(options.out,encoded);
+    else stdout.write(encoded);
+    stderr.write(`qa-product-mutation: ${report.pass?'PASS':'FAIL'} -- ${report.mutants.filter((m)=>m.status==='killed').length}/${report.mutants.length} mutants killed\n`);
+    return report.pass?0:3;
+  }catch(err){
+    stderr.write(`qa-product-mutation: ${err.message}\n`);
+    return 1;
+  }
+}
+
+const entry=process.argv[1]?path.resolve(process.argv[1]):null;
+if(entry&&entry===fileURLToPath(import.meta.url)) process.exitCode=main();
