@@ -591,6 +591,22 @@ function skipFollowingPhpAttributes(source, offset) {
   let cursor = offset;
   while (cursor < source.length) {
     while (/\s/.test(source[cursor] ?? '')) cursor++;
+    if (source.startsWith('//', cursor)) {
+      const end = source.indexOf('\n', cursor + 2);
+      cursor = end === -1 ? source.length : end + 1;
+      continue;
+    }
+    if (source.startsWith('/*', cursor)) {
+      const end = source.indexOf('*/', cursor + 2);
+      if (end === -1) break;
+      cursor = end + 2;
+      continue;
+    }
+    if (source[cursor] === '#' && source[cursor + 1] !== '[') {
+      const end = source.indexOf('\n', cursor + 1);
+      cursor = end === -1 ? source.length : end + 1;
+      continue;
+    }
     if (source.slice(cursor, cursor + 2) !== '#[') break;
     const end = balancedPhpDelimiterEnd(source, cursor + 1, '[', ']');
     if (end == null) break;
