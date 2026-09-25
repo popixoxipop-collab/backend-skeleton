@@ -1,8 +1,13 @@
 import { createHash } from 'node:crypto';
+import {
+  assertProtocolContractArtifactRef,
+  assertProtocolItemRefShape,
+  assertT01ArtifactRefShape,
+  contractContextKey,
+} from './protocol-item-ref.mjs';
 
 export const PROTOCOL_ORACLE_REQUEST_VERSION = '1';
 
-const SHA256 = /^[0-9a-f]{64}$/;
 const ASSERTION_KINDS = new Set([
   'grpc-status',
   'graphql-result',
@@ -26,18 +31,14 @@ function requireString(value, label) {
   return value;
 }
 
-function requireArtifactRef(ref, label) {
-  if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new Error(label + ' must be an artifact ref');
-  requireString(ref.family, label + '.family');
-  requireString(ref.version, label + '.version');
-  if (!SHA256.test(ref.sha256 ?? '')) throw new Error(label + '.sha256 must be a lowercase sha256 hex digest');
-  if (!Number.isInteger(ref.size_bytes) || ref.size_bytes < 0) throw new Error(label + '.size_bytes must be an integer >= 0');
-  return {
-    family: ref.family,
-    version: ref.version,
-    sha256: ref.sha256,
-    size_bytes: ref.size_bytes,
-  };
+function normalizeArtifactRef(ref, label, { protocolContract = false } = {}) {
+  try {
+    if (protocolContract) assertProtocolContractArtifactRef(ref);
+    else assertT01ArtifactRefShape(ref);
+  } catch (error) {
+    throw new TypeError(label + ': ' + error.message);
+  }
+  return canonical(ref);
 }
 
 function normalizeAssertion(assertion) {
@@ -45,7 +46,11 @@ function normalizeAssertion(assertion) {
   const id = requireString(assertion.id, 'assertion.id');
   const kind = requireString(assertion.kind, 'assertion.kind');
   if (!ASSERTION_KINDS.has(kind)) throw new Error('unsupported protocol assertion kind: ' + JSON.stringify(kind));
-  const actionRef = assertion.action_ref == null ? null : requireString(assertion.action_ref, 'assertion.action_ref');
+  let actionRef = null;
+  if (assertion.action_ref != null) {
+    assertProtocolItemRefShape(assertion.action_ref);
+    actionRef = canonical(assertion.action_ref);
+  }
   if (!Object.hasOwn(assertion, 'expect')) throw new Error('assertion ' + id + ' must declare expect');
   return {
     id,
@@ -59,7 +64,7 @@ export function buildProtocolOracleRequest({
   featureId,
   featureUid,
   scenarioId,
-  protocolContractRef,
+  protocolContractRefs,
   flowContractRef = null,
   originalRef,
   candidateRef,
@@ -70,10 +75,23 @@ export function buildProtocolOracleRequest({
   requireString(featureId, 'featureId');
   requireString(featureUid, 'featureUid');
   requireString(scenarioId, 'scenarioId');
+
+  const contractRefs = (protocolContractRefs ?? [])
+    .map((ref, index) => normalizeArtifactRef(ref, 'protocolContractRefs[' + index + ']', { protocolContract: true }))
+    .sort((a, b) => contractContextKey(a).localeCompare(contractContextKey(b)));
+  if (contractRefs.length === 0) throw new Error('protocol oracle request requires at least one protocol contract ref');
+  const contractKeys = new Set(contractRefs.map(contractContextKey));
+  if (contractKeys.size !== contractRefs.length) throw new Error('protocol oracle request contains duplicate protocol contract refs');
+
   const normalizedAssertions = (assertions ?? []).map(normalizeAssertion).sort((a, b) => a.id.localeCompare(b.id));
   if (normalizedAssertions.length === 0) throw new Error('protocol oracle request requires at least one assertion');
   if (new Set(normalizedAssertions.map((item) => item.id)).size !== normalizedAssertions.length) {
     throw new Error('protocol oracle request contains duplicate assertion ids');
+  }
+  for (const assertion of normalizedAssertions) {
+    if (assertion.action_ref && !contractKeys.has(contractContextKey(assertion.action_ref.contract))) {
+      throw new Error('assertion ' + assertion.id + ' references a protocol contract not bound by this oracle request');
+    }
   }
 
   return {
@@ -81,11 +99,11 @@ export function buildProtocolOracleRequest({
     feature_id: featureId,
     feature_uid: featureUid,
     scenario_id: scenarioId,
-    protocol_contract_ref: requireArtifactRef(protocolContractRef, 'protocolContractRef'),
-    flow_contract_ref: flowContractRef == null ? null : requireArtifactRef(flowContractRef, 'flowContractRef'),
-    original_ref: requireArtifactRef(originalRef, 'originalRef'),
-    candidate_ref: requireArtifactRef(candidateRef, 'candidateRef'),
-    runtime_profile_ref: requireArtifactRef(runtimeProfileRef, 'runtimeProfileRef'),
+    protocol_contract_refs: contractRefs,
+    flow_contract_ref: flowContractRef == null ? null : normalizeArtifactRef(flowContractRef, 'flowContractRef'),
+    original_ref: normalizeArtifactRef(originalRef, 'originalRef'),
+    candidate_ref: normalizeArtifactRef(candidateRef, 'candidateRef'),
+    runtime_profile_ref: normalizeArtifactRef(runtimeProfileRef, 'runtimeProfileRef'),
     seed: seed == null ? null : String(seed),
     assertions: normalizedAssertions,
     semantics: {
@@ -93,6 +111,7 @@ export function buildProtocolOracleRequest({
       ordering_does_not_imply_causation: true,
       correlation_does_not_imply_causation: true,
       executor_must_rehash_referenced_bytes: true,
+      executor_must_verify_protocol_item_existence: true,
     },
   };
 }
