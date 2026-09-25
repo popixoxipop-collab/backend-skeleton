@@ -8,23 +8,30 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import {
   createConsumerResultTemplate,
   verifyConsumerConformanceResult,
+  verifyRequiredConsumerSet,
 } from '../../contracts/next/consumer-conformance.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PACK_BYTES = fs.readFileSync(path.join(ROOT, 'schemas', 'next', 'identity-conformance.json'));
 const PACK = JSON.parse(PACK_BYTES);
 const RESULT_SCHEMA = JSON.parse(fs.readFileSync(path.join(ROOT, 'schemas', 'next', 'identity-consumer-result.schema.json'), 'utf8'));
+const SET_SCHEMA = JSON.parse(fs.readFileSync(path.join(ROOT, 'schemas', 'next', 'identity-consumer-set.schema.json'), 'utf8'));
 
 function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function successfulResult() {
+function successfulResult({
+  consumer = 'independent-fixture',
+  repository = 'example/consumer',
+  commit_sha = 'a'.repeat(40),
+  implementation_path = 'lib/next/identity-reader.mjs',
+} = {}) {
   const result = createConsumerResultTemplate(PACK_BYTES, {
-    consumer: 'independent-fixture',
-    repository: 'example/consumer',
-    commit_sha: 'a'.repeat(40),
-    implementation_path: 'lib/next/identity-reader.mjs',
+    consumer,
+    repository,
+    commit_sha,
+    implementation_path,
     command: 'node --test test/next/identity-consumer.test.mjs',
   });
   result.execution.exit_code = 0;
@@ -132,4 +139,86 @@ test('consumer verifier rejects negative-case error drift and summary tampering'
   const summary = successfulResult();
   summary.summary.passed -= 1;
   assert.throws(() => verifyConsumerConformanceResult(PACK_BYTES, summary), /summary does not match/);
+});
+
+
+test('consumer-set verifier accepts exactly the required independent repositories', () => {
+  const becoder = successfulResult({
+    consumer: 'becoder',
+    repository: 'popixoxipop-collab/backend-decoder',
+    commit_sha: 'b'.repeat(40),
+    implementation_path: 'lib/next/identity-reader.mjs',
+  });
+  const beval = successfulResult({
+    consumer: 'beval',
+    repository: 'popixoxipop-collab/Backend-evaluation',
+    commit_sha: 'c'.repeat(40),
+    implementation_path: 'lib/next-runtime/identity-reader.mjs',
+  });
+  const result = verifyRequiredConsumerSet(PACK_BYTES, [becoder, beval], {
+    required_repositories: [
+      'popixoxipop-collab/backend-decoder',
+      'popixoxipop-collab/Backend-evaluation',
+    ],
+  });
+  assert.equal(result.identity_consumer_set, 'sbf.identity-consumer-set/1');
+  assert.equal(result.consumers.length, 2);
+  assert.deepEqual(result.consumers.map((item) => item.repository), [
+    'popixoxipop-collab/Backend-evaluation',
+    'popixoxipop-collab/backend-decoder',
+  ]);
+  assert.ok(result.consumers.every((item) => item.verified_cases === 12));
+
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validate = ajv.compile(SET_SCHEMA);
+  assert.equal(validate(result), true, JSON.stringify(validate.errors));
+});
+
+test('consumer-set verifier rejects duplicate, missing and unexpected repositories', () => {
+  const becoder = successfulResult({
+    consumer: 'becoder',
+    repository: 'popixoxipop-collab/backend-decoder',
+    commit_sha: 'b'.repeat(40),
+  });
+  const duplicate = successfulResult({
+    consumer: 'becoder-copy',
+    repository: 'popixoxipop-collab/backend-decoder',
+    commit_sha: 'd'.repeat(40),
+  });
+  assert.throws(
+    () => verifyRequiredConsumerSet(PACK_BYTES, [becoder, duplicate]),
+    /duplicate consumer repository result/,
+  );
+
+  assert.throws(
+    () => verifyRequiredConsumerSet(PACK_BYTES, [becoder], {
+      required_repositories: [
+        'popixoxipop-collab/backend-decoder',
+        'popixoxipop-collab/Backend-evaluation',
+      ],
+    }),
+    /missing required consumer repositories/,
+  );
+
+  const stranger = successfulResult({
+    consumer: 'stranger',
+    repository: 'example/stranger',
+    commit_sha: 'e'.repeat(40),
+  });
+  assert.throws(
+    () => verifyRequiredConsumerSet(PACK_BYTES, [becoder, stranger], {
+      required_repositories: ['popixoxipop-collab/backend-decoder'],
+    }),
+    /unexpected consumer repositories/,
+  );
+
+  assert.throws(
+    () => verifyRequiredConsumerSet(PACK_BYTES, [becoder], {
+      required_repositories: [
+        'popixoxipop-collab/backend-decoder',
+        'popixoxipop-collab/backend-decoder',
+      ],
+    }),
+    /required_repositories contains duplicates/,
+  );
 });
