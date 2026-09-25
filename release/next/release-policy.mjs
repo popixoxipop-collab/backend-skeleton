@@ -22,6 +22,9 @@ export function observedBlockers(inventory) {
     if (expected[repo.role] !== repo.head_sha) blockers.add('COORDINATION_BASELINE_DRIFT');
     const ci = repo.exact_head_ci ?? {};
     if (ci.head_sha !== repo.head_sha || ci.status !== 'completed' || ci.conclusion !== 'success') blockers.add('CURRENT_MAIN_CI_NOT_GREEN');
+    if (repo.role === 'beval' && repo.integration_observation && repo.integration_observation.conclusion !== 'success') {
+      blockers.add('CURRENT_MAIN_INTEGRATION_INCOMPLETE');
+    }
   }
   return [...blockers].sort();
 }
