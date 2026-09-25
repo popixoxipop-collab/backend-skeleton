@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 import {
   assertProtocolContractArtifactRef,
+  assertProtocolItemRefAgainstContexts,
   assertProtocolItemRefShape,
   assertT01ArtifactRefShape,
   contractContextKey,
+  indexProtocolContractContexts,
 } from './protocol-item-ref.mjs';
 
 export const PROTOCOL_ORACLE_REQUEST_VERSION = '1';
@@ -65,6 +67,7 @@ export function buildProtocolOracleRequest({
   featureUid,
   scenarioId,
   protocolContractRefs,
+  protocolContexts,
   flowContractRef = null,
   originalRef,
   candidateRef,
@@ -82,6 +85,15 @@ export function buildProtocolOracleRequest({
   if (contractRefs.length === 0) throw new Error('protocol oracle request requires at least one protocol contract ref');
   const contractKeys = new Set(contractRefs.map(contractContextKey));
   if (contractKeys.size !== contractRefs.length) throw new Error('protocol oracle request contains duplicate protocol contract refs');
+  const contextIndex = indexProtocolContractContexts(protocolContexts);
+  for (const ref of contractRefs) {
+    if (!contextIndex.has(contractContextKey(ref))) {
+      throw new Error('protocol oracle request is missing exact contract context for bound protocol contract ref');
+    }
+  }
+  if (contextIndex.size !== contractRefs.length) {
+    throw new Error('protocol oracle request contains contract contexts that are not explicitly bound');
+  }
 
   const normalizedAssertions = (assertions ?? []).map(normalizeAssertion).sort((a, b) => a.id.localeCompare(b.id));
   if (normalizedAssertions.length === 0) throw new Error('protocol oracle request requires at least one assertion');
@@ -92,6 +104,7 @@ export function buildProtocolOracleRequest({
     if (assertion.action_ref && !contractKeys.has(contractContextKey(assertion.action_ref.contract))) {
       throw new Error('assertion ' + assertion.id + ' references a protocol contract not bound by this oracle request');
     }
+    if (assertion.action_ref) assertProtocolItemRefAgainstContexts(assertion.action_ref, contextIndex);
   }
 
   return {
