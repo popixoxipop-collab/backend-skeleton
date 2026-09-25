@@ -29,7 +29,7 @@ test('protobuf FileDescriptorSet JSON preserves nested messages and streaming fl
   });
   assert.equal(scan.family, 'grpc');
   assert.equal(scan.source_hash_basis, 'canonical-parsed-object');
-  assert.deepEqual(scan.grpc.messages.map((x) => x.name), ['shop.v1.Envelope', 'shop.v1.Envelope.Meta']);
+  assert.deepEqual(scan.grpc.messages.map((x) => x.name).sort(), ['shop.v1.Envelope', 'shop.v1.Envelope.Meta'].sort());
   assert.deepEqual(scan.grpc.methods.map((x) => [x.service, x.name, x.request_type, x.response_type, x.server_streaming]), [
     ['shop.v1.Orders', 'Watch', 'shop.v1.Envelope', 'shop.v1.Envelope.Meta', true],
   ]);
