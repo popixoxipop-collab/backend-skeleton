@@ -382,3 +382,68 @@ test('malformed operation security does not become declared-security absent when
   assert.equal(field(graph, 'api.security.declared').state, 'unknown');
   assert.equal(field(graph, 'api.security.declared').reason, 'malformed-operation-security');
 });
+
+
+test('document security with non-array scopes stays unknown', () => {
+  const { context, graph } = pipeline({
+    openapi: '3.1.0',
+    security: [{ bearerAuth: 'not-an-array' }],
+    components: {
+      securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } },
+    },
+    paths: {
+      '/profile': { get: { operationId: 'profile' } },
+    },
+  }, {
+    verb: 'GET', path: '/profile', operationId: 'profile', operationIdSource: 'source', method: 'profile',
+  });
+
+  assert.equal(context.rootSecurity.state, 'unknown');
+  assert.equal(context.rootSecurity.reason, 'malformed-document-security-scopes');
+  assert.equal(field(graph, 'api.security.declared').state, 'unknown');
+  assert.equal(field(graph, 'api.security.declared').reason, 'malformed-document-security-scopes');
+});
+
+test('operation security with non-string scope values is downgraded to unknown even if legacy copied it', () => {
+  const { base, graph } = pipeline({
+    openapi: '3.1.0',
+    components: {
+      securitySchemes: {
+        oauth: { type: 'oauth2', flows: {} },
+      },
+    },
+    paths: {
+      '/profile': {
+        get: {
+          operationId: 'profile',
+          security: [{ oauth: ['read', 123] }],
+        },
+      },
+    },
+  }, {
+    verb: 'GET', path: '/profile', operationId: 'profile', operationIdSource: 'source', method: 'profile',
+  });
+
+  assert.equal(field(base, 'api.security.declared').state, 'resolved');
+  assert.equal(field(graph, 'api.security.declared').state, 'unknown');
+  assert.equal(field(graph, 'api.security.declared').reason, 'malformed-operation-security-scopes');
+});
+
+test('operation security naming an unknown scheme remains unknown in the context audit', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/profile': {
+        get: {
+          operationId: 'profile',
+          security: [{ ghost: [] }],
+        },
+      },
+    },
+  }, {
+    verb: 'GET', path: '/profile', operationId: 'profile', operationIdSource: 'source', method: 'profile',
+  });
+
+  assert.equal(field(graph, 'api.security.declared').state, 'unknown');
+  assert.equal(field(graph, 'api.security.declared').reason, 'unknown-operation-security-scheme');
+});
