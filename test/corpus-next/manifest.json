@@ -14,10 +14,12 @@
         "fixture_path": "test/fixtures/java-spring"
       },
       "golden": {
-        "basis": "pending",
+        "basis": "manual",
         "review_state": "pending",
-        "authored_by": "pre-existing-fixture",
-        "generated_by_candidate": false
+        "authored_by": "T19-source-inspection-v1",
+        "generated_by_candidate": false,
+        "artifact_path": "test/corpus-next/source-goldens.json",
+        "golden_id": "fixture-java-spring-manual-v1"
       },
       "runtime": {
         "requirement": "none",
@@ -43,10 +45,12 @@
         "fixture_path": "test/fixtures/python-fastapi"
       },
       "golden": {
-        "basis": "pending",
+        "basis": "manual",
         "review_state": "pending",
-        "authored_by": "pre-existing-fixture",
-        "generated_by_candidate": false
+        "authored_by": "T19-source-inspection-v1",
+        "generated_by_candidate": false,
+        "artifact_path": "test/corpus-next/source-goldens.json",
+        "golden_id": "fixture-python-fastapi-manual-v1"
       },
       "runtime": {
         "requirement": "none",
@@ -72,10 +76,12 @@
         "fixture_path": "test/fixtures/typescript-express"
       },
       "golden": {
-        "basis": "pending",
+        "basis": "manual",
         "review_state": "pending",
-        "authored_by": "pre-existing-fixture",
-        "generated_by_candidate": false
+        "authored_by": "T19-source-inspection-v1",
+        "generated_by_candidate": false,
+        "artifact_path": "test/corpus-next/source-goldens.json",
+        "golden_id": "fixture-typescript-express-manual-v1"
       },
       "runtime": {
         "requirement": "none",
@@ -102,10 +108,12 @@
         "fixture_path": "test/fixtures/javascript-express"
       },
       "golden": {
-        "basis": "pending",
+        "basis": "manual",
         "review_state": "pending",
-        "authored_by": "pre-existing-fixture",
-        "generated_by_candidate": false
+        "authored_by": "T19-source-inspection-v1",
+        "generated_by_candidate": false,
+        "artifact_path": "test/corpus-next/source-goldens.json",
+        "golden_id": "fixture-javascript-express-manual-v1"
       },
       "runtime": {
         "requirement": "none",
@@ -133,10 +141,12 @@
         "fixture_path": "test/fixtures/ruby-rails"
       },
       "golden": {
-        "basis": "pending",
+        "basis": "manual",
         "review_state": "pending",
-        "authored_by": "pre-existing-fixture",
-        "generated_by_candidate": false
+        "authored_by": "T19-source-inspection-v1",
+        "generated_by_candidate": false,
+        "artifact_path": "test/corpus-next/source-goldens.json",
+        "golden_id": "fixture-ruby-rails-manual-v1"
       },
       "runtime": {
         "requirement": "optional",
