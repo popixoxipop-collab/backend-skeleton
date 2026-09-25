@@ -1,0 +1,89 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT-ADAPTER-SPECIFICITY-REVERSED",
+      "vector_id": "NEG-PROJ-01",
+      "critical": true,
+      "file": "scanners/index.mjs",
+      "find": ".sort((x, y) => y.a.specificity - x.a.specificity || x.a.id.localeCompare(y.a.id));",
+      "replace": ".sort((x, y) => x.a.specificity - y.a.specificity || x.a.id.localeCompare(y.a.id));",
+      "test_files": [
+        "test/adapter-registry.test.mjs"
+      ],
+      "invariant": "Higher-specificity adapter wins deterministic arbitration."
+    },
+    {
+      "id": "PMUT-ADAPTER-AMBIGUITY-SILENCED",
+      "vector_id": "NEG-PROJ-02",
+      "critical": true,
+      "file": "scanners/index.mjs",
+      "find": "if (tiedAtTop.length > 1) {",
+      "replace": "if (tiedAtTop.length > 2) {",
+      "test_files": [
+        "test/adapter-registry.test.mjs"
+      ],
+      "invariant": "Two equal-top-specificity detections must be rejected as ambiguous."
+    },
+    {
+      "id": "PMUT-ADAPTER-CONTRACT-INVERTED",
+      "vector_id": "NEG-RELEASE-02",
+      "critical": true,
+      "file": "scanners/registry.mjs",
+      "find": "if (descriptor.contract !== SUPPORTED_CONTRACT) {",
+      "replace": "if (descriptor.contract === SUPPORTED_CONTRACT) {",
+      "test_files": [
+        "test/adapter-registry.test.mjs"
+      ],
+      "invariant": "Only the supported adapter contract is loadable."
+    },
+    {
+      "id": "PMUT-CAPABILITY-SIGNATURE-BYPASS",
+      "vector_id": "NEG-RUN-08",
+      "critical": true,
+      "file": "handles/capability-codec.mjs",
+      "find": "if (!verifyPayload(payload, sig, publicKeyPem)) return { ok: false, reason: 'invalid signature' };",
+      "replace": "if (false && !verifyPayload(payload, sig, publicKeyPem)) return { ok: false, reason: 'invalid signature' };",
+      "test_files": [
+        "test/capability-codec.test.mjs"
+      ],
+      "invariant": "A token signed by an untrusted key cannot be accepted."
+    },
+    {
+      "id": "PMUT-CAPABILITY-EXPIRY-OFF-BY-ONE",
+      "vector_id": "NEG-AUTH-06",
+      "critical": true,
+      "file": "handles/capability-codec.mjs",
+      "find": "if (exp <= now) return { ok: false, reason: 'expired' };",
+      "replace": "if (exp < now) return { ok: false, reason: 'expired' };",
+      "test_files": [
+        "test/capability-codec.test.mjs"
+      ],
+      "invariant": "A token at its exact expiry second is expired."
+    },
+    {
+      "id": "PMUT-CAPABILITY-LENGTH-GUARD-REMOVED",
+      "vector_id": "NEG-TRUST-06",
+      "critical": false,
+      "file": "handles/capability-codec.mjs",
+      "find": "if (token.length > MAX_CAPABILITY_TOKEN_LENGTH) return { ok: false, reason: `token exceeds the maximum length of ${MAX_CAPABILITY_TOKEN_LENGTH} characters` };",
+      "replace": "if (false && token.length > MAX_CAPABILITY_TOKEN_LENGTH) return { ok: false, reason: `token exceeds the maximum length of ${MAX_CAPABILITY_TOKEN_LENGTH} characters` };",
+      "test_files": [
+        "test/capability-codec.test.mjs"
+      ],
+      "invariant": "Oversized capability tokens are refused before decode."
+    },
+    {
+      "id": "PMUT-SCAN-GATE-BECOMES-OPTIONAL",
+      "vector_id": "NEG-CACHE-01",
+      "critical": true,
+      "file": "lib/gate-definitions.mjs",
+      "find": "scan: {\\n\\t\\tname: 'scan',\\n\\t\\tscope: SCOPE.FEATURE,\\n\\t\\tverifyPolicy: VERIFY_POLICY.REQUIRED,",
+      "replace": "scan: {\\n\\t\\tname: 'scan',\\n\\t\\tscope: SCOPE.FEATURE,\\n\\t\\tverifyPolicy: VERIFY_POLICY.REQUIRED_WHEN_PRESENT,",
+      "test_files": [
+        "test/gate-definitions.test.mjs"
+      ],
+      "invariant": "The scan gate remains required and cannot become silently optional."
+    }
+  ]
+}
