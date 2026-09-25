@@ -1,4 +1,4 @@
-import { buildSupportMatrix, supportMatrixDiagnostics } from './support-matrix.mjs';
+import { buildSupportEvidenceMatrix, supportEvidenceMatrixDiagnostics } from './support-evidence-matrix.mjs';
 import { reviewAdapterPackage } from './package-inventory.mjs';
 
 export const SUBMISSION_REVIEW_CONTRACT = 'sbf.adapter-submission-review/1';
@@ -25,7 +25,7 @@ export function reviewAdapterSubmission({
 		observedPackageSha256,
 	});
 	const diagnostics = packageReview.errors.map(normalizeError);
-	let supportMatrix = null;
+	let supportEvidenceMatrix = null;
 	let supportDiagnostics = [];
 	let explanationError = null;
 
@@ -40,8 +40,8 @@ export function reviewAdapterSubmission({
 		});
 	} else {
 		try {
-			supportMatrix = buildSupportMatrix(explanations);
-			supportDiagnostics = supportMatrixDiagnostics(supportMatrix);
+			supportEvidenceMatrix = buildSupportEvidenceMatrix(explanations);
+			supportDiagnostics = supportEvidenceMatrixDiagnostics(supportEvidenceMatrix);
 			diagnostics.push(...supportDiagnostics);
 		} catch (error) {
 			explanationError = String(error?.message ?? error);
@@ -91,7 +91,7 @@ export function reviewAdapterSubmission({
 		executable: false,
 		requiresApproval: true,
 		packageReview,
-		supportMatrix,
+		supportEvidenceMatrix,
 		diagnostics,
 		next: status === 'ready-for-execution-review'
 			? [
