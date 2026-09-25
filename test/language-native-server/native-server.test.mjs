@@ -22,6 +22,11 @@ test('transport: malformed UTF-8 is rejected rather than replacement-decoded', (
 	assert.throws(() => decodeNdjsonLine(Buffer.from([0xc3, 0x28])), /valid UTF-8/);
 });
 
+test('transport: a single CRLF-terminated message is accepted for Windows helpers', () => {
+	const line = JSON.stringify(request()) + '\r\n';
+	assert.deepEqual(decodeNdjsonLine(Buffer.from(line)), request());
+});
+
 test('transport: one line cannot smuggle a second protocol message', () => {
 	const line = JSON.stringify(request()) + '\n' + JSON.stringify(request({ requestId: 'req-2' }));
 	assert.throws(() => decodeNdjsonLine(line), /exactly one/);
@@ -114,6 +119,12 @@ public class UsersController : ControllerBase
 		{ method: 'POST', path: '/api/Users', handler: 'UsersController.Create' },
 	]);
 	assert.deepEqual(analyzeCSharpAspNetSource(src, { file: 'UsersController.cs' }), result);
+});
+
+test('C#/ASP.NET: braces inside strings do not terminate a controller body', () => {
+	const src = `[ApiController]\n[Route("api/[controller]")]\npublic class UsersController : ControllerBase\n{\n private const string Template = "{this-is-not-a-class-brace";\n [HttpGet("{id}")]\n public IActionResult Get(string id) => Ok("}");\n}`;
+	const result = analyzeCSharpAspNetSource(src);
+	assert.deepEqual(result.routes.map((r) => [r.method, r.path]), [['GET', '/api/Users/{id}']]);
 });
 
 test('C#/ASP.NET: action-only literal route is allowed, but missing literal route is not invented from conventions', () => {
