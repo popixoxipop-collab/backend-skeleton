@@ -62,3 +62,17 @@ T16/beval remains the owner of actual runtime binding/oracle evidence.
 - runtime behavior or causal certification
 - stable/public game-next schema
 - packed-package support until T23 integrates the namespace
+
+
+### Native source provenance
+
+The current native envelope binds exact generated export JSON bytes. Before T17 adds a source-only Unity/Godot exporter, the exported payload must also identify the exact input scene/resource bytes. A generated JSON artifact alone is not enough to prove which source revision was parsed.
+
+Required next boundary:
+- exact byte ArtifactRef per input source file;
+- repo-relative/source-role path supplied separately from byte identity;
+- no absolute checkout path as portable identity;
+- normalizer output must retain the source refs;
+- a caller must not substitute same-parsed-value/reformatted source bytes.
+
+This requirement should align with T01 ArtifactRef and T02 portable project/source identity rather than inventing a competing global path identity.
