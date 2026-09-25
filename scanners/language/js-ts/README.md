@@ -1,6 +1,6 @@
 # JS/TS language facts — T04 initial slice
 
-This directory is the first T04 language-analysis boundary. It is intentionally below framework adapters and intentionally **does not** execute target code.
+This directory is the first T04 language-analysis boundary. Its `bskel.internal.js-ts-source-facts/0` shape is provisional and intentionally not an SBF cross-tool contract; T01 owns any future stable shared vocabulary. It is intentionally below framework adapters and intentionally **does not** execute target code.
 
 ## Shipped in this slice
 
@@ -11,7 +11,9 @@ This directory is the first T04 language-analysis boundary. It is intentionally 
 - ESM `export ... from`
 - CommonJS literal `require()` with simple direct/destructured bindings
 - literal `import()` as a distinct dynamic edge
-- UTF-8 byte spans and line numbers
+- UTF-8 byte spans and line numbers; diagnostics are also byte-positioned
+- every emitted edge is explicitly `basis: lexical-literal`, `resolution: unresolved`
+- `syntaxValidated: false` so `complete` cannot be mistaken for full JavaScript/TypeScript semantic completeness
 - explicit diagnostics for non-literal/escaped/unparsed constructs
 - hard byte/token limits that return no partial facts when exceeded
 
