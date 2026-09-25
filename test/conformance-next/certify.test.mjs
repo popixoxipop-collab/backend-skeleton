@@ -78,6 +78,18 @@ test('reference-only internal validation can pass only when explicitly allowing 
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
+test('holdout absence never downgrades a real conformance failure into blocked', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
+  try {
+    const input=passingInput(root);
+    input.mutation.mutants[0].status='survived';
+    const report=assembleCertification(input,{artifact_root:root,require_holdout:true});
+    assert.equal(report.verdict,'fail');
+    assert.ok(report.reasons.some((x)=>x.includes('mutation')));
+    assert.ok(report.reasons.some((x)=>x.includes('holdout corpus is empty')));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
 test('certification fails when a critical mutation survives', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
   try {
