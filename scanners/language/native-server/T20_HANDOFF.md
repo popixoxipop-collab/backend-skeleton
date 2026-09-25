@@ -2,7 +2,7 @@
 
 Status: review request, not an enforcement certificate.
 
-T08 product-code revision for this handoff: `974fd99374722d9cdb931c3fed8f2b086010039a`.
+T08 verification revision for this handoff: `66e804bb2b8fb08fc2c902204a7581f5605fdac1`.
 
 T08 intentionally does not import or vendor T20's draft trust implementation. This document maps the current static native-language worker to the T20 candidate trust vocabulary so T20 can review the boundary before T08 ever asks T00/T23 for executable-path promotion.
 
@@ -17,61 +17,62 @@ The current T08 executable path is a **first-party static metadata worker**, not
 - stdin: one validated `bskel.native-language/1` analyze request;
 - stdout: one validated response/error envelope;
 - shell: none;
-- working directory dependency: none;
-- target source: transferred in the request body, not opened by the child.
+- target source: transferred in the request body, not opened by the child;
+- inherited environment: **none**.
 
-The worker imports only the packaged T08 JavaScript modules and executes the conservative static Go/C#/Rust analyzers. It does not execute target initializers, compilers, package managers, build scripts or framework runtime code.
+The worker imports only packaged T08 JavaScript modules and executes the conservative static Go/C#/Rust analyzers. It does not execute target initializers, compilers, package managers, build scripts or framework runtime code.
 
-## Current effective privilege shape
+## Effective privilege shape
 
 | T20 permission concept | T08 static worker behavior |
 |---|---|
-| filesystem read | no target/project file reads by the child; Node necessarily loads its runner-owned packaged JS modules |
-| filesystem write | none requested by T08 code |
-| network | no network API or network command exists in the worker/analyzers; **no OS-level egress sandbox is claimed** |
-| process | parent launches one Node child; the child does not spawn descendants |
-| environment | explicit empty, null-prototype environment; no PATH, NODE_OPTIONS, credentials, SystemRoot or WINDIR inherited |
+| filesystem read | no target/project reads by child; Node loads runner-owned packaged JS modules |
+| filesystem write | none requested |
+| network | no network API/command in worker/analyzers; **no OS-level egress enforcement is claimed** |
+| process | parent launches one Node child; child launches no descendants |
+| environment | empty null-prototype map; no ambient host variables |
 | secret refs | none |
-| wall limit | enforced by parent `spawnSync(..., timeout=...)` |
-| stdout/output | bounded by protocol bytes and child maxBuffer |
+| wall limit | parent `spawnSync` timeout |
+| stdout/output | protocol byte bound + process buffer bound |
 | route/diagnostic counts | bounded before response acceptance |
-| request authority | request may only **narrow** the runner profile; expansion throws `WORKER_BUDGET_EXPANSION` |
+| request authority | may narrow profile; expansion throws `WORKER_BUDGET_EXPANSION` |
+| input bootstrap | profile cannot exceed current 4 MiB bootstrap reader; otherwise `WORKER_PROFILE_UNSUPPORTED` |
 
-Default T08 static limits are 30 seconds, 4 MiB input, 4 MiB output, 20,000 route facts and 1,000 diagnostics. These are internal T08 defaults, not a T20 manifest or a production resource recommendation.
+The 30 second / 4 MiB / 20,000-route / 1,000-diagnostic defaults are internal T08 defaults, not a T20 manifest or production recommendation.
 
-## T20 alignment already implemented
+## Alignment already implemented
 
 1. Ambient host environment is not inherited.
-2. The child executable is not selected by the repository or request.
-3. No shell command string is evaluated.
-4. A request cannot increase runner-profile resource limits.
-5. Request ID and language must match the child response.
-6. Malformed route/group/diagnostic/framework facts fail closed at the transport boundary.
-7. Worker errors are typed and nonzero.
-8. Compiler/runtime paths remain disabled; direct `go`, `dotnet`, `rustc` execution is not attempted through an unapproved route.
+2. Child executable and worker path are not selected by repository/request input.
+3. No shell command is evaluated.
+4. Request-side resource expansion is fail-closed.
+5. A profile cannot advertise an input size the worker bootstrap cannot honor.
+6. Request ID and language must match the response.
+7. Malformed route/group/diagnostic/framework facts fail closed.
+8. Worker errors are typed and nonzero.
+9. Compiler/runtime paths remain disabled.
 
-## Deliberate gaps requiring T20/T16 ownership
+## Deliberate gaps requiring T20/T16
 
-The static worker is **not an OS sandbox**. T08 does not claim enforcement against a compromised first-party worker or Node runtime making syscalls directly.
+This static worker is **not an OS sandbox**. T08 does not claim enforcement against a compromised first-party worker/Node runtime making direct syscalls.
 
-Before a compiler-backed helper or target-runtime profile is enabled, T08 needs T20/T16 to freeze and enforce:
-
-- normalized permission-manifest identity and exact effective-policy evidence;
-- artifact/helper/toolchain digest binding and revocation generation;
+Compiler-backed helpers or target-runtime profiles require frozen and independently enforced:
+- permission-manifest identity and effective-policy evidence;
+- artifact/helper/toolchain digest and revocation generation;
 - read-only source/module-cache mounts and isolated scratch;
-- actual network denial/allowlisting;
-- actual child-process/PID enforcement;
-- stdout and stderr limits under the effective runner;
-- symlink/socket/device/Docker-socket escape tests;
+- network/process/filesystem enforcement;
+- stdout/stderr/PID/wall limits;
+- symlink/socket/device/Docker-socket adversarial fixtures;
 - cleanup ownership;
-- runner/profile/attempt identity and T20 enforcement echo in T16 evidence.
+- runner/profile/attempt identity;
+- T20 enforcement echo bound into T16 evidence.
 
-## Review questions for T20
+## Questions for T20
 
-1. Should the runner-owned absolute `process.execPath` be represented to T20 as executable basename `node` plus a separately attested artifact/path identity?
-2. Should package-module loading be outside repository `read_roots` as runner-owned code, while target-source reads remain denied for this stdin-only profile?
-3. Is an empty inherited environment the expected static-helper default, with any future compiler bootstrap values supplied by the runner rather than inherited?
-4. Should the T08 route/diagnostic count limits remain protocol-specific while wall/stdout/stderr limits are additionally bound by the T20 permission manifest?
-5. What exact T20 evidence artifact should T08 require before calling a future compiler helper `trust-enforced`?
+1. Represent absolute runner-owned `process.execPath` as basename `node` plus separately attested artifact/path identity?
+2. Treat package-module loading as runner-owned code outside repository read_roots while target source reads stay denied?
+3. Keep empty inherited environment as static-helper default, with any compiler bootstrap values runner-owned?
+4. Keep route/diagnostic counts protocol-specific while T20 independently binds wall/stdout/stderr/PID limits?
+5. Which exact T20 requirement/evidence artifact should gate future compiler helper promotion?
 
-Until those questions are resolved and T00-04 is active, T08 will not wire this runner into the public scanner registry/CLI as an executable framework-support path.
+Until reviewed and T00-04 is active, T08 will not wire this executable path into the public scanner registry/CLI.
