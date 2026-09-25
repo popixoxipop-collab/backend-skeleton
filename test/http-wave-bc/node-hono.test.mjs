@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Ajv2020 from 'ajv/dist/2020.js';
 import { adapter, detectHonoRoot, scanHono } from '../../adapters/http-wave-bc/node-hono/adapter.mjs';
 
 function fixture(files) {
@@ -16,6 +18,14 @@ function fixture(files) {
 }
 
 function cleanup(root) { fs.rmSync(root, { recursive: true, force: true }); }
+
+test('T13 Hono descriptor conforms to the current sbf.adapter/2 JSON schema', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const schema = JSON.parse(fs.readFileSync(path.resolve(here, '../../schemas/adapter.schema.json'), 'utf8'));
+  const { detect, scan, diagnostics, listReadSet, introspectRoutes, ...data } = adapter;
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+  assert.equal(validate(data), true, JSON.stringify(validate.errors));
+});
 
 test('T13 Hono descriptor is conservative until OpenAPI/runtime evidence exists', () => {
   assert.equal(adapter.contract, 'sbf.adapter/2');
