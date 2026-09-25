@@ -36,6 +36,12 @@
       "file": "multi-top-level/Multi.java",
       "purpose": "keep multiple top-level declarations distinct while ignoring braces in comments/strings/chars",
       "expectedTopLevelTypes": ["First", "Second", "Marker"]
+    },
+    {
+      "id": "meta-annotation-cycle",
+      "file": "meta-annotation/Cycle.java",
+      "purpose": "bound composed-annotation graph traversal and report cycles instead of recursing forever",
+      "expectedTopLevelTypes": ["A", "B"]
     }
   ]
 }
