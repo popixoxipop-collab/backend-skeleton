@@ -1,0 +1,1 @@
+// Keeps the Laravel empty-URI regression inside the repository-wide test lane.\nimport './language-ruby-php/laravel-empty-uri.test.mjs';\n
