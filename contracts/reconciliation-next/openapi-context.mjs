@@ -5,6 +5,12 @@
 // shadow-only and never mutates the stable OpenAPI index or contract writer.
 
 import {
+  DEFAULT_STATUS_KEY,
+  ERROR_STATUS_RE,
+  SUCCESS_STATUS_RE,
+  canonicalRouteShape,
+} from '../openapi.mjs';
+import {
   ROUTE_PROMOTION_FIELDS,
   promotableOperationKeys,
 } from './decision-graph.mjs';
@@ -76,6 +82,81 @@ function validateRootSecurity(doc, index, openapiRef) {
   };
 }
 
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function findUniqueEntry(index, result) {
+  if (!['matched', 'adopted'].includes(result?.kind)) return null;
+  if (typeof result.verb !== 'string' || typeof result.path !== 'string') return null;
+
+  const key = result.verb + ' ' + canonicalRouteShape(result.path);
+  const entries = index.byRoute.get(key) ?? [];
+  const exact = entries.filter((entry) => (
+    entry?.verb === result.verb
+    && entry?.path === result.path
+    && (result.operationId == null || entry.operationId === result.operationId)
+  ));
+  return exact.length === 1 ? exact[0] : null;
+}
+
+function requestSchemaPresence(entry) {
+  if (!entry) return { state: 'unknown', reason: 'openapi-entry-not-unique' };
+  if (!entry.requestBody) return { state: 'absent', reason: 'request-body-absent' };
+
+  const content = entry.requestBody.content;
+  if (!isObject(content) || !Object.hasOwn(content, 'application/json')) {
+    return { state: 'skipped', reason: 'request-json-media-type-absent' };
+  }
+  const mediaEntry = content['application/json'];
+  const schema = isObject(mediaEntry) ? mediaEntry.schema : null;
+  if (!isObject(schema)) return { state: 'absent', reason: 'request-json-schema-absent' };
+  return { state: 'present', reason: 'request-json-schema-present' };
+}
+
+function responseSchemaPresence(entry, statusRe, { includeDefault = false, kind } = {}) {
+  if (!entry) return { state: 'unknown', reason: 'openapi-entry-not-unique' };
+  if (!isObject(entry.responses)) return { state: 'absent', reason: kind + '-responses-absent' };
+
+  let sawContentWithoutJson = false;
+  let sawSchema = false;
+  for (const status of Object.keys(entry.responses)) {
+    if (!statusRe.test(status) && !(includeDefault && status === DEFAULT_STATUS_KEY)) continue;
+    const response = entry.responses[status];
+    if (!isObject(response)) continue;
+    const content = response.content;
+    if (!isObject(content)) continue;
+    if (!Object.hasOwn(content, 'application/json')) {
+      sawContentWithoutJson = true;
+      continue;
+    }
+    const mediaEntry = content['application/json'];
+    if (isObject(mediaEntry) && isObject(mediaEntry.schema)) sawSchema = true;
+  }
+
+  if (sawSchema) return { state: 'present', reason: kind + '-json-schema-present' };
+  if (sawContentWithoutJson) return { state: 'skipped', reason: kind + '-json-media-type-absent' };
+  return { state: 'absent', reason: kind + '-json-schema-absent' };
+}
+
+function collectSchemaPresence(index, reconciliation) {
+  const out = new Map();
+  if (!reconciliation) return out;
+  if (!(reconciliation.byEndpoint instanceof Map)) {
+    throw new TypeError('reconciliation.byEndpoint must be a Map when supplied');
+  }
+
+  for (const [endpointKey, result] of reconciliation.byEndpoint.entries()) {
+    const entry = findUniqueEntry(index, result);
+    out.set(endpointKey, {
+      request: requestSchemaPresence(entry),
+      response: responseSchemaPresence(entry, SUCCESS_STATUS_RE, { kind: 'response' }),
+      error: responseSchemaPresence(entry, ERROR_STATUS_RE, { includeDefault: true, kind: 'error' }),
+    });
+  }
+  return out;
+}
+
 function collectOperationIdOccurrences(index) {
   const byId = new Map();
   const seenEntries = new Set();
@@ -103,7 +184,7 @@ function collectOperationIdOccurrences(index) {
     .sort((a, b) => a.operationId.localeCompare(b.operationId, 'en'));
 }
 
-export function buildOpenApiContext({ doc, index, openapiRef }) {
+export function buildOpenApiContext({ doc, index, reconciliation = null, openapiRef }) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
     throw new TypeError('doc must be an OpenAPI document object');
   }
@@ -119,6 +200,7 @@ export function buildOpenApiContext({ doc, index, openapiRef }) {
     openapiRef,
     rootSecurity: validateRootSecurity(doc, index, openapiRef),
     duplicateOperationIds: collectOperationIdOccurrences(index),
+    schemaPresenceByEndpoint: collectSchemaPresence(index, reconciliation),
   };
 }
 
@@ -132,6 +214,50 @@ function openapiRefsInGraph(graph) {
     }
   }
   return refs;
+}
+
+function narrowLegacySchemaGap(field, endpointKey, context) {
+  if (
+    !['api.request.schema', 'api.response.schema', 'api.error.schema'].includes(field.field)
+    || field.state !== 'unknown'
+    || field.reason !== 'legacy-result-does-not-retain-none-vs-skipped-media-type'
+  ) {
+    return field;
+  }
+
+  const presence = context.schemaPresenceByEndpoint?.get(endpointKey);
+  const slot = field.field === 'api.request.schema'
+    ? presence?.request
+    : field.field === 'api.response.schema'
+      ? presence?.response
+      : presence?.error;
+
+  if (!slot) return field;
+  if (slot.state === 'absent' || slot.state === 'skipped') {
+    return {
+      field: field.field,
+      state: slot.state,
+      authority: 'openapi',
+      evidence: evidence(context.openapiRef),
+      reason: slot.reason,
+    };
+  }
+  if (slot.state === 'present') {
+    return {
+      field: field.field,
+      state: 'unknown',
+      authority: 'openapi',
+      evidence: evidence(context.openapiRef),
+      reason: 'openapi-schema-present-but-legacy-result-did-not-project',
+    };
+  }
+  return {
+    field: field.field,
+    state: 'unknown',
+    authority: 'openapi',
+    evidence: evidence(context.openapiRef),
+    reason: slot.reason || 'openapi-schema-presence-unknown',
+  };
 }
 
 function countStates(endpoints) {
@@ -164,6 +290,9 @@ export function applyOpenApiContext(graph, context) {
   const endpoints = graph.endpoints.map((endpoint) => ({
     ...endpoint,
     fields: endpoint.fields.map((field) => {
+      const narrowed = narrowLegacySchemaGap(field, endpoint.endpointKey, context);
+      if (narrowed !== field) return narrowed;
+
       if (field.field === 'operation.identity' && field.state === 'resolved' && duplicateIds.has(field.value)) {
         return {
           field: field.field,
@@ -221,6 +350,9 @@ export function applyOpenApiContext(graph, context) {
       openapiRef: context.openapiRef,
       duplicateOperationIdCount: context.duplicateOperationIds.length,
       rootSecurityState: context.rootSecurity.state,
+      schemaPresenceEndpointCount: context.schemaPresenceByEndpoint instanceof Map
+        ? context.schemaPresenceByEndpoint.size
+        : 0,
     },
   };
 }
