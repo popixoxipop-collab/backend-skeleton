@@ -22,15 +22,17 @@ function fixture({ nest = true } = {}) {
     }
   }, null, 2));
   fs.writeFileSync(path.join(root, 'src', 'users.controller.ts'), [
-    "import { Controller, Get, Post, Patch } from '@nestjs/common';",
+    "import { Controller, Get, Post, Patch, UseGuards } from '@nestjs/common';",
     '',
     "// @Controller('phantom')",
     "@Controller('users')",
+    '  @UseGuards(AuthGuard)',
     'export class UsersController {',
     "  @Get(':id')",
     '  findOne() { return null; }',
     '',
     '  @Post()',
+    "  @Roles('admin')",
     '  async create() { return null; }',
     '',
     '  @Patch(dynamicPath)',
@@ -51,7 +53,7 @@ test('detectTypeScriptNestJsRoot requires Nest dependencies and source-confirmed
   assert.equal(detectTypeScriptNestJsRoot(nonNest), null);
 });
 
-test('scanTypeScriptNestJs joins literal controller and method paths without inventing operationIds', () => {
+test('scanTypeScriptNestJs joins literal paths and crosses non-routing decorator chains without interpreting them', () => {
   const root = fixture();
   const report = scanTypeScriptNestJs(root, root);
   assert.equal(report.modules.length, 1);
