@@ -6,11 +6,16 @@ import { classifyProjectSourceRole } from './source-role.mjs';
 // Draft-only internal shape for T02. This is intentionally NOT a stable public SBF contract;
 // T01 owns the eventual cross-tool schema/identity vocabulary.
 export const PROJECT_GRAPH_DRAFT = 'sbf.project-graph/draft-1';
+export const PROJECT_GRAPH_EXECUTION_ROOT = Symbol('sbf.project-graph.execution-root');
 
 const HARD_IGNORES = new Set([
   '.git', '.hg', '.svn', '.bskel', 'node_modules', 'coverage', '.cache', '.turbo',
   'dist', 'build', 'out', '.next', '.svelte-kit', 'vendor', 'third_party', 'third-party',
 ]);
+
+export function projectGraphExecutionRoot(graph) {
+  return graph?.[PROJECT_GRAPH_EXECUTION_ROOT] ?? null;
+}
 
 const DEFAULT_MARKER_RULES = Object.freeze([
   { kind: 'node-package', test: (name) => name === 'package.json' },
@@ -438,4 +443,61 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
         http: {
           candidates: firstClass,
           selected_adapter: selected,
-          selection_reason
+          selection_reason: tied.length > 1 ? 'specificity-tie' : selected ? 'unique-highest-specificity' : 'no-first-class-adapter',
+          ambiguous_adapter_ids: tied.length > 1 ? tied.map((a) => a.adapter_id) : [],
+        },
+      },
+      fallback_adapter: firstClass.length === 0 ? fallback?.adapter_id ?? null : null,
+      selected_adapter_read_set: selectedAdapterReadSet,
+      child_project_roots: descendants,
+      nested_detections: nestedDetections,
+    });
+  }
+
+  for (const project of projects) {
+    project.local_package = readLocalPackageFacts(absRepo, project, unresolved);
+  }
+  const projectEdges = buildProjectEdges(projects, unresolved);
+  const graphFilesRead = [...new Set([
+    ...discovery.files_read,
+    ...projects.flatMap((project) => project.selected_adapter_read_set?.files.map((file) => file.path) ?? []),
+  ])].sort();
+
+  const graph = {
+    schema: PROJECT_GRAPH_DRAFT,
+    repo_root: '.',
+    projects: projects.sort((a, b) => a.root.localeCompare(b.root)),
+    project_edges: projectEdges,
+    unresolved,
+    files_read: graphFilesRead,
+    notes: [
+      'draft internal T02 graph: project ownership is repo-root scoped; no stable cross-tool identity is claimed yet',
+      'serialized repo_root is portable and repo-relative; the absolute execution root is non-enumerable process-local metadata',
+      'legacy runScan() is unchanged; selected_adapter is a per-project scan plan hint, not an executed scan result',
+      'selected first-party adapter read-sets are content-hashed for project-level freshness; cache/invalidation policy remains T21-owned',
+    ],
+  };
+  Object.defineProperty(graph, PROJECT_GRAPH_EXECUTION_ROOT, {
+    value: absRepo,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return graph;
+}
+
+export function buildProjectScanPlan(graph, { includeFallback = false } = {}) {
+  if (!graph || graph.schema !== PROJECT_GRAPH_DRAFT || !Array.isArray(graph.projects)) {
+    throw new TypeError('expected ' + PROJECT_GRAPH_DRAFT);
+  }
+  const plan = [];
+  for (const project of graph.projects) {
+    const selected = project.facets?.http?.selected_adapter ?? null;
+    if (selected) {
+      plan.push({ project_id: project.project_id, project_root: project.root, adapter_id: selected, mode: 'first-class' });
+    } else if (includeFallback && project.fallback_adapter && project.kind !== 'aggregate') {
+      plan.push({ project_id: project.project_id, project_root: project.root, adapter_id: project.fallback_adapter, mode: 'fallback' });
+    }
+  }
+  return plan.sort((a, b) => a.project_root.localeCompare(b.project_root) || a.adapter_id.localeCompare(b.adapter_id));
+}
