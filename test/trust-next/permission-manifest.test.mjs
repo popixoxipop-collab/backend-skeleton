@@ -10,12 +10,14 @@ test('defaults are deny-by-default and bounded', () => {
   assert.deepEqual(result.value.read_roots, []);
   assert.deepEqual(result.value.write_roots, []);
   assert.deepEqual(result.value.network, { mode: 'deny', allow: [] });
+  assert.deepEqual(result.value.listen, { mode: 'deny', allow: [] });
   assert.deepEqual(result.value.process, { mode: 'deny', executables: [], max_children: 0 });
   assert.deepEqual(result.value.devices, { mode: 'deny', allow: [] });
   const policy = compilePermissionPolicy(minimal());
   assert.equal(policy.canRead('src/app.mjs'), false);
   assert.equal(policy.canWrite('out/report.json'), false);
   assert.equal(policy.canConnect('example.com', 443), false);
+  assert.equal(policy.canListen('127.0.0.1', 3000), false);
   assert.equal(policy.canExecute('node'), false);
   assert.equal(policy.canReadEnv('LANG'), false);
   assert.equal(policy.canUseSecret('provider-token'), false);
@@ -429,4 +431,60 @@ test('permission diff treats new device grants and larger resource budgets as pr
   for (const permission of ['device.use', 'limits.cpu_ms', 'limits.memory_bytes', 'limits.pids', 'limits.scratch_bytes']) {
     assert.equal(delta.expansions.some((x) => x.permission === permission), true, permission);
   }
+});
+
+
+test('listen permission is separate from outbound network and restricted to explicit loopback endpoints', () => {
+  const policy = compilePermissionPolicy({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443] }] },
+    listen: { mode: 'allowlist', allow: [
+      { host: '127.0.0.1', ports: [3000, 3000] },
+      { host: 'LOCALHOST', ports: [8080] },
+      { host: '[::1]', ports: [9090] },
+    ] },
+  });
+  assert.equal(policy.canConnect('api.example.com', 443), true);
+  assert.equal(policy.canListen('127.0.0.1', 3000), true);
+  assert.equal(policy.canListen('localhost', 8080), true);
+  assert.equal(policy.canListen('[::1]', 9090), true);
+  assert.equal(policy.canListen('api.example.com', 443), false);
+  assert.equal(policy.canConnect('127.0.0.1', 3000), false);
+  assert.deepEqual(policy.manifest.listen.allow, [
+    { host: '[::1]', ports: [9090] },
+    { host: '127.0.0.1', ports: [3000] },
+    { host: 'localhost', ports: [8080] },
+  ]);
+});
+
+test('listen permission refuses wildcard/external/all-interface binds', () => {
+  for (const host of ['0.0.0.0', '[::]', '192.168.1.10', '*.example.com', 'example.com']) {
+    const result = validatePermissionManifest({
+      schema: PERMISSION_MANIFEST_SCHEMA,
+      listen: { mode: 'allowlist', allow: [{ host, ports: [3000] }] },
+    });
+    assert.equal(result.ok, false, host);
+    assert.equal(result.errors.some((x) => x.code === 'INVALID_LISTEN_HOST'), true, host);
+  }
+  assert.equal(validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    listen: { mode: 'deny', allow: [{ host: '127.0.0.1', ports: [3000] }] },
+  }).errors.some((x) => x.code === 'DENY_WITH_LISTEN_ALLOWLIST'), true);
+});
+
+test('listen grant changes are privilege changes independent from connect grants', () => {
+  const before = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443] }] },
+    listen: { mode: 'deny', allow: [] },
+  };
+  const after = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443] }] },
+    listen: { mode: 'allowlist', allow: [{ host: '127.0.0.1', ports: [3000] }] },
+  };
+  const delta = diffPermissionManifests(before, after);
+  assert.equal(delta.expanded, true);
+  assert.equal(delta.expansions.some((x) => x.permission === 'network.listen' && x.value === '127.0.0.1:3000'), true);
+  assert.equal(delta.expansions.some((x) => x.permission === 'network.connect'), false);
 });
