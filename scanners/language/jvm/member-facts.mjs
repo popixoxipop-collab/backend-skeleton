@@ -20,7 +20,7 @@ function utf16OffsetForByte(text, offset) {
 
 function skipSpace(text, start) {
 	let i = start;
-	while (i < text.length && /\\s/u.test(text[i])) i++;
+	while (i < text.length && /\s/u.test(text[i])) i++;
 	return i;
 }
 
@@ -114,8 +114,8 @@ function parseDirectDeclaration(source, masked, baseByte, { allowInitializer }) 
 	const nameArray = nameMatch[2] ?? '';
 	const rawType = declaration.slice(0, nameMatch.index).trim();
 	if (!rawType) return { field: null, diagnostic: null };
-	const suffixDepth = (nameArray.match(/\\[/gu) ?? []).length;
-	const typeDepth = (rawType.match(/\\[/gu) ?? []).length;
+	const suffixDepth = (nameArray.match(/\[/gu) ?? []).length;
+	const typeDepth = (rawType.match(/\[/gu) ?? []).length;
 
 	return {
 		field: {
