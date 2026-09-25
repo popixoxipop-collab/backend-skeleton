@@ -227,12 +227,15 @@ test('same-file route() mount snapshots only child routes registered before the 
   try {
     const report = scanHono(root);
     assert.equal(report.modules.length, 1);
-    const endpoints = report.modules[0].controllers[0].endpoints;
+    const controllers = report.modules[0].controllers;
+    const endpoints = controllers.flatMap((controller) => controller.endpoints);
     assert.deepEqual(endpoints.map((x) => [x.verb, x.path]), [
       ['GET', '/v1/api/before'],
       ['GET', '/v1/root'],
     ]);
     assert.ok(!endpoints.some((x) => x.path.includes('/after')));
+    assert.equal(path.basename(controllers[0].file), 'app.ts');
+    assert.equal(path.basename(controllers[1].file), 'app.ts');
   } finally { cleanup(root); }
 });
 
@@ -256,8 +259,9 @@ test('relative default-imported Hono sub-app is resolved through route() with ch
   try {
     const report = scanHono(root);
     assert.equal(report.modules.length, 1);
-    const endpoints = report.modules[0].controllers[0].endpoints;
-    assert.deepEqual(endpoints.map((x) => x.path), ['/api/users/:id']);
+    const controller = report.modules[0].controllers[0];
+    assert.deepEqual(controller.endpoints.map((x) => x.path), ['/api/users/:id']);
+    assert.equal(path.basename(controller.file), 'users.ts');
   } finally { cleanup(root); }
 });
 
@@ -279,8 +283,9 @@ test('relative named import alias resolves a Hono sub-app without name guessing'
   });
   try {
     const report = scanHono(root);
-    const endpoints = report.modules[0].controllers[0].endpoints;
-    assert.deepEqual(endpoints.map((x) => x.path), ['/v2/status']);
+    const controller = report.modules[0].controllers[0];
+    assert.deepEqual(controller.endpoints.map((x) => x.path), ['/v2/status']);
+    assert.equal(path.basename(controller.file), 'admin.ts');
   } finally { cleanup(root); }
 });
 
