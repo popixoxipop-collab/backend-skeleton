@@ -56,6 +56,13 @@ function optionalString(value, label) {
   return requireString(value, label);
 }
 
+function assertOnlyKeys(value, allowed, label) {
+  const unexpected = Object.keys(value).filter((key) => !allowed.includes(key)).sort();
+  if (unexpected.length > 0) {
+    throw new TypeError(`${label} contains unsupported fields: ${unexpected.join(', ')}`);
+  }
+}
+
 function sortedUnique(items, keyFn, label) {
   const seen = new Set();
   const out = [];
@@ -73,11 +80,13 @@ function source(engine, path, localId) {
 }
 
 function unreal(payload) {
+  assertOnlyKeys(payload, ['schema', 'types'], 'Unreal payload');
   const nodes = [];
   const relations = [];
   const declarations = { replication: [], rpc: [], signals: [] };
   for (const [typeIndex, type] of array(payload.types ?? [], 'types').entries()) {
     if (!type || typeof type !== 'object' || Array.isArray(type)) throw new TypeError(`types[${typeIndex}] must be an object`);
+    assertOnlyKeys(type, ['id', 'kind', 'name', 'base', 'specifiers', 'properties', 'functions'], `types[${typeIndex}]`);
     const id = requireString(type.id, `types[${typeIndex}].id`);
     const kind = requireString(type.kind, `types[${typeIndex}].kind`);
     if (!['class', 'struct', 'interface', 'enum'].includes(kind)) throw new TypeError(`unsupported Unreal type kind: ${kind}`);
@@ -91,6 +100,7 @@ function unreal(payload) {
 
     for (const property of array(type.properties ?? [], `types[${typeIndex}].properties`)) {
       if (!property || typeof property !== 'object' || Array.isArray(property)) throw new TypeError('property must be an object');
+      assertOnlyKeys(property, ['name', 'type', 'specifiers'], 'property');
       const propertyName = requireString(property.name, 'property.name');
       const propertyType = requireString(property.type, 'property.type');
       const ps = strings(property.specifiers ?? [], 'property.specifiers');
@@ -103,6 +113,7 @@ function unreal(payload) {
 
     for (const fn of array(type.functions ?? [], `types[${typeIndex}].functions`)) {
       if (!fn || typeof fn !== 'object' || Array.isArray(fn)) throw new TypeError('function must be an object');
+      assertOnlyKeys(fn, ['name', 'specifiers'], 'function');
       const functionName = requireString(fn.name, 'function.name');
       const fs = strings(fn.specifiers ?? [], 'function.specifiers');
       const fid = `${id}:${functionName}`;
@@ -116,11 +127,13 @@ function unreal(payload) {
 }
 
 function unity(payload) {
+  assertOnlyKeys(payload, ['schema', 'documents'], 'Unity payload');
   const nodes = [];
   const relations = [];
   const declarations = { replication: [], rpc: [], signals: [] };
   for (const [index, doc] of array(payload.documents ?? [], 'documents').entries()) {
     if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new TypeError(`documents[${index}] must be an object`);
+    assertOnlyKeys(doc, ['file_id', 'class_id', 'type', 'name', 'game_object_file_id', 'parent_file_id', 'references'], `documents[${index}]`);
     const fileId = String(doc.file_id ?? '');
     if (!/^-?[0-9]+$/.test(fileId)) throw new TypeError(`documents[${index}].file_id must be an integer identifier`);
     if (!Number.isSafeInteger(doc.class_id)) throw new TypeError(`documents[${index}].class_id must be a safe integer`);
@@ -131,35 +144,45 @@ function unity(payload) {
     if (doc.game_object_file_id != null) {
       const target = String(doc.game_object_file_id);
       if (!/^-?[0-9]+$/.test(target)) throw new TypeError('game_object_file_id must be an integer identifier');
-      relations.push({ id: `unity:game-object:${fileId}`, kind: 'component-of', from: id, to: `unity:object:${target}`, source: source('unity', 'documents.game_object_file_id', fileId) });
+      if (target !== '0') {
+        relations.push({ id: `unity:game-object:${fileId}`, kind: 'component-of', from: id, to: `unity:object:${target}`, source: source('unity', 'documents.game_object_file_id', fileId) });
+      }
     }
     if (doc.parent_file_id != null) {
       const target = String(doc.parent_file_id);
       if (!/^-?[0-9]+$/.test(target)) throw new TypeError('parent_file_id must be an integer identifier');
-      relations.push({ id: `unity:parent:${fileId}`, kind: 'declared-parent', from: id, to: `unity:object:${target}`, source: source('unity', 'documents.parent_file_id', fileId) });
+      if (target !== '0') {
+        relations.push({ id: `unity:parent:${fileId}`, kind: 'declared-parent', from: id, to: `unity:object:${target}`, source: source('unity', 'documents.parent_file_id', fileId) });
+      }
     }
     for (const [refIndex, ref] of array(doc.references ?? [], `documents[${index}].references`).entries()) {
       if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new TypeError('reference must be an object');
+      assertOnlyKeys(ref, ['file_id', 'guid'], 'reference');
       const targetFile = String(ref.file_id ?? '');
       if (!/^-?[0-9]+$/.test(targetFile)) throw new TypeError('reference.file_id must be an integer identifier');
       const guid = optionalString(ref.guid, 'reference.guid');
-      relations.push({ id: `unity:reference:${fileId}:${refIndex}`, kind: 'serialized-reference', from: id, target_file_id: targetFile, target_guid: guid, source: source('unity', 'documents.references', `${fileId}:${refIndex}`) });
+      if (targetFile !== '0' || guid !== null) {
+        relations.push({ id: `unity:reference:${fileId}:${refIndex}`, kind: 'serialized-reference', from: id, target_file_id: targetFile, target_guid: guid, source: source('unity', 'documents.references', `${fileId}:${refIndex}`) });
+      }
     }
   }
   return { nodes, relations, declarations };
 }
 
 function godot(payload) {
+  assertOnlyKeys(payload, ['schema', 'scenes'], 'Godot payload');
   const nodes = [];
   const relations = [];
   const declarations = { replication: [], rpc: [], signals: [] };
   for (const [sceneIndex, scene] of array(payload.scenes ?? [], 'scenes').entries()) {
     if (!scene || typeof scene !== 'object' || Array.isArray(scene)) throw new TypeError(`scenes[${sceneIndex}] must be an object`);
+    assertOnlyKeys(scene, ['path', 'nodes', 'resources', 'signal_connections'], `scenes[${sceneIndex}]`);
     const scenePath = requireString(scene.path, `scenes[${sceneIndex}].path`);
     const sceneId = `godot:scene:${scenePath}`;
     nodes.push({ id: sceneId, kind: 'godot-scene', name: scenePath, type: 'PackedScene', source: source('godot', 'scenes', scenePath) });
     for (const node of array(scene.nodes ?? [], `scenes[${sceneIndex}].nodes`)) {
       if (!node || typeof node !== 'object' || Array.isArray(node)) throw new TypeError('node must be an object');
+      assertOnlyKeys(node, ['path', 'name', 'type', 'parent_path', 'script'], 'node');
       const nodePath = requireString(node.path, 'node.path');
       const id = `godot:node:${scenePath}:${nodePath}`;
       nodes.push({ id, kind: 'godot-node', name: requireString(node.name, 'node.name'), type: requireString(node.type, 'node.type'), source: source('godot', 'scenes.nodes', `${scenePath}:${nodePath}`) });
@@ -174,11 +197,13 @@ function godot(payload) {
     }
     for (const resource of array(scene.resources ?? [], `scenes[${sceneIndex}].resources`)) {
       if (!resource || typeof resource !== 'object' || Array.isArray(resource)) throw new TypeError('resource must be an object');
+      assertOnlyKeys(resource, ['id', 'path', 'type'], 'resource');
       const rid = requireString(resource.id, 'resource.id');
       nodes.push({ id: `godot:resource:${scenePath}:${rid}`, kind: 'godot-resource', name: optionalString(resource.path, 'resource.path') ?? rid, type: optionalString(resource.type, 'resource.type'), source: source('godot', 'scenes.resources', `${scenePath}:${rid}`) });
     }
     for (const [connectionIndex, connection] of array(scene.signal_connections ?? [], `scenes[${sceneIndex}].signal_connections`).entries()) {
       if (!connection || typeof connection !== 'object' || Array.isArray(connection)) throw new TypeError('signal connection must be an object');
+      assertOnlyKeys(connection, ['signal', 'from', 'to', 'method'], 'signal connection');
       declarations.signals.push({
         id: `godot:signal:${scenePath}:${connectionIndex}`,
         scene: sceneId,
