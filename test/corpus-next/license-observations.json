@@ -1,0 +1,224 @@
+{
+  "contract": "sbf.qa-license-observations/1",
+  "observed_on": "2026-09-25",
+  "entries": [
+    {
+      "candidate_id": "java-spring--spring-petclinic",
+      "repository": "https://github.com/spring-projects/spring-petclinic",
+      "commit": "818c4136ea971c21674525f9053de0d9c7ad8cfe",
+      "current_repo_spdx_hint": "Apache-2.0",
+      "root_license_file": {
+        "path": "LICENSE.txt",
+        "blob_sha": "ff77379631504c17ad0a94dddc6803f0d3fb0fbb",
+        "size_bytes": 11360
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "java-spring--ali-bouali-asymmetric-encryption",
+      "repository": "https://github.com/ali-bouali/spring-security-asymmetric-encryption",
+      "commit": "c3663da2bdba846d499f233fdbbae7558c97d469",
+      "current_repo_spdx_hint": null,
+      "root_license_file": null,
+      "observation": "no-pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "java-spring--realworld-java21-springboot3",
+      "repository": "https://github.com/1chz/realworld-java21-springboot3",
+      "commit": "93e018e9a769dadae5a80b922d649bd7c79545cd",
+      "current_repo_spdx_hint": "MIT",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "81da85628e112b6d7a7f5846ddbeccd149124dbf",
+        "size_bytes": 1066
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "ruby-rails--discourse",
+      "repository": "https://github.com/discourse/discourse",
+      "commit": "0be6cfbf552e4056589b9b43b873d18d42581d19",
+      "current_repo_spdx_hint": "GPL-2.0",
+      "root_license_file": {
+        "path": "LICENSE.txt",
+        "blob_sha": "d159169d1050894d3ea3b98e1c965c4058208fe1",
+        "size_bytes": 18092
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "ruby-rails--forem",
+      "repository": "https://github.com/forem/forem",
+      "commit": "5f76f390fefbd3e018722986e4c2116d504c11e0",
+      "current_repo_spdx_hint": "AGPL-3.0",
+      "root_license_file": {
+        "path": "LICENSE.md",
+        "blob_sha": "d091a92e0e35339caf2ce1bd5dee27db9a3877c7",
+        "size_bytes": 34270
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "ruby-rails--mastodon",
+      "repository": "https://github.com/mastodon/mastodon",
+      "commit": "b4d0f69a809405eb32e253529bac36f86418e9e4",
+      "current_repo_spdx_hint": "AGPL-3.0",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "dba13ed2ddf783ee8118c6a581dbf75305f816a3",
+        "size_bytes": 34520
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "python-fastapi--full-stack-fastapi-template",
+      "repository": "https://github.com/fastapi/full-stack-fastapi-template",
+      "commit": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+      "current_repo_spdx_hint": "MIT",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "f11987b50cfa15ae4f99d4c559137458c87d7a69",
+        "size_bytes": 1076
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "python-fastapi--polar",
+      "repository": "https://github.com/polarsource/polar",
+      "commit": "b99fac67fe6599fc9f0d670bc714245c6e9d31f6",
+      "current_repo_spdx_hint": "Apache-2.0",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "6861c26149f38a6d4c974e8c9cef8122527f6d91",
+        "size_bytes": 10764
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "python-fastapi--mealie",
+      "repository": "https://github.com/mealie-recipes/mealie",
+      "commit": "cb32b6249f0e46138bfbda2479e313715c4a1946",
+      "current_repo_spdx_hint": "AGPL-3.0",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e",
+        "size_bytes": 34523
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "python-fastapi--fastapi-best-architecture",
+      "repository": "https://github.com/fastapi-practices/fastapi-best-architecture",
+      "commit": "a38bd0b4a60ff139817f2a278b64489c76993954",
+      "current_repo_spdx_hint": "MIT",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "1226c69b4b34a805bfb5c53fdcdca75318f7e008",
+        "size_bytes": 1063
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "typescript-express--petswipe-match-app",
+      "repository": "https://github.com/hoangsonww/PetSwipe-Match-App",
+      "commit": "b8573eead531c68a4e2a551883c3a17828b30826",
+      "current_repo_spdx_hint": "MIT",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "83dd0a323b7ea8dd56b7e197edbcf61ac786fb81",
+        "size_bytes": 1067
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "typescript-express--express-postgres-template",
+      "repository": "https://github.com/justine92415/express-postgres-template",
+      "commit": "120e90f873b9fa9df286538cdd882e2937343c8f",
+      "current_repo_spdx_hint": null,
+      "root_license_file": null,
+      "observation": "no-pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "typescript-express--marketplace-backend",
+      "repository": "https://github.com/leroy-netizen/marketplace-backend",
+      "commit": "05ce7465999c22b35d2947cf779dec39527fb0d4",
+      "current_repo_spdx_hint": null,
+      "root_license_file": null,
+      "observation": "no-pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "javascript-express--node-express-realworld-commonjs",
+      "repository": "https://github.com/rtfeldman/node-express-realworld-example-app",
+      "commit": "ba04b70c31af81ca7935096740a6e083563b3a4a",
+      "current_repo_spdx_hint": null,
+      "root_license_file": null,
+      "observation": "no-pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "javascript-express--employees-api-mysql",
+      "repository": "https://github.com/JeanCaicedo/employees-api-mysql",
+      "commit": "e18789656adc0c91f96d0124fbdfefd86f7bf545",
+      "current_repo_spdx_hint": "MIT",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "c0f90ba3b70ac99a625d7a73234f065a1b078818",
+        "size_bytes": 1069
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "javascript-express--chat-app-backend",
+      "repository": "https://github.com/Serkanbyx/chat-app-backend",
+      "commit": "240422182000cccfcea11a043f2683df5821c83d",
+      "current_repo_spdx_hint": "MIT",
+      "root_license_file": {
+        "path": "LICENSE",
+        "blob_sha": "f29ba4a4c692fbbd2c19813ca68f0b2d0a963f8a",
+        "size_bytes": 1073
+      },
+      "observation": "pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    },
+    {
+      "candidate_id": "javascript-express--helloworld-garage",
+      "repository": "https://github.com/nekesam/helloworld",
+      "commit": "56c49a984471b77e68607983186c539e97bdbb09",
+      "current_repo_spdx_hint": null,
+      "root_license_file": null,
+      "observation": "no-pinned-root-license-file-observed",
+      "review_state": "observation-only",
+      "certification_eligible": false
+    }
+  ]
+}
