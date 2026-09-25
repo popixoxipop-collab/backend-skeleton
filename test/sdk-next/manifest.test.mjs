@@ -78,3 +78,35 @@ test('manifest rejects an inverted compatibility interval', () => {
 	assert.equal(result.ok, false);
 	assert.match(result.errors.map((e) => e.message).join('\n'), /minInclusive must be lower/);
 });
+
+
+test('SemVer precedence handles prereleases instead of treating them as the final release', () => {
+	const manifest = validManifest();
+	manifest.compatibility.bskel = { minInclusive: '2.0.0-beta.1', maxExclusive: '2.0.0' };
+	assert.equal(validateAdapterSdkManifest(manifest).ok, true);
+	assert.equal(supportsBskelVersion(manifest, '2.0.0-beta.1'), true);
+	assert.equal(supportsBskelVersion(manifest, '2.0.0-beta.2'), true);
+	assert.equal(supportsBskelVersion(manifest, '2.0.0'), false);
+});
+
+test('manifest rejects traversal/absolute permission roots and environment assignments', () => {
+	const manifest = validManifest();
+	manifest.permissions.readRoots = ['../outside'];
+	manifest.permissions.writeRoots = ['/tmp/output'];
+	manifest.permissions.environment = ['TOKEN=secret'];
+
+	const result = validateAdapterSdkManifest(manifest);
+	assert.equal(result.ok, false);
+	const messages = result.errors.map((e) => `${e.path} ${e.message}`).join('\n');
+	assert.match(messages, /\/permissions\/readRoots/);
+	assert.match(messages, /\/permissions\/writeRoots/);
+	assert.match(messages, /\/permissions\/environment/);
+});
+
+test('manifest rejects SemVer prerelease numeric identifiers with leading zeroes', () => {
+	const manifest = validManifest();
+	manifest.adapter.version = '1.0.0-01';
+	const result = validateAdapterSdkManifest(manifest);
+	assert.equal(result.ok, false);
+	assert.match(result.errors.map((e) => `${e.path} ${e.message}`).join('\n'), /\/adapter\/version/);
+});
