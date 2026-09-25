@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { scanWebgame } from '../scanners/webgame.mjs';
+import { buildWebgameContract } from '../contracts/webgame.mjs';
 import {
+  ARTIFACT_REF_VERSION,
   GAME_GRAPH_DRAFT_SCHEMA,
   LEGACY_WEBGAME_BRIDGE_REVISION,
   bridgeLegacyWebgameContract,
@@ -49,12 +56,41 @@ function legacyContract() {
   };
 }
 
-test('legacy webgame contract bridges to a conservative game graph without causal edges', () => {
-  const graph = bridgeLegacyWebgameContract(legacyContract());
+function bytes(value, space = 2) {
+  return Buffer.from(JSON.stringify(value, null, space) + '\n', 'utf8');
+}
+
+test('exact source contract bytes are bound into the draft graph', () => {
+  const raw = bytes(legacyContract());
+  const graph = bridgeLegacyWebgameContract(raw);
+  assert.equal(graph.source_contract.artifact.artifact_ref, ARTIFACT_REF_VERSION);
+  assert.equal(graph.source_contract.artifact.family, 'webgame-contract');
+  assert.equal(graph.source_contract.artifact.version, '1');
+  assert.equal(graph.source_contract.artifact.size_bytes, raw.byteLength);
+  assert.equal(graph.source_contract.artifact.byte_sha256, createHash('sha256').update(raw).digest('hex'));
+  assert.deepEqual(verifyLegacyBridgeInvariants(graph, { sourceBytes: raw }), { valid: true, errors: [] });
+});
+
+test('formatting-only source changes remain different exact artifacts', () => {
+  const contract = legacyContract();
+  const compact = Buffer.from(JSON.stringify(contract), 'utf8');
+  const pretty = bytes(contract, 2);
+  const a = bridgeLegacyWebgameContract(compact);
+  const b = bridgeLegacyWebgameContract(pretty);
+  assert.notEqual(a.source_contract.artifact.byte_sha256, b.source_contract.artifact.byte_sha256);
+  assert.notEqual(a.source_contract.artifact.size_bytes, b.source_contract.artifact.size_bytes);
+  assert.deepEqual(a.nodes, b.nodes);
+  assert.deepEqual(a.relations, b.relations);
+  const mismatched = verifyLegacyBridgeInvariants(a, { sourceBytes: pretty });
+  assert.equal(mismatched.valid, false);
+  assert.ok(mismatched.errors.includes('source_contract.artifact-bytes'));
+});
+
+test('legacy webgame contract bridges conservatively without causal edges', () => {
+  const graph = bridgeLegacyWebgameContract(bytes(legacyContract()));
   assert.equal(graph.schema, GAME_GRAPH_DRAFT_SCHEMA);
   assert.equal(graph.bridge_revision, LEGACY_WEBGAME_BRIDGE_REVISION);
   assert.equal(graph.status, 'derived-static-only');
-  assert.equal(graph.source_contract.source_hash, 'a'.repeat(64));
   assert.equal(graph.nodes.filter((x) => x.category === 'input').length, 2);
   assert.equal(graph.nodes.filter((x) => x.category === 'system').length, 1);
   assert.equal(graph.relations.length, 1);
@@ -64,18 +100,16 @@ test('legacy webgame contract bridges to a conservative game graph without causa
   assert.deepEqual(graph.behavior.causal_edges, []);
   assert.deepEqual(graph.behavior.transitions, []);
   assert.equal(graph.gaps.input_effects_unresolved, true);
-  assert.equal(graph.gaps.runtime_state_unresolved, true);
-  assert.deepEqual(verifyLegacyBridgeInvariants(graph), { valid: true, errors: [] });
 });
 
 test('legacy behavior projection is not duplicated as invented graph nodes', () => {
-  const graph = bridgeLegacyWebgameContract(legacyContract());
+  const graph = bridgeLegacyWebgameContract(bytes(legacyContract()));
   assert.equal(graph.nodes.some((x) => x.source.plane.startsWith('behavior.')), false);
   assert.equal(graph.nodes.some((x) => x.id.includes('behavior-trigger')), false);
   assert.equal(graph.nodes.some((x) => x.id.includes('behavior-system')), false);
 });
 
-test('bridge output is deterministic when legacy plane arrays are reordered', () => {
+test('semantic graph stays deterministic when legacy plane arrays reorder, while exact source identity changes', () => {
   const a = legacyContract();
   const b = legacyContract();
   b.source.files.reverse();
@@ -83,28 +117,75 @@ test('bridge output is deterministic when legacy plane arrays are reordered', ()
   b.source.engines.reverse();
   b.planes.input.listeners.reverse();
   b.planes.input.keys.reverse();
-  assert.deepEqual(bridgeLegacyWebgameContract(a), bridgeLegacyWebgameContract(b));
+  const ga = bridgeLegacyWebgameContract(bytes(a));
+  const gb = bridgeLegacyWebgameContract(bytes(b));
+  assert.deepEqual(ga.nodes, gb.nodes);
+  assert.deepEqual(ga.relations, gb.relations);
+  assert.notEqual(ga.source_contract.artifact.byte_sha256, gb.source_contract.artifact.byte_sha256);
 });
 
-test('bridge fails closed for another contract family/version', () => {
+test('bridge fails closed for another family/version and malformed bytes', () => {
   const wrong = legacyContract();
   wrong.sbf_webgame_contract = '2';
-  assert.throws(() => bridgeLegacyWebgameContract(wrong), /requires sbf\.webgame-contract\/1/);
-  assert.throws(() => bridgeLegacyWebgameContract(null), /requires an object contract/);
+  assert.throws(() => bridgeLegacyWebgameContract(bytes(wrong)), /requires sbf\.webgame-contract\/1/);
+  assert.throws(() => bridgeLegacyWebgameContract(Buffer.from('{broken')), /valid JSON/);
+  assert.throws(() => bridgeLegacyWebgameContract(Buffer.from([0xff, 0xfe])), /valid UTF-8/);
+  assert.throws(() => bridgeLegacyWebgameContract(legacyContract()), /bytes must be/);
 });
 
 test('duplicate legacy item ids cannot silently collapse into one graph node', () => {
   const value = legacyContract();
   value.planes.entity.entities.push({ ...value.planes.entity.entities[0] });
-  assert.throws(() => bridgeLegacyWebgameContract(value), /duplicate game-next node id/);
+  assert.throws(() => bridgeLegacyWebgameContract(bytes(value)), /duplicate game-next node id/);
 });
 
 test('invariant checker rejects invented causal edges and transition claims', () => {
-  const graph = bridgeLegacyWebgameContract(legacyContract());
+  const raw = bytes(legacyContract());
+  const graph = bridgeLegacyWebgameContract(raw);
   graph.behavior.causal_edges.push({ from: 'KeyW', to: 'movePlayer' });
   graph.behavior.transitions.push({ from: 'idle', to: 'moving' });
-  const checked = verifyLegacyBridgeInvariants(graph);
+  const checked = verifyLegacyBridgeInvariants(graph, { sourceBytes: raw });
   assert.equal(checked.valid, false);
   assert.ok(checked.errors.includes('behavior.causal_edges'));
   assert.ok(checked.errors.includes('behavior.transitions'));
+});
+
+test('real legacy scan -> webgame contract -> exact-byte game-next bridge preserves authority boundary', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-game-next-pipeline-'));
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+    name: 'game-next-pipeline',
+    dependencies: { three: '^0.180.0', '@react-three/fiber': '^9.0.0' },
+  }, null, 2));
+  fs.writeFileSync(path.join(root, 'src', 'game.tsx'), [
+    "import * as THREE from 'three';",
+    "import { Canvas } from '@react-three/fiber';",
+    'const scene = new THREE.Scene();',
+    'const player = new THREE.Mesh();',
+    'scene.add(player);',
+    'function movePlayer() {}',
+    'function onKey(event) { if (event.code === "KeyW") movePlayer(); }',
+    "window.addEventListener('keydown', onKey);",
+    'function animate(){ requestAnimationFrame(animate); }',
+    'export function Game(){ return <Canvas><mesh name="hero" /></Canvas>; }',
+  ].join('\n'));
+
+  const scan = scanWebgame(root);
+  const contract = buildWebgameContract({
+    featureId: '001-gameplay',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+    scan,
+  });
+  const raw = Buffer.from(JSON.stringify(contract, null, 2) + '\n', 'utf8');
+  const graph = bridgeLegacyWebgameContract(raw);
+
+  assert.equal(graph.source_contract.source_hash, scan.source_hash);
+  assert.equal(graph.source_contract.artifact.byte_sha256, createHash('sha256').update(raw).digest('hex'));
+  assert.ok(graph.nodes.some((x) => x.category === 'scene'));
+  assert.ok(graph.nodes.some((x) => x.category === 'entity'));
+  assert.ok(graph.nodes.some((x) => x.category === 'input'));
+  assert.ok(graph.nodes.some((x) => x.category === 'system'));
+  assert.deepEqual(graph.behavior.causal_edges, []);
+  assert.deepEqual(graph.behavior.transitions, []);
+  assert.deepEqual(verifyLegacyBridgeInvariants(graph, { sourceBytes: raw }), { valid: true, errors: [] });
 });
