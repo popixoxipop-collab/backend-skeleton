@@ -127,6 +127,11 @@
           "verdict": "BLOCKED/DRIFT",
           "comment_id": 5830038810
         }
+      },
+      "pr48_evidence": {
+        "pr": 48,
+        "merge_commit_sha": "e5f9ed5decf56fe5a45dd047400be21e7edf27c4",
+        "note": "provider/failure-corpus expansion merged before PR #49 cleanup; epoch 7 pins the resulting post-cleanup main, not PR-head evidence"
       }
     }
   ],
