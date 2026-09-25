@@ -317,3 +317,35 @@ test('permission digest changes on privilege expansion but is independent from i
     (error) => error?.code === 'INVALID_PERMISSION_MANIFEST',
   );
 });
+
+
+test('permission manifests reject oversized collections and control-character roots', () => {
+  assert.equal(validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    read_roots: Array.from({ length: 257 }, (_, i) => `src/${i}`),
+  }).errors.some((x) => x.code === 'TOO_MANY_PERMISSION_ROOTS'), true);
+
+  assert.equal(validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: Array.from({ length: 257 }, (_, i) => ({ host: `h${i}.example.com`, ports: [443] })) },
+  }).errors.some((x) => x.code === 'TOO_MANY_NETWORK_RULES'), true);
+
+  assert.equal(validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    process: { mode: 'argv-allowlist', executables: Array.from({ length: 129 }, (_, i) => `tool${i}`), max_children: 1 },
+  }).errors.some((x) => x.code === 'TOO_MANY_EXECUTABLES'), true);
+
+  assert.equal(validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    environment: { allow: Array.from({ length: 129 }, (_, i) => `VAR_${i}`) },
+  }).errors.some((x) => x.code === 'TOO_MANY_ENV_NAMES'), true);
+
+  assert.equal(validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    secret_refs: Array.from({ length: 129 }, (_, i) => `secret-${i}`),
+  }).errors.some((x) => x.code === 'TOO_MANY_SECRET_REFS'), true);
+
+  for (const root of ['src\nsecret', 'src\tsecret', `x${'a'.repeat(4096)}`]) {
+    assert.equal(validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, read_roots: [root] }).ok, false, JSON.stringify(root));
+  }
+});
