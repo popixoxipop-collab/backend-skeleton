@@ -82,7 +82,8 @@ let compareJsTsBackends;
 let lexicalJsTsBackend;
 try {
 	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
-	tsApi = await import(pathToFileURL(tsModulePath).href);
+	const tsImported = await import(pathToFileURL(tsModulePath).href);
+	tsApi = tsImported.default ?? tsImported;
 	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
 	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
 } catch (err) {
@@ -162,7 +163,8 @@ const ts6Root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t04-typescript-6-')
 try {
 	fs.writeFileSync(path.join(ts6Root, 'package.json'), JSON.stringify({ private: true }, null, 2));
 	sh('npm', ['install', '--no-audit', '--no-fund', '--no-save', 'typescript@6.0.3'], ts6Root, { quiet: true });
-	const ts6 = await import(pathToFileURL(path.join(ts6Root, 'node_modules', 'typescript', 'lib', 'typescript.js')).href);
+	const ts6Imported = await import(pathToFileURL(path.join(ts6Root, 'node_modules', 'typescript', 'lib', 'typescript.js')).href);
+	const ts6 = ts6Imported.default ?? ts6Imported;
 	const backend6 = createTypeScriptCompilerBackend(ts6);
 	const sixResult = backend6.analyze("import type { User } from './user';\nexport { x } from './x';\n", {
 		filePath: 'src/ts6.ts',
