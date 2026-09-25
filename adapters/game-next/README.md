@@ -98,3 +98,30 @@ The bridge suite also runs a real `scanWebgame -> buildWebgameContract -> bridge
 ## Test discovery integration
 
 T17 tests intentionally live under `test/game-next/**`, the T17-owned test namespace. The current root `npm test` glob only expands `test/*.test.mjs`, so a generic green root CI job does **not** prove these nested suites ran until T23/T00 integrates nested discovery. T17 runs the three commands above explicitly for focused evidence.
+
+
+## Native structure normalization
+
+`native-structure-normalizer.mjs` consumes the exact bytes already bound by a native export envelope and accepts only three pinned internal payload profiles:
+
+- `sbf.game-unreal-structure-export/draft-1`
+- `sbf.game-unity-serialized-export/draft-1`
+- `sbf.game-godot-scene-export/draft-1`
+
+The normalized result is `sbf.game-native-structure/draft-1` with status `declared-structure-only`.
+
+It preserves only structural declarations:
+
+- Unreal reflection type/property/function declarations plus explicit replication/RPC specifiers;
+- Unity serialized object `class_id`/`file_id`, component/parent links and GUID/fileID references;
+- Godot scene/node/resource declarations and signal connection declarations.
+
+It does not convert those declarations into runtime behavior. All verification/causality/state claims remain false. Unknown payload fields, engine/schema mismatches, duplicate derived identities, conflicting Unreal network specifiers, and exact-byte mismatches fail closed.
+
+See `NATIVE_STRUCTURE_FORMATS.md` for the source semantics and official engine documentation used to constrain the draft formats.
+
+### Source provenance prerequisite for future source-only exporters
+
+The current native envelope binds the exact **export JSON bytes**. A future parser that reads Unity `.unity` or Godot `.tscn` source directly must additionally bind the exact original source bytes; hashing only the generated JSON is insufficient provenance.
+
+Therefore T17 will not claim a source-file exporter complete until its output carries and verifies exact source ArtifactRefs. Unreal source facts supplied by T08 have the same requirement.
