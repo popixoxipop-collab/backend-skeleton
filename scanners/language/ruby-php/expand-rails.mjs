@@ -8,7 +8,7 @@ const ROWS = Object.freeze({
 const ALL_ACTIONS = Object.freeze(Object.keys(ROWS));
 
 function normalizeRailsCandidatePath(value) {
-  return joinRoute(value).replace(/:([A-Za-z_]\\w*)/g, '{$1}');
+  return joinRoute(value).replace(/:([A-Za-z_]\w*)/g, '{$1}');
 }
 
 function contextPrefix(fact) {
