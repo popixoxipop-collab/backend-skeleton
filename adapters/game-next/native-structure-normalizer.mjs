@@ -107,7 +107,11 @@ function unreal(payload) {
       const pid = `${id}:${propertyName}`;
       nodes.push({ id: `unreal:property:${pid}`, kind: 'unreal-property', name: propertyName, type: propertyType, specifiers: ps, source: source('unreal', 'types.properties', pid) });
       relations.push({ id: `unreal:declares-property:${pid}`, kind: 'declares', from: `unreal:type:${id}`, to: `unreal:property:${pid}`, source: source('unreal', 'types.properties', pid) });
-      const rep = ps.find((s) => s === 'Replicated' || s.startsWith('ReplicatedUsing='));
+      const replicationSpecifiers = ps.filter((s) => s === 'Replicated' || /^ReplicatedUsing=.+/.test(s));
+      if (replicationSpecifiers.length > 1 || (replicationSpecifiers.length === 1 && ps.includes('NotReplicated'))) {
+        throw new TypeError(`conflicting Unreal replication specifiers on ${pid}`);
+      }
+      const rep = replicationSpecifiers[0] ?? null;
       if (rep) declarations.replication.push({ id: `unreal:replication:${pid}`, subject: `unreal:property:${pid}`, mode: rep === 'Replicated' ? 'Replicated' : 'ReplicatedUsing', notify: rep.startsWith('ReplicatedUsing=') ? rep.slice('ReplicatedUsing='.length) : null, evidence: 'declared-specifier' });
     }
 
@@ -119,8 +123,12 @@ function unreal(payload) {
       const fid = `${id}:${functionName}`;
       nodes.push({ id: `unreal:function:${fid}`, kind: 'unreal-function', name: functionName, type: null, specifiers: fs, source: source('unreal', 'types.functions', fid) });
       relations.push({ id: `unreal:declares-function:${fid}`, kind: 'declares', from: `unreal:type:${id}`, to: `unreal:function:${fid}`, source: source('unreal', 'types.functions', fid) });
-      const rpc = fs.find((s) => ['Client', 'Server', 'Remote', 'NetMulticast', 'ServiceRequest', 'ServiceResponse'].includes(s));
-      if (rpc) declarations.rpc.push({ id: `unreal:rpc:${fid}`, subject: `unreal:function:${fid}`, mode: rpc, reliability: fs.includes('Reliable') ? 'reliable' : fs.includes('Unreliable') ? 'unreliable' : 'unspecified', evidence: 'declared-specifier' });
+      const rpcModes = fs.filter((s) => ['Client', 'Server', 'Remote', 'NetMulticast', 'ServiceRequest', 'ServiceResponse'].includes(s));
+      if (rpcModes.length > 1) throw new TypeError(`conflicting Unreal RPC modes on ${fid}`);
+      const reliabilityModes = fs.filter((s) => ['Reliable', 'Unreliable'].includes(s));
+      if (reliabilityModes.length > 1) throw new TypeError(`conflicting Unreal RPC reliability on ${fid}`);
+      const rpc = rpcModes[0] ?? null;
+      if (rpc) declarations.rpc.push({ id: `unreal:rpc:${fid}`, subject: `unreal:function:${fid}`, mode: rpc, reliability: reliabilityModes[0] === 'Reliable' ? 'reliable' : reliabilityModes[0] === 'Unreliable' ? 'unreliable' : 'unspecified', evidence: 'declared-specifier' });
     }
   }
   return { nodes, relations, declarations };
