@@ -144,7 +144,7 @@ export function fromLivePostgres(live) {
 		module: null,
 		file: null,
 		table: { name: table.name, schema, source: 'observed' },
-		primary_key: { columns: table.primary_key ?? [], type: 'unknown', source: (table.primary_key ?? []).length ? 'live' : 'unknown' },
+		primary_key: { columns: table.primary_key ?? [], type: 'unknown', source: 'live' },
 		fields: (table.columns ?? []).map((column) => ({ name: column.name, type: column.type ?? null, nullable: column.nullable, source: 'live' })),
 		relations: liveRelationGroups(table),
 		source_refs: [makeSourceRef({ kind: 'live', provider, detail: `schema=${schema}; captured=${live.generated_at ?? 'unknown'}` })],
