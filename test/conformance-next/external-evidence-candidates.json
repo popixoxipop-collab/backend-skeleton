@@ -290,10 +290,10 @@
       "ci": {
         "run_id": 36094194743,
         "run_number": 889,
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success"
       },
-      "note": "Direct semantic mappings only. Current exact-head CI is nonterminal, T18 nested tests are not in the root npm-test glob, and runtime/oracle certification remains blocked.",
+      "note": "Current exact-head generic CI is completed success, but root npm-test still does not execute nested T18 protocol tests. Direct semantic mappings remain external-candidate only; runtime/oracle certification is blocked.",
       "job_observations": []
     },
     {
@@ -302,7 +302,7 @@
       "certification": false,
       "source": {
         "repository": "popixoxipop-collab/backend-skeleton",
-        "commit": "541272b0091734870dee035f38f295bc37f37330",
+        "commit": "e8c256e403c6237a326c86ab355d02f79c1a26dc",
         "pull_request": 77
       },
       "vector_mappings": [
@@ -334,12 +334,12 @@
         }
       ],
       "ci": {
-        "run_id": 36089509500,
-        "run_number": 739,
+        "run_id": 36095044051,
+        "run_number": 981,
         "status": "completed",
         "conclusion": "success"
       },
-      "note": "Historical exact-head generic CI is successful, but that root CI did not execute nested T11 tests. The producer-reported EOE 30/30 nested run is useful context, not independent execution binding, so this remains partial candidate evidence only.",
+      "note": "Current exact-head generic CI is successful, but root CI does not execute nested T11 tests. Selectors were re-verified at e8c256e4; no independent nested execution binding is attached, so mappings remain partial external candidates.",
       "job_observations": []
     }
   ]
