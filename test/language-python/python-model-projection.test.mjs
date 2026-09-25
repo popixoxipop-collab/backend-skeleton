@@ -64,3 +64,35 @@ test('T06 BaseSettings is configuration, not an API DTO', { skip: !runtime }, ()
   const settings = projectPythonModels(project).find((x) => x.className === 'Settings');
   assert.equal(settings.kind, 'config');
 });
+
+
+test('T06 model projection does not recurse through a local inheritance cycle', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-model-cycle-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', '__init__.py'), '');
+  fs.writeFileSync(path.join(root, 'pkg', 'a.py'), `
+from .b import B
+class A(B):
+    a: str
+`);
+  fs.writeFileSync(path.join(root, 'pkg', 'b.py'), `
+from .a import A
+from sqlmodel import SQLModel
+class B(A, SQLModel):
+    b: int
+`);
+
+  const project = analyzeMany(root, ['pkg/__init__.py', 'pkg/a.py', 'pkg/b.py']);
+  const models = projectPythonModels(project);
+  const a = models.find((x) => x.ref === 'pkg.a#A');
+  const b = models.find((x) => x.ref === 'pkg.b#B');
+
+  assert.equal(a.kind, 'dto');
+  assert.equal(b.kind, 'dto');
+  assert.equal(a.inheritanceCycle, true);
+  assert.equal(b.inheritanceCycle, true);
+  assert.deepEqual(a.fields.map((x) => x.name), ['a']);
+  assert.deepEqual(b.fields.map((x) => x.name), ['b']);
+  assert.ok(a.limitations.some((x) => x.includes('inheritance cycle')));
+  assert.ok(b.limitations.some((x) => x.includes('inheritance cycle')));
+});

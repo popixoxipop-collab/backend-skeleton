@@ -54,6 +54,7 @@ export function projectPythonModels(project) {
     if (active.has(key)) return { family: 'unknown', localBases: [], externalBases: [], cycle: true };
     active.add(key);
     let family = 'unknown';
+    let cycle = false;
     const localBases = [];
     const externalBases = [];
     for (const base of directBaseRefs(project, moduleId, cls)) {
@@ -64,6 +65,7 @@ export function projectPythonModels(project) {
         if (local) {
           localBases.push(classKey(local.moduleId, local.cls.name));
           const parent = classify(local.moduleId, local.cls);
+          if (parent.cycle) cycle = true;
           if (family === 'unknown' && parent.family !== 'unknown') family = parent.family;
         }
       } else {
@@ -78,22 +80,27 @@ export function projectPythonModels(project) {
     if (family === 'settings') kind = 'config';
     else if (family === 'sqlmodel' && table) kind = 'entity';
     else if (family === 'sqlmodel' || family === 'pydantic') kind = 'dto';
-    const result = { family, kind, localBases, externalBases, table };
+    const result = { family, kind, localBases, externalBases, table, cycle };
     active.delete(key);
     memo.set(key, result);
     return result;
   };
 
   const fieldMemo = new Map();
+  const fieldActive = new Set();
   const collectFields = (moduleId, cls) => {
     const key = classKey(moduleId, cls.name);
     if (fieldMemo.has(key)) return fieldMemo.get(key);
+    if (fieldActive.has(key)) return [];
+    fieldActive.add(key);
     const classification = classify(moduleId, cls);
     const byName = new Map();
-    for (const baseKey of classification.localBases) {
-      const base = rawClasses.get(baseKey);
-      if (!base) continue;
-      for (const field of collectFields(base.moduleId, base.cls)) byName.set(field.name, field);
+    if (!classification.cycle) {
+      for (const baseKey of classification.localBases) {
+        const base = rawClasses.get(baseKey);
+        if (!base) continue;
+        for (const field of collectFields(base.moduleId, base.cls)) byName.set(field.name, field);
+      }
     }
     for (const field of cls.fields || []) {
       const name = Array.isArray(field.targets) && typeof field.targets[0] === 'string' ? field.targets[0] : null;
@@ -108,6 +115,7 @@ export function projectPythonModels(project) {
       });
     }
     const result = [...byName.values()];
+    fieldActive.delete(key);
     fieldMemo.set(key, result);
     return result;
   };
@@ -127,9 +135,13 @@ export function projectPythonModels(project) {
       bases: { local: classification.localBases, external: classification.externalBases },
       fields,
       primaryKeyFields: fields.filter((x) => x.metadata.primaryKey === true).map((x) => x.name),
+      inheritanceCycle: classification.cycle,
       limitations: [
         'Static declaration facts only; validators, computed fields, runtime config, serializers and ORM behavior are not executed.',
         'Required/optional request semantics are not inferred from annotation/default combinations in this phase.',
+        ...(classification.cycle
+          ? ['Local inheritance cycle detected; inherited fields across the cycle are intentionally omitted.']
+          : []),
       ],
     });
   }
