@@ -39,7 +39,7 @@ function graph(endpoints = [
   ];
   return {
     version: 'bskel.reconciliation-decision-graph/0-draft',
-    openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft' },
+    openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft', openapiRef },
     endpoints: endpoints.map((entry) => ({
       endpointKey: entry.endpointKey,
       resolutionKind: 'matched',
