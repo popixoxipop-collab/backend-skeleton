@@ -60,6 +60,7 @@ test('Unreal reflection facts preserve declared replication and RPC specifiers w
   assert.equal(normalized.declarations.rpc[0].mode, 'Server');
   assert.equal(normalized.declarations.rpc[0].reliability, 'reliable');
   assert.deepEqual(normalized.claims, {
+    producer_identity_verified: false,
     source_structure_verified: false,
     runtime_behavior_verified: false,
     causal_edges_verified: false,
@@ -172,10 +173,12 @@ test('duplicate engine-local identities fail closed instead of collapsing facts'
 test('normalizer claims cannot be upgraded by mutating the derived document', () => {
   const raw = bytes({ schema: 'sbf.game-godot-scene-export/draft-1', scenes: [] });
   const normalized = normalizeNativeStructureExport(raw, envelope(raw, 'godot', 'headless-export'));
+  normalized.claims.producer_identity_verified = true;
   normalized.claims.runtime_behavior_verified = true;
   normalized.claims.source_structure_verified = true;
   const checked = verifyNativeStructureInvariants(normalized);
   assert.equal(checked.valid, false);
+  assert.ok(checked.errors.includes('claims.producer_identity_verified'));
   assert.ok(checked.errors.includes('claims.runtime_behavior_verified'));
   assert.ok(checked.errors.includes('claims.source_structure_verified'));
 });
