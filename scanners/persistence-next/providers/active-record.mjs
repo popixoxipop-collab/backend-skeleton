@@ -58,6 +58,10 @@ function assignedLiteral(text, receiver, property) {
 	return match ? (match[1] ?? match[2]) : null;
 }
 
+function indentWidth(line) {
+	return (line.match(/^\s*/)?.[0] ?? '').replaceAll('\t', '    ').length;
+}
+
 function parseOneModelFile(text, file) {
 	const masked = stripRubyComments(text);
 	const classMatches = [...masked.matchAll(/^\s*class\s+([A-Z]\w*(?:::[A-Z]\w*)*)\s*<\s*(ApplicationRecord|ActiveRecord::Base)\b/gm)];
@@ -68,31 +72,55 @@ function parseOneModelFile(text, file) {
 			diagnostics: [{ code: 'active-record-multiple-models-per-file', level: 'info', file, message: 'Slice 1 refuses to attribute DSL declarations when more than one ActiveRecord model class is present in one file' }],
 		};
 	}
+
 	const match = classMatches[0];
-	const body = masked.slice(match.index + match[0].length);
-	if (/\bself\.abstract_class\s*=\s*true\b/.test(body)) {
+	const classLineStart = masked.lastIndexOf('\n', match.index) + 1;
+	const classIndent = indentWidth(masked.slice(classLineStart, match.index));
+	const bodyStart = match.index + match[0].length;
+	const bodyStartLine = lineNumberAt(masked, bodyStart);
+	const bodyLines = masked.slice(bodyStart).split('\n');
+
+	const directLines = bodyLines
+		.map((raw, index) => ({ raw, trimmed: raw.trim(), indent: indentWidth(raw), line: bodyStartLine + index }))
+		.filter((line) => line.trimmed && line.trimmed !== 'end' && line.indent > classIndent);
+	const declarationIndent = directLines.reduce((min, line) => Math.min(min, line.indent), Number.POSITIVE_INFINITY);
+	const declarations = Number.isFinite(declarationIndent)
+		? directLines.filter((line) => line.indent === declarationIndent)
+		: [];
+
+	let table = null;
+	let primaryKey = null;
+	let abstract = false;
+	const belongsTo = [];
+
+	for (const declaration of declarations) {
+		const line = declaration.trimmed;
+		if (/^self\.abstract_class\s*=\s*true\b/.test(line)) { abstract = true; continue; }
+		const tableMatch = line.match(/^self\.table_name\s*=\s*(?:["']([^"']+)["']|:([A-Za-z_][A-Za-z0-9_]*))\s*$/);
+		if (tableMatch) { table = tableMatch[1] ?? tableMatch[2]; continue; }
+		const pkMatch = line.match(/^self\.primary_key\s*=\s*(?:["']([^"']+)["']|:([A-Za-z_][A-Za-z0-9_]*))\s*$/);
+		if (pkMatch) { primaryKey = pkMatch[1] ?? pkMatch[2]; continue; }
+
+		const rel = line.match(/^belongs_to\s+(?::([A-Za-z_]\w*)|["']([^"']+)["'])(.*)$/);
+		if (!rel) continue;
+		const association = rel[1] ?? rel[2];
+		const options = rel[3] ?? '';
+		belongsTo.push({
+			association,
+			foreignKey: literalOption(options, 'foreign_key'),
+			className: literalOption(options, 'class_name'),
+			targetPrimaryKey: literalOption(options, 'primary_key'),
+			line: declaration.line,
+		});
+	}
+
+	if (abstract) {
 		return {
 			model: null,
 			diagnostics: [{ code: 'active-record-abstract-model', level: 'info', file, model: match[1], message: 'abstract ActiveRecord model is not a physical entity' }],
 		};
 	}
-	const table = assignedLiteral(body, 'self', 'table_name');
-	const primaryKey = assignedLiteral(body, 'self', 'primary_key');
-	const belongsTo = [];
-	for (const rel of body.matchAll(/^\s*belongs_to\s+(?::([A-Za-z_]\w*)|["']([^"']+)["'])([^\n]*)/gm)) {
-		const association = rel[1] ?? rel[2];
-		const options = rel[3] ?? '';
-		const foreignKey = literalOption(options, 'foreign_key');
-		const className = literalOption(options, 'class_name');
-		const targetPrimaryKey = literalOption(options, 'primary_key');
-		belongsTo.push({
-			association,
-			foreignKey,
-			className,
-			targetPrimaryKey,
-			line: lineNumberAt(masked, rel.index),
-		});
-	}
+
 	return {
 		model: {
 			name: match[1],
