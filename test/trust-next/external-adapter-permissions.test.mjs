@@ -185,3 +185,85 @@ test('package trust cannot substitute for runtime approval or execution', () => 
   assert.equal(result.runtime_binding_required, true);
   assert.match(result.note, /T16 runtime isolation\/evidence is still required/);
 });
+
+
+test('external adapter activation review requires exact package trust and still never authorizes execution', () => {
+  const pkg = 'a'.repeat(64);
+  const policy = {
+    schema: 'bskel.trust-artifact-policy/1',
+    generation: 4,
+    allow: [{ usage: 'package', sha256: pkg }],
+    revoked: [],
+  };
+  const review = reviewExternalAdapterActivation({
+    manifest: manifest(),
+    packageSha256: pkg,
+    artifactTrustPolicy: policy,
+  });
+  assert.equal(review.schema, EXTERNAL_ADAPTER_ACTIVATION_REVIEW);
+  assert.equal(review.package.decision, 'trusted');
+  assert.equal(review.runtime_review_ready, true);
+  assert.equal(review.executable, false);
+  assert.equal(review.requires_runtime_evidence, true);
+  assert.deepEqual(review.blockers, []);
+  assert.match(review.permission_manifest_digest, /^[0-9a-f]{64}$/);
+  assert.match(review.artifact_policy_digest, /^[0-9a-f]{64}$/);
+  assert.equal(review.artifact_policy_generation, 4);
+  assert.equal(review.trust_requirements.permission.sha256, review.permission_manifest_digest);
+  assert.equal(Object.isFrozen(review.trust_requirements), true);
+});
+
+test('package digest trusted for another usage does not authorize external adapter package review', () => {
+  const pkg = 'b'.repeat(64);
+  const review = reviewExternalAdapterActivation({
+    manifest: manifest(),
+    packageSha256: pkg,
+    artifactTrustPolicy: {
+      schema: 'bskel.trust-artifact-policy/1',
+      generation: 1,
+      allow: [{ usage: 'helper', sha256: pkg }],
+      revoked: [],
+    },
+  });
+  assert.equal(review.package.decision, 'untrusted');
+  assert.equal(review.runtime_review_ready, false);
+  assert.equal(review.executable, false);
+  assert.deepEqual(review.blockers, ['PACKAGE_DIGEST_UNTRUSTED']);
+});
+
+test('revoked external adapter package is blocked even when permission request itself is valid', () => {
+  const pkg = 'c'.repeat(64);
+  const review = reviewExternalAdapterActivation({
+    manifest: manifest(),
+    packageSha256: pkg,
+    artifactTrustPolicy: {
+      schema: 'bskel.trust-artifact-policy/1',
+      generation: 9,
+      allow: [],
+      revoked: [{ sha256: pkg, reason: 'revoked after security review' }],
+    },
+  });
+  assert.equal(review.package.decision, 'revoked');
+  assert.equal(review.runtime_review_ready, false);
+  assert.deepEqual(review.blockers, ['PACKAGE_DIGEST_REVOKED']);
+  assert.equal(review.executable, false);
+});
+
+test('invalid package digest or invalid artifact policy cannot produce activation readiness', () => {
+  assert.throws(
+    () => reviewExternalAdapterActivation({
+      manifest: manifest(),
+      packageSha256: 'latest',
+      artifactTrustPolicy: { schema: 'bskel.trust-artifact-policy/1', generation: 1, allow: [], revoked: [] },
+    }),
+    (error) => error?.code === 'EXTERNAL_ADAPTER_PACKAGE_REF_INVALID',
+  );
+  assert.throws(
+    () => reviewExternalAdapterActivation({
+      manifest: manifest(),
+      packageSha256: 'a'.repeat(64),
+      artifactTrustPolicy: { schema: 'bskel.trust-artifact-policy/1', generation: 0, allow: [], revoked: [] },
+    }),
+    (error) => error?.code === 'INVALID_ARTIFACT_TRUST_POLICY',
+  );
+});
