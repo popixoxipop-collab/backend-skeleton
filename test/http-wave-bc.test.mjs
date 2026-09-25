@@ -3,3 +3,4 @@
 import './http-wave-bc/catalog.test.mjs';
 import './http-wave-bc/node-hono.test.mjs';
 import './http-wave-bc/hono-show-routes.test.mjs';
+import './http-wave-bc/node-koa.test.mjs';
