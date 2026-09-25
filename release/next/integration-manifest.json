@@ -124,31 +124,33 @@
     },
     {
       "track": "T17",
-      "pr": 68,
-      "head": "3708262853aeee8bb2f3efb5f3c8cee29456fe48",
+      "pr": 131,
+      "head": "a9d6619b055fa5534896f598396de0ee35bf70c6",
       "source_namespaces": [
         "adapters/game-next/**"
       ],
       "nested_test_glob": "test/game-next/*.test.mjs",
-      "current_package_includes_source": false,
+      "current_package_includes_source": true,
       "current_generic_test_discovers_suite": false,
-      "t19_review": "required before game-next promotion",
+      "t19_review": "PASS: PR #133, artifact blob 0eac673ff10ff819b122eba4e556ec60caa9a91e",
       "runtime_gate": "native execution waits T20/T16",
-      "intended_disposition": "package-shadow candidate + required nested-test lane; no production registration"
+      "intended_disposition": "validated integration candidate; package-shadow only; no production registration",
+      "nested_required_ci": "PASS_NODE22_NODE24"
     },
     {
       "track": "T18",
-      "pr": 70,
-      "head": "9fcab1f369ba93b2b30decb2d0181af50ef621d9",
+      "pr": 132,
+      "head": "29bdb7347967b0c5adf7faa3ec6a586d31e1483a",
       "source_namespaces": [
         "adapters/protocol-next/**"
       ],
       "nested_test_glob": "test/protocol-next/*.test.mjs",
-      "current_package_includes_source": false,
+      "current_package_includes_source": true,
       "current_generic_test_discovers_suite": false,
-      "t19_review": "required before protocol-next promotion",
+      "t19_review": "PASS: PR #134, artifact blob 359157ade57fdd87b15476bf426e7de13533936e",
       "runtime_gate": "runtime oracle/certification owned by T16/T19",
-      "intended_disposition": "package-shadow candidate + required nested-test lane; no runtime causality claim"
+      "intended_disposition": "validated integration candidate; package-shadow only; runtime certification remains T16/T19-owned",
+      "nested_required_ci": "PASS_NODE22_NODE24"
     },
     {
       "track": "T19",
@@ -211,8 +213,8 @@
     "do not claim runtime-tested without verifier-produced T16/beval evidence"
   ],
   "shared_integration": {
-    "branch": "scale/T23/shared-integration-post04b",
-    "status": "IMPLEMENTING",
+    "branch": "scale/T23/integrate-T17-T18-post04b",
+    "status": "T17_T18_COMBINED_INTEGRATION_CANDIDATE",
     "legacy_root_test_preserved": true,
     "nested_ci_nodes": [
       "22.x",
@@ -224,6 +226,24 @@
       "T17 game-next",
       "T18 protocol-next"
     ],
-    "production_registration_changed": false
+    "production_registration_changed": false,
+    "individual_validation": {
+      "T17": {
+        "pr": 131,
+        "head": "a9d6619b055fa5534896f598396de0ee35bf70c6",
+        "ci_run": 36140751912,
+        "focused": "4 files / 40 pass / 0 fail",
+        "t19_review_pr": 133,
+        "t19_review_blob": "0eac673ff10ff819b122eba4e556ec60caa9a91e"
+      },
+      "T18": {
+        "pr": 132,
+        "head": "29bdb7347967b0c5adf7faa3ec6a586d31e1483a",
+        "ci_run": 36140757181,
+        "focused": "6 files / 69 pass / 0 fail",
+        "t19_review_pr": 134,
+        "t19_review_blob": "359157ade57fdd87b15476bf426e7de13533936e"
+      }
+    }
   }
 }
