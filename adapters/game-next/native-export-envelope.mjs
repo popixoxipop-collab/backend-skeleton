@@ -109,6 +109,7 @@ export function createNativeExportEnvelope(
       top_level_keys: Object.keys(payload).sort(),
     },
     claims: {
+      producer_identity_verified: false,
       runtime_behavior_verified: false,
       causal_edges_verified: false,
       state_transitions_verified: false,
@@ -146,6 +147,7 @@ export function verifyNativeExportEnvelope(envelope, { sourceBytes } = {}) {
     errors.push('artifact');
   }
 
+  if (envelope?.claims?.producer_identity_verified !== false) errors.push('claims.producer_identity_verified');
   if (envelope?.claims?.runtime_behavior_verified !== false) errors.push('claims.runtime_behavior_verified');
   if (envelope?.claims?.causal_edges_verified !== false) errors.push('claims.causal_edges_verified');
   if (envelope?.claims?.state_transitions_verified !== false) errors.push('claims.state_transitions_verified');
