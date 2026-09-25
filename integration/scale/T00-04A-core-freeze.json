@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-core-freeze/1",
   "task_id": "T00-04A",
-  "status": "CANDIDATE_BLOCKED_ON_BASELINE",
+  "status": "ACTIVE_CORE_FREEZE",
   "generated_on": "2026-09-25",
   "frozen": {
     "legacy_http_identity": [
@@ -68,5 +68,13 @@
     "T00-03 lease/fencing implementation green",
     "no baseline drift at activation"
   ],
-  "plane_specific_blockers_do_not_block_core_freeze": true
+  "plane_specific_blockers_do_not_block_core_freeze": true,
+  "activated_on": "2026-09-25",
+  "activation_basis": {
+    "baseline_epoch": 7,
+    "baseline_pr": 123,
+    "baseline_head": "486bcb2518d8939445617b796d4df215d85bef81",
+    "t19_review_blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+    "accepted_record_pr": 126
+  }
 }
