@@ -4,8 +4,9 @@
 // fixture invariants that the T11 bridge must preserve while T01/T02/T03 define the eventual
 // next-generation project/capability IR.
 //
-// The leading "_" follows scanners/registry.mjs's helper convention, so this file is never
-// auto-registered as an adapter and cannot affect arbitration.
+// This module lives in T11's isolated adapters/http-legacy-next namespace. It is not part of
+// scanners/registry.mjs auto-discovery and cannot affect stable adapter arbitration until a
+// separately reviewed integration step explicitly consumes it.
 const freeze = (value) => {
 	if (value && typeof value === 'object' && !Object.isFrozen(value)) {
 		Object.freeze(value);

@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 // by producing this snapshot shape, while the stable sbf.scan-report/2 remains the oracle during
 // migration.
 //
-// The leading "_" keeps the file outside automatic adapter registration.
+// This module is outside scanners/registry.mjs automatic adapter registration.
 
 export const LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA = 'sbf.http-legacy-semantic-snapshot/1';
 

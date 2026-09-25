@@ -1,4 +1,4 @@
-import { LEGACY_HTTP_ADAPTER_IDS } from './_t11-baselines.mjs';
+import { LEGACY_HTTP_ADAPTER_IDS } from './baselines.mjs';
 
 // T11-02 compatibility shim.
 //
@@ -8,8 +8,8 @@ import { LEGACY_HTTP_ADAPTER_IDS } from './_t11-baselines.mjs';
 // capability, or identity fields. T11-03 can project from this bridge only after the shared next
 // interface is frozen.
 //
-// The leading "_" keeps this module outside scanners/registry.mjs auto-discovery, so legacy
-// adapter arbitration and scan bytes cannot change merely because this file exists.
+// This module is isolated from scanners/registry.mjs auto-discovery, so legacy adapter
+// arbitration and scan bytes cannot change merely because this file exists.
 export const LEGACY_HTTP_BRIDGE_SCHEMA = 'sbf.http-legacy-bridge/1';
 
 function jsonClone(value) {

@@ -4,13 +4,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runScan } from '../scanners/index.mjs';
 import { ADAPTERS } from '../scanners/registry.mjs';
-import { LEGACY_HTTP_ADAPTER_IDS, legacyHttpBaseline } from '../scanners/adapters/_t11-baselines.mjs';
-import { bridgeLegacyHttpScan } from '../scanners/adapters/_t11-bridge.mjs';
+import { LEGACY_HTTP_ADAPTER_IDS, legacyHttpBaseline } from '../adapters/http-legacy-next/baselines.mjs';
+import { bridgeLegacyHttpScan } from '../adapters/http-legacy-next/bridge.mjs';
 import {
 	compareLegacyHttpReports,
 	compareLegacyHttpSemanticSnapshots,
 	legacyHttpSemanticSnapshot,
-} from '../scanners/adapters/_t11-parity.mjs';
+} from '../adapters/http-legacy-next/parity.mjs';
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const adapter = (id) => ADAPTERS.find((entry) => entry.id === id);

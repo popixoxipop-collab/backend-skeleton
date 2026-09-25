@@ -8,13 +8,13 @@ import {
 	LEGACY_HTTP_ADAPTER_IDS,
 	LEGACY_HTTP_BASELINES,
 	legacyHttpBaseline,
-} from '../scanners/adapters/_t11-baselines.mjs';
+} from '../adapters/http-legacy-next/baselines.mjs';
 import {
 	LEGACY_HTTP_BRIDGE_SCHEMA,
 	bridgeLegacyHttpScan,
 	snapshotLegacyHttpAdapter,
 	summarizeLegacyHttpReport,
-} from '../scanners/adapters/_t11-bridge.mjs';
+} from '../adapters/http-legacy-next/bridge.mjs';
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
