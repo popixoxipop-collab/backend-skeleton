@@ -4,14 +4,12 @@ import { DEFAULT_BUDGET, decodeNdjsonLine, normalizeBudget, validateMessage } fr
 
 const WORKER_PATH = fileURLToPath(new URL('./worker.mjs', import.meta.url));
 
-function workerEnvironment(source = process.env) {
-	const env = {};
-	// The static worker needs no project secrets, PATH, package-manager configuration, or
-	// compiler environment. Keep only Windows process-bootstrap variables when present.
-	for (const key of ['SystemRoot', 'WINDIR']) {
-		if (source[key]) env[key] = source[key];
-	}
-	return env;
+function workerEnvironment() {
+	// The static worker uses an absolute Node executable plus an absolute worker module path.
+	// It needs no target/project environment and receives no ambient host variables at all.
+	// If a future compiler helper needs runner-owned bootstrap variables, that belongs in the
+	// separately reviewed T20/T16 execution profile rather than this static worker default.
+	return Object.create(null);
 }
 
 function boundedText(value, limit = 4096) {
