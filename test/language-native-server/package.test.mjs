@@ -21,6 +21,7 @@ test('T08 packaging: npm pack includes every native-server runtime module and ex
 	const files = new Set(payload[0].files.map((entry) => entry.path));
 	for (const required of [
 		'scanners/language/native-server/ADR.md',
+		'scanners/language/native-server/batch.mjs',
 		'scanners/language/native-server/README.md',
 		'scanners/language/native-server/csharp.mjs',
 		'scanners/language/native-server/go.mjs',
