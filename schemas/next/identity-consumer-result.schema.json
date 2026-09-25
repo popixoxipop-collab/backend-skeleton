@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:identity-consumer-result:1",
+  "title": "T01 independent identity consumer conformance result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "identity_consumer_result",
+    "consumer",
+    "conformance_pack",
+    "execution",
+    "cases",
+    "summary"
+  ],
+  "properties": {
+    "identity_consumer_result": {
+      "const": "sbf.identity-consumer-result/1"
+    },
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "repository",
+        "commit_sha",
+        "implementation_path"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit_sha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "implementation_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "conformance_pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_conformance",
+        "byte_sha256"
+      ],
+      "properties": {
+        "identity_conformance": {
+          "const": "sbf.identity-conformance/1"
+        },
+        "byte_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "exit_code",
+        "bskel_runtime_imported",
+        "bskel_runtime_spawned"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exit_code": {
+          "const": 0
+        },
+        "bskel_runtime_imported": {
+          "const": false
+        },
+        "bskel_runtime_spawned": {
+          "const": false
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "group",
+          "name",
+          "outcome",
+          "observed"
+        ],
+        "properties": {
+          "group": {
+            "enum": [
+              "positive",
+              "negative",
+              "artifact"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "const": "pass"
+          },
+          "observed": {}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "not_run"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "const": 0
+        },
+        "not_run": {
+          "const": 0
+        }
+      }
+    }
+  }
+}
