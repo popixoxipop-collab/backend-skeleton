@@ -56,32 +56,14 @@ try {
   assert.equal(ts70.version, '7.0.2');
 
   const backend59 = createTypeScriptCompilerBackend(ts59, { id: 'typescript-compiler-5.9.3' });
-  const backend70 = createTypeScriptCompilerBackend(ts70, { id: 'typescript-compiler-7.0.2' });
 
-  const parityCorpus = [{
-    id: 'module-edges',
-    source: `
-import express, { Router as R, type Request } from 'express';
-import * as pathNs from 'node:path';
-import type { User } from './types';
-export { thing } from './thing';
-const router = require('./router');
-const { json: expressJson } = require('express');
-const lazy = import('./lazy');
-`,
-    options: { filePath: 'src/app.ts', language: 'typescript' },
-  }];
-
-  const crossVersion = compareJsTsBackends([backend59, backend70], parityCorpus, {
-    referenceBackendId: backend59.id,
-  });
-  const v7Comparison = crossVersion.cases[0].comparisons.find((x) => x.backendId === backend70.id);
-  assert.deepEqual(v7Comparison, {
-    backendId: backend70.id,
-    comparable: true,
-    agrees: true,
-    differences: [],
-  });
+  // TypeScript 7.0 is the native compiler and deliberately ships without the old JavaScript
+  // Compiler API. T04 must expose that as an unsupported backend profile rather than fabricating
+  // compatibility or reaching into private package internals.
+  assert.throws(
+    () => createTypeScriptCompilerBackend(ts70, { id: 'typescript-compiler-7.0.2' }),
+    /missing createSourceFile/,
+  );
 
   const lexicalParity = compareJsTsBackends([lexicalJsTsBackend(), backend59], [{
     id: 'simple-lexical-parity',
@@ -91,7 +73,7 @@ const lazy = import('./lazy');
   const compilerComparison = lexicalParity.cases[0].comparisons.find((x) => x.backendId === backend59.id);
   assert.deepEqual(compilerComparison.differences, ['syntaxValidated']);
 
-  for (const backend of [backend59, backend70]) {
+  for (const backend of [backend59]) {
     const valid = backend.analyze(`
 import type { User } from './types';
 import { Router as R } from 'express';
@@ -163,7 +145,7 @@ obj.require('not-a-module-edge');
   }
 
   console.log('t04-typescript-compiler-smoke: PASS');
-  console.log(`t04-typescript-compiler-smoke: versions ${ts59.version} and ${ts70.version} produced identical normalized module facts on the comparison corpus`);
+  console.log(`t04-typescript-compiler-smoke: Compiler API candidate ${ts59.version} passed; TypeScript ${ts70.version} is explicitly unsupported because it does not expose the legacy createSourceFile API`);
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
 }
