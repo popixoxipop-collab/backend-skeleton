@@ -5,10 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCorpusManifest, summarizeCorpus } from '../corpus-next/corpus.mjs';
 import { validateNegativeCatalog, coverageSummary } from './catalog.mjs';
+import { validateExternalEvidenceCandidates, summarizeExternalEvidenceCandidates } from './external-candidates.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'manifest.json'), 'utf8'));
 const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, 'negative-vectors.json'), 'utf8'));
+const externalCandidates = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-evidence-candidates.json'), 'utf8'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 test('T19 corpus manifest is structurally and semantically valid without claiming independent certification', () => {
@@ -118,4 +120,63 @@ test('T19 negative catalog rejects duplicated vector identities', () => {
   const verdict = validateNegativeCatalog(bad);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.errors.some((x) => x.includes('duplicate')));
+});
+
+
+test('T19 external evidence registry is provenance-valid and never self-certifies coverage', () => {
+  const verdict = validateExternalEvidenceCandidates(externalCandidates, vectors);
+  assert.deepEqual(verdict.errors, []);
+  assert.equal(verdict.ok, true);
+  const summary = summarizeExternalEvidenceCandidates(externalCandidates, vectors);
+  assert.equal(summary.candidates, 5);
+  assert.equal(summary.unique_vectors, 12);
+  assert.equal(summary.direct_mappings, 10);
+  assert.equal(summary.partial_mappings, 2);
+  assert.equal(summary.exact_head_ci_success_candidates, 1);
+  assert.equal(summary.nonterminal_ci_candidates, 4);
+  assert.equal(summary.covered_vectors, 0);
+});
+
+test('T19 external evidence rejects mutable source refs instead of silently following a branch', () => {
+  const bad = clone(externalCandidates);
+  bad.candidates[0].source.commit = 'main';
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('exact 40-hex commit required')));
+});
+
+test('T19 external evidence rejects traversal-like test paths', () => {
+  const bad = clone(externalCandidates);
+  bad.candidates[0].tests[0].path = 'test/../secrets.test.mjs';
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('unsafe or non-test repo path')));
+});
+
+test('T19 external evidence rejects mappings to unknown negative-vector IDs', () => {
+  const bad = clone(externalCandidates);
+  bad.candidates[0].vector_mappings[0].vector_id = 'NEG-NOT-REAL-99';
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('unknown negative vector')));
+});
+
+test('T19 external evidence cannot mark itself covered or certified', () => {
+  const bad = clone(externalCandidates);
+  bad.candidates[0].state = 'covered';
+  bad.candidates[0].certification = true;
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must remain external-candidate')));
+  assert.ok(verdict.errors.some((x) => x.includes('cannot self-certify')));
+});
+
+test('T19 external evidence preserves nonterminal CI instead of turning it into success', () => {
+  const bad = clone(externalCandidates);
+  const candidate = bad.candidates.find((x) => x.ci.status !== 'completed');
+  assert.ok(candidate);
+  candidate.ci.conclusion = 'success';
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('nonterminal CI must keep conclusion=null')));
 });
