@@ -152,17 +152,18 @@ function parseModelsFromText(text, file) {
 			if (indent !== classIndent + 4) continue;
 			const fieldMatch = maskedLines[j].match(/^\s*([A-Za-z_]\w*)\s*=\s*models\.([A-Za-z_]\w*)\s*\(/);
 			if (!fieldMatch) continue;
+			const fieldLine = j + 1;
 			const call = collectCall(lines, j, classIndent + 4);
 			j = call.end;
 			if (!call.complete) {
-				diagnostics.push({ code:'django-field-call-incomplete', level:'info', file, line:j + 1, model:classMatch[2], field:fieldMatch[1] });
+				diagnostics.push({ code:'django-field-call-incomplete', level:'info', file, line:fieldLine, model:classMatch[2], field:fieldMatch[1] });
 				continue;
 			}
 			fields.push({
 				name: fieldMatch[1],
 				kind: fieldMatch[2],
 				call: call.text,
-				line: i + 1,
+				line: fieldLine,
 			});
 		}
 		if (abstract) {
@@ -229,8 +230,9 @@ export function parseDjangoModels(files, { repoRoot = null } = {}) {
 				}
 				const toField = literalKwarg(field.call, 'to_field');
 				const targetPk = target.fields.find((candidate) => boolKwarg(candidate.call, 'primary_key') === true);
+				const explicitTargetField = toField ? target.fields.find((candidate) => candidate.name === toField) : null;
 				const targetColumn = toField
-					? (literalKwarg(targetPk?.call ?? '', 'db_column') ?? toField)
+					? explicitTargetField ? (literalKwarg(explicitTargetField.call, 'db_column') ?? explicitTargetField.name) : null
 					: targetPk ? (literalKwarg(targetPk.call, 'db_column') ?? targetPk.name) : null;
 				relations.push({
 					columns:[physicalName],
