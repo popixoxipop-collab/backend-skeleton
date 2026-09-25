@@ -138,3 +138,37 @@ test('Markdown matrix escapes untrusted adapter/capability data from table struc
 	assert.match(markdown, /example\\\|unsafe/);
 	assert.match(markdown, /&lt;unsafe&gt;/);
 });
+
+
+test('support matrix treats prototype-like capability names as ordinary data', () => {
+	const report = explanation('typescript-nestjs', [
+		{
+			name: '__proto__',
+			status: 'partial',
+			evidenceRefs: ['source:a'],
+			constraints: [],
+			nextActions: [],
+		},
+		{
+			name: 'constructor',
+			status: 'unknown',
+			evidenceRefs: [],
+			constraints: [],
+			nextActions: [],
+		},
+	]);
+	const matrix = buildSupportMatrix([report]);
+	const caps = matrix.rows[0].capabilities;
+	assert.equal(Object.prototype.polluted, undefined);
+	assert.equal(Object.hasOwn(caps, '__proto__'), true);
+	assert.equal(Object.hasOwn(caps, 'constructor'), true);
+	assert.equal(caps.__proto__.status, 'partial');
+	assert.equal(caps.constructor.status, 'unknown');
+
+	const markdown = renderSupportMatrixMarkdown(matrix);
+	assert.match(markdown, /__proto__/);
+	assert.match(markdown, /constructor/);
+
+	const diagnostics = supportMatrixDiagnostics(matrix);
+	assert.deepEqual(diagnostics.map((item) => item.status).sort(), ['partial', 'unknown']);
+});
