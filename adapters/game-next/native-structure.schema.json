@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf-internal:game-native-structure:draft-1",
+  "title": "T17 internal normalized native structure",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "normalizer_revision",
+    "status",
+    "engine",
+    "evidence_class",
+    "source_artifact",
+    "source_inputs",
+    "producer",
+    "nodes",
+    "relations",
+    "declarations",
+    "claims"
+  ],
+  "properties": {
+    "schema": {
+      "const": "sbf.game-native-structure/draft-1"
+    },
+    "normalizer_revision": {
+      "const": 2
+    },
+    "status": {
+      "const": "declared-structure-only"
+    },
+    "engine": {
+      "enum": [
+        "unreal",
+        "unity",
+        "godot"
+      ]
+    },
+    "evidence_class": {
+      "enum": [
+        "source-export",
+        "editor-export",
+        "headless-export"
+      ]
+    },
+    "source_artifact": {
+      "$ref": "#/$defs/artifact"
+    },
+    "producer": {
+      "$ref": "#/$defs/producer"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    },
+    "declarations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replication",
+        "rpc",
+        "signals"
+      ],
+      "properties": {
+        "replication": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/replication"
+          }
+        },
+        "rpc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rpc"
+          }
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signal"
+          }
+        }
+      }
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_identity_verified",
+        "source_structure_verified",
+        "runtime_behavior_verified",
+        "causal_edges_verified",
+        "state_transitions_verified"
+      ],
+      "properties": {
+        "source_structure_verified": {
+          "const": false
+        },
+        "runtime_behavior_verified": {
+          "const": false
+        },
+        "causal_edges_verified": {
+          "const": false
+        },
+        "state_transitions_verified": {
+          "const": false
+        },
+        "producer_identity_verified": {
+          "const": false
+        }
+      }
+    },
+    "source_inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceInput"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmpty": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_ref",
+        "family",
+        "version",
+        "media_type",
+        "byte_sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "artifact_ref": {
+          "const": "sbf.artifact-ref/1"
+        },
+        "family": {
+          "const": "game-native-export"
+        },
+        "version": {
+          "const": "draft-1"
+        },
+        "media_type": {
+          "const": "application/json"
+        },
+        "byte_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "implementation_sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engine",
+        "path",
+        "local_id"
+      ],
+      "properties": {
+        "engine": {
+          "enum": [
+            "unreal",
+            "unity",
+            "godot"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "local_id": {
+          "$ref": "#/$defs/nonEmpty"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "type",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "kind": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "specifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmpty"
+          },
+          "uniqueItems": true
+        },
+        "class_id": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "file_id": {
+          "type": "string",
+          "pattern": "^-?[0-9]+$"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "from",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "kind": {
+          "enum": [
+            "declared-base",
+            "declares",
+            "component-of",
+            "declared-parent",
+            "serialized-reference",
+            "scene-member",
+            "script-reference"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "to": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "to_symbol": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "target_file_id": {
+          "type": "string",
+          "pattern": "^-?[0-9]+$"
+        },
+        "target_guid": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_uri": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      }
+    },
+    "replication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "subject",
+        "mode",
+        "notify",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "subject": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "mode": {
+          "enum": [
+            "Replicated",
+            "ReplicatedUsing"
+          ]
+        },
+        "notify": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "const": "declared-specifier"
+        }
+      }
+    },
+    "rpc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "subject",
+        "mode",
+        "reliability",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "subject": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "mode": {
+          "enum": [
+            "Client",
+            "Server",
+            "Remote",
+            "NetMulticast",
+            "ServiceRequest",
+            "ServiceResponse"
+          ]
+        },
+        "reliability": {
+          "enum": [
+            "reliable",
+            "unreliable",
+            "unspecified"
+          ]
+        },
+        "evidence": {
+          "const": "declared-specifier"
+        }
+      }
+    },
+    "signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "scene",
+        "signal",
+        "from",
+        "to",
+        "method",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "scene": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "signal": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "from": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "to": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "method": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "evidence": {
+          "const": "declared-connection"
+        }
+      }
+    },
+    "sourceInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "role",
+        "artifact"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:/)(?!.*(?:^|/)\\.\\.?/)(?!.*\\\\).+$"
+        },
+        "role": {
+          "enum": [
+            "active",
+            "reference",
+            "generated",
+            "vendor",
+            "template"
+          ]
+        },
+        "artifact": {
+          "$ref": "#/$defs/sourceArtifact"
+        }
+      }
+    },
+    "sourceArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_ref",
+        "family",
+        "version",
+        "media_type",
+        "byte_sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "artifact_ref": {
+          "const": "sbf.artifact-ref/1"
+        },
+        "family": {
+          "const": "game-native-source"
+        },
+        "version": {
+          "const": "draft-1"
+        },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[^\\\\s/]+/[^\\\\s]+$"
+        },
+        "byte_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_class": {
+            "const": "source-export"
+          }
+        },
+        "required": [
+          "evidence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_inputs": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}
