@@ -122,3 +122,36 @@ test('fixture directory reference requires at least one regular file below it', 
 	assert.equal(report.referencesSatisfied, false);
 	assert.deepEqual(report.missing, ['fixture:fixtures/minimal']);
 });
+
+
+test('inventory rejects cross-platform case and Unicode normalization collisions', () => {
+	for (const paths of [
+		['src/Worker.mjs', 'src/worker.mjs'],
+		['fixtures/caf\u00e9.txt', 'fixtures/cafe\u0301.txt'],
+	]) {
+		const result = validateAdapterPackageInventory({
+			contract: 'sbf.adapter-package-inventory/1',
+			packageSha256: 'c'.repeat(64),
+			files: paths.map((path, index) => ({
+				path,
+				sha256: String(index + 1).repeat(64).slice(0, 64),
+				sizeBytes: 1,
+				kind: 'file',
+			})),
+		});
+		assert.equal(result.ok, false, JSON.stringify(paths));
+		assert.match(result.errors.map((item) => item.message).join('\n'), /collides portably/);
+	}
+});
+
+test('inventory rejects reserved device names and trailing dot/space segments', () => {
+	for (const path of ['CON', 'src/NUL.txt', 'src/name.', 'src/name ', 'src/line\nfeed.txt']) {
+		const result = validateAdapterPackageInventory({
+			contract: 'sbf.adapter-package-inventory/1',
+			packageSha256: 'c'.repeat(64),
+			files: [{ path, sha256: 'a'.repeat(64), sizeBytes: 1, kind: 'file' }],
+		});
+		assert.equal(result.ok, false, path);
+		assert.match(result.errors.map((item) => item.message).join('\n'), /portable package-relative path/);
+	}
+});
