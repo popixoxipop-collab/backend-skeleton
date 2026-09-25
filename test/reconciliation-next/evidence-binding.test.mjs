@@ -46,7 +46,7 @@ function graph() {
   ];
   return {
     version: 'bskel.reconciliation-decision-graph/0-draft',
-    openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft' },
+    openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft', openapiRef },
     endpoints: [{
       endpointKey: '0:0',
       resolutionKind: 'matched',
