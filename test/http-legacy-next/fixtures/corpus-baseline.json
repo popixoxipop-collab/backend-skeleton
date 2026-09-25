@@ -70,12 +70,12 @@
       "terms": [
         "topic"
       ],
-      "semantic_sha256": "4fcd3b424ad8b01d924e060114afe43f6e14eb6e0e10c610daa200bed53f0597",
+      "semantic_sha256": "4470a9035e88971877954c30f9c8bea258d1020b555ca820b442596ea762b281",
       "observed": {
         "module_count": 15,
         "endpoint_count": 202,
         "entity_count": 188,
-        "files_read_count": 614,
+        "files_read_count": 1550,
         "unknown_count": 71
       }
     },
@@ -89,12 +89,12 @@
       "terms": [
         "article"
       ],
-      "semantic_sha256": "e9bdf7e04580ebdb8fbf23e33bdc7c8d6a87bc186dac026399542542eb9f1a86",
+      "semantic_sha256": "d95d53a2e61b991c8e361ccb07400ceef950d0bff33432693464bced1fc5fc6e",
       "observed": {
         "module_count": 10,
         "endpoint_count": 171,
         "entity_count": 51,
-        "files_read_count": 510,
+        "files_read_count": 668,
         "unknown_count": 57
       }
     },
@@ -108,12 +108,12 @@
       "terms": [
         "account"
       ],
-      "semantic_sha256": "f40cffc7f15e2a0062b6a16d4cd2d05321accdb3f936943539a63e3dffc146dc",
+      "semantic_sha256": "f222d0af406d9ecf99387923e8ca00b83c976f7c4e59297049a783430d4ccbe2",
       "observed": {
         "module_count": 22,
         "endpoint_count": 105,
         "entity_count": 71,
-        "files_read_count": 667,
+        "files_read_count": 741,
         "unknown_count": 121
       }
     },
@@ -165,12 +165,12 @@
       "terms": [
         "recipe"
       ],
-      "semantic_sha256": "22490b44272dbab0aa77cc790b2f388fb9b68383bcabf57a640b770b93c2fbc0",
+      "semantic_sha256": "126dcb79f04119637b8f001d5de25438293a49682086bc84d907783a76b4018f",
       "observed": {
         "module_count": 9,
         "endpoint_count": 77,
         "entity_count": 0,
-        "files_read_count": 461,
+        "files_read_count": 636,
         "unknown_count": 2
       }
     },
