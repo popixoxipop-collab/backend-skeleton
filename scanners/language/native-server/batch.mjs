@@ -1,4 +1,18 @@
-import { analyzeNativeServerSource } from './index.mjs';
+import { analyzeGoGinSource } from './go.mjs';
+import { analyzeCSharpAspNetSource } from './csharp.mjs';
+import { analyzeRustServerSource } from './rust.mjs';
+
+const BATCH_ANALYZERS = Object.freeze({
+	go: analyzeGoGinSource,
+	csharp: analyzeCSharpAspNetSource,
+	rust: analyzeRustServerSource,
+});
+
+function analyzeOne(language, source, file) {
+	const analyze = BATCH_ANALYZERS[language];
+	if (!analyze) throw new TypeError(`batch language is not implemented: ${JSON.stringify(language)}`);
+	return analyze(source, { file });
+}
 
 export const DEFAULT_BATCH_LIMITS = Object.freeze({
 	maxFiles: 4096,
@@ -75,7 +89,7 @@ export function analyzeNativeServerFiles({
 	const frameworks = new Set();
 	const limitations = new Set();
 	for (const entry of normalized) {
-		const result = analyzeNativeServerSource({ language, source: entry.source, file: entry.file });
+		const result = analyzeOne(language, entry.source, entry.file);
 		routes.push(...result.routes);
 		diagnostics.push(...result.diagnostics);
 		if (result.framework) frameworks.add(result.framework);
