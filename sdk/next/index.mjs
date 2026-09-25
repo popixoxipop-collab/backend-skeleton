@@ -36,3 +36,5 @@ export {
 	CONFORMANCE_REPORT_CONTRACT,
 	runAdapterSdkConformance,
 } from './testkit.mjs';
+
+export { SDK_SCHEMA_FILES, SDK_SCHEMA_IDS } from './schema-catalog.mjs';
