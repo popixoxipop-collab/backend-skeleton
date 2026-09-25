@@ -1,0 +1,36 @@
+{
+  "contract": "sbf.adapter-sdk-manifest/1",
+  "adapter": {
+    "id": "example-minimal",
+    "title": "Example minimal adapter",
+    "version": "0.1.0",
+    "descriptorContract": "sbf.adapter/2"
+  },
+  "compatibility": {
+    "bskel": {
+      "minInclusive": "1.9.0",
+      "maxExclusive": "2.0.0"
+    }
+  },
+  "entrypoint": {
+    "protocol": "sbf.adapter-worker/1",
+    "path": "adapter-worker.mjs",
+    "export": "adapterWorker"
+  },
+  "permissions": {
+    "readRoots": [
+      "."
+    ],
+    "writeRoots": [],
+    "network": "deny-by-default",
+    "environment": [],
+    "subprocess": "deny-by-default"
+  },
+  "fixtures": [
+    "fixtures/minimal"
+  ],
+  "verificationBasis": "synthetic-only",
+  "activation": {
+    "mode": "manual-approval-required"
+  }
+}
