@@ -38,6 +38,10 @@ test('network grants are exact host+port allowlists with no wildcards', () => {
   const bad = validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, network: { mode: 'allowlist', allow: [{ host: '*.example.com', ports: [443] }] } });
   assert.equal(bad.ok, false);
   assert.equal(bad.errors.some((x) => x.code === 'INVALID_NETWORK_HOST'), true);
+  for (const host of ['a..example.com', '-bad.example.com', 'bad-.example.com', 'https://example.com']) {
+    const invalid = validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, network: { mode: 'allowlist', allow: [{ host, ports: [443] }] } });
+    assert.equal(invalid.ok, false, host);
+  }
 });
 
 test('process grants only exact executable basenames and never shell fragments', () => {
@@ -46,6 +50,9 @@ test('process grants only exact executable basenames and never shell fragments',
   assert.equal(policy.canExecute('/usr/bin/node'), false);
   assert.equal(policy.canExecute('node;curl'), false);
   assert.throws(() => compilePermissionPolicy({ schema: PERMISSION_MANIFEST_SCHEMA, process: { mode: 'argv-allowlist', executables: ['sh -c'], max_children: 1 } }), /INVALID_EXECUTABLE/);
+  for (const executable of ['.', '..', './node', '../node']) {
+    assert.equal(validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, process: { mode: 'argv-allowlist', executables: [executable], max_children: 1 } }).ok, false, executable);
+  }
 });
 
 test('environment grants names only; secret values are rejected', () => {
