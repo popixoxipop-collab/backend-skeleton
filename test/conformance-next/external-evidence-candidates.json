@@ -1,0 +1,229 @@
+{
+  "contract": "sbf.external-evidence-candidates/1",
+  "candidates": [
+    {
+      "id": "t01-identity-prefreeze",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "c91c2e208e6318f056501474fa9da6eea9f51384",
+        "pull_request": 82
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-ID-01",
+          "strength": "direct",
+          "reason": "Exact-byte compact and pretty JSON artifact cases deliberately produce different size/hash identities."
+        },
+        {
+          "vector_id": "NEG-ID-03",
+          "strength": "direct",
+          "reason": "Valid-but-different operation ID is preserved exactly rather than alias-repaired."
+        }
+      ],
+      "tests": [
+        {
+          "path": "test/contract-next/identity-conformance.test.mjs",
+          "selectors": [
+            "T01 consumer conformance positive cases preserve exact identities",
+            "T01 exact-byte artifact vectors stay formatting-sensitive"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36087437621,
+        "run_number": 573,
+        "status": "in_progress",
+        "conclusion": null
+      },
+      "note": "Producer also reported a focused 13/13 direct run; T19 does not treat that report as independent exact-head CI."
+    },
+    {
+      "id": "t21-cache-invalidation",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "148605fb8d7074f78cff368b1c1a237263143e61",
+        "pull_request": 80
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-CACHE-01",
+          "strength": "direct",
+          "reason": "New source file invalidates affected dependency graph."
+        },
+        {
+          "vector_id": "NEG-CACHE-02",
+          "strength": "direct",
+          "reason": "Deleted source file invalidates affected dependency graph."
+        },
+        {
+          "vector_id": "NEG-CACHE-03",
+          "strength": "direct",
+          "reason": "Resolver/config semantic dimensions participate in the cache key."
+        },
+        {
+          "vector_id": "NEG-CACHE-04",
+          "strength": "direct",
+          "reason": "Parser/grammar digest participates in the cache key."
+        },
+        {
+          "vector_id": "NEG-CACHE-05",
+          "strength": "direct",
+          "reason": "Policy digest participates in the cache key."
+        },
+        {
+          "vector_id": "NEG-CACHE-06",
+          "strength": "direct",
+          "reason": "Artifact store detects tampered bytes and rejects corrupt cache data."
+        }
+      ],
+      "tests": [
+        {
+          "path": "test/perf-next/t21-file-index-invalidation.test.mjs",
+          "selectors": [
+            "new, deleted and modified source invalidate transitive dependents only"
+          ]
+        },
+        {
+          "path": "test/perf-next/t21-cache-key.test.mjs",
+          "selectors": [
+            "every semantic dimension invalidates the cache key"
+          ]
+        },
+        {
+          "path": "test/perf-next/t21-artifact-store.test.mjs",
+          "selectors": [
+            "artifact store detects corruption instead of returning poisoned cache data"
+          ]
+        },
+        {
+          "path": "test/t21-performance-next.test.mjs",
+          "selectors": [
+            "root aggregator imported by current test/*.test.mjs CI glob"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36083666703,
+        "run_number": 487,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "note": "Strong exact-head candidate evidence for cache semantics; still not T19-covered until independent mapping review and immutable execution binding are accepted."
+    },
+    {
+      "id": "t23-release-policy",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "c3ca5ba840a6a8bd0f9c210e420184bf672c08e4",
+        "pull_request": 78
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-RELEASE-03",
+          "strength": "direct",
+          "reason": "Wrong-head/stale exact-head CI and stale observed-main release plans are rejected."
+        },
+        {
+          "vector_id": "NEG-RELEASE-04",
+          "strength": "direct",
+          "reason": "Release inventory rejects source-only compatibility when packed-package smoke is missing."
+        }
+      ],
+      "tests": [
+        {
+          "path": "release/next/test/release-policy.test.mjs",
+          "selectors": [
+            "rejects exact-head CI attached to a different commit",
+            "rejects a stale release plan that does not mirror observed main",
+            "rejects source-only compatibility when packed-package smoke disappears"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36088132185,
+        "run_number": 667,
+        "status": "queued",
+        "conclusion": null
+      },
+      "note": "CI was nonterminal at observation; this candidate must not be promoted from that state."
+    },
+    {
+      "id": "t14-fail-closed-generation",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "6b87e3a24d029b0b3b888944eb32b2ba8f84da0e",
+        "pull_request": 71
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-GEN-04",
+          "strength": "partial",
+          "reason": "Composition safety profile requires fail-closed authorization stubs/manual completion, but this does not independently prove every generated auth stub can never default-allow."
+        }
+      ],
+      "tests": [
+        {
+          "path": "test/t14-provider-composition.test.mjs",
+          "selectors": [
+            "T14 safety profile exposes Python/TypeScript authorization and patch as manual fail-closed completions",
+            "T14 certification rejects a preview that tries to smuggle apply permission"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36087619559,
+        "run_number": 597,
+        "status": "in_progress",
+        "conclusion": null
+      },
+      "note": "Partial semantic mapping only."
+    },
+    {
+      "id": "t20-network-default-deny",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "c534935bf227b306e78ebbbb6e95ed998b690771",
+        "pull_request": 79
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-TRUST-05",
+          "strength": "partial",
+          "reason": "Permission layer defaults network to deny and only allows exact host+port grants; it does not yet constitute an OS-level egress escape test."
+        }
+      ],
+      "tests": [
+        {
+          "path": "test/trust-next/permission-manifest.test.mjs",
+          "selectors": [
+            "defaults are deny-by-default and bounded",
+            "network grants are exact host+port allowlists with no wildcards"
+          ]
+        },
+        {
+          "path": "test/trust-next/static-purity.test.mjs",
+          "selectors": [
+            "trust permission layer stays declarative: no process/network/database execution imports"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36088093082,
+        "run_number": 660,
+        "status": "queued",
+        "conclusion": null
+      },
+      "note": "Partial policy-level mapping; no sandbox/egress behavior certification."
+    }
+  ]
+}
