@@ -27,6 +27,9 @@ test('read/write roots use path segment boundaries and reject traversal', () => 
   assert.equal(policy.canRead('src/../secret'), false);
   assert.equal(policy.canWrite('artifacts/out/report.json'), true);
   assert.equal(policy.canWrite('artifacts/outside/report.json'), false);
+  for (const root of ['C:/Windows/System32', 'z:/tmp']) {
+    assert.equal(validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, read_roots: [root] }).ok, false, root);
+  }
 });
 
 test('network grants are exact host+port allowlists with no wildcards', () => {
@@ -87,4 +90,25 @@ test('non-plain manifests are rejected rather than inheriting ambient properties
   assert.equal(validatePermissionManifest([]).ok, false);
   class Manifest { constructor() { this.schema = PERMISSION_MANIFEST_SCHEMA; } }
   assert.equal(validatePermissionManifest(new Manifest()).ok, false);
+});
+
+
+test('compiled policies are deeply immutable after validation', () => {
+  const policy = compilePermissionPolicy({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    read_roots: ['src'],
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443] }] },
+    process: { mode: 'argv-allowlist', executables: ['node'], max_children: 1 },
+    environment: { allow: ['CI'] },
+    secret_refs: ['provider-token'],
+  });
+  assert.equal(Object.isFrozen(policy.manifest), true);
+  assert.equal(Object.isFrozen(policy.manifest.read_roots), true);
+  assert.equal(Object.isFrozen(policy.manifest.network), true);
+  assert.equal(Object.isFrozen(policy.manifest.network.allow), true);
+  assert.equal(Object.isFrozen(policy.manifest.network.allow[0].ports), true);
+  assert.throws(() => policy.manifest.read_roots.push('secret'));
+  assert.throws(() => policy.manifest.network.allow[0].ports.push(80));
+  assert.equal(policy.canRead('secret/file'), false);
+  assert.equal(policy.canConnect('api.example.com', 80), false);
 });
