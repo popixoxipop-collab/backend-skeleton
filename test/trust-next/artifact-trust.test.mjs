@@ -5,6 +5,7 @@ import {
   ARTIFACT_TRUST_POLICY_SCHEMA,
   artifactTrustPolicyDigest,
   assertArtifactTrusted,
+  assertNoArtifactTrustExpansion,
   diffArtifactTrustPolicies,
   evaluateArtifactTrust,
   serializeArtifactTrustPolicy,
@@ -108,4 +109,42 @@ test('lookup input cannot smuggle mutable names, URLs or extra fields', () => {
     { usage: 'package', sha256: A, url: 'https://example.com/pkg' },
     { usage: 'package', sha256: A, version: '1.2.3' },
   ]) assert.throws(() => evaluateArtifactTrust(policy, ref), (e) => e?.code === 'INVALID_ARTIFACT_TRUST_REF');
+});
+
+
+test('artifact trust expansion guard allows tightening and rejects new trust or revocation removal', () => {
+  const broad = {
+    schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+    generation: 2,
+    allow: [{ usage: 'adapter', sha256: A }],
+    revoked: [],
+  };
+  const narrow = {
+    schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+    generation: 3,
+    allow: [],
+    revoked: [{ sha256: B, reason: 'blocked by security review' }],
+  };
+  const reduction = assertNoArtifactTrustExpansion(broad, narrow);
+  assert.equal(reduction.expanded, false);
+  assert.equal(reduction.reduced, true);
+
+  const before = {
+    schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+    generation: 4,
+    allow: [],
+    revoked: [{ sha256: C, reason: 'withdrawn after review' }],
+  };
+  const after = {
+    schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+    generation: 5,
+    allow: [{ usage: 'helper', sha256: B }],
+    revoked: [],
+  };
+  assert.throws(
+    () => assertNoArtifactTrustExpansion(before, after),
+    (error) => error?.code === 'ARTIFACT_TRUST_EXPANSION_REQUIRES_APPROVAL'
+      && error.delta?.expansions.some((x) => x.change === 'allow-added')
+      && error.delta?.expansions.some((x) => x.change === 'revocation-removed'),
+  );
 });
