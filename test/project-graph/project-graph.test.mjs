@@ -9,6 +9,7 @@ import {
   buildProjectScanPlan,
   discoverProjectRoots,
   inferDetectionProjectRoot,
+  projectGraphExecutionRoot,
 } from '../../scanners/project-graph/index.mjs';
 
 function fixture(files) {
@@ -274,4 +275,35 @@ test('large sibling monorepo discovery and planning stay deterministic', () => {
   assert.deepEqual(first.project_edges, second.project_edges);
   assert.deepEqual(first.unresolved, second.unresolved);
   assert.deepEqual(first.files_read, second.files_read);
+});
+
+
+test('serialized ProjectGraph is worktree-portable while execution root stays process-local', () => {
+  const files = {
+    'service/package.json': JSON.stringify({ name: '@demo/service' }),
+    'service/src/app.js': 'export const value = 1;\n',
+  };
+  const rootA = fixture(files);
+  const rootB = fixture(files);
+  const portable = adapter('portable-http', 50, (candidateRoot) =>
+    fs.existsSync(path.join(candidateRoot, 'package.json')) ? candidateRoot : null,
+    {
+      listReadSet(candidateRoot) {
+        return ['src/app.js'];
+      },
+    },
+  );
+
+  const graphA = buildProjectGraph({ repoRoot: rootA, adapters: [portable, fallback] });
+  const graphB = buildProjectGraph({ repoRoot: rootB, adapters: [fallback, portable] });
+
+  assert.equal(graphA.repo_root, '.');
+  assert.equal(graphB.repo_root, '.');
+  assert.equal(projectGraphExecutionRoot(graphA), rootA);
+  assert.equal(projectGraphExecutionRoot(graphB), rootB);
+  assert.equal(JSON.stringify(graphA), JSON.stringify(graphB));
+
+  const roundTrip = JSON.parse(JSON.stringify(graphA));
+  assert.equal(projectGraphExecutionRoot(roundTrip), null);
+  assert.equal(roundTrip.repo_root, '.');
 });
