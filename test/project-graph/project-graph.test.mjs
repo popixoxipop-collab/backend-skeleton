@@ -169,3 +169,81 @@ test('adapter detection exceptions are scoped to the project and do not abort th
   assert.equal(g.projects[0].facets.http.selected_adapter, 'javascript-express');
   assert.ok(g.unresolved.some((x) => x.kind === 'adapter-detect-error' && x.message === 'boom'));
 });
+
+
+test('project graph records direct containment and unique local package dependencies', () => {
+  const root = fixture({
+    'package.json': '{"private":true,"workspaces":["packages/*"]}',
+    'packages/api/package.json': JSON.stringify({
+      name: '@demo/api',
+      dependencies: { '@demo/shared': 'workspace:*', express: '^5.0.0' },
+    }),
+    'packages/api/plugin/package.json': JSON.stringify({ name: '@demo/plugin' }),
+    'packages/shared/package.json': JSON.stringify({ name: '@demo/shared' }),
+  });
+  const g = buildProjectGraph({ repoRoot: root, adapters: [fallback] });
+  const byRoot = new Map(g.projects.map((p) => [p.root, p]));
+  assert.equal(byRoot.get('packages/api').local_package.name, '@demo/api');
+  assert.deepEqual(byRoot.get('packages/api').local_package.dependency_names, ['@demo/shared', 'express']);
+  assert.deepEqual(g.project_edges, [
+    {
+      kind: 'contains',
+      from_project_id: 'project:.',
+      to_project_id: 'project:packages/api',
+      evidence: [],
+    },
+    {
+      kind: 'contains',
+      from_project_id: 'project:.',
+      to_project_id: 'project:packages/shared',
+      evidence: [],
+    },
+    {
+      kind: 'contains',
+      from_project_id: 'project:packages/api',
+      to_project_id: 'project:packages/api/plugin',
+      evidence: [],
+    },
+    {
+      kind: 'local-package-dependency',
+      from_project_id: 'project:packages/api',
+      to_project_id: 'project:packages/shared',
+      dependency_name: '@demo/shared',
+      evidence: [byRoot.get('packages/api').local_package.evidence],
+    },
+  ]);
+});
+
+test('duplicate local package names remain ambiguous and do not create guessed dependency edges', () => {
+  const root = fixture({
+    'consumer/package.json': JSON.stringify({
+      name: '@demo/consumer',
+      dependencies: { '@demo/shared': 'workspace:*' },
+    }),
+    'shared-a/package.json': JSON.stringify({ name: '@demo/shared' }),
+    'shared-b/package.json': JSON.stringify({ name: '@demo/shared' }),
+  });
+  const g = buildProjectGraph({ repoRoot: root, adapters: [fallback] });
+  assert.equal(g.project_edges.filter((e) => e.kind === 'local-package-dependency').length, 0);
+  assert.ok(g.unresolved.some((x) =>
+    x.kind === 'ambiguous-local-package-name' &&
+    x.package_name === '@demo/shared' &&
+    x.project_ids.length === 2
+  ));
+  assert.ok(g.unresolved.some((x) =>
+    x.kind === 'ambiguous-local-package-dependency' &&
+    x.project_id === 'project:consumer' &&
+    x.candidate_project_ids.length === 2
+  ));
+});
+
+test('malformed package metadata is diagnostic, not a graph-wide failure', () => {
+  const root = fixture({
+    'broken/package.json': '{ nope',
+    'good/package.json': JSON.stringify({ name: '@demo/good' }),
+  });
+  const g = buildProjectGraph({ repoRoot: root, adapters: [fallback] });
+  assert.equal(g.projects.find((p) => p.root === 'broken').local_package, null);
+  assert.equal(g.projects.find((p) => p.root === 'good').local_package.name, '@demo/good');
+  assert.ok(g.unresolved.some((x) => x.kind === 'package-metadata-read' && x.project_id === 'project:broken'));
+});
