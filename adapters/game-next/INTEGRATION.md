@@ -66,13 +66,16 @@ T16/beval remains the owner of actual runtime binding/oracle evidence.
 
 ### Native source provenance
 
-The current native envelope binds exact generated export JSON bytes. Before T17 adds a source-only Unity/Godot exporter, the exported payload must also identify the exact input scene/resource bytes. A generated JSON artifact alone is not enough to prove which source revision was parsed.
+Implemented in native export envelope revision 2:
 
-Required next boundary:
 - exact byte ArtifactRef per input source file;
-- repo-relative/source-role path supplied separately from byte identity;
-- no absolute checkout path as portable identity;
-- normalizer output must retain the source refs;
-- a caller must not substitute same-parsed-value/reformatted source bytes.
+- repo-relative POSIX path plus source role;
+- absolute/parent/backslash paths rejected;
+- duplicate source paths rejected;
+- `source-export` requires at least one source input;
+- verifier can compare provided source bytes to each source ref;
+- normalized structure retains source refs unchanged.
 
-This requirement should align with T01 ArtifactRef and T02 portable project/source identity rather than inventing a competing global path identity.
+This remains aligned with the T01 ArtifactRef candidate shape and does not create a competing global project/path identity. T02 still owns portable project identity once frozen.
+
+Remaining gap: the future actual Unity/Godot/Unreal producer must be reviewed to ensure it calls this boundary with the true input bytes rather than fabricated refs.
