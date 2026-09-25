@@ -34,10 +34,11 @@
       "ci": {
         "run_id": 36087437621,
         "run_number": 573,
-        "status": "in_progress",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "c91c2e208e6318f056501474fa9da6eea9f51384"
       },
-      "note": "Producer also reported a focused 13/13 direct run; T19 does not treat that report as independent exact-head CI.",
+      "note": "Exact-head generic CI is now completed success. Nested T01 contract-next tests still require their own required CI/integration binding; this remains external-candidate evidence only.",
       "job_observations": []
     },
     {
@@ -111,7 +112,8 @@
         "run_id": 36083666703,
         "run_number": 487,
         "status": "completed",
-        "conclusion": "success"
+        "conclusion": "success",
+        "head_sha": "148605fb8d7074f78cff368b1c1a237263143e61"
       },
       "note": "Strong exact-head candidate evidence for cache semantics; still not T19-covered until independent mapping review and immutable execution binding are accepted.",
       "job_observations": [
@@ -171,10 +173,11 @@
       "ci": {
         "run_id": 36088132185,
         "run_number": 667,
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "c3ca5ba840a6a8bd0f9c210e420184bf672c08e4"
       },
-      "note": "CI was nonterminal at observation; this candidate must not be promoted from that state.",
+      "note": "Exact-head generic CI is now completed success. Candidate remains non-certifying; T19 does not infer nested release-policy execution solely from root CI.",
       "job_observations": []
     },
     {
@@ -205,10 +208,11 @@
       "ci": {
         "run_id": 36087619559,
         "run_number": 597,
-        "status": "in_progress",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "6b87e3a24d029b0b3b888944eb32b2ba8f84da0e"
       },
-      "note": "Partial semantic mapping only.",
+      "note": "Exact-head generic CI is now completed success. Mapping remains partial semantic evidence only, not independent proof that every generated authorization path is fail-closed.",
       "job_observations": []
     },
     {
@@ -245,10 +249,11 @@
       "ci": {
         "run_id": 36088093082,
         "run_number": 660,
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "c534935bf227b306e78ebbbb6e95ed998b690771"
       },
-      "note": "Partial policy-level mapping; no sandbox/egress behavior certification.",
+      "note": "Exact-head generic CI is now completed success. Mapping remains partial policy-level evidence; no OS-level sandbox/egress behavior certification.",
       "job_observations": []
     },
     {
@@ -291,7 +296,8 @@
         "run_id": 36094194743,
         "run_number": 889,
         "status": "completed",
-        "conclusion": "success"
+        "conclusion": "success",
+        "head_sha": "9fcab1f369ba93b2b30decb2d0181af50ef621d9"
       },
       "note": "Current exact-head generic CI is completed success, but root npm-test still does not execute nested T18 protocol tests. Direct semantic mappings remain external-candidate only; runtime/oracle certification is blocked.",
       "job_observations": []
@@ -337,7 +343,8 @@
         "run_id": 36095044051,
         "run_number": 981,
         "status": "completed",
-        "conclusion": "success"
+        "conclusion": "success",
+        "head_sha": "e8c256e403c6237a326c86ab355d02f79c1a26dc"
       },
       "note": "Current exact-head generic CI is successful, but root CI does not execute nested T11 tests. Selectors were re-verified at e8c256e4; no independent nested execution binding is attached, so mappings remain partial external candidates.",
       "job_observations": []
