@@ -137,6 +137,9 @@ test('incomplete lexical facts fail closed and do not attempt resolution', () =>
 test('invalid inventories, absolute paths and malformed extension policies are rejected or refused explicitly', () => {
   assert.throws(() => resolveJsTsModuleEdge(edge('./x'), { filePath: '/src/app.ts', knownFiles: [] }), /repository-relative/);
   assert.throws(() => resolveJsTsModuleEdge(edge('./x'), { filePath: 'src/app.ts', knownFiles: null }), /knownFiles/);
+  assert.throws(() => resolveJsTsModuleEdge(edge('./x'), { filePath: 'src/app.ts', knownFiles: 'src/x.ts' }), /non-string iterable/);
+  assert.throws(() => resolveJsTsModuleEdge(edge('./x'), { filePath: '.', knownFiles: [] }), /file path/);
+  assert.throws(() => resolveJsTsModuleEdge(edge('./x'), { filePath: 'src/evil\0.ts', knownFiles: [] }), /NUL/);
   assert.throws(() => resolveJsTsModuleEdge(edge('./x'), { filePath: 'src/app.ts', knownFiles: [], extensions: ['ts'] }), /invalid extension/);
   const abs = resolveJsTsModuleEdge(edge('/etc/passwd'), { filePath: 'src/app.ts', knownFiles: [] });
   assert.equal(abs.status, 'unsupported');
