@@ -4,11 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCorpusManifest, summarizeCorpus } from '../corpus-next/corpus.mjs';
+import { projectLegacyOracleCandidates, summarizeLegacyOracleProjection } from '../corpus-next/legacy-oracle-import.mjs';
 import { validateNegativeCatalog, coverageSummary } from './catalog.mjs';
 import { validateExternalEvidenceCandidates, summarizeExternalEvidenceCandidates } from './external-candidates.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'manifest.json'), 'utf8'));
+const legacyOracle = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'oracle-manifest.json'), 'utf8'));
 const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, 'negative-vectors.json'), 'utf8'));
 const externalCandidates = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-evidence-candidates.json'), 'utf8'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -179,4 +181,50 @@ test('T19 external evidence preserves nonterminal CI instead of turning it into 
   const verdict = validateExternalEvidenceCandidates(bad, vectors);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.errors.some((x) => x.includes('nonterminal CI must keep conclusion=null')));
+});
+
+
+test('T19 legacy oracle import exposes all 17 pinned real repos only as non-certifying source candidates', () => {
+  const projection = projectLegacyOracleCandidates(legacyOracle);
+  assert.deepEqual(projection.errors, []);
+  assert.equal(projection.ok, true);
+  const summary = summarizeLegacyOracleProjection(projection);
+  assert.equal(summary.candidates, 17);
+  assert.equal(summary.excluded, 0);
+  assert.equal(summary.certification_eligible, 0);
+  assert.equal(summary.license_review_pending, 17);
+  assert.deepEqual(summary.adapters, {
+    'java-spring': 3,
+    'ruby-rails': 3,
+    'python-fastapi': 4,
+    'typescript-express': 3,
+    'javascript-express': 4,
+  });
+});
+
+test('T19 legacy oracle import rejects mutable refs instead of treating a branch as a pinned corpus source', () => {
+  const bad = clone(legacyOracle);
+  bad.adapters['java-spring'][0].ref = 'main';
+  const projection = projectLegacyOracleCandidates(bad);
+  assert.equal(projection.ok, false);
+  assert.ok(projection.errors.some((x) => x.includes('exact 40-hex commit required')));
+});
+
+test('T19 legacy oracle import rejects traversal-like subpaths', () => {
+  const bad = clone(legacyOracle);
+  bad.adapters['python-fastapi'][0].path = '../server';
+  const projection = projectLegacyOracleCandidates(bad);
+  assert.equal(projection.ok, false);
+  assert.ok(projection.errors.some((x) => x.includes('unsafe repo-relative path')));
+});
+
+test('T19 legacy oracle import never upgrades a source candidate into a golden or certification claim', () => {
+  const projection = projectLegacyOracleCandidates(legacyOracle);
+  assert.equal(projection.ok, true);
+  for (const candidate of projection.candidates) {
+    assert.equal(candidate.admission_state, 'needs-license-review');
+    assert.equal(candidate.certification_eligible, false);
+    assert.deepEqual(candidate.missing_requirements, ['license-review', 'independent-golden-review']);
+    assert.equal(Object.hasOwn(candidate, 'golden'), false);
+  }
 });
