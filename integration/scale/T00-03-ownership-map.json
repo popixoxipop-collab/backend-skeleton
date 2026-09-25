@@ -1,0 +1,221 @@
+{
+  "schema": "bskel.scale-ownership-map/1",
+  "task_id": "T00-03",
+  "generated_on": "2026-09-25",
+  "baseline_epoch": 2,
+  "canonical_owners": {
+    "project_graph": {
+      "owner": "T02",
+      "scope": [
+        "project-root discovery",
+        "service/facet graph",
+        "marker provenance",
+        "project-level read-set/freshness"
+      ]
+    },
+    "js_ts_language_facts": {
+      "owner": "T04",
+      "scope": [
+        "JS/TS lexical/syntax facts",
+        "module/import resolution",
+        "source spans",
+        "parser backend comparison"
+      ]
+    },
+    "jvm_language_facts": {
+      "owner": "T05"
+    },
+    "python_language_facts": {
+      "owner": "T06"
+    },
+    "ruby_php_dsl_facts": {
+      "owner": "T07"
+    },
+    "native_server_language_facts": {
+      "owner": "T08"
+    },
+    "identity": {
+      "owner": "T01",
+      "scope": [
+        "artifact exact-byte identity",
+        "contract/action/field refs",
+        "identity envelope/goldens"
+      ]
+    },
+    "capabilities": {
+      "owner": "T03"
+    },
+    "reconciliation": {
+      "owner": "T09"
+    },
+    "persistence_ir": {
+      "owner": "T10"
+    },
+    "legacy_http_modernization": {
+      "owner": "T11"
+    },
+    "http_wave_a": {
+      "owner": "T12"
+    },
+    "http_wave_bc": {
+      "owner": "T13"
+    },
+    "codegen_provider_composition": {
+      "owner": "T14"
+    },
+    "becoder_consumer": {
+      "owner": "T15"
+    },
+    "runtime_binding": {
+      "owner": "T16"
+    },
+    "game_semantics": {
+      "owner": "T17"
+    },
+    "protocol_semantics": {
+      "owner": "T18"
+    },
+    "qa_certification": {
+      "owner": "T19"
+    },
+    "trust_security": {
+      "owner": "T20"
+    },
+    "incremental_freshness": {
+      "owner": "T21"
+    },
+    "sdk_ux": {
+      "owner": "T22"
+    },
+    "release_integration": {
+      "owner": "T23"
+    },
+    "integration_control": {
+      "owner": "T00"
+    }
+  },
+  "legacy_absorption": {
+    "PR#63": [
+      {
+        "paths": [
+          "scanners/project-discovery.mjs",
+          "schemas/project.schema.json"
+        ],
+        "to": "T02",
+        "rule": "absorb unique source-role/project-marker behavior; no competing project identity"
+      },
+      {
+        "paths": [
+          "tools/webgame/parsers/javascript.mjs",
+          "tools/webgame/parsers/svelte.mjs",
+          "test/webgame-scan/parser.test.mjs"
+        ],
+        "to": "T04",
+        "rule": "differential corpus/edge cases; T04 canonical language parser boundary"
+      },
+      {
+        "paths": [
+          "scanners/planes/threejs-runtime.mjs",
+          "scanners/planes/assets.mjs",
+          "scanners/planes/worker.mjs"
+        ],
+        "to": "T17",
+        "rule": "game-specific facts only; no causal inference"
+      },
+      {
+        "paths": [
+          "scanners/planes/network.mjs"
+        ],
+        "to": "T17/T18",
+        "rule": "T17 owns game endpoint/reference inventory; T18 owns protocol/message semantics"
+      },
+      {
+        "paths": [
+          "scanners/planes/api.mjs"
+        ],
+        "to": "T11/T12/T13",
+        "rule": "salvage findings/fixtures only; no second HTTP authority"
+      },
+      {
+        "paths": [
+          "fixtures/webgame-static/**",
+          "artifacts/track-a/**"
+        ],
+        "to": "T19",
+        "rule": "corpus/evidence after provenance review"
+      }
+    ],
+    "PR#62": [
+      {
+        "paths": [
+          "webgame/fingerprint.mjs"
+        ],
+        "to": "T21",
+        "rule": "common freshness/invalidation model"
+      },
+      {
+        "paths": [
+          "webgame/receipts.mjs",
+          "webgame/gate-definitions.mjs"
+        ],
+        "to": "T19/T21",
+        "rule": "T19 evidence semantics; T21 freshness mechanics"
+      },
+      {
+        "paths": [
+          "webgame/performance.mjs",
+          "schemas/webgame-performance-profile.schema.json"
+        ],
+        "to": "T19",
+        "rule": "QA/certification performance evidence"
+      },
+      {
+        "paths": [
+          "webgame/release-policy.mjs",
+          "schemas/webgame-release-policy.schema.json",
+          "lib/gate-profiles.mjs"
+        ],
+        "to": "T23",
+        "rule": "release integration; no direct shared-file landing"
+      },
+      {
+        "paths": [
+          "test/webgame-evidence.test.mjs"
+        ],
+        "to": "T19",
+        "rule": "retain regression vectors after deduplication"
+      }
+    ]
+  },
+  "cross_repo": {
+    "browser_oracle": {
+      "owner": "beval merged PR#39"
+    },
+    "repair_loop": {
+      "owner": "beval PR#40 after rebase"
+    },
+    "game_renderer": {
+      "owner": "T15"
+    },
+    "package_toolchain": {
+      "owner": "T23 with T20 security review"
+    }
+  },
+  "shared_hot_files": {
+    "owner": "T00/T23",
+    "paths": [
+      "bin/bskel.mjs",
+      "lib/cli.mjs",
+      "scanners/index.mjs",
+      "scanners/registry.mjs",
+      "schemas/adapter.schema.json",
+      "scanners/capabilities.mjs",
+      "package.json",
+      "package-lock.json",
+      ".github/workflows/**",
+      "stable contract schemas",
+      "canonical cross-tool serialization"
+    ],
+    "rule": "No track edits before explicit integration lease/change-request approval."
+  }
+}
