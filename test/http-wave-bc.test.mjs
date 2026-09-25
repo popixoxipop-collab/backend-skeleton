@@ -5,3 +5,4 @@ import './http-wave-bc/node-hono.test.mjs';
 import './http-wave-bc/hono-show-routes.test.mjs';
 import './http-wave-bc/node-koa.test.mjs';
 import './http-wave-bc/typescript-nextjs.test.mjs';
+import './http-wave-bc/leaf-inventory.test.mjs';
