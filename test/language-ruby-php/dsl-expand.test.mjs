@@ -117,6 +117,39 @@ test('Rails on:new custom route uses the new-resource path', () => {
   assert.ok(expanded.candidates.some((x) => x.method === 'GET' && x.path === '/comments/new/preview'));
 });
 
+test('Rails concern body materializes only at its literal use site', () => {
+  const facts = extractRailsDslFacts([
+    'concern :account_resources do',
+    '  resources :followers, only: [:index]',
+    '  scope module: :activitypub do',
+    '    resource :outbox, only: [:show]',
+    '  end',
+    'end',
+    'resources :accounts, path: "users", param: :username, only: [:show], concerns: :account_resources',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  const actual = new Set(keys(expanded));
+  assert.ok(actual.has('GET /users/{username}'));
+  assert.ok(actual.has('GET /users/{account_username}/followers'));
+  assert.ok(actual.has('GET /users/{account_username}/outbox'));
+  assert.equal([...actual].some((x) => x === 'GET /followers'), false);
+  const concernCandidates = expanded.candidates.filter((x) => x.concernDefinition === 'account_resources');
+  assert.ok(concernCandidates.length >= 2);
+  assert.ok(concernCandidates.every((x) => x.concernUseSourceFactId));
+});
+
+test('Rails missing concern declaration remains explicit unresolved evidence', () => {
+  const facts = extractRailsDslFacts([
+    'resources :accounts, only: [:show], concerns: :missing_routes',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  assert.ok(expanded.unknowns.some((x) =>
+    x.code === 'DSL_CONCERN_UNRESOLVED' && /no declaration/.test(x.reason),
+  ));
+});
+
 test('Laravel bounded expansion joins group prefix and expands apiResource selected actions', () => {
   const facts = extractLaravelDslFacts([
     "Route::prefix('api')->middleware('auth')->group(function () {",
