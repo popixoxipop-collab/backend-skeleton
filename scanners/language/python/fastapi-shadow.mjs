@@ -67,7 +67,7 @@ export function buildFastApiShadow(project) {
             kind: 'fastapi-endpoint',
             module: mod.moduleId,
             method: fn.name,
-            line: fn.line,
+            line: decorator.line || fn.line,
             reason: 'router-variable-not-locally-declared',
             routerVar,
           });
@@ -80,7 +80,7 @@ export function buildFastApiShadow(project) {
             kind: 'fastapi-endpoint',
             module: mod.moduleId,
             method: fn.name,
-            line: fn.line,
+            line: decorator.line || fn.line,
             reason: 'route-path-not-literal',
             routerVar,
           });
@@ -91,7 +91,7 @@ export function buildFastApiShadow(project) {
             kind: 'fastapi-endpoint',
             module: mod.moduleId,
             method: fn.name,
-            line: fn.line,
+            line: decorator.line || fn.line,
             reason: 'router-prefix-not-literal',
             routerVar,
             localPath,
@@ -105,7 +105,7 @@ export function buildFastApiShadow(project) {
           verb: methodName.toUpperCase(),
           path: joinPath(router.prefix, localPath),
           method: fn.name,
-          line: fn.line,
+          line: decorator.line || fn.line,
         });
       }
     }

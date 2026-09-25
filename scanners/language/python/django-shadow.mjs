@@ -103,7 +103,7 @@ export function buildDjangoUrlShadow(project) {
         const includeCallee = resolvedFull(project, moduleId, view.callee);
         if (includeCallee?.full === 'django.urls.include') {
           const child = literalString(view.args?.[0]);
-          const edge = { from: moduleId, line: patterns.assignment.line, prefix: segment, childModule: child };
+          const edge = { from: moduleId, line: item.line || patterns.assignment.line, prefix: segment, childModule: child };
           includes.push(edge);
           if (!child) {
             unknowns.push({ kind: 'django-urlconf', module: moduleId, reason: 'include-target-not-literal-module', pattern });
@@ -126,7 +126,7 @@ export function buildDjangoUrlShadow(project) {
       registrations.push({
         module: moduleId,
         source: mod.source.path,
-        line: patterns.assignment.line,
+        line: item.line || patterns.assignment.line,
         kind: segment.kind,
         patternSegments: [...prefixSegments, segment],
         name,

@@ -78,6 +78,7 @@ def value(node, depth=0):
             "callee": value(node.func, depth + 1),
             "args": [value(x, depth + 1) for x in node.args],
             "keywords": [{"name": kw.arg, "value": value(kw.value, depth + 1)} for kw in node.keywords],
+            **span(node),
         }
     if isinstance(node, ast.Subscript):
         return {"kind": "subscript", "base": value(node.value, depth + 1), "slice": value(node.slice, depth + 1)}

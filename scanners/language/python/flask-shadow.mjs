@@ -75,17 +75,17 @@ export function buildFlaskRouteShadow(project) {
         if (member !== 'route' && !DIRECT_VERBS.has(member)) continue;
         const decl = declarations.get(`${mod.moduleId}#${receiver}`);
         if (!decl) {
-          unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: fn.line, reason: 'route-receiver-not-locally-declared', receiver });
+          unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: decorator.line || fn.line, reason: 'route-receiver-not-locally-declared', receiver });
           continue;
         }
         const pathValue = decorator.args?.[0] || keyword(decorator, 'rule');
         const localPath = literalString(pathValue);
         if (localPath === null) {
-          unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: fn.line, reason: 'route-path-not-literal', receiver });
+          unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: decorator.line || fn.line, reason: 'route-path-not-literal', receiver });
           continue;
         }
         if (decl.prefixStatus !== 'verified') {
-          unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: fn.line, reason: 'blueprint-prefix-not-literal', receiver, localPath });
+          unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: decorator.line || fn.line, reason: 'blueprint-prefix-not-literal', receiver, localPath });
           continue;
         }
 
@@ -101,7 +101,7 @@ export function buildFlaskRouteShadow(project) {
           } else {
             const found = literalMethods(methodsValue);
             if (!found) {
-              unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: fn.line, reason: 'methods-not-literal-sequence', receiver, localPath });
+              unknowns.push({ kind: 'flask-route', module: mod.moduleId, function: fn.name, line: decorator.line || fn.line, reason: 'methods-not-literal-sequence', receiver, localPath });
               continue;
             }
             methods = found;
@@ -113,7 +113,7 @@ export function buildFlaskRouteShadow(project) {
           module: mod.moduleId,
           source: mod.source.path,
           function: fn.name,
-          line: fn.line,
+          line: decorator.line || fn.line,
           receiver,
           receiverKind: decl.kind,
           localPath,
