@@ -179,7 +179,7 @@
         },
         "media_type": {
           "type": "string",
-          "pattern": "^[^\\\\s/]+/[^\\\\s]+$"
+          "pattern": "^[^\\s/]+/[^\\s]+$"
         },
         "byte_sha256": {
           "type": "string",
