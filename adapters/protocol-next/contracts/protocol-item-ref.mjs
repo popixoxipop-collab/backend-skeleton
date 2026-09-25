@@ -33,19 +33,27 @@ function toBytes(bytes) {
   throw new TypeError('contractBytes must be a UTF-8 string, Buffer, or Uint8Array');
 }
 
-export function assertT01ArtifactRefCandidate(ref) {
+// Shadow consumer of T01's draft sbf.artifact-ref/1 shape. T01 remains the canonical owner.
+export function assertT01ArtifactRefShape(ref) {
   exactKeys(ref, ['artifact_ref', 'family', 'version', 'media_type', 'byte_sha256', 'size_bytes'], 'ArtifactRef');
   if (ref.artifact_ref !== ARTIFACT_REF_VERSION) throw new TypeError('unsupported artifact_ref: ' + String(ref.artifact_ref));
-  if (ref.family !== 'protocol-contract') throw new TypeError('protocol item ref requires ArtifactRef.family=protocol-contract');
-  if (ref.version !== PROTOCOL_CONTRACT_VERSION) throw new TypeError('protocol contract ArtifactRef.version mismatch');
+  if (typeof ref.family !== 'string' || !/^[a-z][a-z0-9.-]*$/.test(ref.family)) throw new TypeError('ArtifactRef.family is invalid');
+  if (typeof ref.version !== 'string' || ref.version.length === 0) throw new TypeError('ArtifactRef.version is invalid');
   if (typeof ref.media_type !== 'string' || !MEDIA_TYPE_RE.test(ref.media_type)) throw new TypeError('ArtifactRef.media_type is invalid');
   if (typeof ref.byte_sha256 !== 'string' || !SHA256_RE.test(ref.byte_sha256)) throw new TypeError('ArtifactRef.byte_sha256 is invalid');
   if (!Number.isSafeInteger(ref.size_bytes) || ref.size_bytes < 0) throw new TypeError('ArtifactRef.size_bytes must be a non-negative safe integer');
   return ref;
 }
 
+export function assertProtocolContractArtifactRef(ref) {
+  assertT01ArtifactRefShape(ref);
+  if (ref.family !== 'protocol-contract') throw new TypeError('protocol item ref requires ArtifactRef.family=protocol-contract');
+  if (ref.version !== PROTOCOL_CONTRACT_VERSION) throw new TypeError('protocol contract ArtifactRef.version mismatch');
+  return ref;
+}
+
 export function protocolArtifactRefMatchesBytes(ref, bytes) {
-  assertT01ArtifactRefCandidate(ref);
+  assertProtocolContractArtifactRef(ref);
   const raw = toBytes(bytes);
   const digest = createHash('sha256').update(raw).digest('hex');
   return raw.byteLength === ref.size_bytes && digest === ref.byte_sha256;
@@ -92,7 +100,7 @@ export function bindProtocolItemRef({ contractRef, contract, contractBytes, fami
 }
 
 export function contractContextKey(ref) {
-  assertT01ArtifactRefCandidate(ref);
+  assertProtocolContractArtifactRef(ref);
   return ref.byte_sha256 + ':' + ref.size_bytes;
 }
 
