@@ -59,6 +59,12 @@ function assertBudgetWithinProfile(requestBudget, profileBudget) {
 export function runNativeServerWorker(message, { spawnFn = spawnSync, profileLimits = DEFAULT_BUDGET } = {}) {
 	const budget = normalizeBudget(message?.budget ?? {});
 	const profileBudget = normalizeBudget(profileLimits);
+	if (profileBudget.maxInputBytes > DEFAULT_BUDGET.maxInputBytes) {
+		throw new NativeWorkerRunError(
+			'WORKER_PROFILE_UNSUPPORTED',
+			`profile maxInputBytes=${profileBudget.maxInputBytes} exceeds the worker bootstrap limit ${DEFAULT_BUDGET.maxInputBytes}`,
+		);
+	}
 	assertBudgetWithinProfile(budget, profileBudget);
 	const input = requestLine(message, budget);
 	const child = spawnFn(process.execPath, [WORKER_PATH], {
