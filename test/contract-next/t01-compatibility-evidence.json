@@ -1,0 +1,68 @@
+{
+  "evidence": "sbf.t01-compatibility-evidence/1",
+  "status": "partial-blocked-on-consumers",
+  "observed_at": "2026-09-25T04:07:14.216Z",
+  "source": {
+    "repository": "popixoxipop-collab/backend-skeleton",
+    "head": "f03e0750fb4605f37913aed94a60240c3673c1fc",
+    "base": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "pull_request": 82
+  },
+  "direct_execution": {
+    "host": "eoe",
+    "checkout_head": "f03e0750fb4605f37913aed94a60240c3673c1fc",
+    "install": {
+      "command": "npm ci --silent",
+      "exit_code": 0
+    },
+    "test": {
+      "command": "node --test test/contract-next/contract-identity-next.test.mjs test/contract-next/identity-conformance.test.mjs test/contract-next/package-identity-next.test.mjs",
+      "pass": 14,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "exit_code": 0
+    }
+  },
+  "packed_artifact": {
+    "command": "npm pack ./t01-bskel-check --json",
+    "filename": "backend-skeleton-1.9.0.tgz",
+    "npm_shasum_sha1": "b209ecd3ce7955ac1ada6f6483e4c04205c7d942",
+    "npm_integrity_sha512": "sha512-Sh3Rr1L3Q1mgQYkxQjyn2xRdya3MzzkKYogUPtE35150Rvn/RG7VFVHRPeBtUEva8/PpLIg7AH8Jo/bzUdWbRw==",
+    "packed_size_bytes": 697514,
+    "unpacked_size_bytes": 2254887,
+    "entry_count": 223,
+    "required_entries": [
+      "contracts/next/identity.mjs",
+      "contracts/next/README.md",
+      "schemas/next/artifact-ref.schema.json",
+      "schemas/next/identity-envelope.schema.json",
+      "schemas/next/identity.golden.json",
+      "schemas/next/identity-conformance.json"
+    ]
+  },
+  "consumers": {
+    "becoder": {
+      "repository": "popixoxipop-collab/backend-decoder",
+      "pull_request": 8,
+      "observed_head": "476b410d64561d6a6aa4b6f2d7c3724b70a0bfe2",
+      "state": "blocked-split-required",
+      "conformance_reader_present": false
+    },
+    "beval": {
+      "repository": "popixoxipop-collab/Backend-evaluation",
+      "pull_request": 41,
+      "observed_head": "f1b10e69eb4a2bbe21e2b731098aed0731e22d1c",
+      "state": "blocked-rebase-scope-ci-required",
+      "conformance_reader_present": false
+    }
+  },
+  "remaining_requirements": [
+    "T15 independent reader replays identity-conformance.json without importing/spawning bskel.",
+    "T16 independent reader replays identity-conformance.json without importing/spawning bskel.",
+    "Three-repository exact-SHA replay is green.",
+    "Packed consumer artifacts are replayed against the same reviewed vectors.",
+    "T00-04 permits final compatibility promotion."
+  ],
+  "interpretation": "This is T01 package-side evidence only. It does not certify T01-05/T01-06 completion or consumer compatibility."
+}
