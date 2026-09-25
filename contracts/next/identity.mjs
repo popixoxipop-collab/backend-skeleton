@@ -6,7 +6,7 @@ export const IDENTITY_ENVELOPE_VERSION = 'sbf.identity-envelope/1';
 
 const SHA256_RE = /^[a-f0-9]{64}$/;
 const FEATURE_ID_RE = /^[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^(?:urn:uuid:)?[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const JSON_POINTER_RE = /^(?:|\/.*)$/;
 const MEDIA_TYPE_RE = /^[^\s/]+\/[^\s]+$/;
 const FAMILY_RE = /^[a-z][a-z0-9.-]*$/;
