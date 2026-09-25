@@ -209,9 +209,10 @@ test('T14 certification can certify build-tested only with exact-revision scoped
     keyType: 'uuid',
     revision,
     level: 'build-tested',
-    providerBaselineAudit: { ok: true },
+    providerBaselineAudit: { ok: true, revision },
     generationPreview: {
       status: 'ready',
+      revision,
       applyAllowed: false,
       providerId: 'java-spring',
       combination: { id: combinationId },
@@ -236,9 +237,10 @@ test('T14 behavior-tested remains blocked without T10/T16-style persistence and 
     keyType: 'uuid',
     revision,
     level: 'behavior-tested',
-    providerBaselineAudit: { ok: true },
+    providerBaselineAudit: { ok: true, revision },
     generationPreview: {
       status: 'ready',
+      revision,
       applyAllowed: false,
       providerId: 'python-fastapi',
       combination: { id: combinationId },
@@ -262,9 +264,10 @@ test('T14 certification rejects stale or cross-combination evidence and never au
     keyType: 'uuid',
     revision,
     level: 'build-tested',
-    providerBaselineAudit: { ok: true },
+    providerBaselineAudit: { ok: true, revision },
     generationPreview: {
       status: 'ready',
+      revision,
       applyAllowed: false,
       providerId: 'typescript-express',
       combination: { id: combinationId },
@@ -290,9 +293,10 @@ test('T14 certification rejects a preview that tries to smuggle apply permission
     keyType: 'uuid',
     revision,
     level: 'preview-tested',
-    providerBaselineAudit: { ok: true },
+    providerBaselineAudit: { ok: true, revision },
     generationPreview: {
       status: 'ready',
+      revision,
       applyAllowed: true,
       providerId: 'java-spring',
       combination: { id: combinationId },
@@ -304,4 +308,33 @@ test('T14 certification rejects a preview that tries to smuggle apply permission
   });
   assert.equal(result.status, 'blocked');
   assert.ok(result.blockers.some((b) => b.code === 'unsafe-preview-contract'));
+});
+
+
+test('T14 certification blocks stale provider audit and preview even when CI evidence matches the new revision', () => {
+  const revision = 'f'.repeat(40);
+  const stale = '0'.repeat(40);
+  const combinationId = 'java-spring+jpa-hibernate+uuid';
+  const result = evaluateCompositionCertification({
+    providerId: 'java-spring',
+    persistenceId: 'jpa-hibernate',
+    keyType: 'uuid',
+    revision,
+    level: 'preview-tested',
+    providerBaselineAudit: { ok: true, revision: stale },
+    generationPreview: {
+      status: 'ready',
+      revision: stale,
+      applyAllowed: false,
+      providerId: 'java-spring',
+      combination: { id: combinationId },
+    },
+    evidence: [
+      evidence('composition-unit', revision, 'java-spring', combinationId),
+      evidence('package-install', revision, 'java-spring', combinationId),
+    ],
+  });
+  assert.equal(result.status, 'blocked');
+  assert.ok(result.blockers.some((b) => b.code === 'provider-baseline-revision-mismatch'));
+  assert.ok(result.blockers.some((b) => b.code === 'generation-preview-revision-mismatch'));
 });
