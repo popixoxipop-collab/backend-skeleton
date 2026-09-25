@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ADAPTERS } from '../../scanners/registry.mjs';
+import { PROVIDERS } from '../../handles/registry.mjs';
 import {
 	CAPABILITY_STATUSES,
 	capabilityRecord,
@@ -206,4 +208,52 @@ test('legacy compatibility view is deterministic and explicitly uncertified', ()
 	assert.equal(rows[0].provider.id, 'a');
 	assert.equal(rows[1].provider, null);
 	assert.ok(rows.every((x) => x.limitations.some((line) => /No discovery\/contract\/runtime-tested certification/.test(line))));
+});
+
+
+test('real shipped adapters project into an uncertified compatibility view without manual support-table edits', () => {
+	const rows = buildLegacyCompatibilityView({ adapters: ADAPTERS, providers: PROVIDERS });
+	assert.deepEqual(rows.map((x) => x.adapterId), [
+		'generic-grep',
+		'java-spring',
+		'javascript-express',
+		'python-fastapi',
+		'ruby-rails',
+		'typescript-express',
+	]);
+	assert.ok(rows.every((row) => row.certified === false));
+	const providers = Object.fromEntries(rows.map((row) => [row.adapterId, row.provider?.id ?? null]));
+	assert.deepEqual(providers, {
+		'generic-grep': null,
+		'java-spring': 'java-spring',
+		'javascript-express': null,
+		'python-fastapi': 'python-fastapi',
+		'ruby-rails': null,
+		'typescript-express': 'typescript-express',
+	});
+});
+
+test('real handles providers keep resource.fetch as a provider-level requirement', () => {
+	for (const provider of PROVIDERS) {
+		assert.deepEqual(legacyProviderRequirements(provider), [
+			{ capability: 'resource.fetch', acceptedStatuses: ['supported'] },
+		], provider.id);
+	}
+});
+
+test('real FastAPI remains blocked for contract emit until explicit OpenAPI evidence is supplied', () => {
+	const fastapi = ADAPTERS.find((adapter) => adapter.id === 'python-fastapi');
+	assert.ok(fastapi);
+	assert.equal(fastapi.capabilities['api.operations'], false);
+	assert.equal(evaluateLegacyCommandPolicy({ adapter: fastapi, command: 'contract emit' }).allowed, false);
+	const external = externalCapabilityFromLegacySatisfier({
+		capability: 'api.operations',
+		flag: 'openapi-file',
+		evidenceRef: 'test:immutable-openapi-artifact',
+	});
+	assert.equal(evaluateLegacyCommandPolicy({
+		adapter: fastapi,
+		command: 'contract emit',
+		externalCapabilities: { 'api.operations': external },
+	}).allowed, true);
 });
