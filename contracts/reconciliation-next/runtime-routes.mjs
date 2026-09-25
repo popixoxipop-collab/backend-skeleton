@@ -6,6 +6,7 @@
 // compares route facts conservatively.
 
 import { attachEvidenceBinding } from './evidence-binding.mjs';
+import { hasOpenApiContextAudit } from './openapi-context.mjs';
 
 const METHODS = Object.freeze(new Set([
   'GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH', 'TRACE',
@@ -117,7 +118,7 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
   if (!graph || !Array.isArray(graph.endpoints)) {
     throw new TypeError('graph.endpoints must be an array');
   }
-  if (graph.openApiContext?.attached !== true) {
+  if (!hasOpenApiContextAudit(graph)) {
     return {
       version: 'bskel.runtime-route-reconciliation/0-draft',
       state: 'blocked',
