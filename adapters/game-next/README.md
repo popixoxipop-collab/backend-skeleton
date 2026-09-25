@@ -88,8 +88,13 @@ These draft files are not public replacement contracts. They are internal migrat
 ## Focused tests
 
 ```bash
-node --test test/game-next-bridge.test.mjs
-node --test test/game-native-export-envelope.test.mjs
+node --test test/game-next/game-next-bridge.test.mjs
+node --test test/game-next/game-native-export-envelope.test.mjs
+node --test test/game-next/game-next-schema.test.mjs
 ```
 
 The bridge suite also runs a real `scanWebgame -> buildWebgameContract -> bridgeLegacyWebgameContract` pipeline and verifies that a discovered `KeyW` and `movePlayer` never become a causal edge.
+
+## Test discovery integration
+
+T17 tests intentionally live under `test/game-next/**`, the T17-owned test namespace. The current root `npm test` glob only expands `test/*.test.mjs`, so a generic green root CI job does **not** prove these nested suites ran until T23/T00 integrates nested discovery. T17 runs the three commands above explicitly for focused evidence.
