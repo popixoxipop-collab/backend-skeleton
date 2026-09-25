@@ -1,6 +1,17 @@
 {
   "ok": true,
-  "inventory": {"ok": true, "errors": []},
-  "release_plan": {"ok": true, "errors": []},
-  "note": "Executed locally with Node v22.16.0 before upload. This verifies T23 release-control data only, not product suites or release approval."
+  "inventory": {
+    "ok": true,
+    "errors": [],
+    "observed_blockers": [
+      "BASELINE_NOT_ACCEPTED",
+      "COORDINATION_BASELINE_DRIFT",
+      "CURRENT_MAIN_CI_NOT_GREEN"
+    ]
+  },
+  "release_plan": {
+    "ok": true,
+    "errors": []
+  },
+  "note": "The inventory is structurally valid while release remains fail-closed. This is T23 control-plane evidence only, not product release certification."
 }
