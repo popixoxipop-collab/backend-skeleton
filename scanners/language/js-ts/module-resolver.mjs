@@ -14,8 +14,8 @@ export const DEFAULT_JS_TS_EXTENSIONS = Object.freeze([
 ]);
 
 function canonicalRepoPath(value, label) {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new TypeError(`${label} must be a non-empty repository-relative path`);
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) {
+    throw new TypeError(`${label} must be a non-empty repository-relative path without NUL bytes`);
   }
   const slashed = value.replaceAll('\\', '/');
   if (slashed.startsWith('/') || /^[A-Za-z]:\//.test(slashed)) {
@@ -25,7 +25,9 @@ function canonicalRepoPath(value, label) {
   if (normalized === '..' || normalized.startsWith('../')) {
     throw new TypeError(`${label} escapes the repository root`);
   }
-  return normalized.replace(/^\.\//, '');
+  const repoPath = normalized.replace(/^\.\//, '');
+  if (repoPath === '.' || repoPath.length === 0) throw new TypeError(`${label} must identify a file path`);
+  return repoPath;
 }
 
 function normalizeExtensions(extensions) {
@@ -79,8 +81,8 @@ export function resolveJsTsModuleEdge(edge, {
   if (typeof edge.specifier !== 'string') throw new TypeError('edge.specifier must be a string');
   const from = canonicalRepoPath(filePath, 'filePath');
   const extList = normalizeExtensions(extensions);
-  if (!knownFiles || typeof knownFiles[Symbol.iterator] !== 'function') {
-    throw new TypeError('knownFiles must be iterable');
+  if (!knownFiles || typeof knownFiles === 'string' || typeof knownFiles[Symbol.iterator] !== 'function') {
+    throw new TypeError('knownFiles must be a non-string iterable of repository-relative file paths');
   }
 
   const inventory = new Set();
