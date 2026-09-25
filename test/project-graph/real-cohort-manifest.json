@@ -1,0 +1,55 @@
+{
+  "schema": "t02.real-project-cohort/1",
+  "certification": false,
+  "note": "T02 structural differential only. T19 owns independent QA/certification; these entries do not grant support status.",
+  "cases": [
+    {
+      "id": "spring-petclinic",
+      "repository": "https://github.com/spring-projects/spring-petclinic",
+      "commit": "818c4136ea971c21674525f9053de0d9c7ad8cfe",
+      "expected_legacy_adapter": "java-spring",
+      "expected_plan": [
+        [
+          ".",
+          "java-spring"
+        ]
+      ]
+    },
+    {
+      "id": "node-express-realworld-commonjs",
+      "repository": "https://github.com/rtfeldman/node-express-realworld-example-app",
+      "commit": "ba04b70c31af81ca7935096740a6e083563b3a4a",
+      "expected_legacy_adapter": "javascript-express",
+      "expected_plan": [
+        [
+          ".",
+          "javascript-express"
+        ]
+      ]
+    },
+    {
+      "id": "lobsters-rails",
+      "repository": "https://github.com/lobsters/lobsters",
+      "commit": "69df721c9fe260c71c8af6550dafdd2783ad18b3",
+      "expected_legacy_adapter": "ruby-rails",
+      "expected_plan": [
+        [
+          ".",
+          "ruby-rails"
+        ]
+      ]
+    },
+    {
+      "id": "full-stack-fastapi-template",
+      "repository": "https://github.com/fastapi/full-stack-fastapi-template",
+      "commit": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+      "expected_legacy_adapter": "python-fastapi",
+      "expected_plan": [
+        [
+          "backend",
+          "python-fastapi"
+        ]
+      ]
+    }
+  ]
+}
