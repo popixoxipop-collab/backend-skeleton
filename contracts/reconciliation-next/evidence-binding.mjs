@@ -134,10 +134,10 @@ export function attachEvidenceBinding(graph, binding) {
   }
 
   const refs = graphRefs(graph);
-  if (binding.source?.ref && refs.source.size > 0 && (refs.source.size !== 1 || !refs.source.has(binding.source.ref))) {
+  if (binding.source?.ref && (refs.source.size !== 1 || !refs.source.has(binding.source.ref))) {
     throw new TypeError('source binding ref does not match decision graph provenance');
   }
-  if (binding.openapi?.ref && refs.openapi.size > 0 && (refs.openapi.size !== 1 || !refs.openapi.has(binding.openapi.ref))) {
+  if (binding.openapi?.ref && (refs.openapi.size !== 1 || !refs.openapi.has(binding.openapi.ref))) {
     throw new TypeError('OpenAPI binding ref does not match decision graph provenance');
   }
 
