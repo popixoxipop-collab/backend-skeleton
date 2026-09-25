@@ -27,6 +27,10 @@ test('transport: one line cannot smuggle a second protocol message', () => {
 	assert.throws(() => decodeNdjsonLine(line), /exactly one/);
 });
 
+test('transport: protocol version mismatch is rejected', () => {
+	assert.throws(() => decodeNdjsonLine(JSON.stringify(request({ protocol: 'bskel.native-language/999' }))), /unsupported protocol/);
+});
+
 test('transport: output budget is enforced', () => {
 	assert.throws(() => encodeNdjson(request({ source: 'x'.repeat(500) }), { maxOutputBytes: 100 }), /maxOutputBytes/);
 });
@@ -47,6 +51,12 @@ func setup() {
 	]);
 	assert.equal(result.diagnostics.length, 0);
 	assert.deepEqual(analyzeGoGinSource(src, { file: 'routes.go' }), result);
+});
+
+test('Go/Gin: var declarations are accepted without widening to unrelated method calls', () => {
+	const src = `package main\nfunc setup(){ var r = gin.Default(); var api = r.Group("/api"); api.GET("/health", health) }`;
+	const result = analyzeGoGinSource(src);
+	assert.deepEqual(result.routes.map((r) => r.path), ['/api/health']);
 });
 
 test('Go/Gin: comments and unrelated GET methods are not routes', () => {
@@ -106,6 +116,13 @@ public class UsersController : ControllerBase
 	assert.deepEqual(analyzeCSharpAspNetSource(src, { file: 'UsersController.cs' }), result);
 });
 
+test('C#/ASP.NET: action-only literal route is allowed, but missing literal route is not invented from conventions', () => {
+	const src = `[ApiController]\npublic class HealthController : ControllerBase\n{\n [HttpGet("api/[controller]/[action]")]\n public IActionResult Ping() => Ok();\n [HttpPost]\n public IActionResult Reset() => Ok();\n}`;
+	const result = analyzeCSharpAspNetSource(src);
+	assert.deepEqual(result.routes.map((r) => [r.method, r.path]), [['GET', '/api/Health/Ping']]);
+	assert.ok(result.diagnostics.some((d) => d.code === 'CSHARP_ACTION_ROUTE_UNRESOLVED'));
+});
+
 test('C#/ASP.NET: comments, computed Minimal route and MapMethods do not become invented routes', () => {
 	const src = `// app.MapGet("/fake", Fake);
 var app = builder.Build();
@@ -124,6 +141,10 @@ test('transport/analyzer boundary: requestId and backend are bound into a valida
 	assert.equal(response.requestId, 'gin-17');
 	assert.equal(response.backend, 'go-static-pilot');
 	assert.deepEqual(response.routes.map((r) => [r.method, r.path]), [['GET', '/health']]);
+});
+
+test('transport/analyzer boundary: direct object requests also enforce input bytes', () => {
+	assert.throws(() => handleAnalyzeRequest(request({ source: 'x'.repeat(500), budget: { maxInputBytes: 100 } })), /maxInputBytes/);
 });
 
 test('transport/analyzer boundary: route budget fails closed instead of truncating facts', () => {
