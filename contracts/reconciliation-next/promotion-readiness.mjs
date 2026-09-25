@@ -16,6 +16,23 @@ function fieldMap(endpoint) {
   return new Map((endpoint.fields ?? []).map((field) => [field.field, field]));
 }
 
+function resolvedRoute(endpoint) {
+  const fields = fieldMap(endpoint);
+  const operationId = fields.get('operation.identity');
+  const method = fields.get('http.method');
+  const path = fields.get('http.path');
+  if (
+    operationId?.state !== 'resolved'
+    || method?.state !== 'resolved'
+    || path?.state !== 'resolved'
+  ) return null;
+  return {
+    operationId: operationId.value,
+    method: method.value,
+    path: path.value,
+  };
+}
+
 function runtimeByEndpoint(runtimeReport) {
   if (
     !runtimeReport
@@ -56,7 +73,7 @@ function sourceSpecBlockers(endpoint, graph, binding) {
   return blockers;
 }
 
-function runtimeBlocker(endpointKey, runtimeReport, runtimeIndex, binding) {
+function runtimeBlocker(endpoint, runtimeReport, runtimeIndex, binding) {
   if (binding.runtimeBinding?.state !== 'bound') {
     return {
       code: 'runtime-binding-not-bound',
@@ -75,11 +92,17 @@ function runtimeBlocker(endpointKey, runtimeReport, runtimeIndex, binding) {
       reason: runtimeReport.reason ?? 'runtime-report-state-missing',
     };
   }
+  if (runtimeReport.sourceRef !== binding.source?.ref) {
+    return { code: 'runtime-report-source-ref-mismatch' };
+  }
+  if (runtimeReport.openapiRef !== binding.openapi?.ref) {
+    return { code: 'runtime-report-openapi-ref-mismatch' };
+  }
   if (runtimeReport.runtimeRef !== binding.runtime?.ref) {
     return { code: 'runtime-report-ref-mismatch' };
   }
 
-  const observed = runtimeIndex.get(endpointKey);
+  const observed = runtimeIndex.get(endpoint.endpointKey);
   if (!observed) return { code: 'runtime-endpoint-result-missing' };
   if (observed.state !== 'observed') {
     return {
@@ -87,6 +110,17 @@ function runtimeBlocker(endpointKey, runtimeReport, runtimeIndex, binding) {
       state: observed.state,
       reason: observed.reason ?? 'runtime-route-state-missing',
     };
+  }
+
+  const expected = resolvedRoute(endpoint);
+  if (!expected) return { code: 'runtime-expected-route-unavailable' };
+  if (
+    !observed.expected
+    || observed.expected.operationId !== expected.operationId
+    || observed.expected.method !== expected.method
+    || observed.expected.path !== expected.path
+  ) {
+    return { code: 'runtime-expected-route-mismatch' };
   }
   return null;
 }
@@ -107,7 +141,7 @@ export function buildPromotionReadinessReport({ graph, binding, runtimeReport = 
   const endpoints = graph.endpoints.map((endpoint) => {
     const sourceBlockers = sourceSpecBlockers(endpoint, graph, binding);
     const sourceSpecReady = sourceBlockers.length === 0;
-    const runtimeIssue = runtimeBlocker(endpoint.endpointKey, runtimeReport, runtimeIndex, binding);
+    const runtimeIssue = runtimeBlocker(endpoint, runtimeReport, runtimeIndex, binding);
     const runtimeRouteReady = sourceSpecReady && runtimeIssue === null;
 
     return {
