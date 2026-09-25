@@ -5,6 +5,8 @@ import {
 	pushError,
 	validIdentifier,
 	validPackageRelativePath,
+	validPermissionRoot,
+	validEnvironmentName,
 	validSemver,
 } from './_util.mjs';
 
@@ -55,10 +57,13 @@ function validatePermissions(permissions, errors) {
 		pushError(errors, '/permissions', 'must contain only readRoots, writeRoots, network, environment, and subprocess');
 		return;
 	}
-	for (const [key, values] of [['readRoots', permissions.readRoots], ['writeRoots', permissions.writeRoots], ['environment', permissions.environment]]) {
-		if (!Array.isArray(values) || values.some((value) => typeof value !== 'string' || value.length === 0)) {
-			pushError(errors, `/permissions/${key}`, 'must be an array of non-empty strings');
+	for (const [key, values] of [['readRoots', permissions.readRoots], ['writeRoots', permissions.writeRoots]]) {
+		if (!Array.isArray(values) || values.some((value) => !validPermissionRoot(value))) {
+			pushError(errors, `/permissions/${key}`, 'must be package-relative roots (or "."), without traversal, absolute paths, URI schemes, or backslashes');
 		}
+	}
+	if (!Array.isArray(permissions.environment) || permissions.environment.some((value) => !validEnvironmentName(value))) {
+		pushError(errors, '/permissions/environment', 'must contain environment variable names only, never assignments or paths');
 	}
 	if (permissions.network !== 'deny-by-default') {
 		pushError(errors, '/permissions/network', 'must equal deny-by-default; an executor may grant a narrower approved policy later');
