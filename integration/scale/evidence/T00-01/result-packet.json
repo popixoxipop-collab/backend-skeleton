@@ -11,8 +11,8 @@
   },
   "baseline": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
-    "beval": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "24cd9ad3cb913756184f79bb008af565a0458967"
   },
   "test_runs": [
     {
@@ -80,7 +80,7 @@
   "known_limitations": [
     "GitHub remote state cannot prove a future local checkout is clean; the verifier therefore requires dirty=false in the worker observation and rejects unknown state.",
     "T00-01 does not rerun the three product test suites; it records exact-head CI evidence and package-declared commands.",
-    "Backend-evaluation main changed after initial submission; epoch 2 rebaseline is intentionally not ACCEPTED while exact-head push CI #865 is queued."
+    "Epoch 5 includes beval CI hotfix main 24cd9ad3...; pre-merge CI #908 is green, but exact-head main push CI #909 is queued, so acceptance remains blocked."
   ],
   "rollback": "Delete the integration/scale bootstrap branch/PR; no product entrypoint, schema, package manifest, lockfile, or runtime behavior is modified.",
   "rebaseline_history": [
@@ -96,7 +96,59 @@
         "conclusion": null
       },
       "acceptance_effect": "T00-01 remains SUBMITTED until current exact-head CI is successful and independent review completes"
+    },
+    {
+      "epoch": 3,
+      "reason": "Backend-evaluation PR #40 merged after epoch 2 baseline",
+      "prior_beval_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "current_beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "current_push_ci": {
+        "run_id": 36083709046,
+        "run_number": 868,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until current exact-head CI is successful and independent review completes"
+    },
+    {
+      "epoch": 4,
+      "reason": "backend-decoder PR #9 merged after epoch 3 review",
+      "prior_becoder_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "current_becoder_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "becoder_push_ci": {
+        "run_id": 36083442722,
+        "run_number": 83,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "beval_push_ci": {
+        "run_id": 36083709046,
+        "run_number": 868,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until all current exact-head CI is successful and independent T19 review passes"
+    },
+    {
+      "epoch": 5,
+      "reason": "Backend-evaluation PR #46 merged to fix private sibling checkout in integration CI",
+      "prior_beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "current_beval_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
+      "premerge_ci": {
+        "run_id": 36099699382,
+        "run_number": 908,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "current_push_ci": {
+        "run_id": 36099964750,
+        "run_number": 909,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until exact-head main push CI #909 succeeds and T19 independently re-verifies current heads"
     }
   ],
-  "changed_file_hashes_note": "These hashes describe the initial T00-01 submission before rebaseline epoch 2; current file identity is the Git commit/blob identity of the rebaseline commit."
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-5 rebaseline branch."
 }
