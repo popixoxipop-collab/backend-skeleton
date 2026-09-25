@@ -72,7 +72,7 @@ test('scan emits literal routes and applies a literal chained basePath', () => {
       ['POST', '/api/users', null, 'createUser'],
     ]);
     assert.equal(report.modules[0].controllers[0].basePath, '/api/users');
-    assert.ok(report.scanNotes[0].includes('only literal routes'));
+    assert.ok(report.scanNotes[0].includes('only literal per-verb routes'));
   } finally { cleanup(root); }
 });
 
