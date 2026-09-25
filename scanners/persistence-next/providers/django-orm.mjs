@@ -128,6 +128,10 @@ function parseModelsFromText(text, file) {
 			if (!maskedLines[j].trim()) continue;
 			if (indentOf(maskedLines[j]) <= classIndent) { bodyEnd = j; break; }
 		}
+		const directIndents = maskedLines.slice(bodyStart, bodyEnd)
+			.filter((line)=>line.trim() && indentOf(line) > classIndent)
+			.map((line)=>indentOf(line));
+		const declarationIndent = directIndents.length > 0 ? Math.min(...directIndents) : null;
 		let table = null;
 		let abstract = false;
 		const fields = [];
@@ -135,6 +139,7 @@ function parseModelsFromText(text, file) {
 			if (!maskedLines[j].trim()) continue;
 			const indent = indentOf(maskedLines[j]);
 			if (indent <= classIndent) break;
+			if (declarationIndent == null || indent !== declarationIndent) continue;
 			const metaMatch = maskedLines[j].match(/^\s*class\s+Meta\s*:/);
 			if (metaMatch) {
 				const metaIndent = indent;
@@ -149,11 +154,10 @@ function parseModelsFromText(text, file) {
 				}
 				continue;
 			}
-			if (indent !== classIndent + 4) continue;
 			const fieldMatch = maskedLines[j].match(/^\s*([A-Za-z_]\w*)\s*=\s*models\.([A-Za-z_]\w*)\s*\(/);
 			if (!fieldMatch) continue;
 			const fieldLine = j + 1;
-			const call = collectCall(lines, j, classIndent + 4);
+			const call = collectCall(lines, j, declarationIndent);
 			j = call.end;
 			if (!call.complete) {
 				diagnostics.push({ code:'django-field-call-incomplete', level:'info', file, line:fieldLine, model:classMatch[2], field:fieldMatch[1] });
