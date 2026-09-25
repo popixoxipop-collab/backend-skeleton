@@ -1,1 +1,0 @@
-// T08 integration shim: keep the detailed suite in its owned subdirectory while npm test still uses test/*.test.mjs.\nimport './language-native-server/native-server.test.mjs';\nimport './language-native-server/package.test.mjs';
