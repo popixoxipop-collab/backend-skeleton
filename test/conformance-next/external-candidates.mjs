@@ -57,6 +57,8 @@ export function validateExternalEvidenceCandidates(registry, negativeCatalog) {
     if (!ci || typeof ci !== 'object' || Array.isArray(ci)) errors.push(at + '.ci: required');
     else {
       if (!Number.isSafeInteger(ci.run_id) || ci.run_id <= 0) errors.push(at + '.ci.run_id: positive integer required');
+      if (!SHA40.test(ci.head_sha ?? '')) errors.push(at + '.ci.head_sha: exact 40-hex commit required');
+      else if (source?.commit !== ci.head_sha) errors.push(at + '.ci.head_sha: must equal source.commit');
       if (!Number.isSafeInteger(ci.run_number) || ci.run_number <= 0) errors.push(at + '.ci.run_number: positive integer required');
       if (!CI_STATUS.has(ci.status)) errors.push(at + '.ci.status: invalid status');
       if (!CI_CONCLUSION.has(ci.conclusion)) errors.push(at + '.ci.conclusion: invalid conclusion');
