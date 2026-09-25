@@ -233,7 +233,11 @@ function simpleRequireBindings(tokens, requireIndex) {
   const eq = requireIndex - 1;
   if (!tokenIs(tokens, eq, 'punct', '=')) return [];
   const before = eq - 1;
-  if (tokenIs(tokens, before, 'identifier')) {
+  if (
+    tokenIs(tokens, before, 'identifier')
+    && tokenIs(tokens, before - 1, 'identifier')
+    && ['const', 'let', 'var'].includes(tokens[before - 1].value)
+  ) {
     return [{ imported: 'module.exports', local: tokens[before].value, bindingKind: 'commonjs-default', typeOnly: false }];
   }
   if (tokenIs(tokens, before, 'punct', '}')) {
