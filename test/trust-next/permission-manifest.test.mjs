@@ -112,3 +112,39 @@ test('compiled policies are deeply immutable after validation', () => {
   assert.equal(policy.canRead('secret/file'), false);
   assert.equal(policy.canConnect('api.example.com', 80), false);
 });
+
+
+test('network normalization merges duplicate hosts and is input-order independent', () => {
+  const a = validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [
+      { host: 'B.example.com', ports: [8443] },
+      { host: 'api.example.com', ports: [443] },
+      { host: 'API.EXAMPLE.COM', ports: [8443, 443] },
+    ] },
+  });
+  const b = validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [
+      { host: 'api.example.com', ports: [8443] },
+      { host: 'b.example.com', ports: [8443] },
+      { host: 'api.example.com', ports: [443] },
+    ] },
+  });
+  assert.equal(a.ok, true);
+  assert.equal(b.ok, true);
+  assert.deepEqual(a.value.network, b.value.network);
+  assert.deepEqual(a.value.network.allow, [
+    { host: 'api.example.com', ports: [443, 8443] },
+    { host: 'b.example.com', ports: [8443] },
+  ]);
+});
+
+test('argv allowlist with zero child capacity is rejected as an inconsistent grant', () => {
+  const result = validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    process: { mode: 'argv-allowlist', executables: ['node'], max_children: 0 },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.some((x) => x.code === 'EMPTY_PROCESS_CAPACITY'), true);
+});
