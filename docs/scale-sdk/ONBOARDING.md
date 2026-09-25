@@ -31,18 +31,34 @@ Use `createAdapterTaskPacket()` to record the base commit, narrow write scope, f
 mandatory tests and ownership constraints. The packet is designed to be copied between agents or
 sessions without losing the safety boundaries.
 
-## 4. Test the protocol in memory
+## 4. Review the package inventory without executing it
+
+Describe the package as a regular-file inventory with path, SHA-256 and byte size entries.
+`reviewAdapterPackage()` checks that the declared entrypoint and fixtures exist, rejects
+traversal/nonportable/colliding paths, and can compare a caller-supplied package digest.
+
+This review still returns `packageBytesTrusted: false`: T22 does not read a tarball, verify its
+signature, or authorize execution. Those belong to the approved acquisition/security boundary.
+
+## 5. Test the protocol in memory
 
 Use `runAdapterSdkConformance()` with a caller-supplied `invoke` implementation. Unit tests can
 use an in-memory worker. This verifies envelope compatibility without installing or loading an
 external package.
 
-## 5. Request execution approval
+## 6. Build support evidence and submission review
+
+Create exact support explanations, then derive the machine-generated support matrix. Use
+`reviewAdapterSubmission()` to combine manifest, inventory and support evidence. The strongest
+T22 result is `ready-for-execution-review`; it still returns `executable: false` and
+`requiresApproval: true`.
+
+## 7. Request execution approval
 
 A future executor/security owner must separately verify immutable package bytes, trust/revocation
 policy, permissions and isolation. A valid manifest is not an execution grant.
 
-## 6. Publish support honestly
+## 8. Publish support honestly
 
 Produce a support explanation with the exact supported/partial/unknown/conflict states and evidence
 references. Runtime-tested status must come from the runtime evidence owner, not from T22's SDK
