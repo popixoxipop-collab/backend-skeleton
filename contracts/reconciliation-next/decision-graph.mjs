@@ -440,6 +440,14 @@ export function promotableOperationKeys(graph, requiredFields = ROUTE_PROMOTION_
   if (!graph || !Array.isArray(graph.endpoints)) {
     throw new TypeError('graph.endpoints must be an array');
   }
+  if (!Array.isArray(requiredFields) || requiredFields.length === 0) {
+    throw new TypeError('requiredFields must be a non-empty array');
+  }
+  for (const field of requiredFields) {
+    if (!FIELD_ORDER.includes(field)) {
+      throw new TypeError('unsupported required field: ' + String(field));
+    }
+  }
   const required = new Set(requiredFields);
   const out = [];
   for (const endpoint of graph.endpoints) {
