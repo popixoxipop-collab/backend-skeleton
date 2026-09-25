@@ -33,3 +33,19 @@ test('source/migration/live comparison keeps all planes separate', () => {
 	const out = compareSourceMigrationLive({source,migrations,live});
 	assert.deepEqual(out.comparisons.map((x)=>x.name),['source-vs-migrations','source-vs-live','migrations-vs-live']);
 });
+
+test('live observation of no primary key is a mismatch, not unknown', () => {
+	const source = ir('jpa','source',[{ provider:'jpa', name:'User', table:{name:'users',schema:'public',source:'explicit'}, primary_key:{columns:['id'],source:'source'} }]);
+	const live = ir('postgres','live',[{ provider:'postgres', name:'users', table:{name:'users',schema:'public',source:'observed'}, primary_key:{columns:[],source:'live'} }]);
+	const out = comparePersistenceIr({ expected:source, observed:live });
+	assert.equal(out.unknowns.length,0);
+	assert.equal(out.findings[0].code,'primary-key-mismatch');
+	assert.deepEqual(out.findings[0].observed,[]);
+});
+
+test('composite primary-key order is part of the observed key shape', () => {
+	const source = ir('jpa','source',[{ provider:'jpa', name:'Membership', table:{name:'memberships',source:'explicit'}, primary_key:{columns:['tenant_id','user_id'],source:'source'} }]);
+	const live = ir('postgres','live',[{ provider:'postgres', name:'memberships', table:{name:'memberships',source:'observed'}, primary_key:{columns:['user_id','tenant_id'],source:'live'} }]);
+	const out = comparePersistenceIr({ expected:source, observed:live });
+	assert.equal(out.findings[0].code,'primary-key-mismatch');
+});
