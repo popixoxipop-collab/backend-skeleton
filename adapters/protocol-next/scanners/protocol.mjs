@@ -63,8 +63,86 @@ export function baseProtocolScan({ family, dialect, adapter, file, bytes, payloa
 }
 
 export function stripCStyleComments(text) {
-  return text.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
-    .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+  const source = String(text);
+  const out = [...source];
+  let quote = null;
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    const next = source[i + 1];
+    if (quote) {
+      if (ch === '\\') i += 1;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      out[i] = ' ';
+      out[i + 1] = ' ';
+      i += 2;
+      while (i < source.length && source[i] !== '\n') {
+        out[i] = ' ';
+        i += 1;
+      }
+      i -= 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      out[i] = ' ';
+      out[i + 1] = ' ';
+      i += 2;
+      while (i < source.length) {
+        if (source[i] === '*' && source[i + 1] === '/') {
+          out[i] = ' ';
+          out[i + 1] = ' ';
+          i += 1;
+          break;
+        }
+        if (source[i] !== '\n') out[i] = ' ';
+        i += 1;
+      }
+    }
+  }
+  return out.join('');
+}
+
+function maskQuotedStrings(text) {
+  const out = [...text];
+  let quote = null;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (!quote) {
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        out[i] = ' ';
+      }
+      continue;
+    }
+    if (ch === '\\') {
+      out[i] = ' ';
+      if (i + 1 < text.length && text[i + 1] !== '\n') out[i + 1] = ' ';
+      i += 1;
+      continue;
+    }
+    if (ch === quote) {
+      out[i] = ' ';
+      quote = null;
+      continue;
+    }
+    if (ch !== '\n') out[i] = ' ';
+  }
+  return out.join('');
+}
+
+function braceDepthAt(text, offset) {
+  let depth = 0;
+  for (let i = 0; i < offset; i += 1) {
+    if (text[i] === '{') depth += 1;
+    else if (text[i] === '}') depth = Math.max(0, depth - 1);
+  }
+  return depth;
 }
 
 export function extractBalancedBlock(text, openIndex) {
@@ -108,6 +186,7 @@ function parseMessageFields(body, file, baseIndex, source) {
 export function importProtoSource(text, { file = 'schema.proto' } = {}) {
   const source = String(text);
   const clean = stripCStyleComments(source);
+  const structural = maskQuotedStrings(clean);
   const packages = [];
   const services = [];
   const methods = [];
@@ -120,9 +199,13 @@ export function importProtoSource(text, { file = 'schema.proto' } = {}) {
   if (pkg) packages.push({ name: pkg[1], file, line: lineNumberAt(source, pkg.index) });
 
   const declRe = /\b(service|message)\s+([A-Za-z_][\w]*)\s*\{/g;
-  for (const m of clean.matchAll(declRe)) {
+  for (const m of structural.matchAll(declRe)) {
+    if (braceDepthAt(structural, m.index) !== 0) {
+      warnings.push({ code: 'PROTO_NESTED_DECLARATION_NOT_EXPANDED', message: m[1] + ' ' + m[2] + ' is nested and is not emitted by the static source importer', file, line: lineNumberAt(source, m.index) });
+      continue;
+    }
     const openIndex = m.index + m[0].lastIndexOf('{');
-    const block = extractBalancedBlock(clean, openIndex);
+    const block = extractBalancedBlock(structural, openIndex);
     if (!block) {
       warnings.push({ code: 'PROTO_UNCLOSED_BLOCK', message: m[1] + ' ' + m[2] + ' has no closing brace', file, line: lineNumberAt(source, m.index) });
       continue;
@@ -138,7 +221,7 @@ export function importProtoSource(text, { file = 'schema.proto' } = {}) {
     }
 
     services.push({ name: m[2], file, line: lineNumberAt(source, m.index) });
-    const rpcRe = /\brpc\s+([A-Za-z_][\w]*)\s*\(\s*(stream\s+)?([A-Za-z_][\w.]*)\s*\)\s*returns\s*\(\s*(stream\s+)?([A-Za-z_][\w.]*)\s*\)\s*;/g;
+    const rpcRe = /\brpc\s+([A-Za-z_][\w]*)\s*\(\s*(stream\s+)?([A-Za-z_][\w.]*)\s*\)\s*returns\s*\(\s*(stream\s+)?([A-Za-z_][\w.]*)\s*\)\s*(?:;|\{)/g;
     for (const rpc of block.body.matchAll(rpcRe)) {
       methods.push({
         service: m[2],
@@ -278,12 +361,20 @@ export function importGraphqlSDL(text, { file = 'schema.graphql' } = {}) {
 }
 
 function pointerName(ref) {
-  return typeof ref === 'string' ? ref.split('/').pop() : null;
+  if (typeof ref !== 'string' || !ref.startsWith('#/')) return null;
+  const token = ref.split('/').pop();
+  return token.replace(/~1/g, '/').replace(/~0/g, '~');
 }
 
-function messageRef(message) {
+function messageRef(message, warnings, label) {
   if (!message) return null;
-  if (message.$ref) return pointerName(message.$ref);
+  if (message.$ref) {
+    const local = pointerName(message.$ref);
+    if (local == null) {
+      warnings.push({ code: 'ASYNCAPI_EXTERNAL_REF_UNRESOLVED', message: label + ' uses an external $ref that is not resolved by the static importer: ' + JSON.stringify(message.$ref) });
+    }
+    return local;
+  }
   return message.name ?? null;
 }
 
@@ -307,8 +398,8 @@ export function importAsyncApiDocument(document, { file = 'asyncapi.json' } = {}
       const op = channel?.[direction];
       if (!op || typeof op !== 'object') continue;
       const refs = [];
-      if (op.message) refs.push(messageRef(op.message));
-      if (Array.isArray(op.messages)) refs.push(...op.messages.map(messageRef));
+      if (op.message) refs.push(messageRef(op.message, warnings, 'channel ' + name + ' ' + direction + ' message'));
+      if (Array.isArray(op.messages)) refs.push(...op.messages.map((message) => messageRef(message, warnings, 'channel ' + name + ' ' + direction + ' message')));
       operations.push({
         channel: name,
         direction,
@@ -321,8 +412,13 @@ export function importAsyncApiDocument(document, { file = 'asyncapi.json' } = {}
   }
 
   for (const [operationId, op] of Object.entries(document.operations ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
-    const channelRef = op?.channel?.$ref ? pointerName(op.channel.$ref) : (op?.channel?.address ?? null);
-    const refs = Array.isArray(op?.messages) ? op.messages.map(messageRef).filter(Boolean).sort() : [];
+    let channelRef = op?.channel?.$ref ? pointerName(op.channel.$ref) : (op?.channel?.address ?? null);
+    if (op?.channel?.$ref && channelRef == null) {
+      warnings.push({ code: 'ASYNCAPI_EXTERNAL_REF_UNRESOLVED', message: 'operation ' + operationId + ' uses an external channel $ref that is not resolved by the static importer: ' + JSON.stringify(op.channel.$ref) });
+    }
+    const refs = Array.isArray(op?.messages)
+      ? op.messages.map((message) => messageRef(message, warnings, 'operation ' + operationId + ' message')).filter(Boolean).sort()
+      : [];
     operations.push({
       channel: channelRef,
       direction: op?.action ?? null,
