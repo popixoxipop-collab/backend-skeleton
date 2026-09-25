@@ -64,7 +64,7 @@ test('discovers current and future marker roots deterministically while ignoring
     'vendor/fake/Gemfile': "source 'x'",
   });
   const d = discoverProjectRoots(root);
-  assert.deepEqual(d.roots.map((x) => x.root), ['a-api', 'go-worker', 'z-api']);
+  assert.deepEqual(d.roots.map((x) => x.root), ['.', 'a-api', 'go-worker', 'z-api']);
   assert.deepEqual(d.files_read, ['a-api/package.json', 'go-worker/go.mod', 'z-api/pyproject.toml']);
   assert.ok(d.roots.every((x) => x.markers.every((m) => /^sha256:[a-f0-9]{64}$/.test(m.digest))));
 });
@@ -147,7 +147,9 @@ test('equal-specificity competition is explicit ambiguity, never arbitrary selec
 test('fallback is opt-in in the scan plan and never overrides aggregate roots', () => {
   const root = fixture({ 'plain/package.json': '{}', 'plain/src/x.js': 'x' });
   const g = buildProjectGraph({ repoRoot: root, adapters: [fallback] });
-  assert.equal(g.projects[0].kind, 'unrecognized');
+  const byRoot = new Map(g.projects.map((project) => [project.root, project]));
+  assert.equal(byRoot.get('.').kind, 'aggregate');
+  assert.equal(byRoot.get('plain').kind, 'unrecognized');
   assert.deepEqual(buildProjectScanPlan(g), []);
   assert.deepEqual(buildProjectScanPlan(g, { includeFallback: true }), [
     { project_id: 'project:plain', project_root: 'plain', adapter_id: 'generic-grep', mode: 'fallback' },
@@ -167,7 +169,8 @@ test('adapter detection exceptions are scoped to the project and do not abort th
   const broken = adapter('broken-http', 99, () => { throw new Error('boom'); });
   const ok = exactMarkerAdapter('javascript-express', 80, 'package.json', 'object');
   const g = buildProjectGraph({ repoRoot: root, adapters: [broken, ok, fallback] });
-  assert.equal(g.projects[0].facets.http.selected_adapter, 'javascript-express');
+  const service = g.projects.find((project) => project.root === 'service');
+  assert.equal(service.facets.http.selected_adapter, 'javascript-express');
   assert.ok(g.unresolved.some((x) => x.kind === 'adapter-detect-error' && x.message === 'boom'));
 });
 
@@ -186,6 +189,9 @@ test('project graph records direct containment and unique local package dependen
   const byRoot = new Map(g.projects.map((p) => [p.root, p]));
   assert.equal(byRoot.get('packages/api').local_package.name, '@demo/api');
   assert.deepEqual(byRoot.get('packages/api').local_package.dependency_names, ['@demo/shared', 'express']);
+  assert.deepEqual(byRoot.get('.').child_project_roots, ['packages/api', 'packages/shared']);
+  assert.deepEqual(byRoot.get('packages/api').child_project_roots, ['packages/api/plugin']);
+  assert.deepEqual(byRoot.get('packages/api/plugin').child_project_roots, []);
   assert.deepEqual(g.project_edges, [
     {
       kind: 'contains',
@@ -268,7 +274,7 @@ test('large sibling monorepo discovery and planning stay deterministic', () => {
   const first = buildProjectGraph({ repoRoot: root, adapters: [exactNode, fallback] });
   const second = buildProjectGraph({ repoRoot: root, adapters: [fallback, exactNode] });
 
-  assert.equal(first.projects.length, count);
+  assert.equal(first.projects.length, count + 1);
   assert.equal(first.project_edges.filter((e) => e.kind === 'local-package-dependency').length, count - 1);
   assert.equal(buildProjectScanPlan(first).length, count);
   assert.deepEqual(first.projects, second.projects);
@@ -323,6 +329,7 @@ test('reference/generated/template projects stay visible but are excluded from t
   const graph = buildProjectGraph({ repoRoot: root, adapters: [exactNode, fallback] });
   const roles = Object.fromEntries(graph.projects.map((project) => [project.root, project.project_role]));
   assert.deepEqual(roles, {
+    '.': 'active',
     app: 'active',
     'examples/demo': 'reference',
     'generated/client': 'generated',
