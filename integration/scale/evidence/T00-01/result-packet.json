@@ -12,7 +12,7 @@
   "baseline": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
     "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
-    "beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e"
+    "beval": "882b185655f9166cda4a64b5b49a6eab477f2410"
   },
   "test_runs": [
     {
@@ -173,28 +173,51 @@
         "conclusion": "success"
       },
       "acceptance_effect": "T00-01 remains SUBMITTED until epoch-6 PR exact-head CI is terminal success and T19 independently reviews the exact epoch-6 branch head."
+    },
+    {
+      "epoch": 7,
+      "reason": "T19 independently returned BLOCKED/DRIFT for epoch 6 after Backend-evaluation PR #48 and PR #49 advanced current beval main by 14 commits",
+      "prior_beval_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "current_beval_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
+      "t19_epoch6_review": {
+        "pr": 118,
+        "review_path": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+        "verdict": "BLOCKED/DRIFT",
+        "comment_id": 5830038810
+      },
+      "current_push_ci": {
+        "run_id": 36117576104,
+        "run_number": 930,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until epoch-7 PR exact-head CI succeeds and T19 independently reviews the exact epoch-7 branch head with no current-main/blob drift"
     }
   ],
-  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-6 rebaseline branch.",
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-7 rebaseline branch.",
   "current_acceptance": {
     "exact_main_heads_verified_by_t00": true,
     "exact_head_ci": {
       "bskel": {
         "run_id": 36040486375,
+        "run_number": 319,
+        "status": "completed",
         "conclusion": "success"
       },
       "becoder": {
         "run_id": 36083442722,
+        "run_number": 83,
+        "status": "completed",
         "conclusion": "success"
       },
       "beval": {
-        "run_id": 36105784109,
-        "run_number": 924,
+        "run_id": 36117576104,
+        "run_number": 930,
         "status": "completed",
         "conclusion": "success"
       }
     },
-    "independent_review": "WAITING_FOR_EPOCH6_PR_CI",
-    "note": "All three current main exact-head CI gates are green. T00 may request T19 final epoch-6 review only after the current PR #120 exact-head CI is terminal success."
+    "independent_review": "WAITING_FOR_EPOCH7_PR_CI",
+    "note": "Epoch 6 was independently denied as BLOCKED/DRIFT. Epoch 7 pins current beval main 882b1856...; request fresh T19 review only after this exact epoch-7 PR head CI is terminal success."
   }
 }
