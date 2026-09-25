@@ -108,7 +108,7 @@ export function indexProtocolContractContexts(contexts) {
   const index = new Map();
   for (const context of contexts ?? []) {
     if (!plainObject(context)) throw new TypeError('protocol contract context must be an object');
-    const ref = assertT01ArtifactRefCandidate(context.contract_ref);
+    const ref = assertProtocolContractArtifactRef(context.contract_ref);
     const key = contractContextKey(ref);
     if (index.has(key)) throw new TypeError('duplicate protocol contract context: ' + key);
     if (!protocolArtifactRefMatchesBytes(ref, context.contract_bytes)) throw new TypeError('protocol contract context bytes do not match ArtifactRef');
