@@ -8,7 +8,10 @@ test('snapshot graph resolves relative ESM edges across multiple TypeScript file
     { path: 'src/router.ts', source: "export const router = 1;\n" },
   ]);
   assert.equal(result.contract, JS_TS_SNAPSHOT_CONTRACT);
+  assert.match(result.contract, /^bskel\.internal\./);
   assert.equal(result.complete, true);
+  assert.equal(result.allResolved, true);
+  assert.equal(result.syntaxValidated, false);
   assert.deepEqual(result.files.map((f) => f.path), ['src/app.ts', 'src/router.ts']);
   assert.equal(result.moduleGraph.length, 1);
   assert.deepEqual(
@@ -26,6 +29,7 @@ test('CommonJS edges participate in the same graph without executing target code
   assert.equal(globalThis.__BSKEL_T04_SNAPSHOT_SENTINEL__, 0);
   assert.equal(result.moduleGraph[0].status, 'resolved');
   assert.equal(result.moduleGraph[0].target, 'lib/b.cjs');
+  assert.equal(result.moduleGraph[0].sourceBasis, 'lexical-literal');
   delete globalThis.__BSKEL_T04_SNAPSHOT_SENTINEL__;
 });
 
@@ -44,6 +48,7 @@ test('ambiguous extensionless edges remain explicit and never pick an extension 
     { path: 'src/router.js', source: '' },
   ]);
   assert.equal(result.complete, true);
+  assert.equal(result.allResolved, false);
   assert.equal(result.moduleGraph[0].status, 'ambiguous');
   assert.deepEqual(result.moduleGraph[0].candidates, ['src/router.js', 'src/router.ts']);
   assert.ok(result.diagnostics.some((d) => d.code === 'module-ambiguous'));
@@ -54,6 +59,8 @@ test('bare package-or-alias specifiers remain visible but unresolved', () => {
     { path: 'src/app.ts', source: "import express from 'express';\nimport user from '@/user';\n" },
     { path: 'src/user.ts', source: '' },
   ]);
+  assert.equal(result.complete, true);
+  assert.equal(result.allResolved, false);
   assert.deepEqual(result.moduleGraph.map((e) => e.status), ['bare', 'bare']);
   assert.ok(result.diagnostics.every((d) => d.code === 'module-bare'));
 });
@@ -122,4 +129,18 @@ test('source byte spans remain tied to the originating file edge', () => {
 test('invalid path and invalid explicit language fail instead of being guessed', () => {
   assert.throws(() => analyzeJsTsSnapshot([{ path: '../escape.js', source: '' }]), /escapes/);
   assert.throws(() => analyzeJsTsSnapshot([{ path: 'src/app.ts', language: 'java', source: '' }]), /unsupported language mode/);
+});
+
+
+test('dot and NUL snapshot paths are rejected rather than normalized into a fake file identity', () => {
+  assert.throws(() => analyzeJsTsSnapshot([{ path: '.', source: '' }]), /file path/);
+  assert.throws(() => analyzeJsTsSnapshot([{ path: 'src/evil\0.ts', source: '' }]), /NUL/);
+});
+
+test('empty snapshot is deterministic but never claims syntax validation', () => {
+  const result = analyzeJsTsSnapshot([]);
+  assert.equal(result.complete, true);
+  assert.equal(result.allResolved, true);
+  assert.equal(result.syntaxValidated, false);
+  assert.deepEqual(result.moduleGraph, []);
 });
