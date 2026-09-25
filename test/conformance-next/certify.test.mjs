@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { assembleCertification, evaluateDifferentialGate, evaluateNegativeVectorRun, verifyEvidencePackFromDisk } from './certify.mjs';
+import { assembleCertification, evaluateDifferentialGate, evaluateNegativeVectorRun, injectHoldoutManifest, verifyEvidencePackFromDisk } from './certify.mjs';
 import { sha256 } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -61,6 +61,40 @@ test('disk evidence verifier rejects path traversal and missing artifact bytes',
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
+test('external holdout injection rejects source-family leakage into the reference corpus', () => {
+  const holdout = {
+    contract: 'sbf.qa-holdout/1',
+    entries: [{ ...CORPUS.entries[0], id: 'leaked-holdout' }],
+  };
+  const result = injectHoldoutManifest(clone(CORPUS), holdout);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((x) => x.includes('crosses reference and holdout')));
+});
+
+test('external holdout injection keeps the public corpus unchanged and can satisfy the holdout readiness gate', () => {
+  const holdout = {
+    contract: 'sbf.qa-holdout/1',
+    entries: [{
+      id: 'private-holdout-fixture',
+      adapter: 'java-spring',
+      owner: 'example-owner',
+      repo: 'example-private-holdout',
+      ref: '9'.repeat(40),
+      path: null,
+      terms: ['widget'],
+      license_spdx: 'MIT',
+      source_family: 'private-holdout-fixture-family',
+      golden_basis: 'Synthetic unit-test-only external holdout metadata; not a production certification corpus.',
+      expected_limitations: ['Unit-test-only metadata.'],
+    }],
+  };
+  const before = JSON.stringify(CORPUS);
+  const result = injectHoldoutManifest(clone(CORPUS), holdout);
+  assert.equal(result.ok, true, result.errors.join('\n'));
+  assert.equal(result.corpus.holdout_entries.length, 1);
+  assert.equal(JSON.stringify(CORPUS), before);
+});
+
 test('certification stays blocked with an empty holdout even when every executable gate passes', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
   try {
@@ -108,6 +142,28 @@ test('CLI emits JSON and exit 2 for a fully passing reference-only bundle whose 
     const r=spawnSync(process.execPath,[path.join(HERE,'certify.mjs'),'--artifact-root',root],{input:JSON.stringify(input),encoding:'utf8'});
     assert.equal(r.status,2,r.stderr);
     assert.equal(JSON.parse(r.stdout).verdict,'blocked');
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('CLI can inject a non-public holdout manifest at runtime without committing it to the reference corpus', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-holdout-cli-'));
+  try {
+    const input=passingInput(root);
+    const holdoutPath=path.join(root,'holdout.json');
+    fs.writeFileSync(holdoutPath, JSON.stringify({
+      contract:'sbf.qa-holdout/1',
+      entries:[{
+        id:'runtime-holdout-fixture',adapter:'java-spring',owner:'example-owner',repo:'holdout-fixture',
+        ref:'8'.repeat(40),path:null,terms:['widget'],license_spdx:'MIT',source_family:'runtime-holdout-family',
+        golden_basis:'Synthetic CLI test metadata supplied from outside the repository.',
+        expected_limitations:['Unit-test-only metadata.'],
+      }],
+    }));
+    const r=spawnSync(process.execPath,[path.join(HERE,'certify.mjs'),'--artifact-root',root,'--holdout-manifest',holdoutPath],{input:JSON.stringify(input),encoding:'utf8'});
+    assert.equal(r.status,0,r.stderr);
+    const report=JSON.parse(r.stdout);
+    assert.equal(report.verdict,'pass',report.reasons.join('\n'));
+    assert.equal(report.gates.corpus.stats.holdout_entries,1);
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
