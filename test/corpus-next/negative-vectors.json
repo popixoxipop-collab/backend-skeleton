@@ -1,0 +1,29 @@
+{
+  "contract": "sbf.qa-negative-vectors/1",
+  "vectors": [
+    {"id":"NEG-ID-01","category":"identity","critical":true,"expected":"reject","invariant":"Exact contract byte changes do not reuse a prior artifact identity.","failure_signal":"Old identity remains trusted after byte change."},
+    {"id":"NEG-ID-02","category":"identity","critical":true,"expected":"reject","invariant":"Display aliases cannot repair a missing operation identity.","failure_signal":"Alias lookup silently chooses an operation."},
+    {"id":"NEG-PROJ-01","category":"project","critical":true,"expected":"detect","invariant":"Nested services remain independently scoped.","failure_signal":"One adapter selection hides a sibling service."},
+    {"id":"NEG-PROJ-02","category":"project","critical":false,"expected":"preserve-unknown","invariant":"Overlapping roots require explicit ownership or ambiguity.","failure_signal":"Files are silently assigned to one project."},
+    {"id":"NEG-ROUTE-01","category":"route","critical":true,"expected":"preserve-unknown","invariant":"Computed prefixes are not converted into invented literal paths.","failure_signal":"A guessed literal path is emitted as verified."},
+    {"id":"NEG-ROUTE-02","category":"route","critical":false,"expected":"detect","invariant":"A multi-mounted router may produce distinct absolute paths.","failure_signal":"Only one mount survives."},
+    {"id":"NEG-SCHEMA-01","category":"schema","critical":true,"expected":"block","invariant":"Lossy schema conversion blocks capabilities that require lost information.","failure_signal":"Generation proceeds without a loss diagnostic."},
+    {"id":"NEG-SCHEMA-02","category":"schema","critical":false,"expected":"preserve-unknown","invariant":"Remote references are not fetched without an approved immutable bundle.","failure_signal":"Analysis performs unapproved network resolution."},
+    {"id":"NEG-AUTH-01","category":"auth","critical":true,"expected":"reject","invariant":"Wrong-role and cross-tenant requests are not accepted as authorized evidence.","failure_signal":"Authorization assertion passes for an unauthorized request."},
+    {"id":"NEG-AUTH-02","category":"auth","critical":true,"expected":"preserve-unknown","invariant":"Declared security and runtime enforcement remain distinct claims.","failure_signal":"A declaration alone is marked enforced."},
+    {"id":"NEG-DB-01","category":"db","critical":true,"expected":"block","invariant":"Composite foreign-key column order is preserved.","failure_signal":"Local and referenced columns are flattened or cross-multiplied."},
+    {"id":"NEG-DB-02","category":"db","critical":true,"expected":"block","invariant":"Entity/table name similarity alone cannot create a fetch binding.","failure_signal":"An implicit binding enables fetch or codegen."},
+    {"id":"NEG-CACHE-01","category":"cache","critical":true,"expected":"reject","invariant":"Parser, resolver, policy and file-list changes invalidate dependent cache entries.","failure_signal":"A stale artifact is served as current."},
+    {"id":"NEG-CACHE-02","category":"cache","critical":false,"expected":"detect","invariant":"Deleted and newly-added files participate in invalidation.","failure_signal":"Incremental scan ignores a file-list change."},
+    {"id":"NEG-RUN-01","category":"run","critical":true,"expected":"reject","invariant":"Evidence from one run or attempt cannot be replayed into another.","failure_signal":"Nonce or scope mismatch is accepted."},
+    {"id":"NEG-RUN-02","category":"run","critical":true,"expected":"block","invariant":"Original-oracle failure blocks comparison instead of producing pass.","failure_signal":"Candidate is passed while baseline failed."},
+    {"id":"NEG-GAME-01","category":"game","critical":true,"expected":"preserve-unknown","invariant":"Nearby input and movement declarations do not prove causality.","failure_signal":"A behavior edge is invented from names or proximity."},
+    {"id":"NEG-GAME-02","category":"game","critical":false,"expected":"reject","invariant":"A candidate observation bridge cannot self-certify behavior.","failure_signal":"Candidate-reported pass is accepted without an independent probe."},
+    {"id":"NEG-TRUST-01","category":"trust","critical":true,"expected":"reject","invariant":"Static analysis does not execute target install hooks or initializers.","failure_signal":"Target-controlled code executes in static mode."},
+    {"id":"NEG-TRUST-02","category":"trust","critical":true,"expected":"reject","invariant":"Symlink and path traversal cannot escape approved roots.","failure_signal":"Read or write reaches outside the allowed root."},
+    {"id":"NEG-GEN-01","category":"generation","critical":true,"expected":"block","invariant":"Hand-edited generated files require an expected-old-hash match before overwrite.","failure_signal":"A user-modified file is silently replaced."},
+    {"id":"NEG-GEN-02","category":"generation","critical":true,"expected":"block","invariant":"Authorization stubs stay fail-closed until implemented.","failure_signal":"Generated default grants access."},
+    {"id":"NEG-RELEASE-01","category":"release","critical":true,"expected":"reject","invariant":"A green check from an older head cannot approve a new head.","failure_signal":"Release reuses stale CI status."},
+    {"id":"NEG-RELEASE-02","category":"release","critical":true,"expected":"block","invariant":"Unknown contract majors or revoked adapters do not execute.","failure_signal":"Unsupported or revoked artifacts are run."}
+  ]
+}
