@@ -65,5 +65,5 @@ test('T06 FastAPI shadow abstains on a symbolic router prefix instead of inherit
   const diff = diffFastApiShadow(legacy, shadow);
   assert.equal(diff.parity, false);
   assert.equal(diff.differences.endpoints.missingInShadow.length, 1);
-  assert.match(diff.differences.endpoints.missingInShadow[0], /^GET \/x#/);
+  assert.match(diff.differences.endpoints.missingInShadow[0], /^GET \/\{id\}#read_item$/);
 });
