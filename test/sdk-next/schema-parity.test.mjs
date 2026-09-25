@@ -11,6 +11,7 @@ import {
 	CURRENT_ADAPTER_DESCRIPTOR_CONTRACT,
 	SDK_ENTRYPOINT_PROTOCOL,
 	SDK_MANIFEST_CONTRACT,
+	createAdapterPackageInventory,
 	createAdapterTaskPacket,
 	createSupportExplanation,
 	makeSdkRequest,
@@ -37,6 +38,7 @@ function validators() {
 		explain: ajv.compile(load('support-explanation.schema.json')),
 		task: ajv.compile(load('adapter-task-packet.schema.json')),
 		conformance: ajv.compile(load('adapter-sdk-conformance.schema.json')),
+		packageInventory: ajv.compile(load('adapter-package-inventory.schema.json')),
 	};
 }
 
@@ -64,7 +66,7 @@ function manifest() {
 	};
 }
 
-test('all six SDK schemas compile and accept values emitted/accepted by the runtime library', async () => {
+test('all SDK schemas compile and accept values emitted/accepted by the runtime library', async () => {
 	const v = validators();
 	const m = manifest();
 	assert.equal(validateAdapterSdkManifest(m).ok, true);
@@ -131,6 +133,15 @@ test('all six SDK schemas compile and accept values emitted/accepted by the runt
 		}),
 	});
 	assert.equal(v.conformance(conformance), true, JSON.stringify(v.conformance.errors));
+
+	const inventory = createAdapterPackageInventory({
+		packageSha256: 'a'.repeat(64),
+		files: [
+			{ path: 'adapter-worker.mjs', sha256: 'b'.repeat(64), sizeBytes: 100, kind: 'file' },
+			{ path: 'fixtures/minimal/input.ts', sha256: 'c'.repeat(64), sizeBytes: 20, kind: 'file' },
+		],
+	});
+	assert.equal(v.packageInventory(inventory), true, JSON.stringify(v.packageInventory.errors));
 });
 
 test('manifest schema and runtime validator both reject obvious execution/path escapes', () => {
