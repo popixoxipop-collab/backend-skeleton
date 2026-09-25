@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { lexicalJsTsBackend, compareJsTsBackends } from '../scanners/language/js-ts/backend-comparison.mjs';
@@ -26,8 +27,13 @@ function sh(cmd, args, cwd) {
 }
 
 async function loadCompiler(packageName) {
-  const entry = path.join(scratch, 'node_modules', packageName, 'lib', 'typescript.js');
-  if (!fs.existsSync(entry)) fail(`missing compiler entry after npm install: ${entry}`);
+  const requireFromScratch = createRequire(path.join(scratch, 'package.json'));
+  let entry;
+  try {
+    entry = requireFromScratch.resolve(packageName);
+  } catch (error) {
+    fail(`cannot resolve installed compiler package "${packageName}": ${error.message}`);
+  }
   const imported = await import(pathToFileURL(entry).href);
   return imported.default ?? imported;
 }
