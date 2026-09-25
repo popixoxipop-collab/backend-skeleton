@@ -322,7 +322,7 @@ test('unresolvable success response component ref stays unknown instead of being
   });
 
   assert.equal(field(graph, 'api.response.schema').state, 'unknown');
-  assert.equal(field(graph, 'api.response.schema').reason, 'response-response-unresolved-or-malformed');
+  assert.equal(field(graph, 'api.response.schema').reason, 'response-object-unresolved-or-malformed');
 });
 
 test('context-bound promotion rejects a spoofed attached flag without versioned OpenAPI provenance', () => {
