@@ -9,6 +9,7 @@ import { maskJsComments, matchBalancedParens, joinPath } from './_express-shared
 // bindings remain unknown until their dedicated reconciliation/persistence tracks supply evidence.
 const EXCLUDE_GLOBS = ['!**/node_modules/**', '!**/dist/**', '!**/build/**', '!**/coverage/**'];
 const METHOD_DECORATOR_RE = /@(Get|Post|Put|Patch|Delete)\s*\(/g;
+const ROUTE_DECORATOR_NAMES = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete']);
 const CONTROLLER_DECORATOR_RE = /@Controller\s*\(/g;
 const NEST_IMPORT_RE = /import\s*\{[^}]*\bController\b[^}]*\}\s*from\s*['"]@nestjs\/common['"]/;
 const NEST_PACKAGES = ['@nestjs/common', '@nestjs/core'];
@@ -89,6 +90,33 @@ function moduleNameFor(className) {
   return stem.charAt(0).toLowerCase() + stem.slice(1);
 }
 
+// Nest commonly stacks non-routing decorators such as @Roles(), @UseGuards(), @HttpCode()
+// and Swagger decorators around controllers and handlers. Crossing those decorators structurally
+// is safe as long as their semantics are NOT inferred and another route/@Controller is never
+// crossed. The official Nest fastify sample uses @Post() -> @Roles('admin') -> create().
+function skipNonRoutingDecorators(text, startIndex) {
+  let pos = startIndex;
+  while (pos < text.length) {
+    while (/\s/.test(text[pos] ?? '')) pos++;
+    if (text[pos] !== '@') return pos;
+
+    const nameMatch = text.slice(pos).match(/^@([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)/);
+    if (!nameMatch) return null;
+    const parts = nameMatch[1].split('.');
+    const shortName = parts[parts.length - 1];
+    if (shortName === 'Controller' || ROUTE_DECORATOR_NAMES.has(shortName)) return null;
+
+    pos += nameMatch[0].length;
+    while (/\s/.test(text[pos] ?? '')) pos++;
+    if (text[pos] === '(') {
+      const close = matchBalancedParens(text, pos);
+      if (close === -1) return null;
+      pos = close + 1;
+    }
+  }
+  return pos;
+}
+
 function extractEndpoints(classBody, absoluteBodyOffset, wholeText, basePath) {
   const endpoints = [];
   for (const m of classBody.matchAll(METHOD_DECORATOR_RE)) {
@@ -99,10 +127,9 @@ function extractEndpoints(classBody, absoluteBodyOffset, wholeText, basePath) {
     const localPath = literalPath(classBody.slice(openIndex + 1, closeIndex));
     if (localPath === null) continue;
 
-    // Deliberately require the HTTP decorator to be directly adjacent to the handler. Other
-    // method decorators are not guessed through in this first slice; they are retained as unknown
-    // until a syntax-aware NestJS analysis layer is available.
-    const after = classBody.slice(closeIndex + 1, closeIndex + 600);
+    const handlerStart = skipNonRoutingDecorators(classBody, closeIndex + 1);
+    if (handlerStart === null) continue;
+    const after = classBody.slice(handlerStart, handlerStart + 600);
     const methodMatch = after.match(/^\s*(?:(?:public|protected|private|static|readonly)\s+)*(?:async\s+)?([A-Za-z_$][\w$]*)\s*\(/);
     if (!methodMatch) continue;
 
@@ -127,15 +154,14 @@ function extractControllers(text, file) {
     const controllerPath = literalPath(text.slice(openIndex + 1, closeIndex));
     if (controllerPath === null) continue;
 
-    // First slice: only a directly-adjacent class declaration is considered proof that this
-    // @Controller belongs to that class. Additional stacked class decorators are intentionally
-    // left for the syntax-aware follow-up instead of being crossed by regex guesswork.
-    const after = text.slice(closeIndex + 1, closeIndex + 800);
+    const classStart = skipNonRoutingDecorators(text, closeIndex + 1);
+    if (classStart === null) continue;
+    const after = text.slice(classStart, classStart + 800);
     const classMatch = after.match(/^\s*(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/);
     if (!classMatch) continue;
 
     const className = classMatch[1];
-    const classDeclStart = closeIndex + 1 + classMatch.index;
+    const classDeclStart = classStart + classMatch.index;
     const bodyOpen = text.indexOf('{', classDeclStart + classMatch[0].length);
     if (bodyOpen === -1) continue;
     const bodyClose = matchBalancedBraces(text, bodyOpen);
@@ -159,11 +185,12 @@ function extractControllers(text, file) {
 }
 
 const API_SURFACE_SOURCE =
-  'NestJS static discovery: literal @Controller(path) plus directly-adjacent literal ' +
-  '@Get/@Post/@Put/@Patch/@Delete paths only. Computed paths, global prefixes, versioning, ' +
-  'stacked class/method decorators, guards, schemas and runtime metadata are not inferred. ' +
-  'For operation identity and runtime-composed routing, reconcile with a pinned OpenAPI document ' +
-  '(for projects using @nestjs/swagger) or an explicitly approved runtime route export.';
+  'NestJS static discovery: literal @Controller(path) plus literal ' +
+  '@Get/@Post/@Put/@Patch/@Delete paths. Non-routing decorator chains may be crossed structurally ' +
+  'but their semantics are never inferred. Computed paths, global prefixes, versioning, guards, ' +
+  'schemas and runtime metadata remain unresolved. For operation identity and runtime-composed ' +
+  'routing, reconcile with a pinned OpenAPI document (for projects using @nestjs/swagger) or an ' +
+  'explicitly approved runtime route export.';
 
 export function scanTypeScriptNestJs(repoRoot, projectRoot) {
   const files = listTypeScriptFiles(projectRoot);
