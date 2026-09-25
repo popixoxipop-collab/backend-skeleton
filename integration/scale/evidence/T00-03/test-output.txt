@@ -19,8 +19,10 @@ ok 8 - touched path outside claim is rejected
 ok 9 - path traversal claim is rejected
 # Subtest: overlap helper treats nested wildcard prefixes as overlapping
 ok 10 - overlap helper treats nested wildcard prefixes as overlapping
-1..10
-# tests 10
-# pass 10
+# Subtest: single Windows backslashes normalize before overlap checks
+ok 11 - single Windows backslashes normalize before overlap checks
+1..11
+# tests 11
+# pass 11
 # fail 0
 # skipped 0

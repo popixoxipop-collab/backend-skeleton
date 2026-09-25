@@ -14,3 +14,5 @@ test('stale fencing token result is rejected after successor claim',()=>{const a
 test('touched path outside claim is rejected',()=>{const a=claim({state:'SUBMITTED'}),p={claim_id:'c1',fencing_token:1,submitted_at:'2026-09-25T00:20:00Z',base_sha:SHA,repository:'org/repo',branch:'scale/T00/x',touched_paths:['package.json']};assert.equal(verifySubmission(POLICY,{claims:[a]},p).errors.some(e=>e.code==='TOUCHED_PATH_OUTSIDE_CLAIM'),true);});
 test('path traversal claim is rejected',()=>assert.equal(validateOwnership(POLICY,{claims:[claim({write_scope:['integration/scale/../package.json']})]},{now:'2026-09-25T01:00:00Z'}).errors.some(e=>e.code==='INVALID_CLAIM_SCOPE'),true));
 test('overlap helper treats nested wildcard prefixes as overlapping',()=>assert.equal(patternsOverlap('a/b/**','A/B/c/**'),true));
+
+test('single Windows backslashes normalize before overlap checks',()=>assert.equal(patternsOverlap('integration\\\\scale\\\\foo\\\\**','integration/scale/foo/bar.json'),true));

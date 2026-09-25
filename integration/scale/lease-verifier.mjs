@@ -4,7 +4,7 @@ const ACTIVE = new Set(['CLAIMED', 'RUNNING']);
 
 function normPath(p) {
   if (typeof p !== 'string' || !p.trim()) throw new Error('empty path scope');
-  let s = p.replaceAll('\\\\', '/').replace(/^\.\//, '');
+  let s = p.replaceAll('\\', '/').replace(/^\.\//, '');
   if (s.startsWith('/') || /^[A-Za-z]:\//.test(s)) throw new Error(`absolute path is forbidden: ${p}`);
   const parts = s.split('/');
   if (parts.some((x) => x === '..')) throw new Error(`path traversal is forbidden: ${p}`);

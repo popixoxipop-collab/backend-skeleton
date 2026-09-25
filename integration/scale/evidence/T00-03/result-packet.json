@@ -22,7 +22,7 @@
     {
       "command": "node --test integration/scale/test-lease-verifier.mjs",
       "exit_code": 0,
-      "passed": 10,
+      "passed": 11,
       "failed": 0
     },
     {
@@ -56,5 +56,10 @@
     "T00-04 shared semantic interfaces remain BLOCKED_PREFREEZE",
     "T00-01 remains baseline-gated by current exact-head verification"
   ],
-  "rollback": "Remove T00-03 lease/policy files from integration/scale/**; no product runtime, stable schema, package manifest, or workflow is modified."
+  "rollback": "Remove T00-03 lease/policy files from integration/scale/**; no product runtime, stable schema, package manifest, or workflow is modified.",
+  "regression_fix": {
+    "reason": "post-commit audit found source escaping normalized double backslashes instead of a single Windows path separator",
+    "test": "single Windows backslashes normalize before overlap checks",
+    "parent_head": "489e868b73266f11bd7345fd03c1d1b6d6c6c022"
+  }
 }

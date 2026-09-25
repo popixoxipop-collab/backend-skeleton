@@ -4,7 +4,7 @@
   "revision": "T00-03-R1",
   "command": "node --test integration/scale/test-lease-verifier.mjs",
   "exit_code": 0,
-  "passed": 10,
+  "passed": 11,
   "failed": 0,
   "cases": [
     {
@@ -54,6 +54,11 @@
     },
     {
       "name": "nested wildcard overlap helper",
+      "expected": "overlap=true",
+      "passed": true
+    },
+    {
+      "name": "single Windows backslash normalization",
       "expected": "overlap=true",
       "passed": true
     }
