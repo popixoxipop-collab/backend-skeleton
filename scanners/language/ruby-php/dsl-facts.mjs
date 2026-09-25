@@ -146,7 +146,7 @@ function rubyStatements(source) {
 }
 
 function firstRubyLiteral(args) {
-  const m = args.match(/^\s*\(?\s*(?::([a-zA-Z_]\w*)|["']([^"']+)["'])/);
+  const m = args.match(/^\s*\(?\s*(?::([a-zA-Z_]\w*)|["']([^"']*)["'])/);
   return m ? (m[1] ?? m[2]) : null;
 }
 
