@@ -13,10 +13,11 @@ Observed on EOE (Darwin) on 2026-09-25:
 |---|---|---|---|---|
 | spring-projects/spring-petclinic | `818c4136ea971c21674525f9053de0d9c7ad8cfe` | java-spring at repo root | `.:java-spring` | pass; 30 selected read-set files |
 | rtfeldman/node-express-realworld-example-app | `ba04b70c31af81ca7935096740a6e083563b3a4a` | javascript-express at repo root | `.:javascript-express` | pass; 13 selected read-set files |
+| hoangsonww/PetSwipe-Match-App (`backend/`) | `b8573eead531c68a4e2a551883c3a17828b30826` | typescript-express at scoped backend root | `.:typescript-express` | pass; 46 selected read-set files |
 | lobsters/lobsters | `69df721c9fe260c71c8af6550dafdd2783ad18b3` | ruby-rails at repo root | `.:ruby-rails` | pass; 136 selected read-set files |
 | fastapi/full-stack-fastapi-template | `cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7` | python-fastapi from repo-wide recursive detection | `backend:python-fastapi` | pass; root is aggregate, frontend and react-email remain separate |
 
-The FastAPI case is the important differential: legacy selection correctly finds the FastAPI adapter
+The cohort now covers all five existing first-party HTTP adapters. The FastAPI case is the important project-scoping differential: legacy selection correctly finds the FastAPI adapter
 but cannot express that the actual backend is a child project. ProjectGraph scopes the adapter to
 `backend` without claiming the frontend or email package belong to that HTTP service.
 
