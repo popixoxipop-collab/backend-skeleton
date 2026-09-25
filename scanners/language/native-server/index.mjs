@@ -48,3 +48,5 @@ export function handleAnalyzeRequest(message) {
 }
 
 export { runNativeServerWorker, NativeWorkerRunError, NATIVE_WORKER_PATH } from './runner.mjs';
+
+export { analyzeNativeServerFiles, DEFAULT_BATCH_LIMITS } from './batch.mjs';
