@@ -269,15 +269,15 @@
     ],
     "go-gin": [
       {
-        "id": "gin-official-examples",
+        "id": "gin-realtime-chat",
         "owner": "gin-gonic",
         "repo": "examples",
         "ref": "c2f7a0b158e7c8a60336f9ca5e97a517740234dc",
-        "path": null,
+        "path": "realtime-chat",
         "terms": [
-          "main"
+          "room"
         ],
-        "note": "Official Gin examples repository. Root go.mod pins gin and many example main.go files use gin.Default()/Group()/GET/POST patterns, stressing same-file group discovery across diverse examples without inventing cross-file group flow."
+        "note": "Official Gin realtime-chat example scoped to its own go.mod. main.go uses gin.Default() and literal GET/POST/DELETE room routes, giving a clean single-project oracle without mixing the repository's other independent example modules."
       }
     ],
     "php-laravel": [
