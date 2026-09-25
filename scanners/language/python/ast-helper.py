@@ -78,6 +78,8 @@ def value(node, depth=0):
         }
     if isinstance(node, ast.Subscript):
         return {"kind": "subscript", "base": value(node.value, depth + 1), "slice": value(node.slice, depth + 1)}
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return {"kind": "binary", "operator": "BitOr", "left": value(node.left, depth + 1), "right": value(node.right, depth + 1)}
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)) and isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, (int, float)) and not isinstance(node.operand.value, bool):
         sign = -1 if isinstance(node.op, ast.USub) else 1
         return scalar(sign * node.operand.value)
