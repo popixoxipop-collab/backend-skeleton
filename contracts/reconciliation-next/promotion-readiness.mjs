@@ -4,6 +4,7 @@
 // packages T09 facts into per-endpoint readiness/blocker records that a later policy can consume.
 
 import { attachEvidenceBinding } from './evidence-binding.mjs';
+import { hasOpenApiContextAudit } from './openapi-context.mjs';
 
 const ROUTE_FIELDS = Object.freeze([
   'operation.identity',
@@ -24,7 +25,7 @@ function runtimeByEndpoint(runtimeReport) {
 
 function sourceSpecBlockers(endpoint, graph, binding) {
   const blockers = [];
-  if (graph.openApiContext?.attached !== true) {
+  if (!hasOpenApiContextAudit(graph)) {
     blockers.push({ code: 'openapi-context-not-attached' });
   }
   if (binding.sourceSpec?.state !== 'bound') {
