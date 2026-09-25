@@ -47,13 +47,13 @@ function stripRubyComments(text) {
 }
 
 function literalOption(text, name) {
-	const re = new RegExp('\\b' + name + '\\s*:\\s*(?:["\\']([^"\\']+)["\\']|:([A-Za-z_][A-Za-z0-9_]*))');
+	const re = new RegExp(`\\b${name}\\s*:\\s*(?:["']([^"']+)["']|:([A-Za-z_][A-Za-z0-9_]*))`);
 	const match = text.match(re);
 	return match ? (match[1] ?? match[2]) : null;
 }
 
 function assignedLiteral(text, receiver, property) {
-	const re = new RegExp('\\b' + receiver + '\\.' + property + '\\s*=\\s*(?:["\\']([^"\\']+)["\\']|:([A-Za-z_][A-Za-z0-9_]*))');
+	const re = new RegExp(`\\b${receiver}\\.${property}\\s*=\\s*(?:["']([^"']+)["']|:([A-Za-z_][A-Za-z0-9_]*))`);
 	const match = text.match(re);
 	return match ? (match[1] ?? match[2]) : null;
 }
