@@ -1,9 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fromLegacyAdapterScan, fromMigrationScan, fromLivePostgres } from '../../scanners/persistence-next/legacy.mjs';
+import { fromLegacyAdapterScan, fromMigrationScan, fromLivePostgres, LEGACY_ADAPTER_PERSISTENCE_IDS } from '../../scanners/persistence-next/legacy.mjs';
 
-test('legacy JPA bridge preserves explicit table and UUID key evidence', () => {
+test('legacy adapter ids map to persistence identities expected by composition', () => {
+	assert.deepEqual(LEGACY_ADAPTER_PERSISTENCE_IDS, {
+		'java-spring':'jpa-hibernate',
+		'python-fastapi':'sqlalchemy-sqlmodel',
+		'typescript-express':'typeorm',
+		'ruby-rails':'active-record',
+	});
+});
+
+test('legacy JPA bridge preserves explicit table and UUID key evidence under jpa-hibernate identity', () => {
 	const ir = fromLegacyAdapterScan({ adapterId: 'java-spring', repoRoot: '/repo', scan: { modules: [{ module: 'users', entities: [{ className: 'User', table: 'users', tableSource: 'explicit', idField: 'id', idFieldType: 'UUID', idFieldIsUuid: true, file: '/repo/src/User.java', line: 8 }] }] } });
+	assert.equal(ir.provider,'jpa-hibernate');
+	assert.equal(ir.metadata.legacy_adapter_id,'java-spring');
+	assert.equal(ir.entities[0].provider,'jpa-hibernate');
 	assert.equal(ir.entities[0].table.name, 'users');
 	assert.equal(ir.entities[0].table.source, 'explicit');
 	assert.equal(ir.entities[0].primary_key.type, 'UUID');
@@ -17,20 +29,23 @@ test('legacy Java bridge does not invent a physical table when @Table is absent'
 	assert.ok(ir.diagnostics.some((x) => x.code === 'table-name-unknown'));
 });
 
-test('SQLModel inferred table remains explicitly marked inferred', () => {
+test('SQLModel inferred table remains inferred under sqlalchemy-sqlmodel identity', () => {
 	const ir = fromLegacyAdapterScan({ adapterId: 'python-fastapi', scan: { modules: [{ module: 'items', entities: [{ className: 'Item', table: 'item', tableSource: 'inferred', idField: 'id', file: 'models.py', line: 3 }] }] } });
+	assert.equal(ir.provider,'sqlalchemy-sqlmodel');
 	assert.equal(ir.entities[0].table.source, 'inferred');
 	assert.equal(ir.entities[0].primary_key.type, 'unknown');
 });
 
-test('TypeORM non-UUID key is represented, not dropped', () => {
+test('TypeORM non-UUID key is represented under typeorm identity', () => {
 	const ir = fromLegacyAdapterScan({ adapterId: 'typescript-express', scan: { modules: [{ module: 'users', entities: [{ className: 'User', table: 'users', tableSource: 'explicit', idField: 'id', idFieldIsUuid: false, file: 'User.ts', line: 4 }] }] } });
+	assert.equal(ir.provider,'typeorm');
 	assert.equal(ir.entities[0].primary_key.type, 'non-uuid');
 	assert.deepEqual(ir.entities[0].primary_key.columns, ['id']);
 });
 
-test('legacy Rails bridge accepts only explicit table/key evidence from current adapter output', () => {
+test('legacy Rails bridge accepts only explicit table/key evidence under active-record identity', () => {
 	const ir = fromLegacyAdapterScan({ adapterId: 'ruby-rails', scan: { modules: [{ module: 'users', entities: [{ className: 'User', table: 'users', tableSource: 'explicit', idField: 'uuid', idFieldIsUuid: null, file: 'app/models/user.rb', line: 1 }] }] } });
+	assert.equal(ir.provider,'active-record');
 	assert.equal(ir.entities[0].table.name, 'users');
 	assert.equal(ir.entities[0].table.source, 'explicit');
 	assert.deepEqual(ir.entities[0].primary_key.columns, ['uuid']);
