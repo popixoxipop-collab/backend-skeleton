@@ -145,3 +145,21 @@ test('shadow execution rejects a newly-added source file that changes the adapte
       err?.actual_files.includes('app/new_module.py'),
   );
 });
+
+
+test('serialized graph can execute on an equivalent checkout without persisting an absolute root', () => {
+  const files = {
+    'app/pyproject.toml': '[project]\ndependencies = ["fastapi>=0.100"]\n',
+    'app/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+  };
+  const rootA = fixture(files);
+  const rootB = fixture(files);
+  const graphA = buildRegisteredProjectGraph(rootA);
+  const portableGraph = JSON.parse(JSON.stringify(graphA));
+
+  assert.equal(portableGraph.repo_root, '.');
+  const out = executeProjectScanPlan({ repoRoot: rootB, graph: portableGraph, terms: [], adapters: ADAPTERS });
+  assert.deepEqual(out.scans.map((scan) => [scan.project_root, scan.adapter_id]), [
+    ['app', 'python-fastapi'],
+  ]);
+});
