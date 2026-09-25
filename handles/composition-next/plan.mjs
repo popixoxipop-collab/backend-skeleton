@@ -1,4 +1,5 @@
 import { resolveApprovedCombination } from './catalog.mjs';
+import { describeResourceGeneration } from './safety-profile.mjs';
 
 function assertProvider(provider) {
   if (!provider || typeof provider !== 'object') throw new TypeError('provider is required');
@@ -57,6 +58,43 @@ export function previewGeneration({
     };
   }
 
+  const resourceSafety = describeResourceGeneration({ providerId: provider.id, handlesPlan, resourceFilter });
+  const preflightBlockers = [];
+  if (resourceSafety.requestedMissing.length > 0) {
+    preflightBlockers.push({
+      code: 'requested-resource-missing',
+      message: `requested resources not present in handles plan: ${resourceSafety.requestedMissing.join(', ')}`,
+    });
+  }
+  if (resourceFilter && resourceSafety.skippedResourceTypes.length > 0) {
+    preflightBlockers.push({
+      code: 'requested-resource-not-generatable',
+      message: `provider plan refused resolver generation for: ${resourceSafety.skippedResourceTypes.join(', ')}`,
+    });
+  }
+  if (resourceSafety.generatedResourceTypes.length === 0) {
+    preflightBlockers.push({
+      code: 'no-generatable-resources',
+      message: 'provider plan contains no resources approved for resolver generation',
+    });
+  }
+  if (preflightBlockers.length > 0) {
+    return {
+      schema: 'sbf.handles-composition-plan/0',
+      status: 'blocked',
+      applyAllowed: false,
+      providerId: provider.id,
+      featureId,
+      combination,
+      plannedWrites: [],
+      actions: [],
+      resourceDecisions: resourceSafety.decisions,
+      manualCompletions: resourceSafety.manualCompletions,
+      blockers: preflightBlockers,
+      notes: [],
+    };
+  }
+
   const preview = provider.emit({
     repoRoot,
     featureId,
@@ -87,6 +125,8 @@ export function previewGeneration({
     providerId: provider.id,
     featureId,
     combination,
+    resourceDecisions: resourceSafety.decisions,
+    manualCompletions: resourceSafety.manualCompletions,
     plannedWrites: strings(preview.written),
     forcedWrites: strings(preview.forced),
     actions: normalizeActions(preview.actions),
