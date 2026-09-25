@@ -3,37 +3,60 @@
   "candidate": "T00-04A",
   "observed_on": "2026-09-25",
   "baseline": {
-    "state": "SUBMITTED",
-    "epoch": 4,
+    "state": "READY_FOR_ACCEPTANCE",
+    "epoch": 5,
     "heads": {
       "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
       "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
-      "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+      "beval": "24cd9ad3cb913756184f79bb008af565a0458967"
     },
-    "exact_head_ci": "queued",
-    "independent_review": "blocked",
-    "note": "bskel and becoder exact-head main CI are green; beval main run #868 remains queued. Epoch-4 PR #100 also has non-terminal exact-head CI."
+    "exact_head_ci": "success",
+    "exact_head_runs": {
+      "bskel": 36040486375,
+      "becoder": 36083442722,
+      "beval": 36099964750
+    },
+    "independent_review": "pending",
+    "review_target": "backend-skeleton#116@dfec8ef6b6065d5881094565915dd4c08453f88b",
+    "note": "All three current main exact-head CI runs are green. PR #116 exact-head CI and independent T19 review must be terminal PASS before baseline state may become ACCEPTED."
   },
   "current_main_heads": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
     "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
-    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+    "beval": "24cd9ad3cb913756184f79bb008af565a0458967"
   },
   "identity": {
     "source": "backend-skeleton#82",
-    "head": "c91c2e208e6318f056501474fa9da6eea9f51384",
+    "head_observed": "e499073aaa7fe9c116e30fbff0536cccecb6eb69",
     "exact_head_ci": "success",
+    "exact_head_ci_run": 36094807573,
     "scope_compliant": true,
     "legacy_compatibility": true,
     "artifact_ref_semantics": "exact-bytes",
     "identity_envelope_family": "http",
-    "additive_only": true
+    "additive_only": true,
+    "core_blob_shas": {
+      "contracts/next/identity.mjs": "c880a606136536fc103db414e5bc39f83081ef8e",
+      "schemas/next/artifact-ref.schema.json": "d69366533844c4d002de8746140776edfdccbb25",
+      "schemas/next/identity-envelope.schema.json": "e4e5fdd38278179e7a6d717a429d63c7b52b78a9",
+      "schemas/next/identity.golden.json": "42177e1af597c445113258e8e81ba9b4a02cadd6"
+    },
+    "note": "These four 04A core blobs are unchanged from the previously reviewed T01 head even though the T01 branch gained later consumer-verifier work."
   },
   "capability": {
     "source": "backend-skeleton#81",
     "head": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
     "exact_head_ci": "success",
-    "scope_compliant": false,
+    "exact_head_ci_run": 36084027973,
+    "scope_compliant": true,
+    "scope_basis": "T00 exact bridge lease T03-ROOT-TEST-001",
+    "bridge_lease": {
+      "path": "test/capability-next.test.mjs",
+      "blob_sha": "544b8bcc9f83738fb6dc10c4767e12ac90e3d7c5",
+      "semantic_authority": "none",
+      "expires_on_blob_change_or_nested_test_discovery": true,
+      "t00_comment_id": 5827587854
+    },
     "statuses": [
       "supported",
       "partial",
@@ -43,7 +66,7 @@
     ],
     "certification_wire_promoted": false,
     "runtime_tested_requires_verified_runtime_evidence": true,
-    "note": "five-state semantics are candidate; root test shim still violates the T03 lease and current evidenceRefs wire shape remains draft."
+    "note": "Only the five-state vocabulary is eligible for 04A. Current certification/evidenceRefs wire shape remains draft."
   },
   "lease": {
     "source": "backend-skeleton#88",
