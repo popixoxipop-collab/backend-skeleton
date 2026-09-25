@@ -33,27 +33,75 @@ function entityKey(entity) {
 
 export function buildFastApiShadow(project) {
   const endpoints = [];
+  const mounts = [];
   const unknowns = [];
   const routersByModule = new Map();
 
   for (const mod of project.list()) {
     const routers = new Map();
+    const mountContainers = new Map();
     for (const assignment of mod.facts.assignments || []) {
       const target = assignment.targets?.[0];
       const call = assignment.value;
       if (typeof target !== 'string' || call?.kind !== 'call') continue;
       const callee = fullResolved(resolveValueSymbol(project, mod.moduleId, call.callee));
-      if (callee !== 'fastapi.APIRouter') continue;
+      if (!['fastapi.APIRouter', 'fastapi.FastAPI'].includes(callee)) continue;
+      if (callee === 'fastapi.FastAPI') {
+        mountContainers.set(target, { variable: target, kind: 'app', line: assignment.line });
+        continue;
+      }
       const prefixValue = keyword(call, 'prefix');
       const prefix = prefixValue ? literalString(prefixValue) : '';
-      routers.set(target, {
+      const router = {
         variable: target,
+        kind: 'router',
         prefix,
         prefixStatus: prefixValue && prefix === null ? 'unknown' : 'verified',
         line: assignment.line,
-      });
+      };
+      routers.set(target, router);
+      mountContainers.set(target, router);
     }
     routersByModule.set(mod.moduleId, routers);
+
+    for (const callEntry of mod.facts.calls || []) {
+      const call = callEntry?.value;
+      if (call?.kind !== 'call' || call.callee?.kind !== 'symbol') continue;
+      const parts = call.callee.name.split('.');
+      if (parts.length !== 2 || parts[1] !== 'include_router') continue;
+      const receiver = mountContainers.get(parts[0]);
+      if (!receiver) continue;
+
+      const childValue = call.args?.[0] || keyword(call, 'router');
+      const child = childValue?.kind === 'symbol'
+        ? resolveValueSymbol(project, mod.moduleId, childValue)
+        : { status: 'unknown' };
+      const prefixValue = keyword(call, 'prefix');
+      const prefix = prefixValue ? literalString(prefixValue) : '';
+      const mount = {
+        module: mod.moduleId,
+        source: mod.source.path,
+        line: callEntry.line || call.line || receiver.line,
+        receiver: receiver.variable,
+        receiverKind: receiver.kind,
+        child: child.status === 'resolved'
+          ? { locality: child.locality, module: child.module, name: child.name, raw: childValue.name }
+          : { status: 'unknown', raw: childValue?.kind === 'symbol' ? childValue.name : null, reason: child.reason || 'router-argument-not-static-symbol' },
+        prefix,
+        prefixStatus: prefixValue && prefix === null ? 'unknown' : 'verified',
+      };
+      mounts.push(mount);
+      unknowns.push({
+        kind: 'fastapi-mount',
+        module: mod.moduleId,
+        line: mount.line,
+        reason: 'include-router-mount-not-composed',
+        receiver: mount.receiver,
+        child: mount.child,
+        prefix: mount.prefix,
+        prefixStatus: mount.prefixStatus,
+      });
+    }
 
     for (const fn of mod.facts.functions || []) {
       for (const decorator of fn.decorators || []) {
@@ -123,11 +171,12 @@ export function buildFastApiShadow(project) {
   }));
 
   endpoints.sort((a, b) => endpointKey(a).localeCompare(endpointKey(b)) || a.source.localeCompare(b.source));
+  mounts.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
   entities.sort((a, b) => entityKey(a).localeCompare(entityKey(b)));
   dtos.sort((a, b) => a.className.localeCompare(b.className) || a.module.localeCompare(b.module));
   unknowns.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 
-  return { endpoints, entities, dtos, unknowns };
+  return { endpoints, mounts, entities, dtos, unknowns };
 }
 
 export function summarizeLegacyFastApi(legacyScan) {

@@ -94,3 +94,36 @@ test('T06 FastAPI shadow matches the repository committed python-fastapi fixture
     shadow: { endpoints: 1, entities: 1, dtos: 1 },
   });
 });
+
+
+test('T06 FastAPI shadow records include_router mounts without pretending router-local paths are final', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-fastapi-mount-'));
+  fs.mkdirSync(path.join(root, 'app'));
+  fs.writeFileSync(path.join(root, 'app', '__init__.py'), '');
+  fs.writeFileSync(path.join(root, 'app', 'items.py'), `
+from fastapi import APIRouter
+router = APIRouter(prefix="/items")
+@router.get("/{item_id}")
+def read_item(item_id: int):
+    pass
+`);
+  fs.writeFileSync(path.join(root, 'app', 'api.py'), `
+from fastapi import APIRouter, FastAPI
+from .items import router as items_router
+api_router = APIRouter(prefix="/api")
+api_router.include_router(items_router, prefix="/v1")
+app = FastAPI()
+app.include_router(api_router)
+`);
+
+  const batch = analyzePythonFiles({ repoRoot: root, files: ['app/__init__.py', 'app/items.py', 'app/api.py'] });
+  assert.equal(batch.ok, true, JSON.stringify(batch, null, 2));
+  const shadow = buildFastApiShadow(buildPythonProjectFacts(batch.results));
+
+  assert.equal(shadow.endpoints.length, 1);
+  assert.equal(shadow.endpoints[0].path, '/items/{item_id}', 'endpoint remains router-local until mount composition is implemented');
+  assert.equal(shadow.mounts.length, 2);
+  assert.ok(shadow.mounts.some((x) => x.receiver === 'api_router' && x.prefix === '/v1' && x.child.module === 'app.items' && x.child.name === 'router'));
+  assert.ok(shadow.mounts.some((x) => x.receiver === 'app' && x.prefix === '' && x.child.module === 'app.api' && x.child.name === 'api_router'));
+  assert.equal(shadow.unknowns.filter((x) => x.reason === 'include-router-mount-not-composed').length, 2);
+});
