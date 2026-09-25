@@ -220,9 +220,11 @@ function parseDeclarations(tokens, diagnostics) {
     const kind=tokens[i].value; const keyword=tokens[i];
     if(!tokenIs(tokens,i+1,'identifier')) { diagnostics.push(diagnostic('anonymous-type-declaration','type declaration name missing',keyword.start)); continue; }
     const nameTok=tokens[i+1]; const name=nameTok.value; i+=2;
+    let generic=false;
     if(tokenIs(tokens,i,'punct','<')) {
+      generic=true;
       const close=findMatching(tokens,i,'<','>');
-      diagnostics.push(diagnostic('generic-declaration-unprojected',`${name}: generic declarations are not projected`,nameTok.start));
+      diagnostics.push(diagnostic('generic-declaration-unprojected',`${name}: generic declarations are only partially projected; type parameters are not resolved`,nameTok.start));
       if(close<0) continue; i=close+1;
     }
     const extendsRefs=[];
@@ -236,18 +238,18 @@ function parseDeclarations(tokens, diagnostics) {
     if(kind==='interface') {
       if(!tokenIs(tokens,i,'punct','{')) { diagnostics.push(diagnostic('interface-body-unprojected',`${name}: interface body not found`,nameTok.start)); continue; }
       const close=findMatching(tokens,i,'{','}'); if(close<0){diagnostics.push(diagnostic('unterminated-interface',`${name}: interface body not terminated`,nameTok.start));continue;}
-      declarations.push({name,kind,exported:p.exported,declared:p.declared,extends:[...new Set(extendsRefs)],properties:parseMembers(tokens,i,close,diagnostics),source:{start:keyword.start,end:tokens[close].end}});
+      declarations.push({name,kind,exported:p.exported,declared:p.declared,generic,extends:[...new Set(extendsRefs)],properties:parseMembers(tokens,i,close,diagnostics),source:{start:keyword.start,end:tokens[close].end}});
       cursor=close; continue;
     }
     if(!tokenIs(tokens,i,'punct','=')) { diagnostics.push(diagnostic('type-alias-unprojected',`${name}: expected '='`,nameTok.start)); continue; }
     i++;
     if(tokenIs(tokens,i,'punct','{')) {
       const close=findMatching(tokens,i,'{','}'); if(close<0){diagnostics.push(diagnostic('unterminated-type-object',`${name}: object type not terminated`,nameTok.start));continue;}
-      declarations.push({name,kind:'type-object',exported:p.exported,declared:p.declared,extends:[],properties:parseMembers(tokens,i,close,diagnostics),source:{start:keyword.start,end:tokens[close].end}});
+      declarations.push({name,kind:'type-object',exported:p.exported,declared:p.declared,generic,extends:[],properties:parseMembers(tokens,i,close,diagnostics),source:{start:keyword.start,end:tokens[close].end}});
       cursor=close; continue;
     }
     const end=findDeclarationEnd(tokens,i);
-    declarations.push({name,kind:'type-alias',exported:p.exported,declared:p.declared,extends:[],alias:parseType(tokens,i,end),properties:[],source:{start:keyword.start,end:(tokens[Math.max(i,end-1)]?.end ?? nameTok.end)}});
+    declarations.push({name,kind:'type-alias',exported:p.exported,declared:p.declared,generic,extends:[],alias:parseType(tokens,i,end),properties:[],source:{start:keyword.start,end:(tokens[Math.max(i,end-1)]?.end ?? nameTok.end)}});
     if(declarations.at(-1).alias.kind==='unsupported') diagnostics.push(diagnostic('type-alias-unprojected',`${name}: alias is outside the bounded projection`,nameTok.start));
     cursor=end;
   }
@@ -293,14 +295,19 @@ function scalarSchema(type) {
 }
 
 function projectDeclaration(decl) {
+  const structuralGaps=[];
+  if(decl.generic) structuralGaps.push('generic-parameters');
+  for(const ref of decl.extends ?? []) structuralGaps.push(`extends:${ref}`);
+
   if(decl.kind==='type-alias') {
     const schema=scalarSchema(decl.alias);
-    return {name:decl.name,status:schema===null?'partial':'projected',basis:'typescript-static-type',runtimeValidated:false,schema:schema??{},unsupported:schema===null?['alias-type']:[]};
+    const unsupported=[...structuralGaps,...(schema===null?['alias-type']:[])];
+    return {name:decl.name,status:unsupported.length?'partial':'projected',basis:'typescript-static-type',runtimeValidated:false,schema:schema??{},unsupported};
   }
-  const properties={}; const required=[]; const unsupported=[];
+  const properties={}; const required=[]; const unsupported=[...structuralGaps];
   for(const p of decl.properties){
     const schema=scalarSchema(p.type);
-    if(schema===null){unsupported.push(p.name);continue;}
+    if(schema===null){unsupported.push(`property:${p.name}`);continue;}
     properties[p.name]=schema;if(!p.optional)required.push(p.name);
   }
   return {name:decl.name,status:unsupported.length?'partial':'projected',basis:'typescript-static-type',runtimeValidated:false,schema:{type:'object',properties,...(required.length?{required}:{}),'x-bskel-structural-type':true},unsupported};
