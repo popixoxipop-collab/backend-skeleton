@@ -152,10 +152,12 @@ function parseImports(masked) {
   const imports = new Map();
   const fromRelative = /\bfrom\s*['"](\.[^'"]+)['"]/g;
   for (const m of masked.matchAll(fromRelative)) {
-    const before = masked.slice(0, m.index);
-    const importIndex = before.lastIndexOf('import');
-    if (importIndex === -1 || m.index - importIndex > 500) continue;
-    const clause = before.slice(importIndex + 'import'.length).replace(/\s+/g, ' ').trim();
+    const before = masked.slice(Math.max(0, m.index - 500), m.index);
+    const importMatches = [...before.matchAll(/\bimport\b/g)];
+    if (importMatches.length === 0) continue;
+    const keyword = importMatches.at(-1);
+    const importIndex = Math.max(0, m.index - 500) + keyword.index;
+    const clause = masked.slice(importIndex + 'import'.length, m.index).replace(/\s+/g, ' ').trim();
     const specifier = m[1];
     if (clause.startsWith('*')) continue;
     let rest = clause;
