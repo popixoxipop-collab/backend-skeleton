@@ -336,7 +336,7 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
     if (explicit) {
       const routePath = firstRubyLiteral(explicit[2]);
       const target = explicit[2].match(/(?:\bto\s*:|=>)\s*["']([^"']+)#([a-zA-Z_]\w*)["']/);
-      const dynamic = !routePath || routePath.includes('#{') || context.some((entry) => entry.dynamic);
+      const dynamic = routePath == null || routePath.includes('#{') || context.some((entry) => entry.dynamic);
       facts.push(makeFact({
         source, file, framework, language,
         kind: 'route',
