@@ -185,3 +185,49 @@ test('source artifact identity is carried unchanged from the exact native export
     createHash('sha256').update(raw).digest('hex'),
   );
 });
+
+
+test('Unity null fileID zero does not invent parent or component relations', () => {
+  const raw = bytes({
+    schema: 'sbf.game-unity-serialized-export/draft-1',
+    documents: [{
+      file_id: 8,
+      class_id: 4,
+      type: 'Transform',
+      game_object_file_id: 0,
+      parent_file_id: 0,
+      references: [{ file_id: 0 }],
+    }],
+  });
+  const normalized = normalizeNativeStructureExport(raw, envelope(raw, 'unity'));
+  assert.equal(normalized.relations.length, 0);
+});
+
+test('unknown engine-export fields fail closed instead of being silently ignored', () => {
+  const unrealRaw = bytes({
+    schema: 'sbf.game-unreal-structure-export/draft-1',
+    types: [{ id: 'X', kind: 'class', name: 'X', mystery: true }],
+  });
+  assert.throws(
+    () => normalizeNativeStructureExport(unrealRaw, envelope(unrealRaw, 'unreal')),
+    /unsupported fields: mystery/,
+  );
+
+  const unityRaw = bytes({
+    schema: 'sbf.game-unity-serialized-export/draft-1',
+    documents: [{ file_id: 1, class_id: 1, hidden_runtime_state: true }],
+  });
+  assert.throws(
+    () => normalizeNativeStructureExport(unityRaw, envelope(unityRaw, 'unity')),
+    /unsupported fields: hidden_runtime_state/,
+  );
+
+  const godotRaw = bytes({
+    schema: 'sbf.game-godot-scene-export/draft-1',
+    scenes: [{ path: 'res://main.tscn', nodes: [], resources: [], signal_connections: [], inferred_behavior: true }],
+  });
+  assert.throws(
+    () => normalizeNativeStructureExport(godotRaw, envelope(godotRaw, 'godot', 'headless-export')),
+    /unsupported fields: inferred_behavior/,
+  );
+});
