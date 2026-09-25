@@ -112,18 +112,24 @@ test('source-facts integration preserves edge kind/type-only/source provenance',
     knownFiles: ['src/app.ts', 'src/types.ts', 'src/route.js'],
   });
   assert.equal(result.contract, JS_TS_RESOLUTION_CONTRACT);
+  assert.match(result.contract, /^bskel\.internal\./);
   assert.equal(result.complete, true);
+  assert.equal(result.allResolved, true);
+  assert.equal(result.sourceSyntaxValidated, false);
   assert.deepEqual(result.resolutions.map((r) => [r.edgeKind, r.typeOnly, r.target]), [
     ['import', true, 'src/types.ts'],
     ['dynamic-import', false, 'src/route.js'],
   ]);
   assert.ok(result.resolutions.every((r) => Number.isInteger(r.source.byteStart)));
+  assert.ok(result.resolutions.every((r) => r.sourceBasis === 'lexical-literal'));
 });
 
 test('incomplete lexical facts fail closed and do not attempt resolution', () => {
   const facts = analyzeJsTsSource("import x from 'x'", { maxBytes: 1, filePath: 'src/app.ts' });
   const result = resolveJsTsModuleEdges(facts, { knownFiles: ['src/app.ts'] });
   assert.equal(result.complete, false);
+  assert.equal(result.allResolved, false);
+  assert.equal(result.sourceSyntaxValidated, false);
   assert.deepEqual(result.resolutions, []);
   assert.equal(result.diagnostics[0].code, 'source-facts-incomplete');
 });
@@ -135,4 +141,17 @@ test('invalid inventories, absolute paths and malformed extension policies are r
   const abs = resolveJsTsModuleEdge(edge('/etc/passwd'), { filePath: 'src/app.ts', knownFiles: [] });
   assert.equal(abs.status, 'unsupported');
   assert.deepEqual(DEFAULT_JS_TS_EXTENSIONS, ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']);
+});
+
+
+test('complete resolution analysis is distinct from every module edge resolving', () => {
+  const facts = analyzeJsTsSource("import x from 'package-x';\nimport y from './missing';\n", {
+    filePath: 'src/app.ts',
+    language: 'typescript',
+  });
+  const result = resolveJsTsModuleEdges(facts, { knownFiles: ['src/app.ts'] });
+  assert.equal(result.complete, true);
+  assert.equal(result.allResolved, false);
+  assert.deepEqual(result.resolutions.map((r) => r.status), ['bare', 'missing']);
+  assert.deepEqual(result.diagnostics.map((d) => d.code), ['module-bare', 'module-missing']);
 });
