@@ -48,6 +48,24 @@ test('detect requires dependency plus live Hono source, not a comment', () => {
   finally { cleanup(root); }
 });
 
+test('generic-typed Hono constructors are detected and scanned', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      'type Bindings = { TOKEN: string }',
+      'const app = new Hono<{ Bindings: Bindings }>()',
+      "app.get('/health', health)",
+      'export default app',
+    ].join('\n'),
+  });
+  try {
+    assert.ok(detectHonoRoot(root));
+    const report = scanHono(root);
+    assert.deepEqual(report.modules[0].controllers[0].endpoints.map((x) => x.path), ['/health']);
+  } finally { cleanup(root); }
+});
+
 test('scan emits literal routes and applies a literal chained basePath', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '^4.0.0' } }),
