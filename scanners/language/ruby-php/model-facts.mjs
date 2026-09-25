@@ -59,7 +59,7 @@ function rubyClassSlices(source) {
       const endMatch = lines[j].raw.match(/^(\s*)end\s*(?:#.*)?$/);
       if (endMatch && endMatch[1].length === indent) { end = lines[j].end; break; }
     }
-    out.push({ className: m[2], start: lines[i].start + m[1].length, end, indent });
+    out.push({ className: m[2], start: lines[i].start + m[1].length, end, bodyStartLine: i + 1, indent });
   }
   return out;
 }
@@ -77,21 +77,21 @@ export function extractActiveRecordModelFacts(source, { file = 'app/models/model
     const relations = [];
     const flags = { inheritanceColumnExplicit: false };
 
+    const declarationIndent = bodyLines
+      .slice(1)
+      .map((line) => ({ text: line.raw.trim(), indent: line.raw.length - line.raw.trimStart().length }))
+      .filter((line) => line.text && line.text !== 'end' && line.indent > slice.indent)
+      .reduce((min, line) => Math.min(min, line.indent), Number.POSITIVE_INFINITY);
+
     for (const line of bodyLines.slice(1)) {
       const trimmed = line.raw.trim();
       const indent = line.raw.length - line.raw.trimStart().length;
-      if (!trimmed || trimmed === 'end' || indent <= slice.indent) continue;
+      if (!trimmed || trimmed === 'end' || indent !== declarationIndent) continue;
 
       const tableMatch = trimmed.match(/^self\.table_name\s*=\s*["']([^"']+)["']\s*$/);
-      if (tableMatch) {
-        table = { value: tableMatch[1], explicit: true, source: sourceRef(source, file, line.start + line.raw.indexOf('self'), line.end) };
-        continue;
-      }
+      if (tableMatch) { table = { value: tableMatch[1], explicit: true, source: sourceRef(source, file, line.start + line.raw.indexOf('self'), line.end) }; continue; }
       const pkMatch = trimmed.match(/^self\.primary_key\s*=\s*["']([^"']+)["']\s*$/);
-      if (pkMatch) {
-        primaryKey = { value: pkMatch[1], explicit: true, source: sourceRef(source, file, line.start + line.raw.indexOf('self'), line.end) };
-        continue;
-      }
+      if (pkMatch) { primaryKey = { value: pkMatch[1], explicit: true, source: sourceRef(source, file, line.start + line.raw.indexOf('self'), line.end) }; continue; }
       if (/^self\.inheritance_column\s*=/.test(trimmed)) flags.inheritanceColumnExplicit = true;
 
       const relation = trimmed.match(/^(belongs_to|has_one|has_many|has_and_belongs_to_many)\s+(?::([A-Za-z_]\w*)|["']([^"']+)["'])(.*)$/);
@@ -101,21 +101,12 @@ export function extractActiveRecordModelFacts(source, { file = 'app/models/model
         const foreignKey = tail.match(/\bforeign_key\s*:\s*(?::([A-Za-z_]\w*)|["']([^"']+)["'])/);
         const polymorphic = /\bpolymorphic\s*:\s*true\b/.test(tail);
         relations.push({
-          kind: relation[1],
-          name: relation[2] ?? relation[3],
-          className,
+          kind: relation[1], name: relation[2] ?? relation[3], className,
           foreignKey: foreignKey ? (foreignKey[1] ?? foreignKey[2]) : null,
           polymorphic,
           source: sourceRef(source, file, line.start + line.raw.indexOf(relation[1]), line.end),
         });
-        if (polymorphic) {
-          unknowns.push({
-            code: 'MODEL_POLYMORPHIC_RELATION',
-            model: slice.className,
-            relation: relation[2] ?? relation[3],
-            reason: 'polymorphic target type is runtime/data dependent',
-          });
-        }
+        if (polymorphic) unknowns.push({ code: 'MODEL_POLYMORPHIC_RELATION', model: slice.className, relation: relation[2] ?? relation[3], reason: 'polymorphic target type is runtime/data dependent' });
       }
     }
 
@@ -143,10 +134,7 @@ function phpClassSlices(source) {
     const classStart = m.index + m[0].indexOf('class');
     const brace = source.indexOf('{', classStart);
     if (brace === -1) continue;
-    let depth = 0;
-    let quote = null;
-    let escaped = false;
-    let end = source.length;
+    let depth = 0, quote = null, escaped = false, end = source.length;
     for (let i = brace; i < source.length; i++) {
       const ch = source[i];
       if (escaped) { escaped = false; continue; }
@@ -154,10 +142,7 @@ function phpClassSlices(source) {
       if (quote) { if (ch === quote) quote = null; continue; }
       if (ch === '"' || ch === "'") { quote = ch; continue; }
       if (ch === '{') depth++;
-      else if (ch === '}') {
-        depth--;
-        if (depth === 0) { end = i + 1; break; }
-      }
+      else if (ch === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
     }
     out.push({ className: m[1], start: classStart, bodyStart: brace + 1, end });
   }
@@ -200,13 +185,15 @@ export function extractEloquentModelFacts(source, { file = 'app/Models/Model.php
     const relations = [];
     const relationRe = /function\s+([A-Za-z_]\w*)\s*\([^)]*\)[^{]*\{([\s\S]*?)\n\s*\}/g;
     for (const m of body.matchAll(relationRe)) {
-      const rel = m[2].match(/\$this->(belongsTo|hasOne|hasMany|belongsToMany|morphTo|morphMany)\s*\(\s*([A-Za-z_\\][A-Za-z0-9_\\]*)?::class(?:\s*,\s*["']([^"']+)["'])?/);
-      if (!rel) continue;
-      const polymorphic = rel[1].startsWith('morph');
-      relations.push({ kind: rel[1], name: m[1], targetClass: rel[2] ?? null, foreignKey: rel[3] ?? null, polymorphic });
-      if (polymorphic) {
-        unknowns.push({ code: 'MODEL_POLYMORPHIC_RELATION', model: slice.className, relation: m[1], reason: 'polymorphic target type is runtime/data dependent' });
-      }
+      const morphTo = m[2].match(/\$this->morphTo\s*\(/);
+      const typed = m[2].match(/\$this->(belongsTo|hasOne|hasMany|belongsToMany|morphOne|morphMany|morphToMany|morphedByMany|hasOneThrough|hasManyThrough)\s*\(\s*([A-Za-z_\\][A-Za-z0-9_\\]*)::class(?:\s*,\s*["']([^"']+)["'])?/);
+      if (!morphTo && !typed) continue;
+      const kind = morphTo ? 'morphTo' : typed[1];
+      const targetClass = morphTo ? null : typed[2];
+      const foreignKey = morphTo ? null : (typed[3] ?? null);
+      const polymorphic = kind.startsWith('morph') || kind === 'morphedByMany';
+      relations.push({ kind, name: m[1], targetClass, foreignKey, polymorphic });
+      if (polymorphic) unknowns.push({ code: 'MODEL_POLYMORPHIC_RELATION', model: slice.className, relation: m[1], reason: 'polymorphic target type is runtime/data dependent' });
     }
 
     models.push({
