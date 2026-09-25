@@ -20,6 +20,10 @@ function stableDigest(value) {
   return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex').slice(0, 20);
 }
 
+function compareText(a, b) {
+  return a < b ? -1 : (a > b ? 1 : 0);
+}
+
 function toBytes(value) {
   if (typeof value === 'string') return Buffer.from(value, 'utf8');
   if (Buffer.isBuffer(value)) return value;
@@ -109,7 +113,7 @@ function sortedUnique(items, keyFn, label) {
     seen.add(key);
     out.push(item);
   }
-  return out.sort((a, b) => keyFn(a).localeCompare(keyFn(b)));
+  return out.sort((a, b) => compareText(keyFn(a), keyFn(b)));
 }
 
 function hierarchyRelation(item) {
@@ -172,7 +176,10 @@ export function bridgeLegacyWebgameContract(sourceBytes) {
       source_hash: contract.source.source_hash,
       engines: [...(contract.source.engines ?? [])].sort(),
       engine_packages: clone(contract.source.engine_packages ?? [])
-        .sort((a, b) => `${a.project_root}:${a.package}:${a.version}`.localeCompare(`${b.project_root}:${b.package}:${b.version}`)),
+        .sort((a, b) => compareText(
+          `${a.project_root}:${a.package}:${a.version}`,
+          `${b.project_root}:${b.package}:${b.version}`,
+        )),
       project_roots: [...(contract.source.project_roots ?? [])].sort(),
       files: [...(contract.source.files ?? [])].sort(),
     },
