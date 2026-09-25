@@ -459,7 +459,29 @@ export function analyzeTypeScriptSemanticSnapshot(ts, entries, {
   semanticDiagnostics.sort((a, b) => compareText(a.filePath, b.filePath) || (a.source?.byteStart ?? -1) - (b.source?.byteStart ?? -1) || a.code - b.code);
   declarations.sort((a, b) => compareText(a.filePath, b.filePath) || a.source.byteStart - b.source.byteStart || compareText(a.name, b.name));
 
-  const syntaxValidated = syntacticDiagnostics.length === 0;
+  if (syntacticDiagnostics.length > 0) {
+    return {
+      contract: JS_TS_SEMANTIC_CONTRACT,
+      complete: false,
+      syntaxValidated: false,
+      semanticChecked: false,
+      semanticValidated: false,
+      runtimeValidated: false,
+      typescriptVersion: compilerBackend.typescriptVersion,
+      totalBytes,
+      files: [],
+      declarations: [],
+      moduleDiagnostics: resolution.diagnostics,
+      syntacticDiagnostics,
+      semanticDiagnostics: [],
+      diagnostics: [{
+        code: 'syntax-invalid',
+        message: 'semantic facts were discarded because the TypeScript program contains syntax errors',
+      }],
+    };
+  }
+
+  const syntaxValidated = true;
   const semanticValidated = syntaxValidated
     && semanticDiagnostics.length === 0
     && resolution.diagnostics.length === 0;
