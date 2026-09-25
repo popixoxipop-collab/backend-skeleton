@@ -84,7 +84,7 @@ function unreal(payload) {
   const nodes = [];
   const relations = [];
   const declarations = { replication: [], rpc: [], signals: [] };
-  for (const [typeIndex, type] of array(payload.types ?? [], 'types').entries()) {
+  for (const [typeIndex, type] of array(payload.types, 'types').entries()) {
     if (!type || typeof type !== 'object' || Array.isArray(type)) throw new TypeError(`types[${typeIndex}] must be an object`);
     assertOnlyKeys(type, ['id', 'kind', 'name', 'base', 'specifiers', 'properties', 'functions'], `types[${typeIndex}]`);
     const id = requireString(type.id, `types[${typeIndex}].id`);
@@ -131,7 +131,7 @@ function unity(payload) {
   const nodes = [];
   const relations = [];
   const declarations = { replication: [], rpc: [], signals: [] };
-  for (const [index, doc] of array(payload.documents ?? [], 'documents').entries()) {
+  for (const [index, doc] of array(payload.documents, 'documents').entries()) {
     if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new TypeError(`documents[${index}] must be an object`);
     assertOnlyKeys(doc, ['file_id', 'class_id', 'type', 'name', 'game_object_file_id', 'parent_file_id', 'references'], `documents[${index}]`);
     const fileId = String(doc.file_id ?? '');
@@ -174,7 +174,7 @@ function godot(payload) {
   const nodes = [];
   const relations = [];
   const declarations = { replication: [], rpc: [], signals: [] };
-  for (const [sceneIndex, scene] of array(payload.scenes ?? [], 'scenes').entries()) {
+  for (const [sceneIndex, scene] of array(payload.scenes, 'scenes').entries()) {
     if (!scene || typeof scene !== 'object' || Array.isArray(scene)) throw new TypeError(`scenes[${sceneIndex}] must be an object`);
     assertOnlyKeys(scene, ['path', 'nodes', 'resources', 'signal_connections'], `scenes[${sceneIndex}]`);
     const scenePath = requireString(scene.path, `scenes[${sceneIndex}].path`);
