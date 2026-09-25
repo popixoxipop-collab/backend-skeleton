@@ -1,0 +1,810 @@
+{
+  "contract": "sbf.negative-vectors/1",
+  "total": 79,
+  "category_counts": {
+    "ID": 6,
+    "PROJ": 6,
+    "ROUTE": 8,
+    "SCHEMA": 8,
+    "AUTH": 6,
+    "DB": 6,
+    "CACHE": 6,
+    "RUN": 8,
+    "GAME": 7,
+    "TRUST": 8,
+    "GEN": 5,
+    "RELEASE": 5
+  },
+  "vectors": [
+    {
+      "id": "NEG-ID-01",
+      "category": "ID",
+      "slug": "raw-reformat",
+      "scenario": "Raw contract bytes change while apparent JSON meaning stays similar",
+      "expected_disposition": "reject-or-new-artifact",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ID-02",
+      "category": "ID",
+      "slug": "wrong-feature",
+      "scenario": "Evidence is bound to the wrong feature or operation",
+      "expected_disposition": "reject",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ID-03",
+      "category": "ID",
+      "slug": "operation-alias-repair",
+      "scenario": "Display alias attempts to repair a missing operation identity",
+      "expected_disposition": "reject",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ID-04",
+      "category": "ID",
+      "slug": "field-location-conflict",
+      "scenario": "Same field name appears in different request/response locations",
+      "expected_disposition": "conflict",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ID-05",
+      "category": "ID",
+      "slug": "cross-project-same-name",
+      "scenario": "Two projects expose the same operation/resource name",
+      "expected_disposition": "scope-required",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ID-06",
+      "category": "ID",
+      "slug": "unicode-difference",
+      "scenario": "Unicode-normalization or ordering changes alter identity bytes",
+      "expected_disposition": "new-artifact",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-PROJ-01",
+      "category": "PROJ",
+      "slug": "nested-aggregator",
+      "scenario": "Nested build/project aggregator contains multiple real services",
+      "expected_disposition": "preserve-multiple-projects",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-PROJ-02",
+      "category": "PROJ",
+      "slug": "same-name-services",
+      "scenario": "Sibling services have identical names or route symbols",
+      "expected_disposition": "scope-required",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-PROJ-03",
+      "category": "PROJ",
+      "slug": "vendored-fixture",
+      "scenario": "Vendor/example/test code resembles a real project",
+      "expected_disposition": "exclude-or-explicit-scope",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-PROJ-04",
+      "category": "PROJ",
+      "slug": "project-move",
+      "scenario": "Project root moves without content equivalence proof",
+      "expected_disposition": "new-project-or-explicit-alias",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-PROJ-05",
+      "category": "PROJ",
+      "slug": "overlapping-roots",
+      "scenario": "Two candidate project roots overlap",
+      "expected_disposition": "ambiguity",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-PROJ-06",
+      "category": "PROJ",
+      "slug": "missing-manifest",
+      "scenario": "Source resembles a framework but required manifest is absent",
+      "expected_disposition": "unknown-not-supported",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-01",
+      "category": "ROUTE",
+      "slug": "mount-cycle",
+      "scenario": "Router mount graph contains a cycle",
+      "expected_disposition": "bounded-conflict",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-02",
+      "category": "ROUTE",
+      "slug": "mount-diamond",
+      "scenario": "Same router is mounted through a diamond graph",
+      "expected_disposition": "preserve-multiple-paths",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-03",
+      "category": "ROUTE",
+      "slug": "multi-mount",
+      "scenario": "One router is mounted at multiple prefixes",
+      "expected_disposition": "preserve-multiple-paths",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-04",
+      "category": "ROUTE",
+      "slug": "computed-prefix",
+      "scenario": "Route prefix is computed dynamically",
+      "expected_disposition": "unknown",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-05",
+      "category": "ROUTE",
+      "slug": "optional-catchall",
+      "scenario": "Optional or catch-all parameter semantics differ",
+      "expected_disposition": "preserve-exact-semantics",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-06",
+      "category": "ROUTE",
+      "slug": "method-alias",
+      "scenario": "Framework method alias obscures actual HTTP verb",
+      "expected_disposition": "resolve-or-unknown",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-07",
+      "category": "ROUTE",
+      "slug": "case-encoding",
+      "scenario": "Path case or percent-encoding differs",
+      "expected_disposition": "no-lossy-normalization",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-ROUTE-08",
+      "category": "ROUTE",
+      "slug": "host-version-predicate",
+      "scenario": "Host/version predicate changes route reachability",
+      "expected_disposition": "preserve-condition",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-01",
+      "category": "SCHEMA",
+      "slug": "recursive-ref",
+      "scenario": "Schema reference graph is recursive",
+      "expected_disposition": "bounded-resolution",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-02",
+      "category": "SCHEMA",
+      "slug": "oneof-discriminator",
+      "scenario": "oneOf/discriminator semantics are present",
+      "expected_disposition": "preserve-or-block-lossy",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-03",
+      "category": "SCHEMA",
+      "slug": "nullable-optional",
+      "scenario": "Nullable and optional are intentionally different",
+      "expected_disposition": "preserve-distinction",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-04",
+      "category": "SCHEMA",
+      "slug": "request-response-direction",
+      "scenario": "Same model has direction-specific fields",
+      "expected_disposition": "preserve-direction",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-05",
+      "category": "SCHEMA",
+      "slug": "multipart-binary",
+      "scenario": "Request contains multipart or binary payload",
+      "expected_disposition": "preserve-media-semantics",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-06",
+      "category": "SCHEMA",
+      "slug": "int64-decimal",
+      "scenario": "64-bit integer or decimal precision can be lost",
+      "expected_disposition": "preserve-precision",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-07",
+      "category": "SCHEMA",
+      "slug": "parameter-serialization",
+      "scenario": "style/explode or parameter location changes wire form",
+      "expected_disposition": "preserve-serialization",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-SCHEMA-08",
+      "category": "SCHEMA",
+      "slug": "remote-ref",
+      "scenario": "Remote schema reference would require network fetch",
+      "expected_disposition": "deny-unapproved-network",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-AUTH-01",
+      "category": "AUTH",
+      "slug": "missing-token",
+      "scenario": "Protected operation is called without credentials",
+      "expected_disposition": "deny",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-AUTH-02",
+      "category": "AUTH",
+      "slug": "wrong-role",
+      "scenario": "Valid identity lacks required role",
+      "expected_disposition": "deny",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-AUTH-03",
+      "category": "AUTH",
+      "slug": "cross-tenant-key",
+      "scenario": "Identifier belongs to another tenant",
+      "expected_disposition": "deny",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-AUTH-04",
+      "category": "AUTH",
+      "slug": "operation-override",
+      "scenario": "Operation overrides a broader security declaration",
+      "expected_disposition": "preserve-override",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-AUTH-05",
+      "category": "AUTH",
+      "slug": "and-or-security",
+      "scenario": "AND/OR security requirement structure is changed",
+      "expected_disposition": "preserve-logic",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-AUTH-06",
+      "category": "AUTH",
+      "slug": "stale-auth-snapshot",
+      "scenario": "Auth evidence comes from another revision/profile",
+      "expected_disposition": "reject-stale-evidence",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-DB-01",
+      "category": "DB",
+      "slug": "composite-key-order",
+      "scenario": "Composite primary/foreign key order is changed",
+      "expected_disposition": "preserve-order",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-DB-02",
+      "category": "DB",
+      "slug": "same-table-name-schema",
+      "scenario": "Same table name exists in multiple schemas",
+      "expected_disposition": "scope-required",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-DB-03",
+      "category": "DB",
+      "slug": "mapped-table-name",
+      "scenario": "ORM entity name differs from physical table",
+      "expected_disposition": "require-explicit-mapping",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-DB-04",
+      "category": "DB",
+      "slug": "soft-delete",
+      "scenario": "Default query scope hides soft-deleted rows",
+      "expected_disposition": "preserve-scope",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-DB-05",
+      "category": "DB",
+      "slug": "row-scope",
+      "scenario": "Tenant/RLS scope affects fetch semantics",
+      "expected_disposition": "do-not-assume-bypass",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-DB-06",
+      "category": "DB",
+      "slug": "migration-live-drift",
+      "scenario": "Migration metadata differs from live database",
+      "expected_disposition": "conflict",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-CACHE-01",
+      "category": "CACHE",
+      "slug": "new-file",
+      "scenario": "A new source file can affect prior cached analysis",
+      "expected_disposition": "invalidate",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-CACHE-02",
+      "category": "CACHE",
+      "slug": "deleted-file",
+      "scenario": "A deleted source file remains in dependency graph",
+      "expected_disposition": "invalidate",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-CACHE-03",
+      "category": "CACHE",
+      "slug": "resolver-config-change",
+      "scenario": "Resolver/compiler config changes without source edits",
+      "expected_disposition": "invalidate",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-CACHE-04",
+      "category": "CACHE",
+      "slug": "grammar-revision",
+      "scenario": "Parser grammar changes",
+      "expected_disposition": "invalidate",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-CACHE-05",
+      "category": "CACHE",
+      "slug": "policy-change",
+      "scenario": "Trust/capability policy changes",
+      "expected_disposition": "invalidate",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-CACHE-06",
+      "category": "CACHE",
+      "slug": "poisoned-artifact",
+      "scenario": "Content-addressed artifact bytes do not match digest",
+      "expected_disposition": "reject",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-01",
+      "category": "RUN",
+      "slug": "candidate-swap",
+      "scenario": "Candidate artifact changes after binding",
+      "expected_disposition": "reject",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-02",
+      "category": "RUN",
+      "slug": "current-case-mutation",
+      "scenario": "Current case metadata changes after historical run",
+      "expected_disposition": "preserve-historical-binding",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-03",
+      "category": "RUN",
+      "slug": "flow-edit",
+      "scenario": "Flow content changes under same display id",
+      "expected_disposition": "new-binding",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-04",
+      "category": "RUN",
+      "slug": "nonce-replay",
+      "scenario": "Evidence nonce is reused across attempts",
+      "expected_disposition": "reject",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-05",
+      "category": "RUN",
+      "slug": "evidence-swap",
+      "scenario": "Evidence from another run is substituted",
+      "expected_disposition": "reject",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-06",
+      "category": "RUN",
+      "slug": "oracle-failure",
+      "scenario": "Original/oracle baseline fails",
+      "expected_disposition": "blocked-not-pass",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-07",
+      "category": "RUN",
+      "slug": "queued-job",
+      "scenario": "Execution has not reached terminal success/failure",
+      "expected_disposition": "pending-not-pass",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RUN-08",
+      "category": "RUN",
+      "slug": "partial-assertion",
+      "scenario": "Only part of required assertions executed",
+      "expected_disposition": "partial-not-pass",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-01",
+      "category": "GAME",
+      "slug": "name-cooccurrence",
+      "scenario": "Key name and move function merely coexist in source",
+      "expected_disposition": "no-causal-inference",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-02",
+      "category": "GAME",
+      "slug": "duplicate-symbols",
+      "scenario": "Scene entities share display names",
+      "expected_disposition": "stable-scope-required",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-03",
+      "category": "GAME",
+      "slug": "fake-snapshot",
+      "scenario": "Candidate can forge its own reported state",
+      "expected_disposition": "independent-observation-required",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-04",
+      "category": "GAME",
+      "slug": "different-gpu",
+      "scenario": "Exact screenshot bytes differ by render environment",
+      "expected_disposition": "profile-or-tolerance-required",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-05",
+      "category": "GAME",
+      "slug": "variable-dt",
+      "scenario": "Variable frame delta changes simulation outcome",
+      "expected_disposition": "seed-and-timing-profile",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-06",
+      "category": "GAME",
+      "slug": "missing-blueprint-export",
+      "scenario": "Unreal source scan cannot see Blueprint-only behavior",
+      "expected_disposition": "unknown",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GAME-07",
+      "category": "GAME",
+      "slug": "asset-id-change",
+      "scenario": "Asset identity changes while display path looks similar",
+      "expected_disposition": "new-artifact-or-explicit-alias",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-01",
+      "category": "TRUST",
+      "slug": "symlink-traversal",
+      "scenario": "Repository path escapes approved root through symlink",
+      "expected_disposition": "deny",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-02",
+      "category": "TRUST",
+      "slug": "install-hook",
+      "scenario": "Dependency install hook executes arbitrary code",
+      "expected_disposition": "deny-unapproved-execution",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-03",
+      "category": "TRUST",
+      "slug": "compiler-plugin",
+      "scenario": "Compiler/plugin hook executes during analysis",
+      "expected_disposition": "deny-unapproved-execution",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-04",
+      "category": "TRUST",
+      "slug": "process-escape",
+      "scenario": "Candidate reaches process or container escape surface",
+      "expected_disposition": "deny",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-05",
+      "category": "TRUST",
+      "slug": "network-egress",
+      "scenario": "Untrusted analysis performs unapproved network egress",
+      "expected_disposition": "deny",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-06",
+      "category": "TRUST",
+      "slug": "credential-echo",
+      "scenario": "Candidate prints inherited secret material",
+      "expected_disposition": "redact-and-fail",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-07",
+      "category": "TRUST",
+      "slug": "archive-bomb",
+      "scenario": "Archive/schema input expands beyond resource budget",
+      "expected_disposition": "bounded-fail",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-TRUST-08",
+      "category": "TRUST",
+      "slug": "oversized-stdout",
+      "scenario": "Untrusted process exceeds output budget",
+      "expected_disposition": "bounded-fail",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GEN-01",
+      "category": "GEN",
+      "slug": "edited-overwrite",
+      "scenario": "Generator overwrites a hand-edited file",
+      "expected_disposition": "block-write",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GEN-02",
+      "category": "GEN",
+      "slug": "manifest-drift",
+      "scenario": "Expected old file/hash differs before apply",
+      "expected_disposition": "block-write",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GEN-03",
+      "category": "GEN",
+      "slug": "partial-apply",
+      "scenario": "Generation fails after only some files are written",
+      "expected_disposition": "rollback-or-staged-only",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GEN-04",
+      "category": "GEN",
+      "slug": "allow-all-auth-stub",
+      "scenario": "Generated authorization stub defaults to allow",
+      "expected_disposition": "fail-closed",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-GEN-05",
+      "category": "GEN",
+      "slug": "wrong-pk-codec",
+      "scenario": "Generated resolver decodes identifier with wrong key type",
+      "expected_disposition": "block-generation",
+      "critical": false,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RELEASE-01",
+      "category": "RELEASE",
+      "slug": "old-consumer",
+      "scenario": "Old consumer reads an unknown next contract",
+      "expected_disposition": "fail-compatible-or-disable-next",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RELEASE-02",
+      "category": "RELEASE",
+      "slug": "unknown-major",
+      "scenario": "Artifact declares an unknown contract major",
+      "expected_disposition": "reject",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RELEASE-03",
+      "category": "RELEASE",
+      "slug": "previous-head-ci",
+      "scenario": "Green CI belongs to an earlier commit",
+      "expected_disposition": "reject-stale-check",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RELEASE-04",
+      "category": "RELEASE",
+      "slug": "package-missing",
+      "scenario": "Packed distribution omits files present in source checkout",
+      "expected_disposition": "fail-release",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    },
+    {
+      "id": "NEG-RELEASE-05",
+      "category": "RELEASE",
+      "slug": "revoked-adapter",
+      "scenario": "Adapter digest is revoked/quarantined",
+      "expected_disposition": "deny-load",
+      "critical": true,
+      "status": "specified-not-implemented",
+      "implementation_refs": []
+    }
+  ]
+}
