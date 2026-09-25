@@ -247,3 +247,31 @@ test('malformed package metadata is diagnostic, not a graph-wide failure', () =>
   assert.equal(g.projects.find((p) => p.root === 'good').local_package.name, '@demo/good');
   assert.ok(g.unresolved.some((x) => x.kind === 'package-metadata-read' && x.project_id === 'project:broken'));
 });
+
+
+test('large sibling monorepo discovery and planning stay deterministic', () => {
+  const files = {};
+  const count = 200;
+  for (let i = 0; i < count; i++) {
+    const name = '@scale/service-' + String(i).padStart(3, '0');
+    files['services/s' + String(i).padStart(3, '0') + '/package.json'] = JSON.stringify({
+      name,
+      ...(i > 0 ? { dependencies: { ['@scale/service-' + String(i - 1).padStart(3, '0')]: 'workspace:*' } } : {}),
+    });
+  }
+  const root = fixture(files);
+  const exactNode = adapter('node-http', 50, (candidateRoot) =>
+    fs.existsSync(path.join(candidateRoot, 'package.json')) ? candidateRoot : null
+  );
+
+  const first = buildProjectGraph({ repoRoot: root, adapters: [exactNode, fallback] });
+  const second = buildProjectGraph({ repoRoot: root, adapters: [fallback, exactNode] });
+
+  assert.equal(first.projects.length, count);
+  assert.equal(first.project_edges.filter((e) => e.kind === 'local-package-dependency').length, count - 1);
+  assert.equal(buildProjectScanPlan(first).length, count);
+  assert.deepEqual(first.projects, second.projects);
+  assert.deepEqual(first.project_edges, second.project_edges);
+  assert.deepEqual(first.unresolved, second.unresolved);
+  assert.deepEqual(first.files_read, second.files_read);
+});
