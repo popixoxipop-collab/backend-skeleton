@@ -61,3 +61,14 @@ test('index budgets fail closed before an unbounded tree is hashed', () => {
 	assert.throws(() => buildFileIndex(root, { maxFiles: 2 }), (error) => error.code === 'INDEX_BUDGET_EXCEEDED' && error.kind === 'file-count');
 	assert.throws(() => buildFileIndex(root, { maxBytes: 1 }), (error) => error.code === 'INDEX_BUDGET_EXCEEDED' && error.kind === 'byte-count');
 });
+
+test('file index reports case-fold and Unicode-normalization portability collisions without rewriting paths', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t21-paths-'));
+	fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+	for (const name of ['A.js', 'a.js', 'é.js', 'e\u0301.js']) fs.writeFileSync(path.join(root, 'src', name), name);
+	const index = buildFileIndex(root);
+	assert.deepEqual(index.entries.map((x) => x.path), ['src/A.js', 'src/a.js', 'src/é.js', 'src/é.js']);
+	assert.ok(index.portable_path_issues.some((x) => x.kind === 'case-fold-collision' && x.paths.includes('src/A.js') && x.paths.includes('src/a.js')));
+	assert.ok(index.portable_path_issues.some((x) => x.kind === 'unicode-nfc-collision' && x.paths.includes('src/é.js') && x.paths.includes('src/é.js')));
+	assert.notEqual(index.entries.find((x) => x.path.includes('é.js')).path, index.entries.find((x) => x.path.includes('é.js')).path);
+});
