@@ -17,6 +17,14 @@ function push(errors, at, message) {
   errors.push(at + ': ' + message);
 }
 
+function safeGoldenPath(value) {
+  return nonEmptyString(value)
+    && value.startsWith('test/corpus-next/')
+    && !value.startsWith('/')
+    && !value.includes('..')
+    && !value.includes('\\');
+}
+
 function validateEntry(entry, index, errors) {
   const at = 'entries[' + index + ']';
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -62,6 +70,11 @@ function validateEntry(entry, index, errors) {
       if (golden.basis === 'pending') push(errors, at + '.golden.basis', 'cannot remain pending after independent review');
     }
     if (golden.generated_by_candidate === true) push(errors, at + '.golden.generated_by_candidate', 'candidate-generated output cannot be the independent golden');
+    if (golden.basis === 'manual') {
+      if (golden.generated_by_candidate !== false) push(errors, at + '.golden.generated_by_candidate', 'manual golden must explicitly declare generated_by_candidate=false');
+      if (!safeGoldenPath(golden.artifact_path)) push(errors, at + '.golden.artifact_path', 'manual golden must reference a safe test/corpus-next artifact');
+      if (!ID.test(golden.golden_id ?? '')) push(errors, at + '.golden.golden_id', 'manual golden must reference a stable golden id');
+    }
   }
 
   const runtime = entry.runtime;
@@ -97,7 +110,7 @@ export function validateCorpusManifest(manifest) {
 export function summarizeCorpus(manifest) {
   const verdict = validateCorpusManifest(manifest);
   if (!verdict.ok) throw new Error('invalid QA corpus manifest:\n' + verdict.errors.join('\n'));
-  const summary = { total: 0, development: 0, holdout: 0, reviewed: 0, pending_review: 0, certification_eligible: 0, adapters: {} };
+  const summary = { total: 0, development: 0, holdout: 0, reviewed: 0, pending_review: 0, certification_eligible: 0, manual_goldens: 0, adapters: {} };
   for (const entry of manifest.entries) {
     summary.total += 1;
     summary[entry.cohort] += 1;
@@ -105,6 +118,7 @@ export function summarizeCorpus(manifest) {
     else summary.pending_review += 1;
     const eligible = entry.golden.review_state === 'independent-reviewed' && entry.golden.basis !== 'pending';
     if (eligible) summary.certification_eligible += 1;
+    if (entry.golden.basis === 'manual') summary.manual_goldens += 1;
     summary.adapters[entry.adapter_id] = (summary.adapters[entry.adapter_id] ?? 0) + 1;
   }
   return summary;
