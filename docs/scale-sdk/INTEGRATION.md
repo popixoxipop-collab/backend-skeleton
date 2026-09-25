@@ -57,7 +57,7 @@ isolation and approval path.
 
 ## Verification already run on the T22 branch
 
-- `node --test test/sdk-next/*.test.mjs`: 13/13 PASS after fixing one Windows-path SARIF bug.
+- `node --test test/sdk-next/*.test.mjs`: 50/50 PASS on the latest pre-doc-refresh implementation batch.
 - existing adapter registry tests: 14/14 PASS.
 - existing doctor CLI tests: 16/16 PASS.
 - existing schema validation tests: 26/26 PASS.
