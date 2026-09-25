@@ -43,7 +43,7 @@ export function expandLaravelFacts(envelope, out) {
     }
     if (fact.kind === 'route') {
       const methods = fact.attributes?.methods ?? [];
-      if (!fact.attributes?.path || methods.length === 0) {
+      if (fact.attributes?.path == null || methods.length === 0) {
         addUnknown(out, fact, 'DSL_ROUTE_PARTIAL', 'Laravel route URI/method set is incomplete');
         continue;
       }
