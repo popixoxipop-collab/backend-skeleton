@@ -342,6 +342,7 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
         param: rubyOptionLiteral(args, 'param'),
         only: rubyOptionSymbols(args, 'only'),
         except: rubyOptionSymbols(args, 'except'),
+        concerns: rubyOptionSymbols(args, 'concerns'),
       };
       facts.push(makeFact({
         source, file, framework, language,
@@ -363,16 +364,32 @@ export function extractRailsDslFacts(source, { file = 'config/routes.rb' } = {})
 
     const concern = src.match(/^(concern|concerns)\b\s*(.*)$/);
     if (concern) {
+      const declaration = concern[1];
       const name = firstRubyLiteral(concern[2]);
+      const dynamic = !name || name.includes('#{');
       facts.push(makeFact({
         source, file, framework, language,
-        kind: 'concern', status: 'unknown', name,
-        start: statement.start, end: statement.end, context,
-        attributes: { declaration: concern[1], raw: concern[2] },
-        unknownReason: 'Rails concern expansion requires a separate declaration/use-site resolution pass',
+        kind: 'concern',
+        status: dynamic ? 'unknown' : 'literal',
+        name,
+        start: statement.start,
+        end: statement.end,
+        context,
+        attributes: {
+          declaration,
+          names: name ? [name] : [],
+          raw: concern[2],
+        },
+        ...(dynamic ? { unknownReason: 'Rails concern name is not a supported literal' } : {}),
       }));
-      if (/\bdo\s*$/.test(src)) {
-        stack.push({ kind: 'concern', name, path: null, module: null, dynamic: true });
+      if (declaration === 'concern' && /\bdo\s*$/.test(src)) {
+        stack.push({
+          kind: 'concern-definition',
+          name,
+          path: null,
+          module: null,
+          dynamic,
+        });
       }
       continue;
     }
