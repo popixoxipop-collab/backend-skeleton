@@ -78,8 +78,8 @@
       "vector_id": "NEG-CACHE-01",
       "critical": true,
       "file": "lib/gate-definitions.mjs",
-      "find": "scan: {\\n\\t\\tname: 'scan',\\n\\t\\tscope: SCOPE.FEATURE,\\n\\t\\tverifyPolicy: VERIFY_POLICY.REQUIRED,",
-      "replace": "scan: {\\n\\t\\tname: 'scan',\\n\\t\\tscope: SCOPE.FEATURE,\\n\\t\\tverifyPolicy: VERIFY_POLICY.REQUIRED_WHEN_PRESENT,",
+      "find": "\tscan: {\n\t\tname: 'scan',\n\t\tscope: SCOPE.FEATURE,\n\t\tverifyPolicy: VERIFY_POLICY.REQUIRED,",
+      "replace": "\tscan: {\n\t\tname: 'scan',\n\t\tscope: SCOPE.FEATURE,\n\t\tverifyPolicy: VERIFY_POLICY.REQUIRED_WHEN_PRESENT,",
       "test_files": [
         "test/gate-definitions.test.mjs"
       ],
