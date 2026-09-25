@@ -24,7 +24,7 @@ function sameStrings(actual, expected) {
     && actual.every((value, index) => value === expected[index]);
 }
 
-export function auditLegacyProviders(providers) {
+export function auditLegacyProviders(providers, { revision = null } = {}) {
   const errors = [];
   const byId = new Map((providers ?? []).map((provider) => [provider?.id, provider]));
   const observed = [];
@@ -57,6 +57,7 @@ export function auditLegacyProviders(providers) {
 
   return {
     schema: 'sbf.handles-provider-baseline-audit/0',
+    revision,
     ok: errors.length === 0,
     expectedProviderIds: [...LEGACY_PROVIDER_IDS],
     observed,
