@@ -580,3 +580,59 @@ test('transport: malformed framework and multiline logical paths are rejected', 
 	}), /framework/);
 	assert.throws(() => validateMessage(request({ file: 'src/main.go\nforged' })), /single-line logical path/);
 });
+
+
+test('runner: request budgets may narrow but may not expand the default runner profile', () => {
+	const narrow = request({
+		requestId: 'narrow-budget',
+		budget: { wallTimeMs: 5_000, maxOutputBytes: 64 * 1024 },
+	});
+	const response = runNativeServerWorker(narrow);
+	assert.equal(response.requestId, 'narrow-budget');
+
+	assert.throws(
+		() => runNativeServerWorker(request({
+			requestId: 'expanded-time',
+			budget: { wallTimeMs: 60_000 },
+		})),
+		(err) => err instanceof NativeWorkerRunError && err.code === 'WORKER_BUDGET_EXPANSION' && /wallTimeMs/.test(err.message),
+	);
+	assert.throws(
+		() => runNativeServerWorker(request({
+			requestId: 'expanded-output',
+			budget: { maxOutputBytes: 8 * 1024 * 1024 },
+		})),
+		(err) => err instanceof NativeWorkerRunError && err.code === 'WORKER_BUDGET_EXPANSION' && /maxOutputBytes/.test(err.message),
+	);
+});
+
+test('runner: a trusted profile can explicitly widen one bound while all request bounds remain subordinate', () => {
+	const req = request({
+		requestId: 'profile-widened',
+		budget: { wallTimeMs: 45_000 },
+	});
+	const spawnFn = (_file, _args, options) => ({
+		status: 0,
+		signal: null,
+		error: null,
+		stderr: '',
+		stdout: JSON.stringify({
+			protocol: NATIVE_SERVER_PROTOCOL,
+			kind: 'analyze-response',
+			requestId: req.requestId,
+			language: req.language,
+			backend: 'go-static-pilot',
+			routes: [],
+			diagnostics: [],
+			groups: [],
+			framework: null,
+			limitations: [],
+		}) + '\n',
+		observedTimeout: options.timeout,
+	});
+	const response = runNativeServerWorker(req, {
+		spawnFn,
+		profileLimits: { wallTimeMs: 60_000 },
+	});
+	assert.equal(response.requestId, 'profile-widened');
+});
