@@ -23,9 +23,12 @@
       "scenario": "Raw contract bytes change while apparent JSON meaning stays similar",
       "expected_disposition": "reject-or-new-artifact",
       "critical": true,
-      "status": "specified-not-implemented",
-      "implementation_refs": [],
-      "execution_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/contract-identity.test.mjs::binding-json golden digests pin key order, indentation, LF and domain framing"
+      ],
+      "execution_refs": [],
+      "candidate_scope": "serialization identity regression only; not yet a raw ContractRef end-to-end execution proof"
     },
     {
       "id": "NEG-ID-02",
@@ -160,9 +163,12 @@
       "scenario": "Router mount graph contains a cycle",
       "expected_disposition": "bounded-conflict",
       "critical": false,
-      "status": "specified-not-implemented",
-      "implementation_refs": [],
-      "execution_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/javascript-express-cli.test.mjs::an intra-file mount cycle terminates instead of recursing forever"
+      ],
+      "execution_refs": [],
+      "candidate_scope": "javascript-express cycle termination only; other framework mount graphs remain unproven"
     },
     {
       "id": "NEG-ROUTE-02",
@@ -380,9 +386,12 @@
       "scenario": "AND/OR security requirement structure is changed",
       "expected_disposition": "preserve-logic",
       "critical": true,
-      "status": "specified-not-implemented",
-      "implementation_refs": [],
-      "execution_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/handles-policy-contract.test.mjs::B8 compound SpEL refuses as pre-authorize-unrecognized"
+      ],
+      "execution_refs": [],
+      "candidate_scope": "Spring annotation parser fail-closed behavior only; OpenAPI AND/OR semantics remain unproven"
     },
     {
       "id": "NEG-AUTH-06",
@@ -712,9 +721,12 @@
       "scenario": "Dependency install hook executes arbitrary code",
       "expected_disposition": "deny-unapproved-execution",
       "critical": true,
-      "status": "specified-not-implemented",
-      "implementation_refs": [],
-      "execution_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/ci-check.test.mjs::composite action manifest uses npm ci --ignore-scripts"
+      ],
+      "execution_refs": [],
+      "candidate_scope": "GitHub composite-action dependency install path only; not all build/install profiles"
     },
     {
       "id": "NEG-TRUST-03",
@@ -827,9 +839,13 @@
       "scenario": "Generated authorization stub defaults to allow",
       "expected_disposition": "fail-closed",
       "critical": false,
-      "status": "specified-not-implemented",
-      "implementation_refs": [],
-      "execution_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/handles-policy-contract.test.mjs::B3 PostAuthorize ownership check + hasRole refuses materialization",
+        "test/handles-policy-contract.test.mjs::B6 no authorization annotation refuses materialization"
+      ],
+      "execution_refs": [],
+      "candidate_scope": "Spring handles authorization materialization only; runtime authorization behavior remains unproven"
     },
     {
       "id": "NEG-GEN-05",
