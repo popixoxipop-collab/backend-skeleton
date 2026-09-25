@@ -1,0 +1,83 @@
+{
+  "schema": "bskel.scale-core-freeze-activation/1",
+  "candidate": "T00-04A",
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "state": "READY_FOR_ACCEPTANCE",
+    "epoch": 6,
+    "heads": {
+      "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e"
+    },
+    "exact_head_ci": "success",
+    "exact_head_runs": {
+      "bskel": 36040486375,
+      "becoder": 36083442722,
+      "beval": 36105784109,
+      "epoch6_pr": 36115168765
+    },
+    "independent_review": "pending",
+    "review_target": "backend-skeleton#120@f4407dc5d35738d95c8d8565c2824a36176cbfdf",
+    "note": "All technical baseline gates are green. T00-01 becomes ACCEPTED only after independent T19 epoch-6 PASS against this exact target with no main/blob drift."
+  },
+  "current_main_heads": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e"
+  },
+  "identity": {
+    "source": "backend-skeleton#82",
+    "head_observed": "e499073aaa7fe9c116e30fbff0536cccecb6eb69",
+    "exact_head_ci": "success",
+    "exact_head_ci_run": 36094807573,
+    "scope_compliant": true,
+    "legacy_compatibility": true,
+    "artifact_ref_semantics": "exact-bytes",
+    "identity_envelope_family": "http",
+    "additive_only": true,
+    "core_blob_shas": {
+      "contracts/next/identity.mjs": "c880a606136536fc103db414e5bc39f83081ef8e",
+      "schemas/next/artifact-ref.schema.json": "d69366533844c4d002de8746140776edfdccbb25",
+      "schemas/next/identity-envelope.schema.json": "e4e5fdd38278179e7a6d717a429d63c7b52b78a9",
+      "schemas/next/identity.golden.json": "42177e1af597c445113258e8e81ba9b4a02cadd6"
+    },
+    "note": "Re-read at epoch-6 preparation; all four 04A core blobs still match the reviewed T01 head."
+  },
+  "capability": {
+    "source": "backend-skeleton#81",
+    "head": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
+    "exact_head_ci": "success",
+    "exact_head_ci_run": 36084027973,
+    "scope_compliant": true,
+    "scope_basis": "T00 exact bridge lease T03-ROOT-TEST-001",
+    "bridge_lease": {
+      "path": "test/capability-next.test.mjs",
+      "blob_sha": "544b8bcc9f83738fb6dc10c4767e12ac90e3d7c5",
+      "semantic_authority": "none",
+      "expires_on_blob_change_or_nested_test_discovery": true,
+      "t00_comment_id": 5827587854
+    },
+    "statuses": [
+      "supported",
+      "partial",
+      "unsupported",
+      "unknown",
+      "not-applicable"
+    ],
+    "certification_wire_promoted": false,
+    "runtime_tested_requires_verified_runtime_evidence": true,
+    "note": "Re-read at epoch-6 preparation; T03 head/CI and exact bridge blob remain unchanged. Only the five-state vocabulary is eligible for 04A."
+  },
+  "lease": {
+    "source": "backend-skeleton#88",
+    "policy_revision": "T00-03-r1",
+    "verifier_ci": "success",
+    "fail_closed": true
+  },
+  "semantics": {
+    "unknown_preserved": true,
+    "runtime_cannot_repair_contract": true,
+    "causality_not_inferred": true
+  }
+}
