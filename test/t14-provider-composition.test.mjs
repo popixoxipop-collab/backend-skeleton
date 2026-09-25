@@ -6,6 +6,7 @@ import { provider as typeScriptExpress } from '../handles/providers/typescript-e
 import { auditLegacyProviders } from '../handles/composition-next/legacy-baseline.mjs';
 import { listApprovedCombinations, resolveApprovedCombination } from '../handles/composition-next/catalog.mjs';
 import { previewGeneration } from '../handles/composition-next/plan.mjs';
+import { describeResourceGeneration } from '../handles/composition-next/safety-profile.mjs';
 
 function fakeProvider(id = 'java-spring', result = {}) {
   const calls = [];
@@ -59,7 +60,7 @@ test('T14 preview forces provider dryRun and never grants apply permission', () 
     provider,
     repoRoot: '/repo',
     featureId: '001-demo',
-    handlesPlan: { provider: 'java-spring', resources: [] },
+    handlesPlan: { provider: 'java-spring', resources: [{ type: 'User', willGenerateResolver: true, idFieldIsUuid: true }] },
     persistenceId: 'jpa-hibernate',
     keyType: 'uuid',
   });
@@ -98,7 +99,7 @@ test('T14 preview turns conflicts, orphans, and registry gaps into apply blocker
     provider,
     repoRoot: '/repo',
     featureId: '001-demo',
-    handlesPlan: { provider: 'python-fastapi', resources: [] },
+    handlesPlan: { provider: 'python-fastapi', resources: [{ type: 'User', willGenerateResolver: true }] },
     persistenceId: 'sqlalchemy-sqlmodel',
     keyType: 'uuid',
     enforceRegistry: true,
@@ -118,4 +119,59 @@ test('T14 preview rejects a provider/handles-plan mismatch', () => {
     persistenceId: 'jpa-hibernate',
     keyType: 'uuid',
   }), /provider mismatch/);
+});
+
+
+test('T14 safety profile exposes Python/TypeScript authorization and patch as manual fail-closed completions', () => {
+  for (const providerId of ['python-fastapi', 'typescript-express']) {
+    const result = describeResourceGeneration({
+      providerId,
+      handlesPlan: { resources: [{ type: 'User', willGenerateResolver: true }] },
+    });
+    assert.equal(result.decisions[0].authorization, 'fail-closed-stub');
+    assert.equal(result.decisions[0].patch, 'fail-closed-stub');
+    assert.deepEqual(result.manualCompletions.map((x) => x.area), ['authorization', 'patch']);
+  }
+});
+
+test('T14 preview refuses to emit when explicitly requested resource is not generatable', () => {
+  const { provider, calls } = fakeProvider('java-spring');
+  const result = previewGeneration({
+    provider,
+    repoRoot: '/repo',
+    featureId: '001-demo',
+    persistenceId: 'jpa-hibernate',
+    keyType: 'uuid',
+    resourceFilter: ['LegacyUser'],
+    handlesPlan: {
+      provider: 'java-spring',
+      resources: [{ type: 'LegacyUser', willGenerateResolver: false, idFieldIsUuid: false }],
+    },
+  });
+  assert.equal(calls.length, 0);
+  assert.equal(result.status, 'blocked');
+  assert.ok(result.blockers.some((b) => b.code === 'requested-resource-not-generatable'));
+  assert.ok(result.blockers.some((b) => b.code === 'no-generatable-resources'));
+});
+
+test('T14 preview keeps skipped resources visible while allowing safe resources in an unfiltered plan', () => {
+  const { provider, calls } = fakeProvider('typescript-express', { written: ['src/handles/user.ts'] });
+  const result = previewGeneration({
+    provider,
+    repoRoot: '/repo',
+    featureId: '001-demo',
+    persistenceId: 'typeorm',
+    keyType: 'uuid',
+    handlesPlan: {
+      provider: 'typescript-express',
+      resources: [
+        { type: 'User', willGenerateResolver: true, idFieldIsUuid: true },
+        { type: 'LegacyUser', willGenerateResolver: false, idFieldIsUuid: false },
+      ],
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(result.resourceDecisions.map((r) => [r.resourceType, r.generated]), [['User', true], ['LegacyUser', false]]);
+  assert.deepEqual(result.manualCompletions.map((x) => x.area), ['authorization', 'patch']);
 });
