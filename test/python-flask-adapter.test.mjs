@@ -82,6 +82,32 @@ test('computed paths and docstring/comment-like phantom routes are skipped', () 
   assert.equal(endpoints.some((e) => e.path.includes('phantom')), false);
 });
 
+test('relative-module Blueprint registration composes a cross-file declared prefix without executing the app factory', () => {
+  const root = fixture();
+  fs.mkdirSync(path.join(root, 'flaskr'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'flaskr', '__init__.py'), [
+    'from flask import Flask',
+    'def create_app():',
+    '    app = Flask(__name__)',
+    '    from . import auth',
+    '    app.register_blueprint(auth.bp)',
+    '    return app',
+    ''
+  ].join('\n'));
+  fs.writeFileSync(path.join(root, 'flaskr', 'auth.py'), [
+    'from flask import Blueprint',
+    "bp = Blueprint('auth', __name__, url_prefix='/auth')",
+    "@bp.get('/login')",
+    'def login():',
+    '    return {}',
+    ''
+  ].join('\n'));
+
+  const report = scanPythonFlask(root, root);
+  const endpoints = report.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+  assert.ok(endpoints.some((e) => e.verb === 'GET' && e.path === '/auth/login' && e.method === 'login'));
+});
+
 test('first Flask slice declares unsupported schema/persistence/codegen capabilities honestly', () => {
   assert.equal(adapter.id, 'python-flask');
   assert.equal(adapter.verificationBasis, 'synthetic-only');
