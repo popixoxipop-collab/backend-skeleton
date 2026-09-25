@@ -63,6 +63,20 @@ export function validateExternalEvidenceCandidates(registry, negativeCatalog) {
       if (ci.status !== 'completed' && ci.conclusion !== null) errors.push(at + '.ci: nonterminal CI must keep conclusion=null');
       if (ci.status === 'completed' && ci.conclusion === null) errors.push(at + '.ci: completed CI requires a conclusion');
     }
+    if (!Array.isArray(candidate.job_observations)) errors.push(at + '.job_observations: must be an array');
+    else {
+      for (const [ji, observation] of candidate.job_observations.entries()) {
+        const jat = at + '.job_observations[' + ji + ']';
+        if (!Number.isSafeInteger(observation?.run_id) || observation.run_id <= 0) errors.push(jat + '.run_id: positive integer required');
+        else if (candidate.ci?.run_id !== observation.run_id) errors.push(jat + '.run_id: must match candidate ci.run_id');
+        if (!Number.isSafeInteger(observation?.job_id) || observation.job_id <= 0) errors.push(jat + '.job_id: positive integer required');
+        if (!nonEmpty(observation?.job_name)) errors.push(jat + '.job_name: required');
+        if (!Array.isArray(observation?.subtests) || observation.subtests.length === 0 || observation.subtests.some((x) => !nonEmpty(x))) errors.push(jat + '.subtests: non-empty subtest names required');
+      }
+      if (candidate.job_observations.length > 0 && !(candidate.ci?.status === 'completed' && candidate.ci?.conclusion === 'success')) {
+        errors.push(at + '.job_observations: require completed-success candidate CI');
+      }
+    }
     if (!nonEmpty(candidate.note)) errors.push(at + '.note: required');
   }
   return { ok: errors.length === 0, errors };
@@ -76,6 +90,7 @@ export function summarizeExternalEvidenceCandidates(registry, negativeCatalog) {
   let partialMappings = 0;
   let exactHeadCiSuccess = 0;
   let nonterminalCi = 0;
+  let jobObservedCandidates = 0;
   for (const candidate of registry.candidates) {
     for (const mapping of candidate.vector_mappings) {
       vectorSet.add(mapping.vector_id);
@@ -84,6 +99,7 @@ export function summarizeExternalEvidenceCandidates(registry, negativeCatalog) {
     }
     if (candidate.ci.status === 'completed' && candidate.ci.conclusion === 'success') exactHeadCiSuccess += 1;
     if (candidate.ci.status !== 'completed') nonterminalCi += 1;
+    if (candidate.job_observations.length > 0) jobObservedCandidates += 1;
   }
   return {
     candidates: registry.candidates.length,
@@ -92,6 +108,7 @@ export function summarizeExternalEvidenceCandidates(registry, negativeCatalog) {
     partial_mappings: partialMappings,
     exact_head_ci_success_candidates: exactHeadCiSuccess,
     nonterminal_ci_candidates: nonterminalCi,
+    job_observed_candidates: jobObservedCandidates,
     covered_vectors: 0
   };
 }
