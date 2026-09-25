@@ -1,6 +1,6 @@
 # T23 release / migration runbook
 
-Status: **prepared, blocked for promotion**. T00-01 is currently submitted in draft PR #65 and has not been independently accepted. This runbook may be reviewed and tested, but it does not authorize a default-writer change, production DB migration, or release.
+Status: **prepared, blocked for promotion**. T00-01 is currently submitted and the T00-04 interface is still pre-freeze. This runbook may be reviewed and tested, but it does not authorize a default-writer change, production DB migration, package allowlist change, workflow change, or release.
 
 ## Invariants
 
@@ -10,12 +10,23 @@ Status: **prepared, blocked for promotion**. T00-01 is currently submitted in dr
 4. New readers land before new default writers. Shadow output never becomes trusted execution input merely because it exists.
 5. DB evolution is additive for evidence/history. Destructive down migrations are not a rollback mechanism.
 6. Exact integration SHAs and exact-head checks are required; an older green workflow run cannot approve a newer head.
+7. A T00 coordination baseline and current repository main are different concepts. T23 records drift but never silently rewrites T00's accepted/submitted baseline.
 
 ## M0 - compatibility inventory
 
-Record exact SHAs, package versions, Node floors, published files, CLI names, vendored schemas, generated-app assets, DB migration/read paths, package-install smoke commands, and exact-head historical CI. Re-run this inventory whenever any input changes.
+Record exact SHAs, package versions, Node floors, published files, CLI names, vendored schemas, generated-app assets, DB migration/read paths, package-install smoke commands, and exact-head CI state. Re-run this inventory whenever any input changes.
 
-Current snapshot is `compatibility-inventory.json`. Historical CI recorded there is evidence about those exact commits only; it is not a substitute for T23-specific tests or future integration heads.
+Current snapshot is `compatibility-inventory.json`. A queued/in-progress current-head CI run is a valid observation but is not a release pass. The inventory therefore remains structurally valid while `release-policy.mjs` derives `CURRENT_MAIN_CI_NOT_GREEN`.
+
+### Coordination baseline drift
+
+T23 stores both:
+- the T00 coordination baseline, which only T00 can accept/rebaseline;
+- observed current `main` for each repository.
+
+If any current head differs from the coordination baseline, `COORDINATION_BASELINE_DRIFT` blocks release. T23 does not update the coordination baseline to make the blocker disappear. T00 must issue/accept a new epoch.
+
+At the current snapshot, becoder main advanced from T00 epoch-3 `a575679b...` to `37ffb1d8...`; its exact-head push CI is green. beval main is `7a04cb70...` but its current exact-head push CI was queued when captured. These are observations, not promotion approvals.
 
 ## M1 - consumer first
 
@@ -61,9 +72,19 @@ Rollback is feature-off/read-only/old-reader first. A destructive down migration
 
 ## CI lane activation
 
-T23-01/T23-02 deliberately do **not** modify `.github/workflows`. T23-03 may add or reshape PR-cheap, crossrepo, nightly, runtime, native, and release lanes only after T19/T20 prerequisites are accepted. Untrusted pull-request code must not gain privileged self-hosted secrets via `pull_request_target`.
+T23-01/T23-02 deliberately do **not** modify `.github/workflows`. T23-03 may add or reshape PR-cheap, crossrepo, nightly, runtime, native, and release lanes only after T00-04 final freeze plus T19/T20 prerequisites.
 
-Every release decision binds checks to exact final integration SHAs. Queued/skipped/missing jobs are not successes; a green result from an older head is not reusable after code changes.
+Untrusted pull-request code must not gain privileged self-hosted secrets via `pull_request_target`. Every release decision binds checks to exact final integration SHAs. Queued/skipped/missing jobs are not successes; a green result from an older head is not reusable after code changes.
+
+## Recorded cross-track change requests
+
+The following requests are acknowledged but intentionally not implemented before T00-04 / an integration lease:
+
+- common nested-test discovery so T02 `test/project-graph/**/*.test.mjs` and T19 `test/conformance-next/**/*.test.mjs` do not require root shims;
+- package allowlist additions requested by T15/T17/T22;
+- any stable workflow or package/default writer integration.
+
+Until the lease is issued, tracks continue to run their nested suites explicitly and must not represent a pre-existing root CI success as proof that those suites executed.
 
 ## Rehearsal checklist
 
@@ -75,6 +96,7 @@ Every release decision binds checks to exact final integration SHAs. Queued/skip
 - invalidate next semantic caches during rollback;
 - confirm old writer cannot overwrite next artifacts;
 - confirm database history survives rollback unchanged;
-- force one missing/failed required lane and verify release remains blocked.
+- force one missing/failed required lane and verify release remains blocked;
+- advance one repository main beyond the T00 coordination baseline and verify drift blocks release without mutating the baseline.
 
 Record exact commands, exit codes, hashes, package tarball names, run IDs, and cleanup results. A narrative "rollback worked" is insufficient evidence.
