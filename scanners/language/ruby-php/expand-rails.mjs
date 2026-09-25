@@ -94,10 +94,19 @@ function baseForExplicitRoute(fact) {
 
   if (routeMode === 'member') return { ok: true, path: resource.member };
   if (routeMode === 'collection') return { ok: true, path: resource.collection };
+  if (routeMode === 'new') return { ok: true, path: joinRoute(resource.collection, 'new') };
+
+  if (resource.nested) {
+    return {
+      ok: true,
+      path: resource.nested,
+      implicitNestedMember: true,
+    };
+  }
 
   return {
     ok: false,
-    reason: 'custom route inside resources requires explicit member/collection/on context for bounded expansion',
+    reason: 'custom route inside resources requires a regular or explicit parent nesting key',
   };
 }
 
@@ -154,6 +163,7 @@ export function expandRailsFacts(envelope, out) {
           controller: fact.attributes.controller ?? null,
           action: fact.attributes.action ?? null,
           routeMode: fact.attributes.routeMode ?? null,
+          implicitNestedMember: Boolean(base.implicitNestedMember),
         },
       );
       continue;
