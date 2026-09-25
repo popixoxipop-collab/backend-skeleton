@@ -37,7 +37,8 @@
         "status": "in_progress",
         "conclusion": null
       },
-      "note": "Producer also reported a focused 13/13 direct run; T19 does not treat that report as independent exact-head CI."
+      "note": "Producer also reported a focused 13/13 direct run; T19 does not treat that report as independent exact-head CI.",
+      "job_observations": []
     },
     {
       "id": "t21-cache-invalidation",
@@ -112,7 +113,29 @@
         "status": "completed",
         "conclusion": "success"
       },
-      "note": "Strong exact-head candidate evidence for cache semantics; still not T19-covered until independent mapping review and immutable execution binding are accepted."
+      "note": "Strong exact-head candidate evidence for cache semantics; still not T19-covered until independent mapping review and immutable execution binding are accepted.",
+      "job_observations": [
+        {
+          "run_id": 36083666703,
+          "job_id": 107910850829,
+          "job_name": "test (22.x)",
+          "subtests": [
+            "every semantic dimension invalidates the cache key",
+            "new, deleted and modified source invalidate transitive dependents only",
+            "artifact store detects corruption instead of returning poisoned cache data"
+          ]
+        },
+        {
+          "run_id": 36083666703,
+          "job_id": 107910850816,
+          "job_name": "test (24.x)",
+          "subtests": [
+            "every semantic dimension invalidates the cache key",
+            "new, deleted and modified source invalidate transitive dependents only",
+            "artifact store detects corruption instead of returning poisoned cache data"
+          ]
+        }
+      ]
     },
     {
       "id": "t23-release-policy",
@@ -151,7 +174,8 @@
         "status": "queued",
         "conclusion": null
       },
-      "note": "CI was nonterminal at observation; this candidate must not be promoted from that state."
+      "note": "CI was nonterminal at observation; this candidate must not be promoted from that state.",
+      "job_observations": []
     },
     {
       "id": "t14-fail-closed-generation",
@@ -184,7 +208,8 @@
         "status": "in_progress",
         "conclusion": null
       },
-      "note": "Partial semantic mapping only."
+      "note": "Partial semantic mapping only.",
+      "job_observations": []
     },
     {
       "id": "t20-network-default-deny",
@@ -223,7 +248,8 @@
         "status": "queued",
         "conclusion": null
       },
-      "note": "Partial policy-level mapping; no sandbox/egress behavior certification."
+      "note": "Partial policy-level mapping; no sandbox/egress behavior certification.",
+      "job_observations": []
     }
   ]
 }
