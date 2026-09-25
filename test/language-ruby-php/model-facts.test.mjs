@@ -73,6 +73,40 @@ test('Eloquent: omitted table/primary key remain explicit unknowns', () => {
   assert.deepEqual(report.unknowns.map((x) => x.code).sort(), ['MODEL_PRIMARY_KEY_IMPLICIT', 'MODEL_TABLE_IMPLICIT']);
 });
 
+test('ActiveRecord: association-like calls inside methods are not treated as class-level declarations', () => {
+  const report = extractActiveRecordModelFacts([
+    'class User < ApplicationRecord',
+    '  has_many :posts',
+    '  def debug_relation',
+    '    has_many :not_a_model_declaration',
+    '  end',
+    'end',
+    '',
+  ].join('\n'));
+  assert.deepEqual(report.models[0].relations.map((x) => x.name), ['posts']);
+});
+
+test('Eloquent: typed and morphTo relation methods are recorded without inventing a polymorphic target', () => {
+  const report = extractEloquentModelFacts([
+    '<?php',
+    'class Comment extends Model {',
+    '  public function post() {',
+    "    return $this->belongsTo(Post::class, 'post_uuid');",
+    '  }',
+    '  public function commentable() {',
+    '    return $this->morphTo();',
+    '  }',
+    '}',
+    '',
+  ].join('\n'));
+  const relations = report.models[0].relations;
+  assert.deepEqual(relations.map((x) => [x.kind, x.name]), [['belongsTo', 'post'], ['morphTo', 'commentable']]);
+  assert.equal(relations[0].targetClass, 'Post');
+  assert.equal(relations[0].foreignKey, 'post_uuid');
+  assert.equal(relations[1].targetClass, null);
+  assert.ok(report.unknowns.some((x) => x.code === 'MODEL_POLYMORPHIC_RELATION'));
+});
+
 test('model facts reject repository escape paths', () => {
   assert.throws(() => extractActiveRecordModelFacts('class X < ApplicationRecord\nend\n', { file: '../x.rb' }), /repository root/);
   assert.throws(() => extractEloquentModelFacts('<?php class X extends Model {}', { file: '/tmp/X.php' }), /repository-relative/);
