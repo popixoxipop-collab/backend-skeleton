@@ -5,12 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCorpusManifest, summarizeCorpus } from '../corpus-next/corpus.mjs';
 import { projectLegacyOracleCandidates, summarizeLegacyOracleProjection } from '../corpus-next/legacy-oracle-import.mjs';
+import { validateLicenseObservations, summarizeLicenseObservations } from '../corpus-next/license-observations.mjs';
 import { validateNegativeCatalog, coverageSummary } from './catalog.mjs';
 import { validateExternalEvidenceCandidates, summarizeExternalEvidenceCandidates } from './external-candidates.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'manifest.json'), 'utf8'));
 const legacyOracle = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'oracle-manifest.json'), 'utf8'));
+const licenseObservations = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'license-observations.json'), 'utf8'));
 const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, 'negative-vectors.json'), 'utf8'));
 const externalCandidates = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-evidence-candidates.json'), 'utf8'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -236,6 +238,51 @@ test('T19 legacy oracle import never upgrades a source candidate into a golden o
     assert.deepEqual(candidate.missing_requirements, ['license-review', 'independent-golden-review']);
     assert.equal(Object.hasOwn(candidate, 'golden'), false);
   }
+});
+
+test('T19 license observations cover all 17 pinned legacy candidates without granting certification', () => {
+  const projection = projectLegacyOracleCandidates(legacyOracle);
+  assert.equal(projection.ok, true);
+  const verdict = validateLicenseObservations(licenseObservations, projection);
+  assert.deepEqual(verdict.errors, []);
+  assert.equal(verdict.ok, true);
+  const summary = summarizeLicenseObservations(licenseObservations, projection);
+  assert.equal(summary.entries, 17);
+  assert.equal(summary.pinned_root_license_files, 12);
+  assert.equal(summary.no_pinned_root_license_file_observed, 5);
+  assert.equal(summary.current_repo_spdx_hints, 12);
+  assert.equal(summary.certification_eligible, 0);
+});
+
+test('T19 license observations reject a commit that differs from the pinned corpus source', () => {
+  const projection = projectLegacyOracleCandidates(legacyOracle);
+  const bad = clone(licenseObservations);
+  bad.entries[0].commit = '0'.repeat(40);
+  const verdict = validateLicenseObservations(bad, projection);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must match legacy projection source')));
+});
+
+test('T19 license observations cannot self-promote a repository into certification', () => {
+  const projection = projectLegacyOracleCandidates(legacyOracle);
+  const bad = clone(licenseObservations);
+  bad.entries[0].review_state = 'approved';
+  bad.entries[0].certification_eligible = true;
+  const verdict = validateLicenseObservations(bad, projection);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must remain observation-only')));
+  assert.ok(verdict.errors.some((x) => x.includes('cannot self-certify')));
+});
+
+test('T19 license observation status must agree with the presence of a pinned root license blob', () => {
+  const projection = projectLegacyOracleCandidates(legacyOracle);
+  const bad = clone(licenseObservations);
+  const observed = bad.entries.find((x) => x.root_license_file !== null);
+  assert.ok(observed);
+  observed.observation = 'no-pinned-root-license-file-observed';
+  const verdict = validateLicenseObservations(bad, projection);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('license file requires pinned-root-license-file-observed')));
 });
 
 
