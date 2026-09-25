@@ -74,3 +74,20 @@ test('T06 bare dotted import resolves a selected namespace-package module but no
     name: 'other.Base',
   }, 'one imported dotted module must not imply arbitrary sibling modules are local');
 });
+
+
+test('T06 from-import stays ambiguous when a package exports a symbol and has a same-named submodule', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-from-import-ambiguity-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', '__init__.py'), 'class models:\n    pass\n');
+  fs.writeFileSync(path.join(root, 'pkg', 'models.py'), 'class Base:\n    pass\n');
+  fs.writeFileSync(path.join(root, 'consumer.py'), 'from pkg import models\n');
+  const p = project(root, ['pkg/__init__.py', 'pkg/models.py', 'consumer.py']);
+
+  const resolved = resolvePythonSymbol(p, 'consumer', 'models');
+  assert.equal(resolved.status, 'unknown');
+  assert.equal(resolved.reason, 'ambiguous-import-target');
+  assert.equal(resolved.module, 'pkg');
+  assert.equal(resolved.name, 'models');
+  assert.equal(resolved.alternateModule, 'pkg.models');
+});

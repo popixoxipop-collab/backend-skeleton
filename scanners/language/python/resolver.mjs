@@ -56,6 +56,15 @@ export function buildPythonProjectFacts(entries) {
     if (found.length > 1) return 'ambiguous';
     return 'external';
   };
+  const moduleDeclaresName = (moduleId, name) => {
+    const candidate = modules.get(moduleId);
+    if (!candidate) return false;
+    return [
+      ...(candidate.facts.classes || []).map((x) => x.name),
+      ...(candidate.facts.functions || []).map((x) => x.name),
+      ...(candidate.facts.assignments || []).flatMap((x) => x.targets || []).filter((x) => typeof x === 'string'),
+    ].includes(name);
+  };
 
   for (const mod of modules.values()) {
     for (const fact of mod.facts.imports || []) {
@@ -88,7 +97,20 @@ export function buildPythonProjectFacts(entries) {
         const alias = item.alias || item.name;
         const asModule = [base, item.name].filter(Boolean).join('.');
         const asModuleLocality = moduleLocality(asModule);
-        if (asModuleLocality === 'local' || asModuleLocality === 'ambiguous') {
+        const baseAlsoDeclaresSymbol = base && moduleDeclaresName(base, item.name);
+        if (baseAlsoDeclaresSymbol && (asModuleLocality === 'local' || asModuleLocality === 'ambiguous')) {
+          const record = {
+            alias,
+            kind: 'ambiguous-import',
+            module: base,
+            name: item.name,
+            alternateModule: asModule,
+            locality: 'ambiguous',
+            source: fact,
+          };
+          mod.aliases.set(alias, record);
+          mod.importResolutions.push(record);
+        } else if (asModuleLocality === 'local' || asModuleLocality === 'ambiguous') {
           const record = { alias, kind: 'module', module: asModule, locality: asModuleLocality, source: fact };
           mod.aliases.set(alias, record);
           mod.importResolutions.push(record);
@@ -173,6 +195,16 @@ export function resolvePythonSymbol(project, moduleId, symbol) {
       locality: alias.locality,
       module: alias.module,
       name: [alias.name, ...rest].join('.'),
+    };
+  }
+  if (alias.kind === 'ambiguous-import') {
+    return {
+      status: 'unknown',
+      reason: 'ambiguous-import-target',
+      module: alias.module,
+      name: alias.name,
+      alternateModule: alias.alternateModule,
+      symbol,
     };
   }
 
