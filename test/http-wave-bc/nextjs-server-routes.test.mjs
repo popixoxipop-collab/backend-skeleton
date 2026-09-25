@@ -71,6 +71,42 @@ test('detection requires a next dependency plus an App route or Pages API file',
   }
 });
 
+test('string literals cannot impersonate App method exports, Pages default exports, or next.config basePath', () => {
+  const appFake = fixture({
+    'package.json': pkg(),
+    'app/api/route.ts': `const example = "export function GET() {}"`,
+  });
+  try {
+    const report = scanNextServerRoutes(appFake);
+    assert.deepEqual(report.modules, []);
+  } finally {
+    cleanup(appFake);
+  }
+
+  const pagesFake = fixture({
+    'package.json': pkg(),
+    'pages/api/hello.ts': `const example = "export default function handler() {}"`,
+  });
+  try {
+    const report = scanNextServerRoutes(pagesFake);
+    assert.deepEqual(report.modules, []);
+  } finally {
+    cleanup(pagesFake);
+  }
+
+  const configFake = fixture({
+    'package.json': pkg(),
+    'next.config.js': `export default { note: "basePath: '/fake'" }`,
+    'app/api/route.ts': 'export function GET() {}',
+  });
+  try {
+    const report = scanNextServerRoutes(configFake);
+    assert.deepEqual(endpoints(report).map((endpoint) => endpoint.path), ['/api']);
+  } finally {
+    cleanup(configFake);
+  }
+});
+
 test('App Router route.ts exposes directly-declared method exports with source lines', () => {
   const root = fixture({
     'package.json': pkg(),
