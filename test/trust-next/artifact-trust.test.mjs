@@ -148,3 +148,41 @@ test('artifact trust expansion guard allows tightening and rejects new trust or 
       && error.delta?.expansions.some((x) => x.change === 'revocation-removed'),
   );
 });
+
+
+test('artifact trust policy rejects oversized allow/revoke collections and control-character reasons', () => {
+  const tooManyAllow = validateArtifactTrustPolicy({
+    schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+    generation: 1,
+    allow: Array.from({ length: 1025 }, (_, i) => ({
+      usage: 'adapter',
+      sha256: i.toString(16).padStart(64, '0').slice(-64),
+    })),
+    revoked: [],
+  });
+  assert.equal(tooManyAllow.ok, false);
+  assert.equal(tooManyAllow.errors.some((x) => x.code === 'TOO_MANY_TRUST_ALLOW_ENTRIES'), true);
+
+  const tooManyRevoked = validateArtifactTrustPolicy({
+    schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+    generation: 1,
+    allow: [],
+    revoked: Array.from({ length: 1025 }, (_, i) => ({
+      sha256: i.toString(16).padStart(64, '0').slice(-64),
+      reason: `security review revoked artifact ${i}`,
+    })),
+  });
+  assert.equal(tooManyRevoked.ok, false);
+  assert.equal(tooManyRevoked.errors.some((x) => x.code === 'TOO_MANY_REVOCATIONS'), true);
+
+  for (const reason of ['bad\nreason text', 'bad\treason text', 'bad\u0000reason text']) {
+    const result = validateArtifactTrustPolicy({
+      schema: ARTIFACT_TRUST_POLICY_SCHEMA,
+      generation: 1,
+      allow: [],
+      revoked: [{ sha256: A, reason }],
+    });
+    assert.equal(result.ok, false, JSON.stringify(reason));
+    assert.equal(result.errors.some((x) => x.code === 'INVALID_REVOCATION_REASON'), true);
+  }
+});
