@@ -156,3 +156,34 @@ test('Markdown rendering escapes table/HTML control characters and exposes confl
 	assert.match(markdown, /&lt;script&gt;/);
 	assert.match(markdown, /line1<br>line2/);
 });
+
+
+test('support explanation rejects non-JSON field values', () => {
+	assert.throws(() => createSupportExplanation({
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'example.value',
+			status: 'partial',
+			value: { fn: () => true },
+			provenanceRefs: ['source:a'],
+			constraints: [],
+			nextActions: [],
+		}],
+	}), /JSON-serializable/);
+
+	const cyclic = {};
+	cyclic.self = cyclic;
+	assert.throws(() => createSupportExplanation({
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'example.value',
+			status: 'partial',
+			value: cyclic,
+			provenanceRefs: ['source:a'],
+			constraints: [],
+			nextActions: [],
+		}],
+	}), /cycles/);
+});
