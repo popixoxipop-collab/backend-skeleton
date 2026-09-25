@@ -4,7 +4,7 @@ This directory is the first T04 language-analysis boundary. Its `bskel.internal.
 
 ## Shipped in this slice
 
-`source-facts.mjs` extracts only source-backed literal module edges from JavaScript/TypeScript/JSX/TSX text:
+`source-facts.mjs` extracts only source-backed literal module edges from JavaScript/TypeScript/JSX/TSX text. `module-resolver.mjs` consumes those facts plus an explicit repository file inventory; its `bskel.internal.js-ts-resolution/0` output is also provisional and T04-internal:
 
 - ESM `import ... from` and side-effect imports
 - TypeScript `import type` and named `type` bindings
@@ -16,8 +16,11 @@ This directory is the first T04 language-analysis boundary. Its `bskel.internal.
 - `syntaxValidated: false` so `complete` cannot be mistaken for full JavaScript/TypeScript semantic completeness
 - explicit diagnostics for non-literal/escaped/unparsed constructs
 - hard byte/token limits that return no partial facts when exceeded
+- relative module resolution only when exactly one inventory path matches; aliases/packages stay unresolved
+- resolver `complete` means the pass finished, while `allResolved` separately says whether every edge actually resolved
+- source lexical provenance and `syntaxValidated: false` propagate through resolution
 
-It does **not** resolve imports, execute package hooks, infer framework semantics, evaluate TypeScript types, parse template-expression code, decode escaped module specifiers, or replace the existing Express adapters. Those are later T04 slices after the parser/backend comparison and interface freeze.
+It does **not** resolve package exports or tsconfig aliases, execute package hooks, infer framework semantics, evaluate TypeScript types, parse template-expression code, decode escaped module specifiers, or replace the existing Express adapters. Those are later T04 slices after the parser/backend comparison and interface freeze.
 
 ## Why no parser dependency yet
 
@@ -28,7 +31,7 @@ The repository currently has no Tree-sitter or TypeScript compiler dependency in
 The plan assigns T04 a nested test namespace, so this slice is tested directly without changing the shared root `package.json` test glob:
 
 ```bash
-node --test test/language-js-ts/source-facts.test.mjs
+node --test test/js-ts-source-facts.test.mjs test/js-ts-module-resolver.test.mjs
 ```
 
-Integration into the root test command is a separate shared-file change owned by the integration/release track.
+A tiny root bridge now imports the nested source-facts corpus so the existing `test/*.test.mjs` command sees it without changing `package.json`; the resolver test already lives at the root test level. No shared package/lock file was changed.
