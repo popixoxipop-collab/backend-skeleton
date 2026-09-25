@@ -35,3 +35,42 @@ test('T06 duplicate module identities are preserved as collisions and never sile
   assert.equal(resolved.status, 'unknown');
   assert.equal(resolved.reason, 'ambiguous-module');
 });
+
+
+test('T06 bare dotted import resolves attributes through the module that was actually imported', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-dotted-attribute-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', '__init__.py'), '');
+  fs.writeFileSync(path.join(root, 'pkg', 'models.py'), 'class Base:\n    pass\n');
+  fs.writeFileSync(path.join(root, 'consumer.py'), 'import pkg.models\n');
+  const p = project(root, ['pkg/__init__.py', 'pkg/models.py', 'consumer.py']);
+
+  assert.deepEqual(resolvePythonSymbol(p, 'consumer', 'pkg.models.Base'), {
+    status: 'resolved',
+    locality: 'local',
+    module: 'pkg.models',
+    name: 'Base',
+  });
+});
+
+test('T06 bare dotted import resolves a selected namespace-package module but no unimported sibling', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-namespace-package-'));
+  fs.mkdirSync(path.join(root, 'pkg'));
+  fs.writeFileSync(path.join(root, 'pkg', 'models.py'), 'class Base:\n    pass\n');
+  fs.writeFileSync(path.join(root, 'consumer.py'), 'import pkg.models\n');
+  const p = project(root, ['pkg/models.py', 'consumer.py']);
+
+  assert.equal(p.get('pkg'), null, 'namespace package has no synthetic module fact');
+  assert.deepEqual(resolvePythonSymbol(p, 'consumer', 'pkg.models.Base'), {
+    status: 'resolved',
+    locality: 'local',
+    module: 'pkg.models',
+    name: 'Base',
+  });
+  assert.deepEqual(resolvePythonSymbol(p, 'consumer', 'pkg.other.Base'), {
+    status: 'resolved',
+    locality: 'external',
+    module: 'pkg',
+    name: 'other.Base',
+  }, 'one imported dotted module must not imply arbitrary sibling modules are local');
+});

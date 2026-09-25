@@ -22,7 +22,6 @@ function parentPackage(packageId, ups) {
 function importBase(moduleEntry, fact) {
   if (fact.kind !== 'from') return null;
   if (fact.level === 0) return fact.module || '';
-  // Python level=1 means current package, level=2 means one parent, etc.
   const parent = parentPackage(moduleEntry.packageId, fact.level - 1);
   if (parent === null) return null;
   return [parent, fact.module].filter(Boolean).join('.');
@@ -44,11 +43,13 @@ export function buildPythonProjectFacts(entries) {
     if (!candidates.has(identity.moduleId)) candidates.set(identity.moduleId, []);
     candidates.get(identity.moduleId).push(candidate);
   }
+
   const collisions = [];
   for (const [moduleId, found] of candidates) {
     if (found.length === 1) modules.set(moduleId, found[0]);
     else collisions.push({ moduleId, sources: found.map((x) => x.source.path).sort() });
   }
+
   const moduleLocality = (moduleId) => {
     const found = candidates.get(moduleId) || [];
     if (found.length === 1) return 'local';
@@ -61,15 +62,23 @@ export function buildPythonProjectFacts(entries) {
       if (fact.kind === 'import') {
         for (const item of fact.names || []) {
           const alias = item.alias || item.name.split('.')[0];
-          // Python binds `import pkg.sub` to `pkg`, while `import pkg.sub as ps` binds the full module.
           const targetModule = item.alias ? item.name : item.name.split('.')[0];
           const locality = moduleLocality(targetModule);
-          const record = { alias, kind: 'module', module: targetModule, locality, source: fact };
+          const record = {
+            alias,
+            kind: 'module',
+            module: targetModule,
+            importedModule: item.name,
+            locality,
+            importedLocality: moduleLocality(item.name),
+            source: fact,
+          };
           mod.aliases.set(alias, record);
           mod.importResolutions.push(record);
         }
         continue;
       }
+
       const base = importBase(mod, fact);
       for (const item of fact.names || []) {
         if (item.name === '*') {
@@ -103,6 +112,7 @@ export function buildPythonProjectFacts(entries) {
     modules,
     collisions: collisions.sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
     get(moduleId) { return modules.get(moduleId) || null; },
+    moduleLocality(moduleId) { return moduleLocality(moduleId); },
     list() { return [...modules.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId)); },
   };
 }
@@ -112,6 +122,7 @@ export function resolvePythonSymbol(project, moduleId, symbol) {
   if (!mod || typeof symbol !== 'string' || !symbol) return { status: 'unknown', symbol };
   const [head, ...rest] = symbol.split('.');
   const alias = mod.aliases.get(head);
+
   if (!alias) {
     const localNames = new Set([
       ...(mod.facts.classes || []).map((x) => x.name),
@@ -123,13 +134,48 @@ export function resolvePythonSymbol(project, moduleId, symbol) {
     }
     return { status: 'unknown', symbol };
   }
+
   if (alias.kind === 'module') {
-    if (alias.locality === 'ambiguous') return { status: 'unknown', reason: 'ambiguous-module', module: alias.module, symbol };
+    if (alias.locality === 'ambiguous') {
+      return { status: 'unknown', reason: 'ambiguous-module', module: alias.module, symbol };
+    }
+
+    const importedModule = alias.importedModule || alias.module;
+    if (importedModule !== alias.module && rest.length > 0) {
+      const boundParts = alias.module.split('.');
+      const importedParts = importedModule.split('.');
+      const importedTail = importedParts.slice(boundParts.length);
+      const accessesImportedTail = importedTail.length > 0 &&
+        importedTail.every((part, index) => rest[index] === part);
+
+      if (accessesImportedTail) {
+        const importedLocality = alias.importedLocality || project.moduleLocality?.(importedModule) || 'external';
+        if (importedLocality === 'ambiguous') {
+          return { status: 'unknown', reason: 'ambiguous-module', module: importedModule, symbol };
+        }
+        if (importedLocality === 'local') {
+          return {
+            status: 'resolved',
+            locality: 'local',
+            module: importedModule,
+            name: rest.slice(importedTail.length).join('.') || null,
+          };
+        }
+      }
+    }
+
     return { status: 'resolved', locality: alias.locality, module: alias.module, name: rest.join('.') || null };
   }
+
   if (alias.kind === 'symbol') {
-    return { status: ['unresolved-local', 'ambiguous'].includes(alias.locality) ? 'unknown' : 'resolved', locality: alias.locality, module: alias.module, name: [alias.name, ...rest].join('.') };
+    return {
+      status: ['unresolved-local', 'ambiguous'].includes(alias.locality) ? 'unknown' : 'resolved',
+      locality: alias.locality,
+      module: alias.module,
+      name: [alias.name, ...rest].join('.'),
+    };
   }
+
   return { status: 'unknown', symbol };
 }
 
