@@ -92,3 +92,40 @@ test('non-live evidence cannot be used to runtime-verify a binding', () => {
 	const bound = composeResourceBindings({ resources: [{ id: 'users', entity_ref: 'entity:user' }], persistence: persistence() });
 	assert.throws(() => verifyResourceBindingsAgainstObserved({ binding_result: bound, observed: persistence() }), /source_kind=live/);
 });
+
+
+test('live verification defaults an unspecified source schema to the observed live schema',()=>{
+	const source=createPersistenceIr({provider:'jpa-hibernate',source_kind:'source',entities:[{
+		id:'entity:no-schema',provider:'jpa-hibernate',name:'User',
+		table:{name:'users',schema:null,source:'explicit'},
+		primary_key:{columns:['id'],type:'uuid',source:'source'},
+	}]});
+	const bound=composeResourceBindings({resources:[{id:'users',entity_ref:'entity:no-schema'}],persistence:source});
+	const observed=createPersistenceIr({provider:'postgres-introspection',source_kind:'live',metadata:{schema:'public'},entities:[{
+		provider:'postgres-introspection',name:'users',
+		table:{name:'users',schema:'public',source:'observed'},
+		primary_key:{columns:['id'],type:'unknown',source:'live'},
+		fields:[{name:'id',type:'uuid',nullable:false,source:'live'}],
+	}]});
+	const verified=verifyResourceBindingsAgainstObserved({binding_result:bound,observed});
+	assert.equal(verified.bindings[0].verification.table,'verified');
+	assert.equal(verified.bindings[0].capabilities.verified_read_by_primary_key,true);
+});
+
+test('an explicit source schema never falls through to a different observed schema',()=>{
+	const source=createPersistenceIr({provider:'jpa-hibernate',source_kind:'source',entities:[{
+		id:'entity:tenant',provider:'jpa-hibernate',name:'User',
+		table:{name:'users',schema:'tenant_a',source:'explicit'},
+		primary_key:{columns:['id'],type:'uuid',source:'source'},
+	}]});
+	const bound=composeResourceBindings({resources:[{id:'users',entity_ref:'entity:tenant'}],persistence:source});
+	const observed=createPersistenceIr({provider:'postgres-introspection',source_kind:'live',metadata:{schema:'public'},entities:[{
+		provider:'postgres-introspection',name:'users',
+		table:{name:'users',schema:'public',source:'observed'},
+		primary_key:{columns:['id'],type:'unknown',source:'live'},
+		fields:[{name:'id',type:'uuid',nullable:false,source:'live'}],
+	}]});
+	const verified=verifyResourceBindingsAgainstObserved({binding_result:bound,observed});
+	assert.equal(verified.bindings[0].verification.table,'missing');
+	assert.equal(verified.bindings[0].capabilities.verified_read_by_primary_key,false);
+});
