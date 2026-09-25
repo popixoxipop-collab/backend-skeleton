@@ -80,12 +80,14 @@ let tsApi;
 let createTypeScriptCompilerBackend;
 let compareJsTsBackends;
 let lexicalJsTsBackend;
+let analyzeTypeScriptSemanticSnapshot;
 try {
 	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
 	const tsImported = await import(pathToFileURL(tsModulePath).href);
 	tsApi = tsImported.default ?? tsImported;
 	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
 	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
+	({ analyzeTypeScriptSemanticSnapshot } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-semantic-facts.mjs')).href));
 } catch (err) {
 	fail(`T04 compiler backend imports failed: ${err.stack || err.message}`);
 }
@@ -197,6 +199,62 @@ try {
 }
 if (!rejected7) fail('T04 compiler backend must refuse TypeScript 7.x until its changed API is reviewed');
 console.log('typescript-typecheck-smoke: T04 TypeScript 6.0.3 compatibility PASSED; TypeScript 7.x refusal PASSED');
+
+const semanticGood = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{
+		path: 'src/base.ts',
+		source: "export interface Base { id: string; }\n",
+	},
+	{
+		path: 'src/user.ts',
+		source: "import type { Base } from './base';\nexport interface User extends Base { name: string; role?: 'admin' | 'user'; }\n",
+	},
+]);
+if (!semanticGood.complete || !semanticGood.syntaxValidated || !semanticGood.semanticChecked) {
+	fail(`T04 semantic snapshot failed infrastructure/syntax checks: ${JSON.stringify(semanticGood)}`);
+}
+const semanticUser = semanticGood.declarations.find((d) => d.filePath === 'src/user.ts' && d.name === 'User');
+if (!semanticUser) fail(`T04 semantic snapshot did not expose User: ${JSON.stringify(semanticGood.declarations)}`);
+const semanticProps = semanticUser.properties.map((p) => p.name);
+for (const name of ['id', 'name', 'role']) {
+	if (!semanticProps.includes(name)) fail(`T04 semantic snapshot lost property ${name}: ${JSON.stringify(semanticUser)}`);
+}
+const inheritedId = semanticUser.properties.find((p) => p.name === 'id');
+if (inheritedId?.declaredIn !== 'src/base.ts') {
+	fail(`T04 semantic snapshot lost inherited property provenance: ${JSON.stringify(inheritedId)}`);
+}
+const roleProp = semanticUser.properties.find((p) => p.name === 'role');
+if (!roleProp?.optional || !/admin/.test(roleProp.typeText) || !/user/.test(roleProp.typeText)) {
+	fail(`T04 semantic snapshot lost optional/union type meaning: ${JSON.stringify(roleProp)}`);
+}
+if (semanticGood.runtimeValidated !== false) {
+	fail('T04 semantic facts must never claim runtime validation');
+}
+
+const semanticBare = analyzeTypeScriptSemanticSnapshot(tsApi, [{
+	path: 'src/external.ts',
+	source: "import type { External } from 'external-package';\nexport interface UsesExternal { value: External; }\n",
+}]);
+if (!semanticBare.complete || semanticBare.semanticValidated) {
+	fail(`T04 unresolved external type must remain semantically unvalidated: ${JSON.stringify(semanticBare)}`);
+}
+if (!semanticBare.moduleDiagnostics.some((d) => d.code === 'module-bare')) {
+	fail(`T04 semantic snapshot did not preserve bare-module uncertainty: ${JSON.stringify(semanticBare.moduleDiagnostics)}`);
+}
+
+const semanticBroken = analyzeTypeScriptSemanticSnapshot(tsApi, [{
+	path: 'src/broken.ts',
+	source: 'interface Broken { id: string ',
+}]);
+if (semanticBroken.complete || semanticBroken.syntaxValidated || semanticBroken.semanticChecked || semanticBroken.declarations.length !== 0) {
+	fail(`T04 semantic snapshot must fail closed on syntax error: ${JSON.stringify(semanticBroken)}`);
+}
+if (!semanticBroken.syntacticDiagnostics.length || !semanticBroken.diagnostics.some((d) => d.code === 'syntax-invalid')) {
+	fail(`T04 semantic syntax failure lacks diagnostics: ${JSON.stringify(semanticBroken)}`);
+}
+
+console.log('typescript-typecheck-smoke: T04 semantic facts PASSED (in-memory program, inheritance provenance, unresolved external uncertainty, syntax fail-closed)');
+
 
 
 console.log('typescript-typecheck-smoke: running a real `npx tsc --noEmit` against the emitted tree...');
