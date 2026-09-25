@@ -8,6 +8,7 @@ import { auditLegacyProviders } from '../handles/composition-next/legacy-baselin
 import { listApprovedCombinations, resolveApprovedCombination } from '../handles/composition-next/catalog.mjs';
 import { previewGeneration } from '../handles/composition-next/plan.mjs';
 import { describeResourceGeneration } from '../handles/composition-next/safety-profile.mjs';
+import { evaluateCompositionCertification, requiredEvidenceFor } from '../handles/composition-next/certification.mjs';
 
 function fakeProvider(id = 'java-spring', result = {}) {
   const calls = [];
@@ -186,4 +187,121 @@ test('T14 fail-closed labels stay bound to the real FastAPI and TypeScript resol
   const typescript = fs.readFileSync(new URL('../handles/providers/typescript-express/templates/resolver.ts.tmpl', import.meta.url), 'utf8');
   assert.match(typescript, /throw new HandleAccessDeniedError/);
   assert.match(typescript, /throw new HandleNotImplementedError/);
+});
+
+
+function evidence(kind, revision, providerId, combinationId, status = 'success') {
+  return { kind, revision, status, source: 'test-fixture', scope: { providerId, combinationId } };
+}
+
+test('T14 certification levels require provider-specific build evidence', () => {
+  assert.deepEqual(requiredEvidenceFor({ providerId: 'java-spring', level: 'preview-tested' }), ['composition-unit', 'package-install']);
+  assert.deepEqual(requiredEvidenceFor({ providerId: 'python-fastapi', level: 'build-tested' }), ['composition-unit', 'package-install', 'python-integration']);
+  assert.deepEqual(requiredEvidenceFor({ providerId: 'typescript-express', level: 'behavior-tested' }), ['composition-unit', 'package-install', 'typescript-compile', 'persistence-conformance', 'runtime-behavior']);
+});
+
+test('T14 certification can certify build-tested only with exact-revision scoped evidence', () => {
+  const revision = 'a'.repeat(40);
+  const combinationId = 'java-spring+jpa-hibernate+uuid';
+  const result = evaluateCompositionCertification({
+    providerId: 'java-spring',
+    persistenceId: 'jpa-hibernate',
+    keyType: 'uuid',
+    revision,
+    level: 'build-tested',
+    providerBaselineAudit: { ok: true },
+    generationPreview: {
+      status: 'ready',
+      applyAllowed: false,
+      providerId: 'java-spring',
+      combination: { id: combinationId },
+    },
+    evidence: [
+      evidence('composition-unit', revision, 'java-spring', combinationId),
+      evidence('package-install', revision, 'java-spring', combinationId),
+      evidence('java-integration', revision, 'java-spring', combinationId),
+    ],
+  });
+  assert.equal(result.status, 'certified');
+  assert.equal(result.certifiedLevel, 'build-tested');
+  assert.equal(result.applyAllowed, false);
+});
+
+test('T14 behavior-tested remains blocked without T10/T16-style persistence and runtime evidence', () => {
+  const revision = 'b'.repeat(40);
+  const combinationId = 'python-fastapi+sqlalchemy-sqlmodel+uuid';
+  const result = evaluateCompositionCertification({
+    providerId: 'python-fastapi',
+    persistenceId: 'sqlalchemy-sqlmodel',
+    keyType: 'uuid',
+    revision,
+    level: 'behavior-tested',
+    providerBaselineAudit: { ok: true },
+    generationPreview: {
+      status: 'ready',
+      applyAllowed: false,
+      providerId: 'python-fastapi',
+      combination: { id: combinationId },
+    },
+    evidence: [
+      evidence('composition-unit', revision, 'python-fastapi', combinationId),
+      evidence('package-install', revision, 'python-fastapi', combinationId),
+      evidence('python-integration', revision, 'python-fastapi', combinationId),
+    ],
+  });
+  assert.equal(result.status, 'blocked');
+  assert.deepEqual(result.blockers.filter((b) => b.code === 'missing-evidence').map((b) => b.kind), ['persistence-conformance', 'runtime-behavior']);
+});
+
+test('T14 certification rejects stale or cross-combination evidence and never authorizes apply', () => {
+  const revision = 'c'.repeat(40);
+  const combinationId = 'typescript-express+typeorm+uuid';
+  const result = evaluateCompositionCertification({
+    providerId: 'typescript-express',
+    persistenceId: 'typeorm',
+    keyType: 'uuid',
+    revision,
+    level: 'build-tested',
+    providerBaselineAudit: { ok: true },
+    generationPreview: {
+      status: 'ready',
+      applyAllowed: false,
+      providerId: 'typescript-express',
+      combination: { id: combinationId },
+    },
+    evidence: [
+      evidence('composition-unit', revision, 'typescript-express', combinationId),
+      evidence('package-install', 'd'.repeat(40), 'typescript-express', combinationId),
+      evidence('typescript-compile', revision, 'typescript-express', 'typescript-express+prisma+uuid'),
+    ],
+  });
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.applyAllowed, false);
+  assert.ok(result.blockers.some((b) => b.code === 'invalid-evidence' && b.kind === 'package-install'));
+  assert.ok(result.blockers.some((b) => b.code === 'invalid-evidence' && b.kind === 'typescript-compile'));
+});
+
+test('T14 certification rejects a preview that tries to smuggle apply permission', () => {
+  const revision = 'e'.repeat(40);
+  const combinationId = 'java-spring+jpa-hibernate+uuid';
+  const result = evaluateCompositionCertification({
+    providerId: 'java-spring',
+    persistenceId: 'jpa-hibernate',
+    keyType: 'uuid',
+    revision,
+    level: 'preview-tested',
+    providerBaselineAudit: { ok: true },
+    generationPreview: {
+      status: 'ready',
+      applyAllowed: true,
+      providerId: 'java-spring',
+      combination: { id: combinationId },
+    },
+    evidence: [
+      evidence('composition-unit', revision, 'java-spring', combinationId),
+      evidence('package-install', revision, 'java-spring', combinationId),
+    ],
+  });
+  assert.equal(result.status, 'blocked');
+  assert.ok(result.blockers.some((b) => b.code === 'unsafe-preview-contract'));
 });
