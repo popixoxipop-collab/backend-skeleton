@@ -104,3 +104,50 @@ test('comments cannot manufacture declarations',()=> {
 interface Real { x: string }`);
   assert.deepEqual(r.declarations.map(d=>d.name),['Real']);
 });
+
+test('ReadonlyArray, boolean literals and numeric literals project explicitly',()=> {
+  const r=projectTypeScriptSurface(`type Scores = ReadonlyArray<number>;
+type Flag = true | false;
+type Code = 1 | 2 | 3;`);
+  const scores=r.projections.find(x=>x.name==='Scores');
+  const flag=r.projections.find(x=>x.name==='Flag');
+  const code=r.projections.find(x=>x.name==='Code');
+  assert.deepEqual(scores.schema,{type:'array',items:{type:'number'}});
+  assert.deepEqual(flag.schema,{anyOf:[{const:true},{const:false}]});
+  assert.deepEqual(code.schema,{anyOf:[{const:1},{const:2},{const:3}]});
+});
+
+test('conditional generic alias stays partial and never claims runtime validation',()=> {
+  const r=projectTypeScriptSurface(`type Select<T> = T extends string ? A : B;`);
+  const p=r.projections[0];
+  assert.equal(p.status,'partial');
+  assert.equal(p.runtimeValidated,false);
+  assert.ok(p.unsupported.includes('generic-parameters'));
+  assert.ok(p.unsupported.includes('alias-type'));
+  assert.equal(r.runtimeValidated,false);
+  assert.equal(r.syntaxValidated,false);
+});
+
+test('string prose cannot manufacture declarations',()=> {
+  const r=projectTypeScriptSurface(`const prose = "interface Fake { x: string }";
+const prose2 = 'type Hidden = number';
+interface Real { id: string }`);
+  assert.deepEqual(r.declarations.map(d=>d.name),['Real']);
+});
+
+test('projection never executes target code',()=> {
+  globalThis.__BSKEL_T04_TYPE_SENTINEL__=0;
+  const r=projectTypeScriptSurface(`globalThis.__BSKEL_T04_TYPE_SENTINEL__=99;
+interface Real { id: string }`);
+  assert.equal(globalThis.__BSKEL_T04_TYPE_SENTINEL__,0);
+  assert.equal(r.projections[0].name,'Real');
+  delete globalThis.__BSKEL_T04_TYPE_SENTINEL__;
+});
+
+test('same input and options produce byte-identical JSON',()=> {
+  const src=`export interface User { id: string; name?: string; }`;
+  const a=projectTypeScriptSurface(src,{filePath:'src/user.ts'});
+  const b=projectTypeScriptSurface(src,{filePath:'src/user.ts'});
+  assert.equal(JSON.stringify(a),JSON.stringify(b));
+});
+
