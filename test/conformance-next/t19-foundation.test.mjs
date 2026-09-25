@@ -134,8 +134,8 @@ test('T19 external evidence registry is provenance-valid and never self-certifie
   assert.equal(summary.unique_vectors, 14);
   assert.equal(summary.direct_mappings, 12);
   assert.equal(summary.partial_mappings, 4);
-  assert.equal(summary.exact_head_ci_success_candidates, 3);
-  assert.equal(summary.nonterminal_ci_candidates, 4);
+  assert.equal(summary.exact_head_ci_success_candidates, 7);
+  assert.equal(summary.nonterminal_ci_candidates, 0);
   assert.equal(summary.job_observed_candidates, 1);
   assert.equal(summary.covered_vectors, 0);
 });
@@ -176,12 +176,20 @@ test('T19 external evidence cannot mark itself covered or certified', () => {
 
 test('T19 external evidence preserves nonterminal CI instead of turning it into success', () => {
   const bad = clone(externalCandidates);
-  const candidate = bad.candidates.find((x) => x.ci.status !== 'completed');
-  assert.ok(candidate);
+  const candidate = bad.candidates[0];
+  candidate.ci.status = 'queued';
   candidate.ci.conclusion = 'success';
   const verdict = validateExternalEvidenceCandidates(bad, vectors);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.errors.some((x) => x.includes('nonterminal CI must keep conclusion=null')));
+});
+
+test('T19 external evidence rejects CI observations bound to a different head than the candidate source', () => {
+  const bad = clone(externalCandidates);
+  bad.candidates[0].ci.head_sha = '0'.repeat(40);
+  const verdict = validateExternalEvidenceCandidates(bad, vectors);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must equal source.commit')));
 });
 
 
@@ -243,8 +251,9 @@ test('T19 external evidence job observations are bound to the candidate exact-he
 
 test('T19 external evidence refuses job-level observations on nonterminal CI', () => {
   const bad = clone(externalCandidates);
-  const target = bad.candidates.find((x) => x.ci.status !== 'completed');
-  assert.ok(target);
+  const target = bad.candidates[0];
+  target.ci.status = 'queued';
+  target.ci.conclusion = null;
   target.job_observations = [{
     run_id: target.ci.run_id,
     job_id: 1,
