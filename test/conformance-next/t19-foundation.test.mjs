@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { validateCorpusManifest, summarizeCorpus } from '../corpus-next/corpus.mjs';
 import { projectLegacyOracleCandidates, summarizeLegacyOracleProjection } from '../corpus-next/legacy-oracle-import.mjs';
 import { validateLicenseObservations, summarizeLicenseObservations } from '../corpus-next/license-observations.mjs';
+import { validateSourceGoldens, summarizeSourceGoldens } from '../corpus-next/source-goldens.mjs';
 import { validateNegativeCatalog, coverageSummary } from './catalog.mjs';
 import { validateExternalEvidenceCandidates, summarizeExternalEvidenceCandidates } from './external-candidates.mjs';
 
@@ -13,6 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'manifest.json'), 'utf8'));
 const legacyOracle = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'oracle-manifest.json'), 'utf8'));
 const licenseObservations = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'license-observations.json'), 'utf8'));
+const sourceGoldens = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corpus-next', 'source-goldens.json'), 'utf8'));
 const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, 'negative-vectors.json'), 'utf8'));
 const externalCandidates = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-evidence-candidates.json'), 'utf8'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -25,6 +27,7 @@ test('T19 corpus manifest is structurally and semantically valid without claimin
   assert.equal(summary.total, 5);
   assert.equal(summary.holdout, 0);
   assert.equal(summary.pending_review, 5);
+  assert.equal(summary.manual_goldens, 5);
   assert.equal(summary.certification_eligible, 0);
 });
 
@@ -283,6 +286,43 @@ test('T19 license observation status must agree with the presence of a pinned ro
   const verdict = validateLicenseObservations(bad, projection);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.errors.some((x) => x.includes('license file requires pinned-root-license-file-observed')));
+});
+
+test('T19 source-backed manual goldens cover five fixtures with 24 selected facts and no completeness claim', () => {
+  const verdict = validateSourceGoldens(sourceGoldens, corpus);
+  assert.deepEqual(verdict.errors, []);
+  assert.equal(verdict.ok, true);
+  const summary = summarizeSourceGoldens(sourceGoldens, corpus);
+  assert.equal(summary.goldens, 5);
+  assert.equal(summary.assertions, 24);
+  assert.equal(summary.completeness_claims, 0);
+  assert.equal(summary.certification_eligible, 0);
+});
+
+test('T19 source golden rejects a commit that differs from the corpus source', () => {
+  const bad = clone(sourceGoldens);
+  bad.goldens[0].source.commit = '0'.repeat(40);
+  const verdict = validateSourceGoldens(bad, corpus);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must match corpus entry')));
+});
+
+test('T19 source golden rejects assertion evidence that escapes its fixture root', () => {
+  const bad = clone(sourceGoldens);
+  bad.goldens[0].assertions[0].source_ref.path = 'test/fixtures/python-fastapi/backend/app/models.py';
+  const verdict = validateSourceGoldens(bad, corpus);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('must stay inside corpus fixture root')));
+});
+
+test('T19 source golden cannot claim completeness or self-certification', () => {
+  const bad = clone(sourceGoldens);
+  bad.goldens[0].completeness_claim = true;
+  bad.goldens[0].certification_eligible = true;
+  const verdict = validateSourceGoldens(bad, corpus);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('completeness_claim')));
+  assert.ok(verdict.errors.some((x) => x.includes('cannot self-certify')));
 });
 
 
