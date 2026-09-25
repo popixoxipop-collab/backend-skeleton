@@ -1,0 +1,281 @@
+{
+  "schema": "bskel.scale-ownership-policy/1",
+  "revision": "T00-03-R1",
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "beval": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
+  },
+  "case_insensitive_collision_check": true,
+  "default_rule": "deny writes outside track allowed_write_scopes; shared assets require named owner/change request",
+  "tracks": [
+    {
+      "id": "T00",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "integration/scale/**"
+      ]
+    },
+    {
+      "id": "T01",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "schemas/next/**",
+        "contracts/next/**",
+        "test/contract-next/**"
+      ]
+    },
+    {
+      "id": "T02",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/project-graph/**",
+        "test/project-graph/**"
+      ]
+    },
+    {
+      "id": "T03",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/capability-next/**",
+        "test/capability-next/**"
+      ]
+    },
+    {
+      "id": "T04",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/language/js-ts/**",
+        "test/language-js-ts/**"
+      ]
+    },
+    {
+      "id": "T05",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/language/jvm/**",
+        "test/language-jvm/**"
+      ]
+    },
+    {
+      "id": "T06",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/language/python/**",
+        "test/language-python/**"
+      ]
+    },
+    {
+      "id": "T07",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/language/ruby-php/**",
+        "test/language-ruby-php/**"
+      ]
+    },
+    {
+      "id": "T08",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/language/native-server/**",
+        "test/language-native-server/**"
+      ]
+    },
+    {
+      "id": "T09",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "contracts/reconciliation-next/**",
+        "test/reconciliation-next/**"
+      ]
+    },
+    {
+      "id": "T10",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "scanners/persistence-next/**",
+        "test/persistence-next/**"
+      ]
+    },
+    {
+      "id": "T11",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "adapters/http-legacy-next/**",
+        "test/http-legacy-next/**"
+      ]
+    },
+    {
+      "id": "T12",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**"
+      ]
+    },
+    {
+      "id": "T13",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "adapters/http-wave-bc/**",
+        "test/http-wave-bc/**"
+      ]
+    },
+    {
+      "id": "T14",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "handles/composition-next/**",
+        "test/provider-composition-next/**"
+      ]
+    },
+    {
+      "id": "T15",
+      "repository": "popixoxipop-collab/backend-decoder",
+      "allowed_write_scopes": [
+        "docs/next/**",
+        "lib/next/**",
+        "test/next/**"
+      ]
+    },
+    {
+      "id": "T16",
+      "repository": "popixoxipop-collab/Backend-evaluation",
+      "allowed_write_scopes": [
+        "docs/next-runtime/**",
+        "src/next-runtime/**",
+        "test/next-runtime/**"
+      ]
+    },
+    {
+      "id": "T17",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "adapters/game-next/**",
+        "test/game-next/**"
+      ]
+    },
+    {
+      "id": "T18",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "adapters/protocol-next/**",
+        "test/protocol-next/**"
+      ]
+    },
+    {
+      "id": "T19",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "evidence/next/**",
+        "test/conformance-next/**",
+        "test/corpus-next/**"
+      ]
+    },
+    {
+      "id": "T20",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "lib/trust-next/**",
+        "test/trust-next/**"
+      ]
+    },
+    {
+      "id": "T21",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "lib/artifact-store-next/**",
+        "lib/scan-scheduler-next/**",
+        "test/perf-next/**"
+      ]
+    },
+    {
+      "id": "T22",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "docs/scale-sdk/**",
+        "sdk/next/**",
+        "test/sdk-next/**"
+      ]
+    },
+    {
+      "id": "T23",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "allowed_write_scopes": [
+        "release/next/**",
+        "docs/scale-release/**",
+        ".github/workflows/scale-next-*.yml"
+      ]
+    }
+  ],
+  "shared_assets": [
+    {
+      "asset": "bskel stable CLI + dispatch",
+      "paths": [
+        "bin/bskel.mjs",
+        "scanners/index.mjs",
+        "scanners/registry.mjs"
+      ],
+      "owners": [
+        "T00"
+      ],
+      "worker_rule": "change-request only"
+    },
+    {
+      "asset": "existing schema + ContractRef/binding identity",
+      "paths": [
+        "schemas/**",
+        "docs/contract-identity.md"
+      ],
+      "owners": [
+        "T01",
+        "T00"
+      ],
+      "worker_rule": "RFC/golden-vector change-request"
+    },
+    {
+      "asset": "package manifests and lockfiles",
+      "paths": [
+        "package.json",
+        "package-lock.json"
+      ],
+      "owners": [
+        "T23",
+        "T20",
+        "T00"
+      ],
+      "worker_rule": "dependency/change-request only"
+    },
+    {
+      "asset": "repository workflows",
+      "paths": [
+        ".github/workflows/**"
+      ],
+      "owners": [
+        "T23",
+        "T00"
+      ],
+      "worker_rule": "plan/change-request; admin approval required"
+    },
+    {
+      "asset": "root product docs",
+      "paths": [
+        "README.md",
+        "CATALOG.md",
+        "DECISIONS.md",
+        "SKILL.md"
+      ],
+      "owners": [
+        "T22",
+        "T00"
+      ],
+      "worker_rule": "fragment/change-request"
+    }
+  ],
+  "submission_rule": {
+    "must_match_claim": true,
+    "must_use_latest_fencing_token": true,
+    "must_arrive_before_lease_expiry": true,
+    "touched_paths_must_be_claimed": true
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schema": "bskel.scale-ownership-audit/1",
+  "revision": "T00-03-R1",
+  "deviations": [
+    {
+      "work": "bskel#66",
+      "track": "T12",
+      "classification": "SPLIT_REQUIRED",
+      "observed_outside_policy": [
+        "scanners/adapters/typescript-nestjs.mjs"
+      ],
+      "reason": "`scanners/adapters/**` is live zero-registration executable code; T12 planned scope is `adapters/http-wave-a/**`/`test/http-wave-a/**`."
+    },
+    {
+      "work": "becoder#8",
+      "track": "T15",
+      "classification": "SPLIT_REQUIRED",
+      "observed_outside_policy": [
+        "package.json",
+        "lib/webgame-emit.mjs",
+        "lib/webgame-repair-manifest.mjs",
+        "renderers/r3f-vite-ts/**",
+        "README.md",
+        "COMPATIBILITY.md",
+        "ROADMAP.md"
+      ],
+      "reason": "T15 pre-freeze planned scope is `docs/next/**`,`lib/next/**`,`test/next/**`; product/package surfaces require later integration owners."
+    }
+  ],
+  "legacy_reconciliation": [
+    {
+      "work": "bskel#63",
+      "status": "FREEZE_RECONCILE",
+      "overlaps": [
+        "T02",
+        "T04",
+        "T17",
+        "T18"
+      ]
+    },
+    {
+      "work": "bskel#62",
+      "status": "FREEZE_RECONCILE",
+      "overlaps": [
+        "T19",
+        "T20",
+        "T23",
+        "beval runtime evidence"
+      ]
+    }
+  ]
+}

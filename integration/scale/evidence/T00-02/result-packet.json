@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-result-packet/1",
   "task_id": "T00-02",
-  "state": "SUBMITTED",
+  "state": "ACCEPTED_COORDINATION",
   "base_t00_commit": "6c35fe4887b9204ef2c78956dc6671b868e4d3c3",
   "findings": {
     "classified_work_items": 31,
@@ -18,5 +18,27 @@
     "T15 split required",
     "legacy Track A/C reconciliation not yet delivered"
   ],
-  "next_task": "T00-03 ownership/collision freeze may proceed read-only; T00-04 remains blocked."
+  "next_task": "T00-03 ownership/collision freeze may proceed read-only; T00-04 remains blocked.",
+  "t00_update": {
+    "conflict_map": [
+      "integration/scale/T00-02-conflict-map.json",
+      "integration/scale/T00-02-CONFLICT-MAP.md"
+    ],
+    "failure_causes_verified": {
+      "T12#66": [
+        "registry specificity ordering regression",
+        "missing conformance fixture",
+        "premature stable auto-registration"
+      ],
+      "T13#67": [
+        "branch-owned Hono assertion failure"
+      ],
+      "T09#83": [
+        "synthesized operation identity provenance/promotion failure"
+      ]
+    },
+    "browser_oracle": "PR #39 merged; baseline epoch 2",
+    "repair_loop": "PR #40 reconstructed on current beval main; HOLD_VERIFY",
+    "note": "Coordination classification accepted; this is not merge approval."
+  }
 }

@@ -1,0 +1,23 @@
+{
+  "schema": "bskel.scale-claim-result/1",
+  "claim_id": "T00-03-current",
+  "task_id": "T00-03",
+  "repository": "popixoxipop-collab/backend-skeleton",
+  "branch": "scale/T00/bootstrap-baseline",
+  "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+  "fencing_token": 3,
+  "submitted_at": "2026-09-25T01:25:00Z",
+  "touched_paths": [
+    "integration/scale/ownership-policy-R1.json",
+    "integration/scale/lease-ledger-R1.json",
+    "integration/scale/lease-verifier.mjs",
+    "integration/scale/test-lease-verifier.mjs",
+    "integration/scale/ownership-audit-R1.json",
+    "integration/scale/T00-03-LEASE-PROTOCOL.md",
+    "integration/scale/evidence/T00-03/result-packet.json",
+    "integration/scale/evidence/T00-03/negative-test-report.json",
+    "integration/scale/evidence/T00-03/test-output.txt",
+    "integration/scale/evidence/T00-03/test-exit-code.txt",
+    "integration/scale/evidence/T00-03/submission-packet.json"
+  ]
+}
