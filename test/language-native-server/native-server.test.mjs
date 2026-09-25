@@ -636,3 +636,15 @@ test('runner: a trusted profile can explicitly widen one bound while all request
 	});
 	assert.equal(response.requestId, 'profile-widened');
 });
+
+
+test('runner: profile cannot advertise an input ceiling beyond the worker bootstrap reader', () => {
+	assert.throws(
+		() => runNativeServerWorker(request({ requestId: 'bootstrap-expansion' }), {
+			profileLimits: { maxInputBytes: 8 * 1024 * 1024 },
+		}),
+		(err) => err instanceof NativeWorkerRunError
+			&& err.code === 'WORKER_PROFILE_UNSUPPORTED'
+			&& /maxInputBytes/.test(err.message),
+	);
+});
