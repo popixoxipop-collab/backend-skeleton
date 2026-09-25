@@ -77,3 +77,31 @@ test('bindProtocolItemRef cannot create a reference to a non-existent item', () 
     itemId: 'graphql-operation:not-present',
   }), /item_id does not exist/);
 });
+
+
+test('contract object view cannot disagree with the exact referenced contract bytes', () => {
+  const context = protocolContext(importProtoSource('syntax = "proto3"; service Echo { rpc Ping (A) returns (B); }'));
+  const reference = protocolItem(context, { family: 'grpc', plane: 'methods' });
+  const spoofed = structuredClone(context.contract);
+  spoofed.planes.grpc.methods[0].name = 'SpoofedPing';
+  assert.throws(
+    () => assertProtocolItemRefBound({
+      reference,
+      contract: spoofed,
+      contractBytes: context.contract_bytes,
+    }),
+    /context object does not match exact contract bytes/,
+  );
+});
+
+test('protocol contract item refs require application/json media type', () => {
+  const context = protocolContext(importGraphqlSDL('type Query { ping: String! }'));
+  const reference = protocolItem(context, { family: 'graphql', plane: 'operations' });
+  assert.throws(
+    () => assertProtocolItemRefShape({
+      ...reference,
+      contract: { ...reference.contract, media_type: 'text/plain' },
+    }),
+    /media_type must be application\/json/,
+  );
+});
