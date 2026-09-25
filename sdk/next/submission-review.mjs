@@ -69,7 +69,6 @@ export function reviewAdapterSubmission({
 		}
 	}
 
-	const hasBlocked = diagnostics.some((item) => item.severity === 'blocked');
 	const hasSupportConflict = supportDiagnostics.some((item) => item.status === 'conflict');
 	const supportEvidenceMissing = !Array.isArray(explanations) || explanations.length === 0;
 
