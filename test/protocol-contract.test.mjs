@@ -110,3 +110,42 @@ test('source changes alter source hash', () => {
   const b = importGraphqlSDL('type Query { ping: String! }');
   assert.notEqual(a.source_hash, b.source_hash);
 });
+
+
+test('protobuf client and bidi streaming flags remain protocol-native', () => {
+  const scan = importProtoSource('service S { rpc Upload (stream Chunk) returns (Ack); rpc Chat (stream Msg) returns (stream Msg); }');
+  const byName = Object.fromEntries(scan.grpc.methods.map((x) => [x.name, x]));
+  assert.deepEqual([byName.Upload.client_streaming, byName.Upload.server_streaming], [true, false]);
+  assert.deepEqual([byName.Chat.client_streaming, byName.Chat.server_streaming], [true, true]);
+});
+
+test('GraphQL arguments and directive arguments are not emitted as fields', () => {
+  const scan = importGraphqlSDL('type Query { user(id: ID!, limit: Int): User @deprecated(reason: "x") } type User { id: ID! }');
+  assert.deepEqual(scan.graphql.fields.filter((x) => x.parent === 'Query').map((x) => x.name), ['user']);
+  assert.equal(scan.graphql.fields.some((x) => x.name === 'id' && x.parent === 'Query'), false);
+  assert.equal(scan.graphql.fields.some((x) => x.name === 'reason'), false);
+});
+
+test('AsyncAPI 3 operations preserve action instead of an HTTP verb', () => {
+  const scan = importAsyncApiDocument({
+    asyncapi: '3.0.0',
+    channels: { orders: { address: 'orders' } },
+    operations: {
+      sendOrder: {
+        action: 'send',
+        channel: { $ref: '#/channels/orders' },
+        messages: [{ $ref: '#/components/messages/Order' }],
+      },
+    },
+    components: { messages: { Order: {} } },
+  });
+  assert.deepEqual(scan.asyncapi.operations.map((x) => [x.operation_id, x.direction, x.channel]), [
+    ['sendOrder', 'send', 'orders'],
+  ]);
+});
+
+test('empty WebSocket manifest is blocked', () => {
+  const scan = importWebSocketManifest({});
+  assert.equal(scan.completeness.status, 'blocked');
+  assert.equal(scan.warnings.at(-1).code, 'WEBSOCKET_MANIFEST_EMPTY');
+});
