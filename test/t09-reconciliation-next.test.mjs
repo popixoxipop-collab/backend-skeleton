@@ -2,3 +2,4 @@
 import './reconciliation-next/decision-graph.test.mjs';
 import './reconciliation-next/openapi-integration.test.mjs';
 import './reconciliation-next/openapi-context.test.mjs';
+import './reconciliation-next/differential.test.mjs';
