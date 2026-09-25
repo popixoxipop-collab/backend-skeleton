@@ -133,3 +133,17 @@ The exporter must eventually provide:
 8. cleanup and timeout behavior.
 
 Even after those are available, T17 structural normalization remains distinct from T16 runtime behavior evidence.
+
+
+## Exact source-input provenance
+
+Native export envelope revision 2 separates two identities:
+
+1. the exact generated export JSON artifact (`game-native-export`); and
+2. the exact input source artifacts (`game-native-source`).
+
+A `source-export` must include at least one `source_inputs[]` item. Each item records a repo-relative POSIX path, source role, media type, SHA-256 and byte length. The path is metadata for location; the byte digest is the artifact identity.
+
+A future Unity `.unity`, Godot `.tscn`, or Unreal/T08 source producer must create refs from the actual source bytes. Reformatting or changing those bytes creates a different source artifact even if a later parser would derive the same structure.
+
+The normalized native structure carries these refs unchanged while keeping `source_structure_verified=false`. An exact source ref proves which bytes were named; it does not by itself prove the parser or exporter interpreted them correctly.
