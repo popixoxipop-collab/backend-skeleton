@@ -112,6 +112,20 @@ test('reference-only internal validation can pass only when explicitly allowing 
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
+test('a structurally valid FAIL evidence pack forces certification to fail', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
+  try {
+    const input=passingInput(root);
+    input.evidence.verdict='fail';
+    input.evidence.commands=[{argv:'node product-test.mjs',status:'executed',exit_code:1}];
+    input.evidence.assertions=[{id:'product-behavior',required:true,status:'failed'}];
+    const report=assembleCertification(input,{artifact_root:root,require_holdout:false});
+    assert.equal(report.gates.evidence.ok,true,report.gates.evidence.errors.join('\n'));
+    assert.equal(report.verdict,'fail');
+    assert.ok(report.reasons.some((x)=>x.includes('failed product/conformance run')));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
 test('holdout absence never downgrades a real conformance failure into blocked', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
   try {
