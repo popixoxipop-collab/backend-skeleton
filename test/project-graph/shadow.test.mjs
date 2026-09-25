@@ -74,3 +74,19 @@ test('shadow execution refuses a plan whose selected adapter is unavailable', ()
     (err) => err?.code === 'PROJECT_ADAPTER_UNAVAILABLE',
   );
 });
+
+
+test('shadow execution rejects marker drift instead of running a stale graph', () => {
+  const root = fixture({
+    'app/pyproject.toml': '[project]\ndependencies = ["fastapi>=0.100"]\n',
+    'app/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+  });
+  const graph = buildRegisteredProjectGraph(root);
+  fs.appendFileSync(path.join(root, 'app', 'pyproject.toml'), '# drift\n');
+  assert.throws(
+    () => executeProjectScanPlan({ repoRoot: root, graph, terms: [], adapters: ADAPTERS }),
+    (err) => err?.code === 'PROJECT_GRAPH_STALE' &&
+      err?.marker_path === 'app/pyproject.toml' &&
+      err?.expected_digest !== err?.actual_digest,
+  );
+});
