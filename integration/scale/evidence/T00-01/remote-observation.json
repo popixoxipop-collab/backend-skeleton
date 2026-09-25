@@ -8,11 +8,23 @@
       "default_branch": "main",
       "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
       "artifacts": [
-        {"path":"package.json","git_blob_sha":"735a10bf6c274acb22759a620d57b3c5f2f69068"},
-        {"path":"package-lock.json","git_blob_sha":"34da67575f01e97724c4b5ee944b67ae4435e003"},
-        {"path":".github/workflows/ci.yml","git_blob_sha":"11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089"}
+        {
+          "path": "package.json",
+          "git_blob_sha": "735a10bf6c274acb22759a620d57b3c5f2f69068"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "34da67575f01e97724c4b5ee944b67ae4435e003"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089"
+        }
       ],
-      "exact_head_ci": {"run_id":36040486375,"conclusion":"success"},
+      "exact_head_ci": {
+        "run_id": 36040486375,
+        "conclusion": "success"
+      },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean"
     },
@@ -21,26 +33,59 @@
       "default_branch": "main",
       "head_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
       "artifacts": [
-        {"path":"package.json","git_blob_sha":"fd1e7dbe09cb089ae2ab55b44a1731e55654e40b"},
-        {"path":"package-lock.json","git_blob_sha":"043a1fe96bd338fe81909be195519b8cf402d66a"},
-        {"path":".github/workflows/ci.yml","git_blob_sha":"f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4"}
+        {
+          "path": "package.json",
+          "git_blob_sha": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "043a1fe96bd338fe81909be195519b8cf402d66a"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4"
+        }
       ],
-      "exact_head_ci": {"run_id":36070647695,"conclusion":"success"},
+      "exact_head_ci": {
+        "run_id": 36070647695,
+        "conclusion": "success"
+      },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean"
     },
     {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "head_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
       "artifacts": [
-        {"path":"package.json","git_blob_sha":"714575e9cbaff966e4fc00138da6317ef84ac2a4"},
-        {"path":"package-lock.json","git_blob_sha":"a83092968a5833883ac74c5e3aad5c80f117d006"},
-        {"path":".github/workflows/ci.yml","git_blob_sha":"90dd1cc1317a8d3f3c619facf5c4346834fb7c15"}
+        {
+          "path": "package.json",
+          "git_blob_sha": "714575e9cbaff966e4fc00138da6317ef84ac2a4"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "a83092968a5833883ac74c5e3aad5c80f117d006"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "8f5aeb2110101f84d97a305259bed54ee8d9ddbc"
+        }
       ],
-      "exact_head_ci": {"run_id":36054404469,"conclusion":"success"},
+      "exact_head_ci": {
+        "run_id": 36080236800,
+        "status": "queued",
+        "conclusion": null
+      },
       "dirty": null,
-      "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean"
+      "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",
+      "merge_event": {
+        "pr": 39,
+        "head_sha": "00792c229fc3d67ec5d4ff248aaf720f7d09defa",
+        "merge_commit_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+        "merged_at": "2026-09-25T01:02:11Z",
+        "external_exact_source_verification": "backend-decoder run #19 success per merged PR body"
+      }
     }
-  ]
+  ],
+  "rebaseline_epoch": 2
 }
