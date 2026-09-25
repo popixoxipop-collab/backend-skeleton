@@ -54,10 +54,17 @@ function graph(endpoints = [endpoint()], { context = true } = {}) {
   };
 }
 
-function runtimeReport(entries = [{ endpointKey: '0:0', state: 'observed', reason: 'runtime-route-exact-match' }], overrides = {}) {
+function runtimeReport(entries = [{
+  endpointKey: '0:0',
+  state: 'observed',
+  reason: 'runtime-route-exact-match',
+  expected: { operationId: 'findWidget', method: 'GET', path: '/widgets' },
+}], overrides = {}) {
   return {
     version: 'bskel.runtime-route-reconciliation/0-draft',
     state: 'ready',
+    sourceRef,
+    openapiRef,
     runtimeRef,
     endpoints: entries,
     ...overrides,
@@ -155,8 +162,18 @@ test('readiness counts are aggregated without changing endpoint decisions', () =
     ]),
     binding: binding(),
     runtimeReport: runtimeReport([
-      { endpointKey: '0:0', state: 'observed', reason: 'runtime-route-exact-match' },
-      { endpointKey: '0:1', state: 'observed', reason: 'runtime-route-exact-match' },
+      {
+        endpointKey: '0:0',
+        state: 'observed',
+        reason: 'runtime-route-exact-match',
+        expected: { operationId: 'findWidget', method: 'GET', path: '/widgets' },
+      },
+      {
+        endpointKey: '0:1',
+        state: 'observed',
+        reason: 'runtime-route-exact-match',
+        expected: { operationId: 'findWidget', method: 'GET', path: '/widgets' },
+      },
     ]),
   });
   assert.deepEqual(report.counts, {
@@ -178,4 +195,54 @@ test('readiness rejects a foreign runtime report version even when it claims obs
   });
   assert.equal(report.endpoints[0].runtimeRouteReady, false);
   assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-version-unsupported');
+});
+
+
+test('runtime readiness rejects a report bound to a different source ref', () => {
+  const report = buildPromotionReadinessReport({
+    graph: graph(),
+    binding: binding(),
+    runtimeReport: runtimeReport(undefined, { sourceRef: 'scan:sha256:other' }),
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-source-ref-mismatch');
+});
+
+test('runtime readiness rejects a report bound to a different OpenAPI ref', () => {
+  const report = buildPromotionReadinessReport({
+    graph: graph(),
+    binding: binding(),
+    runtimeReport: runtimeReport(undefined, { openapiRef: 'openapi:sha256:other' }),
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-openapi-ref-mismatch');
+});
+
+test('runtime readiness rejects an observed endpoint whose expected route was tampered', () => {
+  const report = buildPromotionReadinessReport({
+    graph: graph(),
+    binding: binding(),
+    runtimeReport: runtimeReport([{
+      endpointKey: '0:0',
+      state: 'observed',
+      reason: 'runtime-route-exact-match',
+      expected: { operationId: 'findWidget', method: 'GET', path: '/other' },
+    }]),
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-expected-route-mismatch');
+});
+
+test('runtime readiness rejects an observed endpoint missing its expected route binding', () => {
+  const report = buildPromotionReadinessReport({
+    graph: graph(),
+    binding: binding(),
+    runtimeReport: runtimeReport([{
+      endpointKey: '0:0',
+      state: 'observed',
+      reason: 'runtime-route-exact-match',
+    }]),
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-expected-route-mismatch');
 });
