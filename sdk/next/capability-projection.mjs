@@ -83,7 +83,7 @@ export function projectFiveStateCapabilities({
 					...(record.reason ? [record.reason] : []),
 					`source:${record.source}`,
 				],
-				nextActions: stringArray(nextActions[record.name] ?? [], `nextActions.${record.name}`),
+				nextActions: stringArray(Object.hasOwn(nextActions, record.name) ? nextActions[record.name] : [], `nextActions.${record.name}`),
 			})),
 		fields: [],
 		notes: [
