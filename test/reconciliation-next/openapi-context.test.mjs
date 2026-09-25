@@ -24,7 +24,7 @@ function pipeline(doc, endpoint, { pathPrefix = null } = {}) {
     sourceByEndpoint: new Map([['0:0', endpoint]]),
     ...refs,
   });
-  const context = buildOpenApiContext({ doc, index, openapiRef: refs.openapiRef });
+  const context = buildOpenApiContext({ doc, index, reconciliation, openapiRef: refs.openapiRef });
   return { index, context, base, graph: applyOpenApiContext(base, context) };
 }
 
@@ -163,4 +163,121 @@ test('malformed document-level security is not treated as absent/public', () => 
   const context = buildOpenApiContext({ doc, index, openapiRef: refs.openapiRef });
   assert.equal(context.rootSecurity.state, 'unknown');
   assert.equal(context.rootSecurity.reason, 'malformed-document-security');
+});
+
+
+test('matched operation with no request body narrows request schema from unknown to absent', () => {
+  const { base, graph } = pipeline({
+    openapi: '3.1.0',
+    paths: { '/widgets': { get: { operationId: 'findWidgets' } } },
+  }, {
+    verb: 'GET', path: '/widgets', operationId: 'findWidgets', operationIdSource: 'source', method: 'findWidgets',
+  });
+
+  assert.equal(field(base, 'api.request.schema').state, 'unknown');
+  assert.equal(field(graph, 'api.request.schema').state, 'absent');
+  assert.equal(field(graph, 'api.request.schema').reason, 'request-body-absent');
+});
+
+test('request body with only multipart narrows request schema to skipped media type', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/upload': {
+        post: {
+          operationId: 'upload',
+          requestBody: {
+            content: {
+              'multipart/form-data': { schema: { type: 'object' } },
+            },
+          },
+        },
+      },
+    },
+  }, {
+    verb: 'POST', path: '/upload', operationId: 'upload', operationIdSource: 'source', method: 'upload',
+  });
+
+  assert.equal(field(graph, 'api.request.schema').state, 'skipped');
+  assert.equal(field(graph, 'api.request.schema').reason, 'request-json-media-type-absent');
+});
+
+test('request application/json entry without schema narrows request schema to absent', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        post: {
+          operationId: 'createWidget',
+          requestBody: { content: { 'application/json': {} } },
+        },
+      },
+    },
+  }, {
+    verb: 'POST', path: '/widgets', operationId: 'createWidget', operationIdSource: 'source', method: 'createWidget',
+  });
+
+  assert.equal(field(graph, 'api.request.schema').state, 'absent');
+  assert.equal(field(graph, 'api.request.schema').reason, 'request-json-schema-absent');
+});
+
+test('success response with only text/csv narrows response schema to skipped media type', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/report': {
+        get: {
+          operationId: 'report',
+          responses: {
+            '200': { description: 'csv', content: { 'text/csv': { schema: { type: 'string' } } } },
+          },
+        },
+      },
+    },
+  }, {
+    verb: 'GET', path: '/report', operationId: 'report', operationIdSource: 'source', method: 'report',
+  });
+
+  assert.equal(field(graph, 'api.response.schema').state, 'skipped');
+  assert.equal(field(graph, 'api.response.schema').reason, 'response-json-media-type-absent');
+});
+
+test('204 success response with no content narrows response schema to absent', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        delete: {
+          operationId: 'deleteWidget',
+          responses: { '204': { description: 'deleted' } },
+        },
+      },
+    },
+  }, {
+    verb: 'DELETE', path: '/widgets', operationId: 'deleteWidget', operationIdSource: 'source', method: 'deleteWidget',
+  });
+
+  assert.equal(field(graph, 'api.response.schema').state, 'absent');
+  assert.equal(field(graph, 'api.response.schema').reason, 'response-json-schema-absent');
+});
+
+test('default error response with non-JSON content narrows error schema to skipped media type', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        get: {
+          operationId: 'findWidgets',
+          responses: {
+            default: { description: 'error', content: { 'text/plain': { schema: { type: 'string' } } } },
+          },
+        },
+      },
+    },
+  }, {
+    verb: 'GET', path: '/widgets', operationId: 'findWidgets', operationIdSource: 'source', method: 'findWidgets',
+  });
+
+  assert.equal(field(graph, 'api.error.schema').state, 'skipped');
+  assert.equal(field(graph, 'api.error.schema').reason, 'error-json-media-type-absent');
 });
