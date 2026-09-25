@@ -23,7 +23,7 @@ node --test test/conformance-next/t19-foundation.test.mjs
 
 Environment used for the mirror run: Node `v22.16.0`.
 
-Observed result: 8 tests, 8 pass, 0 fail, 0 skipped.
+Initial observed result: 8 tests, 8 pass, 0 fail, 0 skipped.
 
 The branch contents were then re-read through the GitHub API:
 - corpus entries: 5
@@ -45,3 +45,29 @@ T19 does not edit `package.json` or `.github/workflows/**` because those are int
 - No real-repo corpus item has been independently reviewed for certification in this slice.
 - No negative vector is marked covered yet.
 - No product support status, runtime certification, release approval, or framework score changes because of this branch.
+
+
+## Follow-up exact-branch verification
+
+After adding the evidence-candidate state and conservative mappings, the exact GitHub branch artifacts were copied byte-for-byte through the T19 tool path to EOE and executed with Node `v26.7.0`.
+
+Command:
+
+```bash
+node --test t19_exact_remote.test.mjs
+```
+
+Observed result:
+- tests: 9
+- pass: 9
+- fail: 0
+- skipped: 0
+
+Current negative-vector state at that verification point:
+- specified: 79
+- evidence-candidate: 11
+- covered: 0
+
+An evidence-candidate is **not** certification. It only records that an existing regression appears relevant enough for independent QA follow-up. Promotion to `covered` requires at least one implementation reference and an exact execution reference; the validator rejects a promotion without the execution reference.
+
+The 11 candidates include narrow evidence for binding serialization/Unicode identity, JavaScript Express mount-cycle termination, selected cross-feature/DB/generation/package-install regressions, a GitHub-action install-script guard, and selected Spring authorization parser fail-closed behavior. Each candidate carries a scope note where a local regression must not be generalized to all frameworks or runtime enforcement.
