@@ -18,6 +18,8 @@ import {
 	evaluateLegacyCommandPolicy,
 	evaluateLegacyProviderPolicy,
 	buildLegacyCompatibilityView,
+	policyDiagnostics,
+	renderPolicyExplain,
 } from '../../scanners/capability-next/index.mjs';
 
 test('five capability statuses are explicit and stable', () => {
@@ -256,4 +258,33 @@ test('real FastAPI remains blocked for contract emit until explicit OpenAPI evid
 		command: 'contract emit',
 		externalCapabilities: { 'api.operations': external },
 	}).allowed, true);
+});
+
+
+test('policy diagnostics are structured and keep missing distinct from unsupported', () => {
+	const missing = evaluateCapabilityPolicy({ policyId: 'x', requirements: [{ capability: 'api.security.enforced' }] });
+	assert.deepEqual(policyDiagnostics(missing).map((x) => x.code), ['CAPABILITY_MISSING']);
+	const unsupported = capabilityRecord({ name: 'api.security.enforced', status: 'unsupported', reason: 'no enforcement evidence' });
+	const rejected = evaluateCapabilityPolicy({
+		policyId: 'x',
+		capabilities: { 'api.security.enforced': unsupported },
+		requirements: [{ capability: 'api.security.enforced' }],
+	});
+	assert.deepEqual(policyDiagnostics(rejected).map((x) => x.code), ['CAPABILITY_STATUS_REJECTED']);
+});
+
+test('policy explain is deterministic and never turns a blocked result into advice to bypass evidence', () => {
+	const result = evaluateCapabilityPolicy({ policyId: 'emit', requirements: [{ capability: 'api.operations' }] });
+	const text = renderPolicyExplain(result);
+	assert.match(text, /^policy emit: blocked/);
+	assert.match(text, /CAPABILITY_MISSING/);
+	assert.match(text, /api\.operations/);
+	assert.doesNotMatch(text, /force|ignore|bypass/i);
+});
+
+test('allowed policy explain is compact and contains no fabricated evidence', () => {
+	const cap = capabilityRecord({ name: 'api.routes', status: 'supported', evidenceRefs: ['fixture:routes'] });
+	const result = evaluateCapabilityPolicy({ policyId: 'scan', capabilities: { 'api.routes': cap }, requirements: [{ capability: 'api.routes' }] });
+	assert.equal(renderPolicyExplain(result), 'policy scan: allowed');
+	assert.deepEqual(policyDiagnostics(result), []);
 });

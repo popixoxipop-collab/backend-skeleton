@@ -25,3 +25,5 @@ export {
 	evaluateLegacyProviderPolicy,
 	buildLegacyCompatibilityView,
 } from './compatibility.mjs';
+
+export { policyDiagnostics, renderPolicyExplain } from './diagnostics.mjs';
