@@ -1,0 +1,57 @@
+{
+  "schema": "bskel.scale-ownership-policy/1",
+  "revision": "T00-03-r1",
+  "tracks": {
+    "T00": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["integration/scale/**"]},
+    "T01": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["schemas/next/**","contracts/next/**","test/contract-next/**"]},
+    "T02": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/project-graph/**","test/project-graph/**"]},
+    "T03": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/capability-next/**","test/capability-next/**"]},
+    "T04": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/language/js-ts/**","test/language-js-ts/**"]},
+    "T05": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/language/jvm/**","test/language-jvm/**"]},
+    "T06": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/language/python/**","test/language-python/**"]},
+    "T07": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/language/ruby-php/**","test/language-ruby-php/**"]},
+    "T08": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/language/native-server/**","test/language-native-server/**"]},
+    "T09": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["contracts/reconciliation-next/**","test/reconciliation-next/**"]},
+    "T10": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["scanners/persistence-next/**","test/persistence-next/**"]},
+    "T11": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["adapters/http-legacy-next/**","test/http-legacy-next/**"]},
+    "T12": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["adapters/http-wave-a/**","test/http-wave-a/**"]},
+    "T13": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["adapters/http-wave-bc/**","test/http-wave-bc/**"]},
+    "T14": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["handles/composition-next/**","test/provider-composition-next/**"]},
+    "T15": {"repo":"popixoxipop-collab/backend-decoder","allowed_scopes":["lib/next/**","test/next/**","docs/next/**"]},
+    "T16": {"repo":"popixoxipop-collab/Backend-evaluation","allowed_scopes":["lib/next-runtime/**","test/next-runtime/**","docs/next-runtime/**"]},
+    "T17": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["adapters/game-next/**","test/game-next/**"]},
+    "T18": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["adapters/protocol-next/**","test/protocol-next/**"]},
+    "T19": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["test/corpus-next/**","test/conformance-next/**","evidence/next/**"]},
+    "T20": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["lib/trust-next/**","test/trust-next/**"]},
+    "T21": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["lib/artifact-store-next/**","lib/scan-scheduler-next/**","test/perf-next/**"]},
+    "T22": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["sdk/next/**","docs/scale-sdk/**","test/sdk-next/**"]},
+    "T23": {"repo":"popixoxipop-collab/backend-skeleton","allowed_scopes":["release/next/**","docs/scale-release/**"]}
+  },
+  "scope_amendments": [
+    {
+      "track":"T16",
+      "plan_scope":"src/next-runtime/**",
+      "policy_scope":"lib/next-runtime/**",
+      "reason":"Backend-evaluation uses lib/ as its runtime source tree; the amendment preserves an isolated next-runtime namespace instead of inventing a parallel src/ tree. Test/docs scopes are unchanged."
+    },
+    {
+      "track":"T23",
+      "plan_scope":".github/workflows/scale-next-*.yml",
+      "policy_scope":"change-request-only in r1",
+      "reason":"Workflow files are reserved hot paths during pre-freeze parallel work; T23 may propose but not directly lease them before T00-04."
+    }
+  ],
+  "reserved_hot_paths": [
+    "package.json",
+    "package-lock.json",
+    ".github/**",
+    "bin/**",
+    "scanners/registry.mjs",
+    "scanners/index.mjs",
+    "scanners/capabilities.mjs",
+    "schemas/adapter.schema.json",
+    "contracts/openapi.mjs",
+    "schemas/feature-contract.schema.json"
+  ],
+  "reserved_policy": "No track may claim a reserved hot path under r1. T00/T23 may integrate it only through an explicit post-T00-04 change request and a new ownership-policy revision."
+}

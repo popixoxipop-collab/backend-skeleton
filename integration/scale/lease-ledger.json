@@ -1,0 +1,7 @@
+{
+  "schema": "bskel.scale-lease-ledger/1",
+  "policy_revision": "T00-03-r1",
+  "last_fencing_token": {},
+  "claims": [],
+  "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim."
+}
