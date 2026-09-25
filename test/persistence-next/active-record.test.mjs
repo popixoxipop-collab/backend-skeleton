@@ -72,3 +72,35 @@ test('provider detects app/models and scans repository-relative source refs', ()
 	const ir=scanActiveRecordPersistence(root);
 	assert.equal(ir.entities[0].source_refs[0].file,'app/models/user.rb');
 });
+
+
+test('ActiveRecord association-like calls inside methods are not class-level persistence facts', () => {
+	const ir=parseActiveRecordModels([{file:'app/models/user.rb',text:`
+class User < ApplicationRecord
+  self.table_name = "users"
+  self.primary_key = "id"
+
+  def debug_relation
+    belongs_to :not_a_model_relation, class_name: "Ghost", foreign_key: "ghost_id"
+  end
+end
+`}]);
+	assert.equal(ir.entities[0].relations.length,0);
+	assert.deepEqual(ir.entities[0].fields.map((field)=>field.name),['id']);
+});
+
+test('ActiveRecord table/key assignments inside methods cannot override class-level facts', () => {
+	const ir=parseActiveRecordModels([{file:'app/models/user.rb',text:`
+class User < ApplicationRecord
+  self.table_name = "users"
+  self.primary_key = "id"
+
+  def mutate_metadata
+    self.table_name = "wrong"
+    self.primary_key = "wrong_id"
+  end
+end
+`}]);
+	assert.equal(ir.entities[0].table.name,'users');
+	assert.deepEqual(ir.entities[0].primary_key.columns,['id']);
+});
