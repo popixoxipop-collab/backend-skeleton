@@ -98,7 +98,7 @@ export function renderSupportEvidenceMatrixMarkdown(matrix) {
 	}
 	const header = ['Adapter', ...matrix.capabilityNames];
 	const lines = [
-		'# Support matrix',
+		'# Support evidence matrix',
 		'',
 		escapeMarkdown(matrix.note),
 		'',
