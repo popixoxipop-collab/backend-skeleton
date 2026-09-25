@@ -4,3 +4,4 @@ import './reconciliation-next/openapi-integration.test.mjs';
 import './reconciliation-next/openapi-context.test.mjs';
 import './reconciliation-next/differential.test.mjs';
 import './reconciliation-next/evidence-binding.test.mjs';
+import './reconciliation-next/runtime-routes.test.mjs';
