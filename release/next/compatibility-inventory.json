@@ -2,13 +2,18 @@
   "schema": "bskel.scale-release-compatibility/1",
   "task_id": "T23-01",
   "captured_on": "2026-09-25",
-  "baseline_dependency": {
+  "coordination_baseline": {
+    "source": "T00-01 epoch-3 draft PR #97",
     "task_id": "T00-01",
-    "pull_request": 65,
-    "head_sha": "48efe1ca5f8a94a6fa71d85563ffc3762ff6410e",
     "state": "SUBMITTED",
     "accepted": false,
-    "note": "T23 may prepare release artifacts, but promotion/default-writer changes remain blocked until T00-01 is independently accepted."
+    "head_sha": "84005d6b1d0510929278b3286c8f3d06c26f464d",
+    "repositories": {
+      "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+    },
+    "note": "Coordination baseline is submitted, not accepted. Release/default-writer changes remain blocked."
   },
   "repositories": [
     {
@@ -16,12 +21,15 @@
       "repo": "popixoxipop-collab/backend-skeleton",
       "default_branch": "main",
       "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "coordination_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
       "package": {
         "name": "backend-skeleton",
         "version": "1.9.0",
         "node_engine": ">=18",
         "bins": ["bskel"],
         "pack_test": "npm run test:pack",
+        "package_json_blob": "735a10bf6c274acb22759a620d57b3c5f2f69068",
+        "workflow_blob": "11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089",
         "files": ["bin/", "lib/", "contracts/", "scanners/", "handles/", "new/", "stack/", "patterns/", "rules/", "schemas/", "scripts/preflight-base-ref.sh", "action.yml"]
       },
       "compatibility_surfaces": [
@@ -31,19 +39,22 @@
         "handles providers/templates",
         "database introspection/DDL/ERD runtime assets"
       ],
-      "historical_exact_head_ci": {"workflow": "CI", "run_id": 36040486375, "conclusion": "success"}
+      "exact_head_ci": {"workflow": "CI", "run_id": 36040486375, "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6", "status": "completed", "conclusion": "success"}
     },
     {
       "role": "becoder",
       "repo": "popixoxipop-collab/backend-decoder",
       "default_branch": "main",
-      "head_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "coordination_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
       "package": {
         "name": "backend-decoder",
         "version": "0.5.0",
         "node_engine": ">=18",
         "bins": ["becoder"],
         "pack_test": "npm run test:pack",
+        "package_json_blob": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b",
+        "workflow_blob": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4",
         "files": ["COMPATIBILITY.md", "DESIGN.md", "ROADMAP.md", "docs/", "bin/", "lib/", "renderers/", "schemas/"]
       },
       "compatibility_surfaces": [
@@ -53,20 +64,23 @@
         "generated React/static/Three harness assets",
         "request-bound execution evidence formats"
       ],
-      "historical_exact_head_ci": {"workflow": "CI", "run_id": 36070647695, "conclusion": "success"},
-      "baseline_delta": "main advanced after the original scale-plan snapshot via merged webgame repair-surface work; downstream release checks consume a575679b rather than recreating the older state."
+      "exact_head_ci": {"workflow": "CI", "run_id": 36083442722, "head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48", "status": "completed", "conclusion": "success"},
+      "drift": "main advanced after T00 epoch-3 through merged PR #9; T23 records the new head but does not silently rewrite the coordination baseline."
     },
     {
       "role": "beval",
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "head_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "coordination_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
       "package": {
         "name": "backend-evaluator",
         "version": "0.1.0",
         "node_engine": ">=20",
         "bins": ["beval", "beval-oracle-evaluator"],
         "pack_test": "npm run test:pack",
+        "package_json_blob": "714575e9cbaff966e4fc00138da6317ef84ac2a4",
+        "workflow_blob": "c1ac2ad7dc8e32a9bfe2820d3a69452b12089ad3",
         "files": ["PLAN.md", "README.md", "STATUS.md", "bin/", "lib/", "migrations/", "schemas/", "profiles/", "scripts/", "docs/contract-binding/", "docs/release/", "templates/"]
       },
       "compatibility_surfaces": [
@@ -76,7 +90,7 @@
         "runtime profiles and immutable run bindings",
         "release and contract-binding reports"
       ],
-      "historical_exact_head_ci": {"workflow": "ci", "run_id": 36054404469, "conclusion": "success"}
+      "exact_head_ci": {"workflow": "ci", "run_id": 36083709046, "head_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f", "status": "queued", "conclusion": null}
     }
   ],
   "required_cross_repo_checks": [
@@ -86,10 +100,17 @@
     "historical beval runs remain bound to their execution-time immutable references when current case metadata changes",
     "new writer families remain opt-in until all consumers can read them and exact-revision integration evidence is green"
   ],
-  "known_open_release_dependencies": [
-    "T00-01 must move from SUBMITTED to independently ACCEPTED",
-    "T19 independent QA gates must be available before release certification",
-    "T20 trust/sandbox policy must be accepted before new runtime lanes are enabled",
-    "T00-05 exact-revision cross-repository integration is required before a default-writer change"
+  "observed_release_blockers": [
+    "BASELINE_NOT_ACCEPTED",
+    "COORDINATION_BASELINE_DRIFT",
+    "CURRENT_MAIN_CI_NOT_GREEN",
+    "INTERFACE_FREEZE_NOT_READY",
+    "INDEPENDENT_QA_NOT_READY",
+    "TRUST_POLICY_NOT_READY",
+    "CROSS_REPO_INTEGRATION_NOT_ACCEPTED"
+  ],
+  "change_requests_recorded_not_implemented": [
+    "common nested-test discovery after T00-04",
+    "package allowlist requests from T17/T22/T15 after T00 integration lease"
   ]
 }
