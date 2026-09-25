@@ -21,6 +21,8 @@ export function handleAnalyzeRequest(message) {
 	validateMessage(message);
 	if (message.kind !== 'analyze-request') throw new TypeError('handleAnalyzeRequest requires an analyze-request message');
 	const budget = normalizeBudget(message.budget ?? {});
+	const encodedInputBytes = Buffer.byteLength(JSON.stringify(message), 'utf8');
+	if (encodedInputBytes > budget.maxInputBytes) throw new RangeError(`analysis request exceeds maxInputBytes (${encodedInputBytes} > ${budget.maxInputBytes})`);
 	const result = analyzeNativeServerSource({ language: message.language, source: message.source, file: message.file });
 	if (result.routes.length > budget.maxRoutes) throw new RangeError(`analysis exceeded maxRoutes (${result.routes.length} > ${budget.maxRoutes})`);
 	if (result.diagnostics.length > budget.maxDiagnostics) throw new RangeError(`analysis exceeded maxDiagnostics (${result.diagnostics.length} > ${budget.maxDiagnostics})`);
