@@ -7,7 +7,7 @@
 import path from 'node:path';
 import { JS_TS_FACTS_CONTRACT } from './source-facts.mjs';
 
-export const JS_TS_RESOLUTION_CONTRACT = 'sbf.language.js-ts-resolution/1';
+// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.\nexport const JS_TS_RESOLUTION_CONTRACT = 'bskel.internal.js-ts-resolution/0';
 
 export const DEFAULT_JS_TS_EXTENSIONS = Object.freeze([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts',
@@ -136,6 +136,8 @@ export function resolveJsTsModuleEdges(sourceFacts, {
       sourceFactsContract: sourceFacts.contract,
       filePath: sourceFacts.filePath,
       complete: false,
+      allResolved: false,
+      sourceSyntaxValidated: Boolean(sourceFacts.syntaxValidated),
       resolutions: [],
       diagnostics: [{ level: 'info', code: 'source-facts-incomplete', message: 'resolution skipped because lexical source facts are incomplete' }],
     };
@@ -145,6 +147,7 @@ export function resolveJsTsModuleEdges(sourceFacts, {
   const resolutions = sourceFacts.moduleEdges.map((edge) => ({
     edgeKind: edge.kind,
     typeOnly: Boolean(edge.typeOnly),
+    sourceBasis: edge.basis ?? 'unknown',
     source: edge.source,
     ...resolveJsTsModuleEdge(edge, { filePath, knownFiles, extensions }),
   }));
@@ -165,6 +168,8 @@ export function resolveJsTsModuleEdges(sourceFacts, {
     sourceFactsContract: sourceFacts.contract,
     filePath,
     complete: true,
+    allResolved: resolutions.every((resolution) => resolution.status === 'resolved'),
+    sourceSyntaxValidated: Boolean(sourceFacts.syntaxValidated),
     resolutions,
     diagnostics,
   };
