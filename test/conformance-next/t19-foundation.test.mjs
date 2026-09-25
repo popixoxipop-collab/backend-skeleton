@@ -68,7 +68,7 @@ test('T19 negative catalog has exactly 79 unique vectors with the planned catego
   assert.equal(verdict.ok, true);
   const summary = coverageSummary(vectors);
   assert.equal(summary.specified, 79);
-  assert.equal(summary.evidence_candidates, 6);
+  assert.equal(summary.evidence_candidates, 11);
   assert.equal(summary.covered, 0);
   assert.equal(summary.status, 'incomplete');
   assert.ok(summary.critical_specified > 0);
