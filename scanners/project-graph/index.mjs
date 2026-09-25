@@ -102,11 +102,15 @@ export function discoverProjectRoots(repoRoot, { markerRules = DEFAULT_MARKER_RU
   if (byRoot.size === 0) byRoot.set(absRoot, []);
 
   const roots = [...byRoot.entries()]
-    .map(([root, rootMarkers]) => ({
-      root: posixRel(absRoot, root),
-      absolute_root: root,
-      markers: rootMarkers.sort((a, b) => a.path.localeCompare(b.path) || a.kind.localeCompare(b.kind)),
-    }))
+    .map(([root, rootMarkers]) => {
+      const relativeRoot = posixRel(absRoot, root);
+      return {
+        root: relativeRoot,
+        absolute_root: root,
+        project_role: relativeRoot === '.' ? 'active' : classifyProjectSourceRole(relativeRoot),
+        markers: rootMarkers.sort((a, b) => a.path.localeCompare(b.path) || a.kind.localeCompare(b.kind)),
+      };
+    })
     .sort((a, b) => a.root.localeCompare(b.root));
 
   return {
@@ -437,6 +441,7 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
     projects.push({
       project_id: 'project:' + candidate.root,
       root: candidate.root,
+      project_role: candidate.project_role,
       kind,
       markers: candidate.markers,
       facets: {
@@ -475,6 +480,7 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
       'serialized repo_root is portable and repo-relative; the absolute execution root is non-enumerable process-local metadata',
       'legacy runScan() is unchanged; selected_adapter is a per-project scan plan hint, not an executed scan result',
       'selected first-party adapter read-sets are content-hashed for project-level freshness; cache/invalidation policy remains T21-owned',
+      'reference/generated/template project roots remain visible in the graph but are excluded from the default scan plan',
     ],
   };
   Object.defineProperty(graph, PROJECT_GRAPH_EXECUTION_ROOT, {
@@ -486,12 +492,13 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
   return graph;
 }
 
-export function buildProjectScanPlan(graph, { includeFallback = false } = {}) {
+export function buildProjectScanPlan(graph, { includeFallback = false, includeNonActive = false } = {}) {
   if (!graph || graph.schema !== PROJECT_GRAPH_DRAFT || !Array.isArray(graph.projects)) {
     throw new TypeError('expected ' + PROJECT_GRAPH_DRAFT);
   }
   const plan = [];
   for (const project of graph.projects) {
+    if (!includeNonActive && project.project_role !== 'active') continue;
     const selected = project.facets?.http?.selected_adapter ?? null;
     if (selected) {
       plan.push({ project_id: project.project_id, project_root: project.root, adapter_id: selected, mode: 'first-class' });
