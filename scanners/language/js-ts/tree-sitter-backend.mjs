@@ -48,16 +48,91 @@ function hasError(node) {
   return Boolean(node.hasError);
 }
 
-function adjustProjection(baseNode, projection) {
-  const baseByte = Number(baseNode.startIndex ?? 0);
+function codeUnitIndexFromUtf8ByteOffset(source, byteOffset) {
+  if (!Number.isSafeInteger(byteOffset) || byteOffset < 0) return null;
+  let codeUnit = 0;
+  let bytes = 0;
+  while (codeUnit < source.length && bytes < byteOffset) {
+    const cp = source.codePointAt(codeUnit);
+    const width = cp > 0xffff ? 2 : 1;
+    const nextBytes = bytes + Buffer.byteLength(source.slice(codeUnit, codeUnit + width), 'utf8');
+    if (nextBytes > byteOffset) return null;
+    bytes = nextBytes;
+    codeUnit += width;
+  }
+  return bytes === byteOffset ? codeUnit : null;
+}
+
+function lineStartCodeUnit(source, row) {
+  if (!Number.isSafeInteger(row) || row <= 0) return 0;
+  let currentRow = 0;
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '\n') {
+      currentRow++;
+      if (currentRow === row) return i + 1;
+    }
+  }
+  return source.length;
+}
+
+function nodeCodeUnitStart(source, node) {
+  const rawIndex = Number(node.startIndex ?? 0);
+  const text = String(node.text ?? '');
+
+  // node-tree-sitter versions/profiles have historically exposed positions around JS strings
+  // differently. Never assume rawIndex's unit: test both plausible interpretations against the
+  // actual node text and original source bytes.
+  if (text && source.slice(rawIndex, rawIndex + text.length) === text) return rawIndex;
+
+  const fromByteIndex = codeUnitIndexFromUtf8ByteOffset(source, rawIndex);
+  if (text && fromByteIndex !== null && source.slice(fromByteIndex, fromByteIndex + text.length) === text) {
+    return fromByteIndex;
+  }
+
+  const row = Number(node.startPosition?.row ?? 0);
+  const column = Number(node.startPosition?.column ?? 0);
+  const rowStart = lineStartCodeUnit(source, row);
+  const asCodeUnits = rowStart + column;
+  if (text && source.slice(asCodeUnits, asCodeUnits + text.length) === text) return asCodeUnits;
+
+  const lineEndRaw = source.indexOf('\n', rowStart);
+  const lineEnd = lineEndRaw === -1 ? source.length : lineEndRaw;
+  const line = source.slice(rowStart, lineEnd);
+  const inLineFromBytes = codeUnitIndexFromUtf8ByteOffset(line, column);
+  if (inLineFromBytes !== null) {
+    const candidate = rowStart + inLineFromBytes;
+    if (!text || source.slice(candidate, candidate + text.length) === text) return candidate;
+  }
+
+  // Empty/missing nodes cannot be text-matched. Prefer the documented byte interpretation when
+  // it lands on a valid UTF-8 boundary, then fall back to the row/column code-unit interpretation.
+  if (!text && fromByteIndex !== null) return fromByteIndex;
+  if (!text && asCodeUnits <= source.length) return asCodeUnits;
+
+  throw new Error(`cannot map Tree-sitter node position back to source: ${node.type ?? '<unknown>'}`);
+}
+
+function nodeByteRange(source, node) {
+  const startCodeUnit = nodeCodeUnitStart(source, node);
+  const text = String(node.text ?? '');
+  const endCodeUnit = startCodeUnit + text.length;
+  return {
+    codeUnitStart: startCodeUnit,
+    byteStart: Buffer.byteLength(source.slice(0, startCodeUnit), 'utf8'),
+    byteEnd: Buffer.byteLength(source.slice(0, endCodeUnit), 'utf8'),
+  };
+}
+
+function adjustProjection(source, baseNode, projection) {
+  const base = nodeByteRange(source, baseNode);
   const baseRow = Number(baseNode.startPosition?.row ?? 0);
   return {
     edges: projection.moduleEdges.map((edge) => ({
       ...edge,
       basis: 'tree-sitter-structure+lexical-projection',
       source: {
-        byteStart: baseByte + edge.source.byteStart,
-        byteEnd: baseByte + edge.source.byteEnd,
+        byteStart: base.byteStart + edge.source.byteStart,
+        byteEnd: base.byteStart + edge.source.byteEnd,
         line: baseRow + edge.source.line,
       },
     })),
@@ -65,8 +140,8 @@ function adjustProjection(baseNode, projection) {
       ...d,
       ...(d.source ? {
         source: {
-          byteStart: baseByte + d.source.byteStart,
-          ...(d.source.byteEnd === undefined ? {} : { byteEnd: baseByte + d.source.byteEnd }),
+          byteStart: base.byteStart + d.source.byteStart,
+          ...(d.source.byteEnd === undefined ? {} : { byteEnd: base.byteStart + d.source.byteEnd }),
           line: baseRow + d.source.line,
         },
       } : {}),
@@ -158,7 +233,7 @@ export function createTreeSitterJsTsBackend(Parser, grammars, {
           maxBytes: Math.max(1, Buffer.byteLength(snippet, 'utf8') + 1),
           maxTokens,
         });
-        const adjusted = adjustProjection(node, projected);
+        const adjusted = adjustProjection(source, node, projected);
         edges.push(...adjusted.edges);
         diagnostics.push(...adjusted.diagnostics);
       }
@@ -170,8 +245,8 @@ export function createTreeSitterJsTsBackend(Parser, grammars, {
             code: 'tree-sitter-parse-error',
             message: node.type === 'ERROR' ? 'Tree-sitter ERROR node' : 'Tree-sitter missing node',
             source: {
-              byteStart: Number(node.startIndex ?? 0),
-              byteEnd: Number(node.endIndex ?? node.startIndex ?? 0),
+              byteStart: nodeByteRange(source, node).byteStart,
+              byteEnd: nodeByteRange(source, node).byteEnd,
               line: Number(node.startPosition?.row ?? 0) + 1,
             },
           });
