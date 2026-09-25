@@ -135,3 +135,32 @@ test('semantic backend does not accept a syntax-mode request', async () => {
 		fs.rmSync(f.root, { recursive: true, force: true });
 	}
 });
+
+test('semantic backend rejects a repository symlink that resolves outside the trusted root', { skip: process.platform === 'win32' }, async () => {
+	const f = fixture();
+	const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t05-semantic-outside-'));
+	try {
+		const external = path.join(outside, 'Dto.java');
+		const source = 'package p; public record Dto(String leaked) {}\n';
+		fs.writeFileSync(external, source);
+		fs.rmSync(f.abs, { force: true });
+		fs.symlinkSync(external, f.abs);
+		const request = {
+			...f.request,
+			files: [{ path: f.rel, sha256: digest(Buffer.from(source)) }],
+		};
+		let called = false;
+		const backend = createJvmSemanticRecordBackend({
+			detect: async () => ({ available: true, reason: null }),
+			classify: async () => { called = true; return {}; },
+		});
+		await assert.rejects(
+			backend.analyze({ request, repoRoot: f.root, approvedHelperExecution: true }),
+			/real path escapes repository root/,
+		);
+		assert.equal(called, false);
+	} finally {
+		fs.rmSync(f.root, { recursive: true, force: true });
+		fs.rmSync(outside, { recursive: true, force: true });
+	}
+});
