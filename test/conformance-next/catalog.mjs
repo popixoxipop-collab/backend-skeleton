@@ -1,6 +1,21 @@
 const ID_RE = /^NEG-([A-Z]+)-(\d{2})$/;
 const REQUIRED_CATEGORIES = Object.freeze({ ID: 6, PROJ: 6, ROUTE: 8, SCHEMA: 8, AUTH: 6, DB: 6, CACHE: 6, RUN: 8, GAME: 7, TRUST: 8, GEN: 5, RELEASE: 5 });
 const ALLOWED_STATUS = new Set(['specified-not-implemented', 'evidence-candidate', 'covered']);
+const IMPLEMENTATION_REF_RE = /^test\/[A-Za-z0-9._/-]+\.test\.mjs::.+$/;
+const GHA_EXECUTION_REF_RE = /^gha:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}:run:[1-9][0-9]*(?::.+)?$/;
+const ARTIFACT_EXECUTION_REF_RE = /^artifact:sha256:[0-9a-f]{64}$/;
+
+function safeImplementationRef(ref) {
+  return typeof ref === 'string'
+    && IMPLEMENTATION_REF_RE.test(ref)
+    && !ref.includes('..')
+    && !ref.includes('\\');
+}
+
+function exactExecutionRef(ref) {
+  return typeof ref === 'string'
+    && (GHA_EXECUTION_REF_RE.test(ref) || ARTIFACT_EXECUTION_REF_RE.test(ref));
+}
 
 export function validateNegativeCatalog(catalog) {
   const errors = [];
@@ -27,7 +42,9 @@ export function validateNegativeCatalog(catalog) {
       if (typeof v.critical !== 'boolean') errors.push(at + '.critical: must be boolean');
       if (!ALLOWED_STATUS.has(v.status)) errors.push(at + '.status: invalid status');
       if (!Array.isArray(v.implementation_refs)) errors.push(at + '.implementation_refs: must be an array');
+      else if (v.implementation_refs.some((ref) => !safeImplementationRef(ref))) errors.push(at + '.implementation_refs: must be repo-local test refs and may not traverse paths');
       if (!Array.isArray(v.execution_refs)) errors.push(at + '.execution_refs: must be an array');
+      else if (v.execution_refs.some((ref) => !exactExecutionRef(ref))) errors.push(at + '.execution_refs: must use exact gha head/run or sha256 artifact refs');
       if (['evidence-candidate', 'covered'].includes(v.status) && (!Array.isArray(v.implementation_refs) || v.implementation_refs.length === 0)) errors.push(at + ': evidence candidates and covered vectors need at least one implementation ref');
       if (v.status === 'covered' && (!Array.isArray(v.execution_refs) || v.execution_refs.length === 0)) errors.push(at + ': covered vectors need at least one exact execution ref');
     }
