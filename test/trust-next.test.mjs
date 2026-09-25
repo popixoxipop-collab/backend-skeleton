@@ -2,3 +2,4 @@
 // Keep substantive tests under the T20-owned test/trust-next/ namespace.
 import './trust-next/permission-manifest.test.mjs';
 import './trust-next/static-purity.test.mjs';
+import './trust-next/adversarial-fixture-spec.test.mjs';
