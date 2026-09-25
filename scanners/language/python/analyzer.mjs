@@ -130,20 +130,12 @@ function loadPythonSource(repoRoot, file, maxSourceBytes) {
   }
   const sourceBytes = fs.readFileSync(resolved.fileReal);
   const sourceSha256 = crypto.createHash('sha256').update(sourceBytes).digest('hex');
-  try {
-    const source = new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes);
-    return { resolved, sourceBytes, sourceSha256, source };
-  } catch {
-    return {
-      resolved,
-      result: {
-        protocol: PYTHON_AST_RESPONSE_PROTOCOL,
-        ok: false,
-        source: { path: resolved.relative, sha256: sourceSha256, sizeBytes: sourceBytes.length },
-        error: { code: 'PYTHON_SOURCE_ENCODING_UNSUPPORTED', message: 'T06 phase 1 accepts only valid UTF-8 Python source; no lossy decoding is performed.' },
-      },
-    };
-  }
+  return {
+    resolved,
+    sourceBytes,
+    sourceSha256,
+    sourceBase64: sourceBytes.toString('base64'),
+  };
 }
 
 function runtimeUnavailable(loaded) {
@@ -157,7 +149,7 @@ function runtimeUnavailable(loaded) {
 
 function runHelper(loaded, runtime, { timeoutMs, maxBuffer }) {
   const sourceRef = { path: loaded.resolved.relative, sha256: loaded.sourceSha256, sizeBytes: loaded.sourceBytes.length };
-  const request = JSON.stringify({ protocol: PYTHON_AST_REQUEST_PROTOCOL, filename: loaded.resolved.relative, source: loaded.source });
+  const request = JSON.stringify({ protocol: PYTHON_AST_REQUEST_PROTOCOL, filename: loaded.resolved.relative, source_base64: loaded.sourceBase64 });
   const child = spawnSync(runtime.executable, ['-I', '-S', '-B', '-X', 'utf8', HELPER], {
     input: request,
     encoding: 'utf8',
@@ -197,7 +189,13 @@ function runHelper(loaded, runtime, { timeoutMs, maxBuffer }) {
       error: { code: 'PYTHON_ANALYZER_PROTOCOL_ERROR', message: 'Python helper returned an unexpected protocol envelope.' },
     };
   }
-  return { ...response, source: sourceRef };
+  return {
+    ...response,
+    source: {
+      ...sourceRef,
+      ...(typeof response.sourceEncoding === 'string' ? { encoding: response.sourceEncoding } : {}),
+    },
+  };
 }
 
 export function analyzePythonFile({
