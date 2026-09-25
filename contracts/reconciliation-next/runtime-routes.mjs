@@ -249,7 +249,12 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
 }
 
 export function runtimeObservedOperationKeys(report) {
-  if (!report || report.state !== 'ready' || !Array.isArray(report.endpoints)) return [];
+  if (
+    !report
+    || report.version !== 'bskel.runtime-route-reconciliation/0-draft'
+    || report.state !== 'ready'
+    || !Array.isArray(report.endpoints)
+  ) return [];
   return report.endpoints
     .filter((endpoint) => endpoint.state === 'observed')
     .map((endpoint) => endpoint.endpointKey);
