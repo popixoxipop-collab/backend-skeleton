@@ -1,0 +1,160 @@
+{
+  "schema": "bskel.t06.real-corpus/1",
+  "role": "development-reference-not-independent-certification",
+  "note": "Pinned public-source corpus for T06 regression development. T19 must select/review independent holdout evidence; passing this manifest is not a support certificate.",
+  "cases": [
+    {
+      "id": "fastapi-full-stack-template",
+      "repository": "fastapi/full-stack-fastapi-template",
+      "commit": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+      "license": "MIT",
+      "repoSubroot": "backend",
+      "files": [
+        "app/api/routes/items.py",
+        "app/models.py"
+      ],
+      "projection": "fastapi-shadow",
+      "expect": {
+        "endpointKeys": [
+          "DELETE /items/{id}#delete_item",
+          "GET /items/{id}#read_item",
+          "GET /items#read_items",
+          "POST /items#create_item",
+          "PUT /items/{id}#update_item"
+        ],
+        "entities": [
+          [
+            "Item",
+            [
+              "id"
+            ]
+          ],
+          [
+            "User",
+            [
+              "id"
+            ]
+          ]
+        ],
+        "dtoCount": 17,
+        "unknownReasons": []
+      }
+    },
+    {
+      "id": "flask-official-tutorial",
+      "repository": "pallets/flask",
+      "commit": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+      "license": "BSD-3-Clause",
+      "repoSubroot": "examples/tutorial",
+      "files": [
+        "flaskr/auth.py",
+        "flaskr/blog.py"
+      ],
+      "projection": "flask-shadow",
+      "expect": {
+        "routes": [
+          [
+            "login",
+            "/auth/login",
+            [
+              "GET",
+              "POST"
+            ],
+            "explicit-methods-list"
+          ],
+          [
+            "logout",
+            "/auth/logout",
+            [],
+            "framework-default-unresolved"
+          ],
+          [
+            "register",
+            "/auth/register",
+            [
+              "GET",
+              "POST"
+            ],
+            "explicit-methods-list"
+          ],
+          [
+            "create",
+            "/create",
+            [
+              "GET",
+              "POST"
+            ],
+            "explicit-methods-list"
+          ],
+          [
+            "delete",
+            "/<int:id>/delete",
+            [
+              "POST"
+            ],
+            "explicit-methods-list"
+          ],
+          [
+            "index",
+            "/",
+            [],
+            "framework-default-unresolved"
+          ],
+          [
+            "update",
+            "/<int:id>/update",
+            [
+              "GET",
+              "POST"
+            ],
+            "explicit-methods-list"
+          ]
+        ],
+        "unknownReasons": []
+      }
+    },
+    {
+      "id": "django-urlpatterns-reverse",
+      "repository": "django/django",
+      "commit": "a013c821ea7838a953869615b0bdcfdb298cc09f",
+      "license": "BSD-3-Clause",
+      "repoSubroot": "tests",
+      "files": [
+        "urlpatterns_reverse/urls.py",
+        "urlpatterns_reverse/included_urls.py",
+        "urlpatterns_reverse/views.py"
+      ],
+      "projection": "django-shadow",
+      "expect": {
+        "registrationCount": 54,
+        "unknownReasons": [
+          "include-target-not-literal-module",
+          "regex-include-prefix-not-composed"
+        ],
+        "requiredRegistrations": [
+          [
+            "path",
+            "absolute_arg_view/",
+            null,
+            "urlpatterns_reverse.views",
+            "absolute_kwargs_view"
+          ],
+          [
+            "path",
+            "hello/<slug:name>/",
+            null,
+            "urlpatterns_reverse.views",
+            "view_func_from_cbv"
+          ],
+          [
+            "regex",
+            "(.+)/security/$",
+            "security",
+            "urlpatterns_reverse.views",
+            "empty_view"
+          ]
+        ]
+      }
+    }
+  ]
+}
