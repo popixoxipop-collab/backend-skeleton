@@ -6,10 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
-const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const NPM = process.platform === 'win32'
+	? { file: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', 'npm pack --dry-run --json'] }
+	: { file: 'npm', args: ['pack', '--dry-run', '--json'] };
 
 test('T08 packaging: npm pack includes every native-server runtime module and excludes its tests', () => {
-	const raw = execFileSync(NPM, ['pack', '--dry-run', '--json'], {
+	const raw = execFileSync(NPM.file, NPM.args, {
 		cwd: ROOT,
 		encoding: 'utf8',
 		maxBuffer: 16 * 1024 * 1024,
