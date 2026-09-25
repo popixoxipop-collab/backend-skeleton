@@ -136,7 +136,7 @@ function responseSchemaPresence(entry, rawOperation, statusRe, { includeDefault 
     return { state: 'absent', reason: kind + '-responses-absent' };
   }
   if (!isObject(rawOperation.responses) || !isObject(entry.responses)) {
-    return { state: 'unknown', reason: kind + '-responses-unresolved-or-malformed' };
+    return { state: 'unknown', reason: kind + '-response-map-unresolved-or-malformed' };
   }
 
   let sawContentWithoutJson = false;
@@ -161,7 +161,7 @@ function responseSchemaPresence(entry, rawOperation, statusRe, { includeDefault 
   }
 
   if (sawSchema) return { state: 'present', reason: kind + '-json-schema-present' };
-  if (sawUnresolved) return { state: 'unknown', reason: kind + '-response-unresolved-or-malformed' };
+  if (sawUnresolved) return { state: 'unknown', reason: kind + '-response-object-unresolved-or-malformed' };
   if (sawContentWithoutJson) return { state: 'skipped', reason: kind + '-json-media-type-absent' };
   return { state: 'absent', reason: kind + '-json-schema-absent' };
 }
