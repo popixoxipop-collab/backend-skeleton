@@ -56,8 +56,14 @@ export function evaluateCompositionCertification({
   if (providerBaselineAudit?.ok !== true) {
     blockers.push({ code: 'provider-baseline-drift', message: 'legacy provider baseline audit did not pass' });
   }
+  if (providerBaselineAudit?.revision !== revision) {
+    blockers.push({ code: 'provider-baseline-revision-mismatch', message: 'provider baseline audit is not bound to this exact revision' });
+  }
   if (generationPreview?.status !== 'ready') {
     blockers.push({ code: 'generation-preview-not-ready', message: 'generation preview is not ready' });
+  }
+  if (generationPreview?.revision !== revision) {
+    blockers.push({ code: 'generation-preview-revision-mismatch', message: 'generation preview is not bound to this exact revision' });
   }
   if (generationPreview?.applyAllowed !== false) {
     blockers.push({ code: 'unsafe-preview-contract', message: 'certification only accepts observation-only previews with applyAllowed=false' });
