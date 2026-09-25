@@ -1,9 +1,9 @@
-# T00-04A Core Interface Freeze Candidate
+# T00-04A Core Interface Freeze
 
 Generated: 2026-09-25  
-Status: **CANDIDATE_BLOCKED_ON_BASELINE**
+Status: **ACTIVE_CORE_FREEZE**
 
-This is a deliberately narrow first freeze. It does **not** finalize every next-generation IR or framework adapter.
+This is the active deliberately narrow first freeze. It does **not** finalize every next-generation IR or framework adapter.
 
 ## Why T00-04 is split
 
