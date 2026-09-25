@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:adapter-sdk-conformance:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "adapterId",
+    "status",
+    "executed",
+    "activation",
+    "observations",
+    "failures"
+  ],
+  "properties": {
+    "contract": {
+      "const": "sbf.adapter-sdk-conformance/1"
+    },
+    "adapterId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "invalid-manifest"
+      ]
+    },
+    "executed": {
+      "type": "boolean"
+    },
+    "activation": {
+      "type": "object"
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}
