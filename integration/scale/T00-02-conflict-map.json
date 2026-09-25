@@ -320,11 +320,11 @@
       "track": "REPAIR-LOOP",
       "repo": "Backend-evaluation",
       "pr": 40,
-      "head": "6ff95189a021f2305709e6dc440a8c1bb2253f44",
+      "head": "5ee490f83b7904c69439094d72fc0969e92681d6",
       "ci": "queued",
-      "class": "REBASE_REQUIRED",
-      "gate": "reconstruct on 5bdecbcb... + fresh runtime tests",
-      "reason": "branch diverged from final Browser Oracle head/main; merge-base predates final fixes"
+      "class": "HOLD_VERIFY",
+      "gate": "exact-head CI + fresh unit/browser integration",
+      "reason": "reconstructed on current beval main 5bdecbcb...; compare is ahead/behind=62/0 with merge-base equal current main; runtime verification still pending"
     },
     {
       "track": "T00",
@@ -342,7 +342,7 @@
     "T12 #66 remove experimental NestJS from auto-loaded stable registry and restore legacy registry/conformance behavior",
     "T13 #67 fix branch-owned Hono test/implementation mismatch",
     "T04 #87 remain stacked evidence-only until #73/T00-04",
-    "beval #40 reconstruct repair-only delta on current main 5bdecbcb... before any merge",
+    "beval #40 is rebased/reconstructed on current main; keep Draft until fresh exact-head CI + Browser Oracle integration are green",
     "T02/T04/T17 produce explicit overlap mapping against legacy Track A #63",
     "T19/T20/T23 produce explicit overlap mapping against legacy Track C #62",
     "T15 #8 split baseline/reader evidence from renderer/product/package patch",
