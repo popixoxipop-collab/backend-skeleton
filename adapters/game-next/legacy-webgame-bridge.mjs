@@ -1,17 +1,11 @@
 import { createHash } from 'node:crypto';
 
 export const GAME_GRAPH_DRAFT_SCHEMA = 'sbf.game-graph-draft/1';
-export const LEGACY_WEBGAME_BRIDGE_REVISION = 1;
+export const LEGACY_WEBGAME_BRIDGE_REVISION = 2;
+export const ARTIFACT_REF_VERSION = 'sbf.artifact-ref/1';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
-}
-
-function stableDigest(value) {
-  const canonical = Array.isArray(value)
-    ? value.map((item) => canonicalize(item))
-    : canonicalize(value);
-  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex').slice(0, 20);
 }
 
 function canonicalize(value) {
@@ -20,6 +14,42 @@ function canonicalize(value) {
     return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
   }
   return value;
+}
+
+function stableDigest(value) {
+  return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex').slice(0, 20);
+}
+
+function toBytes(value) {
+  if (typeof value === 'string') return Buffer.from(value, 'utf8');
+  if (Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  throw new TypeError('webgame contract bytes must be a UTF-8 string, Buffer, or Uint8Array');
+}
+
+function decodeJson(raw) {
+  let text;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(raw);
+  } catch {
+    throw new Error('webgame contract bytes must be valid UTF-8');
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('webgame contract bytes must contain valid JSON');
+  }
+}
+
+function createSourceArtifactRef(raw) {
+  return {
+    artifact_ref: ARTIFACT_REF_VERSION,
+    family: 'webgame-contract',
+    version: '1',
+    media_type: 'application/json',
+    byte_sha256: createHash('sha256').update(raw).digest('hex'),
+    size_bytes: raw.byteLength,
+  };
 }
 
 function assertLegacyContract(contract) {
@@ -99,8 +129,11 @@ function hierarchyRelation(item) {
   };
 }
 
-export function bridgeLegacyWebgameContract(contract) {
+export function bridgeLegacyWebgameContract(sourceBytes) {
+  const raw = toBytes(sourceBytes);
+  const contract = decodeJson(raw);
   assertLegacyContract(contract);
+  const artifact = createSourceArtifactRef(raw);
 
   const p = contract.planes;
   const groups = [
@@ -122,7 +155,6 @@ export function bridgeLegacyWebgameContract(contract) {
   const relations = (p.scene?.hierarchy ?? []).map(hierarchyRelation);
   const uniqueNodes = sortedUnique(nodes, (item) => item.id, 'game-next node id');
   const uniqueRelations = sortedUnique(relations, (item) => item.id, 'game-next relation id');
-
   const warningCodes = new Set((contract.warnings ?? []).map((warning) => warning?.code));
 
   return {
@@ -130,6 +162,7 @@ export function bridgeLegacyWebgameContract(contract) {
     bridge_revision: LEGACY_WEBGAME_BRIDGE_REVISION,
     status: 'derived-static-only',
     source_contract: {
+      artifact,
       family: 'sbf.webgame-contract',
       version: contract.sbf_webgame_contract,
       feature_id: contract.feature_id,
@@ -163,12 +196,49 @@ export function bridgeLegacyWebgameContract(contract) {
   };
 }
 
-export function verifyLegacyBridgeInvariants(graph) {
+function artifactRefMatchesBytes(ref, sourceBytes) {
+  if (
+    !ref ||
+    ref.artifact_ref !== ARTIFACT_REF_VERSION ||
+    ref.family !== 'webgame-contract' ||
+    ref.version !== '1' ||
+    ref.media_type !== 'application/json' ||
+    !Number.isSafeInteger(ref.size_bytes) ||
+    ref.size_bytes < 0 ||
+    !/^[a-f0-9]{64}$/.test(ref.byte_sha256 ?? '')
+  ) return false;
+  const raw = toBytes(sourceBytes);
+  return raw.byteLength === ref.size_bytes &&
+    createHash('sha256').update(raw).digest('hex') === ref.byte_sha256;
+}
+
+export function verifyLegacyBridgeInvariants(graph, { sourceBytes } = {}) {
   const errors = [];
   if (graph?.schema !== GAME_GRAPH_DRAFT_SCHEMA) errors.push('schema');
   if (graph?.status !== 'derived-static-only') errors.push('status');
-  if (!Array.isArray(graph?.behavior?.causal_edges) || graph.behavior.causal_edges.length !== 0) errors.push('behavior.causal_edges');
-  if (!Array.isArray(graph?.behavior?.transitions) || graph.behavior.transitions.length !== 0) errors.push('behavior.transitions');
+  if (!Array.isArray(graph?.behavior?.causal_edges) || graph.behavior.causal_edges.length !== 0) {
+    errors.push('behavior.causal_edges');
+  }
+  if (!Array.isArray(graph?.behavior?.transitions) || graph.behavior.transitions.length !== 0) {
+    errors.push('behavior.transitions');
+  }
+
+  const artifact = graph?.source_contract?.artifact;
+  if (
+    !artifact ||
+    artifact.artifact_ref !== ARTIFACT_REF_VERSION ||
+    artifact.family !== 'webgame-contract' ||
+    artifact.version !== '1' ||
+    artifact.media_type !== 'application/json' ||
+    !Number.isSafeInteger(artifact.size_bytes) ||
+    artifact.size_bytes < 0 ||
+    !/^[a-f0-9]{64}$/.test(artifact.byte_sha256 ?? '')
+  ) {
+    errors.push('source_contract.artifact');
+  }
+  if (sourceBytes !== undefined && !artifactRefMatchesBytes(artifact, sourceBytes)) {
+    errors.push('source_contract.artifact-bytes');
+  }
 
   const nodeIds = (graph?.nodes ?? []).map((item) => item.id);
   if (nodeIds.length !== new Set(nodeIds).size) errors.push('nodes.duplicate-id');
