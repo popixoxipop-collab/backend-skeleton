@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { provider as javaSpring } from '../handles/providers/java-spring.mjs';
 import { provider as pythonFastApi } from '../handles/providers/python-fastapi.mjs';
 import { provider as typeScriptExpress } from '../handles/providers/typescript-express.mjs';
@@ -174,4 +175,15 @@ test('T14 preview keeps skipped resources visible while allowing safe resources 
   assert.equal(result.status, 'ready');
   assert.deepEqual(result.resourceDecisions.map((r) => [r.resourceType, r.generated]), [['User', true], ['LegacyUser', false]]);
   assert.deepEqual(result.manualCompletions.map((x) => x.area), ['authorization', 'patch']);
+});
+
+
+test('T14 fail-closed labels stay bound to the real FastAPI and TypeScript resolver templates', () => {
+  const python = fs.readFileSync(new URL('../handles/providers/python-fastapi/templates/resolver.py.tmpl', import.meta.url), 'utf8');
+  assert.match(python, /raise HTTPException\(status_code=403/);
+  assert.match(python, /raise HTTPException\(status_code=501/);
+
+  const typescript = fs.readFileSync(new URL('../handles/providers/typescript-express/templates/resolver.ts.tmpl', import.meta.url), 'utf8');
+  assert.match(typescript, /throw new HandleAccessDeniedError/);
+  assert.match(typescript, /throw new HandleNotImplementedError/);
 });
