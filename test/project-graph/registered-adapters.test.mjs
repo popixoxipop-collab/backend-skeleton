@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { buildRegisteredProjectGraph, buildRegisteredProjectScanPlan } from '../../scanners/project-graph/registered.mjs';
+import { buildRegisteredProjectGraph, buildRegisteredProjectScanPlan, portableRegistryLoadErrors } from '../../scanners/project-graph/registered.mjs';
 
 function fixture(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-project-graph-real-'));
@@ -50,4 +50,25 @@ test('registered first-party adapters stay scoped to their own project roots in 
     ['services/rails', 'ruby-rails'],
     ['services/spring', 'java-spring'],
   ]);
+});
+
+
+test('registry load diagnostics are portable and do not serialize checkout directories', () => {
+  const portable = portableRegistryLoadErrors([
+    {
+      file: '/private/tmp/work-a/scanners/adapters/broken.mjs',
+      message: 'failed to load /private/tmp/work-a/scanners/adapters/broken.mjs: boom',
+    },
+    {
+      file: 'C:\\work-b\\scanners\\adapters\\other.mjs',
+      message: 'failed to load C:\\work-b\\scanners\\adapters\\other.mjs: nope',
+    },
+  ]);
+  assert.deepEqual(portable, [
+    { file: 'broken.mjs', message: 'failed to load <adapter-dir>/broken.mjs: boom' },
+    { file: 'other.mjs', message: 'failed to load <adapter-dir>/other.mjs: nope' },
+  ]);
+  const serialized = JSON.stringify(portable);
+  assert.ok(!serialized.includes('/private/tmp/work-a'));
+  assert.ok(!serialized.includes('work-b'));
 });
