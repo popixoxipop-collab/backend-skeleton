@@ -1,0 +1,9 @@
+{
+  "name": "t13-koa-router-official-readme-reference",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@koa/router": "15.7.0",
+    "koa": "3.2.1"
+  }
+}
