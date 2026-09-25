@@ -27,6 +27,7 @@ test('npm pack contains the T01 next identity lane and the installed module repl
       'schemas/next/identity.golden.json',
       'schemas/next/identity-conformance.json',
       'schemas/next/identity-consumer-result.schema.json',
+      'schemas/next/identity-consumer-set.schema.json',
     ]) {
       assert.equal(names.has(required), true, `packed artifact is missing ${required}`);
     }
