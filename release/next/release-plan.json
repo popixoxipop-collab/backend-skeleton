@@ -5,7 +5,7 @@
   "release_allowed": false,
   "coordination_baseline": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
     "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
   },
   "observed_current_main": {
@@ -14,17 +14,61 @@
     "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
   },
   "prerequisites": [
-    {"id": "T00-01", "required_state": "ACCEPTED", "observed_state": "SUBMITTED"},
-    {"id": "T00-04", "required_state": "FINAL_FREEZE", "observed_state": "BLOCKED_PREFREEZE"},
-    {"id": "T19-03", "required_state": "ACCEPTED", "observed_state": "PLANNED"},
-    {"id": "T20-03", "required_state": "ACCEPTED", "observed_state": "PLANNED"},
-    {"id": "T00-05", "required_state": "ACCEPTED", "observed_state": "PLANNED"}
+    {
+      "id": "T00-01",
+      "required_state": "ACCEPTED",
+      "observed_state": "SUBMITTED"
+    },
+    {
+      "id": "T00-04",
+      "required_state": "FINAL_FREEZE",
+      "observed_state": "BLOCKED_PREFREEZE"
+    },
+    {
+      "id": "T19-03",
+      "required_state": "ACCEPTED",
+      "observed_state": "PLANNED"
+    },
+    {
+      "id": "T20-03",
+      "required_state": "ACCEPTED",
+      "observed_state": "PLANNED"
+    },
+    {
+      "id": "T00-05",
+      "required_state": "ACCEPTED",
+      "observed_state": "PLANNED"
+    }
   ],
   "migration_stages": [
-    {"id": "M1-consumer-first", "writer_mode": "legacy-only", "consumer_mode": "legacy-plus-next-readers", "promotion": false, "rollback": "disable next readers without rewriting historical artifacts"},
-    {"id": "M2-shadow", "writer_mode": "legacy-plus-shadow-next", "consumer_mode": "compare-only", "promotion": false, "rollback": "stop shadow production; retain shadow artifacts as audit evidence"},
-    {"id": "M3-opt-in-writer", "writer_mode": "next-for-explicit-approved-profiles", "consumer_mode": "approved-combination-only", "promotion": false, "rollback": "turn the profile off and continue reading legacy plus historical next artifacts"},
-    {"id": "M4-per-profile-default", "writer_mode": "next-only-for-certified-profile", "consumer_mode": "certified-package-matrix", "promotion": false, "rollback": "restore the previous package combination and make the affected profile read-only"}
+    {
+      "id": "M1-consumer-first",
+      "writer_mode": "legacy-only",
+      "consumer_mode": "legacy-plus-next-readers",
+      "promotion": false,
+      "rollback": "disable next readers without rewriting historical artifacts"
+    },
+    {
+      "id": "M2-shadow",
+      "writer_mode": "legacy-plus-shadow-next",
+      "consumer_mode": "compare-only",
+      "promotion": false,
+      "rollback": "stop shadow production; retain shadow artifacts as audit evidence"
+    },
+    {
+      "id": "M3-opt-in-writer",
+      "writer_mode": "next-for-explicit-approved-profiles",
+      "consumer_mode": "approved-combination-only",
+      "promotion": false,
+      "rollback": "turn the profile off and continue reading legacy plus historical next artifacts"
+    },
+    {
+      "id": "M4-per-profile-default",
+      "writer_mode": "next-only-for-certified-profile",
+      "consumer_mode": "certified-package-matrix",
+      "promotion": false,
+      "rollback": "restore the previous package combination and make the affected profile read-only"
+    }
   ],
   "rollback_policy": {
     "destructive_down_migration_allowed": false,
@@ -46,19 +90,37 @@
   ],
   "ci_lane_plan": {
     "workflows_modified_by_T23_01_or_T23_02": false,
-    "lanes": ["pr-cheap", "crossrepo", "nightly", "runtime", "native", "release"],
+    "lanes": [
+      "pr-cheap",
+      "crossrepo",
+      "nightly",
+      "runtime",
+      "native",
+      "release"
+    ],
     "activation_gate": "T00-04 final freeze + T23-03 + T19/T20 prerequisites",
     "exact_head_required": true,
     "privileged_pull_request_target_for_untrusted_code": false,
     "recorded_change_requests": [
-      "nested test discovery for test/project-graph/**/*.test.mjs and test/conformance-next/**/*.test.mjs",
-      "package allowlists for approved T15/T17/T22 runtime assets"
-    ]
+      "nested test discovery for test/project-graph/**, test/game-next/**, test/protocol-next/**, test/conformance-next/** and test/sdk-next/**",
+      "one package decision for approved adapters/** subtrees rather than one-off track package edits",
+      "sdk/next package inclusion after trust/integration approval",
+      "becoder installed R3F compatibility lane",
+      "beval exact-head integration completion on the authorized backend-ci lane"
+    ],
+    "current_beval_exact_head": {
+      "run_id": 36083709046,
+      "run_attempt": 3,
+      "overall": "cancelled",
+      "runner_restored": true,
+      "integration": "failed at backend-decoder cross-repository checkout before package/install/integration steps",
+      "release_effect": "blocked"
+    }
   },
   "blockers": [
     "BASELINE_NOT_ACCEPTED",
-    "COORDINATION_BASELINE_DRIFT",
     "CURRENT_MAIN_CI_NOT_GREEN",
+    "CURRENT_MAIN_INTEGRATION_INCOMPLETE",
     "INTERFACE_FREEZE_NOT_READY",
     "INDEPENDENT_QA_NOT_READY",
     "TRUST_POLICY_NOT_READY",
