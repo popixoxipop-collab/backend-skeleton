@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { bridgeLegacyWebgameContract } from '../../adapters/game-next/legacy-webgame-bridge.mjs';
-import { createNativeExportEnvelope } from '../../adapters/game-next/native-export-envelope.mjs';
+import { createNativeExportEnvelope, createNativeSourceRef } from '../../adapters/game-next/native-export-envelope.mjs';
 import { normalizeNativeStructureExport } from '../../adapters/game-next/native-structure-normalizer.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..');
@@ -77,6 +77,7 @@ test('native export output satisfies its internal schema', () => {
 
 test('native export schema rejects runtime certification mutation', () => {
   const validate = validator('native-export-envelope.schema.json');
+  const sourceRaw = Buffer.from('unity-source\n', 'utf8');
   const envelope = createNativeExportEnvelope(Buffer.from('{}\n'), {
     engine: 'unity',
     evidenceClass: 'source-export',
@@ -87,6 +88,7 @@ test('native export schema rejects runtime certification mutation', () => {
       version: '0-draft',
       implementation_sha256: '2'.repeat(64),
     },
+    sourceInputs: [createNativeSourceRef(sourceRaw, { path: 'Assets/Hero.prefab', mediaType: 'text/plain' })],
   });
   envelope.claims.runtime_behavior_verified = true;
   assert.equal(validate(envelope), false);
@@ -130,6 +132,7 @@ test('normalized native structure satisfies schema and cannot claim source/runti
       functions: [{ name: 'ServerJump', specifiers: ['Server'] }],
     }],
   }) + '\n');
+  const sourceRaw = Buffer.from('unreal-source\n', 'utf8');
   const envelope = createNativeExportEnvelope(raw, {
     engine: 'unreal',
     evidenceClass: 'source-export',
@@ -140,6 +143,7 @@ test('normalized native structure satisfies schema and cannot claim source/runti
       version: '0-draft',
       implementation_sha256: '3'.repeat(64),
     },
+    sourceInputs: [createNativeSourceRef(sourceRaw, { path: 'Source/Hero.h', mediaType: 'text/plain' })],
   });
   const normalized = normalizeNativeStructureExport(raw, envelope);
   assert.equal(validate(normalized), true, JSON.stringify(validate.errors));
@@ -147,4 +151,28 @@ test('normalized native structure satisfies schema and cannot claim source/runti
   normalized.claims.source_structure_verified = true;
   assert.equal(validate(normalized), false);
   assert.ok(validate.errors.some((error) => error.instancePath === '/claims/source_structure_verified'));
+});
+
+
+test('native export schema requires source_inputs for source-export and accepts exact source refs', () => {
+  const validate = validator('native-export-envelope.schema.json');
+  const sourceRaw = Buffer.from('source\n', 'utf8');
+  const raw = Buffer.from('{}\n', 'utf8');
+  const good = createNativeExportEnvelope(raw, {
+    engine: 'unity',
+    evidenceClass: 'source-export',
+    engineVersion: 'test',
+    platform: 'test',
+    producer: {
+      id: 'schema-source-exporter',
+      version: '0-draft',
+      implementation_sha256: '4'.repeat(64),
+    },
+    sourceInputs: [createNativeSourceRef(sourceRaw, { path: 'Assets/Scene.unity', mediaType: 'text/plain' })],
+  });
+  assert.equal(validate(good), true, JSON.stringify(validate.errors));
+  const bad = structuredClone(good);
+  bad.source_inputs = [];
+  assert.equal(validate(bad), false);
+  assert.ok(validate.errors.some((error) => error.instancePath === '/source_inputs'));
 });
