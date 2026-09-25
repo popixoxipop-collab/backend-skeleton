@@ -250,6 +250,97 @@
       },
       "note": "Partial policy-level mapping; no sandbox/egress behavior certification.",
       "job_observations": []
+    },
+    {
+      "id": "t18-protocol-exact-binding",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "9fcab1f369ba93b2b30decb2d0181af50ef621d9",
+        "pull_request": 70
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-ID-01",
+          "strength": "direct",
+          "reason": "Protocol item refs invalidate on format-only contract-byte changes and reject a separately supplied object view that disagrees with the exact referenced bytes."
+        },
+        {
+          "vector_id": "NEG-SCHEMA-08",
+          "strength": "direct",
+          "reason": "The bounded structured protocol loader explicitly rejects remote refs rather than following them over the network."
+        }
+      ],
+      "tests": [
+        {
+          "path": "test/protocol-next/protocol-item-ref.test.mjs",
+          "selectors": [
+            "format-only contract byte change invalidates the protocol item ref",
+            "contract object view cannot disagree with the exact referenced contract bytes"
+          ]
+        },
+        {
+          "path": "test/protocol-next/protocol-loaders.test.mjs",
+          "selectors": [
+            "structured loader rejects remote refs, oversized documents and duplicate YAML keys"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36094194743,
+        "run_number": 889,
+        "status": "queued",
+        "conclusion": null
+      },
+      "note": "Direct semantic mappings only. Current exact-head CI is nonterminal, T18 nested tests are not in the root npm-test glob, and runtime/oracle certification remains blocked.",
+      "job_observations": []
+    },
+    {
+      "id": "t11-legacy-parity",
+      "state": "external-candidate",
+      "certification": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "541272b0091734870dee035f38f295bc37f37330",
+        "pull_request": 77
+      },
+      "vector_mappings": [
+        {
+          "vector_id": "NEG-ID-03",
+          "strength": "partial",
+          "reason": "The parity harness detects operation-identity drift, but this is not an exact proof of the alias-repair refusal semantics required by NEG-ID-03."
+        },
+        {
+          "vector_id": "NEG-GEN-05",
+          "strength": "partial",
+          "reason": "The parity harness detects persistence-key drift, but it does not independently prove end-to-end key codec correctness."
+        }
+      ],
+      "tests": [
+        {
+          "path": "test/http-legacy-next/parity.test.mjs",
+          "selectors": [
+            "T11-04 parity catches endpoint path + operation identity drift at precise paths",
+            "T11-04 parity catches persistence-key drift without widening JS Express capability semantics"
+          ]
+        },
+        {
+          "path": "test/http-legacy-next/corpus-parity.test.mjs",
+          "selectors": [
+            "T11-05 corpus command rejects checkout drift before scanning",
+            "T11-05 corpus command rejects semantic drift when an expected regression digest is supplied"
+          ]
+        }
+      ],
+      "ci": {
+        "run_id": 36089509500,
+        "run_number": 739,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "note": "Historical exact-head generic CI is successful, but that root CI did not execute nested T11 tests. The producer-reported EOE 30/30 nested run is useful context, not independent execution binding, so this remains partial candidate evidence only.",
+      "job_observations": []
     }
   ]
 }
