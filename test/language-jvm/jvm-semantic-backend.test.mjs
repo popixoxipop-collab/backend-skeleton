@@ -75,8 +75,8 @@ test('semantic backend binds classification to exact source bytes and declared s
 		assert.equal(result.classpathFingerprint, 'c'.repeat(64));
 		assert.equal(result.results[0].inputSha256, f.request.files[0].sha256);
 		assert.equal(result.results[0].fields[0].resolvedType, 'java.lang.String');
-		assert.equal(calls[0].filePath, f.abs);
-		assert.equal(calls[0].sourceRoot, path.join(f.root, 'src/main/java'));
+		assert.equal(calls[0].filePath, fs.realpathSync(f.abs));
+		assert.equal(calls[0].sourceRoot, fs.realpathSync(path.join(f.root, 'src/main/java')));
 		assert.match(result.coverage, /external dependency classpath not proven/);
 	} finally {
 		fs.rmSync(f.root, { recursive: true, force: true });
