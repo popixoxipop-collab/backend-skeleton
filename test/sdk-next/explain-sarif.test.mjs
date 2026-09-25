@@ -55,3 +55,38 @@ test('SARIF projection keeps bskel status and evidence metadata', () => {
 	assert.equal(sarif.runs[0].results[0].properties.bskelStatus, 'unknown');
 	assert.deepEqual(sarif.runs[0].results[0].properties.evidenceRefs, ['source:abc']);
 });
+
+
+test('SARIF omits absolute, traversal, and URI source locations instead of pointing outside the project', () => {
+	for (const file of ['/etc/passwd', '../secret.txt', 'file:///tmp/secret', 'C:\\secret\\token.txt']) {
+		const sarif = diagnosticsToSarif([{
+			code: 'BSKEL_SDK_UNSAFE_LOCATION',
+			severity: 'warning',
+			message: 'unsafe display location',
+			file,
+			status: 'unknown',
+		}]);
+		const result = sarif.runs[0].results[0];
+		assert.equal(Object.hasOwn(result, 'locations'), false, file);
+		assert.equal(result.properties.locationOmitted, true, file);
+	}
+});
+
+test('support explanation clones __proto__ as data without mutating Object.prototype', () => {
+	const dangerous = JSON.parse('{"__proto__":{"polluted":true}}');
+	const report = createSupportExplanation({
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'example.value',
+			status: 'partial',
+			value: dangerous,
+			provenanceRefs: ['example'],
+			constraints: [],
+			nextActions: [],
+		}],
+	});
+	assert.equal(Object.prototype.polluted, undefined);
+	assert.deepEqual(Object.keys(report.fields[0].value), ['__proto__']);
+	assert.equal(report.fields[0].value.__proto__.polluted, true);
+});
