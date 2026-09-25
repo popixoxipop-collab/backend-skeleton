@@ -89,13 +89,14 @@ node --test test/t09-reconciliation-next.test.mjs
 The top-level entrypoint is matched by the repository's existing `npm test` pattern
 (`test/*.test.mjs`), so no package script or lockfile change is required.
 
-The current T09 suite contains **53 tests**:
+The current T09 suite contains **64 tests**:
 
 - 18 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
 - 14 OpenAPI context/root-security/duplicate-ID/schema-presence regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
-- 12 revision/build/runtime evidence-binding regressions.
+- 12 revision/build/runtime evidence-binding regressions,
+- 11 bound runtime-route reconciliation regressions.
 
 It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled/absent/media-skipped states, explicit and inherited declared security,
@@ -112,11 +113,23 @@ A bound source/OpenAPI relation is enough only for source/spec-level route promo
 for runtime-backed promotion receive no promotable operation until `runtimeBinding.state === "bound"`.
 Binding refs must also exactly match the decision graph provenance refs.
 
+## T09-06 runtime route observations
+
+`runtime-routes.mjs` consumes a **pre-existing** bound runtime route observation. It does not start the
+application or define T16/beval's runner protocol. The observation must match the evidence binding's
+runtime ref, repository, revision, build fingerprint, and environment fingerprint.
+
+A complete runtime snapshot may prove a route missing; a partial snapshot may not. Exact method/path
+matches are observed, same operationId at a changed route is conflict, duplicate runtime operationIds
+are conflict, and routes that exist only at runtime are emitted separately as `runtimeOnlyRoutes`.
+
+This keeps runtime evidence as a separate plane instead of overwriting source/OpenAPI decisions.
+
 ## Next T09 slices
 
-1. Add runtime-only/source-only differential fixtures once the runtime observation envelope is available.
-2. Add runtime observations as a separate evidence role; never overwrite source/OpenAPI claims in place.
-3. Hand the decision graph and evidence conditions to the shared T01/T03 Claim/Capability policy once that
+1. Add field-level runtime observations beyond route existence only after T16 defines trusted probe semantics.
+2. Hand the decision graph and evidence conditions to the shared T01/T03 Claim/Capability policy once that
    interface is frozen.
+3. Add cross-repository conformance fixtures when T01/T03/T16 interfaces are frozen.
 
 Until those slices and cross-track gates land, this module is diagnostic shadow data only.
