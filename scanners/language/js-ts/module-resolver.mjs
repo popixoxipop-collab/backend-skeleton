@@ -7,7 +7,8 @@
 import path from 'node:path';
 import { JS_TS_FACTS_CONTRACT } from './source-facts.mjs';
 
-// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.\nexport const JS_TS_RESOLUTION_CONTRACT = 'bskel.internal.js-ts-resolution/0';
+// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.
+export const JS_TS_RESOLUTION_CONTRACT = 'bskel.internal.js-ts-resolution/0';
 
 export const DEFAULT_JS_TS_EXTENSIONS = Object.freeze([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts',
