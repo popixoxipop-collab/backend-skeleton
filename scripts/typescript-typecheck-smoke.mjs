@@ -156,6 +156,47 @@ if (!compilerComparison?.comparable || !compilerComparison.agrees) {
 }
 console.log(`typescript-typecheck-smoke: T04 compiler backend PASSED (TypeScript ${tsApi.version}, valid AST facts, malformed fail-closed, require shadowing, lexical differential)`);
 
+// The TypeScript wiki currently documents this API family through TS 6.x, but warns that TS 7.x
+// changes the API substantially. Prove 6.0.3 separately and refuse 7.x until a future T04 review.
+const ts6Root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t04-typescript-6-'));
+try {
+	fs.writeFileSync(path.join(ts6Root, 'package.json'), JSON.stringify({ private: true }, null, 2));
+	sh('npm', ['install', '--no-audit', '--no-fund', '--no-save', 'typescript@6.0.3'], ts6Root, { quiet: true });
+	const ts6 = await import(pathToFileURL(path.join(ts6Root, 'node_modules', 'typescript', 'lib', 'typescript.js')).href);
+	const backend6 = createTypeScriptCompilerBackend(ts6);
+	const sixResult = backend6.analyze("import type { User } from './user';\nexport { x } from './x';\n", {
+		filePath: 'src/ts6.ts',
+		language: 'typescript',
+	});
+	if (!sixResult.complete || !sixResult.syntaxValidated || sixResult.moduleEdges.length !== 2) {
+		fail(`T04 TypeScript 6.0.3 backend smoke failed: ${JSON.stringify(sixResult)}`);
+	}
+	if (backend6.typescriptVersion !== '6.0.3') {
+		fail(`T04 expected TypeScript 6.0.3, got ${backend6.typescriptVersion}`);
+	}
+} catch (err) {
+	fail(`T04 TypeScript 6.0.3 compatibility smoke failed: ${err.stack || err.message}`);
+} finally {
+	fs.rmSync(ts6Root, { recursive: true, force: true });
+}
+
+const futureTs = new Proxy(tsApi, {
+	get(target, prop, receiver) {
+		if (prop === 'version') return '7.0.2';
+		if (prop === 'versionMajorMinor') return '7.0';
+		return Reflect.get(target, prop, receiver);
+	},
+});
+let rejected7 = false;
+try {
+	createTypeScriptCompilerBackend(futureTs);
+} catch (err) {
+	rejected7 = err instanceof RangeError && /unsupported TypeScript Compiler API major 7/.test(err.message);
+}
+if (!rejected7) fail('T04 compiler backend must refuse TypeScript 7.x until its changed API is reviewed');
+console.log('typescript-typecheck-smoke: T04 TypeScript 6.0.3 compatibility PASSED; TypeScript 7.x refusal PASSED');
+
+
 console.log('typescript-typecheck-smoke: running a real `npx tsc --noEmit` against the emitted tree...');
 try {
 	sh('npx', ['tsc', '--noEmit'], backendDir, { quiet: true });
