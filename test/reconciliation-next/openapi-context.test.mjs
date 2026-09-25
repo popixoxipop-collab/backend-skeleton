@@ -281,3 +281,61 @@ test('default error response with non-JSON content narrows error schema to skipp
   assert.equal(field(graph, 'api.error.schema').state, 'skipped');
   assert.equal(field(graph, 'api.error.schema').reason, 'error-json-media-type-absent');
 });
+
+
+test('unresolvable requestBody component ref stays unknown instead of being called absent', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        post: {
+          operationId: 'createWidget',
+          requestBody: { '$ref': '#/components/requestBodies/Ghost' },
+        },
+      },
+    },
+    components: { requestBodies: {} },
+  }, {
+    verb: 'POST', path: '/widgets', operationId: 'createWidget', operationIdSource: 'source', method: 'createWidget',
+  });
+
+  assert.equal(field(graph, 'api.request.schema').state, 'unknown');
+  assert.equal(field(graph, 'api.request.schema').reason, 'request-body-unresolved-or-malformed');
+});
+
+test('unresolvable success response component ref stays unknown instead of being called absent', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        get: {
+          operationId: 'findWidgets',
+          responses: {
+            '200': { '$ref': '#/components/responses/Ghost' },
+          },
+        },
+      },
+    },
+    components: { responses: {} },
+  }, {
+    verb: 'GET', path: '/widgets', operationId: 'findWidgets', operationIdSource: 'source', method: 'findWidgets',
+  });
+
+  assert.equal(field(graph, 'api.response.schema').state, 'unknown');
+  assert.equal(field(graph, 'api.response.schema').reason, 'response-response-unresolved-or-malformed');
+});
+
+test('context-bound promotion rejects a spoofed attached flag without versioned OpenAPI provenance', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: { '/widgets': { get: { operationId: 'findWidgets' } } },
+  }, {
+    verb: 'GET', path: '/widgets', operationId: 'findWidgets', operationIdSource: 'source', method: 'findWidgets',
+  });
+
+  const spoofed = {
+    ...graph,
+    openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft' },
+  };
+  assert.deepEqual(contextBoundPromotableOperationKeys(spoofed), []);
+});
