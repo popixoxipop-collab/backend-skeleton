@@ -43,6 +43,17 @@ function fileDigest(file) {
   return 'sha256:' + sha256(fs.readFileSync(file));
 }
 
+export function portableProjectDiagnosticMessage(message, repoRoot) {
+  const raw = String(message ?? '');
+  if (!repoRoot) return raw.replace(/\\/g, '/');
+  const abs = path.resolve(repoRoot);
+  const slash = abs.split(path.sep).join('/');
+  return raw
+    .replaceAll(abs, '<repo>')
+    .replaceAll(slash, '<repo>')
+    .replace(/\\/g, '/');
+}
+
 function markerKind(name, markerRules) {
   return markerRules.find((rule) => rule.test(name))?.kind ?? null;
 }
@@ -56,7 +67,7 @@ function walkForMarkers(repoRoot, markerRules, unresolved) {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (err) {
-      unresolved.push({ kind: 'directory-read', path: posixRel(repoRoot, dir), message: err.message });
+      unresolved.push({ kind: 'directory-read', path: posixRel(repoRoot, dir), message: portableProjectDiagnosticMessage(err.message, repoRoot) });
       continue;
     }
     entries.sort((a, b) => a.name.localeCompare(b.name));
@@ -248,7 +259,7 @@ function readLocalPackageFacts(absRepo, project, unresolved) {
       kind: 'package-metadata-read',
       project_id: project.project_id,
       path: marker.path,
-      message: err.message,
+      message: portableProjectDiagnosticMessage(err.message, absRepo),
     });
     return null;
   }
@@ -376,7 +387,7 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
       } catch (err) {
         unresolved.push({
           kind: 'adapter-detect-error', project_root: candidate.root, adapter_id: adapter.id,
-          message: err.message,
+          message: portableProjectDiagnosticMessage(err.message, absRepo),
         });
         continue;
       }
@@ -444,7 +455,7 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
             kind: 'adapter-read-set-error',
             project_root: candidate.root,
             adapter_id: selected,
-            message: err.message,
+            message: portableProjectDiagnosticMessage(err.message, absRepo),
           });
         }
       }
