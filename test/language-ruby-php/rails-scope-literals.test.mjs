@@ -74,3 +74,17 @@ test('Rails postfix runtime condition remains an explicit dynamic unknown', () =
   assert.equal(expanded.candidates.some((x) => x.path.includes('become')), false);
   assert.ok(expanded.unknowns.some((x) => x.code === 'DSL_DYNAMIC_DECLARATION'));
 });
+
+
+test('Rails nested resource custom param uses resource-prefixed parent key', () => {
+  const facts = extractRailsDslFacts([
+    'resources :profiles, param: :username do',
+    '  resources :messages, only: [:show]',
+    'end',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  assert.ok(expanded.candidates.some((x) =>
+    x.method === 'GET' && x.path === '/profiles/{profile_username}/messages/{id}',
+  ));
+});
