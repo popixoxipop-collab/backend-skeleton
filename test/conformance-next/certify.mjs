@@ -154,6 +154,7 @@ export function assembleCertification(input, { artifact_root = null, require_hol
   if (input?.evidence) {
     evidence = artifact_root ? verifyEvidencePackFromDisk(input.evidence, { artifact_root }) : verifyEvidencePack(input.evidence);
     if (!evidence.ok) reasons.push(...evidence.errors.map((x) => `evidence: ${x}`));
+    else if (input.evidence.verdict === 'fail') reasons.push('evidence: valid evidence records a failed product/conformance run');
   }
 
   const requiredMissing = [];
