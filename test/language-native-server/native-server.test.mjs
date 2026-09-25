@@ -8,6 +8,7 @@ import {
 	decodeNdjsonLine,
 	encodeNdjson,
 	handleAnalyzeRequest,
+	validateMessage,
 } from '../../scanners/language/native-server/index.mjs';
 
 function request(overrides = {}) {
@@ -272,4 +273,58 @@ test('transport/analyzer boundary: Rust requests bind to the Rust pilot backend'
 	}));
 	assert.equal(response.backend, 'rust-static-pilot');
 	assert.deepEqual(response.routes.map((r) => [r.framework, r.method, r.path]), [['axum', 'GET', '/health']]);
+});
+
+
+test('transport: malformed route facts are rejected at the response boundary', () => {
+	assert.throws(() => validateMessage({
+		protocol: NATIVE_SERVER_PROTOCOL,
+		kind: 'analyze-response',
+		requestId: 'bad-route',
+		language: 'go',
+		backend: 'test-backend',
+		routes: [{ method: 'get', path: 'users', handler: null, framework: 'gin', confidence: 'static-literal', source: { file: 'x.go', line: 1, index: 0 } }],
+		diagnostics: [],
+	}), /route method|route path/);
+});
+
+test('transport: malformed diagnostics are rejected at the response boundary', () => {
+	assert.throws(() => validateMessage({
+		protocol: NATIVE_SERVER_PROTOCOL,
+		kind: 'analyze-response',
+		requestId: 'bad-diagnostic',
+		language: 'go',
+		backend: 'test-backend',
+		routes: [],
+		diagnostics: [{ code: 'X', severity: 'maybe', file: 'x.go', line: 1, message: 'bad severity' }],
+	}), /severity/);
+});
+
+test('transport/analyzer boundary: direct responses enforce maxOutputBytes too', () => {
+	assert.throws(() => handleAnalyzeRequest(request({
+		source: 'package main\nfunc setup(){ r := gin.Default(); r.GET("/this-is-a-long-route-name", handler) }',
+		budget: { maxOutputBytes: 120 },
+	})), /maxOutputBytes/);
+});
+
+test('Rust/Axum: Router turbofish constructors are recognized without type inference', () => {
+	const src = `fn app() {
+ let app = Router::<AppState>::new().route("/state", get(state));
+}`;
+	const result = analyzeRustServerSource(src);
+	assert.deepEqual(result.routes.map((r) => [r.method, r.path, r.handler]), [['GET', '/state', 'state']]);
+});
+
+test('Rust mixed-framework file: Axum and Actix facts coexist without cross-talk diagnostics', () => {
+	const src = `fn routers() {
+ let ax = Router::new().route("/ax", get(ax_handler));
+ let act = App::new().route("/act", web::get().to(act_handler));
+}`;
+	const result = analyzeRustServerSource(src);
+	assert.deepEqual(result.routes.map((r) => [r.framework, r.method, r.path]), [
+		['axum', 'GET', '/ax'],
+		['actix-web', 'GET', '/act'],
+	]);
+	assert.equal(result.diagnostics.length, 0);
+	assert.equal(result.framework, 'rust-mixed-http');
 });
