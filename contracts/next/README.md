@@ -89,6 +89,8 @@ The verifier rejects stale/substituted pack bytes, missing/duplicate/unexpected 
 
 This result contract is **candidate pre-freeze**. A valid result proves conformance to these reviewed vectors at the named consumer commit; it does not by itself grant T00-04 activation or runtime/business-behavior certification.
 
+When more than one independent consumer is required, `verifyRequiredConsumerSet()` combines already-verified results into `sbf.identity-consumer-set/1`. It rejects duplicate repositories and, when a required repository list is supplied, rejects both missing and unexpected consumers. The generated summary is described by `schemas/next/identity-consumer-set.schema.json`. For T01-05, the intended required set is becoder + beval at exact commits; the function itself is generic and does not hardcode repository names.
+
 ## Files owned by this T01 slice
 
 - `contracts/next/identity.mjs`
@@ -98,6 +100,7 @@ This result contract is **candidate pre-freeze**. A valid result proves conforma
 - `schemas/next/identity.golden.json`
 - `schemas/next/identity-conformance.json`
 - `schemas/next/identity-consumer-result.schema.json`
+- `schemas/next/identity-consumer-set.schema.json`
 - `test/contract-next/contract-identity-next.test.mjs`
 - `test/contract-next/identity-conformance.test.mjs`
 - `test/contract-next/consumer-conformance.test.mjs`
