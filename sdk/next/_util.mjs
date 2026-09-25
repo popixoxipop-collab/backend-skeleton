@@ -86,6 +86,58 @@ export function validEnvironmentName(value) {
 	return typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
 }
 
+
+export function cloneJsonValue(value, { maxDepth = 64, maxNodes = 100000 } = {}) {
+	let nodes = 0;
+	const active = new Set();
+
+	function visit(current, depth) {
+		nodes += 1;
+		if (nodes > maxNodes) throw new TypeError('JSON value exceeds node budget');
+		if (depth > maxDepth) throw new TypeError('JSON value exceeds depth budget');
+
+		if (current === null || typeof current === 'string' || typeof current === 'boolean') return current;
+		if (typeof current === 'number') {
+			if (!Number.isFinite(current)) throw new TypeError('JSON numbers must be finite');
+			return current;
+		}
+		if (Array.isArray(current)) {
+			if (active.has(current)) throw new TypeError('JSON value must not contain cycles');
+			active.add(current);
+			const out = current.map((item) => visit(item, depth + 1));
+			active.delete(current);
+			return out;
+		}
+		if (isPlainObject(current)) {
+			if (active.has(current)) throw new TypeError('JSON value must not contain cycles');
+			active.add(current);
+			const out = {};
+			for (const key of Object.keys(current).sort()) {
+				Object.defineProperty(out, key, {
+					value: visit(current[key], depth + 1),
+					enumerable: true,
+					configurable: true,
+					writable: true,
+				});
+			}
+			active.delete(current);
+			return out;
+		}
+		throw new TypeError('value is not JSON-serializable data');
+	}
+
+	return visit(value, 0);
+}
+
+export function isJsonValue(value, options) {
+	try {
+		cloneJsonValue(value, options);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function stableClone(value) {
 	if (Array.isArray(value)) return value.map(stableClone);
 	if (isPlainObject(value)) {
