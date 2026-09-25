@@ -26,14 +26,17 @@ function resourceContextShape(ctx, base) {
     };
   }
   const memberParam = ctx.param ?? 'id';
-  const parentParam = ctx.param ?? regularSingular(name);
+  const parentResource = regularSingular(name);
+  const nestedParam = parentResource
+    ? (ctx.param ? `${parentResource}_${ctx.param}` : `${parentResource}_id`)
+    : null;
   return {
     ok: true,
     collection,
     member: joinRoute(collection, `{${memberParam}}`),
-    nested: parentParam ? joinRoute(collection, `{${parentParam}_id}`) : null,
+    nested: nestedParam ? joinRoute(collection, `{${nestedParam}}`) : null,
     memberParam,
-    nestedParam: parentParam,
+    nestedParam,
   };
 }
 
