@@ -14,15 +14,28 @@ function tableKey(table) {
 	return `${table.schema ?? ''}\u0000${table.name}`;
 }
 
+function normalizeKeyType(value) {
+	const raw = String(value ?? 'unknown').trim();
+	const lower = raw.toLowerCase();
+	if (['uuid', 'java.util.uuid'].includes(lower)) return 'uuid';
+	if (lower === 'non-uuid') return 'non-uuid';
+	if (!raw || lower === 'unknown') return 'unknown';
+	return raw;
+}
+
 function readCapability(entity) {
 	const tableKnown = Boolean(entity.table?.name);
 	const keyColumns = entity.primary_key?.columns ?? [];
+	const keyType = normalizeKeyType(entity.primary_key?.type);
 	return {
 		candidate_read_by_primary_key: tableKnown && keyColumns.length > 0,
 		verified_read_by_primary_key: false,
 		write: false,
 		key_shape: keyColumns.length === 0 ? 'unknown' : keyColumns.length === 1 ? 'single' : 'composite',
-		key_type: entity.primary_key?.type ?? 'unknown',
+		key_type: keyType,
+		observed_key_type: null,
+		effective_key_type: keyType,
+		key_type_status: 'unverified',
 	};
 }
 
@@ -86,6 +99,8 @@ export function composeResourceBindings({ resources = [], persistence, explicit_
 		bindings.push({
 			resource_id: resource.id,
 			entity_id: entity.id,
+			persistence_id: ir.provider,
+			persistence_source_kind: ir.source_kind,
 			table: entity.table,
 			primary_key: entity.primary_key,
 			capabilities: readCapability(entity),
@@ -130,6 +145,9 @@ export function verifyResourceBindingsAgainstObserved({ binding_result, observed
 			const matches = key ? (byTable.get(key) ?? []) : [];
 			let tableStatus = 'unknown';
 			let keyStatus = 'unknown';
+			let keyTypeStatus = 'unknown';
+			let observedKeyType = null;
+			let effectiveKeyType = binding.capabilities?.key_type ?? 'unknown';
 			let verified = false;
 			if (key && matches.length === 0) tableStatus = 'missing';
 			else if (matches.length > 1) tableStatus = 'ambiguous';
@@ -138,14 +156,45 @@ export function verifyResourceBindingsAgainstObserved({ binding_result, observed
 				const expected = binding.primary_key?.columns ?? [];
 				const actual = matches[0].primary_key?.columns ?? [];
 				if (matches[0].primary_key?.source !== 'live') keyStatus = 'unknown';
-				else if (sameOrdered(expected, actual) && expected.length > 0) { keyStatus = 'verified'; verified = true; }
-				else keyStatus = 'mismatch';
+				else if (sameOrdered(expected, actual) && expected.length > 0) {
+					keyStatus = 'verified';
+					if (actual.length === 1) {
+						const observedField = matches[0].fields?.find((field) => field.name === actual[0]) ?? null;
+						observedKeyType = normalizeKeyType(observedField?.type);
+					}
+					const sourceKeyType = normalizeKeyType(binding.capabilities?.key_type);
+					if (sourceKeyType === 'unknown') {
+						keyTypeStatus = observedKeyType && observedKeyType !== 'unknown' ? 'observed' : 'unknown';
+						effectiveKeyType = observedKeyType && observedKeyType !== 'unknown' ? observedKeyType : 'unknown';
+						verified = true;
+					} else if (!observedKeyType || observedKeyType === 'unknown') {
+						keyTypeStatus = 'source-only';
+						effectiveKeyType = sourceKeyType;
+						verified = true;
+					} else if (sourceKeyType === observedKeyType || (sourceKeyType === 'non-uuid' && observedKeyType !== 'uuid')) {
+						keyTypeStatus = 'verified';
+						effectiveKeyType = sourceKeyType === 'non-uuid' ? observedKeyType : sourceKeyType;
+						verified = true;
+					} else {
+						keyTypeStatus = 'mismatch';
+						effectiveKeyType = sourceKeyType;
+						verified = false;
+					}
+				} else keyStatus = 'mismatch';
 			}
 			return {
 				...binding,
-				capabilities: { ...binding.capabilities, verified_read_by_primary_key: verified },
-				verification: { source_kind: 'live', table: tableStatus, primary_key: keyStatus },
+				capabilities: {
+					...binding.capabilities,
+					verified_read_by_primary_key: verified,
+					observed_key_type: observedKeyType,
+					effective_key_type: effectiveKeyType,
+					key_type_status: keyTypeStatus,
+				},
+				verification: { source_kind: 'live', table: tableStatus, primary_key: keyStatus, key_type: keyTypeStatus },
 			};
 		}),
 	};
 }
+
+export { normalizeKeyType };
