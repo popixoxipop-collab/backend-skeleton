@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
 	ACTIVATION_MODE,
 	CURRENT_ADAPTER_DESCRIPTOR_CONTRACT,
+	createAdapterSdkManifest,
 	SDK_ENTRYPOINT_PROTOCOL,
 	SDK_MANIFEST_CONTRACT,
 	planExternalAdapterActivation,
@@ -109,4 +110,33 @@ test('manifest rejects SemVer prerelease numeric identifiers with leading zeroes
 	const result = validateAdapterSdkManifest(manifest);
 	assert.equal(result.ok, false);
 	assert.match(result.errors.map((e) => `${e.path} ${e.message}`).join('\n'), /\/adapter\/version/);
+});
+
+
+test('manifest builder emits deny-by-default permissions and manual activation', () => {
+	const built = createAdapterSdkManifest({
+		adapter: { id: 'typescript-nestjs', title: 'NestJS', version: '0.1.0' },
+		bskel: { minInclusive: '1.9.0', maxExclusive: '2.0.0' },
+		entrypointPath: 'adapter-worker.mjs',
+		fixtures: ['fixtures/minimal'],
+		verificationBasis: 'synthetic-only',
+		environment: ['NODE_ENV'],
+	});
+	assert.equal(built.permissions.network, 'deny-by-default');
+	assert.equal(built.permissions.subprocess, 'deny-by-default');
+	assert.deepEqual(built.permissions.writeRoots, []);
+	assert.deepEqual(built.permissions.readRoots, ['.']);
+	assert.equal(built.activation.mode, ACTIVATION_MODE);
+	assert.equal(validateAdapterSdkManifest(built).ok, true);
+});
+
+test('manifest builder refuses unsafe roots instead of returning a partial manifest', () => {
+	assert.throws(() => createAdapterSdkManifest({
+		adapter: { id: 'typescript-nestjs', title: 'NestJS', version: '0.1.0' },
+		bskel: { minInclusive: '1.9.0', maxExclusive: '2.0.0' },
+		entrypointPath: 'adapter-worker.mjs',
+		fixtures: ['fixtures/minimal'],
+		verificationBasis: 'synthetic-only',
+		readRoots: ['../outside'],
+	}), /invalid adapter SDK manifest/);
 });
