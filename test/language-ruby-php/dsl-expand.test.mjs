@@ -93,6 +93,30 @@ test('Rails member collection and on modes resolve only the declared resource co
   ]) assert.ok(actual.has(expected), expected);
 });
 
+test('Rails documented no-on custom route uses the resource-prefixed nested key', () => {
+  const facts = extractRailsDslFacts([
+    'resources :photos do',
+    '  get "preview"',
+    'end',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  const preview = expanded.candidates.find((x) => x.path.endsWith('/preview'));
+  assert.equal(preview.path, '/photos/{photo_id}/preview');
+  assert.equal(preview.implicitNestedMember, true);
+});
+
+test('Rails on:new custom route uses the new-resource path', () => {
+  const facts = extractRailsDslFacts([
+    'resources :comments do',
+    '  get "preview", on: :new',
+    'end',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  assert.ok(expanded.candidates.some((x) => x.method === 'GET' && x.path === '/comments/new/preview'));
+});
+
 test('Laravel bounded expansion joins group prefix and expands apiResource selected actions', () => {
   const facts = extractLaravelDslFacts([
     "Route::prefix('api')->middleware('auth')->group(function () {",
