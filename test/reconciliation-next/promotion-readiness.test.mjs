@@ -165,3 +165,17 @@ test('readiness counts are aggregated without changing endpoint decisions', () =
     runtimeRouteReady: 1,
   });
 });
+
+
+test('readiness rejects a foreign runtime report version even when it claims observed', () => {
+  const report = buildPromotionReadinessReport({
+    graph: graph(),
+    binding: binding(),
+    runtimeReport: runtimeReport(undefined, {
+      version: 'other/runtime-report',
+      state: 'ready',
+    }),
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-version-unsupported');
+});
