@@ -1,0 +1,47 @@
+{
+  "schema": "bskel.scale-baseline-revision/1",
+  "task_id": "T00-01",
+  "epoch": 6,
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e"
+  },
+  "cause": {
+    "repo": "popixoxipop-collab/Backend-evaluation",
+    "prior_main": "24cd9ad3cb913756184f79bb008af565a0458967",
+    "pr42": {
+      "pr": 42,
+      "head_sha": "36d3e9b8023d70398ecf99ffa2d3ed6fc593e579",
+      "merge_commit": "c59f8b73a05d29a313e75a29c7f1de6264a1178d",
+      "ci_run_id": 36104244773,
+      "ci_run_number": 921,
+      "live_run_id": 36104240694,
+      "live_run_number": 37,
+      "live_outcome": "repaired_and_passed"
+    },
+    "pr47": {
+      "pr": 47,
+      "head_sha": "1cdcb1a154d1b517d0ad92907c063d2c79c8e513",
+      "merge_commit": "6a767a4bc04cfd55c4b87362b47b898563ffc59e"
+    },
+    "note": "Epoch 5 became stale because beval main advanced by 43 commits and changed package/runtime/repair surfaces."
+  },
+  "artifact_blobs": {
+    "package.json": "01fce37d05e9c2793f5ed93319d533a61b43b762",
+    "package-lock.json": "a83092968a5833883ac74c5e3aad5c80f117d006",
+    ".github/workflows/ci.yml": "7b1a51ee01975733c4b838de66fb83592b637f25"
+  },
+  "current_exact_head_ci": {
+    "run_id": 36105784109,
+    "run_number": 924,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "disposition": "WAITING_FOR_EPOCH6_PR_CI",
+  "acceptance_remaining": [
+    "require epoch-6 PR exact-head CI terminal success",
+    "T19 independent review of exact epoch-6 branch head, current mains, required artifact blobs, and exact CI evidence"
+  ]
+}

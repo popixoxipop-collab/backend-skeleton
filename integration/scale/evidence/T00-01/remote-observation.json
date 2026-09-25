@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-remote-observation/1",
   "observed_on": "2026-09-25",
-  "source": "GitHub repository metadata, branch metadata, package.json, package-lock.json, CI workflow, exact-head Actions run",
+  "source": "GitHub repository metadata, branch metadata, package.json, package-lock.json, CI workflow, and exact-head Actions evidence when available",
   "repositories": [
     {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -31,7 +31,7 @@
     {
       "repo": "popixoxipop-collab/backend-decoder",
       "default_branch": "main",
-      "head_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
       "artifacts": [
         {
           "path": "package.json",
@@ -47,20 +47,27 @@
         }
       ],
       "exact_head_ci": {
-        "run_id": 36070647695,
+        "run_id": 36083442722,
+        "status": "completed",
         "conclusion": "success"
       },
       "dirty": null,
-      "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean"
+      "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",
+      "merge_event": {
+        "pr": 9,
+        "head_sha": "df5ef76e1466557c6c17369c8ff20ec4d7e6d55d",
+        "merge_commit_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+        "merged_at": "2026-09-25T01:46:06Z"
+      }
     },
     {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "head_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
       "artifacts": [
         {
           "path": "package.json",
-          "git_blob_sha": "714575e9cbaff966e4fc00138da6317ef84ac2a4"
+          "git_blob_sha": "5ffb509ae6e4323482458527ae1bd338417222ae"
         },
         {
           "path": "package-lock.json",
@@ -68,24 +75,65 @@
         },
         {
           "path": ".github/workflows/ci.yml",
-          "git_blob_sha": "8f5aeb2110101f84d97a305259bed54ee8d9ddbc"
+          "git_blob_sha": "7b1a51ee01975733c4b838de66fb83592b637f25"
         }
       ],
       "exact_head_ci": {
-        "run_id": 36080236800,
-        "status": "queued",
-        "conclusion": null
+        "run_id": 36117576104,
+        "run_number": 930,
+        "status": "completed",
+        "conclusion": "success"
       },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",
       "merge_event": {
-        "pr": 39,
-        "head_sha": "00792c229fc3d67ec5d4ff248aaf720f7d09defa",
-        "merge_commit_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
-        "merged_at": "2026-09-25T01:02:11Z",
-        "external_exact_source_verification": "backend-decoder run #19 success per merged PR body"
+        "pr": 49,
+        "head_sha": "b1b950f4c3f79571bddb2f3ab87e4d81c3ce5025",
+        "merge_commit_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
+        "merged_at": "2026-09-25T09:17:07Z",
+        "parent_main": "e5f9ed5decf56fe5a45dd047400be21e7edf27c4"
+      },
+      "pr42_evidence": {
+        "pr": 42,
+        "head_sha": "36d3e9b8023d70398ecf99ffa2d3ed6fc593e579",
+        "merge_commit_sha": "c59f8b73a05d29a313e75a29c7f1de6264a1178d",
+        "merged_at": "2026-09-25T06:51:34Z",
+        "ci": {
+          "run_id": 36104244773,
+          "run_number": 921,
+          "status": "completed",
+          "conclusion": "success"
+        },
+        "live_nvidia": {
+          "run_id": 36104240694,
+          "run_number": 37,
+          "status": "completed",
+          "conclusion": "success",
+          "outcome": "repaired_and_passed"
+        },
+        "acceptance_note": "supplementary branch/live evidence only; exact-head push CI on current main remains required"
+      },
+      "epoch7_delta": {
+        "from_epoch6_beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+        "ahead_by_commits": 14,
+        "merged_prs": [
+          48,
+          49
+        ],
+        "changed_required_blob": "package.json",
+        "prior_epoch6_review": {
+          "t19_pr": 118,
+          "review_path": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+          "verdict": "BLOCKED/DRIFT",
+          "comment_id": 5830038810
+        }
+      },
+      "pr48_evidence": {
+        "pr": 48,
+        "merge_commit_sha": "e5f9ed5decf56fe5a45dd047400be21e7edf27c4",
+        "note": "provider/failure-corpus expansion merged before PR #49 cleanup; epoch 7 pins the resulting post-cleanup main, not PR-head evidence"
       }
     }
   ],
-  "rebaseline_epoch": 2
+  "rebaseline_epoch": 7
 }

@@ -1,0 +1,73 @@
+{
+  "schema": "bskel.scale-baseline-revision/1",
+  "task_id": "T00-01",
+  "epoch": 7,
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "882b185655f9166cda4a64b5b49a6eab477f2410"
+  },
+  "cause": {
+    "prior_epoch": 6,
+    "t19_review": {
+      "pr": 118,
+      "head": "ed30e84d03526ac168004da2b644ebb29e8cb0dc",
+      "path": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+      "blob": "64254cee94654c9d9002824a6b693a2b1485f6c4",
+      "verdict": "BLOCKED/DRIFT",
+      "comment_id": 5830038810
+    },
+    "beval_delta": {
+      "from": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "to": "882b185655f9166cda4a64b5b49a6eab477f2410",
+      "ahead_by": 14,
+      "merged_prs": [
+        {
+          "pr": 48,
+          "merge_commit": "e5f9ed5decf56fe5a45dd047400be21e7edf27c4"
+        },
+        {
+          "pr": 49,
+          "merge_commit": "882b185655f9166cda4a64b5b49a6eab477f2410"
+        }
+      ]
+    }
+  },
+  "beval_required_artifact_blobs": {
+    "package.json": "5ffb509ae6e4323482458527ae1bd338417222ae",
+    "package-lock.json": "a83092968a5833883ac74c5e3aad5c80f117d006",
+    ".github/workflows/ci.yml": "7b1a51ee01975733c4b838de66fb83592b637f25"
+  },
+  "exact_head_main_ci": {
+    "bskel": {
+      "run_id": 36040486375,
+      "run_number": 319,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "becoder": {
+      "run_id": 36083442722,
+      "run_number": 83,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "beval": {
+      "run_id": 36117576104,
+      "run_number": 930,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        "unit (20)",
+        "unit (22)",
+        "unit (24)",
+        "integration"
+      ]
+    }
+  },
+  "disposition": "WAITING_FOR_EPOCH7_PR_CI",
+  "acceptance_remaining": [
+    "epoch-7 PR exact-head CI terminal success",
+    "fresh T19 independent review of exact epoch-7 head/base, current mains, all 9 required artifact blobs, and exact-head CI evidence"
+  ]
+}
