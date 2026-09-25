@@ -138,3 +138,39 @@ test('selected corpus ids are checked before any checkout starts', () => {
     /unknown corpus entry/,
   );
 });
+
+
+test('observed real-repo snapshot matches pinned manifest refs and self-consistent aggregates', () => {
+  const observed = JSON.parse(
+    fs.readFileSync(path.join(HERE, 'corpus-observed-2026-09-25.json'), 'utf8'),
+  );
+  assert.equal(observed.contract, 'sbf.t07-ruby-php-corpus-observation/1');
+  assert.match(observed.scanner_revision, /^[0-9a-f]{40}$/);
+  assert.equal(observed.environment.target_applications_executed, false);
+  assert.equal(observed.results.length, MANIFEST.entries.length);
+
+  const manifestById = new Map(MANIFEST.entries.map((entry) => [entry.id, entry]));
+  for (const result of observed.results) {
+    const entry = manifestById.get(result.id);
+    assert.ok(entry, result.id);
+    assert.equal(result.ref, entry.ref);
+  }
+
+  const sum = (field) => observed.results.reduce((total, row) => total + (row[field] ?? 0), 0);
+  for (const field of [
+    'route_facts',
+    'literal',
+    'partial',
+    'unknown',
+    'route_candidates',
+    'route_unknowns',
+    'models',
+    'explicit_tables',
+    'explicit_primary_keys',
+    'model_unknowns',
+  ]) {
+    assert.equal(observed.aggregate[field], sum(field), field);
+  }
+  assert.equal(observed.aggregate.repositories, observed.results.length);
+  assert.match(observed.scope, /not runtime-route certification/);
+});
