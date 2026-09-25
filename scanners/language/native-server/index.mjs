@@ -1,14 +1,17 @@
 import { analyzeGoGinSource } from './go.mjs';
 import { analyzeCSharpAspNetSource } from './csharp.mjs';
+import { analyzeRustServerSource } from './rust.mjs';
 import { NATIVE_SERVER_PROTOCOL, normalizeBudget, validateMessage } from './protocol.mjs';
 
 export { analyzeGoGinSource } from './go.mjs';
 export { analyzeCSharpAspNetSource } from './csharp.mjs';
+export { analyzeRustServerSource } from './rust.mjs';
 export { NATIVE_SERVER_PROTOCOL, DEFAULT_BUDGET, normalizeBudget, validateMessage, encodeNdjson, decodeNdjsonLine } from './protocol.mjs';
 
 export const NATIVE_LANGUAGE_BACKENDS = Object.freeze({
 	go: Object.freeze({ id: 'go-static-pilot', analyze: analyzeGoGinSource, execution: 'none' }),
 	csharp: Object.freeze({ id: 'csharp-static-pilot', analyze: analyzeCSharpAspNetSource, execution: 'none' }),
+	rust: Object.freeze({ id: 'rust-static-pilot', analyze: analyzeRustServerSource, execution: 'none' }),
 });
 
 export function analyzeNativeServerSource({ language, source, file = '<memory>' }) {
