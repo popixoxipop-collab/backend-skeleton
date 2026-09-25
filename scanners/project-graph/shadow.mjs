@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runScan } from '../index.mjs';
 import { ADAPTERS } from '../registry.mjs';
-import { PROJECT_GRAPH_DRAFT, buildProjectScanPlan, captureAdapterReadSetSnapshot } from './index.mjs';
+import { PROJECT_GRAPH_DRAFT, buildProjectScanPlan, captureAdapterReadSetSnapshot, projectGraphExecutionRoot } from './index.mjs';
 
 function resolveProjectRoot(repoRoot, relativeRoot) {
   const base = path.resolve(repoRoot);
@@ -114,8 +114,9 @@ export function executeProjectScanPlan({
     throw new TypeError('expected ' + PROJECT_GRAPH_DRAFT);
   }
   const base = path.resolve(repoRoot);
-  if (path.resolve(graph.repo_root) !== base) {
-    const err = new Error('graph repo_root does not match execution repoRoot');
+  const capturedExecutionRoot = projectGraphExecutionRoot(graph);
+  if (capturedExecutionRoot && path.resolve(capturedExecutionRoot) !== base) {
+    const err = new Error('graph execution root does not match execution repoRoot');
     err.code = 'PROJECT_GRAPH_ROOT_MISMATCH';
     throw err;
   }
