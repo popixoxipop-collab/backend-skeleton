@@ -1,7 +1,7 @@
 import { isPlainObject, validIdentifier } from './_util.mjs';
 import { SUPPORT_EXPLANATION_CONTRACT, SUPPORT_STATUSES } from './explain.mjs';
 
-export const SUPPORT_MATRIX_CONTRACT = 'sbf.support-matrix/1';
+export const SUPPORT_EVIDENCE_MATRIX_CONTRACT = 'sbf.support-evidence-matrix/1';
 
 
 function assertExplanation(report, index) {
@@ -59,7 +59,7 @@ function escapeMarkdown(value) {
 		.replaceAll('\n', '<br>');
 }
 
-export function buildSupportMatrix(explanations) {
+export function buildSupportEvidenceMatrix(explanations) {
 	if (!Array.isArray(explanations) || explanations.length === 0) {
 		throw new TypeError('explanations must be a non-empty array');
 	}
@@ -84,17 +84,17 @@ export function buildSupportMatrix(explanations) {
 		return { adapterId, capabilities };
 	});
 	return {
-		contract: SUPPORT_MATRIX_CONTRACT,
+		contract: SUPPORT_EVIDENCE_MATRIX_CONTRACT,
 		capabilityNames,
 		rows,
 		note: 'This is a deterministic projection of supplied support explanations, not an independent certification or runtime verdict.',
 	};
 }
 
-export function renderSupportMatrixMarkdown(matrix) {
-	if (!isPlainObject(matrix) || matrix.contract !== SUPPORT_MATRIX_CONTRACT ||
+export function renderSupportEvidenceMatrixMarkdown(matrix) {
+	if (!isPlainObject(matrix) || matrix.contract !== SUPPORT_EVIDENCE_MATRIX_CONTRACT ||
 		!Array.isArray(matrix.capabilityNames) || !Array.isArray(matrix.rows)) {
-		throw new TypeError(`matrix must be ${SUPPORT_MATRIX_CONTRACT}`);
+		throw new TypeError(`matrix must be ${SUPPORT_EVIDENCE_MATRIX_CONTRACT}`);
 	}
 	const header = ['Adapter', ...matrix.capabilityNames];
 	const lines = [
@@ -114,9 +114,9 @@ export function renderSupportMatrixMarkdown(matrix) {
 	return lines.join('\n');
 }
 
-export function supportMatrixDiagnostics(matrix) {
-	if (!isPlainObject(matrix) || matrix.contract !== SUPPORT_MATRIX_CONTRACT) {
-		throw new TypeError(`matrix must be ${SUPPORT_MATRIX_CONTRACT}`);
+export function supportEvidenceMatrixDiagnostics(matrix) {
+	if (!isPlainObject(matrix) || matrix.contract !== SUPPORT_EVIDENCE_MATRIX_CONTRACT) {
+		throw new TypeError(`matrix must be ${SUPPORT_EVIDENCE_MATRIX_CONTRACT}`);
 	}
 	const diagnostics = [];
 	for (const row of matrix.rows) {
