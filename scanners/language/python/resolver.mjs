@@ -22,6 +22,7 @@ function parentPackage(packageId, ups) {
 function importBase(moduleEntry, fact) {
   if (fact.kind !== 'from') return null;
   if (fact.level === 0) return fact.module || '';
+  // Python level=1 means current package, level=2 means one parent, etc.
   const parent = parentPackage(moduleEntry.packageId, fact.level - 1);
   if (parent === null) return null;
   return [parent, fact.module].filter(Boolean).join('.');
@@ -29,26 +30,41 @@ function importBase(moduleEntry, fact) {
 
 export function buildPythonProjectFacts(entries) {
   const modules = new Map();
+  const candidates = new Map();
   for (const entry of entries) {
     if (!entry?.ok || !entry.source?.path || !entry.facts) continue;
     const identity = moduleIdentity(entry.source.path);
-    modules.set(identity.moduleId, {
+    const candidate = {
       ...identity,
       source: entry.source,
       facts: entry.facts,
       aliases: new Map(),
       importResolutions: [],
-    });
+    };
+    if (!candidates.has(identity.moduleId)) candidates.set(identity.moduleId, []);
+    candidates.get(identity.moduleId).push(candidate);
   }
+  const collisions = [];
+  for (const [moduleId, found] of candidates) {
+    if (found.length === 1) modules.set(moduleId, found[0]);
+    else collisions.push({ moduleId, sources: found.map((x) => x.source.path).sort() });
+  }
+  const moduleLocality = (moduleId) => {
+    const found = candidates.get(moduleId) || [];
+    if (found.length === 1) return 'local';
+    if (found.length > 1) return 'ambiguous';
+    return 'external';
+  };
 
   for (const mod of modules.values()) {
     for (const fact of mod.facts.imports || []) {
       if (fact.kind === 'import') {
         for (const item of fact.names || []) {
           const alias = item.alias || item.name.split('.')[0];
-          const targetModule = item.name;
-          const local = modules.has(targetModule);
-          const record = { alias, kind: 'module', module: targetModule, locality: local ? 'local' : 'external', source: fact };
+          // Python binds `import pkg.sub` to `pkg`, while `import pkg.sub as ps` binds the full module.
+          const targetModule = item.alias ? item.name : item.name.split('.')[0];
+          const locality = moduleLocality(targetModule);
+          const record = { alias, kind: 'module', module: targetModule, locality, source: fact };
           mod.aliases.set(alias, record);
           mod.importResolutions.push(record);
         }
@@ -62,8 +78,9 @@ export function buildPythonProjectFacts(entries) {
         }
         const alias = item.alias || item.name;
         const asModule = [base, item.name].filter(Boolean).join('.');
-        if (modules.has(asModule)) {
-          const record = { alias, kind: 'module', module: asModule, locality: 'local', source: fact };
+        const asModuleLocality = moduleLocality(asModule);
+        if (asModuleLocality === 'local' || asModuleLocality === 'ambiguous') {
+          const record = { alias, kind: 'module', module: asModule, locality: asModuleLocality, source: fact };
           mod.aliases.set(alias, record);
           mod.importResolutions.push(record);
         } else {
@@ -72,7 +89,7 @@ export function buildPythonProjectFacts(entries) {
             kind: 'symbol',
             module: base,
             name: item.name,
-            locality: base && modules.has(base) ? 'local' : (fact.level > 0 ? 'unresolved-local' : 'external'),
+            locality: base && moduleLocality(base) === 'local' ? 'local' : (base && moduleLocality(base) === 'ambiguous' ? 'ambiguous' : (fact.level > 0 ? 'unresolved-local' : 'external')),
             source: fact,
           };
           mod.aliases.set(alias, record);
@@ -84,6 +101,7 @@ export function buildPythonProjectFacts(entries) {
 
   return {
     modules,
+    collisions: collisions.sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
     get(moduleId) { return modules.get(moduleId) || null; },
     list() { return [...modules.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId)); },
   };
@@ -106,10 +124,11 @@ export function resolvePythonSymbol(project, moduleId, symbol) {
     return { status: 'unknown', symbol };
   }
   if (alias.kind === 'module') {
+    if (alias.locality === 'ambiguous') return { status: 'unknown', reason: 'ambiguous-module', module: alias.module, symbol };
     return { status: 'resolved', locality: alias.locality, module: alias.module, name: rest.join('.') || null };
   }
   if (alias.kind === 'symbol') {
-    return { status: alias.locality === 'unresolved-local' ? 'unknown' : 'resolved', locality: alias.locality, module: alias.module, name: [alias.name, ...rest].join('.') };
+    return { status: ['unresolved-local', 'ambiguous'].includes(alias.locality) ? 'unknown' : 'resolved', locality: alias.locality, module: alias.module, name: [alias.name, ...rest].join('.') };
   }
   return { status: 'unknown', symbol };
 }
