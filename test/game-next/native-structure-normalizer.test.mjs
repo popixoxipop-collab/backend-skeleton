@@ -231,3 +231,52 @@ test('unknown engine-export fields fail closed instead of being silently ignored
     /unsupported fields: inferred_behavior/,
   );
 });
+
+
+test('conflicting Unreal replication and RPC declarations fail closed', () => {
+  const propertyConflict = bytes({
+    schema: 'sbf.game-unreal-structure-export/draft-1',
+    types: [{
+      id: 'AHero',
+      kind: 'class',
+      name: 'AHero',
+      properties: [{
+        name: 'Health',
+        type: 'float',
+        specifiers: ['Replicated', 'ReplicatedUsing=OnRep_Health'],
+      }],
+    }],
+  });
+  assert.throws(
+    () => normalizeNativeStructureExport(propertyConflict, envelope(propertyConflict, 'unreal')),
+    /conflicting Unreal replication specifiers/,
+  );
+
+  const rpcConflict = bytes({
+    schema: 'sbf.game-unreal-structure-export/draft-1',
+    types: [{
+      id: 'AHero',
+      kind: 'class',
+      name: 'AHero',
+      functions: [{ name: 'Move', specifiers: ['Server', 'Client'] }],
+    }],
+  });
+  assert.throws(
+    () => normalizeNativeStructureExport(rpcConflict, envelope(rpcConflict, 'unreal')),
+    /conflicting Unreal RPC modes/,
+  );
+
+  const reliabilityConflict = bytes({
+    schema: 'sbf.game-unreal-structure-export/draft-1',
+    types: [{
+      id: 'AHero',
+      kind: 'class',
+      name: 'AHero',
+      functions: [{ name: 'Move', specifiers: ['Server', 'Reliable', 'Unreliable'] }],
+    }],
+  });
+  assert.throws(
+    () => normalizeNativeStructureExport(reliabilityConflict, envelope(reliabilityConflict, 'unreal')),
+    /conflicting Unreal RPC reliability/,
+  );
+});
