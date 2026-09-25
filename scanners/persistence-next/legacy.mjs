@@ -5,7 +5,13 @@ import {
 	sourcePath,
 } from './ir.mjs';
 
-const LEGACY_PROVIDERS = new Set(['java-spring', 'python-fastapi', 'typescript-express', 'ruby-rails']);
+export const LEGACY_ADAPTER_PERSISTENCE_IDS = Object.freeze({
+	'java-spring': 'jpa-hibernate',
+	'python-fastapi': 'sqlalchemy-sqlmodel',
+	'typescript-express': 'typeorm',
+	'ruby-rails': 'active-record',
+});
+const LEGACY_PROVIDERS = new Set(Object.keys(LEGACY_ADAPTER_PERSISTENCE_IDS));
 
 function primaryKeyType(provider, entity) {
 	if (!entity.idField) return 'unknown';
@@ -25,6 +31,7 @@ function flattenScanEntities(scan) {
 
 export function fromLegacyAdapterScan({ adapterId, scan, repoRoot = null }) {
 	if (!LEGACY_PROVIDERS.has(adapterId)) throw new TypeError(`unsupported legacy persistence provider: ${adapterId}`);
+	const persistenceId = LEGACY_ADAPTER_PERSISTENCE_IDS[adapterId];
 	const diagnostics = [];
 	const entities = flattenScanEntities(scan).map(({ module, entity }) => {
 		const file = sourcePath(entity.file ?? null, repoRoot);
@@ -43,7 +50,7 @@ export function fromLegacyAdapterScan({ adapterId, scan, repoRoot = null }) {
 			message: `${entity.className} has no primary-key field in the legacy scan`,
 		});
 		return {
-			provider: adapterId,
+			provider: persistenceId,
 			name: entity.className,
 			module,
 			file,
@@ -51,15 +58,15 @@ export function fromLegacyAdapterScan({ adapterId, scan, repoRoot = null }) {
 			primary_key: { columns: pkColumns, type: primaryKeyType(adapterId, entity), source: pkColumns.length ? 'source' : 'unknown' },
 			fields: pkColumns.map((name) => ({ name, type: entity.idFieldType ?? null, nullable: null, source: 'source' })),
 			relations: [],
-			source_refs: [makeSourceRef({ kind: 'source', provider: adapterId, file, line: entity.line ?? null, detail: 'legacy adapter entity' })],
+			source_refs: [makeSourceRef({ kind: 'source', provider: persistenceId, file, line: entity.line ?? null, detail: `legacy adapter entity via ${adapterId}` })],
 		};
 	});
 	return createPersistenceIr({
-		provider: adapterId,
+		provider: persistenceId,
 		source_kind: 'source',
 		entities,
 		diagnostics,
-		metadata: { bridge: 'legacy-adapter-scan', files_read: scan?.filesRead ?? [] },
+		metadata: { bridge: 'legacy-adapter-scan', legacy_adapter_id: adapterId, files_read: scan?.filesRead ?? [] },
 	});
 }
 
