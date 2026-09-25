@@ -251,3 +251,49 @@ test('runtimeObservedOperationKeys rejects an unversioned or foreign runtime rep
     endpoints: [{ endpointKey: '0:0', state: 'observed' }],
   }), []);
 });
+
+
+test('Express-style runtime :param route matches OpenAPI-style {param} by canonical shape', () => {
+  const report = reconcileRuntimeRoutes({
+    graph: graph(),
+    binding: binding(),
+    observation: observation([
+      { method: 'GET', path: '/widgets/:id', operationId: 'findWidget' },
+    ]),
+  });
+  assert.equal(report.endpoints[0].state, 'observed');
+  assert.equal(report.endpoints[0].reason, 'runtime-route-shape-match');
+});
+
+test('runtime regex-constrained :param route matches the same OpenAPI parameter shape', () => {
+  const report = reconcileRuntimeRoutes({
+    graph: graph(),
+    binding: binding(),
+    observation: observation([
+      { method: 'GET', path: '/widgets/:id([0-9]+)', operationId: 'findWidget' },
+    ]),
+  });
+  assert.equal(report.endpoints[0].state, 'observed');
+  assert.equal(report.endpoints[0].reason, 'runtime-route-shape-match');
+});
+
+test('two runtime routes with the same canonical method/path shape are rejected as duplicate route entries', () => {
+  const result = validateRuntimeRouteObservation(observation([
+    { method: 'GET', path: '/widgets/{id}', operationId: 'findWidget' },
+    { method: 'GET', path: '/widgets/:widgetId', operationId: 'findWidgetAlias' },
+  ]), binding());
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'duplicate-runtime-route-entry');
+});
+
+test('canonical route matching does not hide literal path drift', () => {
+  const report = reconcileRuntimeRoutes({
+    graph: graph(),
+    binding: binding(),
+    observation: observation([
+      { method: 'GET', path: '/gadgets/:id', operationId: 'findWidget' },
+    ]),
+  });
+  assert.equal(report.endpoints[0].state, 'conflict');
+  assert.equal(report.endpoints[0].reason, 'runtime-route-drift');
+});
