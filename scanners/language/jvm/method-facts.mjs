@@ -145,7 +145,7 @@ function directHeaders(source, masked, open, close) {
 		if (ch === '{') {
 			const bodyClose = balancedClose(masked, i, '{', '}');
 			if (bodyClose === -1 || bodyClose > close) break;
-			out.push({ start, end: i, terminator: '{' });
+			out.push({ start, end: i + 1, terminator: '{' });
 			i = bodyClose + 1;
 			start = i;
 			continue;
