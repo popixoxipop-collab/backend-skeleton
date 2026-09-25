@@ -203,9 +203,13 @@ function parseAppMethods(text) {
   return { methods: found, hasUnsupportedReexport: reexport };
 }
 
-function hasPagesDefaultExport(text) {
+function pagesDefaultExportLine(text) {
   const masked = maskJsComments(text);
-  return /\bexport\s+default\b/.test(masked) || /\bmodule\.exports\s*=/.test(masked);
+  const esm = /\bexport\s+default\b/g.exec(masked);
+  if (esm) return lineNumberAt(text, esm.index);
+  const cjs = /\bmodule\.exports\s*=/g.exec(masked);
+  if (cjs) return lineNumberAt(text, cjs.index);
+  return null;
 }
 
 function appController({ file, root, prefix, baseUnknown, notes }) {
@@ -258,7 +262,8 @@ function pagesController({ file, root, prefix, baseUnknown, notes }) {
   if (baseUnknown) return null;
 
   const text = fs.readFileSync(file, 'utf8');
-  if (!hasPagesDefaultExport(text)) {
+  const exportLine = pagesDefaultExportLine(text);
+  if (exportLine === null) {
     notes.push(`${path.relative(root, file)}: no default API handler export was found.`);
     return null;
   }
@@ -272,7 +277,7 @@ function pagesController({ file, root, prefix, baseUnknown, notes }) {
       path: mapped.path,
       operationId: null,
       method: null,
-      line: 1,
+      line: exportLine,
     }],
     file,
   };
