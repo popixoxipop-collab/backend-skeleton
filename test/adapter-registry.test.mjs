@@ -170,6 +170,12 @@ test('schemas/adapter.schema.json\'s capabilities enum matches CAPABILITY_NAMES 
 	assert.deepEqual([...schemaCaps].sort(), [...CAPABILITY_NAMES].sort());
 });
 
+test('schemas/oracle-manifest.schema.json adapter enum matches every shipped adapter exactly', () => {
+	const schema = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'schemas', 'oracle-manifest.schema.json'), 'utf8'));
+	const manifestAdapters = schema.properties.adapters.propertyNames.enum;
+	assert.deepEqual([...manifestAdapters].sort(), ADAPTERS.map((a) => a.id).sort());
+});
+
 // Schema-accuracy bridge (G1's other fix): a real runScan() output must validate against the
 // (now-corrected) scan-report schema. Zero runtime cost -- proves the schema describes reality,
 // which it did NOT before this item (additionalProperties:false with no path_prefix_signals
