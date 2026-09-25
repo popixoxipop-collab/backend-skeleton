@@ -3,6 +3,7 @@ export {
 	CURRENT_ADAPTER_DESCRIPTOR_CONTRACT,
 	SDK_ENTRYPOINT_PROTOCOL,
 	SDK_MANIFEST_CONTRACT,
+	createAdapterSdkManifest,
 	planExternalAdapterActivation,
 	supportsBskelVersion,
 	validateAdapterSdkManifest,
