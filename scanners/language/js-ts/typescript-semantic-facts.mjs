@@ -232,8 +232,27 @@ function declarationRecord(ts, checker, node, repoPath, source, entryByVirtual) 
   };
 }
 
+function semanticDtsFallback(fromFile, specifier, knownFiles) {
+  if (!(specifier.startsWith('./') || specifier.startsWith('../'))) return { status: 'none', candidates: [] };
+  if (specifier.includes('?') || specifier.includes('#')) return { status: 'none', candidates: [] };
+
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), specifier));
+  if (base === '..' || base.startsWith('../')) return { status: 'none', candidates: [] };
+  if (path.posix.extname(base)) return { status: 'none', candidates: [] };
+
+  const candidates = [
+    `${base}.d.ts`,
+    path.posix.join(base, 'index.d.ts'),
+  ].filter((candidate) => knownFiles.has(candidate)).sort(compareText);
+
+  if (candidates.length === 1) return { status: 'resolved', target: candidates[0], candidates };
+  if (candidates.length > 1) return { status: 'ambiguous', candidates };
+  return { status: 'none', candidates: [] };
+}
+
 function buildResolutionMaps(entries) {
   const knownFiles = entries.map((entry) => entry.path);
+  const knownSet = new Set(knownFiles);
   const byFile = new Map();
   const diagnostics = [];
   for (const entry of entries) {
@@ -244,13 +263,42 @@ function buildResolutionMaps(entries) {
       diagnostics.push(...facts.diagnostics.map((d) => ({ ...d, filePath: entry.path })));
       continue;
     }
+
     const resolved = resolveJsTsModuleEdges(facts, { knownFiles });
     const map = new Map();
     for (const edge of resolved.resolutions) {
-      if (edge.status === 'resolved' && edge.target) map.set(edge.specifier, edge.target);
+      if (edge.status === 'resolved' && edge.target) {
+        map.set(edge.specifier, edge.target);
+        continue;
+      }
+
+      if (edge.status === 'missing') {
+        const fallback = semanticDtsFallback(entry.path, edge.specifier, knownSet);
+        if (fallback.status === 'resolved') {
+          map.set(edge.specifier, fallback.target);
+          continue;
+        }
+        if (fallback.status === 'ambiguous') {
+          diagnostics.push({
+            level: 'info',
+            code: 'module-ambiguous',
+            message: `${edge.specifier}: multiple .d.ts inventory matches (${fallback.candidates.join(', ')})`,
+            source: edge.source,
+            filePath: entry.path,
+          });
+          continue;
+        }
+      }
+
+      diagnostics.push({
+        level: 'info',
+        code: `module-${edge.status}`,
+        message: `${edge.specifier}: ${edge.reason ?? 'unresolved'}`,
+        source: edge.source,
+        filePath: entry.path,
+      });
     }
     byFile.set(entry.path, map);
-    diagnostics.push(...resolved.diagnostics.map((d) => ({ ...d, filePath: entry.path })));
   }
   return { byFile, diagnostics };
 }
