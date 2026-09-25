@@ -6,10 +6,12 @@ It never imports or executes the target source.
 """
 import ast
 import json
+import math
 import sys
 
 REQ = "bskel.python-ast.request/1"
 RESP = "bskel.python-ast.response/1"
+JS_SAFE_INTEGER = (1 << 53) - 1
 
 
 def span(node):
@@ -32,16 +34,32 @@ def symbol_name(node):
     return None
 
 
+def scalar(v):
+    # bool must precede int because bool is an int subclass in Python.
+    if isinstance(v, bool) or v is None or isinstance(v, str):
+        return {"kind": "constant", "value": v}
+    if isinstance(v, int):
+        if -JS_SAFE_INTEGER <= v <= JS_SAFE_INTEGER:
+            return {"kind": "constant", "value": v}
+        return {"kind": "integer", "decimal": str(v), "reason": "outside-js-safe-integer"}
+    if isinstance(v, float):
+        if math.isfinite(v):
+            return {"kind": "constant", "value": v}
+        if math.isnan(v):
+            label = "NaN"
+        else:
+            label = "Infinity" if v > 0 else "-Infinity"
+        return {"kind": "float-special", "value": label, "reason": "non-finite-json-number"}
+    return {"kind": "unknown", "node": type(v).__name__}
+
+
 def value(node, depth=0):
     if node is None:
         return {"kind": "missing"}
     if depth > 12:
         return {"kind": "unknown", "node": type(node).__name__, "reason": "depth-limit"}
     if isinstance(node, ast.Constant):
-        v = node.value
-        if isinstance(v, (str, int, float, bool)) or v is None:
-            return {"kind": "constant", "value": v}
-        return {"kind": "unknown", "node": type(node).__name__}
+        return scalar(node.value)
     sym = symbol_name(node)
     if sym:
         return {"kind": "symbol", "name": sym}
@@ -60,9 +78,9 @@ def value(node, depth=0):
         }
     if isinstance(node, ast.Subscript):
         return {"kind": "subscript", "base": value(node.value, depth + 1), "slice": value(node.slice, depth + 1)}
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)) and isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, (int, float)):
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)) and isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, (int, float)) and not isinstance(node.operand.value, bool):
         sign = -1 if isinstance(node.op, ast.USub) else 1
-        return {"kind": "constant", "value": sign * node.operand.value}
+        return scalar(sign * node.operand.value)
     return {"kind": "unknown", "node": type(node).__name__}
 
 
@@ -104,8 +122,13 @@ def argument(arg, default=None, kind="positional"):
 
 
 def function(node):
-    defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + list(node.args.defaults)
-    args = [argument(a, d) for a, d in zip(node.args.args, defaults)]
+    positional = list(node.args.posonlyargs) + list(node.args.args)
+    defaults = [None] * (len(positional) - len(node.args.defaults)) + list(node.args.defaults)
+    posonly_count = len(node.args.posonlyargs)
+    args = [
+        argument(a, d, "positional-only" if index < posonly_count else "positional")
+        for index, (a, d) in enumerate(zip(positional, defaults))
+    ]
     if node.args.vararg:
         args.append(argument(node.args.vararg, None, "vararg"))
     for a, d in zip(node.args.kwonlyargs, node.args.kw_defaults):
@@ -190,20 +213,24 @@ def analyze(source, filename):
     }
 
 
+def emit(payload):
+    json.dump(payload, sys.stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
 def main():
     try:
         request = json.load(sys.stdin)
     except Exception as exc:
-        json.dump({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": str(exc)}}, sys.stdout, ensure_ascii=False, sort_keys=True)
+        emit({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": str(exc)}})
         return
     if request.get("protocol") != REQ or not isinstance(request.get("source"), str):
-        json.dump({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": "expected protocol and string source"}}, sys.stdout, ensure_ascii=False, sort_keys=True)
+        emit({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": "expected protocol and string source"}})
         return
     filename = request.get("filename") if isinstance(request.get("filename"), str) else "<source>"
     try:
         facts = analyze(request["source"], filename)
     except SyntaxError as exc:
-        json.dump({
+        emit({
             "protocol": RESP,
             "ok": False,
             "error": {
@@ -214,14 +241,14 @@ def main():
                 "end_line": getattr(exc, "end_lineno", None),
                 "end_column": getattr(exc, "end_offset", None),
             },
-        }, sys.stdout, ensure_ascii=False, sort_keys=True)
+        })
         return
-    json.dump({
+    emit({
         "protocol": RESP,
         "ok": True,
         "runtime": {"implementation": sys.implementation.name, "version": [sys.version_info.major, sys.version_info.minor, sys.version_info.micro]},
         "facts": facts,
-    }, sys.stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    })
 
 
 if __name__ == "__main__":
