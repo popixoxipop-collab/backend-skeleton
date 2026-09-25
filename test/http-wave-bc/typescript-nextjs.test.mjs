@@ -221,6 +221,36 @@ test('regex literals cannot unmask commented-out Next.js method exports', () => 
   }
 });
 
+test('root app takes precedence over src/app exactly as documented by Next.js', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
+    'app/root/route.ts': 'export function GET() {}',
+    'src/app/ignored/route.ts': 'export function GET() {}',
+  });
+  try {
+    const report = scanNext(root);
+    const endpoints = report.modules[0].controllers.flatMap((c) => c.endpoints);
+    assert.deepEqual(endpoints.map((x) => x.path), ['/root']);
+    assert.ok(report.scanNotes.some((x) => x.includes('src/app') && x.includes('ignored')));
+    assert.ok(!report.filesRead.some((x) => x.includes(path.join('src', 'app', 'ignored'))));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test('src/app is scanned when no root app directory exists', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
+    'src/app/api/route.ts': 'export function GET() {}',
+  });
+  try {
+    const report = scanNext(root);
+    assert.deepEqual(report.modules[0].controllers[0].endpoints.map((x) => x.path), ['/api']);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test('Next.js read set is deterministic and includes package, route, Pages API and config inputs', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
