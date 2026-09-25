@@ -209,3 +209,59 @@ test('contract snapshot verification binds source hash basis as well as hash byt
   assert.equal(result.current, false);
   assert.ok(result.changes.some((x) => x.field === 'source.source_hash_basis'));
 });
+
+
+test('protobuf comment masking does not treat URL slashes inside strings as comments', () => {
+  const scan = importProtoSource('syntax = "proto3"; option java_package = "https://example.test/a//b"; message Real { string id = 1; }');
+  assert.deepEqual(scan.grpc.messages.map((x) => x.name), ['Real']);
+  assert.equal(scan.grpc.messages[0].fields[0].name, 'id');
+});
+
+test('protobuf declaration-looking text inside strings cannot create fake messages', () => {
+  const scan = importProtoSource('syntax = "proto3"; option java_package = "message Fake { string hacked = 1; }"; message Real {}');
+  assert.deepEqual(scan.grpc.messages.map((x) => x.name), ['Real']);
+});
+
+test('protobuf RPC with an option block is still discovered without interpreting options', () => {
+  const scan = importProtoSource('syntax = "proto3"; service S { rpc Get (A) returns (B) { option deprecated = true; } }');
+  assert.deepEqual(scan.grpc.methods.map((x) => [x.service, x.name]), [['S', 'Get']]);
+});
+
+test('protobuf nested source declarations are not misidentified as top-level messages', () => {
+  const scan = importProtoSource('syntax = "proto3"; message Outer { message Inner { string nested = 1; } string outer = 2; }');
+  assert.deepEqual(scan.grpc.messages.map((x) => x.name), ['Outer']);
+  assert.ok(scan.warnings.some((x) => x.code === 'PROTO_NESTED_DECLARATION_NOT_EXPANDED'));
+});
+
+test('AsyncAPI local JSON Pointer tokens are unescaped instead of becoming synthetic names', () => {
+  const scan = importAsyncApiDocument({
+    asyncapi: '3.0.0',
+    channels: {
+      'orders/created': { address: 'orders/created' },
+    },
+    operations: {
+      sendOrder: {
+        action: 'send',
+        channel: { $ref: '#/channels/orders~1created' },
+      },
+    },
+  });
+  assert.equal(scan.asyncapi.operations[0].channel, 'orders/created');
+});
+
+test('AsyncAPI direct importer does not collapse external refs into local message identities', () => {
+  const scan = importAsyncApiDocument({
+    asyncapi: '3.0.0',
+    channels: { orders: { address: 'orders' } },
+    operations: {
+      sendOrder: {
+        action: 'send',
+        channel: { $ref: 'https://example.test/channels.yaml#/orders' },
+        messages: [{ $ref: 'https://example.test/messages.yaml#/Order' }],
+      },
+    },
+  });
+  assert.equal(scan.asyncapi.operations[0].channel, null);
+  assert.deepEqual(scan.asyncapi.operations[0].message_refs, []);
+  assert.ok(scan.warnings.filter((x) => x.code === 'ASYNCAPI_EXTERNAL_REF_UNRESOLVED').length >= 2);
+});
