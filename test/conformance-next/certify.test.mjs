@@ -181,6 +181,18 @@ test('CLI can inject a non-public holdout manifest at runtime without committing
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
+test('CLI --input reads the same certification payload from a file without shell redirection', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-input-cli-'));
+  try {
+    const input=passingInput(root);
+    const inputPath=path.join(root,'input.json');
+    fs.writeFileSync(inputPath,JSON.stringify(input));
+    const r=spawnSync(process.execPath,[path.join(HERE,'certify.mjs'),'--artifact-root',root,'--input',inputPath,'--allow-no-holdout'],{encoding:'utf8'});
+    assert.equal(r.status,0,r.stderr);
+    assert.equal(JSON.parse(r.stdout).verdict,'pass');
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
 test('CLI --allow-no-holdout is explicit and returns pass for the same internal validation bundle', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cli-'));
   try {
