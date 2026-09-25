@@ -17,7 +17,12 @@ function fieldMap(endpoint) {
 }
 
 function runtimeByEndpoint(runtimeReport) {
-  if (!runtimeReport || runtimeReport.state !== 'ready' || !Array.isArray(runtimeReport.endpoints)) {
+  if (
+    !runtimeReport
+    || runtimeReport.version !== 'bskel.runtime-route-reconciliation/0-draft'
+    || runtimeReport.state !== 'ready'
+    || !Array.isArray(runtimeReport.endpoints)
+  ) {
     return new Map();
   }
   return new Map(runtimeReport.endpoints.map((entry) => [entry.endpointKey, entry]));
@@ -60,6 +65,9 @@ function runtimeBlocker(endpointKey, runtimeReport, runtimeIndex, binding) {
     };
   }
   if (!runtimeReport) return { code: 'runtime-report-not-supplied' };
+  if (runtimeReport.version !== 'bskel.runtime-route-reconciliation/0-draft') {
+    return { code: 'runtime-report-version-unsupported' };
+  }
   if (runtimeReport.state !== 'ready') {
     return {
       code: 'runtime-report-not-ready',
