@@ -1,0 +1,92 @@
+{
+  "schema": "bskel.scale-core-freeze-activation/1",
+  "candidate": "T00-04A",
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "state": "ACCEPTED",
+    "epoch": 7,
+    "heads": {
+      "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "beval": "882b185655f9166cda4a64b5b49a6eab477f2410"
+    },
+    "exact_head_ci": "success",
+    "exact_head_runs": {
+      "bskel": 36040486375,
+      "becoder": 36083442722,
+      "beval": 36117576104,
+      "epoch7_pr": 36118976718
+    },
+    "independent_review": "pass",
+    "review_target": "backend-skeleton#123@486bcb2518d8939445617b796d4df215d85bef81",
+    "t19_review": {
+      "pr": 118,
+      "head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+      "artifact": "evidence/next/T19-T00-01-EPOCH7-REVIEW.md",
+      "artifact_blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+      "comment_id": 5830653632
+    },
+    "accepted_record": {
+      "branch": "scale/T00/accept-epoch7",
+      "head": "b050df3ae495cb24278243612b6336b35712648f",
+      "pr": 126
+    }
+  },
+  "current_main_heads": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "882b185655f9166cda4a64b5b49a6eab477f2410"
+  },
+  "identity": {
+    "source": "backend-skeleton#82",
+    "head_observed": "e499073aaa7fe9c116e30fbff0536cccecb6eb69",
+    "exact_head_ci": "success",
+    "exact_head_ci_run": 36094807573,
+    "scope_compliant": true,
+    "legacy_compatibility": true,
+    "artifact_ref_semantics": "exact-bytes",
+    "identity_envelope_family": "http",
+    "additive_only": true,
+    "core_blob_shas": {
+      "contracts/next/identity.mjs": "c880a606136536fc103db414e5bc39f83081ef8e",
+      "schemas/next/artifact-ref.schema.json": "d69366533844c4d002de8746140776edfdccbb25",
+      "schemas/next/identity-envelope.schema.json": "e4e5fdd38278179e7a6d717a429d63c7b52b78a9",
+      "schemas/next/identity.golden.json": "42177e1af597c445113258e8e81ba9b4a02cadd6"
+    }
+  },
+  "capability": {
+    "source": "backend-skeleton#81",
+    "head": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
+    "exact_head_ci": "success",
+    "exact_head_ci_run": 36084027973,
+    "scope_compliant": true,
+    "scope_basis": "T00 exact bridge lease T03-ROOT-TEST-001",
+    "bridge_lease": {
+      "path": "test/capability-next.test.mjs",
+      "blob_sha": "544b8bcc9f83738fb6dc10c4767e12ac90e3d7c5",
+      "semantic_authority": "none",
+      "expires_on_blob_change_or_nested_test_discovery": true,
+      "t00_comment_id": 5827587854
+    },
+    "statuses": [
+      "supported",
+      "partial",
+      "unsupported",
+      "unknown",
+      "not-applicable"
+    ],
+    "certification_wire_promoted": false,
+    "runtime_tested_requires_verified_runtime_evidence": true
+  },
+  "lease": {
+    "source": "backend-skeleton#88",
+    "policy_revision": "T00-03-r1",
+    "verifier_ci": "success",
+    "fail_closed": true
+  },
+  "semantics": {
+    "unknown_preserved": true,
+    "runtime_cannot_repair_contract": true,
+    "causality_not_inferred": true
+  }
+}
