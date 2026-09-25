@@ -185,6 +185,36 @@ function collectSchemaPresence(doc, index, reconciliation) {
   return out;
 }
 
+function collectOperationSecurityContext(doc, reconciliation) {
+  const out = new Map();
+  if (!reconciliation) return out;
+  if (!(reconciliation.byEndpoint instanceof Map)) {
+    throw new TypeError('reconciliation.byEndpoint must be a Map when supplied');
+  }
+
+  for (const [endpointKey, result] of reconciliation.byEndpoint.entries()) {
+    if (!['matched', 'adopted'].includes(result?.kind)) {
+      out.set(endpointKey, { state: 'unknown', reason: 'endpoint-not-safely-reconciled' });
+      continue;
+    }
+    const rawOperation = findRawOperation(doc, result);
+    if (!rawOperation) {
+      out.set(endpointKey, { state: 'unknown', reason: 'raw-openapi-operation-not-found' });
+      continue;
+    }
+    if (!Object.hasOwn(rawOperation, 'security')) {
+      out.set(endpointKey, { state: 'inherit', reason: 'operation-security-absent' });
+      continue;
+    }
+    if (!Array.isArray(rawOperation.security)) {
+      out.set(endpointKey, { state: 'unknown', reason: 'malformed-operation-security' });
+      continue;
+    }
+    out.set(endpointKey, { state: 'operation', reason: 'operation-security-present' });
+  }
+  return out;
+}
+
 function collectOperationIdOccurrences(index) {
   const byId = new Map();
   const seenEntries = new Set();
@@ -229,6 +259,7 @@ export function buildOpenApiContext({ doc, index, reconciliation = null, openapi
     rootSecurity: validateRootSecurity(doc, index, openapiRef),
     duplicateOperationIds: collectOperationIdOccurrences(index),
     schemaPresenceByEndpoint: collectSchemaPresence(doc, index, reconciliation),
+    operationSecurityByEndpoint: collectOperationSecurityContext(doc, reconciliation),
   };
 }
 
@@ -336,6 +367,25 @@ export function applyOpenApiContext(graph, context) {
         && field.state === 'unknown'
         && field.reason === 'root-security-inheritance-not-retained-by-legacy-result'
       ) {
+        const operationSecurity = context.operationSecurityByEndpoint?.get(endpoint.endpointKey);
+        if (!operationSecurity || operationSecurity.state === 'unknown') {
+          return {
+            field: field.field,
+            state: 'unknown',
+            authority: 'openapi',
+            evidence: evidence(context.openapiRef),
+            reason: operationSecurity?.reason ?? 'operation-security-context-missing',
+          };
+        }
+        if (operationSecurity.state === 'operation') {
+          return {
+            field: field.field,
+            state: 'unknown',
+            authority: 'openapi',
+            evidence: evidence(context.openapiRef),
+            reason: 'operation-security-present-but-legacy-result-did-not-project',
+          };
+        }
         if (context.rootSecurity.state === 'resolved') {
           return {
             field: field.field,
@@ -380,6 +430,9 @@ export function applyOpenApiContext(graph, context) {
       rootSecurityState: context.rootSecurity.state,
       schemaPresenceEndpointCount: context.schemaPresenceByEndpoint instanceof Map
         ? context.schemaPresenceByEndpoint.size
+        : 0,
+      operationSecurityEndpointCount: context.operationSecurityByEndpoint instanceof Map
+        ? context.operationSecurityByEndpoint.size
         : 0,
     },
   };
