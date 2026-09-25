@@ -39,7 +39,7 @@ test('T13 Koa descriptor conforms to current sbf.adapter/2 and stays conservativ
 
 test('frozen official @koa/router README Quick Start is detected at pinned upstream version', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const root = path.resolve(here, '../fixtures/http-wave-bc/koa-router-official-readme');
+  const root = path.resolve(here, './fixtures/koa-router-official-readme');
   const detection = detectKoaRouterRoot(root);
   assert.ok(detection);
   const report = scanKoaRouter(root, detection);
