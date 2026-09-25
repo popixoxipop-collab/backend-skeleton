@@ -14,6 +14,8 @@ export const JS_TS_SEMANTIC_CONTRACT = 'bskel.internal.js-ts-semantic/0';
 
 const DEFAULT_MAX_FILES = 5_000;
 const DEFAULT_MAX_TOTAL_BYTES = 32 * 1024 * 1024;
+const DEFAULT_MAX_FILE_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_FILE_TOKENS = 250_000;
 const SUPPORTED_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 
 function compareText(a, b) {
@@ -253,18 +255,36 @@ function buildResolutionMaps(entries) {
   return { byFile, diagnostics };
 }
 
-function validateLimits(maxFiles, maxTotalBytes) {
+function validateLimits(maxFiles, maxTotalBytes, maxFileBytes, maxFileTokens) {
   if (!Number.isSafeInteger(maxFiles) || maxFiles <= 0) throw new TypeError('maxFiles must be a positive safe integer');
   if (!Number.isSafeInteger(maxTotalBytes) || maxTotalBytes <= 0) throw new TypeError('maxTotalBytes must be a positive safe integer');
+  if (!Number.isSafeInteger(maxFileBytes) || maxFileBytes <= 0) throw new TypeError('maxFileBytes must be a positive safe integer');
+  if (!Number.isSafeInteger(maxFileTokens) || maxFileTokens <= 0) throw new TypeError('maxFileTokens must be a positive safe integer');
+}
+
+function tokenCountWithinLimit(ts, source, filePath, maxFileTokens) {
+  const variant = filePath.endsWith('.tsx')
+    ? (ts.LanguageVariant?.JSX ?? 1)
+    : (ts.LanguageVariant?.Standard ?? 0);
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, variant, source);
+  let count = 0;
+  while (true) {
+    const token = scanner.scan();
+    if (token === ts.SyntaxKind.EndOfFileToken) return { ok: true, count };
+    count++;
+    if (count > maxFileTokens) return { ok: false, count };
+  }
 }
 
 export function analyzeTypeScriptSemanticSnapshot(ts, entries, {
   maxFiles = DEFAULT_MAX_FILES,
   maxTotalBytes = DEFAULT_MAX_TOTAL_BYTES,
+  maxFileBytes = DEFAULT_MAX_FILE_BYTES,
+  maxFileTokens = DEFAULT_MAX_FILE_TOKENS,
 } = {}) {
   // Reuse the compiler-backend's strict API/version validation without executing source.
   const compilerBackend = createTypeScriptCompilerBackend(ts);
-  validateLimits(maxFiles, maxTotalBytes);
+  validateLimits(maxFiles, maxTotalBytes, maxFileBytes, maxFileTokens);
   if (!Array.isArray(entries)) throw new TypeError('entries must be an array');
 
   if (entries.length > maxFiles) {
@@ -299,6 +319,41 @@ export function analyzeTypeScriptSemanticSnapshot(ts, entries, {
       throw new TypeError(`unsupported semantic snapshot extension: ${filePath}`);
     }
     const bytes = Buffer.byteLength(raw.source, 'utf8');
+    if (bytes > maxFileBytes) {
+      return {
+        contract: JS_TS_SEMANTIC_CONTRACT,
+        complete: false,
+        syntaxValidated: false,
+        semanticChecked: false,
+        semanticValidated: false,
+        runtimeValidated: false,
+        typescriptVersion: compilerBackend.typescriptVersion,
+        files: [],
+        declarations: [],
+        moduleDiagnostics: [],
+        syntacticDiagnostics: [],
+        semanticDiagnostics: [],
+        diagnostics: [{ code: 'file-too-large', filePath, message: `${filePath} is ${bytes} bytes; limit is ${maxFileBytes}` }],
+      };
+    }
+    const tokenCount = tokenCountWithinLimit(ts, raw.source, filePath, maxFileTokens);
+    if (!tokenCount.ok) {
+      return {
+        contract: JS_TS_SEMANTIC_CONTRACT,
+        complete: false,
+        syntaxValidated: false,
+        semanticChecked: false,
+        semanticValidated: false,
+        runtimeValidated: false,
+        typescriptVersion: compilerBackend.typescriptVersion,
+        files: [],
+        declarations: [],
+        moduleDiagnostics: [],
+        syntacticDiagnostics: [],
+        semanticDiagnostics: [],
+        diagnostics: [{ code: 'file-token-limit', filePath, message: `${filePath} exceeded token limit ${maxFileTokens}; no Program was created` }],
+      };
+    }
     totalBytes += bytes;
     if (totalBytes > maxTotalBytes) {
       return {
