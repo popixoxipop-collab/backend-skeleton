@@ -98,8 +98,10 @@ export function discoverProjectRoots(repoRoot, { markerRules = DEFAULT_MARKER_RU
     });
   }
 
-  // No marker must still preserve the legacy possibility that generic-grep can inspect the repo.
-  if (byRoot.size === 0) byRoot.set(absRoot, []);
+  // The repository itself is always a graph node, even when only nested services have markers.
+  // This makes sibling services share one explicit aggregate parent instead of becoming disconnected
+  // top-level nodes solely because the repository root lacks its own package/build manifest.
+  if (!byRoot.has(absRoot)) byRoot.set(absRoot, []);
 
   const roots = [...byRoot.entries()]
     .map(([root, rootMarkers]) => {
@@ -214,11 +216,23 @@ export function captureAdapterReadSetSnapshot({ repoRoot, projectRoot, adapter }
   };
 }
 
+function isProjectDescendant(parent, child) {
+  if (parent === child) return false;
+  if (parent === '.') return child !== '.';
+  return child.startsWith(parent + '/');
+}
+
 function childRootsOf(root, allRoots) {
-  const prefix = root === '.' ? '' : root + '/';
-  return allRoots
-    .filter((candidate) => candidate !== root && (root === '.' || candidate.startsWith(prefix)))
+  const descendants = allRoots
+    .filter((candidate) => isProjectDescendant(root, candidate))
     .sort();
+  return descendants.filter((candidate) =>
+    !descendants.some((middle) =>
+      middle !== candidate &&
+      isProjectDescendant(root, middle) &&
+      isProjectDescendant(middle, candidate)
+    )
+  );
 }
 
 
@@ -259,9 +273,7 @@ function readLocalPackageFacts(absRepo, project, unresolved) {
 }
 
 function isDescendantRoot(parent, child) {
-  if (parent === child) return false;
-  if (parent === '.') return true;
-  return child.startsWith(parent + '/');
+  return isProjectDescendant(parent, child);
 }
 
 function directParentOf(project, projects) {
