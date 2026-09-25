@@ -10,7 +10,7 @@ This directory implements the T08-owned language boundary without modifying `sca
 |---|---|---|---|
 | Go | deterministic static JS scanner over Go source | Gin group/route registration is enough to validate the common route fact boundary without installing Go | not `go/ast`/`go/types` parity; build tags, generated code and helper factories are not resolved |
 | C# | deterministic static JS scanner over C# source | ASP.NET Minimal APIs and controller attributes exercise group composition plus declarative metadata | not Roslyn semantic parity; inherited attributes and ApiExplorer metadata are not resolved |
-| Rust | protocol slot only | proc-macro/build-script behavior needs a separate approved compiler/runtime profile | no Axum/Actix support is claimed in this batch |
+| Rust | deterministic static source pilot | Axum/Actix literal route forms exercise macro-heavy ecosystem boundaries without executing macros/build scripts | compiler/proc-macro semantics are not claimed; dynamic/generated routes remain unknown |
 
 Next comparison work should run the same frozen fixtures through Go `go/ast`/`go/types`, Roslyn syntax/semantic models, and a Rust syntax/compiler metadata candidate. Installing a compiler or successfully executing `--version` is environment evidence, not parser correctness.
 
@@ -20,7 +20,7 @@ Next comparison work should run the same frozen fixtures through Go `go/ast`/`go
 
 Messages use a caller-supplied `requestId`; helper output must echo it. Protocol, message kind and language are validated before a response can be consumed. Oversized input, malformed UTF-8, multiline payloads and unsupported versions fail closed.
 
-## T08-03 current analyzers
+## T08-03/T08-04 current analyzers
 
 `go.mjs` resolves:
 
@@ -41,3 +41,18 @@ Computed paths are diagnostics, not guessed routes. `MapMethods`, inherited rout
 ## Output boundary
 
 The pilot result is a language fact object, not an HTTP contract and not a supported-framework certificate. T08-05 will map approved facts into the future HTTP adapter envelope only after shared T01/T02/T03 interfaces are frozen.
+
+
+### Rust pilot
+
+`rust.mjs` now resolves a deliberately narrow subset:
+
+- Axum `Router::new()` / `Router::<State>::new()` let-bindings;
+- literal Axum `.route()`, `.nest()`, and previously resolved `.merge()` chains;
+- literal `get/post/put/patch/delete/head/options/trace/any` MethodRouter functions;
+- direct Actix `App::new().route(..., web::<method>().to(handler))` forms;
+- literal `web::scope("/prefix").route(...)` chains.
+
+Rust comments, normal strings, raw strings and character literals are masked before structural matching; lifetime syntax remains code. Mixed Axum/Actix files are isolated so a route from one framework does not create unknown diagnostics in the other.
+
+Proc macros, attribute expansion, build scripts, `configure` factories, tower layers, Actix resources and arbitrary generated registration are not executed or inferred. A future compiler-backed backend must beat the frozen static fixtures before replacing this pilot.
