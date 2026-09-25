@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { loadProtocolArtifact } from '../scanners/protocol-loaders.mjs';
+import { loadProtocolArtifact } from '../../adapters/protocol-next/scanners/protocol-loaders.mjs';
 
-const corpus = JSON.parse(fs.readFileSync(new URL('./fixtures/protocol/conformance.json', import.meta.url), 'utf8'));
+const corpus = JSON.parse(fs.readFileSync(new URL('./fixtures/conformance.json', import.meta.url), 'utf8'));
 
 function counts(scan) {
   if (scan.family === 'grpc') {

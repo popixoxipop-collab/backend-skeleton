@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildProtocolFlowContract, protocolFlowDigest } from '../contracts/protocol-flow.mjs';
+import { buildProtocolFlowContract, protocolFlowDigest } from '../../adapters/protocol-next/contracts/protocol-flow.mjs';
 
 const feature = { featureId: 'orders', featureUid: 'uid-orders' };
 

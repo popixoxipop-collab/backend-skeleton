@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildProtocolContract, protocolContractDigest, verifyProtocolContractSnapshot } from '../contracts/protocol.mjs';
-import { importProtoSource, importGraphqlSDL, importAsyncApiDocument, importWebSocketManifest } from '../scanners/protocol.mjs';
+import { buildProtocolContract, protocolContractDigest, verifyProtocolContractSnapshot } from '../../adapters/protocol-next/contracts/protocol.mjs';
+import { importProtoSource, importGraphqlSDL, importAsyncApiDocument, importWebSocketManifest } from '../../adapters/protocol-next/scanners/protocol.mjs';
 
 const feature = { featureId: 'protocol-orders', featureUid: 'uid-protocol-orders' };
 

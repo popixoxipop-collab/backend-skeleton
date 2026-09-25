@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { importGraphqlIntrospection, importProtobufDescriptorSet } from '../scanners/protocol-descriptors.mjs';
-import { loadProtocolArtifact, parseStructuredProtocolText } from '../scanners/protocol-loaders.mjs';
-import { buildProtocolOracleRequest, protocolOracleRequestDigest } from '../contracts/protocol-oracle-request.mjs';
+import { importGraphqlIntrospection, importProtobufDescriptorSet } from '../../adapters/protocol-next/scanners/protocol-descriptors.mjs';
+import { loadProtocolArtifact, parseStructuredProtocolText } from '../../adapters/protocol-next/scanners/protocol-loaders.mjs';
+import { buildProtocolOracleRequest, protocolOracleRequestDigest } from '../../adapters/protocol-next/contracts/protocol-oracle-request.mjs';
 
 test('protobuf FileDescriptorSet JSON preserves nested messages and streaming flags', () => {
   const scan = importProtobufDescriptorSet({
