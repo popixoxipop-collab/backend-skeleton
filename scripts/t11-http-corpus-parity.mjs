@@ -7,11 +7,33 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runScan } from '../scanners/index.mjs';
 import { ADAPTERS } from '../scanners/registry.mjs';
 import { LEGACY_HTTP_ADAPTER_IDS } from '../scanners/adapters/_t11-baselines.mjs';
 import { bridgeLegacyHttpScan } from '../scanners/adapters/_t11-bridge.mjs';
-import { compareLegacyHttpReports, legacyHttpSemanticSnapshot } from '../scanners/adapters/_t11-parity.mjs';
+import { compareLegacyHttpReports, legacyHttpSemanticDigest, legacyHttpSemanticSnapshot } from '../scanners/adapters/_t11-parity.mjs';
+
+const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const BASELINES_FILE = path.join(REPO_ROOT, 'test', 'fixtures', 't11-http-corpus-baseline.json');
+
+function loadBaselines() {
+	let data;
+	try {
+		data = JSON.parse(fs.readFileSync(BASELINES_FILE, 'utf8'));
+	} catch (err) {
+		fail(`could not read T11 corpus baseline file: ${err.message}`);
+	}
+	if (data?.contract !== 'sbf.t11-http-corpus-baseline/1' || !Array.isArray(data.entries)) {
+		fail('invalid T11 corpus baseline file contract');
+	}
+	const byId = new Map();
+	for (const entry of data.entries) {
+		if (!entry?.id || byId.has(entry.id)) fail(`invalid/duplicate corpus baseline id "${entry?.id ?? '(missing)'}"`);
+		byId.set(entry.id, entry);
+	}
+	return byId;
+}
 
 function fail(message, code = 2) {
 	console.error(`t11-http-corpus-parity: ${message}`);
@@ -19,20 +41,36 @@ function fail(message, code = 2) {
 }
 
 function parseArgs(argv) {
-	const out = { repo: null, adapter: null, ref: null, terms: [] };
+	const out = { repo: null, baseline: null, adapter: null, ref: null, semanticSha256: null, terms: [] };
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
 		if (arg === '--repo') out.repo = argv[++i];
+		else if (arg === '--baseline') out.baseline = argv[++i];
 		else if (arg === '--adapter') out.adapter = argv[++i];
 		else if (arg === '--ref') out.ref = argv[++i];
+		else if (arg === '--semantic-sha256') out.semanticSha256 = argv[++i];
 		else if (arg === '--term') out.terms.push(argv[++i]);
 		else fail(`unknown argument "${arg}"`);
 	}
 	if (!out.repo) fail('--repo is required');
-	if (!out.adapter) fail('--adapter is required');
+
+	if (out.baseline) {
+		if (out.adapter || out.ref || out.semanticSha256 || out.terms.length > 0) {
+			fail('--baseline cannot be combined with --adapter, --ref, --semantic-sha256, or --term');
+		}
+		const entry = loadBaselines().get(out.baseline);
+		if (!entry) fail(`unknown --baseline "${out.baseline}"`);
+		out.adapter = entry.adapter;
+		out.ref = entry.ref;
+		out.semanticSha256 = entry.semantic_sha256;
+		out.terms = [...entry.terms];
+	}
+
+	if (!out.adapter) fail('--adapter is required unless --baseline is used');
 	if (!LEGACY_HTTP_ADAPTER_IDS.includes(out.adapter)) fail(`--adapter must be one of: ${LEGACY_HTTP_ADAPTER_IDS.join(', ')}`);
 	if (out.terms.length === 0 || out.terms.some((term) => !term)) fail('at least one non-empty --term is required');
 	if (out.ref && !/^[0-9a-f]{40}$/i.test(out.ref)) fail('--ref must be an exact 40-hex commit SHA');
+	if (out.semanticSha256 && !/^[0-9a-f]{64}$/i.test(out.semanticSha256)) fail('--semantic-sha256 must be a 64-hex SHA-256 digest');
 	return out;
 }
 
@@ -73,6 +111,10 @@ if (!parity.equal) {
 }
 
 const snapshot = legacyHttpSemanticSnapshot(report);
+const semanticDigest = legacyHttpSemanticDigest(snapshot);
+if (args.semanticSha256 && semanticDigest.toLowerCase() !== args.semanticSha256.toLowerCase()) {
+	fail(`semantic digest mismatch: expected ${args.semanticSha256}, observed ${semanticDigest}`, 8);
+}
 const endpointCount = snapshot.modules.reduce(
 	(sum, module) => sum + module.controllers.reduce((inner, controller) => inner + controller.endpoints.length, 0),
 	0,
@@ -82,6 +124,7 @@ const entityCount = snapshot.modules.reduce((sum, module) => sum + module.entiti
 console.log(JSON.stringify({
 	contract: 'sbf.t11-http-corpus-parity/1',
 	repo: repoRoot,
+	baseline_id: args.baseline,
 	observed_ref: observedRef,
 	expected_ref: args.ref,
 	expected_adapter: args.adapter,
@@ -93,5 +136,7 @@ console.log(JSON.stringify({
 	entity_count: entityCount,
 	files_read_count: snapshot.files_read.length,
 	unknown_count: report.unknowns.length,
+	expected_semantic_sha256: args.semanticSha256,
+	legacy_semantic_sha256: semanticDigest,
 	bridge_parity: parity,
 }, null, 2));

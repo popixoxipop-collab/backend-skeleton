@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 // T11-04 pre-freeze semantic parity harness.
 //
 // This module deliberately speaks only in the legacy HTTP adapters' already-observed vocabulary.
@@ -125,6 +127,30 @@ function diffValue(expected, actual, at, out, limit) {
 	}
 
 	out.push({ path: at, kind: 'value', expected, actual });
+}
+
+function stableJsonValue(value) {
+	if (Array.isArray(value)) return value.map(stableJsonValue);
+	if (value && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]),
+		);
+	}
+	return value;
+}
+
+// Regression-only semantic digest. This is NOT sbf.contract-ref/1's exact-byte contract_hash and
+// must never be substituted for it. Its sole purpose is to pin T11 fixture/corpus semantics while
+// allowing irrelevant JSON object key order to vary.
+export function legacyHttpSemanticDigest(snapshotOrReport) {
+	const snapshot = snapshotOrReport?.schema === 'sbf.scan-report/2'
+		? legacyHttpSemanticSnapshot(snapshotOrReport)
+		: snapshotOrReport;
+	if (!snapshot || snapshot.schema !== LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA) {
+		throw new Error('legacy HTTP semantic digest requires a semantic snapshot or sbf.scan-report/2');
+	}
+	const bytes = JSON.stringify(stableJsonValue(snapshot));
+	return createHash('sha256').update(bytes, 'utf8').digest('hex');
 }
 
 export function compareLegacyHttpSemanticSnapshots(expected, actual, { maxDiffs = 100 } = {}) {

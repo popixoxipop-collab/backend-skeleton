@@ -1,0 +1,101 @@
+{
+  "contract": "sbf.t11-http-corpus-baseline/1",
+  "note": "T11 regression baselines measured on pinned third-party checkouts with backend-skeleton T11 parity code. These are scanner-regression digests, NOT ContractRef hashes or application-completeness claims.",
+  "entries": [
+    {
+      "id": "spring-petclinic",
+      "owner": "spring-projects",
+      "repo": "spring-petclinic",
+      "ref": "818c4136ea971c21674525f9053de0d9c7ad8cfe",
+      "path": null,
+      "adapter": "java-spring",
+      "terms": [
+        "owner"
+      ],
+      "semantic_sha256": "38dfff9c4191374e57ac4cad7a30d9b7ac323e2b59864eabc58d0a4c1c35a504",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 0,
+        "entity_count": 4,
+        "files_read_count": 30,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "full-stack-fastapi-template",
+      "owner": "fastapi",
+      "repo": "full-stack-fastapi-template",
+      "ref": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+      "path": null,
+      "adapter": "python-fastapi",
+      "terms": [
+        "item"
+      ],
+      "semantic_sha256": "04a4f5004eb9df9c70b3e520fb20f7fdee75d3eeedd27669448c29cc79084667",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 5,
+        "entity_count": 1,
+        "files_read_count": 40,
+        "unknown_count": 2
+      }
+    },
+    {
+      "id": "express-postgres-template",
+      "owner": "justine92415",
+      "repo": "express-postgres-template",
+      "ref": "120e90f873b9fa9df286538cdd882e2937343c8f",
+      "path": null,
+      "adapter": "typescript-express",
+      "terms": [
+        "user"
+      ],
+      "semantic_sha256": "75fd0ef018ba428edfbd8eb80a85d85e547658ef2d922dd85dbff10eb804040f",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 0,
+        "entity_count": 1,
+        "files_read_count": 14,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "employees-api-mysql",
+      "owner": "JeanCaicedo",
+      "repo": "employees-api-mysql",
+      "ref": "e18789656adc0c91f96d0124fbdfefd86f7bf545",
+      "path": null,
+      "adapter": "javascript-express",
+      "terms": [
+        "employee"
+      ],
+      "semantic_sha256": "dd4b5488a998e9c867b492b74b4d867db1459d8445564f8df03032bcb467ce18",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 5,
+        "entity_count": 0,
+        "files_read_count": 6,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "forem",
+      "owner": "forem",
+      "repo": "forem",
+      "ref": "5f76f390fefbd3e018722986e4c2116d504c11e0",
+      "path": null,
+      "adapter": "ruby-rails",
+      "terms": [
+        "article"
+      ],
+      "semantic_sha256": "e9bdf7e04580ebdb8fbf23e33bdc7c8d6a87bc186dac026399542542eb9f1a86",
+      "observed": {
+        "module_count": 10,
+        "endpoint_count": 171,
+        "entity_count": 51,
+        "files_read_count": 510,
+        "unknown_count": 57
+      }
+    }
+  ]
+}

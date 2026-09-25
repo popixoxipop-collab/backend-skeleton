@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 't11-http-corpus-parity.mjs');
 const FIXTURE = path.join(REPO_ROOT, 'test', 'fixtures', 'javascript-express', 'backend');
+const CORPUS_BASELINES = path.join(REPO_ROOT, 'test', 'fixtures', 't11-http-corpus-baseline.json');
+const ORACLE_MANIFEST = path.join(REPO_ROOT, 'test', 'fixtures', 'oracle-manifest.json');
 
 function fixtureRepo() {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-corpus-'));
@@ -38,6 +40,7 @@ test('T11-05 corpus command validates exact ref, expected adapter, and bridge pa
 		assert.equal(report.detected_adapter, 'javascript-express');
 		assert.equal(report.bridge_parity.equal, true);
 		assert.equal(report.bridge_parity.diffs.length, 0);
+		assert.match(report.legacy_semantic_sha256, /^[0-9a-f]{64}$/);
 		assert.ok(report.endpoint_count > 0);
 	} finally {
 		fs.rmSync(root, { recursive: true, force: true });
@@ -75,4 +78,54 @@ test('T11-05 corpus command rejects missing terms and non-legacy adapters before
 	const generic = run(['--repo', '.', '--adapter', 'generic-grep', '--term', 'x']);
 	assert.equal(generic.code, 2);
 	assert.match(generic.stderr, /must be one of/);
+});
+
+
+test('T11-05 corpus command rejects semantic drift when an expected regression digest is supplied', () => {
+	const { root } = fixtureRepo();
+	try {
+		const first = run(['--repo', root, '--adapter', 'javascript-express', '--term', 'user']);
+		assert.equal(first.code, 0, first.stderr);
+		const digest = JSON.parse(first.stdout).legacy_semantic_sha256;
+		const good = run(['--repo', root, '--adapter', 'javascript-express', '--semantic-sha256', digest, '--term', 'user']);
+		assert.equal(good.code, 0, good.stderr);
+
+		const wrong = (digest[0] === '0' ? '1' : '0') + digest.slice(1);
+		const bad = run(['--repo', root, '--adapter', 'javascript-express', '--semantic-sha256', wrong, '--term', 'user']);
+		assert.equal(bad.code, 8);
+		assert.match(bad.stderr, /semantic digest mismatch/);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('T11-05 committed corpus baseline is a five-adapter subset of the existing pinned oracle manifest', () => {
+	const baselines = JSON.parse(fs.readFileSync(CORPUS_BASELINES, 'utf8'));
+	const oracle = JSON.parse(fs.readFileSync(ORACLE_MANIFEST, 'utf8'));
+	assert.equal(baselines.contract, 'sbf.t11-http-corpus-baseline/1');
+	assert.equal(baselines.entries.length, 5);
+	assert.deepEqual(new Set(baselines.entries.map((entry) => entry.adapter)), new Set([
+		'java-spring', 'ruby-rails', 'python-fastapi', 'typescript-express', 'javascript-express',
+	]));
+
+	for (const entry of baselines.entries) {
+		assert.match(entry.ref, /^[0-9a-f]{40}$/);
+		assert.match(entry.semantic_sha256, /^[0-9a-f]{64}$/);
+		const oracleEntry = (oracle.adapters[entry.adapter] ?? []).find((candidate) => candidate.id === entry.id);
+		assert.ok(oracleEntry, `missing oracle-manifest entry for ${entry.adapter}/${entry.id}`);
+		assert.equal(entry.owner, oracleEntry.owner);
+		assert.equal(entry.repo, oracleEntry.repo);
+		assert.equal(entry.ref, oracleEntry.ref);
+		assert.deepEqual(entry.terms, oracleEntry.terms);
+	}
+});
+
+test('T11-05 --baseline is fail-closed for unknown ids and for mixed explicit inputs', () => {
+	const unknown = run(['--repo', '.', '--baseline', 'does-not-exist']);
+	assert.equal(unknown.code, 2);
+	assert.match(unknown.stderr, /unknown --baseline/);
+
+	const mixed = run(['--repo', '.', '--baseline', 'spring-petclinic', '--adapter', 'java-spring']);
+	assert.equal(mixed.code, 2);
+	assert.match(mixed.stderr, /cannot be combined/);
 });
