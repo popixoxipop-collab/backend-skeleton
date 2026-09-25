@@ -1,4 +1,4 @@
-import { decodeSimpleStringLiteral, joinRoutePath, lineNumberAt, maskCommentsPreserveStrings, stableSortRoutes } from './shared.mjs';
+import { decodeSimpleStringLiteral, joinRoutePath, lineNumberAt, maskNonCodePreserveDelimiters, stableSortRoutes } from './shared.mjs';
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'Any']);
 const SIMPLE_HANDLER = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
@@ -44,7 +44,7 @@ function secondArgSimpleHandler(masked, source, from) {
 
 export function analyzeGoGinSource(source, { file = '<memory>' } = {}) {
 	if (typeof source !== 'string') throw new TypeError('source must be a string');
-	const masked = maskCommentsPreserveStrings(source);
+	const masked = maskNonCodePreserveDelimiters(source);
 	const routers = new Map();
 	const groups = [];
 	const routes = [];
