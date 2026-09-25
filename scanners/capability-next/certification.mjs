@@ -26,7 +26,7 @@ export function certificationRecord({
 	const refs = uniqueStrings(evidenceRefs, 'evidenceRefs');
 	const caps = uniqueStrings(capabilities, 'capabilities');
 	const limits = uniqueStrings(limitations, 'limitations');
-	if (level !== 'discovery' && refs.length === 0) throw new TypeError(`${level} certification requires evidenceRefs`);
+	if (refs.length === 0) throw new TypeError(`${level} certification requires evidenceRefs`);
 	if (level === 'runtime-tested' && profile === null) throw new TypeError('runtime-tested certification requires profile');
 	if (codegen !== 'none' && refs.length === 0) throw new TypeError(`${codegen} codegen state requires evidenceRefs`);
 	return Object.freeze({

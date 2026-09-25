@@ -13,8 +13,9 @@ function nonEmpty(value, name) {
 	return value;
 }
 
-export function evaluateWaiver({ waiver, failureCode, now = new Date() } = {}) {
+export function evaluateWaiver({ waiver, failureCode, subject, now = new Date() } = {}) {
 	nonEmpty(failureCode, 'failureCode');
+	nonEmpty(subject, 'subject');
 	if (NON_WAIVABLE.has(failureCode)) return Object.freeze({
 		allowed: false, reason: `${failureCode} is non-waivable`, failureCode,
 	});
@@ -25,6 +26,8 @@ export function evaluateWaiver({ waiver, failureCode, now = new Date() } = {}) {
 	if (!Array.isArray(waiver.failureCodes) || waiver.failureCodes.some((x) => typeof x !== 'string' || x.trim() === '')) {
 		throw new TypeError('waiver.failureCodes must be an array of non-empty strings');
 	}
+	if (new Set(waiver.failureCodes).size !== waiver.failureCodes.length) throw new TypeError('waiver.failureCodes must not contain duplicates');
+	if (waiver.scope !== subject) return Object.freeze({ allowed: false, reason: `waiver scope ${waiver.scope} does not match subject ${subject}`, failureCode });
 	if (!waiver.failureCodes.includes(failureCode)) return Object.freeze({
 		allowed: false, reason: `waiver does not cover ${failureCode}`, failureCode,
 	});
@@ -37,7 +40,7 @@ export function evaluateWaiver({ waiver, failureCode, now = new Date() } = {}) {
 	if (!Number.isFinite(expiresMs)) throw new TypeError('waiver.expiresAt must be a valid date-time');
 	if (expiresMs <= nowMs) return Object.freeze({ allowed: false, reason: 'waiver is expired', failureCode });
 	return Object.freeze({
-		allowed: true, reason: null, failureCode,
+		allowed: true, reason: null, failureCode, subject,
 		scope: waiver.scope, approver: waiver.approver, expiresAt: waiver.expiresAt,
 	});
 }

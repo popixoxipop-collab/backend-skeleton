@@ -17,7 +17,8 @@ function freezeRequirement(capability) {
 
 export function legacyCommandRequirements(command) {
 	nonEmpty(command, 'command');
-	return Object.freeze([...(COMMAND_CAPABILITIES[command] ?? [])].map(freezeRequirement));
+	if (!Object.prototype.hasOwnProperty.call(COMMAND_CAPABILITIES, command)) throw new TypeError(`unknown capability-gated command ${command}`);
+	return Object.freeze([...COMMAND_CAPABILITIES[command]].map(freezeRequirement));
 }
 
 export function legacyProviderRequirements(provider) {

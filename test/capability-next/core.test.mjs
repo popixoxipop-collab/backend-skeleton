@@ -74,21 +74,21 @@ test('integrity and sandbox failures are non-waivable', () => {
 	assert.ok(NON_WAIVABLE_FAILURE_CODES.includes('identity.hash-mismatch'));
 	assert.ok(NON_WAIVABLE_FAILURE_CODES.includes('trust.sandbox-escape'));
 	for (const failureCode of ['identity.hash-mismatch', 'trust.sandbox-escape']) {
-		const result = evaluateWaiver({ failureCode, waiver: { scope: '*', reason: 'test', approver: 'owner', expiresAt: '2999-01-01T00:00:00Z', failureCodes: [failureCode] } });
+		const result = evaluateWaiver({ failureCode, subject: 'target:a', waiver: { scope: '*', reason: 'test', approver: 'owner', expiresAt: '2999-01-01T00:00:00Z', failureCodes: [failureCode] } });
 		assert.equal(result.allowed, false);
 		assert.match(result.reason, /non-waivable/);
 	}
 });
 
 test('waivers require scope, reason, approver, expiry and exact failure coverage', () => {
-	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', waiver: null }).allowed, false);
-	assert.throws(() => evaluateWaiver({ failureCode: 'quality.low-recall', waiver: { scope: 'x' } }), /waiver.reason/);
-	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', now: '2026-09-25T00:00:00Z', waiver: { scope: 'target:a', reason: 'known fixture gap', approver: 'reviewer', expiresAt: '2026-10-01T00:00:00Z', failureCodes: ['other'] } }).allowed, false);
-	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', now: '2026-09-25T00:00:00Z', waiver: { scope: 'target:a', reason: 'known fixture gap', approver: 'reviewer', expiresAt: '2026-10-01T00:00:00Z', failureCodes: ['quality.low-recall'] } }).allowed, true);
+	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', waiver: null }).allowed, false);
+	assert.throws(() => evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', waiver: { scope: 'x' } }), /waiver.reason/);
+	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', now: '2026-09-25T00:00:00Z', waiver: { scope: 'target:a', reason: 'known fixture gap', approver: 'reviewer', expiresAt: '2026-10-01T00:00:00Z', failureCodes: ['other'] } }).allowed, false);
+	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', now: '2026-09-25T00:00:00Z', waiver: { scope: 'target:a', reason: 'known fixture gap', approver: 'reviewer', expiresAt: '2026-10-01T00:00:00Z', failureCodes: ['quality.low-recall'] } }).allowed, true);
 });
 
 test('expired waiver fails closed', () => {
-	const result = evaluateWaiver({ failureCode: 'quality.low-recall', now: '2026-10-02T00:00:00Z', waiver: { scope: 'target:a', reason: 'known fixture gap', approver: 'reviewer', expiresAt: '2026-10-01T00:00:00Z', failureCodes: ['quality.low-recall'] } });
+	const result = evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', now: '2026-10-02T00:00:00Z', waiver: { scope: 'target:a', reason: 'known fixture gap', approver: 'reviewer', expiresAt: '2026-10-01T00:00:00Z', failureCodes: ['quality.low-recall'] } });
 	assert.equal(result.allowed, false);
 	assert.match(result.reason, /expired/);
 });
@@ -101,7 +101,7 @@ test('contract and runtime-tested certification require evidence, runtime additi
 });
 
 test('codegen status is independent from support level', () => {
-	const discovery = certificationRecord({ targetId: 'x', level: 'discovery', codegen: 'none' });
+	const discovery = certificationRecord({ targetId: 'x', level: 'discovery', codegen: 'none', evidenceRefs: ['discovery:x'] });
 	const runtimeNoCodegen = certificationRecord({ targetId: 'y', level: 'runtime-tested', codegen: 'none', evidenceRefs: ['run:y'], profile: 'linux' });
 	const contractWithScaffold = certificationRecord({ targetId: 'z', level: 'contract', codegen: 'scaffold', evidenceRefs: ['contract:z'] });
 	assert.equal(discovery.codegen, 'none');
@@ -111,13 +111,13 @@ test('codegen status is independent from support level', () => {
 
 test('support matrix is deterministic and rejects duplicate certification rows', () => {
 	const matrix = buildSupportMatrix([
-		{ targetId: 'z', level: 'discovery' },
+		{ targetId: 'z', level: 'discovery', evidenceRefs: ['discovery:z'] },
 		{ targetId: 'a', level: 'contract', evidenceRefs: ['contract:a'] },
 	]);
 	assert.deepEqual(matrix.map((x) => x.targetId), ['a', 'z']);
 	assert.throws(() => buildSupportMatrix([
-		{ targetId: 'a', level: 'discovery' },
-		{ targetId: 'a', level: 'discovery' },
+		{ targetId: 'a', level: 'discovery', evidenceRefs: ['discovery:a'] },
+		{ targetId: 'a', level: 'discovery', evidenceRefs: ['discovery:a'] },
 	]), /duplicate certification row/);
 });
 
@@ -135,7 +135,7 @@ test('legacy command requirements are projected from the stable command capabili
 	assert.deepEqual(legacyCommandRequirements('handles plan'), [
 		{ capability: 'codegen.handles', acceptedStatuses: ['supported'] },
 	]);
-	assert.deepEqual(legacyCommandRequirements('not-a-command'), []);
+	assert.throws(() => legacyCommandRequirements('not-a-command'), /unknown capability-gated command/);
 });
 
 test('provider requirements stay independent from command dispatch capabilities', () => {
@@ -287,4 +287,44 @@ test('allowed policy explain is compact and contains no fabricated evidence', ()
 	const result = evaluateCapabilityPolicy({ policyId: 'scan', capabilities: { 'api.routes': cap }, requirements: [{ capability: 'api.routes' }] });
 	assert.equal(renderPolicyExplain(result), 'policy scan: allowed');
 	assert.deepEqual(policyDiagnostics(result), []);
+});
+
+
+test('discovery certification also requires evidence', () => {
+	assert.throws(() => certificationRecord({ targetId: 'x', level: 'discovery' }), /discovery certification requires evidenceRefs/);
+});
+
+test('waiver scope must match the failure subject exactly', () => {
+	const waiver = {
+		scope: 'target:a',
+		reason: 'known fixture gap',
+		approver: 'reviewer',
+		expiresAt: '2026-10-01T00:00:00Z',
+		failureCodes: ['quality.low-recall'],
+	};
+	assert.equal(evaluateWaiver({
+		failureCode: 'quality.low-recall',
+		subject: 'target:b',
+		now: '2026-09-25T00:00:00Z',
+		waiver,
+	}).allowed, false);
+	assert.equal(evaluateWaiver({
+		failureCode: 'quality.low-recall',
+		subject: 'target:a',
+		now: '2026-09-25T00:00:00Z',
+		waiver,
+	}).allowed, true);
+});
+
+test('waiver failure codes reject duplicates', () => {
+	assert.throws(() => evaluateWaiver({
+		failureCode: 'quality.low-recall',
+		subject: 'target:a',
+		now: '2026-09-25T00:00:00Z',
+		waiver: {
+			scope: 'target:a', reason: 'x', approver: 'reviewer',
+			expiresAt: '2026-10-01T00:00:00Z',
+			failureCodes: ['quality.low-recall', 'quality.low-recall'],
+		},
+	}), /must not contain duplicates/);
 });
