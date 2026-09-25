@@ -101,6 +101,20 @@ test('custom DRF lookup configuration suppresses unverified detail-route synthes
   assert.equal(slug.endpoints.some((e) => e.path.includes('{pk}')), false);
 });
 
+test('duplicate ViewSet class names across files are treated as ambiguous instead of last-one-wins', () => {
+  const root = fixture();
+  fs.writeFileSync(path.join(root, 'api', 'other_views.py'), [
+    'from rest_framework import viewsets',
+    'class UserViewSet(viewsets.ReadOnlyModelViewSet):',
+    '    pass',
+    ''
+  ].join('\n'));
+  const report = scanPythonDjango(root, root);
+  const controllers = report.modules.flatMap((m) => m.controllers);
+  assert.equal(controllers.some((c) => c.className === 'UserViewSet'), false);
+  assert.ok(controllers.some((c) => c.className === 'AuditViewSet'));
+});
+
 test('first Django/DRF slice keeps operation/schema/persistence/codegen capabilities off', () => {
   assert.equal(adapter.id, 'python-django');
   assert.equal(adapter.verificationBasis, 'synthetic-only');
