@@ -6,6 +6,67 @@ import { lineNumberAt } from '../../../scanners/text-util.mjs';
 const SOURCE_EXTENSIONS = new Set(['.js', '.ts']);
 const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'build', '.git', 'coverage']);
 const APP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+
+function isRegexStart(lastSignificant, recentText) {
+  if (lastSignificant === null) return true;
+  if (REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+  return REGEX_PRECEDING_KEYWORD_RE.test(recentText);
+}
+
+function skipRegexLiteral(text, start) {
+  let i = start + 1;
+  let inClass = false;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '\n') return i;
+    if (inClass) {
+      if (ch === ']') inClass = false;
+      i++;
+      continue;
+    }
+    if (ch === '[') { inClass = true; i++; continue; }
+    if (ch === '/') return i + 1;
+    i++;
+  }
+  return i;
+}
+
+function isCodeIndex(text, target) {
+  let quote = null;
+  let lastSignificant = null;
+  for (let i = 0; i < target; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+      const stop = skipRegexLiteral(text, i);
+      if (stop > target) return false;
+      i = Math.max(i, stop - 1);
+      lastSignificant = '/';
+      continue;
+    }
+    if (!/\s/.test(ch)) lastSignificant = ch;
+  }
+  return quote === null;
+}
+
+function firstCodeMatch(text, re) {
+  for (const match of text.matchAll(re)) {
+    if (isCodeIndex(text, match.index)) return match;
+  }
+  return null;
+}
+
 const NEXT_CONFIGS = [
   'next.config.js',
   'next.config.mjs',
@@ -98,9 +159,9 @@ function analyzeBasePath(projectRoot) {
       continue;
     }
     const masked = maskJsComments(text);
-    const hasBasePath = /\bbasePath\s*:/.test(masked);
-    if (hasBasePath) {
-      const literal = masked.match(/\bbasePath\s*:\s*(['"`])([^'"`]*)\1/);
+    const baseKey = firstCodeMatch(masked, /\bbasePath\s*:/g);
+    if (baseKey) {
+      const literal = firstCodeMatch(masked, /\bbasePath\s*:\s*(['"`])([^'"`]*)\1/g);
       if (!literal || (literal[1] === '`' && literal[2].includes('${'))) {
         unknown = true;
         notes.push(`${path.basename(file)}: basePath is non-literal; absolute API paths are withheld.`);
@@ -111,7 +172,7 @@ function analyzeBasePath(projectRoot) {
         notes.push(`${path.basename(file)}: conflicting literal basePath values were observed; absolute API paths are withheld.`);
       }
     }
-    if (/\brewrites\s*(?:\(|:)/.test(masked)) {
+    if (firstCodeMatch(masked, /\brewrites\s*(?:\(|:)/g)) {
       notes.push(`${path.basename(file)}: rewrites are present; this first slice reports filesystem API routes only and does not synthesize rewrite aliases.`);
     }
   }
@@ -179,6 +240,7 @@ function parseAppMethods(text) {
     'g',
   );
   for (const match of masked.matchAll(functionRe)) {
+    if (!isCodeIndex(masked, match.index)) continue;
     if (seen.has(match[1])) continue;
     seen.add(match[1]);
     found.push({ method: match[1], line: lineNumberAt(text, match.index) });
@@ -189,25 +251,27 @@ function parseAppMethods(text) {
     'g',
   );
   for (const match of masked.matchAll(constRe)) {
+    if (!isCodeIndex(masked, match.index)) continue;
     if (seen.has(match[1])) continue;
     seen.add(match[1]);
     found.push({ method: match[1], line: lineNumberAt(text, match.index) });
   }
 
   found.sort((a, b) => a.line - b.line || a.method.localeCompare(b.method));
-  const reexport = new RegExp(
-    '\\bexport\\s*\\{[^}]*\\b(?:' + APP_METHODS.join('|') + ')\\b[^}]*\\}(?:\\s+from\\s+[\'"][^\'"]+[\'"])?',
+  const reexportRe = new RegExp(
+    '\\bexport\\s*\\{[^}]*\\b(?:' + APP_METHODS.join('|') + ')\\b[^}]*\\}(?:\\s+from\\s+[\\'"][^\\'"]+[\\'"])?',
     'g',
-  ).test(masked);
+  );
+  const reexport = Boolean(firstCodeMatch(masked, reexportRe));
 
   return { methods: found, hasUnsupportedReexport: reexport };
 }
 
 function pagesDefaultExportLine(text) {
   const masked = maskJsComments(text);
-  const esm = /\bexport\s+default\b/g.exec(masked);
+  const esm = firstCodeMatch(masked, /\bexport\s+default\b/g);
   if (esm) return lineNumberAt(text, esm.index);
-  const cjs = /\bmodule\.exports\s*=/g.exec(masked);
+  const cjs = firstCodeMatch(masked, /\bmodule\.exports\s*=/g);
   if (cjs) return lineNumberAt(text, cjs.index);
   return null;
 }
