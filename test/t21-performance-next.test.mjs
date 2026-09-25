@@ -9,3 +9,5 @@ import './perf-next/t21-artifact-gc.test.mjs';
 import './perf-next/t21-cache-index.test.mjs';
 import './perf-next/t21-cache-runtime.test.mjs';
 import './perf-next/t21-legacy-cache-equivalence.test.mjs';
+import './perf-next/t21-project-cache.test.mjs';
+import './perf-next/t21-performance-policy.test.mjs';
