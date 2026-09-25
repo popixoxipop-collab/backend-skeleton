@@ -30,40 +30,53 @@ The shadow layer has to preserve information gaps instead of silently repairing 
 2. The legacy result retains a resolved schema or an unresolved reason, but a matched/adopted endpoint
    does not retain the per-operation distinction between "no schema" and "skipped unsupported media type".
    The decision graph therefore reports that field as `unknown`, not `absent`.
-3. Operation-level `security: []` is an explicit public declaration and is safe to preserve. When
-   operation-level security is absent, OpenAPI may inherit document-level security. The current legacy
-   index/result does not retain document-level security, so the shadow layer reports
-   `root-security-inheritance-not-retained-by-legacy-result` instead of guessing public/absent.
-4. OpenAPI security here is **declared** security only. It is not proof that runtime authorization was
+3. Operation-level `security: []` is an explicit public declaration. When operation-level security is
+   absent, OpenAPI may inherit document-level security. The legacy index/result does not carry that root
+   value into the reconciliation result.
+4. The legacy OpenAPI index stores the first occurrence of a duplicate `operationId`. A field-level
+   promotion layer must independently detect duplicates before treating the ID as unique.
+5. OpenAPI security here is **declared** security only. It is not proof that runtime authorization was
    enforced.
-5. `matched` or `adopted` proves only the fields that the current reconciliation established. It is
+6. `matched` or `adopted` proves only the fields that the current reconciliation established. It is
    not a blanket runtime conformance verdict.
 
 ## T09-02 authority rules in this slice
 
 | Field | Resolved authority | Conflict/unknown rule |
 |---|---|---|
-| operation.identity | scan+OpenAPI for explicit match; OpenAPI for a single route adoption | missing/ambiguous/unresolved never promoted |
+| operation.identity | scan+OpenAPI for explicit match; OpenAPI for a single route adoption | missing/ambiguous/unresolved never promoted; duplicate OpenAPI IDs conflict |
 | http.method | scan+OpenAPI agreement | verb drift is conflict |
 | http.path | exact or prefix-reconciled source/OpenAPI pair | unexplained drift/ambiguity is conflict |
 | request/response/error schema | safely projected OpenAPI schema | failed/unsupported/lost distinction remains unknown/skipped |
-| api.security.declared | explicit operation-level OpenAPI security | unknown scheme, unsafe endpoint, or possible root inheritance stays unknown |
+| api.security.declared | explicit operation security or audited root inheritance | malformed/unknown schemes or unsafe endpoint remain unknown |
 
 There is no majority vote. Two observations derived from the same source are not treated as independent votes.
 
-## T09-03 implementation
+## T09-03 decision graph
 
 `decision-graph.mjs` exports:
 
 - `buildEndpointDecision()`: one legacy reconciliation result -> ordered field decisions,
 - `buildReconciliationDecisionGraph()`: a provenance-bound graph for a full module,
-- `promotableOperationKeys()`: a deliberately narrow route/operation promotion helper.
-
-The promotion helper defaults to `operation.identity + http.method + http.path` only. It is **not** the
-future shared capability-policy engine and cannot by itself promote schema/security/runtime claims.
+- `promotableOperationKeys()`: a deliberately narrow route/operation helper.
 
 The vocabulary is marked `0-draft` and remains local to T09 until T01/T03 freeze the cross-track
 Claim/Capability interface.
+
+## T09-04 OpenAPI context audit
+
+`openapi-context.mjs` consumes the raw OpenAPI document plus the existing validated index, without
+modifying either one. It adds two fail-closed checks the legacy result cannot express:
+
+- document-level `security` inheritance, including explicit root `security: []`, absent root security,
+  malformed requirements, and undeclared schemes;
+- duplicate `operationId` occurrences collected from the route index.
+
+`applyOpenApiContext()` downgrades a resolved identity to conflict when the OpenAPI ID is duplicated and
+fills only the previously-known root-security gap. Explicit operation-level security still wins.
+
+`contextBoundPromotableOperationKeys()` returns no operation until this context audit has been attached.
+This is the stricter helper for T09 shadow promotion. It still does **not** certify runtime behavior.
 
 ## Tests
 
@@ -73,23 +86,28 @@ Run the whole T09 slice directly:
 node --test test/t09-reconciliation-next.test.mjs
 ```
 
-The top-level entrypoint imports the focused decision tests and real legacy OpenAPI integration
-regressions, so the repository's existing `npm test` command (`test/*.test.mjs`) executes T09 as well.
-No package script or lockfile change is needed.
+The top-level entrypoint is matched by the repository's existing `npm test` pattern
+(`test/*.test.mjs`), so no package script or lockfile change is required.
 
-The current T09 suite contains **22 tests**: 18 field-decision regressions plus 4 real
-`indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions. It covers
-matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof, schema
-resolved/unresolved/dialect-disabled states, explicit operation security, root-security uncertainty,
-provenance requirements, route-only promotion, and legacy-to-next integration.
+The current T09 suite contains **30 tests**:
+
+- 18 field-decision regressions,
+- 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
+- 8 OpenAPI context/root-security/duplicate-ID regressions.
+
+It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
+schema resolved/unresolved/dialect-disabled states, explicit and inherited declared security,
+duplicate operation IDs, provenance matching, route-only promotion, and legacy-to-next integration.
 
 ## Next T09 slices
 
-1. Add a bounded raw/index view that preserves per-operation "none vs skipped media type".
-2. Preserve document-level OpenAPI security and model operation inheritance explicitly.
-3. Bind OpenAPI/source/runtime artifacts to an exact revision/environment before cross-source promotion.
-4. Add negative differential fixtures for stale OpenAPI, same operationId with changed route, and
+1. Add a bounded raw/index view that preserves per-operation "none vs skipped media type" for schema fields.
+2. Bind source/OpenAPI/runtime artifacts to an exact repository revision, build fingerprint, and environment
+   before cross-source promotion.
+3. Add negative differential fixtures for stale OpenAPI, same operationId with changed route/method, and
    runtime-only/source-only routes.
-5. Hand the field decisions to the shared T01/T03 Claim/Capability policy once that interface is frozen.
+4. Add runtime observations as a separate evidence role; never overwrite source/OpenAPI claims in place.
+5. Hand the decision graph and evidence conditions to the shared T01/T03 Claim/Capability policy once that
+   interface is frozen.
 
 Until those slices and cross-track gates land, this module is diagnostic shadow data only.
