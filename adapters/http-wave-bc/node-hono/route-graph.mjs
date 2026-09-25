@@ -360,6 +360,8 @@ export function scanHonoProject({ repoRoot, projectRoot, packageFile }) {
           operationId: null,
           method: event.handler,
           line: event.line,
+          sourceFile: node.file,
+          sourceNode: node.name,
         });
         continue;
       }
@@ -390,19 +392,31 @@ export function scanHonoProject({ repoRoot, projectRoot, packageFile }) {
     notes.push('All discovered Hono apps participate in route() mount relationships; no unique root could be inferred, so each app is emitted separately.');
   }
 
-  const controllers = [];
+  const controllerGroups = new Map();
   for (const key of roots.sort()) {
-    const node = nodes.get(key);
-    const endpoints = expand(key);
-    if (endpoints.length === 0) continue;
-    controllers.push({
-      className: 'Hono(' + path.relative(projectRoot, node.file) + ':' + node.name + ')',
-      basePath: commonPathPrefix(endpoints.map((ep) => ep.path)),
-      operationIds: [],
-      endpoints,
-      file: node.file,
-    });
+    for (const endpoint of expand(key)) {
+      const groupKey = endpoint.sourceFile + '\u0000' + endpoint.sourceNode;
+      if (!controllerGroups.has(groupKey)) {
+        controllerGroups.set(groupKey, {
+          file: endpoint.sourceFile,
+          node: endpoint.sourceNode,
+          endpoints: [],
+        });
+      }
+      const { sourceFile, sourceNode, ...publicEndpoint } = endpoint;
+      controllerGroups.get(groupKey).endpoints.push(publicEndpoint);
+    }
   }
+
+  const controllers = [...controllerGroups.values()]
+    .sort((a, b) => a.file.localeCompare(b.file) || a.node.localeCompare(b.node))
+    .map((group) => ({
+      className: 'Hono(' + path.relative(projectRoot, group.file) + ':' + group.node + ')',
+      basePath: commonPathPrefix(group.endpoints.map((ep) => ep.path)),
+      operationIds: [],
+      endpoints: group.endpoints,
+      file: group.file,
+    }));
 
   let packageName = path.basename(projectRoot) || '_hono';
   try {
