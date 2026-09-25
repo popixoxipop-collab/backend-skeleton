@@ -100,6 +100,51 @@ test('regex literals cannot unmask commented-out Hono routes', () => {
   } finally { cleanup(root); }
 });
 
+test('dynamic basePath and interpolated template routes are refused instead of mis-normalized', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      "const dynamicBase = '/api'",
+      'const app = new Hono().basePath(dynamicBase)',
+      "app.get('/users', users)",
+      'const plain = new Hono()',
+      "plain.get(`/users/${id}`, userById)",
+      "plain.get('/health', health)",
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+    assert.deepEqual(endpoints.map((x) => x.path), ['/health']);
+    assert.ok(report.scanNotes.some((x) => x.includes('basePath()') && x.includes('non-literal')));
+    assert.ok(report.scanNotes.some((x) => x.includes('interpolated template route')));
+  } finally { cleanup(root); }
+});
+
+test('all/on/use/mount are recorded as unsupported first-slice semantics', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      'const app = new Hono()',
+      "app.all('/all', allHandler)",
+      "app.on('GET', '/on', onHandler)",
+      "app.use('/api/*', middleware)",
+      "app.mount('/external', externalHandler)",
+      "app.get('/health', health)",
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => x.path), ['/health']);
+    for (const method of ['all', 'on', 'use', 'mount']) {
+      assert.ok(report.scanNotes.some((x) => x.includes(`Hono ${method}()`)), `missing note for ${method}()`);
+    }
+  } finally { cleanup(root); }
+});
+
 test('listReadSet is deterministic and includes package + source inputs', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
