@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-result-packet/1",
   "task_id": "T00-01",
-  "state": "READY_FOR_ACCEPTANCE",
+  "state": "SUBMITTED",
   "repository": "popixoxipop-collab/backend-skeleton",
   "input": {
     "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
@@ -12,7 +12,7 @@
   "baseline": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
     "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
-    "beval": "24cd9ad3cb913756184f79bb008af565a0458967"
+    "beval": "6a767a4bc04cfd55c4b87362b47b898563ffc59e"
   },
   "test_runs": [
     {
@@ -147,9 +147,35 @@
         "conclusion": "success"
       },
       "acceptance_effect": "T00-01 remains SUBMITTED until exact-head main push CI #909 succeeds and T19 independently re-verifies current heads"
+    },
+    {
+      "epoch": 6,
+      "reason": "Backend-evaluation PR #42 and follow-up PR #47 merged after epoch 5, advancing beval main and changing package/runtime/repair surfaces",
+      "prior_beval_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
+      "current_beval_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "supplementary_pr42_ci": {
+        "run_id": 36104244773,
+        "run_number": 921,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "supplementary_live_nvidia": {
+        "run_id": 36104240694,
+        "run_number": 37,
+        "status": "completed",
+        "conclusion": "success",
+        "outcome": "repaired_and_passed"
+      },
+      "current_push_ci": {
+        "run_id": null,
+        "run_number": null,
+        "status": "PENDING_EXACT_HEAD_CI",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until current beval exact-head push CI is identified and successful, epoch-6 PR CI is successful, and T19 independently reviews the exact epoch-6 branch head"
     }
   ],
-  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-5 rebaseline branch.",
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-6 rebaseline branch.",
   "current_acceptance": {
     "exact_main_heads_verified_by_t00": true,
     "exact_head_ci": {
@@ -162,11 +188,12 @@
         "conclusion": "success"
       },
       "beval": {
-        "run_id": 36099964750,
-        "conclusion": "success"
+        "run_id": null,
+        "conclusion": null,
+        "status": "PENDING_EXACT_HEAD_CI"
       }
     },
-    "independent_review": "PENDING_T19",
-    "note": "T00 may accept only if T19 independently verifies this exact branch head and current remote heads without drift."
+    "independent_review": "NOT_REQUESTED_UNTIL_EXACT_HEAD_CI",
+    "note": "Epoch 5 was invalidated by beval main drift. Epoch 6 must not be accepted until current beval main push CI and the epoch-6 PR exact-head CI are terminal success, then T19 independently re-verifies all heads and required artifact blobs."
   }
 }
