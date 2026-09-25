@@ -130,10 +130,11 @@ export function verifyResourceBindingsAgainstObserved({ binding_result, observed
 	if (!binding_result || !Array.isArray(binding_result.bindings)) throw new TypeError('binding_result.bindings must be an array');
 	const live = assertPersistenceIr(observed);
 	if (live.source_kind !== 'live') throw new TypeError('observed persistence IR must have source_kind=live');
+	const effectiveDefaultSchema = default_schema ?? live.metadata?.schema ?? null;
 	const byTable = new Map();
 	for (const entity of live.entities) {
 		if (!entity.table?.name) continue;
-		const key = tableKey({ schema: entity.table.schema ?? default_schema, name: entity.table.name });
+		const key = tableKey({ schema: entity.table.schema ?? effectiveDefaultSchema, name: entity.table.name });
 		if (!byTable.has(key)) byTable.set(key, []);
 		byTable.get(key).push(entity);
 	}
@@ -141,7 +142,7 @@ export function verifyResourceBindingsAgainstObserved({ binding_result, observed
 		...binding_result,
 		bindings: binding_result.bindings.map((binding) => {
 			const table = binding.table;
-			const key = table?.name ? tableKey({ schema: table.schema ?? default_schema, name: table.name }) : null;
+			const key = table?.name ? tableKey({ schema: table.schema ?? effectiveDefaultSchema, name: table.name }) : null;
 			const matches = key ? (byTable.get(key) ?? []) : [];
 			let tableStatus = 'unknown';
 			let keyStatus = 'unknown';
