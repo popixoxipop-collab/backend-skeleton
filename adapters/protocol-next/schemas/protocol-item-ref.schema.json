@@ -28,6 +28,9 @@
             },
             "version": {
               "const": "1"
+            },
+            "media_type": {
+              "const": "application/json"
             }
           }
         }
