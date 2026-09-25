@@ -5,6 +5,7 @@ import path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { bridgeLegacyWebgameContract } from '../../adapters/game-next/legacy-webgame-bridge.mjs';
 import { createNativeExportEnvelope } from '../../adapters/game-next/native-export-envelope.mjs';
+import { normalizeNativeStructureExport } from '../../adapters/game-next/native-structure-normalizer.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..');
 
@@ -90,4 +91,60 @@ test('native export schema rejects runtime certification mutation', () => {
   envelope.claims.runtime_behavior_verified = true;
   assert.equal(validate(envelope), false);
   assert.ok(validate.errors.some((error) => error.instancePath === '/claims/runtime_behavior_verified'));
+});
+
+
+test('native structure export schema accepts the three pinned engine profiles and rejects unknown fields', () => {
+  const validate = validator('native-structure-export.schema.json');
+  const values = [
+    {
+      schema: 'sbf.game-unreal-structure-export/draft-1',
+      types: [{ id: 'AHero', kind: 'class', name: 'AHero', properties: [], functions: [] }],
+    },
+    {
+      schema: 'sbf.game-unity-serialized-export/draft-1',
+      documents: [{ file_id: 1, class_id: 1, name: 'Hero', references: [] }],
+    },
+    {
+      schema: 'sbf.game-godot-scene-export/draft-1',
+      scenes: [{ path: 'res://main.tscn', nodes: [], resources: [], signal_connections: [] }],
+    },
+  ];
+  for (const value of values) {
+    assert.equal(validate(value), true, JSON.stringify(validate.errors));
+  }
+  const bad = structuredClone(values[0]);
+  bad.types[0].runtime_truth = true;
+  assert.equal(validate(bad), false);
+});
+
+test('normalized native structure satisfies schema and cannot claim source/runtime verification', () => {
+  const validate = validator('native-structure.schema.json');
+  const raw = Buffer.from(JSON.stringify({
+    schema: 'sbf.game-unreal-structure-export/draft-1',
+    types: [{
+      id: 'AHero',
+      kind: 'class',
+      name: 'AHero',
+      properties: [{ name: 'Health', type: 'float', specifiers: ['Replicated'] }],
+      functions: [{ name: 'ServerJump', specifiers: ['Server'] }],
+    }],
+  }) + '\n');
+  const envelope = createNativeExportEnvelope(raw, {
+    engine: 'unreal',
+    evidenceClass: 'source-export',
+    engineVersion: 'test-only',
+    platform: 'test-only',
+    producer: {
+      id: 'schema-test-exporter',
+      version: '0-draft',
+      implementation_sha256: '3'.repeat(64),
+    },
+  });
+  const normalized = normalizeNativeStructureExport(raw, envelope);
+  assert.equal(validate(normalized), true, JSON.stringify(validate.errors));
+
+  normalized.claims.source_structure_verified = true;
+  assert.equal(validate(normalized), false);
+  assert.ok(validate.errors.some((error) => error.instancePath === '/claims/source_structure_verified'));
 });
