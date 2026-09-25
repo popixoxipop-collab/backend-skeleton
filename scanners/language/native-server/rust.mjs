@@ -218,14 +218,14 @@ function parseAxum(source, masked, file, diagnostics) {
 		const exprStart = m.index + m[0].length;
 		const end = findStatementEnd(masked, exprStart);
 		const expr = masked.slice(exprStart, end);
-		if (!/\bRouter(?:::[^;=]+)?::new\s*\(\s*\)/.test(expr) && !/^[A-Za-z_]\w*\s*\./.test(expr.trim())) continue;
+		if (!/\bRouter(?:(?:::\s*)?<[^;=]+>)?::new\s*\(\s*\)/.test(expr) && !/^[A-Za-z_]\w*\s*\./.test(expr.trim())) continue;
 		declarations.push({ variable: m[1], index: m.index, exprStart, end });
 	}
 
 	for (const d of declarations) {
 		const exprMasked = masked.slice(d.exprStart, d.end);
 		const exprOriginal = source.slice(d.exprStart, d.end);
-		const rootMatch = exprMasked.match(/^\s*Router(?:<[^>]+>)?::new\s*\(\s*\)/);
+		const rootMatch = exprMasked.match(/^\s*Router(?:(?:::\s*)?<[^>]+>)?::new\s*\(\s*\)/);
 		const baseMatch = rootMatch ? null : exprMasked.match(/^\s*([A-Za-z_]\w*)\b/);
 		let state = rootMatch ? cloneRouterState(null) : cloneRouterState(baseMatch ? routers.get(baseMatch[1]) : null);
 		if (!rootMatch && (!baseMatch || !routers.has(baseMatch[1]))) {
@@ -334,6 +334,8 @@ function parseActixRouteCalls(source, masked, start, end, prefix, file, diagnost
 			diagnostics.push({ code: 'RUST_ACTIX_DYNAMIC_ROUTE_PATH', severity: 'unknown', file, line, message: 'Actix .route() uses a non-literal path' });
 			continue;
 		}
+		const handlerSlice = masked.slice(parsed.parts[1][0], parsed.parts[1][1]).trim();
+		if (!handlerSlice.startsWith('web::')) continue; // another framework's .route(), not an Actix claim
 		const handler = parseActixHandler(source, masked, parsed.parts[1][0], parsed.parts[1][1]);
 		if (!handler || !handler.method) {
 			diagnostics.push({ code: 'RUST_ACTIX_UNKNOWN_ROUTE_HANDLER', severity: 'unknown', file, line, message: `Actix route ${routePath} uses an unsupported route handler/method expression` });
