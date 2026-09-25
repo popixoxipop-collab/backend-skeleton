@@ -25,6 +25,7 @@ test('T08 packaging: npm pack includes every native-server runtime module and ex
 		'scanners/language/native-server/protocol.mjs',
 		'scanners/language/native-server/rust.mjs',
 		'scanners/language/native-server/shared.mjs',
+		'scanners/language/native-server/worker.mjs',
 	]) {
 		assert.ok(files.has(required), `npm package is missing T08 runtime file: ${required}`);
 	}
