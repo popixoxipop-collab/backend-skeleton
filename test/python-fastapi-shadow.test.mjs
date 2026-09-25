@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { scanPythonFastApi } from '../scanners/adapters/python-fastapi.mjs';
 import { analyzePythonFiles, findPythonRuntime } from '../scanners/language/python/analyzer.mjs';
 import { buildPythonProjectFacts } from '../scanners/language/python/resolver.mjs';
@@ -66,4 +67,30 @@ test('T06 FastAPI shadow abstains on a symbolic router prefix instead of inherit
   assert.equal(diff.parity, false);
   assert.equal(diff.differences.endpoints.missingInShadow.length, 1);
   assert.match(diff.differences.endpoints.missingInShadow[0], /^GET \/\{id\}#read_item$/);
+});
+
+
+test('T06 FastAPI shadow matches the repository committed python-fastapi fixture', { skip: !runtime }, () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const fixtureRoot = path.join(here, 'fixtures', 'python-fastapi');
+  const projectRoot = path.join(fixtureRoot, 'backend');
+  const files = [
+    'app/__init__.py',
+    'app/api/__init__.py',
+    'app/api/deps.py',
+    'app/api/items.py',
+    'app/models.py',
+    'app/services/__init__.py',
+    'app/services/item_service.py',
+  ];
+  const legacy = scanPythonFastApi(fixtureRoot, projectRoot);
+  const batch = analyzePythonFiles({ repoRoot: projectRoot, files });
+  assert.equal(batch.ok, true, JSON.stringify(batch, null, 2));
+  const shadow = buildFastApiShadow(buildPythonProjectFacts(batch.results));
+  const diff = diffFastApiShadow(legacy, shadow);
+  assert.equal(diff.parity, true, JSON.stringify(diff, null, 2));
+  assert.deepEqual(diff.counts, {
+    legacy: { endpoints: 1, entities: 1, dtos: 1 },
+    shadow: { endpoints: 1, entities: 1, dtos: 1 },
+  });
 });
