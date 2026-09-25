@@ -114,6 +114,20 @@ function addIndex(map, key, index) {
 }
 
 export function reconcileRuntimeRoutes({ graph, binding, observation }) {
+  if (!graph || !Array.isArray(graph.endpoints)) {
+    throw new TypeError('graph.endpoints must be an array');
+  }
+  if (graph.openApiContext?.attached !== true) {
+    return {
+      version: 'bskel.runtime-route-reconciliation/0-draft',
+      state: 'blocked',
+      reason: 'openapi-context-not-attached',
+      endpoints: [],
+      runtimeOnlyRoutes: [],
+      counts: { observed: 0, conflict: 0, missing: 0, unknown: 0 },
+    };
+  }
+
   const attachedGraph = attachEvidenceBinding(graph, binding);
   const validated = validateRuntimeRouteObservation(observation, binding);
   if (!validated.ok) {
@@ -149,6 +163,19 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
       continue;
     }
 
+    const idMatches = byOperationId.get(operationId) ?? [];
+    if (idMatches.length > 1) {
+      for (const index of idMatches) claimed.add(index);
+      endpoints.push({
+        endpointKey: endpoint.endpointKey,
+        state: 'conflict',
+        reason: 'duplicate-runtime-operation-id',
+        expected: { operationId, method, path },
+        candidates: idMatches.map((index) => validated.routes[index]),
+      });
+      continue;
+    }
+
     const exact = byExact.get(routeKey(method, path)) ?? [];
     if (exact.length === 1) {
       const index = exact[0];
@@ -162,6 +189,15 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
           expected: { operationId, method, path },
           observed: route,
         });
+      } else if (!route.operationId && idMatches.length === 1 && idMatches[0] !== index) {
+        claimed.add(idMatches[0]);
+        endpoints.push({
+          endpointKey: endpoint.endpointKey,
+          state: 'conflict',
+          reason: 'runtime-operation-id-route-conflict',
+          expected: { operationId, method, path },
+          candidates: [route, validated.routes[idMatches[0]]],
+        });
       } else {
         endpoints.push({
           endpointKey: endpoint.endpointKey,
@@ -174,7 +210,6 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
       continue;
     }
 
-    const idMatches = byOperationId.get(operationId) ?? [];
     if (idMatches.length === 1) {
       const index = idMatches[0];
       claimed.add(index);
@@ -187,18 +222,6 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
       });
       continue;
     }
-    if (idMatches.length > 1) {
-      for (const index of idMatches) claimed.add(index);
-      endpoints.push({
-        endpointKey: endpoint.endpointKey,
-        state: 'conflict',
-        reason: 'duplicate-runtime-operation-id',
-        expected: { operationId, method, path },
-        candidates: idMatches.map((index) => validated.routes[index]),
-      });
-      continue;
-    }
-
     endpoints.push({
       endpointKey: endpoint.endpointKey,
       state: observation.completeness === 'complete' ? 'missing' : 'unknown',
