@@ -81,12 +81,14 @@ let createTypeScriptCompilerBackend;
 let compareJsTsBackends;
 let lexicalJsTsBackend;
 let analyzeTypeScriptSemanticSnapshot;
+let analyzeTypeScriptSemanticSnapshot;
 try {
 	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
 	const tsImported = await import(pathToFileURL(tsModulePath).href);
 	tsApi = tsImported.default ?? tsImported;
 	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
 	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
+	({ analyzeTypeScriptSemanticSnapshot } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-semantic-facts.mjs')).href));
 	({ analyzeTypeScriptSemanticSnapshot } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-semantic-facts.mjs')).href));
 } catch (err) {
 	fail(`T04 compiler backend imports failed: ${err.stack || err.message}`);
@@ -159,6 +161,78 @@ if (!compilerComparison?.comparable || !compilerComparison.agrees) {
 }
 console.log(`typescript-typecheck-smoke: T04 compiler backend PASSED (TypeScript ${tsApi.version}, valid AST facts, malformed fail-closed, require shadowing, lexical differential)`);
 
+const semanticGood = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/base.ts', source: 'export interface Base { id: string; }' },
+	{ path: 'src/user.ts', source: "import type { Base } from './base';\nexport interface User extends Base { name?: string; }\nexport type UserAlias = User;" },
+]);
+if (!semanticGood.complete || !semanticGood.syntaxValidated || !semanticGood.semanticChecked || !semanticGood.semanticValidated || semanticGood.runtimeValidated) {
+	fail(`T04 semantic snapshot should validate pure local type relations without claiming runtime validation: ${JSON.stringify(semanticGood)}`);
+}
+if (semanticGood.moduleDiagnostics.length !== 0 || semanticGood.semanticDiagnostics.length !== 0) {
+	fail(`T04 semantic snapshot unexpectedly produced diagnostics: ${JSON.stringify({ module: semanticGood.moduleDiagnostics, semantic: semanticGood.semanticDiagnostics })}`);
+}
+const userDecl = semanticGood.declarations.find((d) => d.name === 'User');
+if (!userDecl) fail(`T04 semantic snapshot lost User: ${JSON.stringify(semanticGood.declarations)}`);
+if (!userDecl.bases.includes('Base')) fail(`T04 semantic snapshot did not resolve Base inheritance: ${JSON.stringify(userDecl)}`);
+const idProperty = userDecl.properties.find((p) => p.name === 'id');
+const nameProperty = userDecl.properties.find((p) => p.name === 'name');
+if (idProperty?.typeText !== 'string' || idProperty?.declaredIn !== 'src/base.ts') {
+	fail(`T04 semantic snapshot did not resolve inherited id:string to its declaration file: ${JSON.stringify(idProperty)}`);
+}
+if (nameProperty?.typeText !== 'string' || !nameProperty.optional || nameProperty.declaredIn !== 'src/user.ts') {
+	fail(`T04 semantic snapshot lost optional local property facts: ${JSON.stringify(nameProperty)}`);
+}
+const aliasDecl = semanticGood.declarations.find((d) => d.name === 'UserAlias');
+if (!aliasDecl || !/User/.test(aliasDecl.typeText)) {
+	fail(`T04 semantic snapshot did not preserve local alias resolution: ${JSON.stringify(aliasDecl)}`);
+}
+
+const semanticMissing = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/broken.ts', source: 'export interface Broken { missing: MissingType; }' },
+]);
+if (!semanticMissing.complete || !semanticMissing.syntaxValidated || !semanticMissing.semanticChecked || semanticMissing.semanticValidated) {
+	fail(`T04 semantic errors must fail semanticValidated only: ${JSON.stringify(semanticMissing)}`);
+}
+if (!semanticMissing.semanticDiagnostics.some((d) => /Cannot find name ['"]?MissingType/.test(d.message))) {
+	fail(`T04 semantic diagnostics did not expose unresolved type name: ${JSON.stringify(semanticMissing.semanticDiagnostics)}`);
+}
+
+const semanticBare = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/external.ts', source: "import type { External } from 'external-package';\nexport interface X { value: External; }" },
+]);
+if (semanticBare.semanticValidated) fail('T04 unresolved bare module must prevent semanticValidated');
+if (!semanticBare.moduleDiagnostics.some((d) => d.code === 'module-bare')) {
+	fail(`T04 semantic snapshot lost module-bare provenance: ${JSON.stringify(semanticBare.moduleDiagnostics)}`);
+}
+
+const semanticNoLib = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/nolib.ts', source: 'export interface NoLib { values: Array<string>; }' },
+]);
+if (semanticNoLib.semanticValidated || !semanticNoLib.semanticDiagnostics.some((d) => /Cannot find name ['"]?Array/.test(d.message))) {
+	fail(`T04 noLib boundary must remain visible for standard-library types: ${JSON.stringify(semanticNoLib.semanticDiagnostics)}`);
+}
+
+const semanticSyntax = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/syntax.ts', source: 'interface Broken { id: string ' },
+]);
+if (semanticSyntax.complete || semanticSyntax.syntaxValidated || semanticSyntax.semanticChecked || semanticSyntax.declarations.length !== 0) {
+	fail(`T04 syntax-invalid semantic snapshot must discard semantic facts: ${JSON.stringify(semanticSyntax)}`);
+}
+
+const semanticRepeat = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/base.ts', source: 'export interface Base { id: string; }' },
+	{ path: 'src/user.ts', source: "import type { Base } from './base';\nexport interface User extends Base { name?: string; }" },
+]);
+const semanticRepeat2 = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/user.ts', source: "import type { Base } from './base';\nexport interface User extends Base { name?: string; }" },
+	{ path: 'src/base.ts', source: 'export interface Base { id: string; }' },
+]);
+if (JSON.stringify(semanticRepeat) !== JSON.stringify(semanticRepeat2)) {
+	fail('T04 semantic snapshot output must be deterministic regardless of input entry order');
+}
+console.log(`typescript-typecheck-smoke: T04 semantic facts PASSED (TypeScript ${tsApi.version}, local import/inheritance/alias, semantic-error split, bare-module provenance, noLib boundary, syntax fail-closed, deterministic snapshot)`);
+
+
 // The TypeScript wiki currently documents this API family through TS 6.x, but warns that TS 7.x
 // changes the API substantially. Prove 6.0.3 separately and refuse 7.x until a future T04 review.
 const ts6Root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t04-typescript-6-'));
@@ -177,6 +251,13 @@ try {
 	}
 	if (backend6.typescriptVersion !== '6.0.3') {
 		fail(`T04 expected TypeScript 6.0.3, got ${backend6.typescriptVersion}`);
+	}
+	const semantic6 = analyzeTypeScriptSemanticSnapshot(ts6, [
+		{ path: 'src/base.ts', source: 'export interface Base { id: string; }' },
+		{ path: 'src/user.ts', source: "import type { Base } from './base';\nexport interface User extends Base { name: string; }" },
+	]);
+	if (!semantic6.complete || !semantic6.syntaxValidated || !semantic6.semanticValidated || semantic6.runtimeValidated) {
+		fail(`T04 TypeScript 6.0.3 semantic facts failed: ${JSON.stringify(semantic6)}`);
 	}
 } catch (err) {
 	fail(`T04 TypeScript 6.0.3 compatibility smoke failed: ${err.stack || err.message}`);
