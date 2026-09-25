@@ -5,9 +5,12 @@ Reads one JSON request from stdin and writes one JSON response to stdout.
 It never imports or executes the target source.
 """
 import ast
+import base64
+import io
 import json
 import math
 import sys
+import tokenize
 
 REQ = "bskel.python-ast.request/1"
 RESP = "bskel.python-ast.response/1"
@@ -219,18 +222,41 @@ def emit(payload):
     json.dump(payload, sys.stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def decode_source(request):
+    encoded = request.get("source_base64")
+    if isinstance(encoded, str):
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except Exception as exc:
+            return None, None, {"code": "INVALID_REQUEST", "message": "source_base64 is not valid base64: " + str(exc)}
+        try:
+            encoding, _ = tokenize.detect_encoding(io.BytesIO(raw).readline)
+            source = raw.decode(encoding, errors="strict")
+        except (LookupError, SyntaxError, UnicodeDecodeError) as exc:
+            return None, None, {"code": "PYTHON_SOURCE_ENCODING_UNSUPPORTED", "message": str(exc)}
+        return source, encoding, None
+    source = request.get("source")
+    if isinstance(source, str):
+        return source, "utf-8-json", None
+    return None, None, {"code": "INVALID_REQUEST", "message": "expected source_base64 or string source"}
+
+
 def main():
     try:
         request = json.load(sys.stdin)
     except Exception as exc:
         emit({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": str(exc)}})
         return
-    if request.get("protocol") != REQ or not isinstance(request.get("source"), str):
-        emit({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": "expected protocol and string source"}})
+    if request.get("protocol") != REQ:
+        emit({"protocol": RESP, "ok": False, "error": {"code": "INVALID_REQUEST", "message": "unexpected protocol"}})
+        return
+    source, source_encoding, decode_error = decode_source(request)
+    if decode_error:
+        emit({"protocol": RESP, "ok": False, "error": decode_error})
         return
     filename = request.get("filename") if isinstance(request.get("filename"), str) else "<source>"
     try:
-        facts = analyze(request["source"], filename)
+        facts = analyze(source, filename)
     except SyntaxError as exc:
         emit({
             "protocol": RESP,
@@ -249,6 +275,7 @@ def main():
         "protocol": RESP,
         "ok": True,
         "runtime": {"implementation": sys.implementation.name, "version": [sys.version_info.major, sys.version_info.minor, sys.version_info.micro]},
+        "sourceEncoding": source_encoding,
         "facts": facts,
     })
 
