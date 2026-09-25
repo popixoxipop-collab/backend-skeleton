@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf-internal:game-native-structure-export-profiles:draft-1",
+  "title": "T17 internal native structure export profiles",
+  "oneOf": [
+    { "$ref": "#/$defs/unreal" },
+    { "$ref": "#/$defs/unity" },
+    { "$ref": "#/$defs/godot" }
+  ],
+  "$defs": {
+    "nonEmpty": { "type": "string", "minLength": 1 },
+    "stringSet": { "type": "array", "items": { "$ref": "#/$defs/nonEmpty" }, "uniqueItems": true },
+    "fileId": {
+      "oneOf": [
+        { "type": "integer" },
+        { "type": "string", "pattern": "^-?[0-9]+$" }
+      ]
+    },
+    "unrealProperty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmpty" },
+        "type": { "$ref": "#/$defs/nonEmpty" },
+        "specifiers": { "$ref": "#/$defs/stringSet" }
+      }
+    },
+    "unrealFunction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmpty" },
+        "specifiers": { "$ref": "#/$defs/stringSet" }
+      }
+    },
+    "unrealType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmpty" },
+        "kind": { "enum": ["class", "struct", "interface", "enum"] },
+        "name": { "$ref": "#/$defs/nonEmpty" },
+        "base": { "$ref": "#/$defs/nonEmpty" },
+        "specifiers": { "$ref": "#/$defs/stringSet" },
+        "properties": { "type": "array", "items": { "$ref": "#/$defs/unrealProperty" } },
+        "functions": { "type": "array", "items": { "$ref": "#/$defs/unrealFunction" } }
+      }
+    },
+    "unreal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "types"],
+      "properties": {
+        "schema": { "const": "sbf.game-unreal-structure-export/draft-1" },
+        "types": { "type": "array", "items": { "$ref": "#/$defs/unrealType" } }
+      }
+    },
+    "unityReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_id"],
+      "properties": {
+        "file_id": { "$ref": "#/$defs/fileId" },
+        "guid": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "unityDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_id", "class_id"],
+      "properties": {
+        "file_id": { "$ref": "#/$defs/fileId" },
+        "class_id": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "type": { "$ref": "#/$defs/nonEmpty" },
+        "name": { "$ref": "#/$defs/nonEmpty" },
+        "game_object_file_id": { "$ref": "#/$defs/fileId" },
+        "parent_file_id": { "$ref": "#/$defs/fileId" },
+        "references": { "type": "array", "items": { "$ref": "#/$defs/unityReference" } }
+      }
+    },
+    "unity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "documents"],
+      "properties": {
+        "schema": { "const": "sbf.game-unity-serialized-export/draft-1" },
+        "documents": { "type": "array", "items": { "$ref": "#/$defs/unityDocument" } }
+      }
+    },
+    "godotNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "name", "type"],
+      "properties": {
+        "path": { "$ref": "#/$defs/nonEmpty" },
+        "name": { "$ref": "#/$defs/nonEmpty" },
+        "type": { "$ref": "#/$defs/nonEmpty" },
+        "parent_path": { "$ref": "#/$defs/nonEmpty" },
+        "script": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "godotResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmpty" },
+        "path": { "$ref": "#/$defs/nonEmpty" },
+        "type": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "godotSignal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signal", "from", "to", "method"],
+      "properties": {
+        "signal": { "$ref": "#/$defs/nonEmpty" },
+        "from": { "$ref": "#/$defs/nonEmpty" },
+        "to": { "$ref": "#/$defs/nonEmpty" },
+        "method": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "godotScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "$ref": "#/$defs/nonEmpty" },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/godotNode" } },
+        "resources": { "type": "array", "items": { "$ref": "#/$defs/godotResource" } },
+        "signal_connections": { "type": "array", "items": { "$ref": "#/$defs/godotSignal" } }
+      }
+    },
+    "godot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "scenes"],
+      "properties": {
+        "schema": { "const": "sbf.game-godot-scene-export/draft-1" },
+        "scenes": { "type": "array", "items": { "$ref": "#/$defs/godotScene" } }
+      }
+    }
+  }
+}

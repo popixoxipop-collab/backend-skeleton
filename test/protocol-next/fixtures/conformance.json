@@ -1,0 +1,92 @@
+{
+  "schema": "sbf.protocol-conformance-corpus/1",
+  "note": "Static seed corpus only. Passing these cases is not runtime certification.",
+  "cases": [
+    {
+      "id": "grpc-proto-unary-and-stream",
+      "family": "grpc",
+      "file": "orders.proto",
+      "text": "syntax = \"proto3\";\npackage shop.v1;\nmessage Req { string id = 1; }\nmessage Res { string id = 1; }\nservice Orders { rpc Get (Req) returns (Res); rpc Watch (Req) returns (stream Res); }",
+      "expect": {
+        "status": "partial",
+        "services": 1,
+        "methods": 2,
+        "messages": 2
+      }
+    },
+    {
+      "id": "grpc-descriptor-object",
+      "family": "grpc",
+      "file": "descriptor.json",
+      "text": "{\"file\":[{\"name\":\"orders.proto\",\"package\":\"shop.v1\",\"syntax\":\"proto3\",\"messageType\":[{\"name\":\"Order\"}],\"service\":[{\"name\":\"Orders\",\"method\":[{\"name\":\"Get\",\"inputType\":\".shop.v1.Order\",\"outputType\":\".shop.v1.Order\"}]}]}]}",
+      "expect": {
+        "status": "partial",
+        "services": 1,
+        "methods": 1,
+        "messages": 1
+      }
+    },
+    {
+      "id": "graphql-sdl-query",
+      "family": "graphql",
+      "file": "schema.graphql",
+      "text": "type Query { order(id: ID!): Order }\ntype Order { id: ID! }",
+      "expect": {
+        "status": "partial",
+        "types": 2,
+        "operations": 1
+      }
+    },
+    {
+      "id": "graphql-introspection-query",
+      "family": "graphql",
+      "file": "introspection.json",
+      "text": "{\"__schema\":{\"queryType\":{\"name\":\"Query\"},\"types\":[{\"kind\":\"OBJECT\",\"name\":\"Query\",\"fields\":[{\"name\":\"ping\",\"args\":[],\"type\":{\"kind\":\"SCALAR\",\"name\":\"String\"}}]}]}}",
+      "expect": {
+        "status": "partial",
+        "types": 1,
+        "operations": 1
+      }
+    },
+    {
+      "id": "asyncapi-yaml-send",
+      "family": "asyncapi",
+      "file": "asyncapi.yaml",
+      "text": "asyncapi: 3.0.0\nchannels:\n  orders:\n    address: orders\noperations:\n  sendOrder:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n",
+      "expect": {
+        "status": "partial",
+        "channels": 1,
+        "operations": 1
+      }
+    },
+    {
+      "id": "websocket-explicit-manifest",
+      "family": "websocket",
+      "file": "websocket.json",
+      "text": "{\"version\":\"1\",\"connections\":[{\"id\":\"orders\",\"endpoint\":\"wss://example.test/orders\"}],\"messages\":[{\"connection_id\":\"orders\",\"name\":\"event\",\"direction\":\"server-to-client\",\"schema_ref\":\"#/$defs/Event\"}]}",
+      "expect": {
+        "status": "partial",
+        "connections": 1,
+        "messages": 1
+      }
+    },
+    {
+      "id": "remote-ref-denied",
+      "family": "asyncapi",
+      "file": "remote.yaml",
+      "text": "asyncapi: 3.0.0\nchannels:\n  external:\n    $ref: https://example.test/external.yaml\n",
+      "expect_error": "remote $ref is disabled"
+    },
+    {
+      "id": "websocket-unresolved-connection-blocked",
+      "family": "websocket",
+      "file": "bad-websocket.json",
+      "text": "{\"messages\":[{\"connection_id\":\"missing\",\"name\":\"event\",\"direction\":\"server-to-client\"}]}",
+      "expect": {
+        "status": "blocked",
+        "connections": 0,
+        "messages": 0
+      }
+    }
+  ]
+}
