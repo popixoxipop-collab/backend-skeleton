@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	NATIVE_SERVER_PROTOCOL,
 	analyzeCSharpAspNetSource,
@@ -10,6 +13,9 @@ import {
 	handleAnalyzeRequest,
 	validateMessage,
 } from '../../scanners/language/native-server/index.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const WORKER = path.resolve(HERE, '../../scanners/language/native-server/worker.mjs');
 
 function request(overrides = {}) {
 	return { protocol: NATIVE_SERVER_PROTOCOL, kind: 'analyze-request', requestId: 'req-1', language: 'go', file: 'main.go', source: 'package main', ...overrides };
@@ -327,4 +333,51 @@ test('Rust mixed-framework file: Axum and Actix facts coexist without cross-talk
 	]);
 	assert.equal(result.diagnostics.length, 0);
 	assert.equal(result.framework, 'rust-mixed-http');
+});
+
+
+test('worker: valid NDJSON request crosses a real process boundary and returns validated facts', () => {
+	const child = spawnSync(process.execPath, [WORKER], {
+		input: encodeNdjson(request({
+			requestId: 'worker-go',
+			source: 'package main\nfunc setup(){ r := gin.Default(); r.GET("/worker", handler) }',
+		})),
+		encoding: 'utf8',
+		maxBuffer: 2 * 1024 * 1024,
+	});
+	assert.equal(child.status, 0, child.stderr);
+	const response = decodeNdjsonLine(child.stdout);
+	assert.equal(response.requestId, 'worker-go');
+	assert.equal(response.backend, 'go-static-pilot');
+	assert.deepEqual(response.routes.map((r) => [r.method, r.path]), [['GET', '/worker']]);
+});
+
+test('worker: multi-message stdin is rejected and never executes a second request', () => {
+	const input = encodeNdjson(request({ requestId: 'one' })) + encodeNdjson(request({ requestId: 'two' }));
+	const child = spawnSync(process.execPath, [WORKER], {
+		input,
+		encoding: 'utf8',
+		maxBuffer: 2 * 1024 * 1024,
+	});
+	assert.equal(child.status, 2);
+	assert.equal(child.stdout, '');
+	assert.match(child.stderr, /exactly one non-empty JSON line/);
+});
+
+test('worker: analysis budget failure returns a request-bound error envelope and nonzero exit', () => {
+	const child = spawnSync(process.execPath, [WORKER], {
+		input: encodeNdjson(request({
+			requestId: 'budgeted',
+			source: 'package main\nfunc setup(){ r := gin.Default(); r.GET("/a", a) }',
+			budget: { maxRoutes: 0 },
+		})),
+		encoding: 'utf8',
+		maxBuffer: 2 * 1024 * 1024,
+	});
+	assert.equal(child.status, 2);
+	const response = decodeNdjsonLine(child.stdout);
+	assert.equal(response.kind, 'error');
+	assert.equal(response.requestId, 'budgeted');
+	assert.equal(response.code, 'BUDGET_EXCEEDED');
+	assert.match(response.message, /maxRoutes/);
 });
