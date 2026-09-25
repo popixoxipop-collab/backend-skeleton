@@ -87,7 +87,7 @@ export function renderSupportMatrixMarkdown(matrix) {
 	const lines = [
 		'# Support matrix',
 		'',
-		matrix.note,
+		escapeMarkdown(matrix.note),
 		'',
 		`| ${header.map(escapeMarkdown).join(' | ')} |`,
 		`|${header.map(() => '---').join('|')}|`,
