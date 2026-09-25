@@ -135,7 +135,7 @@ function parseBasePath(raw) {
 
 function parseHonoVariables(masked) {
   const vars = new Map();
-  const re = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*new\s+Hono\s*\([^)]*\)(?:\s*\.\s*basePath\s*\(\s*([^)]*)\))?/g;
+  const re = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*new\s+Hono(?:\s*<[^>\n]{1,500}>)?\s*\([^)]*\)(?:\s*\.\s*basePath\s*\(\s*([^)]*)\))?/g;
   for (const m of masked.matchAll(re)) {
     const base = parseBasePath(m[2]);
     vars.set(m[1], {
@@ -150,10 +150,13 @@ function parseHonoVariables(masked) {
 
 function parseImports(masked) {
   const imports = new Map();
-  const re = /\bimport\s+([\s\S]{1,500}?)\s+from\s*['"](\.[^'"]+)['"]/g;
-  for (const m of masked.matchAll(re)) {
-    const clause = m[1].replace(/\s+/g, ' ').trim();
-    const specifier = m[2];
+  const fromRelative = /\bfrom\s*['"](\.[^'"]+)['"]/g;
+  for (const m of masked.matchAll(fromRelative)) {
+    const before = masked.slice(0, m.index);
+    const importIndex = before.lastIndexOf('import');
+    if (importIndex === -1 || m.index - importIndex > 500) continue;
+    const clause = before.slice(importIndex + 'import'.length).replace(/\s+/g, ' ').trim();
+    const specifier = m[1];
     if (clause.startsWith('*')) continue;
     let rest = clause;
     if (!rest.startsWith('{')) {
