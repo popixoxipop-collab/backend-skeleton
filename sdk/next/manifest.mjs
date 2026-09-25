@@ -116,6 +116,55 @@ export function validateAdapterSdkManifest(manifest) {
 	return { ok: errors.length === 0, errors };
 }
 
+
+export function createAdapterSdkManifest({
+	adapter,
+	bskel,
+	entrypointPath,
+	fixtures,
+	verificationBasis,
+	readRoots = ['.'],
+	writeRoots = [],
+	environment = [],
+}) {
+	const manifest = {
+		contract: SDK_MANIFEST_CONTRACT,
+		adapter: {
+			id: adapter?.id,
+			title: adapter?.title,
+			version: adapter?.version,
+			descriptorContract: CURRENT_ADAPTER_DESCRIPTOR_CONTRACT,
+		},
+		compatibility: {
+			bskel: {
+				minInclusive: bskel?.minInclusive,
+				maxExclusive: bskel?.maxExclusive,
+			},
+		},
+		entrypoint: {
+			protocol: SDK_ENTRYPOINT_PROTOCOL,
+			path: entrypointPath,
+			export: 'adapterWorker',
+		},
+		permissions: {
+			readRoots: [...readRoots],
+			writeRoots: [...writeRoots],
+			network: 'deny-by-default',
+			environment: [...environment],
+			subprocess: 'deny-by-default',
+		},
+		fixtures: [...(fixtures ?? [])],
+		verificationBasis,
+		activation: { mode: ACTIVATION_MODE },
+	};
+	const validation = validateAdapterSdkManifest(manifest);
+	if (!validation.ok) {
+		const details = validation.errors.map((error) => `${error.path || '(root)'}: ${error.message}`).join('; ');
+		throw new TypeError(`invalid adapter SDK manifest: ${details}`);
+	}
+	return manifest;
+}
+
 export function supportsBskelVersion(manifest, version) {
 	const result = validateAdapterSdkManifest(manifest);
 	if (!result.ok || !validSemver(version)) return false;
