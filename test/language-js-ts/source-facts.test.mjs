@@ -16,6 +16,9 @@ export { createApp } from './app';
 `, { filePath: 'src/index.ts', language: 'typescript' });
   assert.equal(result.contract, JS_TS_FACTS_CONTRACT);
   assert.equal(result.complete, true);
+  assert.equal(result.syntaxValidated, false);
+  assert.equal(result.moduleEdges[0].basis, 'lexical-literal');
+  assert.equal(result.moduleEdges[0].resolution, 'unresolved');
   assert.deepEqual(result.moduleEdges.map((e) => [e.kind, e.specifier]), [
     ['import', 'express'], ['import', 'node:path'], ['import', './types'], ['import', './bootstrap'], ['export-from', './app'],
   ]);
@@ -80,6 +83,7 @@ test('escaped module string is deliberately unresolved instead of decoded by the
   const result = analyzeJsTsSource(String.raw`import x from './fo\\u006f.js';`);
   assert.equal(result.moduleEdges.length, 0);
   assert.ok(result.diagnostics.some((d) => d.code === 'escaped-module-literal'));
+  assert.ok(result.diagnostics.every((d) => d.source === undefined || Number.isSafeInteger(d.source.byteStart)));
   assert.ok(result.diagnostics.some((d) => d.code === 'import-unresolved'));
 });
 
