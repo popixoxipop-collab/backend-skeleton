@@ -238,3 +238,16 @@ test('runtime reconciliation is blocked until the OpenAPI context audit is attac
   assert.equal(report.state, 'blocked');
   assert.equal(report.reason, 'openapi-context-not-attached');
 });
+
+
+test('runtimeObservedOperationKeys rejects an unversioned or foreign runtime report', () => {
+  assert.deepEqual(runtimeObservedOperationKeys({
+    state: 'ready',
+    endpoints: [{ endpointKey: '0:0', state: 'observed' }],
+  }), []);
+  assert.deepEqual(runtimeObservedOperationKeys({
+    version: 'other/runtime-report',
+    state: 'ready',
+    endpoints: [{ endpointKey: '0:0', state: 'observed' }],
+  }), []);
+});
