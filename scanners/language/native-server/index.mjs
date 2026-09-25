@@ -46,3 +46,5 @@ export function handleAnalyzeRequest(message) {
 	encodeNdjson(response, budget);
 	return response;
 }
+
+export { runNativeServerWorker, NativeWorkerRunError, NATIVE_WORKER_PATH } from './runner.mjs';
