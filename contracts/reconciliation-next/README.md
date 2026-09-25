@@ -89,13 +89,13 @@ node --test test/t09-reconciliation-next.test.mjs
 The top-level entrypoint is matched by the repository's existing `npm test` pattern
 (`test/*.test.mjs`), so no package script or lockfile change is required.
 
-The current T09 suite contains **80 tests**:
+The current T09 suite contains **82 tests**:
 
-- 18 field-decision regressions,
+- 19 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
 - 17 OpenAPI context/root-security/duplicate-ID/schema-presence/context-provenance regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
-- 12 revision/build/runtime evidence-binding regressions,
+- 13 revision/build/runtime evidence-binding regressions,
 - 15 bound runtime-route reconciliation regressions,
 - 9 policy-neutral promotion-readiness regressions.
 
