@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { classifyProjectSourceRole } from './source-role.mjs';
 
 // Draft-only internal shape for T02. This is intentionally NOT a stable public SBF contract;
 // T01 owns the eventual cross-tool schema/identity vocabulary.
@@ -147,6 +148,61 @@ function adapterSummary(adapter) {
 
 function isFallbackAdapter(adapter) {
   return adapter.id === 'generic-grep' || adapter.specificity === 0;
+}
+
+export function captureAdapterReadSetSnapshot({ repoRoot, projectRoot, adapter }) {
+  if (!repoRoot || !projectRoot || !adapter) throw new TypeError('repoRoot, projectRoot, and adapter are required');
+  if (typeof adapter.listReadSet !== 'function') return null;
+
+  const absRepo = path.resolve(repoRoot);
+  const absProject = path.resolve(projectRoot);
+  const listed = adapter.listReadSet(absProject);
+  if (!Array.isArray(listed)) {
+    throw new TypeError('adapter.listReadSet() must return an array');
+  }
+
+  const seen = new Set();
+  const files = [];
+  for (const rel of listed) {
+    if (typeof rel !== 'string' || rel.length === 0) {
+      throw new TypeError('adapter.listReadSet() returned an invalid path');
+    }
+    const abs = path.resolve(absProject, rel);
+    const projectDelta = path.relative(absProject, abs);
+    if (projectDelta.startsWith('..') || path.isAbsolute(projectDelta)) {
+      const err = new Error('adapter read-set path escapes project root: ' + rel);
+      err.code = 'PROJECT_READ_SET_ESCAPE';
+      throw err;
+    }
+    const repoDelta = path.relative(absRepo, abs);
+    if (repoDelta.startsWith('..') || path.isAbsolute(repoDelta)) {
+      const err = new Error('adapter read-set path escapes repository: ' + rel);
+      err.code = 'PROJECT_READ_SET_ESCAPE';
+      throw err;
+    }
+    const repoRelativePath = posixRel(absRepo, abs);
+    if (seen.has(repoRelativePath)) continue;
+    seen.add(repoRelativePath);
+    files.push({
+      path: repoRelativePath,
+      digest: fileDigest(abs),
+      role: classifyProjectSourceRole(posixRel(absProject, abs)),
+    });
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+
+  const h = crypto.createHash('sha256');
+  for (const file of files) {
+    h.update(file.path); h.update('\0');
+    h.update(file.digest); h.update('\0');
+    h.update(file.role); h.update('\0');
+  }
+
+  return {
+    adapter_id: adapter.id,
+    files,
+    fingerprint: 'sha256:' + h.digest('hex'),
+  };
 }
 
 function childRootsOf(root, allRoots) {
@@ -345,6 +401,33 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
     const selected = tied.length === 1 ? tied[0].adapter_id : null;
     const descendants = childRootsOf(candidate.root, allRoots);
     const kind = selected ? 'application' : tied.length > 1 ? 'ambiguous' : descendants.length > 0 ? 'aggregate' : 'unrecognized';
+    let selectedAdapterReadSet = null;
+    if (selected) {
+      const selectedAdapter = adapters.find((adapter) => adapter.id === selected) ?? null;
+      if (!selectedAdapter) {
+        unresolved.push({
+          kind: 'selected-adapter-missing',
+          project_root: candidate.root,
+          adapter_id: selected,
+          message: 'selected adapter disappeared before read-set capture',
+        });
+      } else {
+        try {
+          selectedAdapterReadSet = captureAdapterReadSetSnapshot({
+            repoRoot: absRepo,
+            projectRoot: candidate.absolute_root,
+            adapter: selectedAdapter,
+          });
+        } catch (err) {
+          unresolved.push({
+            kind: 'adapter-read-set-error',
+            project_root: candidate.root,
+            adapter_id: selected,
+            message: err.message,
+          });
+        }
+      }
+    }
 
     projects.push({
       project_id: 'project:' + candidate.root,
@@ -355,47 +438,4 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
         http: {
           candidates: firstClass,
           selected_adapter: selected,
-          selection_reason: tied.length > 1 ? 'specificity-tie' : selected ? 'unique-highest-specificity' : 'no-first-class-adapter',
-          ambiguous_adapter_ids: tied.length > 1 ? tied.map((a) => a.adapter_id) : [],
-        },
-      },
-      fallback_adapter: firstClass.length === 0 ? fallback?.adapter_id ?? null : null,
-      child_project_roots: descendants,
-      nested_detections: nestedDetections,
-    });
-  }
-
-  for (const project of projects) {
-    project.local_package = readLocalPackageFacts(absRepo, project, unresolved);
-  }
-  const projectEdges = buildProjectEdges(projects, unresolved);
-
-  return {
-    schema: PROJECT_GRAPH_DRAFT,
-    repo_root: absRepo,
-    projects: projects.sort((a, b) => a.root.localeCompare(b.root)),
-    project_edges: projectEdges,
-    unresolved,
-    files_read: discovery.files_read,
-    notes: [
-      'draft internal T02 graph: project ownership is repo-root scoped; no stable cross-tool identity is claimed yet',
-      'legacy runScan() is unchanged; selected_adapter is a per-project scan plan hint, not an executed scan result',
-    ],
-  };
-}
-
-export function buildProjectScanPlan(graph, { includeFallback = false } = {}) {
-  if (!graph || graph.schema !== PROJECT_GRAPH_DRAFT || !Array.isArray(graph.projects)) {
-    throw new TypeError('expected ' + PROJECT_GRAPH_DRAFT);
-  }
-  const plan = [];
-  for (const project of graph.projects) {
-    const selected = project.facets?.http?.selected_adapter ?? null;
-    if (selected) {
-      plan.push({ project_id: project.project_id, project_root: project.root, adapter_id: selected, mode: 'first-class' });
-    } else if (includeFallback && project.fallback_adapter && project.kind !== 'aggregate') {
-      plan.push({ project_id: project.project_id, project_root: project.root, adapter_id: project.fallback_adapter, mode: 'fallback' });
-    }
-  }
-  return plan.sort((a, b) => a.project_root.localeCompare(b.project_root) || a.adapter_id.localeCompare(b.adapter_id));
-}
+          selection_reason
