@@ -140,10 +140,10 @@ export function assembleCertification(input, { artifact_root = null, require_hol
 
   let verdict = reasons.length ? 'fail' : 'pass';
   if (require_holdout && corpus.ok && !corpus.stats.holdout_ready) {
-    verdict = 'blocked';
     reasons.push('holdout corpus is empty; certification cannot be promoted beyond reference-corpus validation');
+    if (verdict === 'pass') verdict = 'blocked';
   }
-  if (input?.evidence?.verdict === 'blocked' && verdict !== 'fail') verdict = 'blocked';
+  if (input?.evidence?.verdict === 'blocked' && verdict === 'pass') verdict = 'blocked';
 
   return {
     contract: 'sbf.qa-certification-report/1',
