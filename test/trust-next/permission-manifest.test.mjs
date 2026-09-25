@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
+import { PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, diffPermissionManifests, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
 
 const minimal = () => ({ schema: PERMISSION_MANIFEST_SCHEMA });
 
@@ -147,4 +147,87 @@ test('argv allowlist with zero child capacity is rejected as an inconsistent gra
   });
   assert.equal(result.ok, false);
   assert.equal(result.errors.some((x) => x.code === 'EMPTY_PROCESS_CAPACITY'), true);
+});
+
+
+test('secret references are identifiers, never paths or assignment strings', () => {
+  for (const ref of ['../secret', 'folder/secret', '.hidden', 'TOKEN=secret', 'has space']) {
+    const result = validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, secret_refs: [ref] });
+    assert.equal(result.ok, false, ref);
+    assert.equal(result.errors.some((x) => x.code === 'INVALID_SECRET_REF'), true, ref);
+  }
+  const good = validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, secret_refs: ['provider-token', 'db.primary', 'vault:payments'] });
+  assert.equal(good.ok, true);
+});
+
+test('permission diff flags privilege expansion across every grant class', () => {
+  const before = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    read_roots: ['src/api'],
+    write_roots: ['artifacts/report'],
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443] }] },
+    process: { mode: 'argv-allowlist', executables: ['node'], max_children: 1 },
+    environment: { allow: ['CI'] },
+    secret_refs: ['provider-token'],
+    limits: { wall_ms: 10_000, stdout_bytes: 2048, stderr_bytes: 2048 },
+  };
+  const after = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    read_roots: ['src'],
+    write_roots: ['artifacts'],
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443, 8443] }, { host: 'db.example.com', ports: [5432] }] },
+    process: { mode: 'argv-allowlist', executables: ['node', 'python3'], max_children: 2 },
+    environment: { allow: ['CI', 'PATH'] },
+    secret_refs: ['provider-token', 'db-primary'],
+    limits: { wall_ms: 20_000, stdout_bytes: 4096, stderr_bytes: 2048 },
+  };
+  const delta = diffPermissionManifests(before, after);
+  assert.equal(delta.expanded, true);
+  const permissions = new Set(delta.expansions.map((x) => x.permission));
+  for (const permission of [
+    'filesystem.read', 'filesystem.write', 'network.connect', 'process.execute',
+    'process.max_children', 'environment.read', 'secret.use', 'limits.wall_ms', 'limits.stdout_bytes',
+  ]) assert.equal(permissions.has(permission), true, permission);
+  assert.equal(Object.isFrozen(delta), true);
+  assert.equal(Object.isFrozen(delta.expansions), true);
+});
+
+test('permission diff understands nested root narrowing as a reduction, not an expansion', () => {
+  const before = { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['src'] };
+  const after = { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['src/api'] };
+  const delta = diffPermissionManifests(before, after);
+  assert.equal(delta.expanded, false);
+  assert.equal(delta.reduced, true);
+  assert.deepEqual(delta.reductions, [{ permission: 'filesystem.read', value: 'src' }]);
+});
+
+test('permission diff is empty for semantically equivalent normalized manifests', () => {
+  const before = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [
+      { host: 'API.EXAMPLE.COM', ports: [8443, 443] },
+      { host: 'api.example.com', ports: [443] },
+    ] },
+    environment: { allow: ['PATH', 'CI', 'CI'] },
+  };
+  const after = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443, 8443] }] },
+    environment: { allow: ['CI', 'PATH'] },
+  };
+  const delta = diffPermissionManifests(before, after);
+  assert.equal(delta.expanded, false);
+  assert.equal(delta.reduced, false);
+  assert.deepEqual(delta.expansions, []);
+  assert.deepEqual(delta.reductions, []);
+});
+
+test('permission diff refuses invalid manifests rather than comparing partially normalized grants', () => {
+  assert.throws(
+    () => diffPermissionManifests(
+      { schema: PERMISSION_MANIFEST_SCHEMA },
+      { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['../secret'] },
+    ),
+    (error) => error?.code === 'INVALID_PERMISSION_MANIFEST',
+  );
 });
