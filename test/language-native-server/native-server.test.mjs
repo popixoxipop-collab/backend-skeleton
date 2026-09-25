@@ -381,3 +381,33 @@ test('worker: analysis budget failure returns a request-bound error envelope and
 	assert.equal(response.code, 'BUDGET_EXCEEDED');
 	assert.match(response.message, /maxRoutes/);
 });
+
+
+test('Go/Gin: route-looking text inside quoted data is not executable route syntax', () => {
+	const src = String.raw`package main
+func setup() {
+ note := \`r.GET("/fake", fake)\`
+ r := gin.Default()
+ r.GET("/real", real)
+ _ = note
+}`;
+	const result = analyzeGoGinSource(src);
+	assert.deepEqual(result.routes.map((r) => r.path), ['/real']);
+});
+
+test('C#/ASP.NET: route-looking text inside a normal string is not executable route syntax', () => {
+	const src = `var fake = "app.MapGet(\\\"/fake\\\", Fake);";
+var app = builder.Build();
+app.MapGet("/real", Real);`;
+	const result = analyzeCSharpAspNetSource(src);
+	assert.deepEqual(result.routes.map((r) => r.path), ['/real']);
+});
+
+test('native analyzers: identical source produces deep-equal facts on repeated calls', () => {
+	const inputs = [
+		() => analyzeGoGinSource('package main\nfunc setup(){ r := gin.Default(); r.GET("/x", x) }', { file: 'x.go' }),
+		() => analyzeCSharpAspNetSource('var app = builder.Build(); app.MapGet("/x", X);', { file: 'Program.cs' }),
+		() => analyzeRustServerSource('fn app(){ let app = Router::new().route("/x", get(x)); }', { file: 'main.rs' }),
+	];
+	for (const analyze of inputs) assert.deepEqual(analyze(), analyze());
+});
