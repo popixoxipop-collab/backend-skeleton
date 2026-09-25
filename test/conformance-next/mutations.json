@@ -71,8 +71,8 @@
       "id": "MUT-PATH-TRAVERSAL-NOT-CLASSIFIED",
       "critical": true,
       "file": "test/conformance-next/certify.mjs",
-      "find": "if (!nonEmptyString(rel) || path.isAbsolute(rel) || rel.includes('\\\\\\\\') || rel.split('/').includes('..')) {",
-      "replace": "if (!nonEmptyString(rel) || path.isAbsolute(rel) || rel.includes('\\\\\\\\')) {",
+      "find": "if (!nonEmptyString(rel) || path.isAbsolute(rel) || rel.includes('\\\\') || rel.split('/').includes('..')) {",
+      "replace": "if (!nonEmptyString(rel) || path.isAbsolute(rel) || rel.includes('\\\\')) {",
       "test_files": [
         "test/conformance-next/certify.test.mjs"
       ],
