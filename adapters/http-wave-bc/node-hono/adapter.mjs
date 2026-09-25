@@ -202,10 +202,7 @@ function scanFile(file, text) {
     for (const m of masked.matchAll(routeMountRe)) {
       notes.push(`Hono route() mount at ${path.basename(file)}:${lineNumberAt(text, m.index)} (${m[2]}) is observed but not expanded by the T13 first slice; nested app resolution remains unknown.`);
     }
-    const unsupportedRe = new RegExp(`\\b${varName.replace(/[$]/g, '\\    for (const m of masked.matchAll(routeMountRe)) {
-      notes.push(`Hono route() mount at ${path.basename(file)}:${lineNumberAt(text, m.index)} (${m[2]}) is observed but not expanded by the T13 first slice; nested app resolution remains unknown.`);
-    }
-  }')}\\s*\\.\\s*(all|on|use|mount)\\s*\\(`, 'gi');
+    const unsupportedRe = new RegExp(`\\b${varName.replace(/[$]/g, '\\$&')}\\s*\\.\\s*(all|on|use|mount)\\s*\\(`, 'gi');
     for (const m of masked.matchAll(unsupportedRe)) {
       notes.push(`Hono ${m[1]}() at ${path.basename(file)}:${lineNumberAt(text, m.index)} has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice.`);
     }
@@ -251,7 +248,7 @@ export function scanHono(repoRoot, detection = detectHonoRoot(repoRoot)) {
     modules: controllers.length > 0 ? [{ module: packageName, controllers, entities: [], enums: [], dtos: [] }] : [],
     filesRead,
     scanNotes: [
-      'T13 Hono first slice: only literal routes on variables directly initialized with `new Hono()` are emitted; dynamic paths, factory-returned apps and nested route() mounts remain unknown.',
+      'T13 Hono first slice: only literal per-verb routes on variables directly initialized with `new Hono()` are emitted; dynamic/basePath expressions, factory-returned apps, route() mounts and all/on/use/mount calls remain unknown.',
       ...scanNotes,
     ],
     apiSurfaceSource: 'Hono source literals only (T13 experimental leaf adapter; operationId/schema/security/runtime semantics are not inferred)',
