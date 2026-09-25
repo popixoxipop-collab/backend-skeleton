@@ -204,6 +204,23 @@ test('parallel/intercepting/private route segments are not emitted as ordinary U
   }
 });
 
+test('regex literals cannot unmask commented-out Next.js method exports', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
+    'app/api/route.ts': [
+      "const quoteMatcher = /'/g; // export function POST() {}",
+      'export function GET() {}',
+    ].join('\n'),
+  });
+  try {
+    const report = scanNext(root);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => x.verb), ['GET']);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test('Next.js read set is deterministic and includes package, route, Pages API and config inputs', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
