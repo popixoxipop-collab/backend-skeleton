@@ -77,8 +77,17 @@ function adjustProjection(baseNode, projection) {
 function snippetNodeForCall(node) {
   const text = String(node.text ?? '').trimStart();
   if (text.startsWith('require(')) {
-    const parent = node.parent;
-    if (parent?.type === 'variable_declarator') return parent;
+    const declarator = node.parent;
+    if (declarator?.type === 'variable_declarator') {
+      const declaration = declarator.parent;
+      // The bounded lexical projector intentionally trusts CommonJS local bindings only when the
+      // declaration keyword is present. Tree-sitter's variable_declarator text starts after that
+      // keyword, so project the containing declaration statement rather than weakening the
+      // lexical trust rule.
+      if (declaration?.type === 'lexical_declaration' || declaration?.type === 'variable_declaration') {
+        return declaration;
+      }
+    }
     return node;
   }
   if (text.startsWith('import(')) return node;
