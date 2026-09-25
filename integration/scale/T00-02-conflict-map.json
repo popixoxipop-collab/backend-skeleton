@@ -1,0 +1,351 @@
+{
+  "schema": "bskel.scale-conflict-map/1",
+  "task_id": "T00-02",
+  "generated_on": "2026-09-25",
+  "baseline_epoch": 2,
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "beval": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
+  },
+  "baseline_acceptance": {
+    "state": "SUBMITTED_REBASELINED",
+    "t00_branch_head": "527850d120c56cd82bdcf27e9b11925d324d263a",
+    "t00_ci": {
+      "run_id": 36082460622,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    "beval_main_ci": {
+      "run_id": 36080236800,
+      "status": "queued",
+      "conclusion": null
+    },
+    "note": "T00-01 is not ACCEPTED until current exact-head checks complete successfully and review is recorded."
+  },
+  "classification_policy": {
+    "LAND_CANDIDATE": "exact-head CI green, dependency satisfied, ownership clean, no unresolved overlap",
+    "RECONCILE": "implementation may be useful but overlaps another live/legacy track",
+    "HOLD_FIX": "exact-head correctness/regression failure",
+    "HOLD_STACKED": "depends on an unaccepted base/interface",
+    "HOLD_SPLIT": "useful work mixed with out-of-scope/shared-file changes; preserve then split",
+    "FREEZE_RECONCILE": "legacy/pre-plan work is input to integration, not an independent merge train",
+    "MERGED_BASELINE": "already merged and now part of the baseline",
+    "VERIFY_ONLY": "evidence-only PR; never product-merge",
+    "REBASE_REQUIRED": "branch is based on stale/diverged parent and must be reconstructed on current baseline",
+    "DEFER": "not on current critical integration path"
+  },
+  "items": [
+    {
+      "track": "T01",
+      "repo": "backend-skeleton",
+      "pr": 82,
+      "head": "92d33ccba9ece49a9c9ccf941618765dc1719efb",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "backward-compatible identity lane; existing exact-byte identity preserved"
+    },
+    {
+      "track": "T02",
+      "repo": "backend-skeleton",
+      "pr": 72,
+      "head": "e999de09e6ebc6f4c3c6fe6dff01c058af685615",
+      "ci": "success",
+      "class": "RECONCILE",
+      "gate": "T00-04",
+      "reason": "project graph overlaps PR #63 nested project/read-set primitives"
+    },
+    {
+      "track": "T03",
+      "repo": "backend-skeleton",
+      "pr": 81,
+      "head": "eeb1bcb416f91bbcab12ee1d35417c191af96511",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "isolated conditional capability policy; stable schema unchanged"
+    },
+    {
+      "track": "T04",
+      "repo": "backend-skeleton",
+      "pr": 73,
+      "head": "9416f90fc571b281ffeeb5d890b08479e2124d0e",
+      "ci": "success",
+      "class": "RECONCILE",
+      "gate": "T00-04",
+      "reason": "language facts/parser overlap with PR #63 static JS/TS analysis"
+    },
+    {
+      "track": "T04",
+      "repo": "backend-skeleton",
+      "pr": 87,
+      "head": "af6114ce06de2452184bbb5e8805db8f7172afb3",
+      "ci": "success",
+      "class": "HOLD_STACKED",
+      "gate": "PR #73 + T00-04",
+      "reason": "stacked shadow Express graph; must reconcile T02/#63 before merge"
+    },
+    {
+      "track": "T05",
+      "repo": "backend-skeleton",
+      "pr": 86,
+      "head": "596a567b0c1a4b759b9db4cc54c55667b43e35fb",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "JVM foundation confined to language-analysis paths"
+    },
+    {
+      "track": "T06",
+      "repo": "backend-skeleton",
+      "pr": 75,
+      "head": "2eb6599e25fd2b96f61b1f0005d5448c4ad1ebd3",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "static Python analysis; no stable FastAPI wiring"
+    },
+    {
+      "track": "T07",
+      "repo": "backend-skeleton",
+      "pr": 69,
+      "head": "ff38e3941fae63d4d0d6082b9cd415c6917f3b28",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "conservative Ruby/PHP DSL facts with unknown-state preservation"
+    },
+    {
+      "track": "T08",
+      "repo": "backend-skeleton",
+      "pr": 76,
+      "head": "a32d44b80a15572c2205a01e8709f626b0c544d6",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04/T20",
+      "reason": "native-server language backend foundation isolated from stable registry"
+    },
+    {
+      "track": "T09",
+      "repo": "backend-skeleton",
+      "pr": 83,
+      "head": "c821d2676427be1db1deb6e6ae536eb508a84e16",
+      "ci": "failure",
+      "class": "HOLD_FIX",
+      "gate": "exact-head CI",
+      "reason": "semantic invariant failed: synthesized scanner operation id was promoted incorrectly"
+    },
+    {
+      "track": "T10",
+      "repo": "backend-skeleton",
+      "pr": 84,
+      "head": "244e5ba9d9aaa49808815baa5962401db0790466",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "read-only persistence normalization; no inferred binding/writes"
+    },
+    {
+      "track": "T11",
+      "repo": "backend-skeleton",
+      "pr": 77,
+      "head": "6d04792d9b85ad3b2bbcd248f685636316684fae",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04 for normalized projection",
+      "reason": "legacy adapter baseline/compatibility bridge only"
+    },
+    {
+      "track": "T12",
+      "repo": "backend-skeleton",
+      "pr": 66,
+      "head": "eec907f65d3ac94b0d174037b1a26ea662c81861",
+      "ci": "failure",
+      "class": "HOLD_FIX",
+      "gate": "exact-head CI + scope correction",
+      "reason": "experimental NestJS auto-registered into stable adapter registry; registry ordering and conformance fixture tests failed"
+    },
+    {
+      "track": "T13",
+      "repo": "backend-skeleton",
+      "pr": 67,
+      "head": "ee5c0dd6f66fbf42728eba38f53d50bdc1980f50",
+      "ci": "failure",
+      "class": "HOLD_FIX",
+      "gate": "exact-head CI",
+      "reason": "branch-owned Hono assertion failed; keep experimental leaf unregistered"
+    },
+    {
+      "track": "T14",
+      "repo": "backend-skeleton",
+      "pr": 71,
+      "head": "c7c81d3eb737fa9db1224224614335c75da4dacb",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "provider composition preview isolated from global handles/capability mutation"
+    },
+    {
+      "track": "T15",
+      "repo": "backend-decoder",
+      "pr": 8,
+      "head": "ae2df903a9bdb18113769c9aec4966d24dcac3ea",
+      "ci": "success",
+      "class": "HOLD_SPLIT",
+      "gate": "T00-04/T17-03/T20/T23",
+      "reason": "useful R3F renderer mixed with existing product/package edits beyond T15-01/02 scope"
+    },
+    {
+      "track": "T16",
+      "repo": "Backend-evaluation",
+      "pr": 41,
+      "head": "61663a6bafc554f6e688a96bbeb28731e105a7a1",
+      "ci": "queued",
+      "class": "HOLD_STACKED",
+      "gate": "exact-head CI + T01 replay",
+      "reason": "runtime binding continues in owned paths; identity handoff received, CI not complete"
+    },
+    {
+      "track": "T17",
+      "repo": "backend-skeleton",
+      "pr": 68,
+      "head": "2a3d0fabc1cff1eb6601c766c5ea5d7759643723",
+      "ci": "success",
+      "class": "RECONCILE",
+      "gate": "T00-04/T20/T23",
+      "reason": "game-next bridge overlaps legacy Track A and requires package namespace decision"
+    },
+    {
+      "track": "T18",
+      "repo": "backend-skeleton",
+      "pr": 70,
+      "head": "b8c529625db4702b21296a8fed5f22c8aec03305",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04/T16 runtime refs",
+      "reason": "independent static non-HTTP contract plane; no runtime certification"
+    },
+    {
+      "track": "T19",
+      "repo": "backend-skeleton",
+      "pr": 74,
+      "head": "17509373b650c81b861667348a63974bb7622929",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "independent reviewer/corpus certification",
+      "reason": "QA corpus/negative vectors only; certification remains pending"
+    },
+    {
+      "track": "T20",
+      "repo": "backend-skeleton",
+      "pr": 79,
+      "head": "b1aaefb3e77bbd5702cb73107f232d01100f4d10",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "deny-by-default permission foundation; no external code execution"
+    },
+    {
+      "track": "T21",
+      "repo": "backend-skeleton",
+      "pr": 80,
+      "head": "86028bc433b324ba1cb8454221bbb7ed6ed69525",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T00-04",
+      "reason": "incremental scheduling primitives isolated from defaults"
+    },
+    {
+      "track": "T22",
+      "repo": "backend-skeleton",
+      "pr": 85,
+      "head": "064154982055a0f7885b5026eebfad9f9d01d83f",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T20/T23/T00-04",
+      "reason": "data-only SDK; package shipping and execution intentionally absent"
+    },
+    {
+      "track": "T23",
+      "repo": "backend-skeleton",
+      "pr": 78,
+      "head": "6870cb051bf9811da223a3077e5d880a110a5c8d",
+      "ci": "success",
+      "class": "LAND_CANDIDATE",
+      "gate": "T19/T20 + T00 integration decision",
+      "reason": "release inventory/runbook only; no package/workflow/release cutover"
+    },
+    {
+      "track": "LEGACY-A",
+      "repo": "backend-skeleton",
+      "pr": 63,
+      "head": "4e2e15e200eb965d4107acf59db21583d2657ea1",
+      "ci": "success",
+      "class": "FREEZE_RECONCILE",
+      "gate": "T00-03/04",
+      "reason": "pre-plan webgame static analysis overlaps T02/T04/T17/T18"
+    },
+    {
+      "track": "LEGACY-C",
+      "repo": "backend-skeleton",
+      "pr": 62,
+      "head": "bc133aa3ac8aa0379c700d40ee89b2495c09ad9f",
+      "ci": "success",
+      "class": "FREEZE_RECONCILE",
+      "gate": "T00-03/04",
+      "reason": "pre-plan evidence/freshness/release policy overlaps T19/T20/T23"
+    },
+    {
+      "track": "BECODER-VERIFY",
+      "repo": "backend-decoder",
+      "pr": 7,
+      "head": "720b6d87086633a7f050332e0457ad54e089e84a",
+      "ci": "mixed",
+      "class": "VERIFY_ONLY",
+      "gate": "none",
+      "reason": "normal CI green but dedicated beval cross-verify failed; evidence-only PR must not merge"
+    },
+    {
+      "track": "BROWSER-ORACLE",
+      "repo": "Backend-evaluation",
+      "pr": 39,
+      "head": "00792c229fc3d67ec5d4ff248aaf720f7d09defa",
+      "ci": "external exact-source verification success; repository run queued",
+      "class": "MERGED_BASELINE",
+      "gate": "baseline revalidation",
+      "reason": "merged to main as 5bdecbcb...; now baseline epoch 2"
+    },
+    {
+      "track": "REPAIR-LOOP",
+      "repo": "Backend-evaluation",
+      "pr": 40,
+      "head": "6ff95189a021f2305709e6dc440a8c1bb2253f44",
+      "ci": "queued",
+      "class": "REBASE_REQUIRED",
+      "gate": "reconstruct on 5bdecbcb... + fresh runtime tests",
+      "reason": "branch diverged from final Browser Oracle head/main; merge-base predates final fixes"
+    },
+    {
+      "track": "T00",
+      "repo": "backend-skeleton",
+      "pr": 65,
+      "head": "527850d120c56cd82bdcf27e9b11925d324d263a",
+      "ci": "in_progress",
+      "class": "HOLD_STACKED",
+      "gate": "current baseline CI",
+      "reason": "T00-01 rebaselined after #39 merge; acceptance not released"
+    }
+  ],
+  "immediate_actions": [
+    "T09 #83 fix provenance/promotion correctness failure",
+    "T12 #66 remove experimental NestJS from auto-loaded stable registry and restore legacy registry/conformance behavior",
+    "T13 #67 fix branch-owned Hono test/implementation mismatch",
+    "T04 #87 remain stacked evidence-only until #73/T00-04",
+    "beval #40 reconstruct repair-only delta on current main 5bdecbcb... before any merge",
+    "T02/T04/T17 produce explicit overlap mapping against legacy Track A #63",
+    "T19/T20/T23 produce explicit overlap mapping against legacy Track C #62",
+    "T15 #8 split baseline/reader evidence from renderer/product/package patch",
+    "T00-01 wait for current T00 branch CI and beval main exact-head CI"
+  ]
+}
