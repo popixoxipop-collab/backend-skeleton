@@ -65,9 +65,26 @@
       ]
     }
   },
-  "disposition": "WAITING_FOR_EPOCH7_PR_CI",
-  "acceptance_remaining": [
-    "epoch-7 PR exact-head CI terminal success",
-    "fresh T19 independent review of exact epoch-7 head/base, current mains, all 9 required artifact blobs, and exact-head CI evidence"
-  ]
+  "disposition": "ACCEPTED",
+  "acceptance_remaining": [],
+  "epoch7_pr_ci": {
+    "pr": 123,
+    "head": "486bcb2518d8939445617b796d4df215d85bef81",
+    "base": "aac2b8254337ffc8961bcd086c1dc801c59ff6e9",
+    "run_id": 36118976718,
+    "run_number": 1144,
+    "attempt": 2,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "independent_review": {
+    "verdict": "PASS",
+    "t19_pr": 118,
+    "t19_head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+    "path": "evidence/next/T19-T00-01-EPOCH7-REVIEW.md",
+    "blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+    "comment_id": 5830653632
+  },
+  "final_no_drift_verified": true,
+  "baseline_merge_commit": "bc976ac7a0398b1dec96167026dd0de30494feec"
 }

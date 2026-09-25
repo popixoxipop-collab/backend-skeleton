@@ -1,7 +1,7 @@
 {
   "schema": "bskel.scale-result-packet/1",
   "task_id": "T00-01",
-  "state": "SUBMITTED",
+  "state": "ACCEPTED",
   "repository": "popixoxipop-collab/backend-skeleton",
   "input": {
     "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
@@ -203,12 +203,42 @@
         "status": "completed",
         "conclusion": "success"
       },
-      "acceptance_effect": "T00-01 remains SUBMITTED until epoch-7 PR exact-head CI succeeds and T19 independently reviews the exact epoch-7 head/base with no current-main/blob drift."
+      "acceptance_effect": "ACCEPTED after exact-head CI success, independent T19 PASS, and T00 final no-drift re-read.",
+      "epoch7_pr_ci": {
+        "pr": 123,
+        "head": "486bcb2518d8939445617b796d4df215d85bef81",
+        "base": "aac2b8254337ffc8961bcd086c1dc801c59ff6e9",
+        "run_id": 36118976718,
+        "run_number": 1144,
+        "attempt": 2,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "independent_review": {
+        "verdict": "PASS",
+        "t19_pr": 118,
+        "t19_head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+        "artifact": "evidence/next/T19-T00-01-EPOCH7-REVIEW.md",
+        "artifact_blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+        "comment_id": 5830653632
+      }
     }
   ],
   "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-7 rebaseline branch.",
   "current_acceptance": {
     "exact_main_heads_verified_by_t00": true,
+    "final_no_drift_verified": true,
+    "baseline_epoch": 7,
+    "baseline_merge_commit": "bc976ac7a0398b1dec96167026dd0de30494feec",
+    "epoch7_pr": {
+      "pr": 123,
+      "head": "486bcb2518d8939445617b796d4df215d85bef81",
+      "base": "aac2b8254337ffc8961bcd086c1dc801c59ff6e9",
+      "run_id": 36118976718,
+      "run_number": 1144,
+      "attempt": 2,
+      "conclusion": "success"
+    },
     "exact_head_ci": {
       "bskel": {
         "run_id": 36040486375,
@@ -229,7 +259,15 @@
         "conclusion": "success"
       }
     },
-    "independent_review": "NOT_REQUESTED_UNTIL_EPOCH7_PR_CI",
-    "note": "Epoch 6 was independently BLOCKED/DRIFT by T19. Epoch 7 pins current beval main 882b1856...; request a fresh T19 review only after this exact epoch-7 PR head CI is terminal success."
+    "independent_review": {
+      "verdict": "PASS",
+      "t19_pr": 118,
+      "t19_head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+      "artifact": "evidence/next/T19-T00-01-EPOCH7-REVIEW.md",
+      "artifact_blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+      "comment_id": 5830653632
+    },
+    "accepted_on": "2026-09-25",
+    "note": "Epoch 7 accepted after PR #123 exact-head CI success, independent T19 PASS, and final T00 no-drift verification."
   }
 }
