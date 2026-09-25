@@ -145,14 +145,14 @@
       },
       "ci_evidence": {
         "workflow": "ci",
-        "run_id": null,
-        "run_number": null,
+        "run_id": 36105784109,
+        "run_number": 924,
         "event": "push",
-        "status": "PENDING_EXACT_HEAD_CI",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success"
       },
       "known_exact_head_ci_failures": [],
-      "baseline_delta": "main advanced after epoch 5 via merged PR #42 (live NVIDIA bounded webgame repair) and PR #47 (runner-wiring cleanup). PR #42 head CI #921 and live run #37 succeeded, but neither substitutes for exact-head push CI on current main 6a767a4b...."
+      "baseline_delta": "main advanced after epoch 5 via merged PR #42 (live NVIDIA bounded webgame repair) and PR #47 (runner-wiring cleanup). PR #42 head CI #921 and live run #37 succeeded; current exact-head main push CI #924 / run 36105784109 also succeeded."
     }
   ],
   "policy": {
