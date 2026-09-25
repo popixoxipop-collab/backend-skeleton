@@ -32,3 +32,16 @@ T18 owns a leaf namespace in the parallel plan. Stable CLI dispatch, global sche
 4. Define the JSON Schema for an explicit WebSocket manifest, including handshake/auth and state-machine references.
 5. Add disposable runtime oracle profiles in beval; static declarations alone must never become `Runtime-tested`.
 6. Add independent protocol conformance corpus and message/retry/idempotency negative tests.
+
+
+## Explicit cross-protocol flow relations
+
+`contracts/protocol-flow.mjs` adds a separate `sbf_protocol_flow: "1"` artifact for scenario-level relationships. It deliberately distinguishes:
+
+- `after`: an explicit execution ordering dependency only
+- `caused_by`: an explicit causation claim
+- `correlations`: an explicit field-to-field correlation claim
+
+Ordering and correlation never imply causation. Unknown/self references, duplicate step IDs, and ordering/causation cycles fail closed. Retry, timeout, and idempotency declarations are preserved as declarations; they are not runtime proof that a broker/service enforces them.
+
+`action_ref` remains an opaque exact reference in this first slice so T18 does not pre-empt the shared cross-family identity work. A later integration revision must bind it to the common immutable action reference rather than adding name-based repair.
