@@ -141,8 +141,20 @@ function hasLiveHonoImport(text) {
 
 function honoVariables(masked) {
   const vars = new Map();
-  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*=\s*new\s+Hono\s*\([^)]*\)(?:\s*\.\s*basePath\s*\(\s*['"`]([^'"`]*)['"`]\s*\))?/g)) {
-    vars.set(m[1], { basePath: m[2] ?? '' });
+  const declarationRe = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*new\s+Hono\s*\([^)]*\)(?:\s*\.\s*basePath\s*\(\s*([^)]*)\))?/g;
+  for (const m of masked.matchAll(declarationRe)) {
+    let basePath = '';
+    let basePathUnknown = false;
+    const rawBasePath = m[2];
+    if (rawBasePath !== undefined) {
+      const literal = rawBasePath.trim().match(/^(['"`])([\s\S]*)\1$/);
+      if (!literal || (literal[1] === '`' && literal[2].includes('${'))) {
+        basePathUnknown = true;
+      } else {
+        basePath = literal[2];
+      }
+    }
+    vars.set(m[1], { basePath, basePathUnknown });
   }
   return vars;
 }
@@ -166,6 +178,14 @@ function scanFile(file, text) {
       const verb = m[1].toLowerCase();
       if (!VERBS.has(verb)) continue;
       const literalPath = m[3];
+      if (info.basePathUnknown) {
+        notes.push(`Hono basePath() for ${varName} at ${path.basename(file)} is non-literal; routes on this app are not emitted because their absolute paths are unknown.`);
+        continue;
+      }
+      if (m[2] === '`' && literalPath.includes('${')) {
+        notes.push(`Hono interpolated template route at ${path.basename(file)}:${lineNumberAt(text, m.index)} is not a literal path and was not emitted.`);
+        continue;
+      }
       const fullPath = joinPath(info.basePath, literalPath);
       endpoints.push({ verb: verb.toUpperCase(), path: fullPath, operationId: null, method: handlerName(m[4]), line: lineNumberAt(text, m.index) });
     }
@@ -181,6 +201,13 @@ function scanFile(file, text) {
     const routeMountRe = new RegExp(`\\b${varName.replace(/[$]/g, '\\$&')}\\s*\\.\\s*route\\s*\\(\\s*(['\"` + '`' + `])([^'\"` + '`' + `]+)\\1\\s*,`, 'g');
     for (const m of masked.matchAll(routeMountRe)) {
       notes.push(`Hono route() mount at ${path.basename(file)}:${lineNumberAt(text, m.index)} (${m[2]}) is observed but not expanded by the T13 first slice; nested app resolution remains unknown.`);
+    }
+    const unsupportedRe = new RegExp(`\\b${varName.replace(/[$]/g, '\\    for (const m of masked.matchAll(routeMountRe)) {
+      notes.push(`Hono route() mount at ${path.basename(file)}:${lineNumberAt(text, m.index)} (${m[2]}) is observed but not expanded by the T13 first slice; nested app resolution remains unknown.`);
+    }
+  }')}\\s*\\.\\s*(all|on|use|mount)\\s*\\(`, 'gi');
+    for (const m of masked.matchAll(unsupportedRe)) {
+      notes.push(`Hono ${m[1]}() at ${path.basename(file)}:${lineNumberAt(text, m.index)} has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice.`);
     }
   }
   return { controllers, notes };
