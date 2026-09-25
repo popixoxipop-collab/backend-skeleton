@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, diffPermissionManifests, selectApprovedEnvironment, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
+import { PERMISSION_MANIFEST_DIGEST_FORMAT, PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, diffPermissionManifests, permissionManifestDigest, selectApprovedEnvironment, serializePermissionManifest, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
 
 const minimal = () => ({ schema: PERMISSION_MANIFEST_SCHEMA });
 
@@ -278,5 +278,42 @@ test('environment selection refuses non-string and NUL-bearing values', () => {
   assert.throws(
     () => selectApprovedEnvironment({ schema: PERMISSION_MANIFEST_SCHEMA }, []),
     (error) => error?.code === 'INVALID_AMBIENT_ENV',
+  );
+});
+
+
+test('permission manifest serialization and digest are stable across input order and duplicates', () => {
+  const a = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    read_roots: ['src/api', 'src/api'],
+    network: { mode: 'allowlist', allow: [
+      { host: 'API.EXAMPLE.COM', ports: [8443, 443, 443] },
+      { host: 'api.example.com', ports: [443] },
+    ] },
+    process: { mode: 'argv-allowlist', executables: ['python3', 'node', 'node'], max_children: 2 },
+    environment: { allow: ['LANG', 'CI', 'CI'] },
+    secret_refs: ['provider-token', 'db.primary', 'provider-token'],
+  };
+  const b = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    secret_refs: ['db.primary', 'provider-token'],
+    environment: { allow: ['CI', 'LANG'] },
+    process: { mode: 'argv-allowlist', executables: ['node', 'python3'], max_children: 2 },
+    network: { mode: 'allowlist', allow: [{ host: 'api.example.com', ports: [443, 8443] }] },
+    read_roots: ['src/api'],
+  };
+  assert.equal(serializePermissionManifest(a), serializePermissionManifest(b));
+  assert.equal(permissionManifestDigest(a), permissionManifestDigest(b));
+  assert.match(permissionManifestDigest(a), /^[0-9a-f]{64}$/);
+  assert.equal(PERMISSION_MANIFEST_DIGEST_FORMAT, 'bskel.trust-permissions-json/1');
+});
+
+test('permission digest changes on privilege expansion but is independent from input ordering', () => {
+  const base = { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['src/api'] };
+  const expanded = { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['src'] };
+  assert.notEqual(permissionManifestDigest(base), permissionManifestDigest(expanded));
+  assert.throws(
+    () => permissionManifestDigest({ schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['../secret'] }),
+    (error) => error?.code === 'INVALID_PERMISSION_MANIFEST',
   );
 });
