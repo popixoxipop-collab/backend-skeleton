@@ -258,7 +258,8 @@ function extractRouters(text) {
     const argsText = text.slice(open + 1, close);
     const args = splitTopLevel(argsText);
     const prefix = literalString(args[0]);
-    const viewset = args[1]?.match(/^([A-Za-z_]\w*)$/)?.[1];
+    const viewsetRef = args[1]?.match(/^(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)$/);
+    const viewset = viewsetRef?.[1] ?? null;
     if (prefix == null || !viewset) continue;
     const basenameRaw = kwarg(argsText, 'basename');
     const basename = basenameRaw == null ? null : literalString(basenameRaw);
