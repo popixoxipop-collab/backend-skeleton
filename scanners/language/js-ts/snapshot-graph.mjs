@@ -8,17 +8,22 @@ import path from 'node:path';
 import { analyzeJsTsSource } from './source-facts.mjs';
 import { resolveJsTsModuleEdges } from './module-resolver.mjs';
 
-export const JS_TS_SNAPSHOT_CONTRACT = 'sbf.language.js-ts-snapshot/1';
+// Provisional T04-internal shape. T01 owns any future stable cross-tool contract.\nexport const JS_TS_SNAPSHOT_CONTRACT = 'bskel.internal.js-ts-snapshot/0';
 
 const DEFAULT_MAX_FILES = 20_000;
 const DEFAULT_MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function canonicalPath(value) {
-  if (typeof value !== 'string' || value.length === 0) throw new TypeError('entry.path must be a non-empty repository-relative path');
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) throw new TypeError('entry.path must be a non-empty repository-relative path without NUL bytes');
   const slashed = value.replaceAll('\\', '/');
   if (slashed.startsWith('/') || /^[A-Za-z]:\//.test(slashed)) throw new TypeError('entry.path must be repository-relative');
   const normalized = path.posix.normalize(slashed).replace(/^\.\//, '');
   if (normalized === '..' || normalized.startsWith('../')) throw new TypeError('entry.path escapes the repository root');
+  if (normalized === '.' || normalized.length === 0) throw new TypeError('entry.path must identify a file path');
   return normalized;
 }
 
@@ -50,6 +55,8 @@ export function analyzeJsTsSnapshot(entries, {
     return {
       contract: JS_TS_SNAPSHOT_CONTRACT,
       complete: false,
+      allResolved: false,
+      syntaxValidated: false,
       files: [],
       moduleGraph: [],
       diagnostics: [{ level: 'info', code: 'file-limit', message: `snapshot has ${entries.length} files; limit is ${maxFiles}; no partial graph emitted` }],
@@ -71,6 +78,8 @@ export function analyzeJsTsSnapshot(entries, {
       return {
         contract: JS_TS_SNAPSHOT_CONTRACT,
         complete: false,
+        allResolved: false,
+        syntaxValidated: false,
         files: [],
         moduleGraph: [],
         diagnostics: [{ level: 'info', code: 'unsupported-extension', message: `${filePath}: language must be explicit for this extension` }],
@@ -90,7 +99,7 @@ export function analyzeJsTsSnapshot(entries, {
     normalized.push({ path: filePath, source: entry.source, language, bytes });
   }
 
-  normalized.sort((a, b) => a.path.localeCompare(b.path));
+  normalized.sort((a, b) => compareText(a.path, b.path));
   const knownFiles = normalized.map((entry) => entry.path);
   const analyzedFiles = [];
   const graph = [];
@@ -125,6 +134,7 @@ export function analyzeJsTsSnapshot(entries, {
         from: entry.path,
         edgeKind: resolution.edgeKind,
         typeOnly: resolution.typeOnly,
+        sourceBasis: resolution.sourceBasis,
         specifier: resolution.specifier,
         status: resolution.status,
         ...(resolution.target ? { target: resolution.target } : {}),
@@ -137,20 +147,22 @@ export function analyzeJsTsSnapshot(entries, {
   }
 
   graph.sort((a, b) =>
-    a.from.localeCompare(b.from)
+    compareText(a.from, b.from)
     || a.source.byteStart - b.source.byteStart
-    || a.edgeKind.localeCompare(b.edgeKind)
-    || a.specifier.localeCompare(b.specifier)
+    || compareText(a.edgeKind, b.edgeKind)
+    || compareText(a.specifier, b.specifier)
   );
   diagnostics.sort((a, b) =>
-    (a.filePath ?? '').localeCompare(b.filePath ?? '')
+    compareText(a.filePath ?? '', b.filePath ?? '')
     || (a.source?.byteStart ?? a.start ?? -1) - (b.source?.byteStart ?? b.start ?? -1)
-    || a.code.localeCompare(b.code)
+    || compareText(a.code, b.code)
   );
 
   return {
     contract: JS_TS_SNAPSHOT_CONTRACT,
     complete: true,
+    allResolved: graph.every((edge) => edge.status === 'resolved'),
+    syntaxValidated: analyzedFiles.length > 0 && analyzedFiles.every((file) => file.sourceFacts.syntaxValidated === true),
     totalBytes,
     files: analyzedFiles,
     moduleGraph: graph,
