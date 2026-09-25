@@ -90,3 +90,69 @@ test('support explanation clones __proto__ as data without mutating Object.proto
 	assert.deepEqual(Object.keys(report.fields[0].value), ['__proto__']);
 	assert.equal(report.fields[0].value.__proto__.polluted, true);
 });
+
+
+test('support explanation rejects contradictory unknown/conflict field values', () => {
+	assert.throws(() => createSupportExplanation({
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'http.path',
+			status: 'unknown',
+			value: '/users',
+			provenanceRefs: [],
+			constraints: [],
+			nextActions: [],
+		}],
+	}), /unknown field cannot declare an authoritative value/);
+
+	assert.throws(() => createSupportExplanation({
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'http.path',
+			status: 'conflict',
+			value: '/users',
+			provenanceRefs: ['source:a', 'spec:b'],
+			conflicts: [{ value: '/users' }, { value: '/api/users' }],
+			constraints: [],
+			nextActions: [],
+		}],
+	}), /conflict field cannot also declare one authoritative value/);
+
+	assert.throws(() => createSupportExplanation({
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'http.path',
+			status: 'conflict',
+			provenanceRefs: ['source:a'],
+			conflicts: [{ value: '/users' }],
+			constraints: [],
+			nextActions: [],
+		}],
+	}), /at least two conflict candidates/);
+});
+
+test('Markdown rendering escapes table/HTML control characters and exposes conflict candidates', () => {
+	const report = createSupportExplanation({
+		subject: 'project|<unsafe>',
+		adapterId: 'typescript-nestjs',
+		fields: [{
+			name: 'http|path',
+			status: 'conflict',
+			provenanceRefs: ['source|a', 'spec<b>'],
+			conflicts: [{ value: '/users|one' }, { value: '<script>' }],
+			constraints: ['line1\nline2'],
+			nextActions: [],
+		}],
+	});
+	const markdown = renderSupportExplanationMarkdown(report);
+	assert.doesNotMatch(markdown, /<unsafe>/);
+	assert.doesNotMatch(markdown, /<script>/);
+	assert.match(markdown, /project\\\|&lt;unsafe&gt;/);
+	assert.match(markdown, /http\\\|path/);
+	assert.match(markdown, /users\\\|one/);
+	assert.match(markdown, /&lt;script&gt;/);
+	assert.match(markdown, /line1<br>line2/);
+});
