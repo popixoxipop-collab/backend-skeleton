@@ -171,3 +171,18 @@ test('attaching a binding to a graph with different provenance is rejected', () 
   }));
   assert.throws(() => attachEvidenceBinding(wrong, binding), /source binding ref does not match/);
 });
+
+
+test('runtime binding cannot be bound when source and OpenAPI revisions conflict', () => {
+  const { source, openapi, runtime } = meta({
+    openapiRevision: 'different-openapi-revision',
+    openapiBuild: 'build-1',
+    runtimeBuild: 'build-1',
+    runtimeEnvironment: 'env-1',
+  });
+  const binding = buildEvidenceBinding({ source, openapi, runtime });
+  assert.equal(binding.sourceSpec.state, 'conflict');
+  assert.equal(binding.sourceSpec.reason, 'source-openapi-revision-mismatch');
+  assert.equal(binding.runtimeBinding.state, 'conflict');
+  assert.equal(binding.runtimeBinding.reason, 'source-openapi-revision-mismatch');
+});
