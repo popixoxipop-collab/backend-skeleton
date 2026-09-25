@@ -2,54 +2,54 @@
 
 Updated: 2026-09-25. Branch: `feat/t08-native-server-foundation`.
 
-This file is a coordination snapshot for the 24-agent scale plan. It records what T08 has actually implemented and what remains gated by other tracks. It is not a support certificate.
+This is a coordination snapshot for the 24-agent scale plan. It records what T08 has actually implemented and what remains gated by other tracks. It is not a framework support certificate.
 
 | T08 task | State | Evidence / boundary |
 |---|---|---|
-| T08-01 language backend ADR | implemented in branch | `ADR.md` compares Go/C#/Rust static pilots vs compiler-backed candidates and freezes promotion criteria |
-| T08-02 transport | implemented in branch | `bskel.native-language/1`, fatal UTF-8, LF/CRLF, request ID, response fact validation, byte/route/diagnostic budgets, bounded stdin worker process |
-| T08-03 Go/C# pilot | implemented in branch | Gin literal group/routes; ASP.NET Core Minimal + controller literal routes; dynamic/conventional unknowns |
-| T08-04 Rust pilot | implemented in branch | Axum literal route/nest/merge subset; Actix direct route/scope subset; raw-string/lifetime/cross-framework/turbofish regressions |
-| T08-05 HTTP adapter composition | BLOCKED by planned interface freeze | do not edit `scanners/registry.mjs`, `scanners/index.mjs` or shared contract/capability schemas before T01/T02/T03 integration contract is accepted |
-| T08-06 static worker packaging | implemented for Node/static pilot | exact-head macOS + Windows focused/package tests pass; exact-head GitHub Linux CI passes. Compiler-backed Go/.NET/Rust helper packaging remains future work behind an approved runner profile |
+| T08-01 language backend ADR | implemented in branch | Go/C#/Rust static pilots vs compiler-backed candidates; promotion criteria in `ADR.md` |
+| T08-02 transport + static worker runner | implemented in branch | `bskel.native-language/1`, validated facts, bounded NDJSON worker, real parent-enforced timeout, zero ambient env, fail-closed profile budgets |
+| T08-03 Go/C# pilot | implemented in branch | Gin literal groups/routes; ASP.NET Core Minimal + controller literal routes; computed/conventional cases abstain |
+| T08-04 Rust pilot | implemented in branch | Axum literal route/nest/merge subset; Actix direct route/scope subset; ownership/cross-framework/raw-string/lifetime regressions |
+| T08-05 HTTP adapter composition | **BLOCKED** | T00-04A is not active; T01/T02/T03 interfaces are draft. No registry/CLI/shared-schema mutation from T08 |
+| T08-06 static worker packaging | implemented for current Node/static slice | macOS + Windows focused/package verification; package includes runtime files, excludes T08 tests. Compiler-backed helper packaging remains future work |
 
-## Exact-head evidence before this status-only update
+## Verification revision
 
-Product-code head: `545a83830f12f6a14c6ef28b52b6c995f8511058`.
+Exact checkout tested for the current static slice:
 
-- macOS / EOE: native-server focused suite **38/38 PASS**.
-- macOS / EOE: T08 npm package regression **1/1 PASS**.
-- Windows / Alienware: native-server focused suite **38/38 PASS**.
-- Windows / Alienware: T08 npm package regression **1/1 PASS**.
-- Linux / GitHub Actions: workflow run **36088649736 / #706** completed **success** for the exact product-code head.
-- Linux matrix included Node 22/24 tests, package-install, Java/Python/TypeScript integrations, DB lanes, Rails 8.0/8.1, and the existing cross-feature checks; event-gated macOS/canary jobs were intentionally skipped.
+`66e804bb2b8fb08fc2c902204a7581f5605fdac1`
 
-The status document itself may advance the PR head without changing runtime code; the immutable product-code evidence above remains pinned to `545a838...`.
+Evidence collected directly:
 
-## Current T08 guarantees
+- macOS / EOE: native-server focused suite **51/51 PASS**.
+- Windows / Alienware: native-server focused suite **51/51 PASS**.
+- macOS / EOE: T08 npm package test **1/1 PASS**.
+- Windows / Alienware: T08 npm package test **1/1 PASS**.
+- macOS / EOE: existing registry + adapter/provider conformance + package-manifest batch **25/25 PASS**.
+- The exact-head GitHub CI for this rapidly updated branch was still queued when this snapshot was prepared. A queued/cancelled run is not recorded as green.
+- Earlier product-code revision `545a83830f12f6a14c6ef28b52b6c995f8511058` did complete the repository GitHub CI matrix successfully; that older success is not substituted for current exact-head CI.
 
-The T08 static layer can return deterministic, source-backed literal route facts for its documented Gin, ASP.NET Core, Axum and Actix subsets, with explicit diagnostics rather than invented facts for the covered dynamic cases.
+## Current trust boundary
 
-`worker.mjs` provides a real process boundary over the bounded NDJSON protocol. The npm package includes every T08 runtime module and excludes T08 development tests.
+The static runner launches one absolute `process.execPath` child with one absolute packaged `worker.mjs`; no shell is used.
 
-These facts are **not** registered bskel HTTP operations yet. They do not carry the shared ProjectRef/Claim/Capability semantics that T01/T02/T03 must freeze, and they are not framework support certificates.
+The child receives an empty, null-prototype environment. It does not inherit PATH, NODE_OPTIONS, provider credentials, project configuration, SystemRoot or WINDIR. This exact arrangement passed the current focused suite on both macOS and Windows.
 
-## Known blockers and non-claims
+A request may narrow runner resource limits, but may not expand them. A trusted caller may supply a wider profile for supported limits. `maxInputBytes` currently cannot exceed the worker's 4 MiB bootstrap reader; a profile attempting to advertise a larger input ceiling is rejected as `WORKER_PROFILE_UNSUPPORTED` instead of pretending the worker can honor it.
 
-EOE Tailnet short-exec policy currently denies direct `go`, `dotnet`, and `rustc` invocations. T08 treats this as an execution-policy block, not as evidence that the toolchains are absent. No policy bypass is attempted.
+This remains a first-party static helper boundary, **not an OS sandbox**. T20/T16 own eventual permission-manifest enforcement, artifact/toolchain trust and runtime evidence.
 
-The static pilots do not claim Go type resolution, Roslyn semantic analysis, Rust macro expansion, framework runtime metadata, request/response schema, authorization enforcement, persistence binding, or production support.
+## Scope cleanup / cross-track handoff
 
-Compiler-backed helpers need a separately approved runtime profile containing exact toolchain/helper digests, argv/cwd, source/module-cache mounts, environment/network allowlists, resource limits and cleanup ownership.
+- the out-of-lease root shim `test/native-server-language.test.mjs` has been removed;
+- T08 tests stay under `test/language-native-server/**`;
+- T20 review requested on PR #79; details in `T20_HANDOFF.md`;
+- T19 independent QA requested on PR #74; details in `T19_HANDOFF.md`;
+- T08 remains HOLD_SCOPE under the T00 04B matrix;
+- no public scanner registration is attempted before T00/T23 integration lease and active shared interfaces.
 
-## Handoff to T01/T02/T03/T12/T13
+## Known non-claims
 
-T08 can provide deterministic per-source route facts and explicit diagnostics. The shared tracks must define the accepted ProjectRef/Claim/Capability envelope before these facts become registered bskel HTTP adapters.
+T08 does not claim Go type resolution, Roslyn semantic analysis, Rust macro expansion, framework runtime metadata, request/response schema, authorization enforcement, persistence binding, code generation or runtime-tested framework support.
 
-When that interface is accepted, T08-05 should map:
-
-- Go facts -> Gin target adapter;
-- C# facts -> ASP.NET Core target adapter;
-- Rust facts -> Axum/Actix target adapters;
-
-without changing the existing legacy adapter selection path by default.
+The exposed Tailnet short-exec policy denies direct `go`, `dotnet` and `rustc` invocation. This is recorded as an execution-policy block, not evidence those toolchains are absent, and no bypass is attempted.
