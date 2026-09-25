@@ -80,7 +80,7 @@ export function analyzeNativeServerFiles({
 	}
 
 	// Input ordering is not semantic. Sort before analysis so filesystem/listing order cannot
-	// change the aggregate result. Source spans remain per-file byte/string offsets.
+	// change the aggregate result. Source locations remain per-file analyzer-defined string offsets; total_bytes is UTF-8 input accounting only.
 	normalized.sort((a, b) => a.file.localeCompare(b.file));
 
 	const routes = [];
