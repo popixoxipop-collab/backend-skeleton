@@ -221,7 +221,7 @@ export function detectHonoRoot(repoRoot) {
       try {
         const text = fs.readFileSync(file, 'utf8');
         const masked = maskComments(text);
-        return hasLiveHonoImport(masked) && /\bnew\s+Hono\s*\(/.test(masked);
+        return hasLiveHonoImport(masked) && /\bnew\s+Hono(?:\s*<[^>\n]{1,500}>)?\s*\(/.test(masked);
       } catch { return false; }
     });
     if (hasSource) return { projectRoot, packageFile };
