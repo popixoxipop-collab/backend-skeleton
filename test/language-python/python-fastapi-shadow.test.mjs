@@ -4,10 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scanPythonFastApi } from '../scanners/adapters/python-fastapi.mjs';
-import { analyzePythonFiles, findPythonRuntime } from '../scanners/language/python/analyzer.mjs';
-import { buildPythonProjectFacts } from '../scanners/language/python/resolver.mjs';
-import { buildFastApiShadow, diffFastApiShadow } from '../scanners/language/python/fastapi-shadow.mjs';
+import { scanPythonFastApi } from '../../scanners/adapters/python-fastapi.mjs';
+import { analyzePythonFiles, findPythonRuntime } from '../../scanners/language/python/analyzer.mjs';
+import { buildPythonProjectFacts } from '../../scanners/language/python/resolver.mjs';
+import { buildFastApiShadow, diffFastApiShadow } from '../../scanners/language/python/fastapi-shadow.mjs';
 
 const runtime = findPythonRuntime();
 
@@ -72,7 +72,7 @@ test('T06 FastAPI shadow abstains on a symbolic router prefix instead of inherit
 
 test('T06 FastAPI shadow matches the repository committed python-fastapi fixture', { skip: !runtime }, () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const fixtureRoot = path.join(here, 'fixtures', 'python-fastapi');
+  const fixtureRoot = path.join(here, '..', 'fixtures', 'python-fastapi');
   const projectRoot = path.join(fixtureRoot, 'backend');
   const files = [
     'app/__init__.py',

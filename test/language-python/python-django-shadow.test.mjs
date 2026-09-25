@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { analyzePythonFiles, findPythonRuntime } from '../scanners/language/python/analyzer.mjs';
-import { buildPythonProjectFacts } from '../scanners/language/python/resolver.mjs';
-import { buildDjangoUrlShadow } from '../scanners/language/python/django-shadow.mjs';
+import { analyzePythonFiles, findPythonRuntime } from '../../scanners/language/python/analyzer.mjs';
+import { buildPythonProjectFacts } from '../../scanners/language/python/resolver.mjs';
+import { buildDjangoUrlShadow } from '../../scanners/language/python/django-shadow.mjs';
 
 const runtime = findPythonRuntime();
 

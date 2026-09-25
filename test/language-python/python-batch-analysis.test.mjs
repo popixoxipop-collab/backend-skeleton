@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { analyzePythonFiles, findPythonRuntime, PYTHON_AST_BATCH_RESPONSE_PROTOCOL } from '../scanners/language/python/analyzer.mjs';
+import { analyzePythonFiles, findPythonRuntime, PYTHON_AST_BATCH_RESPONSE_PROTOCOL } from '../../scanners/language/python/analyzer.mjs';
 
 const runtime = findPythonRuntime();
 

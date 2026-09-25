@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { analyzePythonFile, findPythonRuntime } from '../scanners/language/python/analyzer.mjs';
-import { buildPythonProjectFacts, resolvePythonSymbol } from '../scanners/language/python/resolver.mjs';
+import { analyzePythonFile, findPythonRuntime } from '../../scanners/language/python/analyzer.mjs';
+import { buildPythonProjectFacts, resolvePythonSymbol } from '../../scanners/language/python/resolver.mjs';
 
 const runtime = findPythonRuntime();
 function project(root, files) {

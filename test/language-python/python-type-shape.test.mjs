@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { analyzePythonFile, findPythonRuntime } from '../scanners/language/python/analyzer.mjs';
-import { buildPythonProjectFacts } from '../scanners/language/python/resolver.mjs';
-import { projectPythonModels } from '../scanners/language/python/model-shape.mjs';
-import { annotatePythonModelTypes, normalizePythonType } from '../scanners/language/python/type-shape.mjs';
+import { analyzePythonFile, findPythonRuntime } from '../../scanners/language/python/analyzer.mjs';
+import { buildPythonProjectFacts } from '../../scanners/language/python/resolver.mjs';
+import { projectPythonModels } from '../../scanners/language/python/model-shape.mjs';
+import { annotatePythonModelTypes, normalizePythonType } from '../../scanners/language/python/type-shape.mjs';
 
 const runtime = findPythonRuntime();
 
