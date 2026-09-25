@@ -457,7 +457,7 @@ export function extractLaravelDslFacts(source, { file = 'routes/api.php' } = {})
       const routePath = phpLiteral(route[2]);
       const chain = trimmed.slice(trimmed.indexOf(')') + 1);
       const routeName = chain.match(/->name\(\s*["']([^"']+)["']\s*\)/)?.[1] ?? null;
-      const dynamic = !routePath || context.some((entry) => entry.dynamic);
+      const dynamic = routePath == null || context.some((entry) => entry.dynamic);
       const methods = route[1] === 'match'
         ? [...route[2].matchAll(/["'](GET|POST|PUT|PATCH|DELETE|OPTIONS)["']/gi)]
           .map((m) => m[1].toUpperCase())
