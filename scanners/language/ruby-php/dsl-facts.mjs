@@ -537,6 +537,68 @@ function splitAttributeArgs(args) {
   return parts.filter(Boolean);
 }
 
+function balancedPhpDelimiterEnd(source, start, open, close) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (escaped) { escaped = false; continue; }
+    if (quote && ch === '\\') { escaped = true; continue; }
+    if (quote) { if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return null;
+}
+
+function phpAttributeGroups(source) {
+  const groups = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    const start = source.indexOf('#[', cursor);
+    if (start === -1) break;
+    const end = balancedPhpDelimiterEnd(source, start + 1, '[', ']');
+    if (end == null) break;
+    groups.push({ start, end, bodyStart: start + 2, body: source.slice(start + 2, end - 1) });
+    cursor = end;
+  }
+  return groups;
+}
+
+function symfonyRouteCalls(group) {
+  const calls = [];
+  const re = /(?:^|,)\s*(?:\\?Symfony\\Component\\Routing\\(?:Annotation|Attribute)\\)?Route\s*\(/g;
+  for (const match of group.body.matchAll(re)) {
+    const open = group.body.indexOf('(', match.index);
+    if (open === -1) continue;
+    const end = balancedPhpDelimiterEnd(group.body, open, '(', ')');
+    if (end == null) continue;
+    calls.push({
+      start: group.bodyStart + match.index + match[0].indexOf('Route'),
+      end: group.bodyStart + end,
+      args: group.body.slice(open + 1, end - 1),
+    });
+  }
+  return calls;
+}
+
+function skipFollowingPhpAttributes(source, offset) {
+  let cursor = offset;
+  while (cursor < source.length) {
+    while (/\s/.test(source[cursor] ?? '')) cursor++;
+    if (source.slice(cursor, cursor + 2) !== '#[') break;
+    const end = balancedPhpDelimiterEnd(source, cursor + 1, '[', ']');
+    if (end == null) break;
+    cursor = end;
+  }
+  return source.slice(cursor);
+}
+
 export function extractSymfonyRouteAttributeFacts(
   source,
   { file = 'src/Controller/Controller.php' } = {},
@@ -545,40 +607,44 @@ export function extractSymfonyRouteAttributeFacts(
   const framework = 'symfony';
   const language = 'php';
   const facts = [];
-  const re = /#\[\s*(?:\\?Symfony\\Component\\Routing\\Annotation\\)?Route\s*\(([\s\S]*?)\)\s*\]/g;
 
-  for (const m of source.matchAll(re)) {
-    const args = splitAttributeArgs(m[1]);
-    const pathLiteral = phpLiteral(args[0] ?? '')
-      ?? args.find((entry) => /^path\s*:/.test(entry))
-        ?.match(/path\s*:\s*["']([^"']+)["']/)?.[1]
-      ?? null;
-    const routeName = args.find((entry) => /^name\s*:/.test(entry))
-      ?.match(/name\s*:\s*["']([^"']+)["']/)?.[1]
-      ?? null;
-    const methodsArg = args.find((entry) => /^methods\s*:/.test(entry)) ?? '';
-    const methods = [...methodsArg.matchAll(/["']([A-Z]+)["']/g)].map((x) => x[1]);
-    const after = source.slice(m.index + m[0].length);
-    const classTarget = /^\s*(?:(?:final|abstract)\s+)?class\s+([A-Za-z_]\w*)/.exec(after);
-    const methodTarget = /^\s*(?:(?:public|protected|private|static)\s+)*function\s+([A-Za-z_]\w*)/.exec(after);
+  for (const group of phpAttributeGroups(source)) {
+    const calls = symfonyRouteCalls(group);
+    if (calls.length === 0) continue;
+    const after = skipFollowingPhpAttributes(source, group.end);
+    const classTarget = /^\s*(?:(?:final|abstract|readonly)\s+)*class\s+([A-Za-z_]\w*)/.exec(after);
+    const methodTarget = /^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+([A-Za-z_]\w*)/.exec(after);
     const target = classTarget ?? methodTarget;
     const targetKind = classTarget ? 'class' : methodTarget ? 'method' : null;
-    const status = pathLiteral ? (target ? 'literal' : 'partial') : 'unknown';
-    facts.push(makeFact({
-      source, file, framework, language,
-      kind: 'attribute', status, name: routeName ?? 'Route',
-      start: m.index, end: m.index + m[0].length, context: [],
-      attributes: {
-        path: pathLiteral,
-        routeName,
-        methods,
-        targetKind,
-        targetName: target?.[1] ?? null,
-      },
-      ...(status === 'unknown'
-        ? { unknownReason: 'Symfony Route attribute path is not a supported literal' }
-        : {}),
-    }));
+
+    for (const call of calls) {
+      const args = splitAttributeArgs(call.args);
+      const pathLiteral = phpLiteral(args[0] ?? '')
+        ?? args.find((entry) => /^path\s*:/.test(entry))
+          ?.match(/path\s*:\s*["']([^"']+)["']/)?.[1]
+        ?? null;
+      const routeName = args.find((entry) => /^name\s*:/.test(entry))
+        ?.match(/name\s*:\s*["']([^"']+)["']/)?.[1]
+        ?? null;
+      const methodsArg = args.find((entry) => /^methods\s*:/.test(entry)) ?? '';
+      const methods = [...methodsArg.matchAll(/["']([A-Z]+)["']/g)].map((x) => x[1]);
+      const status = pathLiteral ? (target ? 'literal' : 'partial') : 'unknown';
+      facts.push(makeFact({
+        source, file, framework, language,
+        kind: 'attribute', status, name: routeName ?? 'Route',
+        start: call.start, end: call.end, context: [],
+        attributes: {
+          path: pathLiteral,
+          routeName,
+          methods,
+          targetKind,
+          targetName: target?.[1] ?? null,
+        },
+        ...(status === 'unknown'
+          ? { unknownReason: 'Symfony Route attribute path is not a supported literal' }
+          : {}),
+      }));
+    }
   }
 
   return envelope({ source, file, framework, language, facts });
