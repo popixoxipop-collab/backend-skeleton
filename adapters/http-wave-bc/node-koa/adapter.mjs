@@ -10,6 +10,60 @@ import { lineNumberAt } from '../../../scanners/text-util.mjs';
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.git', 'coverage']);
+const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+
+function isRegexStart(lastSignificant, recentText) {
+  if (lastSignificant === null) return true;
+  if (REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+  return REGEX_PRECEDING_KEYWORD_RE.test(recentText);
+}
+
+function skipRegexLiteral(text, start) {
+  let i = start + 1;
+  let inClass = false;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '\n') return i;
+    if (inClass) {
+      if (ch === ']') inClass = false;
+      i++;
+      continue;
+    }
+    if (ch === '[') { inClass = true; i++; continue; }
+    if (ch === '/') return i + 1;
+    i++;
+  }
+  return i;
+}
+
+function isCodeIndex(text, target) {
+  let quote = null;
+  let lastSignificant = null;
+  for (let i = 0; i < target; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+      const stop = skipRegexLiteral(text, i);
+      if (stop > target) return false;
+      i = Math.max(i, stop - 1);
+      lastSignificant = '/';
+      continue;
+    }
+    if (!/\s/.test(ch)) lastSignificant = ch;
+  }
+  return quote === null;
+}
+
 const ROUTE_METHODS = new Map([
   ['get', 'GET'],
   ['post', 'POST'],
@@ -78,6 +132,7 @@ function defaultImportBindings(masked, moduleName) {
   const escaped = escapeRegExp(moduleName);
   const fromRe = new RegExp("\\bfrom\\s*['\"]" + escaped + "['\"]", 'g');
   for (const match of masked.matchAll(fromRe)) {
+    if (!isCodeIndex(masked, match.index)) continue;
     const before = masked.slice(Math.max(0, match.index - 500), match.index);
     const imports = [...before.matchAll(/\bimport\b/g)];
     if (imports.length === 0) continue;
@@ -95,7 +150,7 @@ function requireBindings(masked, moduleName) {
   const out = new Set();
   const escaped = escapeRegExp(moduleName);
   const re = new RegExp("\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*require\\s*\\(\\s*['\"]" + escaped + "['\"]\\s*\\)", 'g');
-  for (const match of masked.matchAll(re)) out.add(match[1]);
+  for (const match of masked.matchAll(re)) if (isCodeIndex(masked, match.index)) out.add(match[1]);
   return out;
 }
 
@@ -121,6 +176,7 @@ function findConstructors(masked, bindingNames) {
       'g',
     );
     for (const match of masked.matchAll(re)) {
+      if (!isCodeIndex(masked, match.index)) continue;
       const openIndex = masked.indexOf('(', match.index + match[0].lastIndexOf('('));
       const closeIndex = matchBalancedParens(masked, openIndex);
       if (openIndex === -1 || closeIndex === -1) continue;
@@ -179,6 +235,7 @@ function routeCalls(masked, routerName) {
   const re = new RegExp('\\b' + escaped + '\\s*\\.\\s*(' + methods + ')\\s*\\(', 'gi');
   const calls = [];
   for (const match of masked.matchAll(re)) {
+    if (!isCodeIndex(masked, match.index)) continue;
     const openIndex = masked.indexOf('(', match.index + match[0].lastIndexOf('('));
     const closeIndex = matchBalancedParens(masked, openIndex);
     if (openIndex === -1 || closeIndex === -1) continue;
@@ -224,7 +281,8 @@ function parseRouteCall(call, prefix) {
 
 function hasRouterPrefixMutation(masked, routerName) {
   const escaped = escapeRegExp(routerName);
-  return new RegExp('\\b' + escaped + '\\s*\\.\\s*prefix\\s*\\(', 'g').test(masked);
+  const re = new RegExp('\\b' + escaped + '\\s*\\.\\s*prefix\\s*\\(', 'g');
+  return [...masked.matchAll(re)].some((match) => isCodeIndex(masked, match.index));
 }
 
 function appUsesRouter(masked, appNames, routerName) {
@@ -232,7 +290,7 @@ function appUsesRouter(masked, appNames, routerName) {
   for (const appName of appNames) {
     const app = escapeRegExp(appName);
     const re = new RegExp('\\b' + app + '\\s*\\.\\s*use\\s*\\(\\s*' + router + '\\s*\\.\\s*routes\\s*\\(\\s*\\)\\s*\\)', 'g');
-    if (re.test(masked)) return true;
+    if ([...masked.matchAll(re)].some((match) => isCodeIndex(masked, match.index))) return true;
   }
   return false;
 }
@@ -249,6 +307,7 @@ function unsupportedRouterNotes(masked, routerName, file) {
   for (const [method, message] of patterns) {
     const re = new RegExp('\\b' + escaped + '\\s*\\.\\s*' + method + '\\s*\\(', 'g');
     for (const match of masked.matchAll(re)) {
+      if (!isCodeIndex(masked, match.index)) continue;
       notes.push(`${path.basename(file)}:${lineNumberAt(masked, match.index)} ${message}`);
     }
   }
