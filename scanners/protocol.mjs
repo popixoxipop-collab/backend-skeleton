@@ -20,7 +20,7 @@ function canonical(value) {
   return value;
 }
 
-function canonicalObjectBytes(value) {
+export function canonicalObjectBytes(value) {
   return Buffer.from(JSON.stringify(canonical(value)));
 }
 
