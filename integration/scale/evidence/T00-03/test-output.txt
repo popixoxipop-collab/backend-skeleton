@@ -1,0 +1,26 @@
+TAP version 13
+# Subtest: accepts non-overlapping active claim
+ok 1 - accepts non-overlapping active claim
+# Subtest: same file/prefix simultaneous write claim is rejected
+ok 2 - same file/prefix simultaneous write claim is rejected
+# Subtest: case-insensitive overlapping scope is rejected
+ok 3 - case-insensitive overlapping scope is rejected
+# Subtest: expired active lease is rejected
+ok 4 - expired active lease is rejected
+# Subtest: fencing token regression is rejected
+ok 5 - fencing token regression is rejected
+# Subtest: expired lease result is rejected
+ok 6 - expired lease result is rejected
+# Subtest: stale fencing token result is rejected after successor claim
+ok 7 - stale fencing token result is rejected after successor claim
+# Subtest: touched path outside claim is rejected
+ok 8 - touched path outside claim is rejected
+# Subtest: path traversal claim is rejected
+ok 9 - path traversal claim is rejected
+# Subtest: overlap helper treats nested wildcard prefixes as overlapping
+ok 10 - overlap helper treats nested wildcard prefixes as overlapping
+1..10
+# tests 10
+# pass 10
+# fail 0
+# skipped 0

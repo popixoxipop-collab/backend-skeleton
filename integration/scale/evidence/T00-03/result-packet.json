@@ -1,0 +1,60 @@
+{
+  "schema": "bskel.scale-result-packet/1",
+  "task_id": "T00-03",
+  "state": "SUBMITTED",
+  "revision": "T00-03-R1",
+  "baseline_epoch": 2,
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "beval": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
+  },
+  "input_t00_head": "c8a955dfbaf20c3f2e2e84a85b381a164d64983d",
+  "outputs": [
+    "integration/scale/ownership-policy-R1.json",
+    "integration/scale/lease-ledger-R1.json",
+    "integration/scale/lease-verifier.mjs",
+    "integration/scale/test-lease-verifier.mjs",
+    "integration/scale/ownership-audit-R1.json",
+    "integration/scale/T00-03-LEASE-PROTOCOL.md"
+  ],
+  "tests": [
+    {
+      "command": "node --test integration/scale/test-lease-verifier.mjs",
+      "exit_code": 0,
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "command": "node integration/scale/lease-verifier.mjs validate integration/scale/ownership-policy-R1.json integration/scale/lease-ledger-R1.json",
+      "exit_code": 0,
+      "result": {
+        "ok": true,
+        "errors": []
+      }
+    },
+    {
+      "command": "node integration/scale/lease-verifier.mjs submission integration/scale/ownership-policy-R1.json integration/scale/lease-ledger-R1.json integration/scale/evidence/T00-03/submission-packet.json",
+      "exit_code": 0,
+      "result": {
+        "ok": true,
+        "errors": []
+      }
+    }
+  ],
+  "required_negative_cases": {
+    "same_file_simultaneous_claim": "passed",
+    "expired_lease_result": "passed",
+    "fencing_token_regression": "passed"
+  },
+  "known_scope_deviations": [
+    "bskel#66 T12",
+    "becoder#8 T15"
+  ],
+  "limitations": [
+    "read-only coordination verifier; not an OS worktree lock",
+    "T00-04 shared semantic interfaces remain BLOCKED_PREFREEZE",
+    "T00-01 remains baseline-gated by current exact-head verification"
+  ],
+  "rollback": "Remove T00-03 lease/policy files from integration/scale/**; no product runtime, stable schema, package manifest, or workflow is modified."
+}
