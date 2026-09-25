@@ -163,77 +163,204 @@ function resourceShape(fact, prefix) {
   };
 }
 
-export function expandRailsFacts(envelope, out) {
-  for (const fact of envelope.facts) {
-    if (fact.status === 'unknown') {
-      if (fact.kind === 'route' || fact.kind === 'resource') {
-        addUnknown(out, fact, 'DSL_DYNAMIC_DECLARATION', fact.unknownReason);
-      }
-      continue;
-    }
+function hasConcernDefinitionContext(fact) {
+  return (fact.context ?? []).some((ctx) => ctx.kind === 'concern-definition');
+}
 
-    if (fact.kind === 'route') {
-      if (fact.attributes?.path == null || !fact.attributes?.method) {
-        addUnknown(out, fact, 'DSL_ROUTE_PARTIAL', 'route method/path are not both literal');
-        continue;
-      }
-      const base = baseForExplicitRoute(fact);
-      if (!base.ok) {
-        addUnknown(out, fact, 'DSL_CONTEXT_UNRESOLVED', base.reason);
-        continue;
-      }
-      addCandidate(
+function resourceContextFromFact(fact) {
+  return {
+    kind: 'resource',
+    name: fact.declaration.name,
+    path: fact.attributes?.path ?? fact.declaration.name,
+    module: null,
+    dynamic: fact.status === 'unknown',
+    singular: Boolean(fact.attributes?.singular),
+    param: fact.attributes?.param ?? null,
+    routeMode: null,
+  };
+}
+
+function collectConcernDefinitions(facts) {
+  const declarationCounts = new Map();
+  const bodies = new Map();
+
+  for (const fact of facts) {
+    if (fact.kind !== 'concern' || fact.attributes?.declaration !== 'concern') continue;
+    const name = fact.declaration.name;
+    if (!name || fact.status === 'unknown') continue;
+    declarationCounts.set(name, (declarationCounts.get(name) ?? 0) + 1);
+    if (!bodies.has(name)) bodies.set(name, []);
+  }
+
+  for (const fact of facts) {
+    const concernCtx = (fact.context ?? []).find((ctx) => ctx.kind === 'concern-definition');
+    if (!concernCtx?.name || !bodies.has(concernCtx.name)) continue;
+    bodies.get(concernCtx.name).push(fact);
+  }
+
+  return { declarationCounts, bodies };
+}
+
+function materializeConcernFacts(envelope, out) {
+  const { declarationCounts, bodies } = collectConcernDefinitions(envelope.facts);
+  const derived = [];
+
+  const instantiate = (name, useFact, useContext) => {
+    if (!name) {
+      addUnknown(out, useFact, 'DSL_CONCERN_UNRESOLVED', 'concern use does not have a literal name');
+      return;
+    }
+    const count = declarationCounts.get(name) ?? 0;
+    if (count !== 1) {
+      addUnknown(
         out,
-        envelope,
-        fact,
-        fact.attributes.method,
-        normalizeRailsCandidatePath(joinRoute(base.path, fact.attributes.path)),
-        {
-          controller: fact.attributes.controller ?? null,
-          action: fact.attributes.action ?? null,
-          routeMode: fact.attributes.routeMode ?? null,
-          implicitNestedMember: Boolean(base.implicitNestedMember),
-        },
+        useFact,
+        'DSL_CONCERN_UNRESOLVED',
+        count === 0
+          ? `concern '${name}' has no declaration in this route source`
+          : `concern '${name}' has ${count} declarations and is ambiguous`,
       );
+      return;
+    }
+
+    for (const child of bodies.get(name) ?? []) {
+      const idx = (child.context ?? []).findIndex(
+        (ctx) => ctx.kind === 'concern-definition' && ctx.name === name,
+      );
+      if (idx === -1) continue;
+      const tail = child.context.slice(idx + 1);
+      derived.push({
+        ...child,
+        id: `${child.id}::concern-use::${useFact.id}`,
+        context: [...useContext, ...tail],
+        attributes: {
+          ...(child.attributes ?? {}),
+          concernDefinition: name,
+          concernSourceFactId: child.id,
+          concernUseSourceFactId: useFact.id,
+        },
+      });
+    }
+  };
+
+  for (const fact of envelope.facts) {
+    if (fact.kind === 'resource') {
+      for (const name of fact.attributes?.concerns ?? []) {
+        instantiate(name, fact, [...(fact.context ?? []), resourceContextFromFact(fact)]);
+      }
       continue;
     }
 
-    if (fact.kind !== 'resource') continue;
-    const base = baseForResourceFact(fact);
+    if (fact.kind === 'concern' && fact.attributes?.declaration === 'concerns') {
+      if (fact.status === 'unknown') {
+        addUnknown(out, fact, 'DSL_CONCERN_UNRESOLVED', fact.unknownReason);
+        continue;
+      }
+      for (const name of fact.attributes?.names ?? []) {
+        instantiate(name, fact, fact.context ?? []);
+      }
+    }
+  }
+
+  return derived;
+}
+
+function expandOneRailsFact(envelope, out, fact) {
+  if (fact.status === 'unknown') {
+    if (fact.kind === 'route' || fact.kind === 'resource') {
+      addUnknown(out, fact, 'DSL_DYNAMIC_DECLARATION', fact.unknownReason);
+    }
+    return;
+  }
+
+  if (fact.kind === 'route') {
+    if (fact.attributes?.path == null || !fact.attributes?.method) {
+      addUnknown(out, fact, 'DSL_ROUTE_PARTIAL', 'route method/path are not both literal');
+      return;
+    }
+    const base = baseForExplicitRoute(fact);
     if (!base.ok) {
       addUnknown(out, fact, 'DSL_CONTEXT_UNRESOLVED', base.reason);
-      continue;
+      return;
     }
+    addCandidate(
+      out,
+      envelope,
+      fact,
+      fact.attributes.method,
+      normalizeRailsCandidatePath(joinRoute(base.path, fact.attributes.path)),
+      {
+        controller: fact.attributes.controller ?? null,
+        action: fact.attributes.action ?? null,
+        routeMode: fact.attributes.routeMode ?? null,
+        implicitNestedMember: Boolean(base.implicitNestedMember),
+        concernDefinition: fact.attributes?.concernDefinition ?? null,
+        concernUseSourceFactId: fact.attributes?.concernUseSourceFactId ?? null,
+      },
+    );
+    return;
+  }
 
-    const shape = resourceShape(fact, base.path);
-    if (!shape.ok) {
-      addUnknown(out, fact, 'DSL_RESOURCE_KEY_UNRESOLVED', shape.reason);
-      continue;
+  if (fact.kind !== 'resource') return;
+  const base = baseForResourceFact(fact);
+  if (!base.ok) {
+    addUnknown(out, fact, 'DSL_CONTEXT_UNRESOLVED', base.reason);
+    return;
+  }
+
+  const shape = resourceShape(fact, base.path);
+  if (!shape.ok) {
+    addUnknown(out, fact, 'DSL_RESOURCE_KEY_UNRESOLVED', shape.reason);
+    return;
+  }
+
+  const { actions, unsupported } = resourceActions(fact);
+  if (unsupported.length) {
+    addUnknown(
+      out,
+      fact,
+      'DSL_RESOURCE_ACTION_UNSUPPORTED',
+      `unsupported Rails actions: ${unsupported.join(', ')}`,
+    );
+  }
+
+  for (const action of actions) {
+    for (const [method, where] of ROWS[action]) {
+      const routePath = where === 'collection' ? shape.collection
+        : where === 'member' ? shape.member
+          : where === 'new' ? joinRoute(shape.collection, 'new')
+            : joinRoute(shape.member, 'edit');
+      addCandidate(out, envelope, fact, method, routePath, {
+        resource: fact.declaration.name,
+        action,
+        controller: fact.attributes?.controller ?? fact.declaration.name,
+        memberParam: shape.memberParam,
+        concernDefinition: fact.attributes?.concernDefinition ?? null,
+        concernUseSourceFactId: fact.attributes?.concernUseSourceFactId ?? null,
+      });
     }
+  }
+}
 
-    const { actions, unsupported } = resourceActions(fact);
-    if (unsupported.length) {
+export function expandRailsFacts(envelope, out) {
+  const derivedConcernFacts = materializeConcernFacts(envelope, out);
+
+  for (const fact of envelope.facts) {
+    if (hasConcernDefinitionContext(fact)) continue;
+    if (fact.kind === 'concern') continue;
+    expandOneRailsFact(envelope, out, fact);
+  }
+
+  for (const fact of derivedConcernFacts) {
+    if (fact.kind === 'concern') {
       addUnknown(
         out,
         fact,
-        'DSL_RESOURCE_ACTION_UNSUPPORTED',
-        `unsupported Rails actions: ${unsupported.join(', ')}`,
+        'DSL_CONCERN_UNRESOLVED',
+        'nested concern use inside a concern definition is not expanded in this bounded pass',
       );
+      continue;
     }
-
-    for (const action of actions) {
-      for (const [method, where] of ROWS[action]) {
-        const routePath = where === 'collection' ? shape.collection
-          : where === 'member' ? shape.member
-            : where === 'new' ? joinRoute(shape.collection, 'new')
-              : joinRoute(shape.member, 'edit');
-        addCandidate(out, envelope, fact, method, routePath, {
-          resource: fact.declaration.name,
-          action,
-          controller: fact.attributes?.controller ?? fact.declaration.name,
-          memberParam: shape.memberParam,
-        });
-      }
-    }
+    expandOneRailsFact(envelope, out, fact);
   }
 }
