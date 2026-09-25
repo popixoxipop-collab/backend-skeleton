@@ -7,13 +7,11 @@ export function buildRegisteredProjectGraph(repoRoot, options = {}) {
     adapters: options.adapters ?? ADAPTERS,
     ...(options.markerRules ? { markerRules: options.markerRules } : {}),
   });
-  return {
-    ...graph,
-    registry_load_errors: LOAD_ERRORS.map((entry) => ({
-      file: entry.file,
-      message: entry.message,
-    })),
-  };
+  graph.registry_load_errors = LOAD_ERRORS.map((entry) => ({
+    file: entry.file,
+    message: entry.message,
+  }));
+  return graph;
 }
 
 export function buildRegisteredProjectScanPlan(repoRoot, { includeFallback = false, ...options } = {}) {
