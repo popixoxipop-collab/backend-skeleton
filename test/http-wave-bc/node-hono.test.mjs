@@ -39,6 +39,17 @@ test('T13 Hono descriptor is conservative until OpenAPI/runtime evidence exists'
   });
 });
 
+test('frozen Hono official README reference shape is detected at the pinned upstream version', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(here, '../fixtures/http-wave-bc/hono-official-readme');
+  const detection = detectHonoRoot(root);
+  assert.ok(detection);
+  const report = scanHono(root, detection);
+  assert.deepEqual(report.modules[0].controllers[0].endpoints.map((x) => [x.verb, x.path]), [
+    ['GET', '/'],
+  ]);
+});
+
 test('detect requires dependency plus live Hono source, not a comment', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '^4.0.0' } }),
