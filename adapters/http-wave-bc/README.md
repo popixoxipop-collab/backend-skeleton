@@ -36,9 +36,19 @@ The remaining Wave B/C entries in `catalog.mjs` are admission targets, not imple
 
 Each fixture directory carries its own attribution and scope note.
 
-## Test entry point
+## Test and ownership boundary
 
-The repository's existing test command only picks up `test/*.test.mjs`. T13 leaf tests stay nested under `test/http-wave-bc/` and are imported by `test/http-wave-bc.test.mjs` so the normal Node 22/24 CI lanes execute them without changing `package.json`.
+T13 owns only `adapters/http-wave-bc/**` and `test/http-wave-bc/**` under the T00-03 r1 ownership policy. Reference fixtures therefore live under `test/http-wave-bc/fixtures/**`.
+
+The repository's current `npm test` glob only discovers `test/*.test.mjs`. T13 does **not** add a root-level aggregation shim because that path is outside its lease. The focused suite is:
+
+```bash
+node --test test/http-wave-bc/*.test.mjs
+```
+
+Making nested suites part of required root CI is a T00/T23 integration change. Until that integration lands, a green repository-wide CI run does not by itself prove that the latest T13 focused tests executed.
+
+The T00-04B draft promotion matrix currently classifies T13 as `PROFILE_BY_PROFILE` and forbids new T13 framework fan-out until T00-04A becomes active. Hono, Koa, and Next.js are therefore the only active T13 implementation slices on this branch; the remaining catalog entries stay admission targets only.
 
 ## Promotion rule
 
