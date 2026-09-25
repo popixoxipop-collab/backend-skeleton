@@ -1,0 +1,136 @@
+{
+  "schema": "bskel.scale-baseline-lock/1",
+  "task_id": "T00-01",
+  "captured_on": "2026-09-25",
+  "plan": {
+    "bundle": "BSKEL_SCALE_IMPLEMENTATION_PLAN_2026-09-25.zip",
+    "bundle_sha256": "bfd53f0a25163c62252d2f00301ad700045ed6172ace055ab49be822b545f799",
+    "task_definition_sha256": "9ae02923cd16247ef9c5285da6404d4875fcd1ab0a07432940adea72f24d05c1",
+    "interface_revision": "pre-freeze/0"
+  },
+  "repositories": [
+    {
+      "role": "bskel",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "default_branch": "main",
+      "plan_snapshot_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "node_engine": ">=18",
+      "package_version": "1.9.0",
+      "required_artifacts": [
+        {"path": "package.json", "git_blob_sha": "735a10bf6c274acb22759a620d57b3c5f2f69068"},
+        {"path": "package-lock.json", "git_blob_sha": "34da67575f01e97724c4b5ee944b67ae4435e003"},
+        {"path": ".github/workflows/ci.yml", "git_blob_sha": "11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089"}
+      ],
+      "test_commands": {
+        "test": "node --test test/*.test.mjs",
+        "test:pack": "node test/package-install.test.mjs",
+        "test:java-compile": "node scripts/java-compile-smoke.mjs",
+        "test:python-import": "node scripts/python-import-smoke.mjs",
+        "test:db-introspect": "node scripts/db-introspect-smoke.mjs",
+        "test:pattern-db": "node scripts/pattern-db-smoke.mjs",
+        "test:db-erd": "node scripts/db-erd-smoke.mjs",
+        "test:registry-coverage": "node scripts/handles-registry-coverage-smoke.mjs",
+        "test:ddl-apply": "node scripts/ddl-apply-smoke.mjs",
+        "test:cross-feature-fk": "node scripts/cross-feature-fk-smoke.mjs",
+        "test:java-integration": "node scripts/java-integration-smoke.mjs",
+        "test:java-ast": "node scripts/java-ast-smoke.mjs",
+        "test:python-integration": "node scripts/python-integration-smoke.mjs",
+        "test:typescript-compile": "node scripts/typescript-typecheck-smoke.mjs",
+        "test:rails-integration": "node scripts/rails-integration-smoke.mjs",
+        "test:spring-initializr-canary": "node scripts/spring-initializr-canary.mjs",
+        "test:shadow-validation": "node scripts/shadow-validation-smoke.mjs",
+        "test:oracle-corpus": "node scripts/shadow-validation-smoke.mjs --manifest test/fixtures/oracle-manifest.json",
+        "test:all-smoke": "npm test && npm run test:pack && npm run test:java-compile && npm run test:java-integration && npm run test:python-import && npm run test:python-integration && npm run test:db-introspect && npm run test:pattern-db && npm run test:db-erd && npm run test:registry-coverage && npm run test:ddl-apply && npm run test:cross-feature-fk && npm run test:java-ast && npm run test:typescript-compile"
+      },
+      "ci_evidence": {
+        "workflow": "CI",
+        "run_id": 36040486375,
+        "run_number": 319,
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "known_exact_head_ci_failures": []
+    },
+    {
+      "role": "becoder",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "default_branch": "main",
+      "plan_snapshot_sha": "96f67f9ab6d3ba6b83de43b0c3de7c0c4deaa560",
+      "head_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "node_engine": ">=18",
+      "package_version": "0.5.0",
+      "required_artifacts": [
+        {"path": "package.json", "git_blob_sha": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b"},
+        {"path": "package-lock.json", "git_blob_sha": "043a1fe96bd338fe81909be195519b8cf402d66a"},
+        {"path": ".github/workflows/ci.yml", "git_blob_sha": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4"}
+      ],
+      "test_commands": {
+        "test": "node --test test/*.test.mjs",
+        "test:pack": "node --test scripts/package-install-smoke.mjs",
+        "test:corpus": "node scripts/contract-corpus-smoke.mjs",
+        "test:compatibility": "node scripts/installed-compatibility-smoke.mjs",
+        "test:e2e-agent": "node scripts/e2e-agent-smoke.mjs",
+        "test:e2e-static-html": "node scripts/e2e-static-html-smoke.mjs",
+        "test:e2e-webgame": "node scripts/e2e-webgame-smoke.mjs",
+        "test:compatibility-webgame": "node scripts/installed-webgame-compatibility-smoke.mjs"
+      },
+      "ci_evidence": {
+        "workflow": "CI",
+        "run_id": 36070647695,
+        "run_number": 78,
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "known_exact_head_ci_failures": [],
+      "baseline_delta": "main advanced after planning snapshot via merged PR #6; downstream work must consume a575679b... rather than reimplement the older webgame state"
+    },
+    {
+      "role": "beval",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "default_branch": "main",
+      "plan_snapshot_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "head_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "node_engine": ">=20",
+      "package_version": "0.1.0",
+      "required_artifacts": [
+        {"path": "package.json", "git_blob_sha": "714575e9cbaff966e4fc00138da6317ef84ac2a4"},
+        {"path": "package-lock.json", "git_blob_sha": "a83092968a5833883ac74c5e3aad5c80f117d006"},
+        {"path": ".github/workflows/ci.yml", "git_blob_sha": "90dd1cc1317a8d3f3c619facf5c4346834fb7c15"}
+      ],
+      "test_commands": {
+        "test": "node --test test/*.test.mjs",
+        "test:integration": "node --test test/integration/*.test.mjs",
+        "test:jev-live": "node --test test/live/jev.test.mjs",
+        "test:fastapi-oracles-live": "BEVAL_TEST_FASTAPI_BASIC_ORACLES=1 node --test test/live/fastapi-basic-oracles.test.mjs",
+        "test:pack": "node scripts/package-install-smoke.mjs",
+        "check": "node --check bin/beval.mjs && node scripts/validate-schemas.mjs",
+        "test:spring-oracles-live": "BEVAL_TEST_STAGED_SPRING_ORACLES=1 node --test test/live/staged-spring-oracles.test.mjs",
+        "check:corpus": "node bin/beval.mjs corpus validate-all --json",
+        "check:binding": "node scripts/contract-binding-report.mjs --check docs/contract-binding/compatibility-report.json",
+        "check:release-schema": "node --test test/release-assessment.test.mjs",
+        "test:v07-mutation-live": "BEVAL_V07_MUTATION=1 node --test test/live/v07-fastapi-mutation.test.mjs",
+        "test:harness-nvidia-live": "BEVAL_TEST_NVIDIA_HARNESS=1 node --test test/live/harness-nvidia-worker.test.mjs",
+        "test:harness-ab": "node --test test/harness-ab.test.mjs test/harness-artifact-store.test.mjs test/harness-ab-live.test.mjs test/harness-ab-fastapi-fixture.test.mjs"
+      },
+      "ci_evidence": {
+        "workflow": "ci",
+        "run_id": 36054404469,
+        "run_number": 792,
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "known_exact_head_ci_failures": []
+    }
+  ],
+  "policy": {
+    "requires_clean_checkout_for_worker": true,
+    "requires_exact_default_branch": true,
+    "requires_exact_head_sha": true,
+    "requires_artifact_blob_identity": true,
+    "ci_success_is_historical_evidence_not_a_substitute_for_task_specific_tests": true
+  }
+}
