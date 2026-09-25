@@ -185,10 +185,19 @@ export function scanT07CorpusCheckout(entry, root) {
   return report;
 }
 
-export function runT07Corpus(manifest, { keepCheckouts = false } = {}) {
+export function runT07Corpus(manifest, { keepCheckouts = false, ids = null } = {}) {
   validateT07CorpusManifest(manifest);
+  const selectedIds = ids == null ? null : new Set(ids);
+  if (selectedIds) {
+    for (const id of selectedIds) {
+      if (!manifest.entries.some((entry) => entry.id === id)) throw new TypeError(`unknown corpus entry: ${id}`);
+    }
+  }
+  const selectedEntries = selectedIds
+    ? manifest.entries.filter((entry) => selectedIds.has(entry.id))
+    : manifest.entries;
   const results = [];
-  for (const entry of manifest.entries) {
+  for (const entry of selectedEntries) {
     let root = null;
     try {
       root = exactCheckout(entry);
