@@ -5,7 +5,7 @@ import {
 	sourcePath,
 } from './ir.mjs';
 
-const LEGACY_PROVIDERS = new Set(['java-spring', 'python-fastapi', 'typescript-express']);
+const LEGACY_PROVIDERS = new Set(['java-spring', 'python-fastapi', 'typescript-express', 'ruby-rails']);
 
 function primaryKeyType(provider, entity) {
 	if (!entity.idField) return 'unknown';
