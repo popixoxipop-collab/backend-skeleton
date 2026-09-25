@@ -80,12 +80,14 @@ let tsApi;
 let createTypeScriptCompilerBackend;
 let compareJsTsBackends;
 let lexicalJsTsBackend;
+let analyzeTypeScriptStructure;
 try {
 	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
 	const tsImported = await import(pathToFileURL(tsModulePath).href);
 	tsApi = tsImported.default ?? tsImported;
 	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
 	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
+	({ analyzeTypeScriptStructure } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-structure-facts.mjs')).href));
 } catch (err) {
 	fail(`T04 compiler backend imports failed: ${err.stack || err.message}`);
 }
@@ -182,6 +184,96 @@ if (lexicalCommon.syntaxValidated !== false || compilerCommon.syntaxValidated !=
 	fail(`T04 syntax-validation distinction was lost: ${JSON.stringify({ lexical: lexicalCommon.syntaxValidated, compiler: compilerCommon.syntaxValidated })}`);
 }
 console.log(`typescript-typecheck-smoke: T04 compiler backend PASSED (TypeScript ${tsApi.version}, valid AST facts, malformed fail-closed, require shadowing, lexical differential)`);
+
+const nestStructure = analyzeTypeScriptStructure(tsApi, `
+@Controller('/users')
+export class UsersController {
+  @Get(':id')
+  getOne(@Param('id') id: string, @Body() body: UpdateUserDto): UserDto { throw new Error('fixture'); }
+
+  @Post()
+  create(@Body() body: CreateUserDto): UserDto { throw new Error('fixture'); }
+}
+`, { filePath: 'src/users.controller.ts', language: 'typescript' });
+if (!nestStructure.complete || !nestStructure.syntaxValidated || nestStructure.runtimeValidated) {
+	fail(`T04 Nest-like structure facts status mismatch: ${JSON.stringify(nestStructure)}`);
+}
+const controller = nestStructure.decoratedClasses.find((entry) => entry.name === 'UsersController');
+if (!controller) fail(`T04 structure facts lost decorated class: ${JSON.stringify(nestStructure.decoratedClasses)}`);
+const controllerDecorator = controller.decorators.find((d) => d.name === 'Controller');
+if (controllerDecorator?.arguments?.[0]?.value !== '/users') {
+	fail(`T04 structure facts lost Controller literal argument: ${JSON.stringify(controllerDecorator)}`);
+}
+const getOne = controller.members.find((m) => m.name === 'getOne');
+if (!getOne || getOne.decorators.find((d) => d.name === 'Get')?.arguments?.[0]?.value !== ':id') {
+	fail(`T04 structure facts lost method decorator: ${JSON.stringify(getOne)}`);
+}
+const idParam = getOne.parameters.find((p) => p.name === 'id');
+const bodyParam = getOne.parameters.find((p) => p.name === 'body');
+if (idParam?.decorators?.[0]?.name !== 'Param' || idParam.decorators[0].arguments[0]?.value !== 'id') {
+	fail(`T04 structure facts lost parameter decorator: ${JSON.stringify(idParam)}`);
+}
+if (bodyParam?.decorators?.[0]?.name !== 'Body' || bodyParam.typeText !== 'UpdateUserDto') {
+	fail(`T04 structure facts lost body parameter/type surface: ${JSON.stringify(bodyParam)}`);
+}
+
+const r3fStructure = analyzeTypeScriptStructure(tsApi, `
+function Scene() {
+  useFrame((state, delta) => { void state; void delta; });
+  return (
+    <Canvas camera={{ position: [0, 0, 5] }}>
+      <group name="root">
+        <mesh visible onClick={() => hit()}>
+          <boxGeometry args={[1, 1, 1]} />
+        </mesh>
+        <Player speed={2} />
+      </group>
+    </Canvas>
+  );
+}
+`, {
+	filePath: 'src/Scene.tsx',
+	language: 'tsx',
+	trackedCalls: ['useFrame'],
+});
+if (!r3fStructure.complete || !r3fStructure.syntaxValidated || r3fStructure.runtimeValidated) {
+	fail(`T04 R3F-like structure facts status mismatch: ${JSON.stringify(r3fStructure)}`);
+}
+const tags = r3fStructure.jsxElements.map((entry) => entry.tag);
+for (const tag of ['Canvas', 'group', 'mesh', 'boxGeometry', 'Player']) {
+	if (!tags.includes(tag)) fail(`T04 structure facts lost JSX tag ${tag}: ${JSON.stringify(tags)}`);
+}
+const canvas = r3fStructure.jsxElements.find((entry) => entry.tag === 'Canvas');
+const group = r3fStructure.jsxElements.find((entry) => entry.tag === 'group');
+const mesh = r3fStructure.jsxElements.find((entry) => entry.tag === 'mesh');
+const box = r3fStructure.jsxElements.find((entry) => entry.tag === 'boxGeometry');
+const player = r3fStructure.jsxElements.find((entry) => entry.tag === 'Player');
+if (group?.parentId !== canvas?.id || mesh?.parentId !== group?.id || box?.parentId !== mesh?.id || player?.parentId !== group?.id) {
+	fail(`T04 JSX parent graph mismatch: ${JSON.stringify(r3fStructure.jsxElements)}`);
+}
+if (mesh.attributes.find((a) => a.name === 'visible')?.value?.value !== true) {
+	fail(`T04 JSX boolean attribute lost: ${JSON.stringify(mesh.attributes)}`);
+}
+if (player.attributes.find((a) => a.name === 'speed')?.value?.value !== 2) {
+	fail(`T04 JSX numeric expression literal lost: ${JSON.stringify(player.attributes)}`);
+}
+if (r3fStructure.trackedCalls.length !== 1 || r3fStructure.trackedCalls[0].callee !== 'useFrame') {
+	fail(`T04 tracked call facts mismatch: ${JSON.stringify(r3fStructure.trackedCalls)}`);
+}
+
+const structureLimited = analyzeTypeScriptStructure(tsApi, 'const x = <mesh />;', {
+	filePath: 'src/limit.tsx',
+	language: 'tsx',
+	maxNodes: 1,
+});
+if (structureLimited.complete || structureLimited.jsxElements.length !== 0 || structureLimited.diagnostics[0]?.code !== 'node-limit') {
+	fail(`T04 structure node limit did not fail closed: ${JSON.stringify(structureLimited)}`);
+}
+
+console.log('typescript-typecheck-smoke: T04 framework structure PASSED (Nest-like decorators/parameters + R3F-like JSX hierarchy/attributes + tracked call + node-limit fail-closed)');
+
+
+
 
 // The TypeScript wiki currently documents this API family through TS 6.x, but warns that TS 7.x
 // changes the API substantially. Prove 6.0.3 separately and refuse 7.x until a future T04 review.
