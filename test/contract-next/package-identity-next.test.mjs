@@ -20,11 +20,13 @@ test('npm pack contains the T01 next identity lane and the installed module repl
     const names = new Set(packed.files.map((entry) => entry.path));
     for (const required of [
       'contracts/next/identity.mjs',
+      'contracts/next/consumer-conformance.mjs',
       'contracts/next/README.md',
       'schemas/next/artifact-ref.schema.json',
       'schemas/next/identity-envelope.schema.json',
       'schemas/next/identity.golden.json',
       'schemas/next/identity-conformance.json',
+      'schemas/next/identity-consumer-result.schema.json',
     ]) {
       assert.equal(names.has(required), true, `packed artifact is missing ${required}`);
     }
