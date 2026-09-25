@@ -338,3 +338,34 @@ test('T14 certification blocks stale provider audit and preview even when CI evi
   assert.ok(result.blockers.some((b) => b.code === 'provider-baseline-revision-mismatch'));
   assert.ok(result.blockers.some((b) => b.code === 'generation-preview-revision-mismatch'));
 });
+
+
+test('T14 generic persistence/runtime evidence can never mint behavior-tested before cross-track handoff integration', () => {
+  const revision = '1'.repeat(40);
+  const combinationId = 'python-fastapi+sqlalchemy-sqlmodel+uuid';
+  const result = evaluateCompositionCertification({
+    providerId: 'python-fastapi',
+    persistenceId: 'sqlalchemy-sqlmodel',
+    keyType: 'uuid',
+    revision,
+    level: 'behavior-tested',
+    providerBaselineAudit: { ok: true, revision },
+    generationPreview: {
+      status: 'ready',
+      revision,
+      applyAllowed: false,
+      providerId: 'python-fastapi',
+      combination: { id: combinationId },
+    },
+    evidence: [
+      evidence('composition-unit', revision, 'python-fastapi', combinationId),
+      evidence('package-install', revision, 'python-fastapi', combinationId),
+      evidence('python-integration', revision, 'python-fastapi', combinationId),
+      evidence('persistence-conformance', revision, 'python-fastapi', combinationId),
+      evidence('runtime-behavior', revision, 'python-fastapi', combinationId),
+    ],
+  });
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.certifiedLevel, null);
+  assert.ok(result.blockers.some((b) => b.code === 'behavior-handoff-not-integrated'));
+});
