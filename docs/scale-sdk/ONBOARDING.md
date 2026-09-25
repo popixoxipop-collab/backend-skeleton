@@ -48,7 +48,7 @@ external package.
 
 ## 6. Build support evidence and submission review
 
-Create exact support explanations, then derive the machine-generated support matrix. Use
+Create exact support explanations, then derive the machine-generated support evidence matrix. Use
 `reviewAdapterSubmission()` to combine manifest, inventory and support evidence. The strongest
 T22 result is `ready-for-execution-review`; it still returns `executable: false` and
 `requiresApproval: true`.
