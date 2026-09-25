@@ -286,3 +286,20 @@ test('unsupported reconciliation kind fails closed', () => {
     ...refs,
   }), /supported kind/);
 });
+
+
+test('promotion helper rejects empty or unknown required field sets', () => {
+  const graph = buildReconciliationDecisionGraph({
+    reconciliation: {
+      byEndpoint: new Map([
+        ['0:0', { kind: 'matched', operationId: 'findWidget', verb: 'GET', path: '/widgets', scanVerb: 'GET', scanPath: '/widgets' }],
+      ]),
+      prefix: { value: '' },
+      schemaProjection: { enabled: true },
+    },
+    sourceByEndpoint: new Map(),
+    ...refs,
+  });
+  assert.throws(() => promotableOperationKeys(graph, []), /non-empty array/);
+  assert.throws(() => promotableOperationKeys(graph, ['not.a.real.field']), /unsupported required field/);
+});
