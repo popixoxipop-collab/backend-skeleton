@@ -91,5 +91,11 @@
     "T00/T20/T23 approve the private cross-repo artifact or credential handoff without weakening repository privacy.",
     "T00-04 activation/final freeze authorizes compatibility promotion."
   ],
-  "interpretation": "Package-side identity and result-verifier evidence is green. T01-05 and T01-06 are not complete until independent consumer results and coordination gates are satisfied."
+  "interpretation": "Package-side identity and result-verifier evidence is green. T01-05 and T01-06 are not complete until independent consumer results and coordination gates are satisfied.",
+  "conformance_pack": {
+    "path": "schemas/next/identity-conformance.json",
+    "byte_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
+    "size_bytes": 10446,
+    "identity_conformance": "sbf.identity-conformance/1"
+  }
 }
