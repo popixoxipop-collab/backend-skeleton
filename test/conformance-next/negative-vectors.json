@@ -24,7 +24,8 @@
       "expected_disposition": "reject-or-new-artifact",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ID-02",
@@ -34,7 +35,8 @@
       "expected_disposition": "reject",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ID-03",
@@ -44,7 +46,8 @@
       "expected_disposition": "reject",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ID-04",
@@ -54,7 +57,8 @@
       "expected_disposition": "conflict",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ID-05",
@@ -63,8 +67,12 @@
       "scenario": "Two projects expose the same operation/resource name",
       "expected_disposition": "scope-required",
       "critical": true,
-      "status": "specified-not-implemented",
-      "implementation_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/cross-feature-collisions.test.mjs::resourceType shared by two features",
+        "test/cross-feature-collisions.test.mjs::operationId shared by two features"
+      ],
+      "execution_refs": []
     },
     {
       "id": "NEG-ID-06",
@@ -73,8 +81,11 @@
       "scenario": "Unicode-normalization or ordering changes alter identity bytes",
       "expected_disposition": "new-artifact",
       "critical": true,
-      "status": "specified-not-implemented",
-      "implementation_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/contract-identity.test.mjs::binding-json preserves Unicode bytes rather than normalizing them"
+      ],
+      "execution_refs": []
     },
     {
       "id": "NEG-PROJ-01",
@@ -84,7 +95,8 @@
       "expected_disposition": "preserve-multiple-projects",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-PROJ-02",
@@ -94,7 +106,8 @@
       "expected_disposition": "scope-required",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-PROJ-03",
@@ -104,7 +117,8 @@
       "expected_disposition": "exclude-or-explicit-scope",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-PROJ-04",
@@ -114,7 +128,8 @@
       "expected_disposition": "new-project-or-explicit-alias",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-PROJ-05",
@@ -124,7 +139,8 @@
       "expected_disposition": "ambiguity",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-PROJ-06",
@@ -134,7 +150,8 @@
       "expected_disposition": "unknown-not-supported",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-01",
@@ -144,7 +161,8 @@
       "expected_disposition": "bounded-conflict",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-02",
@@ -154,7 +172,8 @@
       "expected_disposition": "preserve-multiple-paths",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-03",
@@ -164,7 +183,8 @@
       "expected_disposition": "preserve-multiple-paths",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-04",
@@ -174,7 +194,8 @@
       "expected_disposition": "unknown",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-05",
@@ -184,7 +205,8 @@
       "expected_disposition": "preserve-exact-semantics",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-06",
@@ -194,7 +216,8 @@
       "expected_disposition": "resolve-or-unknown",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-07",
@@ -204,7 +227,8 @@
       "expected_disposition": "no-lossy-normalization",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-ROUTE-08",
@@ -214,7 +238,8 @@
       "expected_disposition": "preserve-condition",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-01",
@@ -224,7 +249,8 @@
       "expected_disposition": "bounded-resolution",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-02",
@@ -234,7 +260,8 @@
       "expected_disposition": "preserve-or-block-lossy",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-03",
@@ -244,7 +271,8 @@
       "expected_disposition": "preserve-distinction",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-04",
@@ -254,7 +282,8 @@
       "expected_disposition": "preserve-direction",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-05",
@@ -264,7 +293,8 @@
       "expected_disposition": "preserve-media-semantics",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-06",
@@ -274,7 +304,8 @@
       "expected_disposition": "preserve-precision",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-07",
@@ -284,7 +315,8 @@
       "expected_disposition": "preserve-serialization",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-SCHEMA-08",
@@ -294,7 +326,8 @@
       "expected_disposition": "deny-unapproved-network",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-AUTH-01",
@@ -304,7 +337,8 @@
       "expected_disposition": "deny",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-AUTH-02",
@@ -314,7 +348,8 @@
       "expected_disposition": "deny",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-AUTH-03",
@@ -324,7 +359,8 @@
       "expected_disposition": "deny",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-AUTH-04",
@@ -334,7 +370,8 @@
       "expected_disposition": "preserve-override",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-AUTH-05",
@@ -344,7 +381,8 @@
       "expected_disposition": "preserve-logic",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-AUTH-06",
@@ -354,7 +392,8 @@
       "expected_disposition": "reject-stale-evidence",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-DB-01",
@@ -364,7 +403,8 @@
       "expected_disposition": "preserve-order",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-DB-02",
@@ -374,7 +414,8 @@
       "expected_disposition": "scope-required",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-DB-03",
@@ -384,7 +425,8 @@
       "expected_disposition": "require-explicit-mapping",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-DB-04",
@@ -394,7 +436,8 @@
       "expected_disposition": "preserve-scope",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-DB-05",
@@ -404,7 +447,8 @@
       "expected_disposition": "do-not-assume-bypass",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-DB-06",
@@ -413,8 +457,11 @@
       "scenario": "Migration metadata differs from live database",
       "expected_disposition": "conflict",
       "critical": false,
-      "status": "specified-not-implemented",
-      "implementation_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/cross-feature-collisions.test.mjs::Plane A migrations never wins when any Plane C source is available"
+      ],
+      "execution_refs": []
     },
     {
       "id": "NEG-CACHE-01",
@@ -424,7 +471,8 @@
       "expected_disposition": "invalidate",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-CACHE-02",
@@ -434,7 +482,8 @@
       "expected_disposition": "invalidate",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-CACHE-03",
@@ -444,7 +493,8 @@
       "expected_disposition": "invalidate",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-CACHE-04",
@@ -454,7 +504,8 @@
       "expected_disposition": "invalidate",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-CACHE-05",
@@ -464,7 +515,8 @@
       "expected_disposition": "invalidate",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-CACHE-06",
@@ -474,7 +526,8 @@
       "expected_disposition": "reject",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-01",
@@ -484,7 +537,8 @@
       "expected_disposition": "reject",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-02",
@@ -494,7 +548,8 @@
       "expected_disposition": "preserve-historical-binding",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-03",
@@ -504,7 +559,8 @@
       "expected_disposition": "new-binding",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-04",
@@ -514,7 +570,8 @@
       "expected_disposition": "reject",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-05",
@@ -524,7 +581,8 @@
       "expected_disposition": "reject",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-06",
@@ -534,7 +592,8 @@
       "expected_disposition": "blocked-not-pass",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-07",
@@ -544,7 +603,8 @@
       "expected_disposition": "pending-not-pass",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RUN-08",
@@ -554,7 +614,8 @@
       "expected_disposition": "partial-not-pass",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-01",
@@ -564,7 +625,8 @@
       "expected_disposition": "no-causal-inference",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-02",
@@ -574,7 +636,8 @@
       "expected_disposition": "stable-scope-required",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-03",
@@ -584,7 +647,8 @@
       "expected_disposition": "independent-observation-required",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-04",
@@ -594,7 +658,8 @@
       "expected_disposition": "profile-or-tolerance-required",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-05",
@@ -604,7 +669,8 @@
       "expected_disposition": "seed-and-timing-profile",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-06",
@@ -614,7 +680,8 @@
       "expected_disposition": "unknown",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GAME-07",
@@ -624,7 +691,8 @@
       "expected_disposition": "new-artifact-or-explicit-alias",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-01",
@@ -634,7 +702,8 @@
       "expected_disposition": "deny",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-02",
@@ -644,7 +713,8 @@
       "expected_disposition": "deny-unapproved-execution",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-03",
@@ -654,7 +724,8 @@
       "expected_disposition": "deny-unapproved-execution",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-04",
@@ -664,7 +735,8 @@
       "expected_disposition": "deny",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-05",
@@ -674,7 +746,8 @@
       "expected_disposition": "deny",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-06",
@@ -684,7 +757,8 @@
       "expected_disposition": "redact-and-fail",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-07",
@@ -694,7 +768,8 @@
       "expected_disposition": "bounded-fail",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-TRUST-08",
@@ -704,7 +779,8 @@
       "expected_disposition": "bounded-fail",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GEN-01",
@@ -713,8 +789,12 @@
       "scenario": "Generator overwrites a hand-edited file",
       "expected_disposition": "block-write",
       "critical": false,
-      "status": "specified-not-implemented",
-      "implementation_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/patch-transactions.test.mjs::apply refuses and never writes when target changed since approve",
+        "test/patch-transactions.test.mjs::rollback refuses when file changed since apply"
+      ],
+      "execution_refs": []
     },
     {
       "id": "NEG-GEN-02",
@@ -723,8 +803,11 @@
       "scenario": "Expected old file/hash differs before apply",
       "expected_disposition": "block-write",
       "critical": false,
-      "status": "specified-not-implemented",
-      "implementation_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/patch-transactions.test.mjs::approve refuses when target changed since propose"
+      ],
+      "execution_refs": []
     },
     {
       "id": "NEG-GEN-03",
@@ -734,7 +817,8 @@
       "expected_disposition": "rollback-or-staged-only",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GEN-04",
@@ -744,7 +828,8 @@
       "expected_disposition": "fail-closed",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-GEN-05",
@@ -754,7 +839,8 @@
       "expected_disposition": "block-generation",
       "critical": false,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RELEASE-01",
@@ -764,7 +850,8 @@
       "expected_disposition": "fail-compatible-or-disable-next",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RELEASE-02",
@@ -774,7 +861,8 @@
       "expected_disposition": "reject",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RELEASE-03",
@@ -784,7 +872,8 @@
       "expected_disposition": "reject-stale-check",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     },
     {
       "id": "NEG-RELEASE-04",
@@ -793,8 +882,11 @@
       "scenario": "Packed distribution omits files present in source checkout",
       "expected_disposition": "fail-release",
       "critical": true,
-      "status": "specified-not-implemented",
-      "implementation_refs": []
+      "status": "evidence-candidate",
+      "implementation_refs": [
+        "test/package-install.test.mjs::npm pack -> install the real tarball -> installed bskel binary/runtime assets resolve"
+      ],
+      "execution_refs": []
     },
     {
       "id": "NEG-RELEASE-05",
@@ -804,7 +896,8 @@
       "expected_disposition": "deny-load",
       "critical": true,
       "status": "specified-not-implemented",
-      "implementation_refs": []
+      "implementation_refs": [],
+      "execution_refs": []
     }
   ]
 }
