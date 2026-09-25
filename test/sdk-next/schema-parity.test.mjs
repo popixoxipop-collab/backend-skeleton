@@ -15,6 +15,8 @@ import {
 	createSupportExplanation,
 	makeSdkRequest,
 	runAdapterSdkConformance,
+	SDK_SCHEMA_FILES,
+	SDK_SCHEMA_IDS,
 	validateAdapterSdkManifest,
 	validateSdkRequest,
 } from '../../sdk/next/index.mjs';
@@ -189,4 +191,15 @@ test('support explanation schema rejects the same contradictory field states as 
 		nextActions: [],
 	});
 	assert.equal(v.explain(conflictWithOneCandidate), false);
+});
+
+
+test('schema catalog IDs and package-relative files match the checked-in JSON schemas', () => {
+	for (const [key, relative] of Object.entries(SDK_SCHEMA_FILES)) {
+		assert.equal(typeof SDK_SCHEMA_IDS[key], 'string', key);
+		const schema = load(path.basename(relative));
+		assert.equal(schema.$id, SDK_SCHEMA_IDS[key], key);
+		assert.equal(relative.startsWith('schemas/'), true, key);
+	}
+	assert.deepEqual(Object.keys(SDK_SCHEMA_FILES).sort(), Object.keys(SDK_SCHEMA_IDS).sort());
 });
