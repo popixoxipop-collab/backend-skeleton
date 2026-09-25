@@ -232,6 +232,54 @@ if (JSON.stringify(semanticRepeat) !== JSON.stringify(semanticRepeat2)) {
 }
 console.log(`typescript-typecheck-smoke: T04 semantic facts PASSED (TypeScript ${tsApi.version}, local import/inheritance/alias, semantic-error split, bare-module provenance, noLib boundary, syntax fail-closed, deterministic snapshot)`);
 
+const semanticDts = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'types/base.d.ts', source: 'export interface Base { readonly id: string; }' },
+	{ path: 'src/user.ts', source: "import type { Base } from '../types/base';\nexport interface User extends Base { name: string; }" },
+]);
+if (!semanticDts.semanticValidated) {
+	fail(`T04 .d.ts relative semantic snapshot should validate: ${JSON.stringify({ module: semanticDts.moduleDiagnostics, semantic: semanticDts.semanticDiagnostics })}`);
+}
+const dtsUser = semanticDts.declarations.find((d) => d.name === 'User');
+const dtsId = dtsUser?.properties.find((p) => p.name === 'id');
+if (dtsId?.declaredIn !== 'types/base.d.ts' || dtsId?.typeText !== 'string' || !dtsId?.readonly) {
+	fail(`T04 semantic snapshot lost .d.ts inherited readonly provenance: ${JSON.stringify(dtsId)}`);
+}
+
+const semanticFileLimit = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/large.ts', source: 'interface X { id: string; }' },
+], { maxFileBytes: 2 });
+if (semanticFileLimit.complete || semanticFileLimit.semanticChecked || semanticFileLimit.declarations.length !== 0 || semanticFileLimit.diagnostics[0]?.code !== 'file-too-large') {
+	fail(`T04 semantic per-file byte limit did not fail closed before Program creation: ${JSON.stringify(semanticFileLimit)}`);
+}
+
+const semanticTokenLimit = analyzeTypeScriptSemanticSnapshot(tsApi, [
+	{ path: 'src/tokens.ts', source: 'interface X { id: string; name: string; }' },
+], { maxFileTokens: 2 });
+if (semanticTokenLimit.complete || semanticTokenLimit.semanticChecked || semanticTokenLimit.declarations.length !== 0 || semanticTokenLimit.diagnostics[0]?.code !== 'file-token-limit') {
+	fail(`T04 semantic per-file token limit did not fail closed before Program creation: ${JSON.stringify(semanticTokenLimit)}`);
+}
+
+let duplicateRejected = false;
+try {
+	analyzeTypeScriptSemanticSnapshot(tsApi, [
+		{ path: 'src/a.ts', source: 'interface A {}' },
+		{ path: 'src/./a.ts', source: 'interface B {}' },
+	]);
+} catch (err) {
+	duplicateRejected = /duplicate semantic snapshot path/.test(err.message);
+}
+if (!duplicateRejected) fail('T04 semantic snapshot must reject duplicate normalized paths');
+
+let escapeRejected = false;
+try {
+	analyzeTypeScriptSemanticSnapshot(tsApi, [{ path: '../escape.ts', source: 'interface X {}' }]);
+} catch (err) {
+	escapeRejected = /escapes the repository root/.test(err.message);
+}
+if (!escapeRejected) fail('T04 semantic snapshot must reject repository-root escape paths');
+console.log('typescript-typecheck-smoke: T04 semantic safety boundaries PASSED (.d.ts provenance, file/token bounds, duplicate normalization, root escape)');
+
+
 
 // The TypeScript wiki currently documents this API family through TS 6.x, but warns that TS 7.x
 // changes the API substantially. Prove 6.0.3 separately and refuse 7.x until a future T04 review.
