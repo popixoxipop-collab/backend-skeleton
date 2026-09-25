@@ -65,3 +65,71 @@ test('makeSdkRequest refuses invalid data before a runner can see it', () => {
 		snapshotRef: 'sha256:example',
 	}), /invalid SDK request/);
 });
+
+
+test('protocol rejects non-JSON nested values and cycles', () => {
+	for (const payload of [
+		{ fn: () => true },
+		{ value: 1n },
+		{ value: Infinity },
+		{ value: new Date() },
+	]) {
+		const result = validateSdkRequest({
+			contract: SDK_ENTRYPOINT_PROTOCOL,
+			direction: 'request',
+			requestId: 'req-json',
+			operation: 'analyze',
+			adapterId: 'typescript-nestjs',
+			snapshotRef: 'sha256:example',
+			payload,
+		});
+		assert.equal(result.ok, false);
+		assert.match(result.errors.map((e) => e.message).join('\n'), /bounded JSON object/);
+	}
+
+	const cyclic = {};
+	cyclic.self = cyclic;
+	const result = validateSdkRequest({
+		contract: SDK_ENTRYPOINT_PROTOCOL,
+		direction: 'request',
+		requestId: 'req-cycle',
+		operation: 'analyze',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: 'sha256:example',
+		payload: cyclic,
+	});
+	assert.equal(result.ok, false);
+});
+
+test('makeSdkRequest clones JSON payload so later caller mutation cannot rewrite the request', () => {
+	const payload = { nested: { value: 1 }, list: [1, 2] };
+	const request = makeSdkRequest({
+		requestId: 'req-clone',
+		operation: 'analyze',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: 'sha256:example',
+		payload,
+	});
+	payload.nested.value = 999;
+	payload.list.push(3);
+	assert.deepEqual(request.payload, { list: [1, 2], nested: { value: 1 } });
+});
+
+test('protocol rejects excessively deep JSON values without overflowing the validator', () => {
+	let payload = {};
+	let cursor = payload;
+	for (let i = 0; i < 70; i += 1) {
+		cursor.next = {};
+		cursor = cursor.next;
+	}
+	const result = validateSdkRequest({
+		contract: SDK_ENTRYPOINT_PROTOCOL,
+		direction: 'request',
+		requestId: 'req-depth',
+		operation: 'analyze',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: 'sha256:example',
+		payload,
+	});
+	assert.equal(result.ok, false);
+});
