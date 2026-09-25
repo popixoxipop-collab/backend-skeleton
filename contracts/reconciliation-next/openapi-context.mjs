@@ -68,6 +68,15 @@ function validateRootSecurity(doc, index, openapiRef) {
           reason: 'unknown-document-security-scheme',
         };
       }
+      const scopes = requirement[schemeName];
+      if (!Array.isArray(scopes) || scopes.some((scope) => typeof scope !== 'string')) {
+        return {
+          state: 'unknown',
+          authority: 'openapi',
+          evidence: refs,
+          reason: 'malformed-document-security-scopes',
+        };
+      }
     }
   }
 
@@ -185,7 +194,7 @@ function collectSchemaPresence(doc, index, reconciliation) {
   return out;
 }
 
-function collectOperationSecurityContext(doc, reconciliation) {
+function collectOperationSecurityContext(doc, index, reconciliation) {
   const out = new Map();
   if (!reconciliation) return out;
   if (!(reconciliation.byEndpoint instanceof Map)) {
@@ -208,6 +217,33 @@ function collectOperationSecurityContext(doc, reconciliation) {
     }
     if (!Array.isArray(rawOperation.security)) {
       out.set(endpointKey, { state: 'unknown', reason: 'malformed-operation-security' });
+      continue;
+    }
+    if (rawOperation.security.length > MAX_ROOT_SECURITY_REQUIREMENTS) {
+      out.set(endpointKey, { state: 'unknown', reason: 'too-many-operation-security-requirements' });
+      continue;
+    }
+    let invalidReason = null;
+    for (const requirement of rawOperation.security) {
+      if (!requirement || typeof requirement !== 'object' || Array.isArray(requirement)) {
+        invalidReason = 'malformed-operation-security-requirement';
+        break;
+      }
+      for (const schemeName of Object.keys(requirement)) {
+        if (!index.securitySchemes.has(schemeName)) {
+          invalidReason = 'unknown-operation-security-scheme';
+          break;
+        }
+        const scopes = requirement[schemeName];
+        if (!Array.isArray(scopes) || scopes.some((scope) => typeof scope !== 'string')) {
+          invalidReason = 'malformed-operation-security-scopes';
+          break;
+        }
+      }
+      if (invalidReason) break;
+    }
+    if (invalidReason) {
+      out.set(endpointKey, { state: 'unknown', reason: invalidReason });
       continue;
     }
     out.set(endpointKey, { state: 'operation', reason: 'operation-security-present' });
@@ -259,7 +295,7 @@ export function buildOpenApiContext({ doc, index, reconciliation = null, openapi
     rootSecurity: validateRootSecurity(doc, index, openapiRef),
     duplicateOperationIds: collectOperationIdOccurrences(index),
     schemaPresenceByEndpoint: collectSchemaPresence(doc, index, reconciliation),
-    operationSecurityByEndpoint: collectOperationSecurityContext(doc, reconciliation),
+    operationSecurityByEndpoint: collectOperationSecurityContext(doc, index, reconciliation),
   };
 }
 
@@ -351,6 +387,19 @@ export function applyOpenApiContext(graph, context) {
     fields: endpoint.fields.map((field) => {
       const narrowed = narrowLegacySchemaGap(field, endpoint.endpointKey, context);
       if (narrowed !== field) return narrowed;
+
+      if (field.field === 'api.security.declared') {
+        const operationSecurityAudit = context.operationSecurityByEndpoint?.get(endpoint.endpointKey);
+        if (operationSecurityAudit?.state === 'unknown') {
+          return {
+            field: field.field,
+            state: 'unknown',
+            authority: 'openapi',
+            evidence: evidence(context.openapiRef),
+            reason: operationSecurityAudit.reason,
+          };
+        }
+      }
 
       if (field.field === 'operation.identity' && field.state === 'resolved' && duplicateIds.has(field.value)) {
         return {
