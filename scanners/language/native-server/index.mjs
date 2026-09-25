@@ -1,7 +1,7 @@
 import { analyzeGoGinSource } from './go.mjs';
 import { analyzeCSharpAspNetSource } from './csharp.mjs';
 import { analyzeRustServerSource } from './rust.mjs';
-import { NATIVE_SERVER_PROTOCOL, normalizeBudget, validateMessage } from './protocol.mjs';
+import { NATIVE_SERVER_PROTOCOL, encodeNdjson, normalizeBudget, validateMessage } from './protocol.mjs';
 
 export { analyzeGoGinSource } from './go.mjs';
 export { analyzeCSharpAspNetSource } from './csharp.mjs';
@@ -29,7 +29,7 @@ export function handleAnalyzeRequest(message) {
 	const result = analyzeNativeServerSource({ language: message.language, source: message.source, file: message.file });
 	if (result.routes.length > budget.maxRoutes) throw new RangeError(`analysis exceeded maxRoutes (${result.routes.length} > ${budget.maxRoutes})`);
 	if (result.diagnostics.length > budget.maxDiagnostics) throw new RangeError(`analysis exceeded maxDiagnostics (${result.diagnostics.length} > ${budget.maxDiagnostics})`);
-	return {
+	const response = {
 		protocol: NATIVE_SERVER_PROTOCOL,
 		kind: 'analyze-response',
 		requestId: message.requestId,
@@ -41,4 +41,8 @@ export function handleAnalyzeRequest(message) {
 		framework: result.framework,
 		limitations: result.limitations,
 	};
+	// Validation + byte-budget check also covers direct in-process callers that do not separately
+	// serialize the response over NDJSON.
+	encodeNdjson(response, budget);
+	return response;
 }
