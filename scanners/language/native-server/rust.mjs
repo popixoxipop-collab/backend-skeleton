@@ -170,7 +170,7 @@ function simpleIdentifier(source, masked, start, end) {
 function parseAxumMethodRouter(source, masked, start, end) {
 	const text = masked.slice(start, end);
 	const methods = [];
-	const re = /(?:^|\.)(get|post|put|patch|delete|head|options|trace|any)\s*\(/g;
+	const re = /(?:^|\.)\s*(get|post|put|patch|delete|head|options|trace|any)\s*\(/g;
 	for (const m of text.matchAll(re)) {
 		const methodName = m[1];
 		const localOpen = m.index + m[0].lastIndexOf('(');
