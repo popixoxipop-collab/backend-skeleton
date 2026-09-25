@@ -198,7 +198,6 @@ export function verifyEvidencePack(pack, { artifactBytes = new Map() } = {}) {
   for (const [i, assertion] of pack.assertions.entries()) {
     if (!nonEmptyString(assertion.id)) errors.push(`assertions[${i}].id is required`);
     if (!['passed', 'failed', 'skipped', 'blocked'].includes(assertion.status)) errors.push(`assertions[${i}].status is invalid`);
-    if (assertion.required !== false && assertion.status !== 'passed') errors.push(`required assertion ${assertion.id ?? i} did not pass`);
   }
 
   for (const [i, artifact] of pack.artifacts.entries()) {
@@ -217,12 +216,27 @@ export function verifyEvidencePack(pack, { artifactBytes = new Map() } = {}) {
   }
 
   const executed = pack.commands.filter((x) => x.status === 'executed');
-  if (executed.some((x) => x.exit_code !== 0)) errors.push('at least one executed command exited non-zero');
-  if (pack.verdict === 'pass' && pack.commands.some((x) => x.status !== 'executed' && x.required !== false)) {
-    errors.push('pass verdict cannot hide a skipped/blocked required command');
-  }
+  const nonzero = executed.filter((x) => x.exit_code !== 0);
+  const requiredCommandsNotExecuted = pack.commands.filter((x) => x.required !== false && x.status !== 'executed');
+  const requiredAssertionsNotPassed = pack.assertions.filter((x) => x.required !== false && x.status !== 'passed');
+  const failedAssertions = pack.assertions.filter((x) => x.status === 'failed');
+  const blockedRequired = [
+    ...requiredCommandsNotExecuted.filter((x) => ['blocked', 'skipped'].includes(x.status)),
+    ...requiredAssertionsNotPassed.filter((x) => ['blocked', 'skipped'].includes(x.status)),
+  ];
+
   if (!['pass', 'fail', 'blocked'].includes(pack.verdict)) errors.push('verdict must be pass|fail|blocked');
-  if (pack.verdict === 'pass' && errors.length) errors.push('pass verdict is inconsistent with evidence errors');
+  if (pack.verdict === 'pass') {
+    if (nonzero.length) errors.push('pass verdict cannot include a non-zero executed command');
+    if (requiredCommandsNotExecuted.length) errors.push('pass verdict cannot hide a skipped/blocked required command');
+    for (const assertion of requiredAssertionsNotPassed) errors.push(`pass verdict cannot hide required assertion ${assertion.id}=${assertion.status}`);
+  }
+  if (pack.verdict === 'fail' && nonzero.length === 0 && failedAssertions.length === 0) {
+    errors.push('fail verdict needs a non-zero command or failed assertion signal');
+  }
+  if (pack.verdict === 'blocked' && blockedRequired.length === 0) {
+    errors.push('blocked verdict needs a skipped/blocked required command or assertion signal');
+  }
 
   return { ok: errors.length === 0, errors };
 }
