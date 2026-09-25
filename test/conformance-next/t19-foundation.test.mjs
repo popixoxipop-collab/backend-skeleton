@@ -64,18 +64,30 @@ test('T19 negative catalog has exactly 79 unique vectors with the planned catego
   assert.equal(verdict.ok, true);
   const summary = coverageSummary(vectors);
   assert.equal(summary.specified, 79);
+  assert.equal(summary.evidence_candidates, 6);
   assert.equal(summary.covered, 0);
   assert.equal(summary.status, 'incomplete');
   assert.ok(summary.critical_specified > 0);
 });
 
-test('T19 negative catalog cannot claim coverage without an implementation/test reference', () => {
+test('T19 negative catalog cannot claim evidence candidacy without an implementation/test reference', () => {
   const bad = clone(vectors);
-  bad.vectors[0].status = 'covered';
+  bad.vectors[0].status = 'evidence-candidate';
   bad.vectors[0].implementation_refs = [];
   const verdict = validateNegativeCatalog(bad);
   assert.equal(verdict.ok, false);
-  assert.ok(verdict.errors.some((x) => x.includes('covered vectors need at least one implementation ref')));
+  assert.ok(verdict.errors.some((x) => x.includes('need at least one implementation ref')));
+});
+
+test('T19 negative catalog cannot promote a candidate to covered without an exact execution ref', () => {
+  const bad = clone(vectors);
+  const candidate = bad.vectors.find((v) => v.status === 'evidence-candidate');
+  assert.ok(candidate, 'fixture must contain at least one evidence candidate');
+  candidate.status = 'covered';
+  candidate.execution_refs = [];
+  const verdict = validateNegativeCatalog(bad);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.errors.some((x) => x.includes('covered vectors need at least one exact execution ref')));
 });
 
 test('T19 negative catalog rejects duplicated vector identities', () => {
