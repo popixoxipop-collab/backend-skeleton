@@ -17,6 +17,28 @@ function ratio(n, d) {
   return d === 0 ? null : n / d;
 }
 
+export function injectHoldoutManifest(corpus, holdout) {
+  if (!holdout || typeof holdout !== 'object' || Array.isArray(holdout)) {
+    return { ok: false, errors: ['holdout manifest must be an object'], corpus: null };
+  }
+  if (holdout.contract !== 'sbf.qa-holdout/1') {
+    return { ok: false, errors: ['holdout contract must be sbf.qa-holdout/1'], corpus: null };
+  }
+  if (!Array.isArray(holdout.entries) || holdout.entries.length === 0) {
+    return { ok: false, errors: ['holdout entries must be a non-empty array'], corpus: null };
+  }
+  if (!corpus || typeof corpus !== 'object' || Array.isArray(corpus)) {
+    return { ok: false, errors: ['reference corpus must be an object'], corpus: null };
+  }
+  if (Array.isArray(corpus.holdout_entries) && corpus.holdout_entries.length > 0) {
+    return { ok: false, errors: ['reference corpus already contains holdout entries; external injection refuses to merge two holdout sources'], corpus: null };
+  }
+  const merged = structuredClone(corpus);
+  merged.holdout_entries = structuredClone(holdout.entries);
+  const validation = validateCorpusManifest(merged);
+  return { ok: validation.ok, errors: validation.errors, corpus: validation.ok ? merged : null };
+}
+
 export function evaluateDifferentialGate({ gold, observed, min_precision = 0.995, min_recall = 0.95 }) {
   if (!(min_precision >= 0 && min_precision <= 1) || !(min_recall >= 0 && min_recall <= 1)) {
     throw new RangeError('precision/recall thresholds must be between 0 and 1');
@@ -154,9 +176,10 @@ export function assembleCertification(input, { artifact_root = null, require_hol
 }
 
 function parseArgs(argv) {
-  const out = { artifact_root: null, require_holdout: true };
+  const out = { artifact_root: null, require_holdout: true, holdout_manifest: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--artifact-root') { out.artifact_root = argv[++i] ?? null; continue; }
+    if (argv[i] === '--holdout-manifest') { out.holdout_manifest = argv[++i] ?? null; continue; }
     if (argv[i] === '--allow-no-holdout') { out.require_holdout = false; continue; }
     throw new Error(`unknown argument: ${argv[i]}`);
   }
@@ -169,7 +192,13 @@ export async function main(argv = process.argv.slice(2), stdin = process.stdin, 
     let text = '';
     for await (const chunk of stdin) text += chunk;
     if (!text.trim()) throw new Error('expected one JSON certification input object on stdin');
-    const input = JSON.parse(text);
+    let input = JSON.parse(text);
+    if (options.holdout_manifest) {
+      const holdout = JSON.parse(fs.readFileSync(options.holdout_manifest, 'utf8'));
+      const injected = injectHoldoutManifest(input.corpus, holdout);
+      if (!injected.ok) throw new Error(`holdout injection rejected: ${injected.errors.join('; ')}`);
+      input = { ...input, corpus: injected.corpus };
+    }
     const report = assembleCertification(input, options);
     stdout.write(JSON.stringify(report, null, 2) + '\n');
     return report.verdict === 'pass' ? 0 : report.verdict === 'blocked' ? 2 : 3;
