@@ -77,3 +77,16 @@ test('T21 legacy scan cache refuses missing implementation identity', async () =
 		/implementationDigest/,
 	);
 });
+
+test('T21 project cache namespace changes the key without changing the legacy report', async () => {
+	const sourceRoot = path.join(ROOT, FIXTURES['javascript-express']);
+	const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t21-namespace-'));
+	const adapter = adapterById('javascript-express');
+	const implementationDigest = digestJson({ revision: 'namespace-test' });
+	const ns1 = digestJson({ project: 'one' });
+	const ns2 = digestJson({ project: 'two' });
+	const first = await runLegacyScanCached({ repoRoot: sourceRoot, cacheRoot, adapter, terms: [], implementationDigest, cacheNamespace: ns1, useCache: false });
+	const second = await runLegacyScanCached({ repoRoot: sourceRoot, cacheRoot, adapter, terms: [], implementationDigest, cacheNamespace: ns2, useCache: false });
+	assert.notEqual(first.cache_key, second.cache_key);
+	assert.deepEqual(first.report, second.report);
+});
