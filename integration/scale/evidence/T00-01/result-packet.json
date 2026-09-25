@@ -172,7 +172,16 @@
         "status": "completed",
         "conclusion": "success"
       },
-      "acceptance_effect": "T00-01 remains SUBMITTED until epoch-6 PR exact-head CI is terminal success and T19 independently reviews the exact epoch-6 branch head."
+      "acceptance_effect": "BLOCKED/DRIFT; epoch 6 is not acceptable and is superseded by epoch 7.",
+      "independent_review": {
+        "verdict": "BLOCKED/DRIFT",
+        "t19_pr": 118,
+        "t19_head": "ed30e84d03526ac168004da2b644ebb29e8cb0dc",
+        "artifact": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+        "artifact_blob": "64254cee94654c9d9002824a6b693a2b1485f6c4",
+        "comment_id": 5830038810,
+        "blocker": "beval main advanced to 882b185655f9166cda4a64b5b49a6eab477f2410 and package.json blob changed"
+      }
     },
     {
       "epoch": 7,
@@ -192,6 +201,26 @@
         "conclusion": "success"
       },
       "acceptance_effect": "T00-01 remains SUBMITTED until epoch-7 PR exact-head CI succeeds and T19 independently reviews the exact epoch-7 branch head with no current-main/blob drift"
+    },
+    {
+      "epoch": 7,
+      "reason": "Backend-evaluation PR #48 and follow-up PR #49 merged during epoch-6 independent review, advancing beval main and changing package.json/provider-matrix live test surface",
+      "prior_beval_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "current_beval_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
+      "current_push_ci": {
+        "run_id": 36117576104,
+        "run_number": 930,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "prior_epoch_review": {
+        "verdict": "BLOCKED/DRIFT",
+        "t19_pr": 118,
+        "artifact": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+        "artifact_blob": "64254cee94654c9d9002824a6b693a2b1485f6c4",
+        "comment_id": 5830038810
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until epoch-7 PR exact-head CI succeeds and T19 independently reviews the exact epoch-7 head with no main/blob drift."
     }
   ],
   "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-7 rebaseline branch.",
@@ -217,7 +246,7 @@
         "conclusion": "success"
       }
     },
-    "independent_review": "WAITING_FOR_EPOCH7_PR_CI",
-    "note": "Epoch 6 was independently denied as BLOCKED/DRIFT. Epoch 7 pins current beval main 882b1856...; request fresh T19 review only after this exact epoch-7 PR head CI is terminal success."
+    "independent_review": "NOT_REQUESTED_UNTIL_EPOCH7_PR_CI",
+    "note": "Epoch 6 was independently BLOCKED/DRIFT by T19. Epoch 7 pins current beval main and requires its own exact-head PR CI plus fresh T19 review."
   }
 }
