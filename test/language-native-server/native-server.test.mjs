@@ -504,3 +504,41 @@ test('runner: worker-side budget failures remain request-bound structured errors
 		(err) => err instanceof NativeWorkerRunError && err.code === 'BUDGET_EXCEEDED' && /maxRoutes/.test(err.message),
 	);
 });
+
+
+test('Rust/Axum: deriving a router by value exposes the final router once, not the consumed base plus final copy', () => {
+	const src = `fn app() {
+ let api = Router::new().route("/users", get(users));
+ let app = api.route("/health", get(health));
+}`;
+	const result = analyzeRustServerSource(src);
+	assert.deepEqual(result.routes.map((r) => [r.method, r.path]), [
+		['GET', '/users'],
+		['GET', '/health'],
+	]);
+	assert.equal(result.routes.filter((r) => r.path === '/users').length, 1);
+});
+
+test('Rust/Axum: merged child routers are consumed roots and do not duplicate their routes', () => {
+	const src = `fn app() {
+ let users = Router::new().route("/users", get(users_handler));
+ let health = Router::new().route("/health", get(health_handler));
+ let app = Router::new().merge(users).merge(health);
+}`;
+	const result = analyzeRustServerSource(src);
+	assert.deepEqual(result.routes.map((r) => [r.method, r.path]), [
+		['GET', '/users'],
+		['GET', '/health'],
+	]);
+	assert.equal(result.routes.length, 2);
+});
+
+test('Rust/Axum: unsupported intermediate clone chain is diagnosed rather than treated as a move', () => {
+	const src = `fn app() {
+ let api = Router::new().route("/users", get(users));
+ let cloned = api.clone().route("/health", get(health));
+}`;
+	const result = analyzeRustServerSource(src);
+	assert.deepEqual(result.routes.map((r) => r.path), ['/users']);
+	assert.ok(result.diagnostics.some((d) => d.code === 'RUST_AXUM_UNSUPPORTED_BASE_CHAIN'));
+});
