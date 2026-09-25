@@ -1,4 +1,4 @@
-import { isPlainObject } from './_util.mjs';
+import { isPlainObject, validPackageRelativePath } from './_util.mjs';
 
 export const SARIF_VERSION = '2.1.0';
 
@@ -12,6 +12,8 @@ const LEVELS = Object.freeze({
 
 function normalizeLocation(diagnostic) {
 	if (typeof diagnostic.file !== 'string' || diagnostic.file.length === 0) return undefined;
+	const uri = diagnostic.file.replaceAll('\\\\', '/');
+	if (!validPackageRelativePath(uri)) return undefined;
 	const startLine = Number.isInteger(diagnostic.startLine) && diagnostic.startLine > 0 ? diagnostic.startLine : 1;
 	const region = { startLine };
 	if (Number.isInteger(diagnostic.endLine) && diagnostic.endLine >= startLine) region.endLine = diagnostic.endLine;
@@ -43,6 +45,7 @@ export function diagnosticsToSarif(diagnostics, {
 			});
 		}
 		const location = normalizeLocation(diagnostic);
+		const locationOmitted = typeof diagnostic.file === 'string' && diagnostic.file.length > 0 && !location;
 		return {
 			ruleId: diagnostic.code,
 			level: severity,
@@ -52,6 +55,7 @@ export function diagnosticsToSarif(diagnostics, {
 				bskelStatus: diagnostic.status ?? null,
 				adapterId: diagnostic.adapterId ?? null,
 				evidenceRefs: Array.isArray(diagnostic.evidenceRefs) ? [...diagnostic.evidenceRefs] : [],
+				locationOmitted,
 			},
 		};
 	});
