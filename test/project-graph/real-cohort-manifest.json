@@ -28,6 +28,18 @@
       ]
     },
     {
+      "id": "petswipe-typescript-express",
+      "repository": "https://github.com/hoangsonww/PetSwipe-Match-App",
+      "commit": "b8573eead531c68a4e2a551883c3a17828b30826",
+      "expected_legacy_adapter": "typescript-express",
+      "expected_plan": [
+        [
+          ".",
+          "typescript-express"
+        ]
+      ]
+    },
+    {
       "id": "lobsters-rails",
       "repository": "https://github.com/lobsters/lobsters",
       "commit": "69df721c9fe260c71c8af6550dafdd2783ad18b3",
