@@ -1,0 +1,346 @@
+{
+  "schema": "bskel.trust-adversarial-fixtures/1",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "TRUST-FS-01",
+      "category": "filesystem",
+      "layer": "declaration",
+      "attack": "../ traversal request",
+      "expected": "reject-before-launch",
+      "status": "covered-unit",
+      "preconditions": [],
+      "observer": {
+        "kind": "validator",
+        "assertion": "manifest rejects traversal before launch"
+      },
+      "test_refs": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-FS-02",
+      "category": "filesystem",
+      "layer": "declaration",
+      "attack": "Windows drive-absolute root",
+      "expected": "reject-before-launch",
+      "status": "covered-unit",
+      "preconditions": [],
+      "observer": {
+        "kind": "validator",
+        "assertion": "manifest rejects drive-absolute roots before launch"
+      },
+      "test_refs": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-FS-03",
+      "category": "filesystem",
+      "layer": "runner",
+      "attack": "allowed in-repo symlink points outside source root",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "read-only source mount"
+      ],
+      "observer": {
+        "kind": "file-bytes",
+        "assertion": "external target path remains unreadable and unchanged"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-FS-04",
+      "category": "filesystem",
+      "layer": "runner",
+      "attack": "write through symlink into source/host path",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "isolated scratch write root"
+      ],
+      "observer": {
+        "kind": "file-bytes",
+        "assertion": "host/source bytes remain unchanged"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-PROC-01",
+      "category": "process",
+      "layer": "declaration",
+      "attack": "shell fragment or executable path request",
+      "expected": "reject-before-launch",
+      "status": "covered-unit",
+      "preconditions": [],
+      "observer": {
+        "kind": "validator",
+        "assertion": "manifest rejects non-basename executable grants"
+      },
+      "test_refs": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-PROC-02",
+      "category": "process",
+      "layer": "runner",
+      "attack": "allowed basename resolves to repository-controlled fake binary",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "pinned executable identity"
+      ],
+      "observer": {
+        "kind": "process-tree",
+        "assertion": "unapproved executable never starts"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-PROC-03",
+      "category": "process",
+      "layer": "runner",
+      "attack": "allowed process spawns unapproved grandchild",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "process-tree isolation"
+      ],
+      "observer": {
+        "kind": "process-tree",
+        "assertion": "unapproved descendant is denied or killed and recorded"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-ENV-01",
+      "category": "environment",
+      "layer": "runner",
+      "attack": "ambient provider/database token exists but is not allowed",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "filtered environment"
+      ],
+      "observer": {
+        "kind": "environment-capture",
+        "assertion": "child environment lacks unrelated credentials"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-ENV-02",
+      "category": "environment",
+      "layer": "declaration",
+      "attack": "code-loading environment variable requested",
+      "expected": "reject-before-launch",
+      "status": "covered-unit",
+      "preconditions": [],
+      "observer": {
+        "kind": "validator",
+        "assertion": "manifest rejects injection-class environment variables"
+      },
+      "test_refs": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-ENV-03",
+      "category": "environment",
+      "layer": "declaration",
+      "attack": "allowed environment value is non-string or NUL-bearing",
+      "expected": "reject-before-launch",
+      "status": "covered-unit",
+      "preconditions": [],
+      "observer": {
+        "kind": "validator",
+        "assertion": "environment selector rejects invalid value"
+      },
+      "test_refs": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-NET-01",
+      "category": "network",
+      "layer": "runner",
+      "attack": "outbound network under default deny",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "network namespace or equivalent"
+      ],
+      "observer": {
+        "kind": "network-probe",
+        "assertion": "connection attempt fails independently of candidate cooperation"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-NET-02",
+      "category": "network",
+      "layer": "runner",
+      "attack": "allowed hostname resolves or redirects to loopback/private/link-local destination",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "destination enforcement policy"
+      ],
+      "observer": {
+        "kind": "network-probe",
+        "assertion": "effective destination is not widened beyond approved policy"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-NET-03",
+      "category": "network",
+      "layer": "runner",
+      "attack": "Unix socket or Docker socket access",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "socket/device isolation"
+      ],
+      "observer": {
+        "kind": "socket",
+        "assertion": "socket access fails unless separately granted"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-OUT-01",
+      "category": "output",
+      "layer": "runner",
+      "attack": "stdout/stderr flood",
+      "expected": "kill-and-cleanup",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "bounded output capture"
+      ],
+      "observer": {
+        "kind": "runner-artifact",
+        "assertion": "output limit is explicit and runner remains healthy"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-TIME-01",
+      "category": "time",
+      "layer": "runner",
+      "attack": "child ignores termination and hangs",
+      "expected": "kill-and-cleanup",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "wall deadline and process-tree ownership"
+      ],
+      "observer": {
+        "kind": "process-tree",
+        "assertion": "full owned process tree is gone after deadline"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-SECRET-01",
+      "category": "secret",
+      "layer": "declaration",
+      "attack": "secret reference is path traversal or assignment string",
+      "expected": "reject-before-launch",
+      "status": "covered-unit",
+      "preconditions": [],
+      "observer": {
+        "kind": "validator",
+        "assertion": "secret reference grammar rejects path/value forms"
+      },
+      "test_refs": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-SECRET-02",
+      "category": "secret",
+      "layer": "runner",
+      "attack": "unrelated secret reference is requested or absent",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "scoped secret resolver"
+      ],
+      "observer": {
+        "kind": "environment-capture",
+        "assertion": "no fallback to ambient environment or other secret"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-ADAPTER-01",
+      "category": "adapter",
+      "layer": "runner",
+      "attack": "user supplies external JavaScript adapter path",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "external adapter loader remains separate from first-party registry"
+      ],
+      "observer": {
+        "kind": "process-tree",
+        "assertion": "no unapproved adapter module executes"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-BUILD-01",
+      "category": "build",
+      "layer": "runner",
+      "attack": "install/build hook attempts network or file exfiltration",
+      "expected": "deny-at-runner",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "separate acquisition/build profiles"
+      ],
+      "observer": {
+        "kind": "network-probe",
+        "assertion": "untrusted build cannot exfiltrate credentials or reach unapproved network"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    },
+    {
+      "id": "TRUST-EVID-01",
+      "category": "evidence",
+      "layer": "evidence",
+      "attack": "requested manifest differs from actual enforced profile",
+      "expected": "block-certification",
+      "status": "specified-not-implemented",
+      "preconditions": [
+        "effective-profile evidence binding"
+      ],
+      "observer": {
+        "kind": "evidence-verifier",
+        "assertion": "certification blocks on requested/effective profile mismatch"
+      },
+      "test_refs": [],
+      "self_report_sufficient": false
+    }
+  ]
+}
