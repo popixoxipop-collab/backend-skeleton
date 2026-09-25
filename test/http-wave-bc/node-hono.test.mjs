@@ -59,6 +59,31 @@ test('detect requires dependency plus live Hono source, not a comment', () => {
   finally { cleanup(root); }
 });
 
+test('official hono/quick and hono/tiny presets are detected without widening to arbitrary subpaths', () => {
+  for (const preset of ['hono/quick', 'hono/tiny']) {
+    const root = fixture({
+      'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.13.9' } }),
+      'src/app.ts': [
+        "import { Hono } from '" + preset + "'",
+        'const app = new Hono()',
+        "app.get('/health', health)",
+      ].join('\n'),
+    });
+    try {
+      assert.ok(detectHonoRoot(root), preset);
+      const report = scanHono(root);
+      assert.deepEqual(report.modules[0].controllers[0].endpoints.map((x) => x.path), ['/health']);
+    } finally { cleanup(root); }
+  }
+
+  const unsupported = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.13.9' } }),
+    'src/app.ts': "import { Hono } from 'hono/not-a-preset'\nconst app = new Hono()\n",
+  });
+  try { assert.equal(detectHonoRoot(unsupported), null); }
+  finally { cleanup(unsupported); }
+});
+
 test('generic-typed Hono constructors are detected and scanned', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
