@@ -1,0 +1,59 @@
+{
+  "schema": "bskel.scale-core-freeze-activation/1",
+  "candidate": "T00-04A",
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "state": "SUBMITTED",
+    "epoch": 4,
+    "heads": {
+      "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+    },
+    "exact_head_ci": "queued",
+    "independent_review": "blocked",
+    "note": "bskel and becoder exact-head main CI are green; beval main run #868 remains queued. Epoch-4 PR #100 also has non-terminal exact-head CI."
+  },
+  "current_main_heads": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+  },
+  "identity": {
+    "source": "backend-skeleton#82",
+    "head": "c91c2e208e6318f056501474fa9da6eea9f51384",
+    "exact_head_ci": "success",
+    "scope_compliant": true,
+    "legacy_compatibility": true,
+    "artifact_ref_semantics": "exact-bytes",
+    "identity_envelope_family": "http",
+    "additive_only": true
+  },
+  "capability": {
+    "source": "backend-skeleton#81",
+    "head": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
+    "exact_head_ci": "success",
+    "scope_compliant": false,
+    "statuses": [
+      "supported",
+      "partial",
+      "unsupported",
+      "unknown",
+      "not-applicable"
+    ],
+    "certification_wire_promoted": false,
+    "runtime_tested_requires_verified_runtime_evidence": true,
+    "note": "five-state semantics are candidate; root test shim still violates the T03 lease and current evidenceRefs wire shape remains draft."
+  },
+  "lease": {
+    "source": "backend-skeleton#88",
+    "policy_revision": "T00-03-r1",
+    "verifier_ci": "success",
+    "fail_closed": true
+  },
+  "semantics": {
+    "unknown_preserved": true,
+    "runtime_cannot_repair_contract": true,
+    "causality_not_inferred": true
+  }
+}

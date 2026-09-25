@@ -1,0 +1,21 @@
+{
+  "ok": false,
+  "status": "BLOCKED",
+  "errors": [
+    {
+      "code": "BASELINE_NOT_ACCEPTED",
+      "actual": "SUBMITTED"
+    },
+    {
+      "code": "BASELINE_CI_NOT_GREEN",
+      "actual": "queued"
+    },
+    {
+      "code": "BASELINE_REVIEW_NOT_PASS",
+      "actual": "blocked"
+    },
+    {
+      "code": "CAPABILITY_SCOPE_NOT_COMPLIANT"
+    }
+  ]
+}
