@@ -67,3 +67,18 @@ test('two OS processes updating the same cache index preserve both entries', asy
 	const index = createCacheIndex(root);
 	assert.deepEqual(index.list().map((x) => x.cache_key), [key1, key2].sort());
 });
+
+test('dependency invalidation removes only cache entries that read changed paths', () => {
+	const root = scratch();
+	const index = createCacheIndex(root);
+	const a = digestJson({ key: 'a' });
+	const b = digestJson({ key: 'b' });
+	const ar = { algorithm: 'sha256', digest: digestJson({ artifact: 'a' }), size: 1 };
+	const br = { algorithm: 'sha256', digest: digestJson({ artifact: 'b' }), size: 1 };
+	index.set(a, ar, { dependencies: ['src/a.js'] });
+	index.set(b, br, { dependencies: ['src/b.js'] });
+	const removed = index.invalidateDependencies(['src/a.js', 'src/unrelated.js']);
+	assert.deepEqual(removed.map((x) => x.cache_key), [a]);
+	assert.equal(index.get(a), null);
+	assert.equal(index.get(b).artifact.digest, br.digest);
+});
