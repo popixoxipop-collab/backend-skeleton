@@ -1,0 +1,1 @@
+// Keeps real Symfony attribute-stack regressions inside the repository-wide test lane.\nimport './language-ruby-php/symfony-attribute-stack.test.mjs';\n
