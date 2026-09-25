@@ -1,0 +1,75 @@
+{
+  "schema": "bskel.scale-collision-map/1",
+  "task_id": "T00-02",
+  "state": "SUBMITTED",
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "beval_original": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+    "beval_current": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+    "status": "STALE_PENDING_REVERIFY"
+  },
+  "classifications": {
+    "bskel#63": "SELECTIVE_ABSORB",
+    "bskel#62": "SELECTIVE_ABSORB",
+    "bskel#82": "KEEP_SHADOW",
+    "bskel#72": "KEEP_SHADOW",
+    "bskel#81": "KEEP_SHADOW",
+    "bskel#73": "KEEP_SHADOW",
+    "bskel#87": "HOLD_STACKED",
+    "bskel#86": "KEEP_SHADOW",
+    "bskel#75": "KEEP_SHADOW",
+    "bskel#69": "KEEP_SHADOW",
+    "bskel#76": "KEEP_SHADOW",
+    "bskel#83": "FIX_REQUIRED",
+    "bskel#84": "KEEP_SHADOW",
+    "bskel#77": "KEEP_SHADOW",
+    "bskel#66": "SPLIT_REQUIRED",
+    "bskel#67": "FIX_REQUIRED",
+    "bskel#71": "KEEP_SHADOW",
+    "becoder#8": "SPLIT_REQUIRED",
+    "beval#41": "HOLD_STACKED",
+    "bskel#68": "KEEP_SHADOW",
+    "bskel#70": "KEEP_SHADOW",
+    "bskel#74": "KEEP_SHADOW",
+    "bskel#79": "KEEP_SHADOW",
+    "bskel#80": "KEEP_SHADOW",
+    "bskel#85": "KEEP_SHADOW",
+    "bskel#78": "KEEP_SHADOW",
+    "becoder#7": "VERIFY_ONLY",
+    "beval#39": "LANDED_PROVISIONAL",
+    "beval#40": "HOLD_STACKED",
+    "bskel#60": "DEFER",
+    "bskel#61": "DEFER"
+  },
+  "red_ci": {
+    "bskel#66": {
+      "run": 36078165822,
+      "reason": [
+        "live adapter registry order changed: 92 != 90",
+        "no conformance fixture for typescript-nestjs"
+      ]
+    },
+    "bskel#67": {
+      "run": 36078018625,
+      "reason": [
+        "owned Hono test expects scanNotes[0] to contain stale literal-route wording"
+      ]
+    },
+    "bskel#83": {
+      "run": 36078985853,
+      "reason": [
+        "synthesized-operation-id test expected undefined but actual value is []"
+      ]
+    }
+  },
+  "release_conditions": [
+    "verify current beval main exact head",
+    "split T12 out of live registry",
+    "green T09/T13 exact-head CI",
+    "split T15 dependency-safe vs renderer changes",
+    "reconcile legacy Track A/C",
+    "joint T01/T02/T03 review before T00-04"
+  ]
+}

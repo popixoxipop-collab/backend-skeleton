@@ -1,0 +1,22 @@
+{
+  "schema": "bskel.scale-result-packet/1",
+  "task_id": "T00-02",
+  "state": "SUBMITTED",
+  "base_t00_commit": "6c35fe4887b9204ef2c78956dc6671b868e4d3c3",
+  "findings": {
+    "classified_work_items": 31,
+    "selective_absorb": 2,
+    "split_required": 2,
+    "fix_required": 2,
+    "landed_provisional": 1,
+    "baseline_drift": true
+  },
+  "blockers": [
+    "current beval main not yet exact-head verified at observation",
+    "T12 live-registry boundary violation",
+    "T09/T13 red exact-head CI",
+    "T15 split required",
+    "legacy Track A/C reconciliation not yet delivered"
+  ],
+  "next_task": "T00-03 ownership/collision freeze may proceed read-only; T00-04 remains blocked."
+}

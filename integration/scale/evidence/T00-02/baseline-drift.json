@@ -1,0 +1,31 @@
+{
+  "schema": "bskel.scale-baseline-drift/1",
+  "task_id": "T00-02",
+  "observed_on": "2026-09-25",
+  "previous_beval_main": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+  "current_beval_main": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+  "cause": {
+    "pr": 39,
+    "merged": true,
+    "pr_head": "00792c229fc3d67ec5d4ff248aaf720f7d09defa",
+    "merge_commit": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
+  },
+  "verification_at_observation": {
+    "pr_head_ci": {
+      "run_id": 36079935246,
+      "status": "queued",
+      "conclusion": null
+    },
+    "merge_push_ci": {
+      "run_id": 36080236800,
+      "status": "queued",
+      "conclusion": null
+    }
+  },
+  "artifact_blobs": {
+    "package.json": "714575e9cbaff966e4fc00138da6317ef84ac2a4",
+    "package-lock.json": "a83092968a5833883ac74c5e3aad5c80f117d006",
+    ".github/workflows/ci.yml": "8f5aeb2110101f84d97a305259bed54ee8d9ddbc"
+  },
+  "t00_effect": "T00-01 remains not accepted; baseline refresh required after exact-head verification."
+}
