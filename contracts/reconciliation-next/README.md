@@ -89,23 +89,23 @@ node --test test/t09-reconciliation-next.test.mjs
 The top-level entrypoint is matched by the repository's existing `npm test` pattern
 (`test/*.test.mjs`), so no package script or lockfile change is required.
 
-The current T09 suite contains **30 tests**:
+The current T09 suite contains **35 tests**:
 
 - 18 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
-- 8 OpenAPI context/root-security/duplicate-ID regressions.
+- 8 OpenAPI context/root-security/duplicate-ID regressions,
+- 5 negative differential regressions for stale/missing/ambiguous OpenAPI.
 
 It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled states, explicit and inherited declared security,
-duplicate operation IDs, provenance matching, route-only promotion, and legacy-to-next integration.
+duplicate operation IDs, provenance matching, route-only promotion, legacy-to-next integration, and stale-spec fail-closed behavior.
 
 ## Next T09 slices
 
 1. Add a bounded raw/index view that preserves per-operation "none vs skipped media type" for schema fields.
 2. Bind source/OpenAPI/runtime artifacts to an exact repository revision, build fingerprint, and environment
    before cross-source promotion.
-3. Add negative differential fixtures for stale OpenAPI, same operationId with changed route/method, and
-   runtime-only/source-only routes.
+3. Add runtime-only/source-only differential fixtures once the runtime observation envelope is available.
 4. Add runtime observations as a separate evidence role; never overwrite source/OpenAPI claims in place.
 5. Hand the decision graph and evidence conditions to the shared T01/T03 Claim/Capability policy once that
    interface is frozen.
