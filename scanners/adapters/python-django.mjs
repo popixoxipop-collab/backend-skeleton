@@ -334,15 +334,26 @@ const API_SURFACE_SOURCE =
 export function scanPythonDjango(repoRoot, projectRoot) {
   const files = listPythonFiles(projectRoot);
   const texts = new Map();
-  const viewsets = new Map();
+  const viewsetCandidates = new Map();
 
   for (const file of files) {
     let text;
     try { text = maskPythonCommentsAndDocstrings(fs.readFileSync(file, 'utf8')); }
     catch { text = ''; }
     texts.set(file, text);
-    for (const [name, info] of extractViewSets(text, file)) viewsets.set(name, info);
+    for (const [name, info] of extractViewSets(text, file)) {
+      if (!viewsetCandidates.has(name)) viewsetCandidates.set(name, []);
+      viewsetCandidates.get(name).push(info);
+    }
   }
+
+  // Without a Python import resolver, two same-named ViewSets in different files are ambiguous.
+  // Do not let source traversal order choose one silently; only unique class names are eligible.
+  const viewsets = new Map(
+    [...viewsetCandidates.entries()]
+      .filter(([, candidates]) => candidates.length === 1)
+      .map(([name, candidates]) => [name, candidates[0]])
+  );
 
   const modules = new Map();
   for (const file of files) {
