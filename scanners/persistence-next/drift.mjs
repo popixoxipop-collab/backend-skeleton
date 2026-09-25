@@ -20,10 +20,8 @@ function confidenceForTable(entity) {
 	return entity.table.source === 'explicit' || entity.table.source === 'observed' ? 'high' : 'medium';
 }
 
-function sameSet(a, b) {
-	if (a.length !== b.length) return false;
-	const bs = new Set(b);
-	return a.every((x) => bs.has(x));
+function sameOrdered(a, b) {
+	return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 export function comparePersistenceIr({ expected, observed, default_schema = null }) {
@@ -57,13 +55,16 @@ export function comparePersistenceIr({ expected, observed, default_schema = null
 		}
 		const expectedPk = entity.primary_key.columns;
 		const observedPk = actual.primary_key.columns;
-		if (expectedPk.length > 0 && observedPk.length > 0 && !sameSet(expectedPk, observedPk)) findings.push({
-			entity_id: entity.id, code: 'primary-key-mismatch', table: entity.table.name,
-			expected: expectedPk, observed: observedPk, confidence: confidenceForTable(entity),
-		});
-		if (expectedPk.length > 0 && observedPk.length === 0) unknowns.push({
-			entity_id: entity.id, code: 'observed-primary-key-unknown', message: `${entity.table.name}: expected primary key is known but observed plane has no PK fact`,
-		});
+		if (expectedPk.length > 0 && actual.primary_key.source === 'unknown') {
+			unknowns.push({
+				entity_id: entity.id, code: 'observed-primary-key-unknown', message: `${entity.table.name}: expected primary key is known but observed plane has no PK fact`,
+			});
+		} else if (expectedPk.length > 0 && !sameOrdered(expectedPk, observedPk)) {
+			findings.push({
+				entity_id: entity.id, code: 'primary-key-mismatch', table: entity.table.name,
+				expected: expectedPk, observed: observedPk, confidence: confidenceForTable(entity),
+			});
+		}
 	}
 	return {
 		findings: findings.sort((a, b) => (a.table ?? '').localeCompare(b.table ?? '') || a.code.localeCompare(b.code) || (a.column ?? '').localeCompare(b.column ?? '')),
