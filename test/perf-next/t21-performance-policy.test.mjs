@@ -76,3 +76,10 @@ test('performance gate fails cold, RSS or hit-ratio regression independently', (
 	assert.equal(result.status, 'fail');
 	assert.deepEqual(result.checks.filter((x) => x.status === 'fail').map((x) => x.code).sort(), ['CACHE_HIT_FRACTION_OF_COLD', 'COLD_REGRESSION_PCT', 'PEAK_RSS_REGRESSION_PCT']);
 });
+
+test('performance gate blocks missing numeric measurement instead of throwing', () => {
+	const candidate = doc({ workloads: [{ id: '10k', samples: 10, cold_p95_ms: 90, peak_rss_bytes: 900, semantic_equivalence: true }] });
+	const result = evaluatePerformanceGate({ baseline: doc(), candidate });
+	assert.equal(result.status, 'blocked');
+	assert.equal(result.checks[0].code, 'MISSING_OR_INVALID_METRIC');
+});
