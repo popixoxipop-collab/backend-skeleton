@@ -43,11 +43,24 @@ test('corpus manifest rejects reference/holdout leakage from the same source fam
   assert.ok(result.errors.some((x) => x.includes('crosses reference and holdout')));
 });
 
-test('negative vector catalog is structured, unique, and covers all initial categories', () => {
+test('negative vector catalog is structured, unique, and matches the 79-case program plan exactly', () => {
   const result = validateNegativeVectorCatalog(readJson(NEGATIVE));
   assert.equal(result.ok, true, result.errors.join('\n'));
-  assert.equal(result.stats.vectors, 24);
-  for (const count of Object.values(result.stats.categories)) assert.ok(count >= 2);
+  assert.equal(result.stats.vectors, 79);
+  assert.deepEqual(result.stats.categories, {
+    identity: 6,
+    project: 6,
+    route: 8,
+    schema: 8,
+    auth: 6,
+    db: 6,
+    cache: 6,
+    run: 8,
+    game: 7,
+    trust: 8,
+    generation: 5,
+    release: 5,
+  });
 });
 
 test('full-surface recall counts abstention as false-negative while reporting abstention separately', () => {
