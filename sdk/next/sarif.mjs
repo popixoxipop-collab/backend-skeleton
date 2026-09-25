@@ -17,7 +17,7 @@ function normalizeLocation(diagnostic) {
 	if (Number.isInteger(diagnostic.endLine) && diagnostic.endLine >= startLine) region.endLine = diagnostic.endLine;
 	return {
 		physicalLocation: {
-			artifactLocation: { uri: diagnostic.file.replaceAll('\\\\', '/') },
+			artifactLocation: { uri: diagnostic.file.replaceAll('\\', '/') },
 			region,
 		},
 	};
