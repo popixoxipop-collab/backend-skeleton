@@ -53,3 +53,5 @@ export {
 	renderSupportMatrixMarkdown,
 	supportMatrixDiagnostics,
 } from './support-matrix.mjs';
+
+export { SUBMISSION_REVIEW_CONTRACT, reviewAdapterSubmission } from './submission-review.mjs';
