@@ -339,3 +339,46 @@ test('context-bound promotion rejects a spoofed attached flag without versioned 
   };
   assert.deepEqual(contextBoundPromotableOperationKeys(spoofed), []);
 });
+
+
+test('malformed operation security does not silently inherit a secured document root', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    security: [{ bearerAuth: [] }],
+    components: {
+      securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } },
+    },
+    paths: {
+      '/profile': {
+        get: {
+          operationId: 'profile',
+          security: { bearerAuth: [] },
+        },
+      },
+    },
+  }, {
+    verb: 'GET', path: '/profile', operationId: 'profile', operationIdSource: 'source', method: 'profile',
+  });
+
+  assert.equal(field(graph, 'api.security.declared').state, 'unknown');
+  assert.equal(field(graph, 'api.security.declared').reason, 'malformed-operation-security');
+});
+
+test('malformed operation security does not become declared-security absent when the root has no security', () => {
+  const { graph } = pipeline({
+    openapi: '3.1.0',
+    paths: {
+      '/profile': {
+        get: {
+          operationId: 'profile',
+          security: 'not-an-array',
+        },
+      },
+    },
+  }, {
+    verb: 'GET', path: '/profile', operationId: 'profile', operationIdSource: 'source', method: 'profile',
+  });
+
+  assert.equal(field(graph, 'api.security.declared').state, 'unknown');
+  assert.equal(field(graph, 'api.security.declared').reason, 'malformed-operation-security');
+});
