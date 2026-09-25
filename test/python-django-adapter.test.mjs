@@ -30,6 +30,9 @@ function fixture({ django = true } = {}) {
     '',
     'class AuditViewSet(viewsets.ReadOnlyModelViewSet):',
     '    pass',
+    '',
+    'class SlugViewSet(viewsets.ModelViewSet):',
+    "    lookup_field = 'slug'",
     ''
   ].join('\n'));
 
@@ -41,6 +44,7 @@ function fixture({ django = true } = {}) {
     'router = DefaultRouter()',
     "router.register(r'users', UserViewSet, basename='user')",
     "router.register(r'audit', AuditViewSet, basename='audit')",
+    "router.register(r'slugs', SlugViewSet, basename='slug')",
     "urlpatterns = [path('api/', include(router.urls))]",
     ''
   ].join('\n'));
@@ -83,6 +87,18 @@ test('ReadOnlyModelViewSet does not invent write routes', () => {
   const audit = report.modules[0].controllers.find((c) => c.className === 'AuditViewSet');
   assert.deepEqual(audit.endpoints.map((e) => e.verb).sort(), ['GET', 'GET']);
   assert.equal(audit.endpoints.some((e) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(e.verb)), false);
+});
+
+test('custom DRF lookup configuration suppresses unverified detail-route synthesis', () => {
+  const root = fixture();
+  const report = scanPythonDjango(root, root);
+  const slug = report.modules[0].controllers.find((c) => c.className === 'SlugViewSet');
+  assert.ok(slug);
+  assert.deepEqual(slug.endpoints.map((e) => [e.verb, e.path]).sort(), [
+    ['GET', '/api/slugs/'],
+    ['POST', '/api/slugs/'],
+  ]);
+  assert.equal(slug.endpoints.some((e) => e.path.includes('{pk}')), false);
 });
 
 test('first Django/DRF slice keeps operation/schema/persistence/codegen capabilities off', () => {
