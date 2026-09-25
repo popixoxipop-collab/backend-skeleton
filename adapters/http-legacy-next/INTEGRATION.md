@@ -48,3 +48,25 @@ Its semantic SHA-256 is regression-only and is explicitly not ContractRef identi
 `corpus-parity-cli.mjs` is read-only. It scans an already-prepared checkout, verifies an optional
 exact ref, checks the expected legacy adapter, and can require a pinned semantic regression digest.
 It never clones, installs target dependencies, or boots target applications.
+
+
+## T11-03 pre-freeze shadow shell
+
+`shadow-projection.mjs` provides a dependency-injected comparison shell. It does not define or
+import T01/T02/T03 draft IR. A future frozen projector may return a T11 semantic snapshot for
+differential comparison. The shell:
+
+- keeps `sbf.scan-report/2` authoritative;
+- deep-freezes projector input;
+- does not return projector private/raw IR;
+- reports bounded semantic diffs and regression-only digests;
+- always emits `promotion_allowed: false`.
+
+This is plumbing for T11-03, not completion of the shared normalized projection.
+
+## T11-06 cutover readiness
+
+`cutover-readiness.mjs` is a pure fail-closed migration checklist. It is not T03 certification.
+It requires ownership, baseline/bridge/parity/corpus, exact-head CI, frozen T01/T03 seams,
+independent review, and nested-test integration. Even when every check is true it emits
+`apply_allowed: false`; stable wiring remains T00/T23-owned.
