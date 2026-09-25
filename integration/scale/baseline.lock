@@ -67,7 +67,7 @@
       "repo": "popixoxipop-collab/backend-decoder",
       "default_branch": "main",
       "plan_snapshot_sha": "96f67f9ab6d3ba6b83de43b0c3de7c0c4deaa560",
-      "head_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
       "node_engine": ">=18",
       "package_version": "0.5.0",
       "required_artifacts": [
@@ -96,21 +96,21 @@
       },
       "ci_evidence": {
         "workflow": "CI",
-        "run_id": 36070647695,
-        "run_number": 78,
+        "run_id": 36083442722,
+        "run_number": 83,
         "event": "push",
         "status": "completed",
         "conclusion": "success"
       },
       "known_exact_head_ci_failures": [],
-      "baseline_delta": "main advanced after planning snapshot via merged PR #6; downstream work must consume a575679b... rather than reimplement the older webgame state"
+      "baseline_delta": "main advanced after epoch 3 via merged PR #9; package/lock/workflow blobs remained identical, but exact head is now 37ffb1d8... and exact-head push CI #83 succeeded"
     },
     {
       "role": "beval",
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
       "plan_snapshot_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
-      "head_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "head_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
       "node_engine": ">=20",
       "package_version": "0.1.0",
       "required_artifacts": [
@@ -124,7 +124,7 @@
         },
         {
           "path": ".github/workflows/ci.yml",
-          "git_blob_sha": "8f5aeb2110101f84d97a305259bed54ee8d9ddbc"
+          "git_blob_sha": "7b1a51ee01975733c4b838de66fb83592b637f25"
         }
       ],
       "test_commands": {
@@ -144,14 +144,14 @@
       },
       "ci_evidence": {
         "workflow": "ci",
-        "run_id": 36080236800,
-        "run_number": 865,
+        "run_id": 36099964750,
+        "run_number": 909,
         "event": "push",
-        "status": "queued",
-        "conclusion": null
+        "status": "completed",
+        "conclusion": "success"
       },
       "known_exact_head_ci_failures": [],
-      "baseline_delta": "main advanced after T00-01 submission via merged Browser Oracle PR #39; downstream work must consume merge commit 5bdecbcb... and must not treat queued push CI #865 as passed"
+      "baseline_delta": "main advanced after epoch 4 via T00 CI hotfix PR #46. PR-head CI #908 and exact-head main push CI #909 both passed unit 20/22/24 plus integration."
     }
   ],
   "policy": {
@@ -162,5 +162,5 @@
     "ci_success_is_historical_evidence_not_a_substitute_for_task_specific_tests": true,
     "baseline_acceptance_requires_all_current_exact_head_ci_success": true
   },
-  "rebaseline_epoch": 2
+  "rebaseline_epoch": 5
 }
