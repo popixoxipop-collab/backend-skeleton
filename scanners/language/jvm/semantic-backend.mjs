@@ -8,11 +8,23 @@ function sha256(bytes) {
 	return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function inside(root, relativePath) {
-	const absolute = path.resolve(root, relativePath);
-	const rel = path.relative(path.resolve(root), absolute);
-	if (rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel))) return absolute;
-	throw new Error('resolved path escapes repository root: ' + relativePath);
+function contained(base, candidate) {
+	const rel = path.relative(base, candidate);
+	return rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel));
+}
+
+function realInside(root, relativePath) {
+	const lexicalRoot = path.resolve(root);
+	const lexical = path.resolve(lexicalRoot, relativePath);
+	if (!contained(lexicalRoot, lexical)) {
+		throw new Error('resolved path escapes repository root: ' + relativePath);
+	}
+	const realRoot = fs.realpathSync(lexicalRoot);
+	const real = fs.realpathSync(lexical);
+	if (!contained(realRoot, real)) {
+		throw new Error('real path escapes repository root: ' + relativePath);
+	}
+	return real;
 }
 
 function sourceRootForFile(filePath, roots) {
@@ -56,8 +68,11 @@ export function createJvmSemanticRecordBackend({ classify, detect }) {
 			for (const file of request.files) {
 				const root = sourceRootForFile(file.path, request.project.sourceRoots);
 				if (!root) throw new Error('no declared source root contains ' + file.path);
-				const absoluteFile = inside(repoRoot, file.path);
-				const absoluteSourceRoot = inside(repoRoot, root);
+				const absoluteFile = realInside(repoRoot, file.path);
+				const absoluteSourceRoot = realInside(repoRoot, root);
+				if (!contained(absoluteSourceRoot, absoluteFile)) {
+					throw new Error('source file escapes its declared source root: ' + file.path);
+				}
 				const bytes = fs.readFileSync(absoluteFile);
 				const observed = sha256(bytes);
 				if (observed !== file.sha256) {
