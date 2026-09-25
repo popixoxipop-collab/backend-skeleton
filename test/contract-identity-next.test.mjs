@@ -91,6 +91,16 @@ test('identity envelope schema and production validator agree on the golden vect
 	}
 });
 
+test('production reader accepts the same UUID form as the legacy schema', () => {
+	const ajv = new Ajv2020({ allErrors: true, strict: false });
+	addFormats(ajv);
+	const validateLegacy = ajv.compile(LEGACY_SCHEMA);
+	const base = LEGACY_GOLDEN.vectors.find((vector) => vector.name === 'contract-ref').value;
+	const urnUuid = { ...base, feature_uid: `urn:uuid:${base.feature_uid}` };
+	assert.equal(validateLegacy(urnUuid), true, JSON.stringify(validateLegacy.errors));
+	assert.doesNotThrow(() => readIdentity(urnUuid));
+});
+
 test('identity envelope fails closed on mismatched kinds, unsupported families, extra fields and version changes', () => {
 	const action = LEGACY_GOLDEN.vectors.find((vector) => vector.name === 'action-ref').value;
 	const good = wrapLegacyIdentity(action);
