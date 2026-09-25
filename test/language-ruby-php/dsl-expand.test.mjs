@@ -43,7 +43,7 @@ test('Rails update expands to PUT+PATCH but no API operationId is synthesized', 
   assert.ok(expanded.candidates.every((x) => !Object.hasOwn(x, 'operationId')));
 });
 
-test('Rails nested resource context is not guessed before parent member-key resolution exists', () => {
+test('Rails nested resource uses a regular parent nesting key without guessing API identity', () => {
   const facts = extractRailsDslFacts([
     'resources :teams do',
     '  resources :people, only: [:show]',
@@ -51,8 +51,46 @@ test('Rails nested resource context is not guessed before parent member-key reso
     '',
   ].join('\n'));
   const expanded = expandDslFacts(facts);
-  assert.ok(expanded.unknowns.some((x) => x.code === 'DSL_CONTEXT_UNRESOLVED'));
-  assert.equal(expanded.candidates.some((x) => x.path.includes('/people/')), false);
+  assert.ok(expanded.candidates.some((x) => x.method === 'GET' && x.path === '/teams/{team_id}/people/{id}'));
+  assert.ok(expanded.candidates.every((x) => !Object.hasOwn(x, 'operationId')));
+});
+
+test('Rails nested resource refuses an irregular parent name without an explicit param', () => {
+  const facts = extractRailsDslFacts([
+    'resources :people do',
+    '  resources :comments, only: [:show]',
+    'end',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  assert.ok(expanded.unknowns.some((x) =>
+    x.code === 'DSL_CONTEXT_UNRESOLVED' && /people/.test(x.reason),
+  ));
+  assert.equal(expanded.candidates.some((x) => x.path.includes('/comments/')), false);
+});
+
+test('Rails member collection and on modes resolve only the declared resource context', () => {
+  const facts = extractRailsDslFacts([
+    'resources :articles, only: [:index] do',
+    '  member do',
+    '    get :preview',
+    '  end',
+    '  collection do',
+    '    get :search',
+    '  end',
+    '  get :export, on: :member',
+    '  collection { post :bulk }',
+    'end',
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+  const actual = new Set(keys(expanded));
+  for (const expected of [
+    'GET /articles/{id}/preview',
+    'GET /articles/search',
+    'GET /articles/{id}/export',
+    'POST /articles/bulk',
+  ]) assert.ok(actual.has(expected), expected);
 });
 
 test('Laravel bounded expansion joins group prefix and expands apiResource selected actions', () => {
