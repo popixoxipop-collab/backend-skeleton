@@ -1,23 +1,22 @@
 TAP version 13
-# Subtest: accepts the pinned T23 compatibility inventory and blocked release plan
-ok 1 - accepts the pinned T23 compatibility inventory and blocked release plan
-# Subtest: rejects source-only compatibility when a packed-package smoke disappears
-ok 2 - rejects source-only compatibility when a packed-package smoke disappears
-# Subtest: rejects mutable or missing commit identity
+# T23 release-policy focused regression summary
+# Node v22.16.0
+ok 1 - accepts a structurally valid observed inventory even while release is blocked
+ok 2 - rejects source-only compatibility when packed-package smoke disappears
 ok 3 - rejects mutable or missing commit identity
-# Subtest: rejects premature release while T00/QA/trust/integration blockers remain
-ok 4 - rejects premature release while T00/QA/trust/integration blockers remain
-# Subtest: rejects reordered migration that enables a writer before consumer shadowing
-ok 5 - rejects reordered migration that enables a writer before consumer shadowing
-# Subtest: rejects destructive rollback and historical evidence deletion
-ok 6 - rejects destructive rollback and historical evidence deletion
-# Subtest: rejects old writer overwriting next artifacts
-ok 7 - rejects old writer overwriting next artifacts
-# Subtest: rejects privileged pull_request_target plan for untrusted candidate code
-ok 8 - rejects privileged pull_request_target plan for untrusted candidate code
-1..8
-# tests 8
-# pass 8
+ok 4 - records coordination baseline drift without pretending inventory is invalid
+ok 5 - records queued exact-head CI as a release blocker, not as fake failure evidence
+ok 6 - rejects exact-head CI attached to a different commit
+ok 7 - rejects a stale release plan that does not mirror observed main
+ok 8 - rejects premature release while baseline/CI/dependency blockers remain
+ok 9 - rejects a plan that hides an observed blocker
+ok 10 - rejects reordered migration that enables a writer before shadowing
+ok 11 - rejects destructive rollback and historical evidence deletion
+ok 12 - rejects old writer overwriting next artifacts
+ok 13 - rejects privileged pull_request_target plan for untrusted candidate code
+1..13
+# tests 13
+# pass 13
 # fail 0
 # skipped 0
-# note: executed locally with Node v22.16.0 before upload; branch files were created from the same implementation text.
+# note: executed locally against the revised T23 release-control implementation before upload.
