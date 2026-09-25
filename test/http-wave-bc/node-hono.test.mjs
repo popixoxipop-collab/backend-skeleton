@@ -72,7 +72,7 @@ test('scan emits literal routes and applies a literal chained basePath', () => {
       ['POST', '/api/users', null, 'createUser'],
     ]);
     assert.equal(report.modules[0].controllers[0].basePath, '/api/users');
-    assert.ok(report.scanNotes[0].includes('only literal per-verb routes'));
+    assert.ok(report.scanNotes[0].includes('Hono route graph'));
   } finally { cleanup(root); }
 });
 
@@ -152,6 +152,81 @@ test('all/on/use/mount are recorded as unsupported first-slice semantics', () =>
     for (const method of ['all', 'on', 'use', 'mount']) {
       assert.ok(report.scanNotes.some((x) => x.includes(`Hono ${method}()`)), `missing note for ${method}()`);
     }
+  } finally { cleanup(root); }
+});
+
+
+test('same-file route() mount snapshots only child routes registered before the mount', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      'const child = new Hono()',
+      "child.get('/before', before)",
+      "const app = new Hono().basePath('/v1')",
+      "app.route('/api', child)",
+      "child.get('/after', after)",
+      "app.get('/root', rootHandler)",
+      'export default app',
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    assert.equal(report.modules.length, 1);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => [x.verb, x.path]), [
+      ['GET', '/v1/api/before'],
+      ['GET', '/v1/root'],
+    ]);
+    assert.ok(!endpoints.some((x) => x.path.includes('/after')));
+  } finally { cleanup(root); }
+});
+
+test('relative default-imported Hono sub-app is resolved through route() with child basePath', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/users.ts': [
+      "import { Hono } from 'hono'",
+      "const users = new Hono().basePath('/users')",
+      "users.get('/:id', getUser)",
+      'export default users',
+    ].join('\n'),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      "import users from './users'",
+      'const app = new Hono()',
+      "app.route('/api', users)",
+      'export default app',
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    assert.equal(report.modules.length, 1);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => x.path), ['/api/users/:id']);
+  } finally { cleanup(root); }
+});
+
+test('relative named import alias resolves a Hono sub-app without name guessing', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
+    'src/admin.ts': [
+      "import { Hono } from 'hono'",
+      'export const admin = new Hono()',
+      "admin.get('/status', status)",
+    ].join('\n'),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      "import { admin as adminApp } from './admin'",
+      'const app = new Hono()',
+      "app.route('/v2', adminApp)",
+      'export default app',
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => x.path), ['/v2/status']);
   } finally { cleanup(root); }
 });
 
