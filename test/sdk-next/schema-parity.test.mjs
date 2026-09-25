@@ -154,3 +154,39 @@ test('runtime performs semantic SemVer checks that JSON Schema intentionally can
 	assert.equal(v.manifest(m), true, 'the structural schema does not compare two semantic-version fields');
 	assert.equal(validateAdapterSdkManifest(m).ok, false, 'runtime validator must enforce interval ordering');
 });
+
+
+test('support explanation schema rejects the same contradictory field states as runtime code', () => {
+	const v = validators();
+	const base = {
+		contract: 'sbf.support-explanation/1',
+		subject: 'project/api/users#get',
+		adapterId: 'typescript-nestjs',
+		capabilities: [],
+		fields: [],
+		notes: [],
+	};
+
+	const unknownWithValue = structuredClone(base);
+	unknownWithValue.fields.push({
+		name: 'http.path',
+		status: 'unknown',
+		value: '/users',
+		provenanceRefs: [],
+		conflicts: [],
+		constraints: [],
+		nextActions: [],
+	});
+	assert.equal(v.explain(unknownWithValue), false);
+
+	const conflictWithOneCandidate = structuredClone(base);
+	conflictWithOneCandidate.fields.push({
+		name: 'http.path',
+		status: 'conflict',
+		provenanceRefs: ['source:a'],
+		conflicts: [{ value: '/users' }],
+		constraints: [],
+		nextActions: [],
+	});
+	assert.equal(v.explain(conflictWithOneCandidate), false);
+});
