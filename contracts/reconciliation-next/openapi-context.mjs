@@ -310,7 +310,7 @@ export function applyOpenApiContext(graph, context) {
   }
 
   const graphRefs = openapiRefsInGraph(graph);
-  if (graphRefs.size > 0 && (graphRefs.size !== 1 || !graphRefs.has(context.openapiRef))) {
+  if (graphRefs.size !== 1 || !graphRefs.has(context.openapiRef)) {
     throw new TypeError('OpenAPI context ref does not match decision graph provenance');
   }
 
@@ -386,10 +386,15 @@ export function applyOpenApiContext(graph, context) {
 }
 
 export function hasOpenApiContextAudit(graph) {
-  return graph?.openApiContext?.attached === true
-    && graph.openApiContext.version === 'bskel.openapi-context-audit/0-draft'
-    && typeof graph.openApiContext.openapiRef === 'string'
-    && graph.openApiContext.openapiRef.length > 0;
+  if (
+    graph?.openApiContext?.attached !== true
+    || graph.openApiContext.version !== 'bskel.openapi-context-audit/0-draft'
+    || typeof graph.openApiContext.openapiRef !== 'string'
+    || graph.openApiContext.openapiRef.length === 0
+  ) return false;
+
+  const refs = openapiRefsInGraph(graph);
+  return refs.size === 1 && refs.has(graph.openApiContext.openapiRef);
 }
 
 export function contextBoundPromotableOperationKeys(
