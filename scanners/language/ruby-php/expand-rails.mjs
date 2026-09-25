@@ -7,6 +7,10 @@ const ROWS = Object.freeze({
 });
 const ALL_ACTIONS = Object.freeze(Object.keys(ROWS));
 
+function normalizeRailsCandidatePath(value) {
+  return joinRoute(value).replace(/:([A-Za-z_]\\w*)/g, '{$1}');
+}
+
 function contextPrefix(fact) {
   const segments = [];
   for (const ctx of fact.context ?? []) {
@@ -31,7 +35,7 @@ function resourceActions(fact) {
 function resourceShape(fact, prefix) {
   const name = fact.declaration.name;
   if (!name) return { ok: false, reason: 'resource name is not literal' };
-  const collection = joinRoute(prefix, fact.attributes?.path ?? name);
+  const collection = normalizeRailsCandidatePath(joinRoute(prefix, fact.attributes?.path ?? name));
   if (fact.attributes?.singular) return { ok: true, collection, member: collection, memberParam: null };
   const explicitParam = fact.attributes?.param;
   if (!explicitParam && !regularSingular(name)) {
@@ -57,11 +61,11 @@ export function expandRailsFacts(envelope, out) {
       continue;
     }
     if (fact.kind === 'route') {
-      if (!fact.attributes?.path || !fact.attributes?.method) {
+      if (fact.attributes?.path == null || !fact.attributes?.method) {
         addUnknown(out, fact, 'DSL_ROUTE_PARTIAL', 'route method/path are not both literal');
         continue;
       }
-      addCandidate(out, envelope, fact, fact.attributes.method, joinRoute(prefix.path, fact.attributes.path), {
+      addCandidate(out, envelope, fact, fact.attributes.method, normalizeRailsCandidatePath(joinRoute(prefix.path, fact.attributes.path)), {
         controller: fact.attributes.controller ?? null, action: fact.attributes.action ?? null,
       });
       continue;
