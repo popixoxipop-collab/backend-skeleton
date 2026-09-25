@@ -220,9 +220,9 @@ export function createTypeScriptCompilerBackend(compilerApi, {
       const diagnostics = parseDiagnostics(ts, sourceFile);
       const edges = [];
 
-      function pushEdge(node, kind, specifier, bindings = [], typeOnly = false) {
+      function pushEdge(node, kind, specifier, bindings = [], typeOnly = false, endNode = node) {
         const start = node.getStart(sourceFile, false);
-        const end = node.getEnd();
+        const end = endNode.getEnd();
         edges.push({
           kind,
           specifier,
@@ -239,11 +239,11 @@ export function createTypeScriptCompilerBackend(compilerApi, {
         if (ts.isImportDeclaration(node)) {
           const specifier = literalText(ts, node.moduleSpecifier);
           if (specifier !== null) {
-            pushEdge(node, 'import', specifier, importBindings(ts, node.importClause), Boolean(node.importClause?.isTypeOnly));
+            pushEdge(node, 'import', specifier, importBindings(ts, node.importClause), Boolean(node.importClause?.isTypeOnly), node.moduleSpecifier);
           }
         } else if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
           const specifier = literalText(ts, node.moduleSpecifier);
-          if (specifier !== null) pushEdge(node, 'export-from', specifier, [], Boolean(node.isTypeOnly));
+          if (specifier !== null) pushEdge(node, 'export-from', specifier, [], Boolean(node.isTypeOnly), node.moduleSpecifier);
         } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
           const specifier = literalText(ts, node.moduleReference.expression);
           if (specifier !== null) {
