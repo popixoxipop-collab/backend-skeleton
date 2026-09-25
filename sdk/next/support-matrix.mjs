@@ -3,14 +3,6 @@ import { SUPPORT_EXPLANATION_CONTRACT, SUPPORT_STATUSES } from './explain.mjs';
 
 export const SUPPORT_MATRIX_CONTRACT = 'sbf.support-matrix/1';
 
-const STATE_RANK = new Map([
-	['conflict', 0],
-	['unknown', 1],
-	['unsupported', 2],
-	['partial', 3],
-	['supported', 4],
-	['not-applicable', 5],
-]);
 
 function assertExplanation(report, index) {
 	if (!isPlainObject(report) || report.contract !== SUPPORT_EXPLANATION_CONTRACT) {
