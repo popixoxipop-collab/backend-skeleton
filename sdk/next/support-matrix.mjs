@@ -22,6 +22,19 @@ function sortedUnique(values) {
 	return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
+function defineOwn(target, key, value) {
+	Object.defineProperty(target, key, {
+		value,
+		enumerable: true,
+		configurable: true,
+		writable: true,
+	});
+}
+
+function capabilityCell(row, name) {
+	return Object.hasOwn(row.capabilities, name) ? row.capabilities[name] : undefined;
+}
+
 function combineState(values) {
 	if (values.length === 0) return 'unknown';
 	const unique = new Set(values);
@@ -61,12 +74,12 @@ export function buildSupportMatrix(explanations) {
 			const matching = reports.flatMap((report) =>
 				report.capabilities.filter((item) => item.name === capabilityName));
 			const status = combineState(matching.map((item) => item.status));
-			capabilities[capabilityName] = {
+			defineOwn(capabilities, capabilityName, {
 				status,
 				evidenceRefs: sortedUnique(matching.flatMap((item) => item.evidenceRefs ?? [])),
 				constraints: sortedUnique(matching.flatMap((item) => item.constraints ?? [])),
 				nextActions: sortedUnique(matching.flatMap((item) => item.nextActions ?? [])),
-			};
+			});
 		}
 		return { adapterId, capabilities };
 	});
@@ -95,7 +108,7 @@ export function renderSupportMatrixMarkdown(matrix) {
 	for (const row of matrix.rows) {
 		lines.push(`| ${[
 			escapeMarkdown(row.adapterId),
-			...matrix.capabilityNames.map((name) => escapeMarkdown(row.capabilities[name]?.status ?? 'unknown')),
+			...matrix.capabilityNames.map((name) => escapeMarkdown(capabilityCell(row, name)?.status ?? 'unknown')),
 		].join(' | ')} |`);
 	}
 	return lines.join('\n');
@@ -108,7 +121,7 @@ export function supportMatrixDiagnostics(matrix) {
 	const diagnostics = [];
 	for (const row of matrix.rows) {
 		for (const capabilityName of matrix.capabilityNames) {
-			const cell = row.capabilities[capabilityName];
+			const cell = capabilityCell(row, capabilityName);
 			if (!cell || !['conflict', 'unknown', 'unsupported', 'partial'].includes(cell.status)) continue;
 			diagnostics.push({
 				code: 'BSKEL_SUPPORT_' + cell.status.toUpperCase().replaceAll('-', '_'),
