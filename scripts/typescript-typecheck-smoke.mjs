@@ -27,6 +27,23 @@ function sh(cmd, args, cwd, opts = {}) {
 	return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts });
 }
 
+function treeSize(root) {
+	let files = 0;
+	let bytes = 0;
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const full = path.join(root, entry.name);
+		if (entry.isDirectory()) {
+			const nested = treeSize(full);
+			files += nested.files;
+			bytes += nested.bytes;
+		} else if (entry.isFile()) {
+			files++;
+			bytes += fs.statSync(full).size;
+		}
+	}
+	return { files, bytes };
+}
+
 const fail = makeFail('typescript-typecheck-smoke');
 
 console.log('typescript-typecheck-smoke: copying fixture to a scratch git repo...');
@@ -81,6 +98,7 @@ let createTypeScriptCompilerBackend;
 let compareJsTsBackends;
 let lexicalJsTsBackend;
 let analyzeTypeScriptSemanticSnapshot;
+let benchmarkJsTsBackend;
 try {
 	const tsModulePath = path.join(backendDir, 'node_modules', 'typescript', 'lib', 'typescript.js');
 	const tsImported = await import(pathToFileURL(tsModulePath).href);
@@ -88,6 +106,7 @@ try {
 	({ createTypeScriptCompilerBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-compiler-backend.mjs')).href));
 	({ compareJsTsBackends, lexicalJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-comparison.mjs')).href));
 	({ analyzeTypeScriptSemanticSnapshot } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'typescript-semantic-facts.mjs')).href));
+	({ benchmarkJsTsBackend } = await import(pathToFileURL(path.join(REPO_ROOT, 'scanners', 'language', 'js-ts', 'backend-benchmark.mjs')).href));
 } catch (err) {
 	fail(`T04 compiler backend imports failed: ${err.stack || err.message}`);
 }
@@ -302,6 +321,29 @@ try {
 }
 if (!escapeRejected) fail('T04 semantic snapshot must reject repository-root escape paths');
 console.log('typescript-typecheck-smoke: T04 semantic safety boundaries PASSED (.d.ts provenance, file/token bounds, duplicate normalization, root escape)');
+
+const benchmarkCorpus = [
+	{ id: 'esm-basic', source: "import { Router } from 'express';\nimport user from './user';\n", options: { filePath: 'src/esm.ts', language: 'typescript' } },
+	{ id: 'type-only', source: "import type { User } from './user';\nexport type UserId = string;\n", options: { filePath: 'src/types.ts', language: 'typescript' } },
+	{ id: 'commonjs', source: "const helper = require('./helper.cjs');\n", options: { filePath: 'src/common.ts', language: 'typescript' } },
+];
+const lexicalBench = benchmarkJsTsBackend(lexicalJsTsBackend(), benchmarkCorpus, { warmup: 1, repeats: 5 });
+const compilerBench = benchmarkJsTsBackend(compilerBackend, benchmarkCorpus, { warmup: 1, repeats: 5 });
+for (const bench of [lexicalBench, compilerBench]) {
+	if (!Number.isFinite(bench.durationMs.total) || bench.durationMs.total < 0) fail(`T04 benchmark produced invalid timing: ${JSON.stringify(bench)}`);
+	if (bench.lastOutcome.complete !== benchmarkCorpus.length) fail(`T04 benchmark backend did not complete corpus: ${JSON.stringify(bench.lastOutcome)}`);
+	if (bench.memoryBoundaryObservation.peakRssMeasured !== false) fail('T04 benchmark must not mislabel boundary RSS samples as peak RSS');
+}
+const tsPackageFootprint = treeSize(path.join(backendDir, 'node_modules', 'typescript'));
+if (tsPackageFootprint.files <= 0 || tsPackageFootprint.bytes <= 0) fail(`T04 TypeScript package footprint measurement failed: ${JSON.stringify(tsPackageFootprint)}`);
+console.log('typescript-typecheck-smoke: T04 benchmark observation ' + JSON.stringify({
+	profile: { node: process.version, platform: process.platform, arch: process.arch, typescript: tsApi.version },
+	lexical: { p50Ms: lexicalBench.durationMs.p50, p95Ms: lexicalBench.durationMs.p95, rssDelta: lexicalBench.memoryBoundaryObservation.rssDelta },
+	compiler: { p50Ms: compilerBench.durationMs.p50, p95Ms: compilerBench.durationMs.p95, rssDelta: compilerBench.memoryBoundaryObservation.rssDelta },
+	typescriptPackage: tsPackageFootprint,
+	interpretation: 'observation-only; no automatic backend winner or release SLO',
+}));
+
 
 
 
