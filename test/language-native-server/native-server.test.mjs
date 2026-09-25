@@ -12,6 +12,8 @@ import {
 	encodeNdjson,
 	handleAnalyzeRequest,
 	validateMessage,
+	runNativeServerWorker,
+	NativeWorkerRunError,
 } from '../../scanners/language/native-server/index.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -410,4 +412,95 @@ test('native analyzers: identical source produces deep-equal facts on repeated c
 		() => analyzeRustServerSource('fn app(){ let app = Router::new().route("/x", get(x)); }', { file: 'main.rs' }),
 	];
 	for (const analyze of inputs) assert.deepEqual(analyze(), analyze());
+});
+
+
+test('runner: real worker round-trip returns a request-bound response', () => {
+	const response = runNativeServerWorker(request({
+		requestId: 'runner-real',
+		source: 'package main\nfunc setup(){ r := gin.Default(); r.GET("/runner", handler) }',
+		budget: { wallTimeMs: 5_000 },
+	}));
+	assert.equal(response.requestId, 'runner-real');
+	assert.equal(response.language, 'go');
+	assert.equal(response.backend, 'go-static-pilot');
+	assert.deepEqual(response.routes.map((r) => [r.method, r.path]), [['GET', '/runner']]);
+});
+
+test('runner: spawn contract uses absolute Node worker, exact timeout and a secret-minimal environment', () => {
+	let observed = null;
+	const req = request({ requestId: 'runner-options', budget: { wallTimeMs: 1234 } });
+	const spawnFn = (file, args, options) => {
+		observed = { file, args, options };
+		return {
+			status: 0,
+			signal: null,
+			error: null,
+			stderr: '',
+			stdout: JSON.stringify({
+				protocol: NATIVE_SERVER_PROTOCOL,
+				kind: 'analyze-response',
+				requestId: req.requestId,
+				language: req.language,
+				backend: 'fake-test-backend',
+				routes: [],
+				diagnostics: [],
+				groups: [],
+				framework: null,
+				limitations: [],
+			}) + '\n',
+		};
+	};
+	const response = runNativeServerWorker(req, { spawnFn });
+	assert.equal(response.backend, 'fake-test-backend');
+	assert.equal(observed.file, process.execPath);
+	assert.equal(path.basename(observed.args[0]), 'worker.mjs');
+	assert.equal(observed.options.timeout, 1234);
+	assert.equal(observed.options.windowsHide, true);
+	assert.deepEqual(Object.keys(observed.options.env).sort(), Object.keys(observed.options.env).filter((k) => ['SystemRoot', 'WINDIR'].includes(k)).sort());
+	assert.equal('PATH' in observed.options.env, false);
+	assert.equal('NODE_OPTIONS' in observed.options.env, false);
+});
+
+test('runner: timeout is a distinct fail-closed error', () => {
+	const timedOut = Object.assign(new Error('spawn timed out'), { code: 'ETIMEDOUT' });
+	assert.throws(
+		() => runNativeServerWorker(request({ requestId: 'runner-timeout', budget: { wallTimeMs: 77 } }), {
+			spawnFn: () => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '', error: timedOut }),
+		}),
+		(err) => err instanceof NativeWorkerRunError && err.code === 'WORKER_TIMEOUT' && /77/.test(err.message),
+	);
+});
+
+test('runner: a successful process cannot substitute another request response', () => {
+	const spawnFn = () => ({
+		status: 0,
+		signal: null,
+		error: null,
+		stderr: '',
+		stdout: JSON.stringify({
+			protocol: NATIVE_SERVER_PROTOCOL,
+			kind: 'analyze-response',
+			requestId: 'different-request',
+			language: 'go',
+			backend: 'fake-test-backend',
+			routes: [],
+			diagnostics: [],
+		}) + '\n',
+	});
+	assert.throws(
+		() => runNativeServerWorker(request({ requestId: 'expected-request' }), { spawnFn }),
+		(err) => err instanceof NativeWorkerRunError && err.code === 'WORKER_REQUEST_MISMATCH',
+	);
+});
+
+test('runner: worker-side budget failures remain request-bound structured errors', () => {
+	assert.throws(
+		() => runNativeServerWorker(request({
+			requestId: 'runner-budget',
+			source: 'package main\nfunc setup(){ r := gin.Default(); r.GET("/a", a) }',
+			budget: { maxRoutes: 0, wallTimeMs: 5_000 },
+		})),
+		(err) => err instanceof NativeWorkerRunError && err.code === 'BUDGET_EXCEEDED' && /maxRoutes/.test(err.message),
+	);
 });
