@@ -247,6 +247,8 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
   return {
     version: 'bskel.runtime-route-reconciliation/0-draft',
     state: 'ready',
+    sourceRef: binding.source?.ref ?? null,
+    openapiRef: binding.openapi?.ref ?? null,
     runtimeRef: observation.runtimeRef,
     completeness: observation.completeness,
     endpoints,
