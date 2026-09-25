@@ -133,3 +133,69 @@ test('corpus order and backend order do not affect byte-identical comparison out
   const two = compareJsTsBackends([mirror, lexical], [b, a]);
   assert.equal(JSON.stringify(one), JSON.stringify(two));
 });
+
+
+test('comparison isolates and freezes common options per backend', () => {
+  const mutator = fakeBackend('a-mutator', (source, options) => {
+    options.language = 'javascript';
+    return lexicalJsTsBackend().analyze(source, options);
+  });
+  const report = compareJsTsBackends([mutator, lexicalJsTsBackend()], [{
+    id: 'typed',
+    source: "import type { X } from './x.js';",
+    options: { filePath: 'src/app.ts', language: 'typescript' },
+  }]);
+  const outcomes = Object.fromEntries(report.cases[0].outcomes.map((o) => [o.backendId, o]));
+  assert.equal(outcomes['a-mutator'].status, 'error');
+  assert.equal(outcomes['bounded-lexical'].status, 'ok');
+  assert.equal(outcomes['bounded-lexical'].normalized.edges[0].typeOnly, true);
+});
+
+test('corpus limits fail before any backend executes', () => {
+  let calls = 0;
+  const counted = fakeBackend('counted', (source, options) => {
+    calls++;
+    return lexicalJsTsBackend().analyze(source, options);
+  });
+  assert.throws(
+    () => compareJsTsBackends([counted], [
+      { id: 'a', source: 'a' },
+      { id: 'b', source: 'b' },
+    ], { referenceBackendId: 'counted', maxCases: 1 }),
+    /no backend was executed/,
+  );
+  assert.equal(calls, 0);
+  assert.throws(
+    () => compareJsTsBackends([counted], [
+      { id: 'a', source: '12345' },
+    ], { referenceBackendId: 'counted', maxCorpusBytes: 4 }),
+    /no backend was executed/,
+  );
+  assert.equal(calls, 0);
+});
+
+test('comparison rejects backend-specific executable-shaped options at the common boundary', () => {
+  assert.throws(
+    () => compareJsTsBackends([lexicalJsTsBackend()], [{
+      id: 'bad-options',
+      source: '',
+      options: { transformer: () => {} },
+    }]),
+    /unsupported common analysis option/,
+  );
+});
+
+test('a legitimately syntax-validating backend stays comparable but reports the capability difference', () => {
+  const parser = fakeBackend('parser', (source, options) => ({
+    ...lexicalJsTsBackend().analyze(source, options),
+    syntaxValidated: true,
+  }), true);
+  const report = compareJsTsBackends([lexicalJsTsBackend(), parser], [{
+    id: 'syntax',
+    source: "import './x.js';",
+    options: { filePath: 'src/app.ts', language: 'typescript' },
+  }]);
+  assert.equal(report.corpusCases, 1);
+  assert.ok(report.corpusBytes > 0);
+  assert.deepEqual(report.cases[0].comparisons[0].differences, ['syntaxValidated']);
+});
