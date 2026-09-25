@@ -1,0 +1,186 @@
+{
+  "schema": "bskel.scale-dispatch-delivery/1",
+  "dispatch_id": "T00-DISPATCH-2026-09-25-R1",
+  "issued_on": "2026-09-25",
+  "coordinator_repo": "popixoxipop-collab/backend-skeleton",
+  "coordinator_pr": 65,
+  "coordinator_dispatch_commit": "29809381d4050aeb86b94f0cb2ca3074510f3db6",
+  "deliveries": [
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 66,
+      "track": "T12",
+      "comment_id": 5824689505
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 67,
+      "track": "T13",
+      "comment_id": 5824689775
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 68,
+      "track": "T17",
+      "comment_id": 5824690158
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 69,
+      "track": "T07",
+      "comment_id": 5824690668
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 70,
+      "track": "T18",
+      "comment_id": 5824691110
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 71,
+      "track": "T14",
+      "comment_id": 5824691737
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 72,
+      "track": "T02",
+      "comment_id": 5824692068
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 73,
+      "track": "T04",
+      "comment_id": 5824692369
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 74,
+      "track": "T19",
+      "comment_id": 5824692806
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 75,
+      "track": "T06",
+      "comment_id": 5824693129
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 76,
+      "track": "T08",
+      "comment_id": 5824700473
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 77,
+      "track": "T11",
+      "comment_id": 5824700739
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 78,
+      "track": "T23",
+      "comment_id": 5824701212
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 79,
+      "track": "T20",
+      "comment_id": 5824701688
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 80,
+      "track": "T21",
+      "comment_id": 5824702016
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 81,
+      "track": "T03",
+      "comment_id": 5824702311
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 82,
+      "track": "T01",
+      "comment_id": 5824702622
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 83,
+      "track": "T09",
+      "comment_id": 5824702928
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 84,
+      "track": "T10",
+      "comment_id": 5824703185
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 85,
+      "track": "T22",
+      "comment_id": 5824703619
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 86,
+      "track": "T05",
+      "comment_id": 5824717592
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 63,
+      "track": "LEGACY-A",
+      "comment_id": 5824705647
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 62,
+      "track": "LEGACY-C",
+      "comment_id": 5824705929
+    },
+    {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 65,
+      "track": "T00",
+      "comment_id": 5824706198
+    },
+    {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "pr": 7,
+      "track": "VERIFY",
+      "comment_id": 5824706484
+    },
+    {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "pr": 8,
+      "track": "T15",
+      "comment_id": 5824717873
+    },
+    {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "pr": 39,
+      "track": "BROWSER-ORACLE",
+      "comment_id": 5824706790
+    },
+    {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "pr": 40,
+      "track": "REPAIR-LOOP",
+      "comment_id": 5824707059
+    },
+    {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "pr": 41,
+      "track": "T16",
+      "comment_id": 5824707331
+    }
+  ],
+  "no_direct_chat_injection": true,
+  "note": "ChatGPT project conversations cannot be directly messaged from this session. Delivery is anchored to each active implementation PR plus the central dispatch document; workers without a PR are governed by the central dispatch until they open one."
+}
