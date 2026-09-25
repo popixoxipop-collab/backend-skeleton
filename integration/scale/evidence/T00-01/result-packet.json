@@ -167,12 +167,12 @@
         "outcome": "repaired_and_passed"
       },
       "current_push_ci": {
-        "run_id": null,
-        "run_number": null,
-        "status": "PENDING_EXACT_HEAD_CI",
-        "conclusion": null
+        "run_id": 36105784109,
+        "run_number": 924,
+        "status": "completed",
+        "conclusion": "success"
       },
-      "acceptance_effect": "T00-01 remains SUBMITTED until current beval exact-head push CI is identified and successful, epoch-6 PR CI is successful, and T19 independently reviews the exact epoch-6 branch head"
+      "acceptance_effect": "T00-01 remains SUBMITTED until epoch-6 PR exact-head CI is terminal success and T19 independently reviews the exact epoch-6 branch head."
     }
   ],
   "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-6 rebaseline branch.",
@@ -188,12 +188,13 @@
         "conclusion": "success"
       },
       "beval": {
-        "run_id": null,
-        "conclusion": null,
-        "status": "PENDING_EXACT_HEAD_CI"
+        "run_id": 36105784109,
+        "run_number": 924,
+        "status": "completed",
+        "conclusion": "success"
       }
     },
-    "independent_review": "NOT_REQUESTED_UNTIL_EXACT_HEAD_CI",
-    "note": "Epoch 5 was invalidated by beval main drift. Epoch 6 must not be accepted until current beval main push CI and the epoch-6 PR exact-head CI are terminal success, then T19 independently re-verifies all heads and required artifact blobs."
+    "independent_review": "WAITING_FOR_EPOCH6_PR_CI",
+    "note": "All three current main exact-head CI gates are green. T00 may request T19 final epoch-6 review only after the current PR #120 exact-head CI is terminal success."
   }
 }
