@@ -29,3 +29,8 @@ flag name is not certification evidence.
 `buildLegacyCompatibilityView()` is intentionally marked `certified:false`. It is a
 machine-generated compatibility snapshot for migration and drift checks, not the support matrix
 that T19 conformance/runtime evidence will eventually certify.
+
+## Cross-track integration
+
+See [INTEGRATION.md](INTEGRATION.md) for the explicit T00/T01/T14/T19 handoff. Shared CLI, schema,
+provider registry, and release support tables are intentionally not modified on the T03 branch.
