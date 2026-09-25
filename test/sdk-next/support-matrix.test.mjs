@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-	buildSupportMatrix,
+	buildSupportEvidenceMatrix,
 	createSupportExplanation,
 	diagnosticsToSarif,
-	renderSupportMatrixMarkdown,
-	supportMatrixDiagnostics,
+	renderSupportEvidenceMatrixMarkdown,
+	supportEvidenceMatrixDiagnostics,
 } from '../../sdk/next/index.mjs';
 
 function explanation(adapterId, capabilities) {
@@ -40,8 +40,8 @@ test('support matrix is deterministic and sorts adapters/capabilities', () => {
 		nextActions: [],
 	}]);
 
-	const first = buildSupportMatrix([a, b]);
-	const second = buildSupportMatrix([b, a]);
+	const first = buildSupportEvidenceMatrix([a, b]);
+	const second = buildSupportEvidenceMatrix([b, a]);
 	assert.deepEqual(first, second);
 	assert.deepEqual(first.capabilityNames, ['api.routes', 'api.security']);
 	assert.deepEqual(first.rows.map((row) => row.adapterId), ['java-spring', 'python-fastapi']);
@@ -64,7 +64,7 @@ test('contradictory reports for one adapter become conflict instead of choosing 
 		nextActions: ['inspect profile mismatch'],
 	}]);
 
-	const matrix = buildSupportMatrix([source, runtime]);
+	const matrix = buildSupportEvidenceMatrix([source, runtime]);
 	const cell = matrix.rows[0].capabilities['api.routes'];
 	assert.equal(cell.status, 'conflict');
 	assert.deepEqual(cell.evidenceRefs, ['runtime:snapshot', 'source:controller']);
@@ -87,12 +87,12 @@ test('partial and unknown propagate conservatively across multiple reports', () 
 		nextActions: ['supply approved OpenAPI/runtime snapshot'],
 	}]);
 
-	const matrix = buildSupportMatrix([staticReport, missingRuntime]);
+	const matrix = buildSupportEvidenceMatrix([staticReport, missingRuntime]);
 	assert.equal(matrix.rows[0].capabilities['api.request.schema'].status, 'unknown');
 });
 
 test('matrix diagnostics and SARIF preserve unresolved support states', () => {
-	const matrix = buildSupportMatrix([
+	const matrix = buildSupportEvidenceMatrix([
 		explanation('java-spring', [{
 			name: 'api.routes',
 			status: 'supported',
@@ -108,7 +108,7 @@ test('matrix diagnostics and SARIF preserve unresolved support states', () => {
 			nextActions: ['supply OpenAPI'],
 		}]),
 	]);
-	const diagnostics = supportMatrixDiagnostics(matrix);
+	const diagnostics = supportEvidenceMatrixDiagnostics(matrix);
 	assert.equal(diagnostics.length, 1);
 	assert.equal(diagnostics[0].adapterId, 'python-fastapi');
 	assert.equal(diagnostics[0].status, 'partial');
@@ -118,7 +118,7 @@ test('matrix diagnostics and SARIF preserve unresolved support states', () => {
 
 test('Markdown matrix escapes untrusted adapter/capability data from table structure', () => {
 	const matrix = {
-		contract: 'sbf.support-matrix/1',
+		contract: 'sbf.support-evidence-matrix/1',
 		capabilityNames: ['api|routes'],
 		rows: [{
 			adapterId: 'example|unsafe',
@@ -133,7 +133,7 @@ test('Markdown matrix escapes untrusted adapter/capability data from table struc
 		}],
 		note: 'note <unsafe>',
 	};
-	const markdown = renderSupportMatrixMarkdown(matrix);
+	const markdown = renderSupportEvidenceMatrixMarkdown(matrix);
 	assert.match(markdown, /api\\\|routes/);
 	assert.match(markdown, /example\\\|unsafe/);
 	assert.match(markdown, /&lt;unsafe&gt;/);
@@ -157,7 +157,7 @@ test('support matrix treats prototype-like capability names as ordinary data', (
 			nextActions: [],
 		},
 	]);
-	const matrix = buildSupportMatrix([report]);
+	const matrix = buildSupportEvidenceMatrix([report]);
 	const caps = matrix.rows[0].capabilities;
 	assert.equal(Object.prototype.polluted, undefined);
 	assert.equal(Object.hasOwn(caps, '__proto__'), true);
@@ -165,10 +165,10 @@ test('support matrix treats prototype-like capability names as ordinary data', (
 	assert.equal(caps.__proto__.status, 'partial');
 	assert.equal(caps.constructor.status, 'unknown');
 
-	const markdown = renderSupportMatrixMarkdown(matrix);
+	const markdown = renderSupportEvidenceMatrixMarkdown(matrix);
 	assert.match(markdown, /__proto__/);
 	assert.match(markdown, /constructor/);
 
-	const diagnostics = supportMatrixDiagnostics(matrix);
+	const diagnostics = supportEvidenceMatrixDiagnostics(matrix);
 	assert.deepEqual(diagnostics.map((item) => item.status).sort(), ['partial', 'unknown']);
 });
