@@ -71,7 +71,7 @@ test('ready submission still cannot execute and only advances to execution revie
 	assert.equal(report.executable, false);
 	assert.equal(report.requiresApproval, true);
 	assert.equal(report.packageReview.packageBytesTrusted, false);
-	assert.equal(report.supportMatrix.rows[0].capabilities['api.routes'].status, 'partial');
+	assert.equal(report.supportEvidenceMatrix.rows[0].capabilities['api.routes'].status, 'partial');
 	assert.match(report.note, /never authorizes adapter execution/);
 });
 
@@ -108,7 +108,7 @@ test('contradictory support evidence becomes support-conflict', () => {
 	});
 	assert.equal(report.status, 'support-conflict');
 	assert.equal(report.preExecutionReviewPassed, false);
-	assert.equal(report.supportMatrix.rows[0].capabilities['api.routes'].status, 'conflict');
+	assert.equal(report.supportEvidenceMatrix.rows[0].capabilities['api.routes'].status, 'conflict');
 	assert.equal(report.diagnostics.some((item) => item.status === 'conflict'), true);
 });
 
