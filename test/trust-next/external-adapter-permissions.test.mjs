@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXTERNAL_ADAPTER_ACTIVATION_REVIEW,
   EXTERNAL_ADAPTER_SECURITY_REVIEW,
   buildExternalAdapterActivationRequirements,
   reviewAdapterSdkSecurity,
+  reviewExternalAdapterActivation,
   translateAdapterSdkPermissions,
 } from '../../lib/trust-next/external-adapter-permissions.mjs';
 
