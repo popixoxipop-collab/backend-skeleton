@@ -144,3 +144,13 @@ test('T21 project graph runner fails closed if a T02 marker drifted', async () =
 		(error) => error.code === 'PROJECT_GRAPH_STALE',
 	);
 });
+
+test('T21 dependency graph change forces a new cache namespace for the affected project', () => {
+	const graph = graphFixture();
+	const before = buildProjectCachePlan(graph);
+	const fastBefore = before.projects.find((x) => x.project_id === 'project:fastapi').cache_namespace;
+	graph.project_edges = graph.project_edges.filter((edge) => edge.kind !== 'local-package-dependency');
+	const after = buildProjectCachePlan(graph);
+	const fastAfter = after.projects.find((x) => x.project_id === 'project:fastapi').cache_namespace;
+	assert.notEqual(fastBefore, fastAfter);
+});
