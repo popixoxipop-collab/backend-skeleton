@@ -8,6 +8,7 @@ import {
 	analyzeCSharpAspNetSource,
 	analyzeGoGinSource,
 	analyzeRustServerSource,
+	analyzeNativeServerFiles,
 	decodeNdjsonLine,
 	encodeNdjson,
 	handleAnalyzeRequest,
@@ -647,4 +648,85 @@ test('runner: profile cannot advertise an input ceiling beyond the worker bootst
 			&& err.code === 'WORKER_PROFILE_UNSUPPORTED'
 			&& /maxInputBytes/.test(err.message),
 	);
+});
+
+
+test('batch: input file order does not change aggregated Go facts', () => {
+	const a = { file: 'api/users.go', source: 'package api\nfunc setup(){ r := gin.Default(); r.GET("/users", listUsers) }' };
+	const b = { file: 'api/health.go', source: 'package api\nfunc setup(){ r := gin.Default(); r.GET("/health", health) }' };
+	const left = analyzeNativeServerFiles({ language: 'go', files: [a, b] });
+	const right = analyzeNativeServerFiles({ language: 'go', files: [b, a] });
+	assert.deepEqual(left, right);
+	assert.deepEqual(left.routes.map((r) => [r.source.file, r.method, r.path]), [
+		['api/health.go', 'GET', '/health'],
+		['api/users.go', 'GET', '/users'],
+	]);
+});
+
+test('batch: duplicate method/path facts across files are preserved for later reconciliation', () => {
+	const result = analyzeNativeServerFiles({
+		language: 'csharp',
+		files: [
+			{ file: 'A.cs', source: 'var app = builder.Build(); app.MapGet("/same", A);' },
+			{ file: 'B.cs', source: 'var app = builder.Build(); app.MapGet("/same", B);' },
+		],
+	});
+	assert.equal(result.routes.length, 2);
+	assert.deepEqual(result.routes.map((r) => r.source.file), ['A.cs', 'B.cs']);
+});
+
+test('batch: diagnostics remain source-file scoped and deterministically ordered', () => {
+	const result = analyzeNativeServerFiles({
+		language: 'rust',
+		files: [
+			{ file: 'z.rs', source: 'fn app(){ let app = Router::new().route(path(), get(z)); }' },
+			{ file: 'a.rs', source: 'fn app(){ let app = Router::new().route(other(), get(a)); }' },
+		],
+	});
+	assert.deepEqual(result.diagnostics.map((d) => [d.file, d.code]), [
+		['a.rs', 'RUST_AXUM_DYNAMIC_ROUTE_PATH'],
+		['z.rs', 'RUST_AXUM_DYNAMIC_ROUTE_PATH'],
+	]);
+});
+
+test('batch: duplicate logical file paths are rejected instead of merged', () => {
+	assert.throws(() => analyzeNativeServerFiles({
+		language: 'go',
+		files: [
+			{ file: 'main.go', source: 'package main' },
+			{ file: 'main.go', source: 'package main' },
+		],
+	}), /duplicate batch logical path/);
+});
+
+test('batch: caller may narrow but not widen file and byte ceilings', () => {
+	assert.throws(() => analyzeNativeServerFiles({
+		language: 'go',
+		files: [
+			{ file: 'a.go', source: 'package a' },
+			{ file: 'b.go', source: 'package b' },
+		],
+		limits: { maxFiles: 1 },
+	}), /maxFiles/);
+	assert.throws(() => analyzeNativeServerFiles({
+		language: 'go',
+		files: [{ file: 'a.go', source: 'x'.repeat(128) }],
+		limits: { maxTotalBytes: 64 },
+	}), /maxTotalBytes/);
+	assert.throws(() => analyzeNativeServerFiles({
+		language: 'go',
+		files: [{ file: 'a.go', source: 'package a' }],
+		limits: { maxFiles: 4097 },
+	}), /maxFiles/);
+});
+
+test('batch: unsupported languages and multiline logical paths fail closed', () => {
+	assert.throws(() => analyzeNativeServerFiles({
+		language: 'swift',
+		files: [{ file: 'main.swift', source: 'print("hello")' }],
+	}), /not implemented/);
+	assert.throws(() => analyzeNativeServerFiles({
+		language: 'go',
+		files: [{ file: 'a.go\nforged', source: 'package a' }],
+	}), /single-line logical path/);
 });
