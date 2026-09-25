@@ -52,20 +52,22 @@ function consumeAnnotationsAndModifiers(source, masked, baseByte = 0) {
 		const name = match[1];
 		const start = cursor;
 		cursor += match[0].length;
-		cursor = skipSpace(masked, cursor);
+		let annotationEnd = cursor;
+		const argsOpen = skipSpace(masked, cursor);
 		let argsText = null;
-		if (masked[cursor] === '(') {
-			const close = balancedClose(masked, cursor, '(', ')');
+		if (masked[argsOpen] === '(') {
+			const close = balancedClose(masked, argsOpen, '(', ')');
 			if (close === -1) return { cursor, annotations, modifiers, malformed: 'annotation' };
-			argsText = source.slice(cursor + 1, close);
+			argsText = source.slice(argsOpen + 1, close);
 			cursor = close + 1;
+			annotationEnd = cursor;
 		}
 		annotations.push({
 			name,
 			argsText,
 			byteSpan: {
 				start: baseByte + byteOffset(source, start),
-				end: baseByte + byteOffset(source, cursor),
+				end: baseByte + byteOffset(source, annotationEnd),
 			},
 		});
 		cursor = skipSpace(masked, cursor);
