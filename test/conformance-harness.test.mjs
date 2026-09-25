@@ -22,6 +22,7 @@ const JAVA_FIXTURE = path.join(__dirname, 'fixtures', 'java-spring');
 const RUBY_FIXTURE = path.join(__dirname, 'fixtures', 'ruby-rails');
 const PYTHON_FIXTURE = path.join(__dirname, 'fixtures', 'python-fastapi');
 const TYPESCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-express');
+const NESTJS_FIXTURE = path.join(__dirname, 'fixtures', 'typescript-nestjs');
 const JAVASCRIPT_FIXTURE = path.join(__dirname, 'fixtures', 'javascript-express');
 
 function scratchCopyOf(fixtureDir) {
@@ -38,6 +39,7 @@ const ADAPTER_FIXTURES = {
 	'ruby-rails': RUBY_FIXTURE,
 	'python-fastapi': PYTHON_FIXTURE,
 	'typescript-express': TYPESCRIPT_FIXTURE,
+	'typescript-nestjs': NESTJS_FIXTURE,
 	'javascript-express': JAVASCRIPT_FIXTURE,
 	'generic-grep': JAVA_FIXTURE,
 };
