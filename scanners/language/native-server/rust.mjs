@@ -346,6 +346,7 @@ function parseActixRouteCalls(source, masked, start, end, prefix, file, diagnost
 
 function parseActix(source, masked, file, diagnostics) {
 	const routes = [];
+	if (!/\b(?:App::new|web::scope|web::(?:get|post|put|patch|delete|head|method)\s*\()/.test(masked)) return { routes };
 	const scopeRanges = [];
 	for (const m of masked.matchAll(/\bweb::scope\s*\(/g)) {
 		const open = m.index + m[0].lastIndexOf('(');
