@@ -41,7 +41,7 @@ test('T13 Hono descriptor is conservative until OpenAPI/runtime evidence exists'
 
 test('frozen Hono official README reference shape is detected at the pinned upstream version', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const root = path.resolve(here, '../fixtures/http-wave-bc/hono-official-readme');
+  const root = path.resolve(here, './fixtures/hono-official-readme');
   const detection = detectHonoRoot(root);
   assert.ok(detection);
   const report = scanHono(root, detection);
