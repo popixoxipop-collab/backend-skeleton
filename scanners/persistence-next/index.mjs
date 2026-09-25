@@ -1,5 +1,6 @@
 export * from './generation-handoff.mjs';
 export * from './model-facts-bridge.mjs';
+export * from './source-facts.mjs';
 export * from './ir.mjs';
 export * from './legacy.mjs';
 export * from './bindings.mjs';
