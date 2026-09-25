@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { bindingJson } from './identity.mjs';
 
 export const IDENTITY_CONSUMER_RESULT_VERSION = 'sbf.identity-consumer-result/1';
 
@@ -44,7 +45,7 @@ function parsePack(packBytes) {
 }
 
 function deepEqualJson(left, right) {
-	return JSON.stringify(left) === JSON.stringify(right);
+	return bindingJson(left) === bindingJson(right);
 }
 
 function expectedCases(pack) {
