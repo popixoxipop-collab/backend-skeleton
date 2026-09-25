@@ -3,6 +3,7 @@
 // validator itself (valid/invalid fixtures per schema), independent of any call site's wiring.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 
 test('state.schema.json: a minimal valid record passes, and the _repo sentinel feature_id is accepted', () => {
@@ -162,6 +163,25 @@ test('patch-approvals.schema.json: a strategy outside {patch-wrapper, null-means
 	const { ok } = validateAgainstSchema('patch-approvals.schema.json', {
 		schema: 'sbf.patch-approvals/1', feature_id: '001-widget-management',
 		approvals: [{ resource: 'Widget', field: 'ownerName', strategy: 'fetch-merge-submit', reason: 'because', at: '2026-01-01T00:00:00.000Z' }],
+	});
+	assert.equal(ok, false);
+});
+
+test('oracle-manifest.schema.json: the committed pinned corpus validates, including every Wave A adapter entry', () => {
+	const manifest = JSON.parse(fs.readFileSync(new URL('./fixtures/oracle-manifest.json', import.meta.url), 'utf8'));
+	const { ok, errors } = validateAgainstSchema('oracle-manifest.schema.json', manifest);
+	assert.equal(ok, true, formatSchemaErrors(errors).join('\n'));
+});
+
+test('oracle-manifest.schema.json: an adapter id outside the shipped registry enum is rejected', () => {
+	const { ok } = validateAgainstSchema('oracle-manifest.schema.json', {
+		contract: 'sbf.oracle-manifest/1',
+		adapters: {
+			'not-a-real-adapter': [{
+				id: 'bad', owner: 'example', repo: 'example', ref: '0'.repeat(40),
+				path: null, terms: ['x'], note: 'must fail schema validation',
+			}],
+		},
 	});
 	assert.equal(ok, false);
 });
