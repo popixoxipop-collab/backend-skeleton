@@ -1,0 +1,47 @@
+{
+  "schema": "bskel.scale-dispatch/1",
+  "dispatch_id": "T00-DISPATCH-2026-09-25-R1",
+  "issued_on": "2026-09-25",
+  "baseline_status": "SUBMITTED",
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+    "beval": "f87d442949be1ac81d00d47ab49fc0beccfc0424"
+  },
+  "t00_pr": 65,
+  "merge_policy": "draft-only-until-T00-approval",
+  "interface_freeze_task": "T00-04",
+  "existing_work": {
+    "bskel#63": "FREEZE_RECONCILE",
+    "bskel#62": "FREEZE_RECONCILE",
+    "becoder#7": "VERIFY_ONLY_NO_MERGE",
+    "beval#39": "VERIFY_DEFER",
+    "beval#40": "HOLD_BLOCKED_BY_39",
+    "beval#41": "CONTINUE_T16_OWNED_PATHS"
+  },
+  "tracks": {
+    "T01": "DRAFT_OWNED_PATHS_ONLY",
+    "T02": "DRAFT_OWNED_PATHS_ONLY",
+    "T03": "DRAFT_OWNED_PATHS_ONLY",
+    "T04": "DRAFT_OWNED_PATHS_ONLY",
+    "T05": "DRAFT_OWNED_PATHS_ONLY",
+    "T06": "DRAFT_OWNED_PATHS_ONLY",
+    "T07": "DRAFT_OWNED_PATHS_ONLY",
+    "T08": "DRAFT_OWNED_PATHS_ONLY",
+    "T09": "DRAFT_OWNED_PATHS_ONLY",
+    "T10": "DRAFT_OWNED_PATHS_ONLY",
+    "T11": "DRAFT_OWNED_PATHS_ONLY",
+    "T12": "DRAFT_OWNED_PATHS_ONLY",
+    "T13": "DRAFT_OWNED_PATHS_ONLY",
+    "T14": "DRAFT_OWNED_PATHS_ONLY",
+    "T15": "DRAFT_OWNED_PATHS_ONLY",
+    "T16": "DRAFT_OWNED_PATHS_ONLY",
+    "T17": "DRAFT_OWNED_PATHS_ONLY",
+    "T18": "DRAFT_OWNED_PATHS_ONLY",
+    "T19": "DRAFT_OWNED_PATHS_ONLY",
+    "T20": "DRAFT_OWNED_PATHS_ONLY",
+    "T21": "DRAFT_OWNED_PATHS_ONLY",
+    "T22": "DRAFT_OWNED_PATHS_ONLY",
+    "T23": "DRAFT_OWNED_PATHS_ONLY"
+  }
+}
