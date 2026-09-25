@@ -11,13 +11,14 @@ This file is a coordination snapshot for the 24-agent scale plan. It records wha
 | T08-03 Go/C# pilot | implemented in branch | Gin literal group/routes; ASP.NET Core Minimal + controller literal routes; dynamic/conventional unknowns |
 | T08-04 Rust pilot | implemented in branch | Axum literal route/nest/merge subset; Actix direct route/scope subset; raw-string/lifetime/cross-framework regressions |
 | T08-05 HTTP adapter composition | BLOCKED by planned interface freeze | do not edit `scanners/registry.mjs`, `scanners/index.mjs` or shared contract/capability schemas before T01/T02/T03 integration contract is accepted |
-| T08-06 platform packaging | partial | npm package inclusion (including `worker.mjs`) has a dedicated regression; compiler/toolchain backend availability is not yet certified |
+| T08-06 platform packaging | partial | npm package inclusion (including `worker.mjs`) passes on macOS and Windows; exact-head Linux CI and compiler/toolchain backend availability remain to be certified |
 
 ## Verified on EOE
 
 At branch head before this status-only update:
 
-- focused native-server suite: 35/35 PASS (including real Node worker process round-trips);
+- focused native-server suite: 35/35 PASS on macOS (including real Node worker process round-trips);
+- Windows native-server suite: 35/35 PASS on Alienware;
 - registry/conformance/package/native integration batch: 26/26 PASS;
 - `npm pack --dry-run --json`: native-server runtime modules present;
 - previous foundation head `a32d44b...`: full GitHub CI matrix PASS, with intentionally event-gated jobs skipped.
