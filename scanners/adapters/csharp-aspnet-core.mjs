@@ -197,6 +197,15 @@ function controllerRoutes(text, file, mapControllersEnabled) {
         const value = literalString(splitTopLevel(args)[0]);
         if (value == null) continue;
         actionTemplate = value;
+      } else {
+        // Official ASP.NET samples also place [Route("...")] on the action next to a
+        // parameterless [HttpGet]. Accept a single literal Route attribute in that same
+        // contiguous method-attribute cluster without interpreting unrelated metadata.
+        const beforeRoute = routeAttribute(attributeBlockBefore(body, am.index));
+        const afterStart = am.index + am[0].length;
+        const afterEnd = skipAttributes(body, afterStart);
+        const afterRoute = afterEnd == null ? null : routeAttribute(body.slice(afterStart, afterEnd));
+        actionTemplate = afterRoute ?? beforeRoute ?? '';
       }
       actionTemplate = replaceRouteTokens(actionTemplate, controllerName, method);
       endpoints.push({
@@ -231,7 +240,7 @@ function minimalApiBindings(text) {
   let changed = true;
   while (changed) {
     changed = false;
-    const groupRe = /\bvar\s+([A-Za-z_]\w*)\s*=\s*([A-Za-z_]\w*)\.MapGroup\s*\(\s*(@?"[^"]*")\s*\)\s*;/g;
+    const groupRe = /\b(?:var|RouteGroupBuilder)\s+([A-Za-z_]\w*)\s*=\s*([A-Za-z_]\w*)\.MapGroup\s*\(\s*(@?"[^"]*")\s*\)/g;
     for (const m of text.matchAll(groupRe)) {
       if (groups.has(m[1])) continue;
       const prefix = literalString(m[3]);
