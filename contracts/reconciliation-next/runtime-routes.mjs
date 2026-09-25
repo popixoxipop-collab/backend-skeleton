@@ -5,7 +5,7 @@
 // observation envelope. T09 only checks that the envelope is bound to the same runtime evidence and
 // compares route facts conservatively.
 
-import { canonicalRouteShape } from '../openapi.mjs';
+import { OPERATION_ID_RE, canonicalRouteShape } from '../openapi.mjs';
 import { attachEvidenceBinding } from './evidence-binding.mjs';
 import { hasOpenApiContextAudit } from './openapi-context.mjs';
 
@@ -13,6 +13,7 @@ const METHODS = Object.freeze(new Set([
   'GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH', 'TRACE',
 ]));
 const MAX_RUNTIME_ROUTES = 10000;
+const MAX_RUNTIME_ROUTE_PATH_LENGTH = 4096;
 
 function isString(value) {
   return typeof value === 'string' && value.length > 0;
@@ -25,10 +26,15 @@ function validateRoute(route, index) {
   if (!METHODS.has(route.method)) {
     return { ok: false, reason: 'runtime-route-' + index + '-invalid-method' };
   }
-  if (!isString(route.path) || !route.path.startsWith('/')) {
+  if (
+    !isString(route.path)
+    || !route.path.startsWith('/')
+    || route.path.length > MAX_RUNTIME_ROUTE_PATH_LENGTH
+    || /[\0\r\n]/.test(route.path)
+  ) {
     return { ok: false, reason: 'runtime-route-' + index + '-invalid-path' };
   }
-  if (route.operationId != null && !isString(route.operationId)) {
+  if (route.operationId != null && (!isString(route.operationId) || !OPERATION_ID_RE.test(route.operationId))) {
     return { ok: false, reason: 'runtime-route-' + index + '-invalid-operation-id' };
   }
   return {
