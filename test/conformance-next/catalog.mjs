@@ -1,4 +1,4 @@
-const ID_RE = /^NEG-([A-Z]+)-(\\d{2})$/;
+const ID_RE = /^NEG-([A-Z]+)-(\d{2})$/;
 const REQUIRED_CATEGORIES = Object.freeze({ ID: 6, PROJ: 6, ROUTE: 8, SCHEMA: 8, AUTH: 6, DB: 6, CACHE: 6, RUN: 8, GAME: 7, TRUST: 8, GEN: 5, RELEASE: 5 });
 const ALLOWED_STATUS = new Set(['specified-not-implemented', 'covered']);
 
