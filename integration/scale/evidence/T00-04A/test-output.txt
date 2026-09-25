@@ -1,0 +1,30 @@
+TAP version 13
+# Subtest: accepts only a fully satisfied 04A activation snapshot
+ok 1 - accepts only a fully satisfied 04A activation snapshot
+# Subtest: blocks an unaccepted baseline
+ok 2 - blocks an unaccepted baseline
+# Subtest: blocks main-head drift
+ok 3 - blocks main-head drift
+# Subtest: blocks queued baseline CI
+ok 4 - blocks queued baseline CI
+# Subtest: blocks missing independent review
+ok 5 - blocks missing independent review
+# Subtest: blocks identity scope violation
+ok 6 - blocks identity scope violation
+# Subtest: blocks semantic instead of exact-byte artifact identity
+ok 7 - blocks semantic instead of exact-byte artifact identity
+# Subtest: blocks capability vocabulary drift
+ok 8 - blocks capability vocabulary drift
+# Subtest: blocks premature certification wire promotion
+ok 9 - blocks premature certification wire promotion
+# Subtest: blocks capability scope violation
+ok 10 - blocks capability scope violation
+# Subtest: blocks weak lease policy
+ok 11 - blocks weak lease policy
+# Subtest: blocks runtime contract repair authority
+ok 12 - blocks runtime contract repair authority
+1..12
+# tests 12
+# pass 12
+# fail 0
+# skipped 0
