@@ -39,7 +39,7 @@ It currently accepts exact UTF-8 JSON export bytes with a bounded size and binds
 - engine;
 - evidence class;
 - engine version and platform;
-- producer ID/version/exact implementation SHA-256;
+- producer ID/version plus a declared implementation SHA-256 field (metadata only; not attestation);
 - exact export byte SHA-256 and byte length;
 - a non-authoritative payload descriptor containing only declared schema and top-level keys.
 
@@ -54,12 +54,13 @@ The allowed evidence classes deliberately stop short of runtime certification:
 The envelope hard-codes these claims to false:
 
 ```text
-runtime_behavior_verified = false
-causal_edges_verified      = false
-state_transitions_verified = false
+producer_identity_verified = false
+runtime_behavior_verified  = false
+causal_edges_verified       = false
+state_transitions_verified  = false
 ```
 
-Therefore the presence of an Unreal/Unity/Godot export artifact is never enough to claim runtime behavior or causality.
+Therefore the presence of an Unreal/Unity/Godot export artifact is never enough to claim producer attestation, runtime behavior or causality. T20/T16 must supply those evidence classes separately.
 
 Actual engine/editor execution remains a separate T20 target-runtime isolation task and future T17 engine-specific exporter task. T08 language facts may feed source-export producers, but this module does not import or execute T08 code.
 
