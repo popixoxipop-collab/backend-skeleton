@@ -65,3 +65,24 @@ test('scheduler rejects cycles, duplicate IDs and missing dependencies before wo
 	await assert.rejects(runTaskGraph([{ id: 'a' }, { id: 'a' }], never), /duplicate/);
 	await assert.rejects(runTaskGraph([{ id: 'a', dependsOn: ['missing'] }], never), /missing dependency/);
 });
+
+test('scheduler exposes backpressure metrics without changing task outcomes', async () => {
+	const report = await runTaskGraph([
+		{ id: 'a', estimatedBytes: 60 },
+		{ id: 'b', estimatedBytes: 60 },
+		{ id: 'c', estimatedBytes: 1 },
+	], async (task) => { await delay(task.id === 'a' ? 20 : 1); return task.id; }, { maxConcurrency: 2, maxEstimatedBytesInFlight: 60 });
+	assert.equal(report.metrics.passed, 3);
+	assert.ok(report.metrics.max_ready_queue >= 3);
+	assert.ok(report.metrics.byte_admission_deferrals > 0);
+	assert.ok(report.metrics.peak_estimated_bytes_in_flight <= 60);
+});
+
+test('scheduler counts hard resource and dependency blocks separately', async () => {
+	const report = await runTaskGraph([
+		{ id: 'too-large', estimatedBytes: 101 },
+		{ id: 'child', dependsOn: ['too-large'], estimatedBytes: 1 },
+	], async () => assert.fail('worker must not run'), { maxConcurrency: 1, maxEstimatedBytesInFlight: 100 });
+	assert.equal(report.metrics.resource_budget_blocked, 1);
+	assert.equal(report.metrics.dependency_blocked, 1);
+});
