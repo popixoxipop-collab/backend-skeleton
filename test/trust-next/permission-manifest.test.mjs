@@ -11,6 +11,7 @@ test('defaults are deny-by-default and bounded', () => {
   assert.deepEqual(result.value.write_roots, []);
   assert.deepEqual(result.value.network, { mode: 'deny', allow: [] });
   assert.deepEqual(result.value.process, { mode: 'deny', executables: [], max_children: 0 });
+  assert.deepEqual(result.value.devices, { mode: 'deny', allow: [] });
   const policy = compilePermissionPolicy(minimal());
   assert.equal(policy.canRead('src/app.mjs'), false);
   assert.equal(policy.canWrite('out/report.json'), false);
@@ -18,6 +19,7 @@ test('defaults are deny-by-default and bounded', () => {
   assert.equal(policy.canExecute('node'), false);
   assert.equal(policy.canReadEnv('LANG'), false);
   assert.equal(policy.canUseSecret('provider-token'), false);
+  assert.equal(policy.canUseDevice('gpu'), false);
 });
 
 test('read/write roots use path segment boundaries and reject traversal', () => {
@@ -363,4 +365,68 @@ test('permission expansion guard allows narrowing and rejects widening with stru
       && error.delta?.expansions.some((x) => x.permission === 'filesystem.read')
       && error.delta?.expansions.some((x) => x.permission === 'limits.wall_ms'),
   );
+});
+
+
+test('device grants are explicit classes and default deny', () => {
+  const policy = compilePermissionPolicy({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    devices: { mode: 'allowlist', allow: ['gpu', 'display', 'gpu'] },
+  });
+  assert.equal(policy.canUseDevice('gpu'), true);
+  assert.equal(policy.canUseDevice('display'), true);
+  assert.equal(policy.canUseDevice('camera'), false);
+  assert.deepEqual(policy.manifest.devices.allow, ['display', 'gpu']);
+
+  for (const devices of [
+    { mode: 'allowlist', allow: [] },
+    { mode: 'deny', allow: ['gpu'] },
+    { mode: 'allowlist', allow: ['all-devices'] },
+  ]) {
+    assert.equal(validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, devices }).ok, false);
+  }
+});
+
+test('native/runtime resource budgets are explicit positive integers', () => {
+  const result = validatePermissionManifest({
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    limits: {
+      wall_ms: 60_000,
+      cpu_ms: 45_000,
+      memory_bytes: 4_294_967_296,
+      pids: 64,
+      stdout_bytes: 2_097_152,
+      stderr_bytes: 2_097_152,
+      scratch_bytes: 10_737_418_240,
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.limits.cpu_ms, 45_000);
+  assert.equal(result.value.limits.memory_bytes, 4_294_967_296);
+  assert.equal(result.value.limits.pids, 64);
+  assert.equal(result.value.limits.scratch_bytes, 10_737_418_240);
+
+  for (const [key, value] of [['cpu_ms', 0], ['memory_bytes', -1], ['pids', 0], ['scratch_bytes', 0]]) {
+    const invalid = validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, limits: { [key]: value } });
+    assert.equal(invalid.ok, false, key);
+    assert.equal(invalid.errors.some((x) => x.code === 'INVALID_RESOURCE_LIMIT'), true, key);
+  }
+});
+
+test('permission diff treats new device grants and larger resource budgets as privilege expansion', () => {
+  const before = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    devices: { mode: 'deny', allow: [] },
+    limits: { cpu_ms: 10_000, memory_bytes: 1_073_741_824, pids: 16, scratch_bytes: 268_435_456 },
+  };
+  const after = {
+    schema: PERMISSION_MANIFEST_SCHEMA,
+    devices: { mode: 'allowlist', allow: ['gpu'] },
+    limits: { cpu_ms: 20_000, memory_bytes: 2_147_483_648, pids: 32, scratch_bytes: 536_870_912 },
+  };
+  const delta = diffPermissionManifests(before, after);
+  assert.equal(delta.expanded, true);
+  for (const permission of ['device.use', 'limits.cpu_ms', 'limits.memory_bytes', 'limits.pids', 'limits.scratch_bytes']) {
+    assert.equal(delta.expansions.some((x) => x.permission === permission), true, permission);
+  }
 });
