@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERMISSION_MANIFEST_DIGEST_FORMAT, PERMISSION_MANIFEST_SCHEMA, compilePermissionPolicy, diffPermissionManifests, permissionManifestDigest, selectApprovedEnvironment, serializePermissionManifest, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
+import { PERMISSION_MANIFEST_DIGEST_FORMAT, PERMISSION_MANIFEST_SCHEMA, assertNoPermissionExpansion, compilePermissionPolicy, diffPermissionManifests, permissionManifestDigest, selectApprovedEnvironment, serializePermissionManifest, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
 
 const minimal = () => ({ schema: PERMISSION_MANIFEST_SCHEMA });
 
@@ -348,4 +348,19 @@ test('permission manifests reject oversized collections and control-character ro
   for (const root of ['src\nsecret', 'src\tsecret', `x${'a'.repeat(4096)}`]) {
     assert.equal(validatePermissionManifest({ schema: PERMISSION_MANIFEST_SCHEMA, read_roots: [root] }).ok, false, JSON.stringify(root));
   }
+});
+
+
+test('permission expansion guard allows narrowing and rejects widening with structured delta', () => {
+  const broad = { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['src'], limits: { wall_ms: 20_000 } };
+  const narrow = { schema: PERMISSION_MANIFEST_SCHEMA, read_roots: ['src/api'], limits: { wall_ms: 10_000 } };
+  const reduction = assertNoPermissionExpansion(broad, narrow);
+  assert.equal(reduction.expanded, false);
+  assert.equal(reduction.reduced, true);
+  assert.throws(
+    () => assertNoPermissionExpansion(narrow, broad),
+    (error) => error?.code === 'PERMISSION_EXPANSION_REQUIRES_APPROVAL'
+      && error.delta?.expansions.some((x) => x.permission === 'filesystem.read')
+      && error.delta?.expansions.some((x) => x.permission === 'limits.wall_ms'),
+  );
 });
