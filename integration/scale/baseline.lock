@@ -18,9 +18,18 @@
       "node_engine": ">=18",
       "package_version": "1.9.0",
       "required_artifacts": [
-        {"path": "package.json", "git_blob_sha": "735a10bf6c274acb22759a620d57b3c5f2f69068"},
-        {"path": "package-lock.json", "git_blob_sha": "34da67575f01e97724c4b5ee944b67ae4435e003"},
-        {"path": ".github/workflows/ci.yml", "git_blob_sha": "11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089"}
+        {
+          "path": "package.json",
+          "git_blob_sha": "735a10bf6c274acb22759a620d57b3c5f2f69068"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "34da67575f01e97724c4b5ee944b67ae4435e003"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089"
+        }
       ],
       "test_commands": {
         "test": "node --test test/*.test.mjs",
@@ -62,9 +71,18 @@
       "node_engine": ">=18",
       "package_version": "0.5.0",
       "required_artifacts": [
-        {"path": "package.json", "git_blob_sha": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b"},
-        {"path": "package-lock.json", "git_blob_sha": "043a1fe96bd338fe81909be195519b8cf402d66a"},
-        {"path": ".github/workflows/ci.yml", "git_blob_sha": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4"}
+        {
+          "path": "package.json",
+          "git_blob_sha": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "043a1fe96bd338fe81909be195519b8cf402d66a"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4"
+        }
       ],
       "test_commands": {
         "test": "node --test test/*.test.mjs",
@@ -92,13 +110,22 @@
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
       "plan_snapshot_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
-      "head_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "head_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
       "node_engine": ">=20",
       "package_version": "0.1.0",
       "required_artifacts": [
-        {"path": "package.json", "git_blob_sha": "714575e9cbaff966e4fc00138da6317ef84ac2a4"},
-        {"path": "package-lock.json", "git_blob_sha": "a83092968a5833883ac74c5e3aad5c80f117d006"},
-        {"path": ".github/workflows/ci.yml", "git_blob_sha": "90dd1cc1317a8d3f3c619facf5c4346834fb7c15"}
+        {
+          "path": "package.json",
+          "git_blob_sha": "714575e9cbaff966e4fc00138da6317ef84ac2a4"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "a83092968a5833883ac74c5e3aad5c80f117d006"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "8f5aeb2110101f84d97a305259bed54ee8d9ddbc"
+        }
       ],
       "test_commands": {
         "test": "node --test test/*.test.mjs",
@@ -117,13 +144,14 @@
       },
       "ci_evidence": {
         "workflow": "ci",
-        "run_id": 36054404469,
-        "run_number": 792,
+        "run_id": 36080236800,
+        "run_number": 865,
         "event": "push",
-        "status": "completed",
-        "conclusion": "success"
+        "status": "queued",
+        "conclusion": null
       },
-      "known_exact_head_ci_failures": []
+      "known_exact_head_ci_failures": [],
+      "baseline_delta": "main advanced after T00-01 submission via merged Browser Oracle PR #39; downstream work must consume merge commit 5bdecbcb... and must not treat queued push CI #865 as passed"
     }
   ],
   "policy": {
@@ -131,6 +159,8 @@
     "requires_exact_default_branch": true,
     "requires_exact_head_sha": true,
     "requires_artifact_blob_identity": true,
-    "ci_success_is_historical_evidence_not_a_substitute_for_task_specific_tests": true
-  }
+    "ci_success_is_historical_evidence_not_a_substitute_for_task_specific_tests": true,
+    "baseline_acceptance_requires_all_current_exact_head_ci_success": true
+  },
+  "rebaseline_epoch": 2
 }
