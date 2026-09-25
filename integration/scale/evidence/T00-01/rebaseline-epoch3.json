@@ -1,0 +1,27 @@
+{
+  "schema": "bskel.scale-baseline-revision/1",
+  "task_id": "T00-01",
+  "epoch": 3,
+  "observed_on": "2026-09-25",
+  "cause": {
+    "repo": "popixoxipop-collab/Backend-evaluation",
+    "pr": 40,
+    "merged": true,
+    "prior_main": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+    "pr_head": "ba428922640e71604ad5edd4aec62faf503da268",
+    "merge_commit": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+  },
+  "current_exact_head_ci": {
+    "run_id": 36083709046,
+    "run_number": 868,
+    "status": "queued",
+    "conclusion": null
+  },
+  "artifact_blobs": {
+    "package.json": "714575e9cbaff966e4fc00138da6317ef84ac2a4",
+    "package-lock.json": "a83092968a5833883ac74c5e3aad5c80f117d006",
+    ".github/workflows/ci.yml": "c1ac2ad7dc8e32a9bfe2820d3a69452b12089ad3"
+  },
+  "disposition": "SUBMITTED_NOT_ACCEPTED",
+  "note": "A merge is not verification. Epoch 3 remains blocked until exact-head push CI and independent review are complete."
+}

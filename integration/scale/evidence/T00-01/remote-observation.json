@@ -56,7 +56,7 @@
     {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "head_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
       "artifacts": [
         {
           "path": "package.json",
@@ -68,24 +68,24 @@
         },
         {
           "path": ".github/workflows/ci.yml",
-          "git_blob_sha": "8f5aeb2110101f84d97a305259bed54ee8d9ddbc"
+          "git_blob_sha": "c1ac2ad7dc8e32a9bfe2820d3a69452b12089ad3"
         }
       ],
       "exact_head_ci": {
-        "run_id": 36080236800,
+        "run_id": 36083709046,
         "status": "queued",
         "conclusion": null
       },
       "dirty": null,
       "dirty_note": "remote GitHub observation cannot prove a future worker worktree is clean",
       "merge_event": {
-        "pr": 39,
-        "head_sha": "00792c229fc3d67ec5d4ff248aaf720f7d09defa",
-        "merge_commit_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
-        "merged_at": "2026-09-25T01:02:11Z",
-        "external_exact_source_verification": "backend-decoder run #19 success per merged PR body"
+        "pr": 40,
+        "head_sha": "ba428922640e71604ad5edd4aec62faf503da268",
+        "merge_commit_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+        "merged_at": "2026-09-25T01:49:57Z",
+        "parent_main": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
       }
     }
   ],
-  "rebaseline_epoch": 2
+  "rebaseline_epoch": 3
 }

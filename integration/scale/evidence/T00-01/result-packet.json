@@ -12,7 +12,7 @@
   "baseline": {
     "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
     "becoder": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
-    "beval": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c"
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
   },
   "test_runs": [
     {
@@ -80,7 +80,7 @@
   "known_limitations": [
     "GitHub remote state cannot prove a future local checkout is clean; the verifier therefore requires dirty=false in the worker observation and rejects unknown state.",
     "T00-01 does not rerun the three product test suites; it records exact-head CI evidence and package-declared commands.",
-    "Backend-evaluation main changed after initial submission; epoch 2 rebaseline is intentionally not ACCEPTED while exact-head push CI #865 is queued."
+    "Backend-evaluation main advanced again after epoch 2 via merged Repair Loop PR #40; epoch 3 is intentionally not ACCEPTED while exact-head push CI #868 is queued."
   ],
   "rollback": "Delete the integration/scale bootstrap branch/PR; no product entrypoint, schema, package manifest, lockfile, or runtime behavior is modified.",
   "rebaseline_history": [
@@ -96,7 +96,20 @@
         "conclusion": null
       },
       "acceptance_effect": "T00-01 remains SUBMITTED until current exact-head CI is successful and independent review completes"
+    },
+    {
+      "epoch": 3,
+      "reason": "Backend-evaluation PR #40 merged after epoch 2 baseline",
+      "prior_beval_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "current_beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "current_push_ci": {
+        "run_id": 36083709046,
+        "run_number": 868,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until current exact-head CI is successful and independent review completes"
     }
   ],
-  "changed_file_hashes_note": "These hashes describe the initial T00-01 submission before rebaseline epoch 2; current file identity is the Git commit/blob identity of the rebaseline commit."
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-3 rebaseline branch."
 }
