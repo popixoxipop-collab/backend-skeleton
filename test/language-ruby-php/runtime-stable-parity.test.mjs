@@ -18,6 +18,15 @@ test('T07 Rails runtime snapshot parser matches the stable adapter runtime surfa
     fs.mkdirSync(path.join(root, 'config'), { recursive: true });
     fs.writeFileSync(path.join(root, 'config', 'application.rb'), 'module App; class Application < Rails::Application; end; end\n');
     fs.writeFileSync(path.join(root, 'config', 'routes.rb'), 'Rails.application.routes.draw do\nend\n');
+    fs.mkdirSync(path.join(root, 'app', 'controllers', 'api'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'app', 'controllers', 'api', 'articles_controller.rb'),
+      'module Api; class ArticlesController < ApplicationController; end; end\n',
+    );
+    fs.writeFileSync(
+      path.join(root, 'app', 'controllers', 'health_controller.rb'),
+      'class HealthController < ApplicationController; end\n',
+    );
     fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
 
     const raw = [
