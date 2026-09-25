@@ -1,0 +1,498 @@
+{
+  "contract": "sbf.qa-source-goldens/1",
+  "goldens": [
+    {
+      "golden_id": "fixture-java-spring-manual-v1",
+      "corpus_id": "fixture-java-spring",
+      "adapter_id": "java-spring",
+      "scope": "selected-source-facts",
+      "completeness_claim": false,
+      "authored_by": "T19-source-inspection-v1",
+      "generated_by_candidate": false,
+      "certification_eligible": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "fixture_root": "test/fixtures/java-spring"
+      },
+      "assertions": [
+        {
+          "id": "spring-org-base-path",
+          "kind": "http-controller-base-path",
+          "expected": {
+            "controller": "OrganizationController",
+            "path": "/organizations"
+          },
+          "source_ref": {
+            "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/OrganizationController.java",
+            "git_blob_sha": "aca463e64f3037c570bcf4070f7a8206ddbd91c5",
+            "selector": "@RequestMapping(\"/organizations\")"
+          }
+        },
+        {
+          "id": "spring-find-org",
+          "kind": "http-operation",
+          "expected": {
+            "controller": "OrganizationController",
+            "method": "GET",
+            "path": "/organizations/{organizationId}",
+            "operation_id": "findOrganization",
+            "handler": "findOrganization",
+            "path_param": {
+              "name": "organizationId",
+              "type": "UUID"
+            }
+          },
+          "source_ref": {
+            "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/OrganizationController.java",
+            "git_blob_sha": "aca463e64f3037c570bcf4070f7a8206ddbd91c5",
+            "selector": "operationId = \"findOrganization\" + @GetMapping(\"/{organizationId}\")"
+          }
+        },
+        {
+          "id": "spring-org-entity",
+          "kind": "persistence-entity",
+          "expected": {
+            "entity": "Organization",
+            "table": "organizations",
+            "primary_key": {
+              "field": "id",
+              "type": "UUID"
+            }
+          },
+          "source_ref": {
+            "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/domain/Organization.java",
+            "git_blob_sha": "401ce9fd2dd5c8c7d0a0c4b35fefdb404f0bb648",
+            "selector": "@Entity + @Table(name = \"organizations\") + @Id private UUID id"
+          }
+        },
+        {
+          "id": "spring-org-status-enum-field",
+          "kind": "entity-field",
+          "expected": {
+            "entity": "Organization",
+            "field": "status",
+            "type": "OrganizationStatus",
+            "enum_storage": "STRING"
+          },
+          "source_ref": {
+            "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/domain/Organization.java",
+            "git_blob_sha": "401ce9fd2dd5c8c7d0a0c4b35fefdb404f0bb648",
+            "selector": "@Enumerated(EnumType.STRING)"
+          }
+        },
+        {
+          "id": "spring-global-prefix-signal",
+          "kind": "global-path-prefix-declaration",
+          "expected": {
+            "prefix": "/api/v0",
+            "base_package": "com.example.app.domain",
+            "final_route_resolution_claim": false
+          },
+          "source_ref": {
+            "path": "test/fixtures/java-spring/src/main/java/com/example/app/global/config/ApiPathConfig.java",
+            "git_blob_sha": "5873b09ba71f28fd180f2de5933a06ee4ba32666",
+            "selector": "addPathPrefix(\"/api/v0\", HandlerTypePredicate.forBasePackage(\"com.example.app.domain\"))"
+          }
+        }
+      ],
+      "limitations": [
+        "Selected source facts only; does not enumerate all Spring controllers/endpoints.",
+        "Global prefix assertion records the declaration only and does not independently claim every effective runtime route."
+      ]
+    },
+    {
+      "golden_id": "fixture-python-fastapi-manual-v1",
+      "corpus_id": "fixture-python-fastapi",
+      "adapter_id": "python-fastapi",
+      "scope": "selected-source-facts",
+      "completeness_claim": false,
+      "authored_by": "T19-source-inspection-v1",
+      "generated_by_candidate": false,
+      "certification_eligible": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "fixture_root": "test/fixtures/python-fastapi"
+      },
+      "assertions": [
+        {
+          "id": "fastapi-router-prefix",
+          "kind": "http-router-prefix",
+          "expected": {
+            "router": "router",
+            "prefix": "/items",
+            "tags": [
+              "items"
+            ]
+          },
+          "source_ref": {
+            "path": "test/fixtures/python-fastapi/backend/app/api/items.py",
+            "git_blob_sha": "033f99c4e9e330b06f9e4985665448f9182ad477",
+            "selector": "APIRouter(prefix=\"/items\", tags=[\"items\"])"
+          }
+        },
+        {
+          "id": "fastapi-read-item",
+          "kind": "http-operation",
+          "expected": {
+            "router": "router",
+            "method": "GET",
+            "route_path": "/{id}",
+            "handler": "read_item",
+            "response_model": "ItemPublic",
+            "parameter": {
+              "name": "id",
+              "type": "str"
+            }
+          },
+          "source_ref": {
+            "path": "test/fixtures/python-fastapi/backend/app/api/items.py",
+            "git_blob_sha": "033f99c4e9e330b06f9e4985665448f9182ad477",
+            "selector": "@router.get(\"/{id}\", response_model=ItemPublic)"
+          }
+        },
+        {
+          "id": "fastapi-item-entity",
+          "kind": "persistence-entity",
+          "expected": {
+            "entity": "Item",
+            "table_model": true,
+            "primary_key": {
+              "field": "id",
+              "type": "uuid.UUID",
+              "generated_by": "uuid.uuid4"
+            }
+          },
+          "source_ref": {
+            "path": "test/fixtures/python-fastapi/backend/app/models.py",
+            "git_blob_sha": "533187e591251d8eaca539ed8b7133d2339cbf05",
+            "selector": "class Item(SQLModel, table=True) + Field(default_factory=uuid.uuid4, primary_key=True)"
+          }
+        },
+        {
+          "id": "fastapi-public-dto",
+          "kind": "dto-shape",
+          "expected": {
+            "dto": "ItemPublic",
+            "fields": [
+              {
+                "name": "id",
+                "type": "uuid.UUID"
+              },
+              {
+                "name": "title",
+                "type": "str"
+              },
+              {
+                "name": "internal_note",
+                "type": "str"
+              }
+            ],
+            "excluded_from_source_shape": [
+              "hashed_password"
+            ]
+          },
+          "source_ref": {
+            "path": "test/fixtures/python-fastapi/backend/app/models.py",
+            "git_blob_sha": "533187e591251d8eaca539ed8b7133d2339cbf05",
+            "selector": "class ItemPublic(SQLModel)"
+          }
+        }
+      ],
+      "limitations": [
+        "Selected source facts only; no runtime OpenAPI/operationId claim.",
+        "The id parameter annotation in the route is str while the entity primary key source type is uuid.UUID; the golden preserves both facts without reconciling them."
+      ]
+    },
+    {
+      "golden_id": "fixture-typescript-express-manual-v1",
+      "corpus_id": "fixture-typescript-express",
+      "adapter_id": "typescript-express",
+      "scope": "selected-source-facts",
+      "completeness_claim": false,
+      "authored_by": "T19-source-inspection-v1",
+      "generated_by_candidate": false,
+      "certification_eligible": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "fixture_root": "test/fixtures/typescript-express"
+      },
+      "assertions": [
+        {
+          "id": "ts-express-v1-mount",
+          "kind": "router-mount",
+          "expected": {
+            "mount_path": "/v1",
+            "child_import": "./v1"
+          },
+          "source_ref": {
+            "path": "test/fixtures/typescript-express/backend/src/routes/index.ts",
+            "git_blob_sha": "555972394cca777d6246a4ade7b8411039f1f3af",
+            "selector": "router.use(`/v1`, v1)"
+          }
+        },
+        {
+          "id": "ts-express-users-mount",
+          "kind": "router-mount",
+          "expected": {
+            "mount_path": "/users",
+            "child_import": "./users"
+          },
+          "source_ref": {
+            "path": "test/fixtures/typescript-express/backend/src/routes/v1/index.ts",
+            "git_blob_sha": "3de02a84a1510612d65e990889ac187ef98a35c9",
+            "selector": "router.use('/users', users)"
+          }
+        },
+        {
+          "id": "ts-express-user-show",
+          "kind": "http-operation",
+          "expected": {
+            "method": "GET",
+            "route_path": "/:id([0-9]+)",
+            "handler": "show",
+            "middleware_count": 2
+          },
+          "source_ref": {
+            "path": "test/fixtures/typescript-express/backend/src/routes/v1/users.ts",
+            "git_blob_sha": "c14fd0408c37ac2ae3f5843cc51dad1f3d9f194f",
+            "selector": "router.get('/:id([0-9]+)', [checkJwt, checkRole(['ADMINISTRATOR'], true)], show)"
+          }
+        },
+        {
+          "id": "ts-express-user-entity",
+          "kind": "persistence-entity",
+          "expected": {
+            "entity": "User",
+            "table": "users",
+            "primary_key": {
+              "field": "id",
+              "strategy": "uuid",
+              "typescript_type": "string"
+            }
+          },
+          "source_ref": {
+            "path": "test/fixtures/typescript-express/backend/src/orm/entities/User.ts",
+            "git_blob_sha": "98713edfb02bf276c12aeef8edc150985a0d3fd5",
+            "selector": "@Entity('users') + @PrimaryGeneratedColumn('uuid') id!: string"
+          }
+        }
+      ],
+      "limitations": [
+        "Selected source facts only; no source operationId is asserted.",
+        "Nested mounts are recorded separately; final absolute path composition is a candidate behavior to compare, not authored into the golden as an unobserved runtime fact."
+      ]
+    },
+    {
+      "golden_id": "fixture-javascript-express-manual-v1",
+      "corpus_id": "fixture-javascript-express",
+      "adapter_id": "javascript-express",
+      "scope": "selected-source-facts",
+      "completeness_claim": false,
+      "authored_by": "T19-source-inspection-v1",
+      "generated_by_candidate": false,
+      "certification_eligible": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "fixture_root": "test/fixtures/javascript-express"
+      },
+      "assertions": [
+        {
+          "id": "js-express-api-mount",
+          "kind": "router-mount",
+          "expected": {
+            "parent": "app",
+            "mount_path": "/api",
+            "child": "route"
+          },
+          "source_ref": {
+            "path": "test/fixtures/javascript-express/backend/src/app.js",
+            "git_blob_sha": "6b05af20de42e7301f22b7e2ba31326537eeba94",
+            "selector": "app.use('/api', route)"
+          }
+        },
+        {
+          "id": "js-express-user-mount",
+          "kind": "router-mount",
+          "expected": {
+            "parent": "route",
+            "mount_path": "/user",
+            "child": "userRoute"
+          },
+          "source_ref": {
+            "path": "test/fixtures/javascript-express/backend/src/app.js",
+            "git_blob_sha": "6b05af20de42e7301f22b7e2ba31326537eeba94",
+            "selector": "route.use('/user', userRoute)"
+          }
+        },
+        {
+          "id": "js-express-user-list",
+          "kind": "http-operation",
+          "expected": {
+            "method": "GET",
+            "route_path": "/list",
+            "handler": "listUsers"
+          },
+          "source_ref": {
+            "path": "test/fixtures/javascript-express/backend/src/routes/user.route.js",
+            "git_blob_sha": "96b6cc8f583813009311b0164ad59e568d2a5255",
+            "selector": "router.get('/list', [verifyToken, requireRole(['admin'], true)], listUsers)"
+          }
+        },
+        {
+          "id": "js-express-user-get",
+          "kind": "http-operation",
+          "expected": {
+            "method": "GET",
+            "route_path": "/:userUid",
+            "handler": "getUser"
+          },
+          "source_ref": {
+            "path": "test/fixtures/javascript-express/backend/src/routes/user.route.js",
+            "git_blob_sha": "96b6cc8f583813009311b0164ad59e568d2a5255",
+            "selector": "router.get('/:userUid', verifyToken, getUser)"
+          }
+        },
+        {
+          "id": "js-express-user-patch",
+          "kind": "http-operation",
+          "expected": {
+            "method": "PATCH",
+            "route_path": "/:userUid",
+            "handler": "updateUser"
+          },
+          "source_ref": {
+            "path": "test/fixtures/javascript-express/backend/src/routes/user.route.js",
+            "git_blob_sha": "96b6cc8f583813009311b0164ad59e568d2a5255",
+            "selector": "router.patch('/:userUid', verifyToken, updateUser)"
+          }
+        }
+      ],
+      "limitations": [
+        "Selected source facts only; no ORM/persistence capability claim.",
+        "Mount edges and leaf routes are source facts; final absolute path composition is left to differential verification."
+      ]
+    },
+    {
+      "golden_id": "fixture-ruby-rails-manual-v1",
+      "corpus_id": "fixture-ruby-rails",
+      "adapter_id": "ruby-rails",
+      "scope": "selected-source-facts",
+      "completeness_claim": false,
+      "authored_by": "T19-source-inspection-v1",
+      "generated_by_candidate": false,
+      "certification_eligible": false,
+      "source": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "fixture_root": "test/fixtures/ruby-rails"
+      },
+      "assertions": [
+        {
+          "id": "rails-articles-resources",
+          "kind": "rails-route-declaration",
+          "expected": {
+            "namespace": [
+              "api",
+              "v1"
+            ],
+            "resource": "articles",
+            "actions": [
+              "index",
+              "show",
+              "create",
+              "update",
+              "destroy"
+            ]
+          },
+          "source_ref": {
+            "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+            "git_blob_sha": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+            "selector": "resources :articles, only: %i[index show create update destroy]"
+          }
+        },
+        {
+          "id": "rails-article-extra-routes",
+          "kind": "rails-route-declaration",
+          "expected": {
+            "member_get": "preview",
+            "collection_get": "featured",
+            "controller": "articles"
+          },
+          "source_ref": {
+            "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+            "git_blob_sha": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+            "selector": "member get \"preview\" + collection get \"featured\""
+          }
+        },
+        {
+          "id": "rails-profile-resource",
+          "kind": "rails-route-declaration",
+          "expected": {
+            "singleton_resource": "profile",
+            "actions": [
+              "show",
+              "update"
+            ],
+            "controller": "profiles"
+          },
+          "source_ref": {
+            "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+            "git_blob_sha": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+            "selector": "resource :profile, only: %i[show update], controller: \"profiles\""
+          }
+        },
+        {
+          "id": "rails-health",
+          "kind": "http-operation-declaration",
+          "expected": {
+            "method": "GET",
+            "path": "/health",
+            "controller_action": "health#show"
+          },
+          "source_ref": {
+            "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+            "git_blob_sha": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+            "selector": "get \"/health\", to: \"health#show\""
+          }
+        },
+        {
+          "id": "rails-dynamic-route",
+          "kind": "dynamic-route-declaration",
+          "expected": {
+            "method": "GET",
+            "contains_interpolation": true,
+            "controller_action": "health#show",
+            "literal_final_path_claim": false
+          },
+          "source_ref": {
+            "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+            "git_blob_sha": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+            "selector": "get \"/dynamic/#{ENV.fetch('TENANT', 'default')}\""
+          }
+        },
+        {
+          "id": "rails-article-model",
+          "kind": "persistence-entity",
+          "expected": {
+            "entity": "Article",
+            "table": "published_articles",
+            "primary_key": "article_id"
+          },
+          "source_ref": {
+            "path": "test/fixtures/ruby-rails/backend/app/models/article.rb",
+            "git_blob_sha": "a64f7ac0d18c6514271c2d67f1553cdc6735ff97",
+            "selector": "self.table_name = \"published_articles\" + self.primary_key = \"article_id\""
+          }
+        }
+      ],
+      "limitations": [
+        "Selected source facts only; concerns and dynamic DSL are not expanded into complete runtime routes.",
+        "The interpolated dynamic route is intentionally recorded as dynamic rather than guessed to one literal tenant path."
+      ]
+    }
+  ]
+}
