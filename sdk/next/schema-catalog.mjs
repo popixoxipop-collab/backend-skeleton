@@ -7,6 +7,7 @@ export const SDK_SCHEMA_IDS = Object.freeze({
 	conformance: 'urn:sbf:adapter-sdk-conformance:1',
 	packageInventory: 'urn:sbf:adapter-package-inventory:1',
 	supportMatrix: 'urn:sbf:support-matrix:1',
+	submissionReview: 'urn:sbf:adapter-submission-review:1',
 });
 
 export const SDK_SCHEMA_FILES = Object.freeze({
@@ -18,4 +19,5 @@ export const SDK_SCHEMA_FILES = Object.freeze({
 	conformance: 'schemas/adapter-sdk-conformance.schema.json',
 	packageInventory: 'schemas/adapter-package-inventory.schema.json',
 	supportMatrix: 'schemas/support-matrix.schema.json',
+	submissionReview: 'schemas/adapter-submission-review.schema.json',
 });
