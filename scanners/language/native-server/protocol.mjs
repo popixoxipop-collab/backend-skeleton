@@ -36,7 +36,7 @@ export function normalizeBudget(input = {}) {
 
 function validateSourceRef(source) {
 	if (!source || typeof source !== 'object' || Array.isArray(source)) throw new TypeError('route source must be an object');
-	if (typeof source.file !== 'string' || !source.file || source.file.includes('\0')) throw new TypeError('route source.file must be a non-empty logical path');
+	if (typeof source.file !== 'string' || !source.file || /[\0\r\n]/.test(source.file)) throw new TypeError('route source.file must be a non-empty single-line logical path');
 	if (source.line != null && (!Number.isSafeInteger(source.line) || source.line < 1)) throw new TypeError('route source.line must be null or a positive safe integer');
 	if (!Number.isSafeInteger(source.index) || source.index < 0) throw new TypeError('route source.index must be a non-negative safe integer');
 }
@@ -44,7 +44,7 @@ function validateSourceRef(source) {
 function validateRoute(route) {
 	if (!route || typeof route !== 'object' || Array.isArray(route)) throw new TypeError('route fact must be an object');
 	if (typeof route.method !== 'string' || !/^[A-Z]+$/.test(route.method)) throw new TypeError('route method must be an uppercase token');
-	if (typeof route.path !== 'string' || !route.path.startsWith('/')) throw new TypeError('route path must be an absolute literal path');
+	if (typeof route.path !== 'string' || !route.path.startsWith('/') || /[\0\r\n]/.test(route.path)) throw new TypeError('route path must be an absolute single-line literal path');
 	if (route.handler != null && (typeof route.handler !== 'string' || !route.handler)) throw new TypeError('route handler must be null or a non-empty string');
 	if (typeof route.framework !== 'string' || !route.framework) throw new TypeError('route framework must be a non-empty string');
 	if (typeof route.confidence !== 'string' || !route.confidence) throw new TypeError('route confidence must be a non-empty string');
@@ -55,9 +55,18 @@ function validateDiagnostic(diagnostic) {
 	if (!diagnostic || typeof diagnostic !== 'object' || Array.isArray(diagnostic)) throw new TypeError('diagnostic must be an object');
 	if (typeof diagnostic.code !== 'string' || !diagnostic.code) throw new TypeError('diagnostic code must be a non-empty string');
 	if (!['unknown', 'warning', 'error', 'info'].includes(diagnostic.severity)) throw new TypeError('diagnostic severity is invalid');
-	if (typeof diagnostic.file !== 'string' || !diagnostic.file || diagnostic.file.includes('\0')) throw new TypeError('diagnostic file must be a non-empty logical path');
+	if (typeof diagnostic.file !== 'string' || !diagnostic.file || /[\0\r\n]/.test(diagnostic.file)) throw new TypeError('diagnostic file must be a non-empty single-line logical path');
 	if (diagnostic.line != null && (!Number.isSafeInteger(diagnostic.line) || diagnostic.line < 1)) throw new TypeError('diagnostic line must be null or a positive safe integer');
 	if (typeof diagnostic.message !== 'string' || !diagnostic.message) throw new TypeError('diagnostic message must be a non-empty string');
+}
+
+function validateGroup(group) {
+	if (!group || typeof group !== 'object' || Array.isArray(group)) throw new TypeError('group fact must be an object');
+	for (const key of ['variable', 'parent', 'prefix', 'path']) {
+		if (typeof group[key] !== 'string' || !group[key] || /[\0\r\n]/.test(group[key])) throw new TypeError(`group ${key} must be a non-empty single-line string`);
+	}
+	if (!group.prefix.startsWith('/')) throw new TypeError('group prefix must be an absolute path');
+	validateSourceRef(group.source);
 }
 
 export function validateMessage(message) {
@@ -69,7 +78,7 @@ export function validateMessage(message) {
 	}
 	if (message.kind === 'analyze-request') {
 		if (!LANGUAGES.has(message.language)) throw new TypeError(`unsupported language ${JSON.stringify(message.language)}`);
-		if (typeof message.file !== 'string' || !message.file || message.file.includes('\0')) throw new TypeError('file must be a non-empty logical path');
+		if (typeof message.file !== 'string' || !message.file || /[\0\r\n]/.test(message.file)) throw new TypeError('file must be a non-empty single-line logical path');
 		if (typeof message.source !== 'string') throw new TypeError('source must be a string');
 		normalizeBudget(message.budget ?? {});
 	}
@@ -80,6 +89,8 @@ export function validateMessage(message) {
 		for (const diagnostic of message.diagnostics) validateDiagnostic(diagnostic);
 		if (typeof message.backend !== 'string' || !message.backend) throw new TypeError('analyze-response backend must be a non-empty string');
 		if (message.groups != null && !Array.isArray(message.groups)) throw new TypeError('analyze-response groups must be an array when present');
+		for (const group of message.groups ?? []) validateGroup(group);
+		if (message.framework != null && (typeof message.framework !== 'string' || !message.framework)) throw new TypeError('analyze-response framework must be null or a non-empty string');
 		if (message.limitations != null && (!Array.isArray(message.limitations) || message.limitations.some((x) => typeof x !== 'string'))) throw new TypeError('analyze-response limitations must be string[] when present');
 	}
 	if (message.kind === 'error' && (typeof message.code !== 'string' || typeof message.message !== 'string')) {
