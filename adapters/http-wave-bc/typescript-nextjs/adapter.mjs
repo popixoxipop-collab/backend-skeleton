@@ -165,7 +165,7 @@ function appRouteFiles(root) {
 
 function pagesApiFiles(root) {
   return listFilesRecursive(root)
-    .filter((file) => SOURCE_EXTENSIONS.has(path.extname(file)))
+    .filter((file) => SOURCE_EXTENSIONS.has(path.extname(file)) && !file.endsWith('.d.ts'))
     .sort();
 }
 
