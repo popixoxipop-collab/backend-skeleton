@@ -231,7 +231,8 @@ function extractViewSets(text, file) {
       });
     }
 
-    out.set(className, { className, actions, extra, file });
+    const customLookup = /^\s+(?:lookup_field|lookup_url_kwarg|lookup_value_regex|lookup_value_converter)\s*=/m.test(body);
+    out.set(className, { className, actions, extra, customLookup, file });
   }
   return out;
 }
@@ -305,12 +306,15 @@ function endpointsForRegistration(reg, router, viewset, mount) {
 
   if (viewset.actions.has('list')) add('GET', collection, 'list');
   if (viewset.actions.has('create')) add('POST', collection, 'create');
-  if (viewset.actions.has('retrieve')) add('GET', detail, 'retrieve');
-  if (viewset.actions.has('update')) add('PUT', detail, 'update');
-  if (viewset.actions.has('partial_update')) add('PATCH', detail, 'partial_update');
-  if (viewset.actions.has('destroy')) add('DELETE', detail, 'destroy');
+  if (!viewset.customLookup) {
+    if (viewset.actions.has('retrieve')) add('GET', detail, 'retrieve');
+    if (viewset.actions.has('update')) add('PUT', detail, 'update');
+    if (viewset.actions.has('partial_update')) add('PATCH', detail, 'partial_update');
+    if (viewset.actions.has('destroy')) add('DELETE', detail, 'destroy');
+  }
 
   for (const action of viewset.extra) {
+    if (action.detail && viewset.customLookup) continue;
     const p = action.detail
       ? urlPath([mount, reg.prefix, '{pk}', action.urlPath], router.trailingSlash)
       : urlPath([mount, reg.prefix, action.urlPath], router.trailingSlash);
