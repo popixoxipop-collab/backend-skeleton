@@ -75,15 +75,34 @@ Unicode non-normalization continues to use the existing golden vectors. Precompo
 
 The pack contains legacy ContractRef/ActionRef/FieldRef cases, the HTTP-only envelope, a valid-but-different operation ID that must remain different, fail-closed negatives, and exact-byte artifact vectors.
 
+## Independent consumer result
+
+T15/T16 and future consumers must not report only a boolean pass. The reviewed handoff consists of:
+
+- `schemas/next/identity-conformance.json` — the exact input/expected vectors;
+- `schemas/next/identity-consumer-result.schema.json` — the consumer-owned execution result shape;
+- `contracts/next/consumer-conformance.mjs` — the T01 verifier used after a consumer submits its result.
+
+A result binds the consumer repository + exact 40-hex commit, implementation path, exact SHA-256 of the conformance-pack bytes, command/exit code, and one observation for every reviewed vector. It must explicitly state that bskel was neither imported nor spawned at runtime.
+
+The verifier rejects stale/substituted pack bytes, missing/duplicate/unexpected vectors, operation-ID repair, exact-byte artifact substitution, negative cases that no longer fail closed, summary tampering, and any bskel runtime dependency. JSON object key order is not identity; ArtifactRef and the pack SHA-256 preserve exact-byte boundaries separately.
+
+This result contract is **candidate pre-freeze**. A valid result proves conformance to these reviewed vectors at the named consumer commit; it does not by itself grant T00-04 activation or runtime/business-behavior certification.
+
 ## Files owned by this T01 slice
 
 - `contracts/next/identity.mjs`
+- `contracts/next/consumer-conformance.mjs`
 - `schemas/next/artifact-ref.schema.json`
 - `schemas/next/identity-envelope.schema.json`
 - `schemas/next/identity.golden.json`
 - `schemas/next/identity-conformance.json`
+- `schemas/next/identity-consumer-result.schema.json`
 - `test/contract-next/contract-identity-next.test.mjs`
 - `test/contract-next/identity-conformance.test.mjs`
+- `test/contract-next/consumer-conformance.test.mjs`
+- `test/contract-next/package-identity-next.test.mjs`
+- `test/contract-next/t01-compatibility-evidence.json`
 - `contracts/next/README.md`
 
 No stable writer, CLI entry point, adapter descriptor, package lock, `sbf_contract: "9"` schema, or existing identity file is modified by this slice.
