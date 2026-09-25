@@ -45,3 +45,30 @@ T18 owns a leaf namespace in the parallel plan. Stable CLI dispatch, global sche
 Ordering and correlation never imply causation. Unknown/self references, duplicate step IDs, and ordering/causation cycles fail closed. Retry, timeout, and idempotency declarations are preserved as declarations; they are not runtime proof that a broker/service enforces them.
 
 `action_ref` remains an opaque exact reference in this first slice so T18 does not pre-empt the shared cross-family identity work. A later integration revision must bind it to the common immutable action reference rather than adding name-based repair.
+
+
+## Descriptor, introspection, and raw artifact loading
+
+The second T18 slice adds two structured importers and a bounded raw loader:
+
+- Protobuf `FileDescriptorSet` JSON-shaped objects via `scanners/protocol-descriptors.mjs`
+- GraphQL introspection JSON via the same module
+- AsyncAPI JSON/YAML and explicit WebSocket manifest JSON/YAML via `scanners/protocol-loaders.mjs`
+
+The raw loader has byte, object-depth, object-count, and YAML-alias budgets. Duplicate YAML keys fail. Remote HTTP(S) `$ref` is rejected by default. It does not fetch schemas from the network.
+
+For parsed objects, `source_hash_basis` is `canonical-parsed-object`; raw source parsers use `raw-bytes`. These are deliberately distinct provenance modes.
+
+The protobuf structured importer covers descriptor declarations and streaming flags, but not custom option semantics or generated runtime behavior. The GraphQL introspection importer covers schema/type/field/root-operation metadata, but not resolver implementation or authorization enforcement.
+
+## T16 runtime handoff
+
+`contracts/protocol-oracle-request.mjs` defines a deterministic request packet that binds exact artifact references for the protocol contract, optional flow contract, original/candidate snapshots, runtime profile, seed, and assertions.
+
+The packet is not execution evidence. T16/beval must re-hash referenced bytes and freeze them into its own immutable RunBinding before any Runtime-tested claim is possible. See `docs/T18_TO_T16_PROTOCOL_ORACLE_HANDOFF.md`.
+
+## Conformance seed corpus
+
+`test/fixtures/protocol/conformance.json` is a reusable static seed corpus covering the four protocol families plus fail-closed remote-ref and WebSocket-reference cases. `test/protocol-conformance.test.mjs` executes the corpus.
+
+Passing the seed corpus is static/contract evidence only, not runtime certification.
