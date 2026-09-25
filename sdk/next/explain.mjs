@@ -1,4 +1,4 @@
-import { isPlainObject, stableClone, validIdentifier } from './_util.mjs';
+import { cloneJsonValue, isPlainObject, validIdentifier } from './_util.mjs';
 
 export const SUPPORT_EXPLANATION_CONTRACT = 'sbf.support-explanation/1';
 export const SUPPORT_STATUSES = Object.freeze(['supported', 'partial', 'unsupported', 'unknown', 'not-applicable', 'conflict']);
@@ -35,7 +35,7 @@ function normalizeField(item) {
 	assertArrayOfStrings(item.nextActions ?? [], 'field.nextActions');
 
 	const hasValue = Object.hasOwn(item, 'value');
-	const conflicts = Array.isArray(item.conflicts) ? stableClone(item.conflicts) : [];
+	const conflicts = Array.isArray(item.conflicts) ? cloneJsonValue(item.conflicts) : [];
 	if (item.status === 'conflict') {
 		if (hasValue) throw new TypeError('a conflict field cannot also declare one authoritative value');
 		if (conflicts.length < 2) throw new TypeError('a conflict field requires at least two conflict candidates');
@@ -51,7 +51,7 @@ function normalizeField(item) {
 	return {
 		name: item.name,
 		status: item.status,
-		...(hasValue ? { value: stableClone(item.value) } : {}),
+		...(hasValue ? { value: cloneJsonValue(item.value) } : {}),
 		provenanceRefs: [...(item.provenanceRefs ?? [])],
 		conflicts,
 		constraints: [...(item.constraints ?? [])],
