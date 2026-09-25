@@ -57,20 +57,23 @@ function sh(cmd, args, cwd) {
 }
 
 function exactCheckout(entry) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `bskel-t07-${entry.framework}-`));
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), `bskel-t07-${entry.framework}-`));
+  const dir = path.join(parent, 'repo');
   const url = `https://github.com/${entry.owner}/${entry.repo}.git`;
   try {
-    sh('git', ['init', '--quiet'], dir);
-    sh('git', ['remote', 'add', 'origin', url], dir);
-    sh('git', ['fetch', '--quiet', '--depth', '1', 'origin', entry.ref], dir);
+    sh('git', ['clone', '--quiet', '--filter=blob:none', '--no-checkout', url, dir], parent);
+    sh('git', ['fetch', '--quiet', '--depth', '1', '--filter=blob:none', 'origin', entry.ref], dir);
+    sh('git', ['sparse-checkout', 'init', '--cone'], dir);
+    const roots = [...new Set([...entry.route_roots, ...entry.model_roots])];
+    sh('git', ['sparse-checkout', 'set', '--skip-checks', ...roots], dir);
     sh('git', ['checkout', '--quiet', '--detach', 'FETCH_HEAD'], dir);
     const actual = sh('git', ['rev-parse', 'HEAD'], dir).trim();
     if (actual.toLowerCase() !== entry.ref.toLowerCase()) {
       throw new Error(`checkout mismatch: expected ${entry.ref}, got ${actual}`);
     }
-    return dir;
+    return { dir, cleanupRoot: parent };
   } catch (error) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(parent, { recursive: true, force: true });
     throw error;
   }
 }
@@ -223,8 +226,9 @@ export function runT07Corpus(manifest, { keepCheckouts = false, ids = null } = {
   for (const entry of selectedEntries) {
     let root = null;
     try {
-      root = exactCheckout(entry);
-      results.push({ ...scanT07CorpusCheckout(entry, root), error: null });
+      const checkout = exactCheckout(entry);
+      root = checkout.cleanupRoot;
+      results.push({ ...scanT07CorpusCheckout(entry, checkout.dir), error: null });
     } catch (error) {
       results.push({
         id: entry.id,
