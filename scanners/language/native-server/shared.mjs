@@ -12,7 +12,7 @@ export function joinRoutePath(base, segment) {
 	return joined.startsWith('/') ? joined : `/${joined}`;
 }
 
-export function maskCommentsPreserveStrings(source, { lineComment = '//', blockComments = true } = {}) {
+export function maskNonCodePreserveDelimiters(source, { lineComment = '//', blockComments = true } = {}) {
 	let out = '';
 	let i = 0;
 	let mode = 'code';
@@ -29,16 +29,13 @@ export function maskCommentsPreserveStrings(source, { lineComment = '//', blockC
 			out += ch === '\n' ? '\n' : ' '; i++; continue;
 		}
 		if (mode === 'string') {
-			out += ch;
-			if (quote === '`') {
-				if (ch === '`') { mode = 'code'; quote = null; }
-				i++; continue;
+			if (ch === '\n') { out += '\n'; i++; continue; }
+			if (quote !== '`' && ch === '\\') {
+				out += ' ';
+				if (i + 1 < source.length) { out += source[i + 1] === '\n' ? '\n' : ' '; i += 2; continue; }
 			}
-			if (ch === '\\') {
-				if (i + 1 < source.length) { out += source[i + 1]; i += 2; continue; }
-			}
-			if (ch === quote) { mode = 'code'; quote = null; }
-			i++; continue;
+			if (ch === quote) { out += ch; mode = 'code'; quote = null; i++; continue; }
+			out += ' '; i++; continue;
 		}
 		if (lineComment && source.startsWith(lineComment, i)) {
 			out += ' '.repeat(lineComment.length); i += lineComment.length; mode = 'line-comment'; continue;
