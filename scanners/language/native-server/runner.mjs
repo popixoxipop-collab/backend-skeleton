@@ -45,28 +45,36 @@ function decodeWorkerOutput(stdout, budget) {
 	return decodeNdjsonLine(stdout, { maxInputBytes: budget.maxOutputBytes });
 }
 
-function assertBudgetWithinProfile(requestBudget, profileBudget) {
-	for (const key of ['maxInputBytes', 'maxOutputBytes', 'maxDiagnostics', 'maxRoutes', 'wallTimeMs']) {
-		if (requestBudget[key] > profileBudget[key]) {
+const BUDGET_KEYS = Object.freeze(['maxInputBytes', 'maxOutputBytes', 'maxDiagnostics', 'maxRoutes', 'wallTimeMs']);
+
+function effectiveBudgetForProfile(requestBudgetInput, profileBudget) {
+	const explicit = requestBudgetInput ?? {};
+	if (explicit == null || typeof explicit !== 'object' || Array.isArray(explicit)) throw new TypeError('budget must be an object');
+	const requested = normalizeBudget(explicit);
+	const effective = {};
+	for (const key of BUDGET_KEYS) {
+		if (Object.prototype.hasOwnProperty.call(explicit, key) && requested[key] > profileBudget[key]) {
 			throw new NativeWorkerRunError(
 				'WORKER_BUDGET_EXPANSION',
-				`request ${key}=${requestBudget[key]} exceeds runner profile limit ${profileBudget[key]}`,
+				`request ${key}=${requested[key]} exceeds runner profile limit ${profileBudget[key]}`,
 			);
 		}
+		effective[key] = Math.min(requested[key], profileBudget[key]);
 	}
+	return Object.freeze(effective);
 }
 
 export function runNativeServerWorker(message, { spawnFn = spawnSync, profileLimits = DEFAULT_BUDGET } = {}) {
-	const budget = normalizeBudget(message?.budget ?? {});
 	const profileBudget = normalizeBudget(profileLimits);
-	if (profileBudget.maxInputBytes > DEFAULT_BUDGET.maxInputBytes) {
+	const budget = effectiveBudgetForProfile(message?.budget, profileBudget);
+	if (budget.maxInputBytes > DEFAULT_BUDGET.maxInputBytes) {
 		throw new NativeWorkerRunError(
 			'WORKER_PROFILE_UNSUPPORTED',
-			`profile maxInputBytes=${profileBudget.maxInputBytes} exceeds the worker bootstrap limit ${DEFAULT_BUDGET.maxInputBytes}`,
+			`effective maxInputBytes=${budget.maxInputBytes} exceeds the worker bootstrap limit ${DEFAULT_BUDGET.maxInputBytes}`,
 		);
 	}
-	assertBudgetWithinProfile(budget, profileBudget);
-	const input = requestLine(message, budget);
+	const wireMessage = { ...message, budget };
+	const input = requestLine(wireMessage, budget);
 	const child = spawnFn(process.execPath, [WORKER_PATH], {
 		input,
 		encoding: 'utf8',
