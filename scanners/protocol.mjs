@@ -12,6 +12,18 @@ export function sourceHash(file, bytes) {
   return createHash('sha256').update(String(file)).update('\0').update(bytes).digest('hex');
 }
 
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+  }
+  return value;
+}
+
+function canonicalObjectBytes(value) {
+  return Buffer.from(JSON.stringify(canonical(value)));
+}
+
 export function uniqueSorted(items) {
   const seen = new Set();
   const out = [];
@@ -28,7 +40,7 @@ export function uniqueSorted(items) {
   );
 }
 
-export function baseProtocolScan({ family, dialect, adapter, file, bytes, payload, warnings = [] }) {
+export function baseProtocolScan({ family, dialect, adapter, file, bytes, payload, warnings = [], sourceHashBasis = 'raw-bytes' }) {
   if (!PROTOCOL_FAMILIES.includes(family)) throw new Error('unsupported protocol family: ' + family);
   const scan = {
     schema: PROTOCOL_SCAN_SCHEMA,
@@ -37,6 +49,7 @@ export function baseProtocolScan({ family, dialect, adapter, file, bytes, payloa
     adapter,
     adapter_revision: PROTOCOL_IMPORTER_REVISION,
     source_hash: sourceHash(file, bytes),
+    source_hash_basis: sourceHashBasis,
     files_read: [file],
     grpc: { packages: [], services: [], methods: [], messages: [] },
     graphql: { schemas: [], types: [], fields: [], operations: [] },
@@ -77,7 +90,16 @@ export function extractBalancedBlock(text, openIndex) {
 function parseMessageFields(body, file, baseIndex, source) {
   const fields = [];
   const fieldRe = /\b(?:repeated\s+|optional\s+)?([A-Za-z_][\w.<>]*)\s+([A-Za-z_][\w]*)\s*=\s*(\d+)\b/g;
+  const braceDepthAt = (offset) => {
+    let depth = 0;
+    for (let i = 0; i < offset; i += 1) {
+      if (body[i] === '{') depth += 1;
+      else if (body[i] === '}') depth = Math.max(0, depth - 1);
+    }
+    return depth;
+  };
   for (const m of body.matchAll(fieldRe)) {
+    if (braceDepthAt(m.index) !== 0) continue;
     fields.push({ type: m[1], name: m[2], number: Number(m[3]), file, line: lineNumberAt(source, baseIndex + m.index) });
   }
   return fields;
@@ -92,6 +114,8 @@ export function importProtoSource(text, { file = 'schema.proto' } = {}) {
   const messages = [];
   const warnings = [];
 
+  const syntaxMatch = clean.match(/\bsyntax\s*=\s*["'](proto2|proto3)["']\s*;/);
+  if (!syntaxMatch) warnings.push({ code: 'PROTO_SYNTAX_UNRESOLVED', message: 'syntax = "proto2" or "proto3" was not found', file, line: 1 });
   const pkg = clean.match(/\bpackage\s+([A-Za-z_][\w.]*)\s*;/);
   if (pkg) packages.push({ name: pkg[1], file, line: lineNumberAt(source, pkg.index) });
 
@@ -131,7 +155,7 @@ export function importProtoSource(text, { file = 'schema.proto' } = {}) {
 
   const scan = baseProtocolScan({
     family: 'grpc',
-    dialect: 'proto3-text',
+    dialect: syntaxMatch ? syntaxMatch[1] + '-text' : 'protobuf-text-unknown',
     adapter: 'protobuf-static',
     file,
     bytes: Buffer.from(source),
@@ -156,19 +180,23 @@ export function importProtoSource(text, { file = 'schema.proto' } = {}) {
   return scan;
 }
 
-function stripGraphqlComments(text) {
-  return text.replace(/#[^\n]*/g, (m) => ' '.repeat(m.length));
+function maskGraphqlIgnored(text) {
+  const preserveLines = (m) => m.replace(/[^\n]/g, ' ');
+  return text
+    .replace(/"""[\s\S]*?"""/g, preserveLines)
+    .replace(/"(?:\\.|[^"\\])*"/g, preserveLines)
+    .replace(/#[^\n]*/g, preserveLines);
 }
 
 export function importGraphqlSDL(text, { file = 'schema.graphql' } = {}) {
   const source = String(text);
-  const clean = stripGraphqlComments(source);
+  const clean = maskGraphqlIgnored(source);
   const schemas = [];
   const types = [];
   const fields = [];
   const operations = [];
   const warnings = [];
-  const rootKinds = new Map([['Query', 'query'], ['Mutation', 'mutation'], ['Subscription', 'subscription']]);
+  const rootKinds = new Map();
 
   const schemaRe = /\bschema\s*\{/g;
   for (const m of clean.matchAll(schemaRe)) {
@@ -181,6 +209,12 @@ export function importGraphqlSDL(text, { file = 'schema.graphql' } = {}) {
       rootKinds.set(root[2], root[1]);
     }
     schemas.push({ roots, file, line: lineNumberAt(source, m.index) });
+  }
+
+  if (schemas.length === 0) {
+    rootKinds.set('Query', 'query');
+    rootKinds.set('Mutation', 'mutation');
+    rootKinds.set('Subscription', 'subscription');
   }
 
   const typeRe = /\b(type|input|interface|enum|scalar|union)\s+([_A-Za-z][_0-9A-Za-z]*)[^\{\n]*(\{)?/g;
@@ -257,12 +291,15 @@ export function importAsyncApiDocument(document, { file = 'asyncapi.json' } = {}
   if (!document || typeof document !== 'object' || Array.isArray(document)) {
     throw new Error('AsyncAPI importer requires a parsed object');
   }
-  const bytes = Buffer.from(JSON.stringify(document));
+  const bytes = canonicalObjectBytes(document);
   const channels = [];
   const operations = [];
   const messages = [];
   const warnings = [];
   const version = typeof document.asyncapi === 'string' ? document.asyncapi : null;
+  if (version && !/^(?:2|3)\.\d+\.\d+$/.test(version)) {
+    warnings.push({ code: 'ASYNCAPI_VERSION_UNTESTED', message: 'AsyncAPI version ' + JSON.stringify(version) + ' is outside the tested 2.x/3.x structural profiles' });
+  }
 
   for (const [name, channel] of Object.entries(document.channels ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
     channels.push({ name, address: channel?.address ?? name, file, line: 1 });
@@ -314,6 +351,7 @@ export function importAsyncApiDocument(document, { file = 'asyncapi.json' } = {}
     file,
     bytes,
     warnings,
+    sourceHashBasis: 'canonical-parsed-object',
     payload: {
       channels: uniqueSorted(channels),
       operations: uniqueSorted(operations),
@@ -342,9 +380,17 @@ export function importWebSocketManifest(manifest, { file = 'websocket.contract.j
   const connections = [];
   const messages = [];
   const warnings = [];
+  const connectionIds = new Set();
+  let invalidManifest = false;
 
   for (const item of manifest.connections ?? []) {
     if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
+    if (connectionIds.has(item.id)) {
+      invalidManifest = true;
+      warnings.push({ code: 'WEBSOCKET_DUPLICATE_CONNECTION_ID', message: 'duplicate connection id ' + JSON.stringify(item.id) });
+      continue;
+    }
+    connectionIds.add(item.id);
     connections.push({
       id: item.id,
       endpoint: item.endpoint ?? null,
@@ -357,6 +403,11 @@ export function importWebSocketManifest(manifest, { file = 'websocket.contract.j
   for (const item of manifest.messages ?? []) {
     if (!item || typeof item !== 'object' || typeof item.name !== 'string') continue;
     const direction = item.direction ?? 'bidirectional';
+    if (item.connection_id != null && !connectionIds.has(String(item.connection_id))) {
+      invalidManifest = true;
+      warnings.push({ code: 'WEBSOCKET_CONNECTION_UNRESOLVED', message: 'message ' + item.name + ' references unknown connection ' + JSON.stringify(item.connection_id) });
+      continue;
+    }
     if (!WEBSOCKET_DIRECTIONS.has(direction)) {
       warnings.push({
         code: 'WEBSOCKET_DIRECTION_UNSUPPORTED',
@@ -375,7 +426,7 @@ export function importWebSocketManifest(manifest, { file = 'websocket.contract.j
     });
   }
 
-  const bytes = Buffer.from(JSON.stringify(manifest));
+  const bytes = canonicalObjectBytes(manifest);
   const scan = baseProtocolScan({
     family: 'websocket',
     dialect: manifest.version ? 'bskel-websocket-manifest/' + manifest.version : 'bskel-websocket-manifest/1',
@@ -383,13 +434,14 @@ export function importWebSocketManifest(manifest, { file = 'websocket.contract.j
     file,
     bytes,
     warnings,
+    sourceHashBasis: 'canonical-parsed-object',
     payload: {
       connections: uniqueSorted(connections),
       messages: uniqueSorted(messages),
     },
   });
   scan.completeness = {
-    status: connections.length || messages.length ? 'partial' : 'blocked',
+    status: invalidManifest ? 'blocked' : (connections.length || messages.length ? 'partial' : 'blocked'),
     connection_count: connections.length,
     message_count: messages.length,
     note: 'explicit manifest only; source-code socket discovery is not message-contract certification',
