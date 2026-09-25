@@ -19,7 +19,7 @@ For full-surface inventory evaluation, an abstention/unknown on a gold item is c
 
 ## Negative vectors
 
-`negative-vectors.json` begins with 24 cross-cutting invariants: identity, project scoping, routes, schema, auth, database, cache, run evidence, game behavior, trust, generation, and release. These are catalog entries, not claims that every executable mutation fixture already exists.
+`negative-vectors.json` carries the full 79-case cross-cutting plan: identity 6, project scoping 6, routes 8, schema 8, auth 6, database 6, cache 6, run evidence 8, game behavior 7, trust 8, generation 5, and release 5. These are catalog entries, not claims that every case already has an executable mutation fixture.
 
 ## Task status
 
