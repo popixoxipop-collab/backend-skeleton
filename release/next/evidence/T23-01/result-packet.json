@@ -1,0 +1,45 @@
+{
+  "schema": "bskel.scale-result-packet/1",
+  "task_id": "T23-01",
+  "state": "SUBMITTED",
+  "repository": "popixoxipop-collab/backend-skeleton",
+  "branch": "scale/T23/release-migration-ops",
+  "dependency_state": {
+    "T00-01": "SUBMITTED in draft PR #65; not independently ACCEPTED"
+  },
+  "input": {
+    "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "t00_baseline_head": "48efe1ca5f8a94a6fa71d85563ffc3762ff6410e",
+    "captured_on": "2026-09-25"
+  },
+  "test_runs": [
+    {
+      "command": "node --test release/next/test/release-policy.test.mjs",
+      "node_version": "v22.16.0",
+      "exit_code": 0,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json",
+      "node_version": "v22.16.0",
+      "exit_code": 0,
+      "result_ok": true
+    }
+  ],
+  "scope": {
+    "added_only": "release/next/**",
+    "stable_entrypoints_modified": false,
+    "stable_schemas_modified": false,
+    "package_or_lockfile_modified": false,
+    "database_migrations_modified": false,
+    "github_workflows_modified": false
+  },
+  "known_limitations": [
+    "T00-01 is submitted but not accepted, so this packet cannot satisfy the formal T23-01 dependency gate yet.",
+    "Historical exact-head CI from the bootstrap inventory is not a substitute for T23-specific cross-repository release checks.",
+    "T23-03 workflow mutation remains blocked on T19/T20 prerequisites and is intentionally not implemented in this slice."
+  ],
+  "rollback": "Delete the scale/T23/release-migration-ops branch/PR. This slice only adds release/next/**."
+}
