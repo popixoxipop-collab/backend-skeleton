@@ -143,17 +143,43 @@ if (!shadowedRequire.diagnostics.some((d) => d.code === 'require-shadowed')) {
 	fail(`T04 compiler backend did not explain shadowed require(): ${JSON.stringify(shadowedRequire.diagnostics)}`);
 }
 
+const comparisonSource = "import { Router } from 'express';\nimport type { User } from './user';\n";
+const comparisonOptions = { filePath: 'src/app.ts', language: 'typescript' };
+const lexicalBackend = lexicalJsTsBackend();
 const comparison = compareJsTsBackends(
-	[lexicalJsTsBackend(), compilerBackend],
+	[lexicalBackend, compilerBackend],
 	[{
 		id: 'esm-common-subset',
-		source: "import { Router } from 'express';\nimport type { User } from './user';\n",
-		options: { filePath: 'src/app.ts', language: 'typescript' },
+		source: comparisonSource,
+		options: comparisonOptions,
 	}],
 );
 const compilerComparison = comparison.cases[0].comparisons.find((entry) => entry.backendId === 'typescript-compiler');
-if (!compilerComparison?.comparable || !compilerComparison.agrees) {
-	fail(`T04 lexical/compiler common-subset comparison drifted: ${JSON.stringify(compilerComparison)}`);
+if (!compilerComparison?.comparable) {
+	fail(`T04 lexical/compiler common-subset comparison was not comparable: ${JSON.stringify(compilerComparison)}`);
+}
+const expectedComparisonDifferences = new Set(['syntaxValidated', 'moduleEdges']);
+if (!compilerComparison.differences.every((field) => expectedComparisonDifferences.has(field))) {
+	fail(`T04 lexical/compiler comparison produced unexpected difference classes: ${JSON.stringify(compilerComparison)}`);
+}
+const edgeSignature = (result) => result.moduleEdges.map((edge) => ({
+	kind: edge.kind,
+	specifier: edge.specifier,
+	typeOnly: Boolean(edge.typeOnly),
+	bindings: (edge.bindings ?? []).map((binding) => ({
+		imported: binding.imported,
+		local: binding.local,
+		bindingKind: binding.bindingKind,
+		typeOnly: Boolean(binding.typeOnly),
+	})),
+}));
+const lexicalCommon = lexicalBackend.analyze(comparisonSource, comparisonOptions);
+const compilerCommon = compilerBackend.analyze(comparisonSource, comparisonOptions);
+if (JSON.stringify(edgeSignature(lexicalCommon)) !== JSON.stringify(edgeSignature(compilerCommon))) {
+	fail(`T04 lexical/compiler common module meaning drifted: ${JSON.stringify({ lexical: edgeSignature(lexicalCommon), compiler: edgeSignature(compilerCommon) })}`);
+}
+if (lexicalCommon.syntaxValidated !== false || compilerCommon.syntaxValidated !== true) {
+	fail(`T04 syntax-validation distinction was lost: ${JSON.stringify({ lexical: lexicalCommon.syntaxValidated, compiler: compilerCommon.syntaxValidated })}`);
 }
 console.log(`typescript-typecheck-smoke: T04 compiler backend PASSED (TypeScript ${tsApi.version}, valid AST facts, malformed fail-closed, require shadowing, lexical differential)`);
 
