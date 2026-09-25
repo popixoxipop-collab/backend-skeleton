@@ -639,15 +639,73 @@ test('runner: a trusted profile can explicitly widen one bound while all request
 });
 
 
-test('runner: profile cannot advertise an input ceiling beyond the worker bootstrap reader', () => {
+test('runner: wider trusted input profile is harmless until a request exceeds worker bootstrap capacity', () => {
+	const spawnFn = (_file, _args, options) => {
+		const wire = JSON.parse(options.input.trim());
+		return {
+			status: 0, signal: null, error: null, stderr: '',
+			stdout: JSON.stringify({
+				protocol: NATIVE_SERVER_PROTOCOL,
+				kind: 'analyze-response',
+				requestId: wire.requestId,
+				language: wire.language,
+				backend: 'go-static-pilot',
+				routes: [], diagnostics: [], groups: [], framework: null, limitations: [],
+			}) + '\n',
+		};
+	};
+	const response = runNativeServerWorker(request({ requestId: 'bootstrap-default' }), {
+		spawnFn,
+		profileLimits: { maxInputBytes: 8 * 1024 * 1024 },
+	});
+	assert.equal(response.requestId, 'bootstrap-default');
+
 	assert.throws(
-		() => runNativeServerWorker(request({ requestId: 'bootstrap-expansion' }), {
+		() => runNativeServerWorker(request({
+			requestId: 'bootstrap-expansion',
+			budget: { maxInputBytes: 6 * 1024 * 1024 },
+		}), {
+			spawnFn,
 			profileLimits: { maxInputBytes: 8 * 1024 * 1024 },
 		}),
 		(err) => err instanceof NativeWorkerRunError
 			&& err.code === 'WORKER_PROFILE_UNSUPPORTED'
 			&& /maxInputBytes/.test(err.message),
 	);
+});
+
+test('runner: omitted request budget fields are clamped to a narrower trusted profile', () => {
+	let observed = null;
+	const req = request({ requestId: 'profile-clamp' });
+	const spawnFn = (_file, _args, options) => {
+		const wire = JSON.parse(options.input.trim());
+		observed = { timeout: options.timeout, budget: wire.budget };
+		return {
+			status: 0, signal: null, error: null, stderr: '',
+			stdout: JSON.stringify({
+				protocol: NATIVE_SERVER_PROTOCOL,
+				kind: 'analyze-response',
+				requestId: wire.requestId,
+				language: wire.language,
+				backend: 'go-static-pilot',
+				routes: [], diagnostics: [], groups: [], framework: null, limitations: [],
+			}) + '\n',
+		};
+	};
+	runNativeServerWorker(req, {
+		spawnFn,
+		profileLimits: {
+			wallTimeMs: 2_000,
+			maxOutputBytes: 32 * 1024,
+			maxRoutes: 50,
+			maxDiagnostics: 25,
+		},
+	});
+	assert.equal(observed.timeout, 2_000);
+	assert.equal(observed.budget.wallTimeMs, 2_000);
+	assert.equal(observed.budget.maxOutputBytes, 32 * 1024);
+	assert.equal(observed.budget.maxRoutes, 50);
+	assert.equal(observed.budget.maxDiagnostics, 25);
 });
 
 
