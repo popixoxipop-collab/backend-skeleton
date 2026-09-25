@@ -48,10 +48,10 @@ export {
 } from './package-inventory.mjs';
 
 export {
-	SUPPORT_MATRIX_CONTRACT,
-	buildSupportMatrix,
-	renderSupportMatrixMarkdown,
-	supportMatrixDiagnostics,
-} from './support-matrix.mjs';
+	SUPPORT_EVIDENCE_MATRIX_CONTRACT,
+	buildSupportEvidenceMatrix,
+	renderSupportEvidenceMatrixMarkdown,
+	supportEvidenceMatrixDiagnostics,
+} from './support-evidence-matrix.mjs';
 
 export { SUBMISSION_REVIEW_CONTRACT, reviewAdapterSubmission } from './submission-review.mjs';
