@@ -1,0 +1,24 @@
+TAP version 13
+# Subtest: ledger with one active claim is valid
+ok 1 - ledger with one active claim is valid
+# Subtest: same path cannot be claimed concurrently
+ok 2 - same path cannot be claimed concurrently
+# Subtest: non-overlapping owned path can be claimed
+ok 3 - non-overlapping owned path can be claimed
+# Subtest: claim outside track ownership is rejected
+ok 4 - claim outside track ownership is rejected
+# Subtest: fencing token regression is rejected
+ok 5 - fencing token regression is rejected
+# Subtest: result arriving after lease expiry is rejected
+ok 6 - result arriving after lease expiry is rejected
+# Subtest: result from old fenced claim is rejected after counter advances
+ok 7 - result from old fenced claim is rejected after counter advances
+# Subtest: result cannot write outside leased path
+ok 8 - result cannot write outside leased path
+# Subtest: path traversal scopes are rejected
+ok 9 - path traversal scopes are rejected
+1..9
+# tests 9
+# pass 9
+# fail 0
+# skipped 0
