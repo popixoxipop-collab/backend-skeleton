@@ -57,7 +57,7 @@ const task = createAdapterTaskPacket({
 | `explain.mjs` | capability and field support states with provenance/conflicts/next actions |
 | `sarif.mjs` | diagnostic projection to SARIF 2.1.0 |
 | `testkit.mjs` | caller-injected protocol conformance; no spawning/import |
-| `schema-catalog.mjs` | stable IDs and package-relative locations for six JSON schemas |
+| `schema-catalog.mjs` | stable IDs and package-relative locations for seven JSON schemas |
 
 ## Schema vs runtime validation
 
