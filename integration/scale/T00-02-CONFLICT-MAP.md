@@ -53,7 +53,7 @@ A green PR is not automatically mergeable. A LAND candidate must have:
 | Legacy C #62 | success | FREEZE_RECONCILE | map unique vs duplicate into T19/T20/T23 |
 | becoder #7 | normal CI success / cross-verify failure | VERIFY_ONLY | never merge |
 | Browser Oracle #39 | merged | MERGED_BASELINE | epoch-2 baseline revalidation |
-| Repair Loop #40 | queued; stale stacked base | REBASE_REQUIRED | reconstruct on current beval main |
+| Repair Loop #40 | queued | HOLD_VERIFY | reconstructed on current main; fresh CI + runtime verification |
 
 ## Confirmed failure causes
 
@@ -78,7 +78,7 @@ T00 disposition: repair provenance/promotion logic before any interface freeze.
 
 ## Baseline change discovered during T00-02
 
-Browser Oracle #39 merged to beval main. The final head contains fixes newer than the merge-base used by repair-loop #40. Comparing #40 against both the final #39 head and current main shows divergence, so #40 cannot merely be retargeted; its repair-only delta must be reconstructed/rebased and freshly verified.
+Browser Oracle #39 merged to beval main. The final head contains fixes newer than the merge-base used by repair-loop #40. T00 directed #40 to reconstruct on current main. The new head `5ee490f...` now has current main `5bdecbcb...` as its merge-base (ahead 62 / behind 0). Rebase blocker is cleared; CI/runtime verification remains blocking.
 
 ## T00-03 inputs
 
