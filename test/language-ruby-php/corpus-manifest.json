@@ -1,0 +1,95 @@
+{
+  "contract": "sbf.t07-ruby-php-corpus/1",
+  "entries": [
+    {
+      "id": "rails-discourse",
+      "framework": "rails",
+      "owner": "discourse",
+      "repo": "discourse",
+      "ref": "0be6cfbf552e4056589b9b43b873d18d42581d19",
+      "route_roots": ["config"],
+      "model_roots": ["app/models"],
+      "note": "Production Rails app; dynamic route DSL and concerns are expected to produce honest unknowns."
+    },
+    {
+      "id": "rails-forem",
+      "framework": "rails",
+      "owner": "forem",
+      "repo": "forem",
+      "ref": "5f76f390fefbd3e018722986e4c2116d504c11e0",
+      "route_roots": ["config"],
+      "model_roots": ["app/models"],
+      "note": "Independent production Rails app with conventional and application-specific routes."
+    },
+    {
+      "id": "rails-mastodon",
+      "framework": "rails",
+      "owner": "mastodon",
+      "repo": "mastodon",
+      "ref": "b4d0f69a809405eb32e253529bac36f86418e9e4",
+      "route_roots": ["config"],
+      "model_roots": ["app/models"],
+      "note": "Namespaced/versioned Rails API corpus."
+    },
+    {
+      "id": "laravel-reference",
+      "framework": "laravel",
+      "owner": "laravel",
+      "repo": "laravel",
+      "ref": "aa0cf127fc365a56ee016867144ddffabc2290ae",
+      "route_roots": ["routes"],
+      "model_roots": ["app/Models"],
+      "note": "Framework-maintained application skeleton; intentionally small."
+    },
+    {
+      "id": "laravel-koel",
+      "framework": "laravel",
+      "owner": "koel",
+      "repo": "koel",
+      "ref": "918406d3b3257e61ea5bb77bd227389878192e43",
+      "route_roots": ["routes"],
+      "model_roots": ["app/Models"],
+      "note": "Production-shaped Laravel application with several route files."
+    },
+    {
+      "id": "laravel-monica",
+      "framework": "laravel",
+      "owner": "monicahq",
+      "repo": "monica",
+      "ref": "6e6ec217457e946e330ba7cd3b28107f4332c7b1",
+      "route_roots": ["routes"],
+      "model_roots": ["app/Models", "app"],
+      "note": "Independent Laravel application; model roots permit legacy project layout."
+    },
+    {
+      "id": "symfony-demo",
+      "framework": "symfony",
+      "owner": "symfony",
+      "repo": "demo",
+      "ref": "8d2e2ef75c3e18df173d8bf2379a14abb58c4c31",
+      "route_roots": ["src/Controller"],
+      "model_roots": [],
+      "note": "Symfony-maintained demo using controller route metadata."
+    },
+    {
+      "id": "symfony-wallabag",
+      "framework": "symfony",
+      "owner": "wallabag",
+      "repo": "wallabag",
+      "ref": "6b9bd67bef2dbfcb71446960dc5616e3552d4532",
+      "route_roots": ["src/Controller"],
+      "model_roots": [],
+      "note": "Production Symfony app; older/non-attribute routing is expected to expose static blind spots."
+    },
+    {
+      "id": "symfony-sylius",
+      "framework": "symfony",
+      "owner": "Sylius",
+      "repo": "Sylius",
+      "ref": "38588aff004e9ad66fe78e3c8b61791709b57659",
+      "route_roots": ["src"],
+      "model_roots": [],
+      "note": "Large Symfony application; config-driven routes are expected to remain outside the attribute-only slice."
+    }
+  ]
+}
