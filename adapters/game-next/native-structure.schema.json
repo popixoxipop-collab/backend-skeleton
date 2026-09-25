@@ -93,6 +93,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "producer_identity_verified",
         "source_structure_verified",
         "runtime_behavior_verified",
         "causal_edges_verified",
@@ -109,6 +110,9 @@
           "const": false
         },
         "state_transitions_verified": {
+          "const": false
+        },
+        "producer_identity_verified": {
           "const": false
         }
       }
