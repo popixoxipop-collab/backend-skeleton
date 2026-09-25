@@ -39,7 +39,7 @@ test('T13 Next.js descriptor conforms to current sbf.adapter/2 and stays conserv
 
 test('frozen official Next.js Route Handler fixture emits only the explicit GET route', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const root = path.resolve(here, '../fixtures/http-wave-bc/nextjs-official-route-handler');
+  const root = path.resolve(here, './fixtures/nextjs-official-route-handler');
   const detection = detectNextRoot(root);
   assert.ok(detection);
   const report = scanNext(root, detection);
