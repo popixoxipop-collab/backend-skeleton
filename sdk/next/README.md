@@ -15,6 +15,7 @@ import {
   createSupportExplanation,
   diagnosticsToSarif,
   planExternalAdapterActivation,
+  reviewAdapterSubmission,
   runAdapterSdkConformance,
 } from './sdk/next/index.mjs';
 
@@ -57,7 +58,10 @@ const task = createAdapterTaskPacket({
 | `explain.mjs` | capability and field support states with provenance/conflicts/next actions |
 | `sarif.mjs` | diagnostic projection to SARIF 2.1.0 |
 | `testkit.mjs` | caller-injected protocol conformance; no spawning/import |
-| `schema-catalog.mjs` | stable IDs and package-relative locations for seven JSON schemas |
+| `package-inventory.mjs` | pre-execution regular-file inventory/reference review; never trusts archive bytes |
+| `support-matrix.mjs` | deterministic support-state matrix projection and diagnostics |
+| `submission-review.mjs` | composes manifest/package/support evidence into a pre-execution readiness verdict |
+| `schema-catalog.mjs` | stable IDs and package-relative locations for nine JSON schemas |
 
 ## Schema vs runtime validation
 
