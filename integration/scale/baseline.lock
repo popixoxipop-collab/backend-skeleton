@@ -110,13 +110,13 @@
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
       "plan_snapshot_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
-      "head_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "head_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
       "node_engine": ">=20",
       "package_version": "0.1.0",
       "required_artifacts": [
         {
           "path": "package.json",
-          "git_blob_sha": "01fce37d05e9c2793f5ed93319d533a61b43b762"
+          "git_blob_sha": "5ffb509ae6e4323482458527ae1bd338417222ae"
         },
         {
           "path": "package-lock.json",
@@ -141,18 +141,21 @@
         "test:v07-mutation-live": "BEVAL_V07_MUTATION=1 node --test test/live/v07-fastapi-mutation.test.mjs",
         "test:harness-nvidia-live": "BEVAL_TEST_NVIDIA_HARNESS=1 node --test test/live/harness-nvidia-worker.test.mjs",
         "test:harness-ab": "node --test test/harness-ab.test.mjs test/harness-artifact-store.test.mjs test/harness-ab-live.test.mjs test/harness-ab-fastapi-fixture.test.mjs",
-        "test:webgame-repair-nvidia-live": "BEVAL_TEST_WEBGAME_REPAIR_E2E=1 BEVAL_WEBGAME_REPAIR_WORKER=nvidia node --test test/integration/webgame-repair-e2e.test.mjs"
+        "test:webgame-repair-nvidia-live": "BEVAL_TEST_WEBGAME_REPAIR_E2E=1 BEVAL_WEBGAME_REPAIR_WORKER=nvidia node --test test/integration/webgame-repair-e2e.test.mjs",
+        "test:webgame-repair-live": "BEVAL_TEST_WEBGAME_REPAIR_E2E=1 node --test test/integration/webgame-repair-e2e.test.mjs",
+        "test:webgame-repair-typesafe-live": "BEVAL_TEST_WEBGAME_REPAIR_E2E=1 BEVAL_WEBGAME_REPAIR_WORKER=typesafe node --test test/integration/webgame-repair-e2e.test.mjs",
+        "test:webgame-repair-minimax-live": "BEVAL_TEST_WEBGAME_REPAIR_E2E=1 BEVAL_WEBGAME_REPAIR_WORKER=minimax node --test test/integration/webgame-repair-e2e.test.mjs"
       },
       "ci_evidence": {
         "workflow": "ci",
-        "run_id": 36105784109,
-        "run_number": 924,
+        "run_id": 36117576104,
+        "run_number": 930,
         "event": "push",
         "status": "completed",
         "conclusion": "success"
       },
       "known_exact_head_ci_failures": [],
-      "baseline_delta": "main advanced after epoch 5 via merged PR #42 (live NVIDIA bounded webgame repair) and PR #47 (runner-wiring cleanup). PR #42 head CI #921 and live run #37 succeeded; current exact-head main push CI #924 / run 36105784109 also succeeded."
+      "baseline_delta": "main advanced after epoch 6 via PR #48 provider-matrix expansion and PR #49 manual-only workflow cleanup. Current main 882b1856... is 14 commits ahead of the epoch-6 pin; package.json changed while package-lock and ci.yml blobs remained stable. Exact-head push CI #930 / run 36117576104 succeeded."
     }
   ],
   "policy": {
@@ -163,5 +166,5 @@
     "ci_success_is_historical_evidence_not_a_substitute_for_task_specific_tests": true,
     "baseline_acceptance_requires_all_current_exact_head_ci_success": true
   },
-  "rebaseline_epoch": 6
+  "rebaseline_epoch": 7
 }
