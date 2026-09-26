@@ -1,16 +1,18 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T12:45:00+09:00",
+  "observed_at": "2026-09-26T14:15:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
   "beval_main_anchor": {
-    "source_pr": 66,
-    "predecessor_docker_pr": 65,
-    "main_sha": "481730a25fcb37210144ae4eba4d994b87689080",
-    "docker_merge_commit": "1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a",
-    "webgame_ci_merge_commit": "481730a25fcb37210144ae4eba4d994b87689080",
-    "state": "current_main_after_65_66"
+    "main_sha": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
+    "notes": [
+      "#65 Docker cache lifecycle merged",
+      "#66 path-aware webgame selection merged",
+      "#68 value-preserving webgame worker edit-shape fix merged",
+      "#69 benchmark attempt-trace changes merged"
+    ],
+    "state": "current_execution_anchor_requires_r4_revalidation"
   },
   "gates": {
     "T21": {
@@ -40,40 +42,32 @@
     "T23_next_runtime_ci": {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "pr": 58,
-      "head": "fbf02c2d7d974905626c3ffeb67e474d105c302a",
-      "ci_run": 36215553365,
-      "ci_conclusion": null,
-      "mergeable": true,
-      "state": "exact_head_ci_pending",
-      "required": "Restack on accepted main after #65/#66 and retain both test:webgame-repair-game-fixtures-live and test:next-runtime.",
-      "base_required": "481730a25fcb37210144ae4eba4d994b87689080",
+      "historical_r3_head": "fbf02c2d7d974905626c3ffeb67e474d105c302a",
+      "historical_r3_ci_run": 36215553365,
+      "historical_r3_ci_conclusion": "success",
+      "historical_r3_status": "superseded_as_stack_base_by_execution_impacting_main_drift",
+      "current_required_base": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
       "shared_lease": {
-        "claim_id": "T23-BEVAL-shared-ci-20260926-r3",
-        "fencing_token": 3,
-        "base_sha": "481730a25fcb37210144ae4eba4d994b87689080",
-        "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t23-beval-ci-integration-wt-r2",
-        "lease_commit": "6749d9e4cb560f35ca8b4ba4f2d28c31114139b9",
+        "claim_id": "T23-BEVAL-shared-ci-20260926-r4",
+        "fencing_token": 4,
+        "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t23-beval-ci-integration-wt-r4",
+        "coordination_head": "a386ed799f6cb3ad5deb3b3b55f3a1e78452b6ff",
         "verifier": "PASS"
       },
-      "base": "481730a25fcb37210144ae4eba4d994b87689080",
-      "selection_policy_code_review": "preliminary PASS: helper+tests cover ordinary smoke, execution-impact full, main/schedule full, classifier failure explicit"
+      "state": "r4_restack_required",
+      "required": "Reapply #58 five-file shared CI/package delta to current main and rerun full repair+game fixture integration plus Node20/22/24 unit+next-runtime+package smoke."
     },
     "T16_protocol_stack": {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "top_pr": 62,
-      "head": "accce80a4a4c48e8bfc0e32c5d6e42bfd2394956",
-      "ci_run": 36206061712,
-      "ci_conclusion": "success",
-      "state": "hold_until_T23_58_exact_head_acceptance",
-      "dependency_chain": [
-        58,
-        59,
-        60,
-        61,
-        62
-      ],
-      "current_pr59_base": "842562998b9532f7d4f290097fd4c5efdaea48d9",
-      "accepted_future_base_required": "fbf02c2d7d974905626c3ffeb67e474d105c302a (only if #58 exact-head CI accepted)"
+      "current_heads": {
+        "59": "b4f147ed64810ac29562541ffd9bf63e455dc930",
+        "60": "00a7aa8ecdc29189a0f2b25d7d4e3d938db53ee6",
+        "61": "622109466b95ae1b0da36d4fb215b414ff8b4ae4",
+        "62": "accce80a4a4c48e8bfc0e32c5d6e42bfd2394956"
+      },
+      "state": "HOLD_until_T23_r4_exact_head_acceptance",
+      "known_blocker": "T18 reproduced same-request cross-ProtocolItemRef evidence swap still accepted by current #60; T16 must fix after #59 restack."
     },
     "T19": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -148,6 +142,19 @@
         "different live provider can satisfy verified_read_by_primary_key on shape match",
         "generation handoff lacks immutable revision/artifact/provider-profile-combination provenance"
       ]
+    },
+    "T12": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 117,
+      "state": "local_owned_resubmission_in_progress",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t12-resubmit-worktree",
+      "note": "untracked adapters/** and test/http-wave-a/** present; no final remote head yet"
+    },
+    "T18": {
+      "final_local_head": "89d2cfb3dcb5ce6e393bc3dc024a335275d6f4ed",
+      "focused": "75/75",
+      "state": "BLOCKED_ON_T16_FIX",
+      "reproduced_defect": "current T16 #60 accepts same-request cross-ProtocolItemRef evidence swap"
     }
   },
   "no_merge_without": [
@@ -369,6 +376,104 @@
         "test/language-native-server/**"
       ],
       "expires_at": "2026-09-26T08:49:08Z"
+    }
+  },
+  "review_candidates": {
+    "T03": {
+      "pr": 81,
+      "head": "0a0fbf1a75c5001d42a459a02540765aef6fa6be",
+      "ci": 36218075782,
+      "ci_conclusion": "success",
+      "focused": "48/48",
+      "state": "awaiting_T19"
+    },
+    "T04": {
+      "pr": 73,
+      "head": "c5a79f1e167391ebe9d48ef9be3b2fce416f7a70",
+      "ci": 36217208293,
+      "ci_conclusion": "success",
+      "focused": "62/62",
+      "state": "awaiting_T19_and_shared_root_cleanup"
+    },
+    "T05": {
+      "pr": 86,
+      "head": "40387266db543bd68651399729214bcb01db6317",
+      "ci": 36217529908,
+      "ci_conclusion": "success",
+      "focused": "84/84",
+      "state": "awaiting_T19_runtime_profile_remains_blocked"
+    },
+    "T06": {
+      "pr": 75,
+      "head": "91d474847aa0bfb199ab1f75bae6bcb323b9921d",
+      "ci": 36217306344,
+      "ci_conclusion": "success",
+      "focused": "62/62",
+      "state": "awaiting_T19_shared_nested_rg_issue_external"
+    },
+    "T07": {
+      "pr": 69,
+      "head": "17610d9b2ef02808c7bbc5304fafd461a8a5d399",
+      "ci": 36218768913,
+      "ci_conclusion": "success",
+      "focused": "63/63",
+      "state": "awaiting_T19_shallow_clone_defect_fixed"
+    },
+    "T08": {
+      "pr": 76,
+      "head": "98cfb059e502608834495d875e44369161ea2d58",
+      "ci": 36217094272,
+      "ci_conclusion": "success",
+      "focused": "59/59_macOS_and_Windows",
+      "state": "awaiting_T19"
+    },
+    "T09": {
+      "pr": 83,
+      "head": "67a158c0907b25e97ac8365f143fdeb7d1be3285",
+      "ci": 36218010788,
+      "ci_conclusion": "success",
+      "focused": "110/110",
+      "state": "awaiting_T19"
+    },
+    "T14": {
+      "pr": 71,
+      "head": "4ca25543d4f396e80a4883c8bafed5239b5c2fd3",
+      "ci": 36219146705,
+      "ci_conclusion": "success",
+      "focused": "7/7_nested + 18/18_legacy",
+      "state": "awaiting_T19_behavior_real_handoff_blocked"
+    },
+    "T17": {
+      "pr": 138,
+      "head": "2630dca623e05b99a9668ed9895e9501171a4b08",
+      "ci": 36217030347,
+      "ci_conclusion": "success",
+      "focused": "50/50",
+      "state": "awaiting_T19"
+    },
+    "T20": {
+      "pr": 79,
+      "head": "a6e614b3c1a4d216e24f9143473995843388e623",
+      "ci": 36217201599,
+      "ci_conclusion": "success",
+      "focused": "121/121;33/33",
+      "state": "awaiting_T19_actual_T16_matrix_still_4_PASS_7_FAIL_3_NOT_RUN"
+    },
+    "T21": {
+      "pr": 80,
+      "head": "434f28e72e8f21ccd9f23b80cd3618dc2b0a5222",
+      "ci": 36217108961,
+      "ci_conclusion": "success",
+      "focused": "19 T21 cases observed on Node22/24",
+      "state": "awaiting_T19"
+    },
+    "T22": {
+      "pr": 85,
+      "head": "de02c6aa4f99a15baa3c3f1170223a10dfb91ad9",
+      "ci": 36217909460,
+      "ci_conclusion": "success",
+      "focused": "65/65 Node18/22/24",
+      "state": "awaiting_T19_package_inclusion_external"
     }
   }
 }
