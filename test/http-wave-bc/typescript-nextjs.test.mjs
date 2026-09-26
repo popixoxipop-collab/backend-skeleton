@@ -61,11 +61,13 @@ test('route groups disappear from URL while simple dynamic segments become path 
   });
   try {
     const report = scanNext(root);
-    const endpoints = report.modules[0].controllers[0].endpoints;
-    assert.deepEqual(endpoints.map((x) => [x.verb, x.path, x.params]), [
-      ['GET', '/api/users/{id}', ['id']],
-      ['PATCH', '/api/users/{id}', ['id']],
+    const controller = report.modules[0].controllers[0];
+    const endpoints = controller.endpoints;
+    assert.deepEqual(endpoints.map((x) => [x.verb, x.path, x.params, x.line]), [
+      ['GET', '/api/users/{id}', ['id'], 1],
+      ['PATCH', '/api/users/{id}', ['id'], 2],
     ]);
+    assert.ok(controller.file.endsWith(path.join('app', '(admin)', 'api', 'users', '[id]', 'route.ts')));
   } finally {
     cleanup(root);
   }
