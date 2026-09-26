@@ -1,3 +1,4 @@
+import './leaf-inventory.test.mjs';
 import './profile-evidence.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
