@@ -1,0 +1,40 @@
+{
+  "schema": "bskel.scale-baseline-revision/1",
+  "task_id": "T00-01",
+  "epoch": 5,
+  "observed_on": "2026-09-25",
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "24cd9ad3cb913756184f79bb008af565a0458967"
+  },
+  "cause": {
+    "repo": "popixoxipop-collab/Backend-evaluation",
+    "pr": 46,
+    "prior_main": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+    "pr_head": "ec9ccde6de2223f673f646d2b7430ae5d7594d45",
+    "merge_commit": "24cd9ad3cb913756184f79bb008af565a0458967",
+    "root_cause_fixed": "repository-scoped GITHUB_TOKEN could not clone private sibling backend-decoder"
+  },
+  "premerge_ci": {
+    "run_id": 36099699382,
+    "run_number": 908,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "current_exact_head_ci": {
+    "run_id": 36099964750,
+    "run_number": 909,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "artifact_blobs": {
+    "package.json": "714575e9cbaff966e4fc00138da6317ef84ac2a4",
+    "package-lock.json": "a83092968a5833883ac74c5e3aad5c80f117d006",
+    ".github/workflows/ci.yml": "7b1a51ee01975733c4b838de66fb83592b637f25"
+  },
+  "disposition": "READY_FOR_INDEPENDENT_REVIEW",
+  "acceptance_remaining": [
+    "T19 independent review of exact epoch-5 branch head and current remote heads"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "t00.t18-t16-cross-item-replay/1",
+  "observed_at": "2026-09-26T08:28:52Z",
+  "t18": {
+    "repo": "popixoxipop-collab/backend-skeleton",
+    "head": "89d2cfb3dcb5ce6e393bc3dc024a335275d6f4ed",
+    "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t18-protocol-t16-boundary-wt-r2"
+  },
+  "t16": {
+    "repo": "popixoxipop-collab/Backend-evaluation",
+    "pr": 62,
+    "head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
+    "accepted_predecessor_pr61": "93d9c6e08e5e1aae54235f382c55b9e7d330bd54"
+  },
+  "replay": {
+    "scratch_script_sha256": "390c92be2d4c35d9992bd2164078833feba9733cad3346aad32c461ff0855c53",
+    "tailnet_request_id": "7e328c44-215a-41e7-9ca8-05d4415a5324",
+    "t18_contract_ref_sha256": "20f78a156f1a543fbf82afb7070d8ed91b085119b540c98ef47827da1e797f73",
+    "protocol_item_ids": [
+      "grpc-method:f55455a2689a80cae026",
+      "grpc-method:e5033d96ceea0d8c1aa2"
+    ],
+    "t16_runtime_binding_hash": "90326209b87690b300359fe9c22ba1443d0294bc46a2a8e06b5688dd8294a56a",
+    "good_result_accepted": true,
+    "swapped_evidence_hash_and_binding_hash_package_rejected": true,
+    "rejection_code": "PROTOCOL_RUNTIME_ASSERTION_ITEM_MISMATCH",
+    "rejection_message": "assertion evidence hash is not committed to the exact frozen action_ref"
+  },
+  "direct_validation": {
+    "pr60_protocol_outcome_focused": "9/9 PASS",
+    "pr60_full_next_runtime": "43/43 PASS",
+    "pr61_executor_focused": "7/7 PASS",
+    "pr61_full_next_runtime": "50/50 PASS",
+    "pr62_network_probes_focused": "4/4 PASS",
+    "pr62_full_next_runtime": "54/54 PASS",
+    "pr62_package_smoke": "PASS"
+  },
+  "boundaries": [
+    "This evidence proves exact cross-item evidence-swap rejection across the T18 request producer and T16 verifier boundary.",
+    "It does not certify production gRPC/GraphQL/event/WebSocket transports.",
+    "PR62 exact-head CI remains a separate acceptance gate."
+  ]
+}

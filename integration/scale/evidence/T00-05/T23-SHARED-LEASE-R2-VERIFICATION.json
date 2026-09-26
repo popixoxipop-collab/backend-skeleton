@@ -1,0 +1,70 @@
+{
+  "schema": "bskel.t00-shared-lease-verification/1",
+  "observed_at": "2026-09-26T03:06:04.462Z",
+  "coordinator": "T00",
+  "scope": "Write authorization and lease validation only; not product CI, runtime certification or release approval.",
+  "repository": "popixoxipop-collab/backend-skeleton",
+  "coordination_branch": "scale/T00/bootstrap-baseline",
+  "verified_code_head": "fae47decd96347c360afea235b3cc5b7ea4fd253",
+  "commits": {
+    "policy_r2": "d892aa9e40fe1cb96c7c2c38346da346c420238f",
+    "active_lease": "30ab92cc88c35df83ce031fb59035c10a8a62304",
+    "checked_in_policy_regression": "fae47decd96347c360afea235b3cc5b7ea4fd253"
+  },
+  "execution": {
+    "host": "eoe",
+    "workspace": "sandbox",
+    "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-r2-validated-fae47",
+    "tests": {
+      "argv": ["node", "--test", "integration/scale/test-lease-ledger.mjs", "integration/scale/test-t23-shared-lease.mjs"],
+      "argv_basis": "Commands above are relative to the verified worktree; the actual sandbox invocation used the worktree prefix on both test paths.",
+      "tailnet_request_id": "f57ddde4-21bb-4698-8a58-4c6c6f02b6ea",
+      "observed_at": "2026-09-26T03:05:03.946Z",
+      "pass": 24,
+      "fail": 0,
+      "skip": 0,
+      "exit_code": 0,
+      "existing_regressions": 9,
+      "new_shared_scope_regressions": 15,
+      "reads_checked_in_policy": true
+    },
+    "published_ledger_check": {
+      "tailnet_request_id": "ba72d313-39a5-4b34-9694-06740abaf45a",
+      "command": "node integration/scale/lease-ledger.mjs verify-ledger integration/scale/ownership-policy.json integration/scale/lease-ledger.json --at 2026-09-26T03:05:04Z",
+      "ok": true,
+      "errors": [],
+      "exit_code": 0
+    },
+    "preservation_audit": {
+      "tailnet_request_id": "c481bfc3-4655-47db-a42f-952593e494dd",
+      "script": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-audit-published-r2.mjs",
+      "script_sha256": "08656d5ed9f418d67efb20ed8b34c1e9ae827498285d2f72fe21164d6d1b8ca9",
+      "prior_ledger_blob": "19ccc452d622d7e38819b1b91272ff0fcf7f1872",
+      "old_claims_deep_equal": 15,
+      "old_fencing_counters_unchanged": 15,
+      "combined_claim_count": 16,
+      "new_claim_check": "PASS",
+      "combined_ledger_check": "PASS",
+      "exit_code": 0
+    }
+  },
+  "new_claim": {
+    "claim_id": "T23-BEVAL-shared-ci-20260926-r2",
+    "lease_subject": "T23-BEVAL",
+    "canonical_agent": "T23",
+    "target_repository": "popixoxipop-collab/Backend-evaluation",
+    "fencing_token": 2,
+    "base_sha": "81cbfcd564c99c4afee01dc65bde1294c5fada18",
+    "required_integration_anchor": "1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a",
+    "expires_at": "2026-09-26T09:00:00Z",
+    "exact_file_count": 7,
+    "notification": "Backend-evaluation #66 issue comment 5842605011"
+  },
+  "boundaries": [
+    "Existing ordinary leases are not counted as newly issued by this change.",
+    "Unpublished local ordinary-lease candidates were superseded by concurrent remote grants and were not force-pushed.",
+    "This record does not claim T23 has implemented or passed the new CI selection policy.",
+    "Docker cleanup, secrets, package-lock changes, unrelated workflows, T16 implementation, merge, deployment and default activation remain excluded.",
+    "Root-shim cleanup and other shared bskel integration work still need their own narrow approval."
+  ]
+}

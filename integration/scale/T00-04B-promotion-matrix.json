@@ -1,0 +1,52 @@
+{
+  "schema": "bskel.scale-promotion-matrix/1",
+  "task_id": "T00-04B",
+  "generated_on": "2026-09-25",
+  "status": "DRAFT_MATRIX",
+  "activation_dependency": "T00-04A ACTIVE_CORE_FREEZE",
+  "common_gates": [
+    "exact-head CI success",
+    "focused plane tests actually executed",
+    "T00-03 path ownership compliant",
+    "exact evidence binding where applicable",
+    "uncertainty preserved",
+    "T19 independent review",
+    "T23/T00 lease for hot files",
+    "T16 verified runtime evidence for runtime-tested claims"
+  ],
+  "tracks": {
+    "T01": "04A_SEMANTIC_CANDIDATE",
+    "T02": "INTERNAL_DRAFT",
+    "T03": "04A_VOCABULARY_ONLY",
+    "T04": "HOLD_FANOUT",
+    "T05": "INTERNAL_CANDIDATE",
+    "T06": "HOLD_SCOPE",
+    "T07": "HOLD_SCOPE",
+    "T08": "HOLD_SCOPE",
+    "T09": "INTERNAL_CANDIDATE",
+    "T10": "INTERNAL_DRAFT",
+    "T11": "INTEGRATION_CANDIDATE_AFTER_04A",
+    "T12": "REMOVED_FROM_TRAIN",
+    "T13": "PROFILE_BY_PROFILE",
+    "T14": "HOLD_SCOPE",
+    "T15": "SPLIT_REQUIRED",
+    "T16": "RESUBMIT_REQUIRED",
+    "T17": "04B_CANDIDATE_PENDING_INTEGRATION",
+    "T18": "04B_CANDIDATE_PENDING_INTEGRATION",
+    "T19": "QA_AUTHORITY_DRAFT",
+    "T20": "HOLD_SCOPE",
+    "T21": "HOLD_SCOPE",
+    "T22": "INTERNAL_CANDIDATE",
+    "T23": "INTEGRATION_OWNER"
+  },
+  "concurrency_cap": {
+    "active_implementation_slices_per_track": 1,
+    "extra_children": "EVIDENCE_ONLY",
+    "no_new_fanout_until_04A": [
+      "T04",
+      "T12",
+      "T13"
+    ],
+    "runtime_verify_jobs_must_not_starve_baseline": true
+  }
+}

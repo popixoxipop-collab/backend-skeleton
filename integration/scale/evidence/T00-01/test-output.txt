@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: accepts exact locked observation
+ok 1 - accepts exact locked observation
+  ---
+  duration_ms: 1.276253
+  type: 'test'
+  ...
+# Subtest: rejects dirty checkout
+ok 2 - rejects dirty checkout
+  ---
+  duration_ms: 0.994679
+  type: 'test'
+  ...
+# Subtest: rejects missing artifact
+ok 3 - rejects missing artifact
+  ---
+  duration_ms: 0.249255
+  type: 'test'
+  ...
+# Subtest: rejects remote default-branch mismatch
+ok 4 - rejects remote default-branch mismatch
+  ---
+  duration_ms: 0.231088
+  type: 'test'
+  ...
+# Subtest: rejects unknown dirty state instead of assuming clean
+ok 5 - rejects unknown dirty state instead of assuming clean
+  ---
+  duration_ms: 0.140602
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 57.323156

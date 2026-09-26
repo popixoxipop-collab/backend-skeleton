@@ -1,0 +1,100 @@
+{
+  "schema": "bskel.scale-interface-cross-review/1",
+  "task_id": "T00-04",
+  "revision": "R1",
+  "status": "BLOCKED_PREFREEZE",
+  "generated_on": "2026-09-25",
+  "stable_invariants": [
+    "legacy ContractRef/ActionRef/FieldRef remain HTTP authority",
+    "artifact identity is exact bytes",
+    "beval.binding-json/1 unchanged",
+    "unknown/partial/unsupported/not-applicable remain distinct",
+    "analysis planes do not redefine HTTP operation identity",
+    "runtime evidence does not repair contract meaning",
+    "game/protocol causality is not inferred",
+    "stable CLI/schema/package/workflow changes are integration-owned"
+  ],
+  "findings": {
+    "T01": {
+      "status": "CANDIDATE",
+      "required": [
+        "golden review",
+        "additive compatibility only"
+      ]
+    },
+    "T02": {
+      "status": "KEEP_INTERNAL_DRAFT",
+      "blockers": [
+        "absolute repo_root serialized into graph",
+        "portable cache/cross-tool identity not frozen"
+      ]
+    },
+    "T03": {
+      "status": "PARTIAL_CANDIDATE",
+      "candidate": [
+        "five-state status vocabulary"
+      ],
+      "blockers": [
+        "evidenceRefs are arbitrary strings",
+        "runtime-tested not typed to runtime evidence"
+      ]
+    },
+    "T09": {
+      "status": "BLOCKED",
+      "blockers": [
+        "exact-head synthesized-operation-id correctness failure"
+      ]
+    },
+    "T10": {
+      "status": "KEEP_INTERNAL_DRAFT",
+      "blockers": [
+        "source_refs unvalidated",
+        "caller entity.id shape unfrozen"
+      ]
+    },
+    "T17": {
+      "status": "DERIVED_DRAFT",
+      "blockers": [
+        "no exact source webgame contract ArtifactRef"
+      ]
+    },
+    "T18": {
+      "status": "DRAFT_FAMILY",
+      "blockers": [
+        "action_ref untyped/unbound to exact protocol contract item"
+      ]
+    },
+    "T16": {
+      "status": "REBASE_THEN_REVIEW",
+      "blockers": [
+        "base predates epoch-3 beval main",
+        "test outside owned scope",
+        "T01 replay pending"
+      ]
+    }
+  },
+  "earliest_freeze": [
+    "legacy exact-byte HTTP identity unchanged",
+    "T01 additive ArtifactRef and HTTP identity envelope",
+    "T03 five-state capability vocabulary",
+    "T00 lease/fencing protocol",
+    "runtime-tested requires verified runtime evidence class"
+  ],
+  "remain_draft": [
+    "T02",
+    "T09",
+    "T10",
+    "T17-next",
+    "T18",
+    "T16 until replay"
+  ],
+  "operational_blockers": [
+    "T00-01 epoch3",
+    "T09#83",
+    "T12#66",
+    "T13 scope",
+    "T15 split",
+    "T16 rebase",
+    "legacy A/C absorption acknowledgement"
+  ]
+}

@@ -1,0 +1,549 @@
+{
+  "schema": "bskel.scale-ownership-policy/1",
+  "revision": "T00-03-r8",
+  "tracks": {
+    "T00": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "integration/scale/**"
+      ]
+    },
+    "T01": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "schemas/next/**",
+        "contracts/next/**",
+        "test/contract-next/**"
+      ]
+    },
+    "T02": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/project-graph/**",
+        "test/project-graph/**"
+      ]
+    },
+    "T03": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/capability-next/**",
+        "test/capability-next/**"
+      ]
+    },
+    "T04": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/language/js-ts/**",
+        "test/language-js-ts/**"
+      ]
+    },
+    "T05": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/language/jvm/**",
+        "test/language-jvm/**"
+      ]
+    },
+    "T06": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/language/python/**",
+        "test/language-python/**"
+      ]
+    },
+    "T07": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/language/ruby-php/**",
+        "test/language-ruby-php/**"
+      ]
+    },
+    "T08": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/language/native-server/**",
+        "test/language-native-server/**"
+      ]
+    },
+    "T09": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "contracts/reconciliation-next/**",
+        "test/reconciliation-next/**"
+      ]
+    },
+    "T10": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "scanners/persistence-next/**",
+        "test/persistence-next/**"
+      ]
+    },
+    "T11": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "adapters/http-legacy-next/**",
+        "test/http-legacy-next/**"
+      ]
+    },
+    "T12": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**"
+      ]
+    },
+    "T13": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "adapters/http-wave-bc/**",
+        "test/http-wave-bc/**"
+      ]
+    },
+    "T14": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "handles/composition-next/**",
+        "test/provider-composition-next/**"
+      ]
+    },
+    "T15": {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "allowed_scopes": [
+        "lib/next/**",
+        "test/next/**",
+        "docs/next/**"
+      ]
+    },
+    "T16": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "allowed_scopes": [
+        "lib/next-runtime/**",
+        "test/next-runtime/**",
+        "docs/next-runtime/**"
+      ]
+    },
+    "T17": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "adapters/game-next/**",
+        "test/game-next/**"
+      ]
+    },
+    "T18": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "adapters/protocol-next/**",
+        "test/protocol-next/**"
+      ]
+    },
+    "T19": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "test/corpus-next/**",
+        "test/conformance-next/**",
+        "evidence/next/**"
+      ]
+    },
+    "T20": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "lib/trust-next/**",
+        "test/trust-next/**"
+      ]
+    },
+    "T21": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "lib/artifact-store-next/**",
+        "lib/scan-scheduler-next/**",
+        "test/perf-next/**"
+      ]
+    },
+    "T22": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "sdk/next/**",
+        "docs/scale-sdk/**",
+        "test/sdk-next/**"
+      ]
+    },
+    "T23": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "allowed_scopes": [
+        "release/next/**",
+        "docs/scale-release/**"
+      ]
+    },
+    "T23-BEVAL": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "canonical_track": "T23",
+      "allowed_scopes": [
+        "lib/docker-runner.mjs",
+        "test/docker-runner-cache.test.mjs",
+        ".github/workflows/ci.yml",
+        "package.json",
+        "scripts/package-install-smoke.mjs",
+        "test/ci-webgame-repair-selection.test.mjs",
+        "scripts/ci-webgame-repair-selection.mjs"
+      ],
+      "reason": "Repository-scoped lease subject for the existing T23 agent, not a new implementation track. Original T23 bskel permissions are unchanged."
+    },
+    "T00-BSKEL-SHARED": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scripts/run-next-nested-tests.mjs",
+        ".github/workflows/ci.yml"
+      ],
+      "reason": "Post-04A exact shared-CI lease subject for central nested-suite coverage and required tool availability only."
+    },
+    "T00-ROOT-T03": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/capability-next.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T04": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/js-ts-backend-comparison.test.mjs",
+        "test/js-ts-module-resolver.test.mjs",
+        "test/js-ts-snapshot-graph.test.mjs",
+        "test/js-ts-source-facts.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T05": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/jvm-language-foundation.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T07": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/t07-ruby-php-conformance.test.mjs",
+        "test/t07-ruby-php-corpus.test.mjs",
+        "test/t07-ruby-php-expand.test.mjs",
+        "test/t07-ruby-php-laravel-empty-uri.test.mjs",
+        "test/t07-ruby-php-model.test.mjs",
+        "test/t07-ruby-php-rails-scope-literals.test.mjs",
+        "test/t07-ruby-php-runtime-parity.test.mjs",
+        "test/t07-ruby-php-runtime.test.mjs",
+        "test/t07-ruby-php-symfony-attributes.test.mjs",
+        "test/t07-ruby-php.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T14": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/t14-provider-composition.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T21": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/t21-performance-next.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-T11-STABLE-EXPRESS": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scanners/adapters/typescript-express.mjs",
+        "test/express-shared.test.mjs"
+      ],
+      "reason": "Exact stable-scanner integration repair for T11 issue #119: combined default+named Express import and proven arbitrary Router variable/mount extraction."
+    },
+    "T00-T11-STABLE-TS-EXPRESS": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scanners/adapters/typescript-express.mjs",
+        "test/express-shared.test.mjs"
+      ],
+      "reason": "Exact integration repair for T11 #119 TypeScript Express combined-import/router-variable defect. No other stable scanner or registry/shared path is authorized."
+    },
+    "T00-T15-CLEANUP": {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scripts/t03-capability-view-compatibility-smoke.mjs",
+        "test/t03-capability-view-compatibility-smoke.test.mjs",
+        "test/t03-capability-view.test.mjs"
+      ],
+      "reason": "Exact historical #11 out-of-scope cleanup subject. These three files may only be removed or moved into T15-owned lib/next/** or test/next/** during the evidence-bound capability consumer restack."
+    },
+    "T00-BSKEL-INTEGRATION": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "contracts/next/**",
+        "schemas/next/**",
+        "test/contract-next/**",
+        "scanners/project-graph/**",
+        "test/project-graph/**",
+        "scanners/capability-next/**",
+        "test/capability-next/**",
+        "scanners/language/js-ts/**",
+        "test/language-js-ts/**",
+        "scanners/language/jvm/**",
+        "test/language-jvm/**",
+        "scanners/language/python/**",
+        "test/language-python/**",
+        "scanners/language/ruby-php/**",
+        "test/language-ruby-php/**",
+        "scanners/language/native-server/**",
+        "test/language-native-server/**",
+        "scanners/persistence-next/**",
+        "test/persistence-next/**",
+        "scanners/adapters/typescript-express.mjs",
+        "test/express-shared.test.mjs",
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**",
+        "adapters/http-wave-bc/**",
+        "test/http-wave-bc/**",
+        "handles/composition-next/**",
+        "test/provider-composition-next/**",
+        "adapters/protocol-next/**",
+        "test/protocol-next/**",
+        "lib/trust-next/**",
+        "test/trust-next/**",
+        "lib/artifact-store-next/**",
+        "lib/scan-scheduler-next/**",
+        "test/perf-next/**",
+        "sdk/next/**",
+        "docs/scale-sdk/**",
+        "test/sdk-next/**",
+        "contracts/reconciliation-next/**",
+        "test/reconciliation-next/**",
+        "adapters/game-next/**",
+        "test/game-next/native-text-source-exporters.test.mjs"
+      ],
+      "reason": "Merge-only T00 integration subject for T19-reviewed T-series exact bytes. No semantic edits or conflict invention are authorized."
+    },
+    "T00-BEVAL-INTEGRATION": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        ".github/workflows/ci.yml",
+        "package.json",
+        "scripts/ci-webgame-repair-selection.mjs",
+        "scripts/package-install-smoke.mjs",
+        "test/ci-webgame-repair-selection.test.mjs",
+        "docs/next-runtime/**",
+        "lib/next-runtime/**",
+        "test/next-runtime/**"
+      ],
+      "reason": "T00 merge-only integration of the independently reviewed T23/T16 exact cumulative stack onto Backend-evaluation main."
+    },
+    "T00-BECODER-INTEGRATION": {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "lib/next/**",
+        "schemas/next/**",
+        "scripts/t01-next-identity-compatibility-smoke.mjs",
+        "test/next/**",
+        "test/next-identity-consumer-result.test.mjs",
+        "test/next-identity-consumer.test.mjs",
+        "test/t01-next-identity-compatibility-smoke.test.mjs"
+      ],
+      "reason": "T00 merge-only integration of independently reviewed T15 T01/T03 consumer bytes onto backend-decoder main."
+    }
+  },
+  "scope_amendments": [
+    {
+      "track": "T16",
+      "plan_scope": "src/next-runtime/**",
+      "policy_scope": "lib/next-runtime/**",
+      "reason": "Backend-evaluation uses lib/ as its runtime source tree; the amendment preserves an isolated next-runtime namespace instead of inventing a parallel src/ tree. Test/docs scopes are unchanged."
+    },
+    {
+      "track": "T23",
+      "plan_scope": ".github/workflows/scale-next-*.yml",
+      "policy_scope": "change-request-only in r1",
+      "reason": "Workflow files are reserved hot paths during pre-freeze parallel work; T23 may propose but not directly lease them before T00-04."
+    },
+    {
+      "track": "T23",
+      "lease_subject": "T23-BEVAL",
+      "revision": "T00-03-r2",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T03:00:00Z",
+      "request_comments": [
+        5842414530,
+        5842466269
+      ],
+      "activation_basis": "T00-04A ACTIVE_CORE_FREEZE",
+      "purpose": "Complete beval #66 selection and #58 next-runtime CI/package integration, retaining merged #65 and prior benchmark/game-fixture diagnostics. An ACTIVE fenced claim is still required before writing.",
+      "validation": "EOE: existing lease regression 9/9 and new T23 shared-scope regressions 15/15, zero failed/skipped, 2026-09-26T02:59:41Z.",
+      "exclusions": [
+        "package-lock.json",
+        "unrelated workflows",
+        "T16 runtime implementation",
+        "secrets or credentials",
+        "runtime deployment",
+        "Docker cache prune",
+        "production/default activation"
+      ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-BSKEL-SHARED",
+      "revision": "T00-03-r3",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T05:20:00Z",
+      "activation_basis": "T00-04A ACTIVE_CORE_FREEZE",
+      "purpose": "Make approved nested track suites visible in required CI and provide ripgrep to nested-next without reintroducing root test shims.",
+      "requested_tracks": [
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T14",
+        "T21"
+      ],
+      "exclusions": [
+        "package.json",
+        "package-lock.json",
+        "registry/schema/CLI changes",
+        "track product semantics",
+        "root test shims",
+        "default activation",
+        "release/deploy"
+      ]
+    },
+    {
+      "track": "T00",
+      "revision": "T00-03-r4",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T06:14:00Z",
+      "purpose": "Delete historical root test bridges now that nested-next is merged to main. T14 legacy test content was first copied into test/provider-composition-next under T14 ownership.",
+      "lease_subjects": [
+        "T00-ROOT-T03",
+        "T00-ROOT-T04",
+        "T00-ROOT-T05",
+        "T00-ROOT-T07",
+        "T00-ROOT-T14",
+        "T00-ROOT-T21"
+      ],
+      "exclusions": [
+        "product source changes",
+        "nested test semantic changes",
+        "package/lock/registry/schema/CLI changes",
+        "default activation",
+        "release/deploy"
+      ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-T11-STABLE-EXPRESS",
+      "revision": "T00-03-r5",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T06:33:00Z",
+      "purpose": "Close stable TypeScript Express #119 holdout without widening T11 product scope.",
+      "source_handoff": "T04 import-binding facts + T11 read-only defect reproduction",
+      "exclusions": [
+        "scanners/registry.mjs",
+        "shared schemas/contracts",
+        "other adapters",
+        "package/lock/workflows",
+        "operationId synthesis",
+        "generic low-confidence fallback weakening"
+      ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-T11-STABLE-TS-EXPRESS",
+      "revision": "T00-03-r5",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T07:01:10Z",
+      "purpose": "Fix stable TypeScript Express detection/extraction for combined default+named import and proven non-'router' Router variables, with an exact holdout regression.",
+      "exclusions": [
+        "scanners/registry.mjs",
+        "other stable adapters",
+        "package/lock/workflow/schema changes",
+        "operationId invention",
+        "default activation beyond existing stable adapter behavior",
+        "release/deploy"
+      ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-T15-CLEANUP",
+      "revision": "T00-03-r6",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T12:44:00Z",
+      "activation_basis": "T03 final PASS(T03_EVIDENCE_BOUND_CAPABILITY) + T15 #11 fresh restack request",
+      "purpose": "Allow exact deletion/move of the three historical #11 files that predate T15 ownership layout while keeping all new/edited consumer logic inside lib/next/** and test/next/**.",
+      "requested_track": "T15",
+      "exclusions": [
+        "No new scripts/** implementation",
+        "No new root test/*.test.mjs implementation",
+        "No backend-skeleton writes",
+        "No stable CLI/default UI/support-matrix wiring",
+        "No merge/release/default activation"
+      ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-BSKEL-INTEGRATION",
+      "revision": "T00-03-r7",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T14:10:00Z",
+      "activation_basis": "Terminal T19 PASS set for T-series reviewed candidates",
+      "purpose": "Build and validate a combined backend-skeleton integration candidate from exact reviewed track bytes before main merge.",
+      "restrictions": [
+        "Merge reviewed branch heads without modifying their accepted bytes.",
+        "For coordination-based T09/T17, copy only T19-reviewed owned paths; do not import coordination branch ancestry.",
+        "If any content conflict occurs, stop and clean-restack the owning track instead of inventing a manual semantic merge.",
+        "No registry/default activation/stable schema/release changes.",
+        "Final main merge only after combined exact-head CI succeeds."
+      ]
+    },
+    {
+      "track": "T00",
+      "revision": "T00-03-r8",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T14:31:00Z",
+      "purpose": "Add exact merge-only integration subjects for Backend-evaluation T16 stack and backend-decoder T15 consumers after terminal T19 PASS.",
+      "lease_subjects": [
+        "T00-BEVAL-INTEGRATION",
+        "T00-BECODER-INTEGRATION"
+      ],
+      "exclusions": [
+        "semantic rewrites",
+        "default activation",
+        "runtime-tested promotion",
+        "release/deploy",
+        "unreviewed PR content"
+      ]
+    }
+  ],
+  "reserved_hot_paths": [
+    "package.json",
+    "package-lock.json",
+    ".github/**",
+    "bin/**",
+    "scanners/registry.mjs",
+    "scanners/index.mjs",
+    "scanners/capabilities.mjs",
+    "schemas/adapter.schema.json",
+    "contracts/openapi.mjs",
+    "schemas/feature-contract.schema.json"
+  ],
+  "reserved_policy": "All reserved paths remain reserved. r8 adds repo-specific T00 merge-only integration subjects for Backend-evaluation and backend-decoder. They permit only the enumerated independently reviewed bytes; any semantic conflict requires a fresh owner fix/review."
+}

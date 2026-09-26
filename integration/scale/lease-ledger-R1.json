@@ -1,0 +1,660 @@
+{
+  "schema": "bskel.scale-lease-ledger/1",
+  "revision": "T00-03-R1",
+  "observed_on": "2026-09-25",
+  "claims": [
+    {
+      "claim_id": "T00-01-history",
+      "task_id": "T00-01",
+      "track": "T00",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T00/bootstrap-baseline",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "integration/scale/**"
+      ],
+      "worker_id": "agent-T00",
+      "resource_class": "static-small",
+      "resource_key": "bskel:integration-scale",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:20:00Z",
+      "expires_at": "2026-09-25T03:00:00Z",
+      "state": "SUBMITTED"
+    },
+    {
+      "claim_id": "T00-02-history",
+      "task_id": "T00-02",
+      "track": "T00",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T00/bootstrap-baseline",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "integration/scale/**"
+      ],
+      "worker_id": "agent-T00",
+      "resource_class": "static-small",
+      "resource_key": "bskel:integration-scale",
+      "fencing_token": 2,
+      "issued_at": "2026-09-25T00:40:00Z",
+      "expires_at": "2026-09-25T04:00:00Z",
+      "state": "SUBMITTED"
+    },
+    {
+      "claim_id": "T00-03-current",
+      "task_id": "T00-03",
+      "track": "T00",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T00/bootstrap-baseline",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "integration/scale/**"
+      ],
+      "worker_id": "agent-T00",
+      "resource_class": "static-medium",
+      "resource_key": "bskel:integration-scale",
+      "fencing_token": 3,
+      "issued_at": "2026-09-25T01:20:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED"
+    },
+    {
+      "claim_id": "T01-pr-82",
+      "task_id": "T01-working-set",
+      "track": "T01",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t01-contract-identity-next",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "92d33ccba9ece49a9c9ccf941618765dc1719efb",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "schemas/next/**",
+        "contracts/next/**",
+        "test/contract-next/**"
+      ],
+      "worker_id": "agent-T01",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T01",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 82
+    },
+    {
+      "claim_id": "T02-pr-72",
+      "task_id": "T02-working-set",
+      "track": "T02",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t02/project-graph-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "e999de09e6ebc6f4c3c6fe6dff01c058af685615",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/project-graph/**",
+        "test/project-graph/**"
+      ],
+      "worker_id": "agent-T02",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T02",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 72
+    },
+    {
+      "claim_id": "T03-pr-81",
+      "task_id": "T03-working-set",
+      "track": "T03",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T03/capability-policy-next",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "eeb1bcb416f91bbcab12ee1d35417c191af96511",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/capability-next/**",
+        "test/capability-next/**"
+      ],
+      "worker_id": "agent-T03",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T03",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 81
+    },
+    {
+      "claim_id": "T04-pr-73",
+      "task_id": "T04-working-set",
+      "track": "T04",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T04-js-ts-source-facts",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "9416f90fc571b281ffeeb5d890b08479e2124d0e",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/language/js-ts/**",
+        "test/language-js-ts/**"
+      ],
+      "worker_id": "agent-T04",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T04",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 73
+    },
+    {
+      "claim_id": "T05-pr-86",
+      "task_id": "T05-working-set",
+      "track": "T05",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "agent/t05-jvm-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "596a567b0c1a4b759b9db4cc54c55667b43e35fb",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/language/jvm/**",
+        "test/language-jvm/**"
+      ],
+      "worker_id": "agent-T05",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T05",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 86
+    },
+    {
+      "claim_id": "T06-pr-75",
+      "task_id": "T06-working-set",
+      "track": "T06",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t06-python-analysis-phase1",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "2eb6599e25fd2b96f61b1f0005d5448c4ad1ebd3",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/language/python/**",
+        "test/language-python/**"
+      ],
+      "worker_id": "agent-T06",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T06",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 75
+    },
+    {
+      "claim_id": "T07-pr-69",
+      "task_id": "T07-working-set",
+      "track": "T07",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T07/ruby-php-dsl-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "ff38e3941fae63d4d0d6082b9cd415c6917f3b28",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/language/ruby-php/**",
+        "test/language-ruby-php/**"
+      ],
+      "worker_id": "agent-T07",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T07",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 69
+    },
+    {
+      "claim_id": "T08-pr-76",
+      "task_id": "T08-working-set",
+      "track": "T08",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "feat/t08-native-server-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "a32d44b80a15572c2205a01e8709f626b0c544d6",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/language/native-server/**",
+        "test/language-native-server/**"
+      ],
+      "worker_id": "agent-T08",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T08",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 76
+    },
+    {
+      "claim_id": "T09-pr-83",
+      "task_id": "T09-working-set",
+      "track": "T09",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T09/reconciliation-next-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "c821d2676427be1db1deb6e6ae536eb508a84e16",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "contracts/reconciliation-next/**",
+        "test/reconciliation-next/**"
+      ],
+      "worker_id": "agent-T09",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T09",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 83
+    },
+    {
+      "claim_id": "T10-pr-84",
+      "task_id": "T10-working-set",
+      "track": "T10",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "feat/t10-persistence-plane",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "244e5ba9d9aaa49808815baa5962401db0790466",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "scanners/persistence-next/**",
+        "test/persistence-next/**"
+      ],
+      "worker_id": "agent-T10",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T10",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 84
+    },
+    {
+      "claim_id": "T11-pr-77",
+      "task_id": "T11-working-set",
+      "track": "T11",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t11-http-legacy-modernization",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "6d04792d9b85ad3b2bbcd248f685636316684fae",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "adapters/http-legacy-next/**",
+        "test/http-legacy-next/**"
+      ],
+      "worker_id": "agent-T11",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T11",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 77
+    },
+    {
+      "claim_id": "T12-pr-66",
+      "task_id": "T12-working-set",
+      "track": "T12",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "feat/t12-wave-a-nestjs",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "eec907f65d3ac94b0d174037b1a26ea662c81861",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**"
+      ],
+      "worker_id": "agent-T12",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T12",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 66
+    },
+    {
+      "claim_id": "T13-pr-67",
+      "task_id": "T13-working-set",
+      "track": "T13",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T13/http-wave-bc-bootstrap",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "ee5c0dd6f66fbf42728eba38f53d50bdc1980f50",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "adapters/http-wave-bc/**",
+        "test/http-wave-bc/**"
+      ],
+      "worker_id": "agent-T13",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T13",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 67
+    },
+    {
+      "claim_id": "T14-pr-71",
+      "task_id": "T14-working-set",
+      "track": "T14",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t14-provider-composition-next",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "c7c81d3eb737fa9db1224224614335c75da4dacb",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "handles/composition-next/**",
+        "test/provider-composition-next/**"
+      ],
+      "worker_id": "agent-T14",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T14",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 71
+    },
+    {
+      "claim_id": "T15-pr-8",
+      "task_id": "T15-working-set",
+      "track": "T15",
+      "repository": "popixoxipop-collab/backend-decoder",
+      "branch": "scale/t15-r3f-consumer",
+      "base_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "observed_head_sha": "ae2df903a9bdb18113769c9aec4966d24dcac3ea",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "docs/next/**",
+        "lib/next/**",
+        "test/next/**"
+      ],
+      "worker_id": "agent-T15",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-decoder:T15",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 8
+    },
+    {
+      "claim_id": "T16-pr-41",
+      "task_id": "T16-working-set",
+      "track": "T16",
+      "repository": "popixoxipop-collab/Backend-evaluation",
+      "branch": "scale/T16/runtime-binding-v1",
+      "base_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "observed_head_sha": "61663a6bafc554f6e688a96bbeb28731e105a7a1",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "docs/next-runtime/**",
+        "src/next-runtime/**",
+        "test/next-runtime/**"
+      ],
+      "worker_id": "agent-T16",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/Backend-evaluation:T16",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 41
+    },
+    {
+      "claim_id": "T17-pr-68",
+      "task_id": "T17-working-set",
+      "track": "T17",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T17/game-next-bridge",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "2a3d0fabc1cff1eb6601c766c5ea5d7759643723",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "adapters/game-next/**",
+        "test/game-next/**"
+      ],
+      "worker_id": "agent-T17",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T17",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 68
+    },
+    {
+      "claim_id": "T18-pr-70",
+      "task_id": "T18-working-set",
+      "track": "T18",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "feat/t18-protocol-contract-plane",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "b8c529625db4702b21296a8fed5f22c8aec03305",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "adapters/protocol-next/**",
+        "test/protocol-next/**"
+      ],
+      "worker_id": "agent-T18",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T18",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 70
+    },
+    {
+      "claim_id": "T19-pr-74",
+      "task_id": "T19-working-set",
+      "track": "T19",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t19-qa-corpus-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "17509373b650c81b861667348a63974bb7622929",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "evidence/next/**",
+        "test/conformance-next/**",
+        "test/corpus-next/**"
+      ],
+      "worker_id": "agent-T19",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T19",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 74
+    },
+    {
+      "claim_id": "T20-pr-79",
+      "task_id": "T20-working-set",
+      "track": "T20",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T20/trust-boundary-foundation",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "b1aaefb3e77bbd5702cb73107f232d01100f4d10",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "lib/trust-next/**",
+        "test/trust-next/**"
+      ],
+      "worker_id": "agent-T20",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T20",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 79
+    },
+    {
+      "claim_id": "T21-pr-80",
+      "task_id": "T21-working-set",
+      "track": "T21",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t21/incremental-store",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "86028bc433b324ba1cb8454221bbb7ed6ed69525",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "lib/artifact-store-next/**",
+        "lib/scan-scheduler-next/**",
+        "test/perf-next/**"
+      ],
+      "worker_id": "agent-T21",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T21",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 80
+    },
+    {
+      "claim_id": "T22-pr-85",
+      "task_id": "T22-working-set",
+      "track": "T22",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t22/sdk-ux",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "064154982055a0f7885b5026eebfad9f9d01d83f",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "docs/scale-sdk/**",
+        "sdk/next/**",
+        "test/sdk-next/**"
+      ],
+      "worker_id": "agent-T22",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T22",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 85
+    },
+    {
+      "claim_id": "T23-pr-78",
+      "task_id": "T23-working-set",
+      "track": "T23",
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T23/release-migration-ops",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "6870cb051bf9811da223a3077e5d880a110a5c8d",
+      "interface_revision": "pre-freeze/0",
+      "read_scope": [
+        "**"
+      ],
+      "write_scope": [
+        "release/next/**",
+        "docs/scale-release/**",
+        ".github/workflows/scale-next-*.yml"
+      ],
+      "worker_id": "agent-T23",
+      "resource_class": "static-medium",
+      "resource_key": "popixoxipop-collab/backend-skeleton:T23",
+      "fencing_token": 1,
+      "issued_at": "2026-09-25T00:25:00Z",
+      "expires_at": "2026-09-26T12:00:00Z",
+      "state": "SUBMITTED",
+      "pr": 78
+    }
+  ],
+  "notes": [
+    "SUBMITTED claims are historical/current-review snapshots and do not hold active write leases.",
+    "Only CLAIMED/RUNNING claims participate in active write-conflict and active-expiry checks.",
+    "T12 and T15 branch deviations are recorded separately; their policy claims do not legalize out-of-scope files."
+  ]
+}

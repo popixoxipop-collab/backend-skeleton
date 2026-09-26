@@ -1,0 +1,130 @@
+{
+  "schema": "bskel.scale-interface-prefreeze/1",
+  "task_id": "T00-04",
+  "status": "BLOCKED_PREFREEZE",
+  "generated_on": "2026-09-25",
+  "baseline_epoch": 2,
+  "hard_constraints_frozen": [
+    "existing sbf.contract-ref/1, sbf.action-ref/1, sbf.field-ref/1 exact-byte contract identity remains authoritative",
+    "beval.binding-json/1 canonical serialization remains unchanged",
+    "unknown/partial/unsupported/not-applicable are distinct states; missing evidence is never supported",
+    "project graph, language facts, persistence IR, game graph and protocol planes do not redefine HTTP operation identity",
+    "game/protocol causal relationships are never inferred from temporal adjacency or naming",
+    "runtime evidence is bound to exact execution/profile/artifact identities and does not repair upstream meaning",
+    "stable CLI/schema/package/workflow changes require T00/T23 integration lease"
+  ],
+  "candidate_interfaces": {
+    "identity": {
+      "source": "T01 #82",
+      "versions": [
+        "sbf.artifact-ref/1",
+        "sbf.identity-envelope/1"
+      ],
+      "disposition": "CANDIDATE_STABLE_AFTER_REVIEW",
+      "constraints": [
+        "identity-envelope/1 is HTTP-only in v1",
+        "legacy ContractRef/ActionRef/FieldRef remains valid",
+        "artifact identity is exact bytes, not semantic equivalence"
+      ]
+    },
+    "project_graph": {
+      "source": "T02 #72",
+      "version": "sbf.project-graph/draft-1",
+      "disposition": "KEEP_DRAFT_INTERNAL",
+      "constraints": [
+        "repo-relative project roots",
+        "per-project adapter selection",
+        "no cross-tool identity claim",
+        "legacy runScan unchanged until integration"
+      ]
+    },
+    "capability_model": {
+      "source": "T03 #81",
+      "statuses": [
+        "supported",
+        "partial",
+        "unsupported",
+        "unknown",
+        "not-applicable"
+      ],
+      "disposition": "CANDIDATE_SEMANTICS_STABLE_SCHEMA_LATER",
+      "constraints": [
+        "support level separate from adapter confidence/verification basis",
+        "supported requires evidence except explicit legacy bridge",
+        "legacy booleans do not widen semantics"
+      ]
+    },
+    "reconciliation": {
+      "source": "T09 #83",
+      "disposition": "BLOCKED",
+      "blockers": [
+        "exact-head semantic regression: synthesized operation id promotion"
+      ],
+      "constraints": [
+        "field-level provenance",
+        "resolved/conflict/unknown/absent/skipped remain distinct",
+        "existing HTTP v9 writer stays authoritative until corrected"
+      ]
+    },
+    "persistence": {
+      "source": "T10 #84",
+      "version": "sbf.persistence-ir/1",
+      "disposition": "CANDIDATE_INTERNAL",
+      "constraints": [
+        "read-only normalization",
+        "explicit binding only",
+        "source/migration/live evidence separated",
+        "composite key/relation ambiguity preserved"
+      ]
+    },
+    "game": {
+      "sources": [
+        "existing sbf.webgame-contract/1",
+        "T17 #68 sbf.game-graph-draft/1"
+      ],
+      "disposition": "LEGACY_PUBLIC_PLUS_DRAFT_NEXT",
+      "constraints": [
+        "webgame/1 remains public authority",
+        "game-graph stays derived-static-only",
+        "causal_edges/transitions empty unless explicit trusted evidence exists"
+      ]
+    },
+    "protocol": {
+      "source": "T18 #70",
+      "disposition": "INDEPENDENT_FAMILY_DRAFT_FOR_CROSS_TOOL_IDENTITY",
+      "constraints": [
+        "does not satisfy HTTP contract gate",
+        "ordering/correlation/causation remain distinct",
+        "runtime certification belongs to beval/T16"
+      ]
+    },
+    "runtime_binding": {
+      "source": "T16 #41",
+      "version": "beval.runtime-binding/1",
+      "disposition": "REBASE_REQUIRED_THEN_REVIEW",
+      "constraints": [
+        "beval-owned",
+        "bind exact run/profile/contract/runner/artifact/attempt identity",
+        "evidence must match binding hash and attempt nonce",
+        "does not redefine contract identity"
+      ]
+    }
+  },
+  "blockers_to_final_freeze": [
+    "T00-01 epoch-2 exact-head CI/review incomplete",
+    "T09 #83 correctness regression must be fixed and green",
+    "T12 #66 must remove premature stable auto-registration and become green",
+    "T13 #67 branch-owned regression must be green",
+    "T16 #41 must rebase onto current beval main and rerun exact-head CI",
+    "T15 #8 must split renderer work from shared package/product changes",
+    "Legacy A #63 and Legacy C #62 absorption mappings must be acknowledged by canonical owners"
+  ],
+  "final_freeze_must_not": [
+    "bump sbf_contract 9 merely to carry next analysis metadata",
+    "replace exact-byte contract identity with semantic hashes",
+    "make project IDs globally authoritative across repos",
+    "promote synthesized operation IDs as source-authored",
+    "mark a target runtime-tested without execution evidence",
+    "allow external adapter code to be dynamically imported from user-controlled paths"
+  ]
+}

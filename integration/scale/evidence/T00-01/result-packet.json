@@ -1,0 +1,273 @@
+{
+  "schema": "bskel.scale-result-packet/1",
+  "task_id": "T00-01",
+  "state": "ACCEPTED",
+  "repository": "popixoxipop-collab/backend-skeleton",
+  "input": {
+    "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "interface_revision": "pre-freeze/0",
+    "task_definition_sha256": "9ae02923cd16247ef9c5285da6404d4875fcd1ab0a07432940adea72f24d05c1",
+    "plan_bundle_sha256": "bfd53f0a25163c62252d2f00301ad700045ed6172ace055ab49be822b545f799"
+  },
+  "baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "882b185655f9166cda4a64b5b49a6eab477f2410"
+  },
+  "test_runs": [
+    {
+      "command": "node --test integration/scale/test-baseline.mjs",
+      "exit_code": 0,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "historical_ci": [
+    {
+      "repo": "bskel",
+      "run_id": 36040486375,
+      "conclusion": "success"
+    },
+    {
+      "repo": "becoder",
+      "run_id": 36070647695,
+      "conclusion": "success"
+    },
+    {
+      "repo": "beval",
+      "run_id": 36054404469,
+      "conclusion": "success"
+    }
+  ],
+  "changed_file_hashes": [
+    {
+      "path": "integration/scale/baseline.lock",
+      "sha256": "fec0041e315330901e51c29411cfc0d7cd99586e764e577fb1031d5490eee7ed",
+      "bytes": 7245
+    },
+    {
+      "path": "integration/scale/verify-baseline.mjs",
+      "sha256": "fbebe25cdb8807e499b1347bdc2032fb9fd4e421204dfeca2c7b13ea3101e603",
+      "bytes": 2196
+    },
+    {
+      "path": "integration/scale/test-baseline.mjs",
+      "sha256": "b0fb5f49d9ce6831069bd63f7ee49d0552fa292dfdfa6098c7cb90e78388575d",
+      "bytes": 1515
+    },
+    {
+      "path": "integration/scale/evidence/T00-01/remote-observation.json",
+      "sha256": "a54009238d8821ced3c00d1af5f88b9e3212ac87c665816611ba2dac6639a7c4",
+      "bytes": 2231
+    },
+    {
+      "path": "integration/scale/evidence/T00-01/negative-test-report.json",
+      "sha256": "7066da224321d593d8854385dc7b6c8dacbffa3773b683343e49772248c5af95",
+      "bytes": 1132
+    },
+    {
+      "path": "integration/scale/evidence/T00-01/test-output.txt",
+      "sha256": "c12d0dd5b42f17bfab2ed05a70b60324fd9fd4cc252e1a6d575930cfdf683610",
+      "bytes": 811
+    },
+    {
+      "path": "integration/scale/evidence/T00-01/test-exit-code.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    }
+  ],
+  "known_limitations": [
+    "GitHub remote state cannot prove a future local checkout is clean; the verifier therefore requires dirty=false in the worker observation and rejects unknown state.",
+    "T00-01 does not rerun the three product test suites; it records exact-head CI evidence and package-declared commands."
+  ],
+  "rollback": "Delete the integration/scale bootstrap branch/PR; no product entrypoint, schema, package manifest, lockfile, or runtime behavior is modified.",
+  "rebaseline_history": [
+    {
+      "epoch": 2,
+      "reason": "Backend-evaluation PR #39 merged after initial T00-01 submission",
+      "prior_beval_sha": "f87d442949be1ac81d00d47ab49fc0beccfc0424",
+      "current_beval_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "current_push_ci": {
+        "run_id": 36080236800,
+        "run_number": 865,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until current exact-head CI is successful and independent review completes"
+    },
+    {
+      "epoch": 3,
+      "reason": "Backend-evaluation PR #40 merged after epoch 2 baseline",
+      "prior_beval_sha": "5bdecbcbb839ecf3fc6aad3f54b4564906c3e56c",
+      "current_beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "current_push_ci": {
+        "run_id": 36083709046,
+        "run_number": 868,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until current exact-head CI is successful and independent review completes"
+    },
+    {
+      "epoch": 4,
+      "reason": "backend-decoder PR #9 merged after epoch 3 review",
+      "prior_becoder_sha": "a575679b7d9e6df69c95c6c4f71cfdcf8e67c11e",
+      "current_becoder_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "becoder_push_ci": {
+        "run_id": 36083442722,
+        "run_number": 83,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "beval_push_ci": {
+        "run_id": 36083709046,
+        "run_number": 868,
+        "status": "queued",
+        "conclusion": null
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until all current exact-head CI is successful and independent T19 review passes"
+    },
+    {
+      "epoch": 5,
+      "reason": "Backend-evaluation PR #46 merged to fix private sibling checkout in integration CI",
+      "prior_beval_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "current_beval_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
+      "premerge_ci": {
+        "run_id": 36099699382,
+        "run_number": 908,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "current_push_ci": {
+        "run_id": 36099964750,
+        "run_number": 909,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "acceptance_effect": "T00-01 remains SUBMITTED until exact-head main push CI #909 succeeds and T19 independently re-verifies current heads"
+    },
+    {
+      "epoch": 6,
+      "reason": "Backend-evaluation PR #42 and follow-up PR #47 merged after epoch 5, advancing beval main and changing package/runtime/repair surfaces",
+      "prior_beval_sha": "24cd9ad3cb913756184f79bb008af565a0458967",
+      "current_beval_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "supplementary_pr42_ci": {
+        "run_id": 36104244773,
+        "run_number": 921,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "supplementary_live_nvidia": {
+        "run_id": 36104240694,
+        "run_number": 37,
+        "status": "completed",
+        "conclusion": "success",
+        "outcome": "repaired_and_passed"
+      },
+      "current_push_ci": {
+        "run_id": 36105784109,
+        "run_number": 924,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "acceptance_effect": "BLOCKED/DRIFT; epoch 6 is not acceptable and is superseded by epoch 7.",
+      "independent_review": {
+        "verdict": "BLOCKED/DRIFT",
+        "t19_pr": 118,
+        "t19_head": "ed30e84d03526ac168004da2b644ebb29e8cb0dc",
+        "artifact": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+        "artifact_blob": "64254cee94654c9d9002824a6b693a2b1485f6c4",
+        "comment_id": 5830038810,
+        "blocker": "beval main advanced to 882b185655f9166cda4a64b5b49a6eab477f2410 and package.json blob changed"
+      }
+    },
+    {
+      "epoch": 7,
+      "reason": "T19 independently returned BLOCKED/DRIFT for epoch 6 after Backend-evaluation PR #48 and PR #49 advanced beval main by 14 commits and changed package.json/provider-matrix live-test surface",
+      "prior_beval_sha": "6a767a4bc04cfd55c4b87362b47b898563ffc59e",
+      "current_beval_sha": "882b185655f9166cda4a64b5b49a6eab477f2410",
+      "prior_epoch_review": {
+        "verdict": "BLOCKED/DRIFT",
+        "t19_pr": 118,
+        "t19_head": "ed30e84d03526ac168004da2b644ebb29e8cb0dc",
+        "artifact": "evidence/next/T19-T00-01-EPOCH6-REVIEW.md",
+        "artifact_blob": "64254cee94654c9d9002824a6b693a2b1485f6c4",
+        "comment_id": 5830038810,
+        "blocker": "beval main advanced to 882b185655f9166cda4a64b5b49a6eab477f2410 and package.json blob changed"
+      },
+      "current_push_ci": {
+        "run_id": 36117576104,
+        "run_number": 930,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "acceptance_effect": "ACCEPTED after exact-head CI success, independent T19 PASS, and T00 final no-drift re-read.",
+      "epoch7_pr_ci": {
+        "pr": 123,
+        "head": "486bcb2518d8939445617b796d4df215d85bef81",
+        "base": "aac2b8254337ffc8961bcd086c1dc801c59ff6e9",
+        "run_id": 36118976718,
+        "run_number": 1144,
+        "attempt": 2,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "independent_review": {
+        "verdict": "PASS",
+        "t19_pr": 118,
+        "t19_head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+        "artifact": "evidence/next/T19-T00-01-EPOCH7-REVIEW.md",
+        "artifact_blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+        "comment_id": 5830653632
+      }
+    }
+  ],
+  "changed_file_hashes_note": "Initial per-file SHA-256 entries predate rebaseline epochs; current file identity is the Git commit/blob identity of the epoch-7 rebaseline branch.",
+  "current_acceptance": {
+    "exact_main_heads_verified_by_t00": true,
+    "final_no_drift_verified": true,
+    "baseline_epoch": 7,
+    "baseline_merge_commit": "bc976ac7a0398b1dec96167026dd0de30494feec",
+    "epoch7_pr": {
+      "pr": 123,
+      "head": "486bcb2518d8939445617b796d4df215d85bef81",
+      "base": "aac2b8254337ffc8961bcd086c1dc801c59ff6e9",
+      "run_id": 36118976718,
+      "run_number": 1144,
+      "attempt": 2,
+      "conclusion": "success"
+    },
+    "exact_head_ci": {
+      "bskel": {
+        "run_id": 36040486375,
+        "run_number": 319,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "becoder": {
+        "run_id": 36083442722,
+        "run_number": 83,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      "beval": {
+        "run_id": 36117576104,
+        "run_number": 930,
+        "status": "completed",
+        "conclusion": "success"
+      }
+    },
+    "independent_review": {
+      "verdict": "PASS",
+      "t19_pr": 118,
+      "t19_head": "9c4719f629ea72696b95160e643d1e6937bd7613",
+      "artifact": "evidence/next/T19-T00-01-EPOCH7-REVIEW.md",
+      "artifact_blob": "d7082ef04cd02d3fc664afb825a85b7fdeaf40c9",
+      "comment_id": 5830653632
+    },
+    "accepted_on": "2026-09-25",
+    "note": "Epoch 7 accepted after PR #123 exact-head CI success, independent T19 PASS, and final T00 no-drift verification."
+  }
+}

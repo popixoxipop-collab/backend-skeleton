@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf-internal:game-graph-draft:1",
+  "title": "T17 internal draft game graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "bridge_revision", "status", "source_contract", "nodes", "relations", "behavior", "gaps", "warnings", "completeness"],
+  "properties": {
+    "schema": { "const": "sbf.game-graph-draft/1" },
+    "bridge_revision": { "type": "integer", "minimum": 1 },
+    "status": { "const": "derived-static-only" },
+    "source_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact", "family", "version", "feature_id", "feature_uid", "adapter", "adapter_revision", "source_hash", "engines", "engine_packages", "project_roots", "files"],
+      "properties": {
+        "artifact": { "$ref": "#/$defs/webgameArtifact" },
+        "family": { "const": "sbf.webgame-contract" },
+        "version": { "const": "1" },
+        "feature_id": { "type": "string", "minLength": 1 },
+        "feature_uid": { "type": "string", "minLength": 1 },
+        "adapter": { "type": "string", "minLength": 1 },
+        "adapter_revision": { "type": "integer", "minimum": 1 },
+        "source_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "engines": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "engine_packages": { "type": "array", "items": { "type": "object" } },
+        "project_roots": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "files": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "relations": { "type": "array", "items": { "$ref": "#/$defs/relation" } },
+    "behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["causal_edges", "transitions"],
+      "properties": {
+        "causal_edges": { "type": "array", "maxItems": 0 },
+        "transitions": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "gaps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_effects_unresolved", "runtime_state_unresolved", "dynamic_scene_hierarchy_unresolved", "notes"],
+      "properties": {
+        "input_effects_unresolved": { "type": "boolean" },
+        "runtime_state_unresolved": { "const": true },
+        "dynamic_scene_hierarchy_unresolved": { "const": true },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "object" } },
+    "completeness": { "type": ["object", "null"] }
+  },
+  "$defs": {
+    "webgameArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_ref", "family", "version", "media_type", "byte_sha256", "size_bytes"],
+      "properties": {
+        "artifact_ref": { "const": "sbf.artifact-ref/1" },
+        "family": { "const": "webgame-contract" },
+        "version": { "const": "1" },
+        "media_type": { "const": "application/json" },
+        "byte_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "version", "plane", "item_id"],
+      "properties": {
+        "family": { "const": "sbf.webgame-contract" },
+        "version": { "const": "1" },
+        "plane": { "type": "string", "minLength": 1 },
+        "item_id": { "type": ["string", "null"] }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "source", "observed"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^legacy:" },
+        "category": { "enum": ["scene", "entity", "input", "system", "loop", "renderer", "network", "asset", "physics"] },
+        "source": { "$ref": "#/$defs/source" },
+        "observed": { "type": "object" }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "source", "parent_symbol", "child_symbol", "observed"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^legacy:relation:" },
+        "kind": { "const": "hierarchy-symbolic" },
+        "source": { "$ref": "#/$defs/source" },
+        "parent_symbol": { "type": ["string", "null"] },
+        "child_symbol": { "type": ["string", "null"] },
+        "observed": { "type": "object" }
+      }
+    }
+  }
+}

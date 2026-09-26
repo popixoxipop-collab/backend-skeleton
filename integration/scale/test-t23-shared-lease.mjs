@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {checkClaim,checkResult,verifyLedger,validatePolicy} from './lease-ledger.mjs';
+const policy=JSON.parse(fs.readFileSync(new URL('./ownership-policy.json',import.meta.url),'utf8'));
+const paths=['lib/docker-runner.mjs','test/docker-runner-cache.test.mjs','.github/workflows/ci.yml','package.json','scripts/package-install-smoke.mjs','test/ci-webgame-repair-selection.test.mjs','scripts/ci-webgame-repair-selection.mjs'];
+const at='2026-09-26T03:00:00Z';
+const claim={claim_id:'T23-BEVAL-shared-ci-20260926-r2',track:'T23-BEVAL',repo:'popixoxipop-collab/Backend-evaluation',worker:'agent-T23',worktree:'/Users/eoe/mcp-sandbox/tailnet-commander/t23-beval-ci-integration-wt',base_sha:'81cbfcd564c99c4afee01dc65bde1294c5fada18',path_scopes:paths,fencing_token:2,issued_at:at,expires_at:'2026-09-26T09:00:00Z',state:'ACTIVE'};
+const before={claims:[],last_fencing_token:{}};
+const after={schema:'bskel.scale-lease-ledger/1',policy_revision:policy.revision,claims:[claim],last_fencing_token:{'T23-BEVAL':2}};
+const result={claim_id:claim.claim_id,base_sha:claim.base_sha,head_sha:'1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a',fencing_token:2,changed_paths:paths};
+test('checked-in shared policy admits only seven beval paths and preserves T23 bskel ownership',()=>{
+ assert.equal(validatePolicy(policy).ok,true);
+ assert.equal(policy.tracks['T23-BEVAL'].repo,claim.repo);
+ assert.equal(policy.tracks['T23-BEVAL'].canonical_track,'T23');
+ assert.deepEqual(policy.tracks['T23-BEVAL'].allowed_scopes,paths);
+ assert.equal(policy.tracks.T23.repo,'popixoxipop-collab/backend-skeleton');
+ assert.deepEqual(policy.tracks.T23.allowed_scopes,['release/next/**','docs/scale-release/**']);
+ assert.equal(checkClaim(policy,before,claim,at).ok,true);
+});
+for(const p of ['package-lock.json','.github/workflows/release.yml','lib/next-runtime/runtime-binding.mjs','scripts/ci-webgame-repair-selection.mjs.evil'])test('reject unrelated path '+p,()=>assert.equal(checkClaim(policy,before,{...claim,path_scopes:[p]},at).ok,false));
+test('T16 cannot claim common paths',()=>assert.equal(checkClaim(policy,before,{...claim,track:'T16'},at).ok,false));
+test('cannot use beval grant in bskel',()=>assert.equal(checkClaim(policy,before,{...claim,repo:'popixoxipop-collab/backend-skeleton'},at).ok,false));
+test('overlapping active claim rejected',()=>assert.equal(checkClaim(policy,after,{...claim,claim_id:'another',fencing_token:3},at).ok,false));
+test('exact seven-file result accepted',()=>assert.equal(checkResult(policy,after,result,at).ok,true));
+for(const [name,patch] of [['base',{base_sha:'0'.repeat(40)}],['token',{fencing_token:1}],['lockfile',{changed_paths:['package-lock.json']}],['traversal',{changed_paths:['../package.json']}]])test('reject invalid result '+name,()=>assert.equal(checkResult(policy,after,{...result,...patch},at).ok,false));
+test('expired result rejected',()=>assert.equal(checkResult(policy,after,result,'2026-09-26T09:00:01Z').ok,false));
+test('ledger and no-overlap with T16 runtime source',()=>{assert.equal(verifyLedger(policy,after,at).ok,true);const runtime={...claim,track:'T16',claim_id:'runtime',path_scopes:['lib/next-runtime/**']};assert.equal(checkClaim(policy,after,runtime,at).ok,true);});

@@ -1,0 +1,93 @@
+{
+  "schema": "t00.reviewed-series-integration/1",
+  "observed_at": "2026-09-26T14:39:00Z",
+  "bskel": {
+    "base": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+    "integration_pr": 147,
+    "head": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e",
+    "commits": [
+      "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+      "c429cb52bcc94c15c934b0cfa4a87f2b7053129e"
+    ],
+    "exact_sources": {
+      "T01": "e499073aaa7fe9c116e30fbff0536cccecb6eb69",
+      "T02": "78afb96442a193cf61183df0d57585be94db3768",
+      "T03": "40d451dbaf98ededd519cd6a47f6ec041b1512da",
+      "T04": "1e2d037dedc5ba035248e4d67255c2850973afe8",
+      "T05": "59409145fd101452385129307fe99ab3ba9805ab",
+      "T06": "bc9b319148a2b031027f96b9c2d243c0097d6e30",
+      "T07": "7d5ef0282f03b613a1f83bcc8d91e2fc9caa7202",
+      "T08": "98cfb059e502608834495d875e44369161ea2d58",
+      "T09": "67a158c0907b25e97ac8365f143fdeb7d1be3285",
+      "T10": "495235c2a703facc0f5850d5887ac0339bc90148",
+      "T11": "d1ce48f03a88da9b46fc93a23ad1d4e01658f68b",
+      "T12": "acdf1aad07127a3e656135335ed04abdb4c537bf",
+      "T13": "34437011d78441f617854547a29f65e393cdd632",
+      "T14": "9026e64e9668529c2d499e72ced27b96403b7255",
+      "T17": "2630dca623e05b99a9668ed9895e9501171a4b08",
+      "T18": "38179bb6cae26a1463e4a3db11a5f3829d450144",
+      "T20": "a6e614b3c1a4d216e24f9143473995843388e623",
+      "T21": "f2d76d19e5d2d30ef5fb48a6a4272447e643d5b1",
+      "T22": "de02c6aa4f99a15baa3c3f1170223a10dfb91ad9"
+    },
+    "path_audit": {
+      "changed_files": 391,
+      "unexpected": 0
+    },
+    "local_validation": {
+      "nested_all_included_tracks": "PASS",
+      "T11_express_119": "23/23 PASS"
+    },
+    "ci": {
+      "run_id": 36248587163,
+      "run_number": 1324,
+      "status": "running_at_packet_write"
+    }
+  },
+  "beval": {
+    "base": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
+    "integration_pr": 70,
+    "head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
+    "method": "git merge --ff-only",
+    "reviewed_stack": {
+      "pr59": "16d6958d009fbc285313790804eaf16b2280d74e",
+      "pr60": "e0af62e9c022f5884c02d6c02616ee2c37d800c5",
+      "pr61": "93d9c6e08e5e1aae54235f382c55b9e7d330bd54",
+      "pr62": "902424d0622c7731840acc11b9b4d07e3c60ac5a"
+    },
+    "t19": "PASS(T16_PROTOCOL_RUNTIME_BINDING_STACK)",
+    "ci": {
+      "run_id": 36248956436,
+      "run_number": 1025,
+      "status": "running_at_packet_write"
+    }
+  },
+  "becoder": {
+    "base": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "integration_pr": 12,
+    "head": "67b9429283a6736322b205ef4f941fc8436be14d",
+    "exact_sources": {
+      "identity_consumer": "9697098f45893d4647060cce02694655864e3300",
+      "capability_consumer": "47da5c9bb5e9cc406549c4d7326fe386e09b7b9c"
+    },
+    "t19": [
+      "PASS(T01-05_CONSUMER_COMPATIBILITY)",
+      "PASS(T15_EVIDENCE_BOUND_CAPABILITY_CONSUMER)"
+    ],
+    "local_validation": {
+      "focused": "22/22 PASS",
+      "root": "259/259 PASS"
+    },
+    "ci": {
+      "run_id": 36249066547,
+      "run_number": 94,
+      "status": "running_at_packet_write"
+    }
+  },
+  "constraints": [
+    "No stable/default activation implied.",
+    "No runtime-tested promotion implied beyond each exact T19 verdict.",
+    "No release/deploy implied.",
+    "Semantic conflicts require owner fix + fresh review; integration may not invent semantics."
+  ]
+}

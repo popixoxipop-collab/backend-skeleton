@@ -1,0 +1,39 @@
+{
+  "schema": "bskel.scale-negative-test-report/1",
+  "task_id": "T00-01",
+  "command": "node --test integration/scale/test-baseline.mjs",
+  "exit_code": 0,
+  "cases": [
+    {
+      "name": "exact locked observation",
+      "expected": "accept",
+      "actual": "accept",
+      "passed": true
+    },
+    {
+      "name": "dirty checkout",
+      "expected": "reject DIRTY_CHECKOUT",
+      "actual": "reject DIRTY_CHECKOUT",
+      "passed": true
+    },
+    {
+      "name": "missing artifact",
+      "expected": "reject MISSING_ARTIFACT",
+      "actual": "reject MISSING_ARTIFACT",
+      "passed": true
+    },
+    {
+      "name": "remote default-branch mismatch",
+      "expected": "reject DEFAULT_BRANCH_MISMATCH",
+      "actual": "reject DEFAULT_BRANCH_MISMATCH",
+      "passed": true
+    },
+    {
+      "name": "unknown dirty state",
+      "expected": "reject DIRTY_STATE_UNKNOWN",
+      "actual": "reject DIRTY_STATE_UNKNOWN",
+      "passed": true
+    }
+  ],
+  "note": "Tests exercise the fail-closed verifier. Remote GitHub metadata is separately recorded and intentionally does not pretend to prove local worktree cleanliness."
+}
