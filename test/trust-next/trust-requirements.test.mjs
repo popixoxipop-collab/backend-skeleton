@@ -12,6 +12,8 @@ import { PERMISSION_MANIFEST_SCHEMA } from '../../lib/trust-next/permission-mani
 import { ARTIFACT_TRUST_POLICY_SCHEMA } from '../../lib/trust-next/artifact-trust.mjs';
 
 const A = 'a'.repeat(64);
+const REF_A = 'sha256:' + '1'.repeat(64);
+const REF_B = 'sha256:' + '2'.repeat(64);
 const permission = () => ({
   schema: PERMISSION_MANIFEST_SCHEMA,
   read_roots: ['src'],
@@ -24,11 +26,12 @@ const trust = () => ({
   revoked: [],
 });
 
-function echo(req) {
+function echo(req, evidenceRefs = [REF_A]) {
   return {
     contract: TRUST_ECHO_CONTRACT,
     permission: { ...req.permission, enforced: true },
     artifact_policy: { ...req.artifact_policy, enforced: true },
+    evidence_refs: evidenceRefs,
   };
 }
 
@@ -63,9 +66,9 @@ test('semantically equivalent input manifests produce the same trust requirement
 
 test('matching enforced evidence echo passes', () => {
   const req = buildTrustRequirements({ permissionManifest: permission(), artifactTrustPolicy: trust() });
-  const result = validateTrustEvidenceEcho(req, echo(req));
+  const result = validateTrustEvidenceEcho(req, echo(req), { verifiedEvidenceRefs: [REF_A] });
   assert.deepEqual(result, { ok: true, errors: [] });
-  assert.equal(assertTrustEvidenceEcho(req, echo(req)).ok, true);
+  assert.equal(assertTrustEvidenceEcho(req, echo(req), { verifiedEvidenceRefs: [REF_A] }).ok, true);
 });
 
 test('receipt without enforcement is not enough', () => {
@@ -73,7 +76,7 @@ test('receipt without enforcement is not enough', () => {
   const observed = echo(req);
   observed.permission.enforced = false;
   observed.artifact_policy.enforced = false;
-  const result = validateTrustEvidenceEcho(req, observed);
+  const result = validateTrustEvidenceEcho(req, observed, { verifiedEvidenceRefs: [REF_A] });
   assert.equal(result.ok, false);
   assert.equal(result.errors.some((x) => x.code === 'PERMISSION_NOT_ENFORCED'), true);
   assert.equal(result.errors.some((x) => x.code === 'ARTIFACT_POLICY_NOT_ENFORCED'), true);
@@ -85,12 +88,12 @@ test('digest and generation mismatch fail closed', () => {
   observed.permission.sha256 = 'b'.repeat(64);
   observed.artifact_policy.sha256 = 'c'.repeat(64);
   observed.artifact_policy.generation = 6;
-  const result = validateTrustEvidenceEcho(req, observed);
+  const result = validateTrustEvidenceEcho(req, observed, { verifiedEvidenceRefs: [REF_A] });
   assert.equal(result.ok, false);
   for (const code of ['PERMISSION_DIGEST_MISMATCH', 'ARTIFACT_POLICY_DIGEST_MISMATCH', 'ARTIFACT_POLICY_GENERATION_MISMATCH']) {
     assert.equal(result.errors.some((x) => x.code === code), true, code);
   }
-  assert.throws(() => assertTrustEvidenceEcho(req, observed), (error) => error?.code === 'TRUST_EVIDENCE_MISMATCH');
+  assert.throws(() => assertTrustEvidenceEcho(req, observed, { verifiedEvidenceRefs: [REF_A] }), (error) => error?.code === 'TRUST_EVIDENCE_MISMATCH');
 });
 
 test('echo cannot smuggle runner, display-name, URL, or mutable authority fields', () => {
@@ -104,10 +107,36 @@ test('echo cannot smuggle runner, display-name, URL, or mutable authority fields
     const observed = echo(req);
     if (container === 'root') observed[key] = value;
     else observed[container][key] = value;
-    const result = validateTrustEvidenceEcho(req, observed);
+    const result = validateTrustEvidenceEcho(req, observed, { verifiedEvidenceRefs: [REF_A] });
     assert.equal(result.ok, false, `${container}.${key}`);
     assert.equal(result.errors.some((x) => x.code === 'UNKNOWN_TRUST_REQUIREMENT_FIELD'), true, `${container}.${key}`);
   }
+});
+
+
+test('enforced true without independently verified evidence refs fails closed', () => {
+  const req = buildTrustRequirements({ permissionManifest: permission(), artifactTrustPolicy: trust() });
+  const observed = echo(req);
+  const result = validateTrustEvidenceEcho(req, observed);
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.some((x) => x.code === 'EVIDENCE_REFS_INVALID' && x.path === 'verifiedEvidenceRefs'), true);
+  assert.throws(
+    () => assertTrustEvidenceEcho(req, observed),
+    (error) => error?.code === 'TRUST_EVIDENCE_MISMATCH',
+  );
+});
+
+test('echo evidence must be content-addressed and accepted by the external verifier', () => {
+  const req = buildTrustRequirements({ permissionManifest: permission(), artifactTrustPolicy: trust() });
+
+  const unverified = validateTrustEvidenceEcho(req, echo(req, [REF_B]), { verifiedEvidenceRefs: [REF_A] });
+  assert.equal(unverified.ok, false);
+  assert.equal(unverified.errors.some((x) => x.code === 'EVIDENCE_REF_NOT_VERIFIED'), true);
+
+  const malformed = echo(req, ['artifact:self-report']);
+  const invalid = validateTrustEvidenceEcho(req, malformed, { verifiedEvidenceRefs: [REF_A] });
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.errors.some((x) => x.code === 'EVIDENCE_REF_INVALID'), true);
 });
 
 test('invalid input policies never produce trusted requirement identities', () => {
