@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-ownership-policy/1",
-  "revision": "T00-03-r7",
+  "revision": "T00-03-r8",
   "tracks": {
     "T00": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -333,6 +333,35 @@
         "test/game-next/native-text-source-exporters.test.mjs"
       ],
       "reason": "Merge-only T00 integration subject for T19-reviewed T-series exact bytes. No semantic edits or conflict invention are authorized."
+    },
+    "T00-BEVAL-INTEGRATION": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        ".github/workflows/ci.yml",
+        "package.json",
+        "scripts/ci-webgame-repair-selection.mjs",
+        "scripts/package-install-smoke.mjs",
+        "test/ci-webgame-repair-selection.test.mjs",
+        "docs/next-runtime/**",
+        "lib/next-runtime/**",
+        "test/next-runtime/**"
+      ],
+      "reason": "T00 merge-only integration of the independently reviewed T23/T16 exact cumulative stack onto Backend-evaluation main."
+    },
+    "T00-BECODER-INTEGRATION": {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "lib/next/**",
+        "schemas/next/**",
+        "scripts/t01-next-identity-compatibility-smoke.mjs",
+        "test/next/**",
+        "test/next-identity-consumer-result.test.mjs",
+        "test/next-identity-consumer.test.mjs",
+        "test/t01-next-identity-compatibility-smoke.test.mjs"
+      ],
+      "reason": "T00 merge-only integration of independently reviewed T15 T01/T03 consumer bytes onto backend-decoder main."
     }
   },
   "scope_amendments": [
@@ -484,6 +513,24 @@
         "No registry/default activation/stable schema/release changes.",
         "Final main merge only after combined exact-head CI succeeds."
       ]
+    },
+    {
+      "track": "T00",
+      "revision": "T00-03-r8",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T14:31:00Z",
+      "purpose": "Add exact merge-only integration subjects for Backend-evaluation T16 stack and backend-decoder T15 consumers after terminal T19 PASS.",
+      "lease_subjects": [
+        "T00-BEVAL-INTEGRATION",
+        "T00-BECODER-INTEGRATION"
+      ],
+      "exclusions": [
+        "semantic rewrites",
+        "default activation",
+        "runtime-tested promotion",
+        "release/deploy",
+        "unreviewed PR content"
+      ]
     }
   ],
   "reserved_hot_paths": [
@@ -498,5 +545,5 @@
     "contracts/openapi.mjs",
     "schemas/feature-contract.schema.json"
   ],
-  "reserved_policy": "All reserved paths remain reserved. r7 adds T00-BSKEL-INTEGRATION as a merge-only subject over the enumerated T-series reviewed scopes. It does not authorize semantic edits, registry/default activation, stable-schema promotion, or release."
+  "reserved_policy": "All reserved paths remain reserved. r8 adds repo-specific T00 merge-only integration subjects for Backend-evaluation and backend-decoder. They permit only the enumerated independently reviewed bytes; any semantic conflict requires a fresh owner fix/review."
 }
