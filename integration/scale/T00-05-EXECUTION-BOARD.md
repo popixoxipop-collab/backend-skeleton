@@ -32,10 +32,11 @@ Mode: integration / evidence closure; no new framework fan-out
 | 2 | T23 | beval #58 | head `364df37...`, CI #987 SUCCESS but mergeable=false | restack on current main after #65/#66 while preserving benchmark/package changes; exact-head CI |
 | 3 | T16 | beval #59-#62 | #62 head `accce80...`, CI #1002 SUCCESS | restack the chain on accepted #58 base; focused next-runtime + package + integration evidence |
 | 4 | T16/T23 | chord-forward-right | T19 review `d6fd24a...`: historical attempt = execution-layer BLOCKED/unknown; #66 real Docker/browser smoke = `repaired_and_passed` | preserve runtime_state + bounded/redacted Docker logs on future failure; rerun after #65 + completed #66 restack |
-| 5 | T21 | bskel #80 | head `efd1eec...`, CI #799 FAILURE | resolve project-cache plan ordering contract without deleting meaningful ordering checks; Node 22/24 exact-head pass |
-| 6 | T01 | bskel #82 + becoder #10 + beval consumer | both consumer implementations exist | validate exact 12-vector pack with consumer-set aggregation; bind package/code SHAs |
-| 7 | T19 | bskel #118 | head `cacf60a...`, CI #1199 SUCCESS | review deltas from T21/T16/T01; do not call 79 catalog cases executable |
-| 8 | T20 | bskel #79 | policy foundation green | produce actual externally-observed enforcement evidence for admitted runner profile; policy validity alone is insufficient |
+| 5 | T02 | bskel #72 | head `989e7d3...`; locale-order defect reproduced; ACTIVE lease token 2 | replace localeCompare-based ordering with explicit locale-independent ordering; cross-locale + two-worktree + stale evidence; return invariant to T21 |
+| 6 | T21 | bskel #80 | head `efd1eec...`, CI #799 FAILURE | resolve project-cache plan ordering contract without deleting meaningful ordering checks; Node 22/24 exact-head pass |
+| 7 | T01 | bskel #82 + becoder #10 + beval consumer | both consumer implementations exist | validate exact 12-vector pack with consumer-set aggregation; bind package/code SHAs |
+| 8 | T19 | bskel #118 | head `cacf60a...`, CI #1199 SUCCESS | review deltas from T21/T16/T01; do not call 79 catalog cases executable |
+| 9 | T20 | bskel #79 | policy foundation green | produce actual externally-observed enforcement evidence for admitted runner profile; policy validity alone is insufficient |
 
 ## Green candidates not yet authorized for merge
 
@@ -102,3 +103,12 @@ Latest T19 evidence classifies the observed failure boundary as follows:
 - this does not grant broad Runtime-tested certification.
 
 T00 therefore removes "possible chord behavior bug" from the primary blocker list. The remaining requirement is diagnostic preservation on failure and a post-#65/#66-restack exact-head rerun.
+
+
+## Active write leases
+
+- T17 PR #138 defect fix: `T17-pr138-defect-fix-20260926`, fencing token 2, exact two-file scope, expires 2026-09-26T08:47:13Z.
+- T21 PR #80 corrective slice: `T21-pr80-defect-fix-20260926`, fencing token 2, T21-owned cache/perf scopes only, expires 2026-09-26T08:47:13Z. Root shim cleanup explicitly excluded.
+- T02 PR #72 locale-order fix: `T02-pr72-locale-fix-20260926`, fencing token 2, project-graph/test scopes only, expires 2026-09-26T08:49:08Z.
+
+T21 final ordering/cache acceptance is dependent on the corrected T02 invariant; T21 may work in parallel on other in-scope defects but must not freeze an oracle against the known locale-sensitive T02 producer head.
