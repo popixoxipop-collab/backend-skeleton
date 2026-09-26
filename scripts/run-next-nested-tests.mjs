@@ -9,14 +9,23 @@ export const REPO_ROOT = path.join(__dirname, '..');
 export const SUITES = [
   { id: 'T01', sourcePaths: ['contracts/next', 'schemas/next'], testDir: 'test/contract-next' },
   { id: 'T02', sourcePaths: ['scanners/project-graph'], testDir: 'test/project-graph' },
+  { id: 'T03', sourcePaths: ['scanners/capability-next'], testDir: 'test/capability-next' },
+  { id: 'T04', sourcePaths: ['scanners/language/js-ts'], testDir: 'test/language-js-ts' },
+  { id: 'T05', sourcePaths: ['scanners/language/jvm'], testDir: 'test/language-jvm' },
   { id: 'T06', sourcePaths: ['scanners/language/python'], testDir: 'test/language-python' },
+  { id: 'T07', sourcePaths: ['scanners/language/ruby-php'], testDir: 'test/language-ruby-php' },
   { id: 'T08', sourcePaths: ['scanners/language/native-server'], testDir: 'test/language-native-server' },
   { id: 'T09', sourcePaths: ['contracts/reconciliation-next'], testDir: 'test/reconciliation-next' },
+  { id: 'T10', sourcePaths: ['scanners/persistence-next'], testDir: 'test/persistence-next' },
   { id: 'T11', sourcePaths: ['adapters/http-legacy-next'], testDir: 'test/http-legacy-next' },
+  { id: 'T12', sourcePaths: ['adapters/http-wave-a'], testDir: 'test/http-wave-a' },
+  { id: 'T13', sourcePaths: ['adapters/http-wave-bc'], testDir: 'test/http-wave-bc' },
+  { id: 'T14', sourcePaths: ['handles/composition-next'], testDir: 'test/provider-composition-next' },
   { id: 'T17', sourcePaths: ['adapters/game-next'], testDir: 'test/game-next' },
   { id: 'T18', sourcePaths: ['adapters/protocol-next'], testDir: 'test/protocol-next' },
   { id: 'T19', sourcePaths: ['test/conformance-next', 'test/corpus-next', 'evidence/next'], testDir: 'test/conformance-next' },
   { id: 'T20', sourcePaths: ['lib/trust-next'], testDir: 'test/trust-next' },
+  { id: 'T21', sourcePaths: ['lib/artifact-store-next', 'lib/scan-scheduler-next'], testDir: 'test/perf-next' },
   { id: 'T22', sourcePaths: ['sdk/next'], testDir: 'test/sdk-next' }
 ];
 
