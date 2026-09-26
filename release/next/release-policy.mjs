@@ -68,6 +68,26 @@ export function releasePlanBlockers(plan) {
   if (rehearsal.observed_state !== rehearsal.required_state || rehearsal.required_state !== 'PASS') {
     blockers.add('FINAL_RELEASE_REHEARSAL_NOT_RUN');
   }
+
+  const resultMap = new Map(
+    Array.isArray(plan?.release_check_results)
+      ? plan.release_check_results.map((item) => [item?.id, item])
+      : [],
+  );
+  for (const id of REQUIRED_RELEASE_CHECKS) {
+    const item = resultMap.get(id);
+    const refs = item?.evidence_refs;
+    if (
+      item?.required_state !== 'PASS'
+      || item?.observed_state !== 'PASS'
+      || !Array.isArray(refs)
+      || refs.length === 0
+      || refs.some((ref) => typeof ref !== 'string' || !EVIDENCE_REF_RE.test(ref))
+    ) {
+      blockers.add('RELEASE_CHECKS_NOT_COMPLETE');
+      break;
+    }
+  }
   return [...blockers].sort();
 }
 
@@ -180,6 +200,7 @@ export function verifyReleasePlan(plan, inventory) {
   if (rollback.old_binary_and_old_artifacts_must_remain_readable !== true) push(errors, 'OLD_READABILITY_REQUIRED');
   if (rollback.old_writer_may_overwrite_next_artifacts !== false) push(errors, 'OLD_WRITER_OVERWRITE');
   if (rollback.new_data_namespace_must_be_isolated_until_default_cutover !== true) push(errors, 'NEW_DATA_ISOLATION');
+  if (rollback.cache_namespace_or_revision_must_change_on_semantic_revision !== true) push(errors, 'CACHE_REVISION_ISOLATION');
 
   const allAccepted=verifyPrerequisites(plan, errors);
   const dynamic=[...observedBlockers(inventory), ...releasePlanBlockers(plan)];
@@ -194,6 +215,46 @@ export function verifyReleasePlan(plan, inventory) {
   if (!Array.isArray(checkList)) push(errors, 'REQUIRED_RELEASE_CHECKS_REQUIRED');
   for (const required of REQUIRED_RELEASE_CHECKS) {
     if (!checks.has(required)) push(errors, 'REQUIRED_RELEASE_CHECK_MISSING', { check: required });
+  }
+
+  const resultItems = plan?.release_check_results;
+  if (!Array.isArray(resultItems)) {
+    push(errors, 'RELEASE_CHECK_RESULTS_REQUIRED');
+  } else {
+    const seenResults = new Set();
+    for (const item of resultItems) {
+      if (!REQUIRED_RELEASE_CHECKS.includes(item?.id)) {
+        push(errors, 'UNEXPECTED_RELEASE_CHECK_RESULT', { id: item?.id ?? null });
+        continue;
+      }
+      if (seenResults.has(item.id)) {
+        push(errors, 'DUPLICATE_RELEASE_CHECK_RESULT', { id: item.id });
+        continue;
+      }
+      seenResults.add(item.id);
+      if (item.required_state !== 'PASS') {
+        push(errors, 'RELEASE_CHECK_REQUIRED_STATE', { id: item.id, expected: 'PASS', actual: item.required_state ?? null });
+      }
+      if (!['PASS', 'NOT_RUN', 'FAIL', 'BLOCKED'].includes(item.observed_state)) {
+        push(errors, 'RELEASE_CHECK_OBSERVED_STATE', { id: item.id, actual: item.observed_state ?? null });
+      }
+      const refs = item.evidence_refs;
+      if (!Array.isArray(refs)) {
+        push(errors, 'RELEASE_CHECK_EVIDENCE_REFS', { id: item.id });
+      } else {
+        for (const [index, ref] of refs.entries()) {
+          if (typeof ref !== 'string' || !EVIDENCE_REF_RE.test(ref)) {
+            push(errors, 'RELEASE_CHECK_EVIDENCE_REF_INVALID', { id: item.id, index });
+          }
+        }
+        if (item.observed_state === 'PASS' && refs.length === 0) {
+          push(errors, 'RELEASE_CHECK_PASS_WITHOUT_EVIDENCE', { id: item.id });
+        }
+      }
+    }
+    for (const required of REQUIRED_RELEASE_CHECKS) {
+      if (!seenResults.has(required)) push(errors, 'RELEASE_CHECK_RESULT_MISSING', { id: required });
+    }
   }
 
   const rehearsal=plan?.release_rehearsal ?? {};
