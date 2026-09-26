@@ -1220,7 +1220,7 @@
       "worker": "T00-promotion",
       "worktree": "github-contents-api",
       "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
-      "observed_head_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "observed_head_sha": "37f07ec374ff5ad7b93264fb8034b0148d043a05",
       "path_scopes": [
         "scripts/package-install-smoke.mjs"
       ],
@@ -1228,8 +1228,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T18:35:00Z",
       "expires_at": "2026-09-27T00:35:00Z",
-      "state": "ACTIVE",
-      "reason": "Close the remaining T01-06 packed-artifact evidence gap by replaying the reviewed T01 conformance pack from the installed Backend-evaluation tarball. No default activation, release, or production certification."
+      "state": "RELEASED",
+      "reason": "Close the remaining T01-06 packed-artifact evidence gap by replaying the reviewed T01 conformance pack from the installed Backend-evaluation tarball. No default activation, release, or production certification.",
+      "released_at": "2026-09-26T19:32:00Z",
+      "release_reason": "PR #71 exact-head CI #1028 completed SUCCESS, Codex re-review found no major issues, and merge commit f7189e4208f04867b493c7d874a77325ad84afa3 is one commit ahead of reviewed head 37f07ec374ff5ad7b93264fb8034b0148d043a05 with zero file delta."
     },
     {
       "claim_id": "T00-T23-RELEASE-CONTROL-20260927-r1",
