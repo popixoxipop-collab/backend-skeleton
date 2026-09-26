@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T00:16:00+09:00",
+  "observed_at": "2026-09-27T03:21:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -484,11 +484,86 @@
     },
     "historical_nonintegrated": [
       "T11 compatibility PR #77"
-    ]
+    ],
+    "superseded_branch_cleanup": "COMPLETE"
   },
   "lease_closeout": {
     "active_write_authority_count": 0,
     "final_release_commit": "a8a5b4d70c8a05f1fa784bd5be210e4ed705e435",
     "note": "All T-series implementation/integration leases are RELEASED. T11 historical compatibility PR #77 is not integrated and has no active write authority. Any new work requires fresh current-main lease."
+  },
+  "post_merge_verification": {
+    "state": "ACCEPTED_BY_ZERO_DELTA_TREE_EQUIVALENCE",
+    "direct_local_smoke": {
+      "attempted": true,
+      "result": "BLOCKED_EXEC_DENIED",
+      "note": "Tailnet Commander sandbox exec policy rejected direct node --test commands; no direct post-merge local execution is claimed."
+    },
+    "repositories": {
+      "bskel": {
+        "main_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+        "integration_head": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e",
+        "compare": {
+          "ahead_by": 1,
+          "behind_by": 0,
+          "file_delta_count": 0
+        },
+        "ci_run": 36248587163,
+        "latest_attempt_jobs": "17 success, 2 skipped, 0 failed",
+        "required_nodes": "test 22.x success; test 24.x success; nested-next 22.x success; nested-next 24.x success"
+      },
+      "beval": {
+        "main_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+        "integration_head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
+        "compare": {
+          "ahead_by": 1,
+          "behind_by": 0,
+          "file_delta_count": 0
+        },
+        "ci_run": 36248956436,
+        "latest_attempt_jobs": "7 success, 0 failed"
+      },
+      "becoder": {
+        "main_sha": "eb8164560ddd343306234a9140dc89c001519792",
+        "integration_head": "67b9429283a6736322b205ef4f941fc8436be14d",
+        "compare": {
+          "ahead_by": 1,
+          "behind_by": 0,
+          "file_delta_count": 0
+        },
+        "ci_run": 36249066547,
+        "latest_attempt_jobs": "4 success, 0 failed"
+      }
+    },
+    "acceptance_basis": "Each merge commit is exactly one commit ahead of the reviewed integration head with zero changed files; latest CI attempts on those byte-identical trees are green for every non-skipped job."
+  },
+  "superseded_cleanup": {
+    "state": "COMPLETE",
+    "remote_branches_deleted_count": 31,
+    "integration_branches_deleted": [
+      "backend-skeleton:t00/integrate-reviewed-t-series-r1",
+      "Backend-evaluation:t00/integrate-t16-stack-r1",
+      "backend-decoder:t00/integrate-t15-consumers-r1"
+    ],
+    "source_branch_cleanup": {
+      "backend-skeleton": 20,
+      "Backend-evaluation": 6,
+      "backend-decoder": 2
+    },
+    "preserved_open_prs": [
+      {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "pr": 77,
+        "branch": "scale/t11-http-legacy-modernization",
+        "reason": "Historical T11 compatibility slice is explicitly non-integrated; do not classify as superseded."
+      },
+      {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "pr": 118,
+        "branch": "scale/T19/qa-corpus-foundation",
+        "reason": "T19 independent QA/review branch remains open and is not a superseded implementation branch."
+      }
+    ],
+    "verification": "ls-remote returned no deleted target branches; only the two intentionally preserved bskel branches remained among the checked set."
   }
 }
