@@ -18,7 +18,8 @@
     "T07": 2,
     "T08": 2,
     "T23-BEVAL": 4,
-    "T00-BSKEL-SHARED": 2
+    "T00-BSKEL-SHARED": 2,
+    "T10": 1
   },
   "claims": [
     {
@@ -511,6 +512,28 @@
         "No package/package-lock/root-test/product semantics/registry/schema/CLI/release/default activation changes.",
         "The product branch must be based on exact bskel main 5472a8b82655840d1d3ce76cb926987376e37ca6."
       ]
+    },
+    {
+      "claim_id": "T10-pr84-provenance-fix-20260926",
+      "task_id": "T10-pr84-provenance-fix",
+      "track": "T10",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "feat/t10-persistence-plane",
+      "worker": "agent-T10",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t10-pr84-fix",
+      "base_sha": "1095e855f425746865cccd9f6453e645f5f0eaa5",
+      "observed_head_sha": "1095e855f425746865cccd9f6453e645f5f0eaa5",
+      "path_scopes": [
+        "scanners/persistence-next/**",
+        "test/persistence-next/**"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T05:42:23Z",
+      "expires_at": "2026-09-26T11:42:23Z",
+      "state": "ACTIVE",
+      "pr": 84,
+      "reason": "Fix caller-controlled entity identity, malformed source_refs, provider-identity/live-read confusion, and missing immutable generation provenance. No shared files or stable writer changes."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
