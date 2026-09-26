@@ -38,7 +38,8 @@
     "T00-BECODER-INTEGRATION": 1,
     "T00-BEVAL-T01-06-PACKED-REPLAY": 1,
     "T00-T23-RELEASE-CONTROL": 1,
-    "T00-T20-T16-SANDBOX": 1
+    "T00-T20-T16-SANDBOX": 1,
+    "T00-BEVAL-T20-03-LINUX-SANDBOX": 1
   },
   "claims": [
     {
@@ -1273,6 +1274,31 @@
       "expires_at": "2026-09-27T07:20:00Z",
       "state": "ACTIVE",
       "reason": "First externally enforced Linux/Docker slice for T20-03. Default-deny network, read-only source/root, no-new-privileges, cap-drop, no device/socket mounts, bounded env/resources/output/time. Does not claim full T20-03 or release acceptance."
+    },
+    {
+      "claim_id": "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r1",
+      "task_id": "T20-03-linux-container-enforcement",
+      "track": "T00-BEVAL-T20-03-LINUX-SANDBOX",
+      "canonical_track": "T20",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t20-03-linux-container-enforcement-r1",
+      "worker": "T00-T20-integration",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-beval-t20-03-r1",
+      "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "observed_head_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "path_scopes": [
+        "lib/next-runtime/linux-container-sandbox.mjs",
+        "test/next-runtime/linux-container-sandbox.test.mjs",
+        "test/integration/t20-linux-container-sandbox.test.mjs",
+        "scripts/t20-linux-container-evidence.mjs",
+        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md"
+      ],
+      "fencing_token": 1,
+      "resource_class": "docker-heavy",
+      "issued_at": "2026-09-26T19:20:00Z",
+      "expires_at": "2026-09-27T07:20:00Z",
+      "state": "ACTIVE",
+      "reason": "Implement and externally verify one hardened Linux/container runtime profile for T20-03 without claiming cross-platform parity or release readiness."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
