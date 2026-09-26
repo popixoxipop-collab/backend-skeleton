@@ -1,0 +1,58 @@
+{
+  "contract": "sbf.qa-corpus/1",
+  "entries": [
+    {
+      "id": "spring-petclinic-reference",
+      "adapter": "java-spring",
+      "owner": "spring-projects",
+      "repo": "spring-petclinic",
+      "ref": "818c4136ea971c21674525f9053de0d9c7ad8cfe",
+      "path": null,
+      "terms": ["owner"],
+      "license_spdx": "Apache-2.0",
+      "source_family": "spring-petclinic",
+      "golden_basis": "Existing pinned oracle entry plus independently reviewed expected adapter/diagnostic behavior; do not regenerate expected output from the candidate adapter.",
+      "expected_limitations": ["Integer primary keys exercise the non-UUID resolver refusal path."]
+    },
+    {
+      "id": "fastapi-template-reference",
+      "adapter": "python-fastapi",
+      "owner": "fastapi",
+      "repo": "full-stack-fastapi-template",
+      "ref": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+      "path": null,
+      "terms": ["item"],
+      "license_spdx": "MIT",
+      "source_family": "fastapi-full-stack-template",
+      "golden_basis": "Existing pinned oracle entry; manual review must remain independent from the candidate adapter implementation.",
+      "expected_limitations": ["Co-located routes/models are a favorable layout and must not be treated as coverage of centralized-model layouts."]
+    },
+    {
+      "id": "express-mysql-reference",
+      "adapter": "javascript-express",
+      "owner": "JeanCaicedo",
+      "repo": "employees-api-mysql",
+      "ref": "e18789656adc0c91f96d0124fbdfefd86f7bf545",
+      "path": null,
+      "terms": ["employee"],
+      "license_spdx": "MIT",
+      "source_family": "employees-api-mysql",
+      "golden_basis": "Existing pinned oracle entry; expected route/mount behavior is reviewed independently of the candidate output.",
+      "expected_limitations": ["Raw mysql2 persistence is intentionally outside javascript-express resource.fetch support."]
+    },
+    {
+      "id": "ts-express-petswipe-reference",
+      "adapter": "typescript-express",
+      "owner": "hoangsonww",
+      "repo": "PetSwipe-Match-App",
+      "ref": "b8573eead531c68a4e2a551883c3a17828b30826",
+      "path": "backend",
+      "terms": ["pet"],
+      "license_spdx": "MIT",
+      "source_family": "petswipe-match-app",
+      "golden_basis": "Existing pinned oracle entry; UUID/entity and refusal behavior are reviewed against source and not copied from candidate output.",
+      "expected_limitations": ["app.use-level mount prefixes are a known existing limitation in this pinned shape."]
+    }
+  ],
+  "holdout_entries": []
+}
