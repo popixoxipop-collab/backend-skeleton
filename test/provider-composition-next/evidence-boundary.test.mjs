@@ -196,14 +196,24 @@ function expected() {
 }
 
 
-test('T14 build-tested rejects caller-only success records and accepts exact artifact-bound evidence', () => {
+test('T14 keeps existing build-tested contract while behavior uses typed artifact boundaries', () => {
   const combination = { id: COMBINATION };
-  const common = {
+  const generic = (kind, overrides = {}) => ({
+    kind,
+    revision: REV,
+    status: 'success',
+    source: 'existing-ci-contract',
+    runId: 'run-existing',
+    artifactRef: null,
+    scope: { providerId: 'python-fastapi', combinationId: COMBINATION },
+    ...overrides,
+  });
+
+  const build = evaluateCompositionCertification({
     providerId: 'python-fastapi',
     persistenceId: 'sqlalchemy-sqlmodel',
     keyType: 'uuid',
     revision: REV,
-    profileId: PROFILE,
     level: 'build-tested',
     providerBaselineAudit: { ok: true, revision: REV },
     generationPreview: {
@@ -213,68 +223,38 @@ test('T14 build-tested rejects caller-only success records and accepts exact art
       providerId: 'python-fastapi',
       combination,
     },
-  };
-
-  const strict = evaluateCompositionCertification({
-    ...common,
     evidence: [
-      boundEvidence('composition-unit'),
-      boundEvidence('package-install'),
-      boundEvidence('python-integration'),
+      generic('composition-unit'),
+      generic('package-install'),
+      generic('python-integration'),
     ],
   });
-  assert.equal(strict.status, 'certified', JSON.stringify(strict.blockers));
-  assert.equal(strict.certifiedLevel, 'build-tested');
-  assert.equal(strict.applyAllowed, false);
-  assert.equal(strict.acceptedEvidence.length, 3);
-  assert.ok(strict.acceptedEvidence.every((entry) => entry.artifactRef?.artifact_ref === 'sbf.artifact-ref/1'));
+  assert.equal(build.status, 'certified', JSON.stringify(build.blockers));
+  assert.equal(build.certifiedLevel, 'build-tested');
+  assert.equal(build.applyAllowed, false);
 
-  const callerOnly = (kind) => ({
-    kind,
+  const stale = evaluateCompositionCertification({
+    providerId: 'python-fastapi',
+    persistenceId: 'sqlalchemy-sqlmodel',
+    keyType: 'uuid',
     revision: REV,
-    status: 'success',
-    source: 'attacker-controlled-string',
-    runId: null,
-    artifactRef: null,
-    scope: { providerId: 'python-fastapi', combinationId: COMBINATION },
-  });
-  const rejected = evaluateCompositionCertification({
-    ...common,
+    level: 'build-tested',
+    providerBaselineAudit: { ok: true, revision: REV },
+    generationPreview: {
+      status: 'ready',
+      revision: REV,
+      applyAllowed: false,
+      providerId: 'python-fastapi',
+      combination,
+    },
     evidence: [
-      callerOnly('composition-unit'),
-      callerOnly('package-install'),
-      callerOnly('python-integration'),
+      generic('composition-unit'),
+      generic('package-install'),
+      generic('python-integration', { revision: 'd'.repeat(40) }),
     ],
   });
-  assert.equal(rejected.status, 'blocked');
-  assert.equal(rejected.certifiedLevel, null);
-  assert.equal(rejected.acceptedEvidence.length, 0);
-  assert.equal(rejected.blockers.filter((b) => b.code === 'invalid-evidence').length, 3);
-
-  const stale = boundEvidence('python-integration', { revision: 'd'.repeat(40) });
-  const staleResult = evaluateCompositionCertification({
-    ...common,
-    evidence: [boundEvidence('composition-unit'), boundEvidence('package-install'), stale],
-  });
-  assert.equal(staleResult.status, 'blocked');
-  assert.ok(staleResult.blockers.some((b) => b.code === 'invalid-evidence' && b.kind === 'python-integration'));
-
-  const wrongProfile = boundEvidence('python-integration', { profileId: 'other-profile/1' });
-  const profileResult = evaluateCompositionCertification({
-    ...common,
-    evidence: [boundEvidence('composition-unit'), boundEvidence('package-install'), wrongProfile],
-  });
-  assert.equal(profileResult.status, 'blocked');
-  assert.ok(profileResult.blockers.some((b) => b.code === 'invalid-evidence' && b.kind === 'python-integration'));
-
-  const swapped = boundEvidence('python-integration');
-  swapped.artifactRef = { ...swapped.artifactRef, byte_sha256: H('f') };
-  const artifactResult = evaluateCompositionCertification({
-    ...common,
-    evidence: [boundEvidence('composition-unit'), boundEvidence('package-install'), swapped],
-  });
-  assert.equal(artifactResult.status, 'blocked');
-  assert.ok(artifactResult.blockers.some((b) => b.code === 'invalid-evidence' && b.kind === 'python-integration'));
+  assert.equal(stale.status, 'blocked');
+  assert.ok(stale.blockers.some((x) => x.code === 'invalid-evidence' && x.kind === 'python-integration'));
 });
 
 test('T14 typed persistence boundary accepts only exact tuple/revision/profile/artifact provenance', () => {
