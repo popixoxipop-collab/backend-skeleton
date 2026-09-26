@@ -39,7 +39,8 @@
         "ahead_by": 1,
         "behind_by": 0,
         "file_delta_count": 0,
-        "direct_main_ci": false
+        "direct_main_ci": false,
+        "ci_head_sha": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e"
       }
     },
     {
@@ -68,7 +69,8 @@
         "ahead_by": 1,
         "behind_by": 0,
         "file_delta_count": 0,
-        "direct_main_ci": false
+        "direct_main_ci": false,
+        "ci_head_sha": "67b9429283a6736322b205ef4f941fc8436be14d"
       }
     },
     {
@@ -98,7 +100,8 @@
         "ahead_by": 1,
         "behind_by": 0,
         "file_delta_count": 0,
-        "direct_main_ci": false
+        "direct_main_ci": false,
+        "ci_head_sha": "902424d0622c7731840acc11b9b4d07e3c60ac5a"
       }
     }
   ],
