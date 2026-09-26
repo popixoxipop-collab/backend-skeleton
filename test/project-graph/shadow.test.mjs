@@ -163,3 +163,20 @@ test('serialized graph can execute on an equivalent checkout without persisting 
     ['app', 'python-fastapi'],
   ]);
 });
+
+
+test('shadow execution rejects a deleted source file that changes the adapter read-set', () => {
+  const root = fixture({
+    'app/pyproject.toml': '[project]\ndependencies = ["fastapi>=0.100"]\n',
+    'app/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+  });
+  const graph = buildRegisteredProjectGraph(root);
+  fs.unlinkSync(path.join(root, 'app', 'main.py'));
+  assert.throws(
+    () => executeProjectScanPlan({ repoRoot: root, graph, terms: [], adapters: ADAPTERS }),
+    (err) => err?.code === 'PROJECT_GRAPH_STALE' &&
+      err?.stale_kind === 'adapter-read-set' &&
+      err?.expected_files.includes('app/main.py') &&
+      !err?.actual_files.includes('app/main.py'),
+  );
+});

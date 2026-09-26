@@ -308,6 +308,15 @@ test('serialized ProjectGraph is worktree-portable while execution root stays pr
   assert.equal(projectGraphExecutionRoot(graphA), rootA);
   assert.equal(projectGraphExecutionRoot(graphB), rootB);
   assert.equal(JSON.stringify(graphA), JSON.stringify(graphB));
+  assert.deepEqual(
+    graphA.projects.map((project) => project.project_id),
+    graphB.projects.map((project) => project.project_id),
+  );
+  assert.deepEqual(
+    graphA.projects.map((project) => project.selected_adapter_read_set?.fingerprint ?? null),
+    graphB.projects.map((project) => project.selected_adapter_read_set?.fingerprint ?? null),
+  );
+  assert.deepEqual(buildProjectScanPlan(graphA), buildProjectScanPlan(graphB));
 
   const roundTrip = JSON.parse(JSON.stringify(graphA));
   assert.equal(projectGraphExecutionRoot(roundTrip), null);
@@ -348,5 +357,29 @@ test('reference/generated/template projects stay visible but are excluded from t
       ['generated/client', 'node-http'],
       ['templates/service', 'node-http'],
     ],
+  );
+});
+
+
+test('project and scan-plan ordering uses locale-independent code-unit ordering', () => {
+  const root = fixture({
+    'a/package.json': JSON.stringify({ name: '@demo/a' }),
+    'z/package.json': JSON.stringify({ name: '@demo/z' }),
+    'ä/package.json': JSON.stringify({ name: '@demo/umlaut' }),
+    '가/package.json': JSON.stringify({ name: '@demo/ga' }),
+    '나/package.json': JSON.stringify({ name: '@demo/na' }),
+  });
+  const exactNode = adapter('node-http', 50, (candidateRoot) =>
+    fs.existsSync(path.join(candidateRoot, 'package.json')) ? candidateRoot : null
+  );
+
+  const graph = buildProjectGraph({ repoRoot: root, adapters: [exactNode, fallback] });
+  assert.deepEqual(
+    graph.projects.map((project) => project.root),
+    ['.', 'a', 'z', 'ä', '가', '나'],
+  );
+  assert.deepEqual(
+    buildProjectScanPlan(graph).map((item) => item.project_root),
+    ['a', 'z', 'ä', '가', '나'],
   );
 });

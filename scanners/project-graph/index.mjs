@@ -30,6 +30,10 @@ const DEFAULT_MARKER_RULES = Object.freeze([
   { kind: 'dotnet-project', test: (name) => /\.(?:cs|fs|vb)proj$/i.test(name) },
 ]);
 
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function posixRel(root, target) {
   const rel = path.relative(root, target).split(path.sep).join('/');
   return rel || '.';
@@ -70,7 +74,7 @@ function walkForMarkers(repoRoot, markerRules, unresolved) {
       unresolved.push({ kind: 'directory-read', path: posixRel(repoRoot, dir), message: portableProjectDiagnosticMessage(err.message, repoRoot) });
       continue;
     }
-    entries.sort((a, b) => a.name.localeCompare(b.name));
+    entries.sort((a, b) => compareText(a.name, b.name));
     // Reverse push so DFS visit order is deterministic ascending after pop(). Final output is sorted too.
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i];
@@ -90,7 +94,7 @@ function walkForMarkers(repoRoot, markerRules, unresolved) {
       }
     }
   }
-  return markers.sort((a, b) => a.abs.localeCompare(b.abs) || a.kind.localeCompare(b.kind));
+  return markers.sort((a, b) => compareText(posixRel(repoRoot, a.abs), posixRel(repoRoot, b.abs)) || compareText(a.kind, b.kind));
 }
 
 export function discoverProjectRoots(repoRoot, { markerRules = DEFAULT_MARKER_RULES } = {}) {
@@ -121,10 +125,10 @@ export function discoverProjectRoots(repoRoot, { markerRules = DEFAULT_MARKER_RU
         root: relativeRoot,
         absolute_root: root,
         project_role: relativeRoot === '.' ? 'active' : classifyProjectSourceRole(relativeRoot),
-        markers: rootMarkers.sort((a, b) => a.path.localeCompare(b.path) || a.kind.localeCompare(b.kind)),
+        markers: rootMarkers.sort((a, b) => compareText(a.path, b.path) || compareText(a.kind, b.kind)),
       };
     })
-    .sort((a, b) => a.root.localeCompare(b.root));
+    .sort((a, b) => compareText(a.root, b.root));
 
   return {
     repo_root: absRoot,
@@ -211,7 +215,7 @@ export function captureAdapterReadSetSnapshot({ repoRoot, projectRoot, adapter }
       role: classifyProjectSourceRole(posixRel(absProject, abs)),
     });
   }
-  files.sort((a, b) => a.path.localeCompare(b.path));
+  files.sort((a, b) => compareText(a.path, b.path));
 
   const h = crypto.createHash('sha256');
   for (const file of files) {
@@ -290,7 +294,7 @@ function isDescendantRoot(parent, child) {
 function directParentOf(project, projects) {
   const candidates = projects
     .filter((p) => isDescendantRoot(p.root, project.root))
-    .sort((a, b) => b.root.length - a.root.length || a.root.localeCompare(b.root));
+    .sort((a, b) => b.root.length - a.root.length || compareText(a.root, b.root));
   return candidates[0] ?? null;
 }
 
@@ -317,10 +321,10 @@ function buildProjectEdges(projects, unresolved) {
     packageOwners.get(name).push(project);
   }
   for (const owners of packageOwners.values()) {
-    owners.sort((a, b) => a.root.localeCompare(b.root));
+    owners.sort((a, b) => compareText(a.root, b.root));
   }
 
-  for (const [name, owners] of [...packageOwners.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [name, owners] of [...packageOwners.entries()].sort(([a], [b]) => compareText(a, b))) {
     if (owners.length > 1) {
       unresolved.push({
         kind: 'ambiguous-local-package-name',
@@ -358,10 +362,10 @@ function buildProjectEdges(projects, unresolved) {
   }
 
   return edges.sort((a, b) =>
-    a.kind.localeCompare(b.kind) ||
-    a.from_project_id.localeCompare(b.from_project_id) ||
-    a.to_project_id.localeCompare(b.to_project_id) ||
-    (a.dependency_name ?? '').localeCompare(b.dependency_name ?? ''),
+    compareText(a.kind, b.kind) ||
+    compareText(a.from_project_id, b.from_project_id) ||
+    compareText(a.to_project_id, b.to_project_id) ||
+    compareText(a.dependency_name ?? '', b.dependency_name ?? ''),
   );
 }
 
@@ -380,7 +384,7 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
     const nestedDetections = [];
     let fallback = null;
 
-    for (const adapter of [...adapters].sort((a, b) => (b.specificity ?? 0) - (a.specificity ?? 0) || a.id.localeCompare(b.id))) {
+    for (const adapter of [...adapters].sort((a, b) => (b.specificity ?? 0) - (a.specificity ?? 0) || compareText(a.id, b.id))) {
       let detection;
       try {
         detection = adapter.detect(candidate.absolute_root);
@@ -426,8 +430,8 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
       firstClass.push(adapterSummary(adapter));
     }
 
-    firstClass.sort((a, b) => b.specificity - a.specificity || a.adapter_id.localeCompare(b.adapter_id));
-    nestedDetections.sort((a, b) => a.adapter_id.localeCompare(b.adapter_id) || a.detected_root.localeCompare(b.detected_root));
+    firstClass.sort((a, b) => b.specificity - a.specificity || compareText(a.adapter_id, b.adapter_id));
+    nestedDetections.sort((a, b) => compareText(a.adapter_id, b.adapter_id) || compareText(a.detected_root, b.detected_root));
     const topSpecificity = firstClass[0]?.specificity ?? null;
     const tied = topSpecificity == null ? [] : firstClass.filter((a) => a.specificity === topSpecificity);
     const selected = tied.length === 1 ? tied[0].adapter_id : null;
@@ -494,7 +498,7 @@ export function buildProjectGraph({ repoRoot, adapters, markerRules = DEFAULT_MA
   const graph = {
     schema: PROJECT_GRAPH_DRAFT,
     repo_root: '.',
-    projects: projects.sort((a, b) => a.root.localeCompare(b.root)),
+    projects: projects.sort((a, b) => compareText(a.root, b.root)),
     project_edges: projectEdges,
     unresolved,
     files_read: graphFilesRead,
@@ -529,5 +533,5 @@ export function buildProjectScanPlan(graph, { includeFallback = false, includeNo
       plan.push({ project_id: project.project_id, project_root: project.root, adapter_id: project.fallback_adapter, mode: 'fallback' });
     }
   }
-  return plan.sort((a, b) => a.project_root.localeCompare(b.project_root) || a.adapter_id.localeCompare(b.adapter_id));
+  return plan.sort((a, b) => compareText(a.project_root, b.project_root) || compareText(a.adapter_id, b.adapter_id));
 }

@@ -1,6 +1,10 @@
 import { ADAPTERS, LOAD_ERRORS } from '../registry.mjs';
 import { buildProjectGraph, buildProjectScanPlan } from './index.mjs';
 
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function portableRegistryLoadErrors(entries) {
   if (!Array.isArray(entries)) throw new TypeError('entries must be an array');
   return entries.map((entry) => {
@@ -17,7 +21,7 @@ export function portableRegistryLoadErrors(entries) {
     if (normalizedDir) message = message.replaceAll(normalizedDir, '<adapter-dir>');
     message = message.replace(/\\/g, '/');
     return { file, message };
-  }).sort((a, b) => a.file.localeCompare(b.file) || a.message.localeCompare(b.message));
+  }).sort((a, b) => compareText(a.file, b.file) || compareText(a.message, b.message));
 }
 
 export function buildRegisteredProjectGraph(repoRoot, options = {}) {
