@@ -211,8 +211,10 @@ function parseImports(masked) {
 function parseExports(masked) {
   const named = new Map();
   let defaultExport = null;
-  for (const m of masked.matchAll(/\bexport\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) named.set(m[1], m[1]);
+  for (const m of masked.matchAll(/\bexport\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) {
     if (!isHonoCodeIndex(masked, m.index)) continue;
+    named.set(m[1], m[1]);
+  }
   for (const m of masked.matchAll(/\bexport\s*\{([^}]*)\}/g)) {
     if (!isHonoCodeIndex(masked, m.index)) continue;
     for (const part of m[1].split(',')) {
