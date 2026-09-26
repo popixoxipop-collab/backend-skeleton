@@ -38,19 +38,18 @@ export function legacySatisfierHints() {
 	));
 }
 
-export function externalCapabilityFromLegacySatisfier({ capability, flag, evidenceRef } = {}) {
+export function externalCapabilityFromLegacySatisfier({ capability, flag, evidence } = {}) {
 	nonEmpty(capability, 'capability');
 	nonEmpty(flag, 'flag');
-	nonEmpty(evidenceRef, 'evidenceRef');
 	const satisfier = CAPABILITY_SATISFIERS[capability];
 	if (!satisfier) throw new TypeError(`no legacy satisfier is registered for ${capability}`);
 	if (satisfier.flag !== flag) throw new TypeError(`legacy satisfier for ${capability} is --${satisfier.flag}, not --${flag}`);
 	return capabilityRecord({
 		name: capability,
 		status: 'supported',
-		evidenceRefs: [evidenceRef],
+		evidence: [evidence],
 		source: `external-satisfier:${flag}`,
-		conditions: ['This record proves only the named capability for the supplied immutable evidence; it does not widen the adapter descriptor.'],
+		conditions: ['This record proves only the named capability for the exact-byte artifact already verified against its T01 ArtifactRef; it does not widen the adapter descriptor or certify runtime behavior.'],
 	});
 }
 

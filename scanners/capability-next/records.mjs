@@ -1,3 +1,5 @@
+import { normalizeEvidenceReceipts } from './evidence.mjs';
+
 export const CAPABILITY_STATUSES = Object.freeze([
 	'supported',
 	'partial',
@@ -7,6 +9,7 @@ export const CAPABILITY_STATUSES = Object.freeze([
 ]);
 
 const STATUS_SET = new Set(CAPABILITY_STATUSES);
+const CAPABILITY_RECORD = Symbol('t03.capability-record');
 
 export function isCapabilityStatus(value) {
 	return STATUS_SET.has(value);
@@ -17,15 +20,8 @@ function nonEmpty(value, name) {
 	return value;
 }
 
-function evidenceRefs(value = []) {
-	if (!Array.isArray(value)) throw new TypeError('evidenceRefs must be an array');
-	const refs = value.map((x, i) => nonEmpty(x, `evidenceRefs[${i}]`));
-	if (new Set(refs).size !== refs.length) throw new TypeError('evidenceRefs must not contain duplicates');
-	return Object.freeze([...refs].sort());
-}
-
 export function capabilityRecord({
-	name, status, evidenceRefs: refs = [], reason = null, conditions = [], source = 'next',
+	name, status, evidence = [], reason = null, conditions = [], source = 'next',
 } = {}) {
 	nonEmpty(name, 'name');
 	if (!STATUS_SET.has(status)) throw new TypeError(`status must be one of: ${CAPABILITY_STATUSES.join(', ')}`);
@@ -34,14 +30,15 @@ export function capabilityRecord({
 	}
 	if (reason !== null && (typeof reason !== 'string' || reason.trim() === '')) throw new TypeError('reason must be null or a non-empty string');
 	nonEmpty(source, 'source');
-	const normalizedRefs = evidenceRefs(refs);
-	if (status === 'supported' && normalizedRefs.length === 0 && source !== 'legacy-adapter-boolean') {
-		throw new TypeError('supported capability records require evidenceRefs unless they are an explicit legacy boolean bridge');
+	const evidenceRefs = normalizeEvidenceReceipts(evidence);
+	if (status === 'supported' && evidenceRefs.length === 0 && source !== 'legacy-adapter-boolean') {
+		throw new TypeError('supported capability records require verified T01 ArtifactRef evidence unless they are an explicit legacy boolean bridge');
 	}
 	if (status !== 'supported' && reason === null) throw new TypeError(`${status} capability records require a reason`);
 	return Object.freeze({
-		name, status, evidenceRefs: normalizedRefs, reason,
+		name, status, evidenceRefs, reason,
 		conditions: Object.freeze([...conditions]), source,
+		[CAPABILITY_RECORD]: true,
 	});
 }
 
@@ -70,7 +67,10 @@ export function normalizeCapabilityMap(input = {}) {
 		const record = input[name];
 		if (!record || typeof record !== 'object' || Array.isArray(record)) throw new TypeError(`capability ${name} must be a record`);
 		if (record.name !== name) throw new TypeError(`capability key ${name} does not match record.name ${record.name}`);
-		out[name] = capabilityRecord(record);
+		if (record[CAPABILITY_RECORD] !== true) {
+			throw new TypeError(`capability ${name} must be produced by capabilityRecord() or the explicit legacy bridge`);
+		}
+		out[name] = record;
 	}
 	return Object.freeze(out);
 }

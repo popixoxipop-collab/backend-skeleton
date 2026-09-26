@@ -1,4 +1,19 @@
 export {
+	T01_ARTIFACT_REF_VERSION,
+	T01_ARTIFACT_REF_SCHEMA_BLOB,
+	T16_RUNTIME_BINDING_VERSION,
+	T16_RUNTIME_EVIDENCE_PAIR_VERSION,
+	assertArtifactRef,
+	artifactRefKey,
+	artifactRefMatchesBytes,
+	assertArtifactRefMatchesBytes,
+	verifyArtifactEvidence,
+	normalizeEvidenceReceipts,
+	runtimeCertificationBlockedReason,
+	assertCurrentRuntimeCoreReviewIsNotCertification,
+} from './evidence.mjs';
+
+export {
 	CAPABILITY_STATUSES,
 	isCapabilityStatus,
 	capabilityRecord,

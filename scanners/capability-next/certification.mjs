@@ -1,3 +1,5 @@
+import { normalizeEvidenceReceipts, runtimeCertificationBlockedReason } from './evidence.mjs';
+
 export const SUPPORT_LEVELS = Object.freeze(['discovery', 'contract', 'runtime-tested']);
 export const CODEGEN_STATES = Object.freeze(['none', 'scaffold', 'build-tested', 'behavior-tested']);
 
@@ -17,21 +19,32 @@ function uniqueStrings(values, name) {
 }
 
 export function certificationRecord({
-	targetId, level, codegen = 'none', capabilities = [], evidenceRefs = [], limitations = [], profile = null,
+	targetId,
+	level,
+	codegen = 'none',
+	capabilities = [],
+	evidence = [],
+	limitations = [],
+	profile = null,
+	runtimeVerification = null,
+	combinationHash = null,
 } = {}) {
 	nonEmpty(targetId, 'targetId');
 	if (!SUPPORT_SET.has(level)) throw new TypeError(`level must be one of: ${SUPPORT_LEVELS.join(', ')}`);
 	if (!CODEGEN_SET.has(codegen)) throw new TypeError(`codegen must be one of: ${CODEGEN_STATES.join(', ')}`);
 	if (profile !== null) nonEmpty(profile, 'profile');
-	const refs = uniqueStrings(evidenceRefs, 'evidenceRefs');
+	const evidenceRefs = normalizeEvidenceReceipts(evidence);
 	const caps = uniqueStrings(capabilities, 'capabilities');
 	const limits = uniqueStrings(limitations, 'limitations');
-	if (refs.length === 0) throw new TypeError(`${level} certification requires evidenceRefs`);
-	if (level === 'runtime-tested' && profile === null) throw new TypeError('runtime-tested certification requires profile');
-	if (codegen !== 'none' && refs.length === 0) throw new TypeError(`${codegen} codegen state requires evidenceRefs`);
+	if (evidenceRefs.length === 0) throw new TypeError(`${level} certification requires verified T01 ArtifactRef evidence`);
+	if (level === 'runtime-tested') throw new TypeError(runtimeCertificationBlockedReason());
+	if (runtimeVerification !== null || combinationHash !== null) {
+		throw new TypeError('runtime verification/combination inputs are not accepted until the T16/T19 runtime-execution verifier contract is frozen');
+	}
+	if (codegen === 'behavior-tested') throw new TypeError('behavior-tested codegen requires verified runtime behavior evidence and is blocked by the same T16/T19 runtime-certification boundary');
 	return Object.freeze({
 		targetId, level, codegen, capabilities: caps,
-		evidenceRefs: refs, limitations: limits, profile,
+		evidenceRefs, limitations: limits, profile,
 	});
 }
 

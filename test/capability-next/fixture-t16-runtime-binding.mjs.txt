@@ -1,0 +1,130 @@
+import { BevalError } from '../errors.mjs';
+import { hashJson } from '../hash.mjs';
+
+const HASH_RE = /^[a-f0-9]{64}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireHash(value, field) {
+	if (typeof value !== 'string' || !HASH_RE.test(value)) {
+		throw new BevalError('RUNTIME_BINDING_INVALID', `${field} must be a lowercase sha256 digest`);
+	}
+	return value;
+}
+
+function optionalHash(value, field) {
+	if (value == null) return null;
+	return requireHash(value, field);
+}
+
+function requireString(value, field) {
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new BevalError('RUNTIME_BINDING_INVALID', `${field} must be a non-empty string`);
+	}
+	return value;
+}
+
+function normalizeArtifacts(artifacts = {}) {
+	if (!artifacts || typeof artifacts !== 'object' || Array.isArray(artifacts)) {
+		throw new BevalError('RUNTIME_BINDING_INVALID', 'artifacts must be an object');
+	}
+	const entries = Object.entries(artifacts)
+		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+		.map(([name, digest]) => [
+			requireString(name, 'artifact name'),
+			requireHash(digest, `artifacts.${name}`),
+		]);
+	return Object.freeze(Object.fromEntries(entries));
+}
+
+export function buildRuntimeBinding({
+	runId,
+	caseRevisionHash,
+	oracleProfileApprovalHash,
+	contractHash,
+	flowHash = null,
+	configHash = null,
+	candidateHash = null,
+	originalHash = null,
+	runnerImplementationHash,
+	runtimeExecutionPolicyHash,
+	artifacts = {},
+	attemptNonce,
+}) {
+	const binding = {
+		runtime_binding: 'beval.runtime-binding/1',
+		run_id: requireString(runId, 'runId'),
+		case_revision_hash: requireHash(caseRevisionHash, 'caseRevisionHash'),
+		oracle_profile_approval_hash: requireHash(oracleProfileApprovalHash, 'oracleProfileApprovalHash'),
+		contract_hash: requireHash(contractHash, 'contractHash'),
+		flow_hash: optionalHash(flowHash, 'flowHash'),
+		config_hash: optionalHash(configHash, 'configHash'),
+		candidate_hash: optionalHash(candidateHash, 'candidateHash'),
+		original_hash: optionalHash(originalHash, 'originalHash'),
+		runner_implementation_hash: requireHash(runnerImplementationHash, 'runnerImplementationHash'),
+		runtime_execution_policy_hash: requireHash(runtimeExecutionPolicyHash, 'runtimeExecutionPolicyHash'),
+		artifacts: normalizeArtifacts(artifacts),
+		attempt_nonce: requireString(attemptNonce, 'attemptNonce'),
+	};
+	if (!UUID_RE.test(binding.attempt_nonce)) {
+		throw new BevalError('RUNTIME_BINDING_INVALID', 'attemptNonce must be a UUID');
+	}
+	return Object.freeze(binding);
+}
+
+export function assertRuntimeBinding(binding, expected = {}) {
+	if (!binding || binding.runtime_binding !== 'beval.runtime-binding/1') {
+		throw new BevalError('RUNTIME_BINDING_INVALID', 'unsupported runtime binding document');
+	}
+	const normalized = buildRuntimeBinding({
+		runId: binding.run_id,
+		caseRevisionHash: binding.case_revision_hash,
+		oracleProfileApprovalHash: binding.oracle_profile_approval_hash,
+		contractHash: binding.contract_hash,
+		flowHash: binding.flow_hash,
+		configHash: binding.config_hash,
+		candidateHash: binding.candidate_hash,
+		originalHash: binding.original_hash,
+		runnerImplementationHash: binding.runner_implementation_hash,
+		runtimeExecutionPolicyHash: binding.runtime_execution_policy_hash,
+		artifacts: binding.artifacts,
+		attemptNonce: binding.attempt_nonce,
+	});
+	if (hashJson(binding) !== hashJson(normalized)) {
+		throw new BevalError('RUNTIME_BINDING_NON_CANONICAL', 'runtime binding contains unexpected or non-canonical fields');
+	}
+	const pairs = [
+		['run_id', expected.runId],
+		['case_revision_hash', expected.caseRevisionHash],
+		['oracle_profile_approval_hash', expected.oracleProfileApprovalHash],
+		['contract_hash', expected.contractHash],
+		['flow_hash', expected.flowHash],
+		['config_hash', expected.configHash],
+		['candidate_hash', expected.candidateHash],
+		['original_hash', expected.originalHash],
+		['runner_implementation_hash', expected.runnerImplementationHash],
+		['runtime_execution_policy_hash', expected.runtimeExecutionPolicyHash],
+		['attempt_nonce', expected.attemptNonce],
+	];
+	for (const [field, wanted] of pairs) {
+		if (wanted !== undefined && normalized[field] !== wanted) {
+			throw new BevalError('RUNTIME_BINDING_MISMATCH', `runtime binding ${field} does not match the requested execution`);
+		}
+	}
+	return normalized;
+}
+
+export function runtimeBindingHash(binding) {
+	return hashJson(assertRuntimeBinding(binding));
+}
+
+export function assertRuntimeEvidenceBinding({ binding, bindingHash, evidence }) {
+	const normalized = assertRuntimeBinding(binding);
+	const actualHash = runtimeBindingHash(normalized);
+	if (actualHash !== bindingHash) {
+		throw new BevalError('RUNTIME_BINDING_HASH_MISMATCH', 'runtime binding does not match the supplied binding hash');
+	}
+	if (!evidence || evidence.runtime_binding_hash !== actualHash || evidence.attempt_nonce !== normalized.attempt_nonce) {
+		throw new BevalError('RUNTIME_EVIDENCE_BINDING_MISMATCH', 'runtime evidence is not bound to the exact execution attempt');
+	}
+	return true;
+}
