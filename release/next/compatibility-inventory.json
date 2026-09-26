@@ -9,7 +9,7 @@
     "repositories": {
       "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
       "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-      "beval": "fe65484f078c50f33f64248f83b5c518fb896961"
+      "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
     }
   },
   "repositories": [
@@ -77,8 +77,8 @@
       "role": "beval",
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
-      "coordination_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "head_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "coordination_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
       "package": {
         "name": "backend-evaluator",
         "version": "0.1.0",
@@ -93,29 +93,32 @@
       },
       "verification": {
         "mode": "zero-delta-merge-tree-equivalence",
-        "reviewed_head_sha": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
-        "ci_run": 36248956436,
+        "reviewed_head_sha": "37f07ec374ff5ad7b93264fb8034b0148d043a05",
+        "ci_head_sha": "37f07ec374ff5ad7b93264fb8034b0148d043a05",
+        "ci_run": 36264131522,
         "status": "completed",
         "conclusion": "success",
         "ahead_by": 1,
         "behind_by": 0,
         "file_delta_count": 0,
-        "direct_main_ci": false,
-        "ci_head_sha": "902424d0622c7731840acc11b9b4d07e3c60ac5a"
+        "direct_main_ci": false
       }
     }
   ],
   "promotion_evidence": {
     "t01_06": {
       "required_state": "ACCEPTED",
-      "observed_state": "PENDING_BEVAL_PR_71",
+      "observed_state": "ACCEPTED",
       "bskel_pack_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
       "bskel_verifier": "23/23 PASS on main bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
       "becoder_packed_replay": "12/12 PASS on main eb8164560ddd343306234a9140dc89c001519792",
       "beval_candidate_head": "37f07ec374ff5ad7b93264fb8034b0148d043a05",
       "beval_candidate_pr": 71,
       "beval_direct_packed_replay": "12/12 PASS without backend-skeleton installed or child_process",
-      "note": "Do not mark ACCEPTED until PR #71 exact-head CI is terminal green and the change is merged/revalidated on main."
+      "note": "Accepted after PR #71 exact-head CI success, clean rereview, packed 12/12 replay without bskel/child_process, and zero-delta merge to main.",
+      "beval_main": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "beval_ci_run": 36264131522,
+      "merge_tree_relation": "main ahead 1, behind 0, file delta 0"
     },
     "t19_03": {
       "required_state": "ACCEPTED",
