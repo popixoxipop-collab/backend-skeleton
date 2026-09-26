@@ -62,3 +62,25 @@ test('T13 evidence keeps exact implementation CI refs and explicit integration b
   assert.ok(evidence.promotion_blockers.some((x) => x.includes('T23')));
   assert.ok(evidence.promotion_blockers.some((x) => x.includes('T16/beval')));
 });
+
+
+test('T13 T19 review packet matches profile evidence and references existing canonical fixtures', () => {
+  const evidence = readJson(path.join(waveRoot, 'profile-evidence.json'));
+  const request = readJson(path.join(waveRoot, 't19-review-request.json'));
+
+  assert.equal(request.status, 'REQUESTED_NOT_ACCEPTED');
+  assert.deepEqual(
+    request.profiles.map((profile) => profile.id).sort(),
+    evidence.profiles.map((profile) => profile.id).sort(),
+  );
+
+  for (const profile of request.profiles) {
+    assert.equal(profile.runtime_claim, false);
+    assert.ok(profile.review_claims.length > 0);
+    assert.ok(profile.negative_cases.length > 0);
+    assert.ok(fs.existsSync(path.join(repoRoot, profile.fixture)), profile.fixture);
+  }
+
+  assert.ok(request.non_qa_blockers.some((x) => x.includes('T23 issue #137')));
+  assert.ok(request.reviewer_requirements.some((x) => x.includes('independently authored')));
+});
