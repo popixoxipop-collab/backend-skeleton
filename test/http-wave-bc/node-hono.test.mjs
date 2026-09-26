@@ -286,9 +286,9 @@ test('same-file route() mount snapshots only child routes registered before the 
     assert.equal(report.modules.length, 1);
     const controllers = report.modules[0].controllers;
     const endpoints = controllers.flatMap((controller) => controller.endpoints);
-    assert.deepEqual(endpoints.map((x) => [x.verb, x.path]), [
-      ['GET', '/v1/api/before'],
-      ['GET', '/v1/root'],
+    assert.deepEqual(endpoints.map((x) => [x.verb, x.path, x.line]), [
+      ['GET', '/v1/api/before', 3],
+      ['GET', '/v1/root', 7],
     ]);
     assert.ok(!endpoints.some((x) => x.path.includes('/after')));
     assert.equal(path.basename(controllers[0].file), 'app.ts');
