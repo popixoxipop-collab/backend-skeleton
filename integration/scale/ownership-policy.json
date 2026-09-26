@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-ownership-policy/1",
-  "revision": "T00-03-r5",
+  "revision": "T00-03-r6",
   "tracks": {
     "T00": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -275,6 +275,16 @@
         "test/express-shared.test.mjs"
       ],
       "reason": "Exact integration repair for T11 #119 TypeScript Express combined-import/router-variable defect. No other stable scanner or registry/shared path is authorized."
+    },
+    "T00-T15-CLEANUP": {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scripts/t03-capability-view-compatibility-smoke.mjs",
+        "test/t03-capability-view-compatibility-smoke.test.mjs",
+        "test/t03-capability-view.test.mjs"
+      ],
+      "reason": "Exact historical #11 out-of-scope cleanup subject. These three files may only be removed or moved into T15-owned lib/next/** or test/next/** during the evidence-bound capability consumer restack."
     }
   },
   "scope_amendments": [
@@ -393,6 +403,23 @@
         "default activation beyond existing stable adapter behavior",
         "release/deploy"
       ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-T15-CLEANUP",
+      "revision": "T00-03-r6",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T12:44:00Z",
+      "activation_basis": "T03 final PASS(T03_EVIDENCE_BOUND_CAPABILITY) + T15 #11 fresh restack request",
+      "purpose": "Allow exact deletion/move of the three historical #11 files that predate T15 ownership layout while keeping all new/edited consumer logic inside lib/next/** and test/next/**.",
+      "requested_track": "T15",
+      "exclusions": [
+        "No new scripts/** implementation",
+        "No new root test/*.test.mjs implementation",
+        "No backend-skeleton writes",
+        "No stable CLI/default UI/support-matrix wiring",
+        "No merge/release/default activation"
+      ]
     }
   ],
   "reserved_hot_paths": [
@@ -407,5 +434,5 @@
     "contracts/openapi.mjs",
     "schemas/feature-contract.schema.json"
   ],
-  "reserved_policy": "All reserved paths remain reserved. r5 additionally admits exactly scanners/adapters/typescript-express.mjs and test/express-shared.test.mjs through T00-T11-STABLE-TS-EXPRESS under an ACTIVE fenced lease for the #119 defect only."
+  "reserved_policy": "All reserved paths remain reserved. r6 adds T00-T15-CLEANUP for exactly three historical backend-decoder #11 files and only for deletion/move into T15-owned lib/next/** or test/next/**. T15's normal writable scope remains lib/next/**, test/next/**, docs/next/**."
 }
