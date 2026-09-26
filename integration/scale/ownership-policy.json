@@ -266,6 +266,15 @@
         "test/express-shared.test.mjs"
       ],
       "reason": "Exact stable-scanner integration repair for T11 issue #119: combined default+named Express import and proven arbitrary Router variable/mount extraction."
+    },
+    "T00-T11-STABLE-TS-EXPRESS": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scanners/adapters/typescript-express.mjs",
+        "test/express-shared.test.mjs"
+      ],
+      "reason": "Exact integration repair for T11 #119 TypeScript Express combined-import/router-variable defect. No other stable scanner or registry/shared path is authorized."
     }
   },
   "scope_amendments": [
@@ -368,6 +377,22 @@
         "operationId synthesis",
         "generic low-confidence fallback weakening"
       ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-T11-STABLE-TS-EXPRESS",
+      "revision": "T00-03-r5",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T07:01:10Z",
+      "purpose": "Fix stable TypeScript Express detection/extraction for combined default+named import and proven non-'router' Router variables, with an exact holdout regression.",
+      "exclusions": [
+        "scanners/registry.mjs",
+        "other stable adapters",
+        "package/lock/workflow/schema changes",
+        "operationId invention",
+        "default activation beyond existing stable adapter behavior",
+        "release/deploy"
+      ]
     }
   ],
   "reserved_hot_paths": [
@@ -382,5 +407,5 @@
     "contracts/openapi.mjs",
     "schemas/feature-contract.schema.json"
   ],
-  "reserved_policy": "All reserved paths remain reserved. r5 additionally admits exactly scanners/adapters/typescript-express.mjs and test/express-shared.test.mjs through T00-T11-STABLE-EXPRESS under an ACTIVE fenced lease. No other stable scanner or shared path is authorized."
+  "reserved_policy": "All reserved paths remain reserved. r5 additionally admits exactly scanners/adapters/typescript-express.mjs and test/express-shared.test.mjs through T00-T11-STABLE-TS-EXPRESS under an ACTIVE fenced lease for the #119 defect only."
 }
