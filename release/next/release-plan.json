@@ -7,12 +7,12 @@
   "coordination_baseline": {
     "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
     "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-    "beval": "fe65484f078c50f33f64248f83b5c518fb896961"
+    "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
   },
   "observed_current_main": {
     "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
     "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-    "beval": "fe65484f078c50f33f64248f83b5c518fb896961"
+    "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
   },
   "prerequisites": [
     {
@@ -33,7 +33,7 @@
     {
       "id": "T01-06",
       "required_state": "ACCEPTED",
-      "observed_state": "PENDING_BEVAL_PR_71"
+      "observed_state": "ACCEPTED"
     },
     {
       "id": "T19-03",
@@ -97,13 +97,12 @@
     "support matrix generated only from admitted evidence-backed profiles"
   ],
   "blockers": [
-    "T01_06_NOT_ACCEPTED",
     "FINAL_MAIN_PUSH_CI_NOT_DIRECT",
     "INDEPENDENT_QA_NOT_READY",
     "TRUST_POLICY_NOT_READY",
     "FINAL_RELEASE_REHEARSAL_NOT_RUN"
   ],
-  "note": "This plan intentionally keeps release/default activation false. T01 additive readers may ship only after T01-06 acceptance; legacy HTTP identity remains authoritative until a separately leased per-profile default cutover.",
+  "note": "T01-06 additive consumer compatibility is accepted. Release/default activation remains blocked on direct final-main release CI, T19-03, T20-03, and final release rehearsal; legacy HTTP identity remains authoritative.",
   "release_rehearsal": {
     "required_state": "PASS",
     "observed_state": "NOT_RUN",
