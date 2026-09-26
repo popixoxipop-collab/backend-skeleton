@@ -19,7 +19,7 @@ No existing CLI, shared schema, adapter registry, package manifest or lockfile w
 If the SDK is approved for public distribution, add `sdk/` to `package.json#files` and extend the
 package-install/package-manifest tests to assert the expected SDK files are present.
 
-Until that happens, `npm pack` intentionally excludes `sdk/next/**`.
+Until that happens, `npm pack` intentionally excludes `sdk/next/**`. T23's landed shared nested-test integration runs T22 tests on its coordination branch, but its approved package-shadow allowlist still does not include the SDK.
 
 ### 2. Test entry point
 
@@ -57,7 +57,7 @@ isolation and approval path.
 
 ## Verification already run on the T22 branch
 
-- `node --test test/sdk-next/*.test.mjs`: 50/50 PASS on the latest pre-doc-refresh implementation batch.
+- `node --test test/sdk-next/*.test.mjs`: 65/65 PASS on the current defect-fix worktree under Node 18, Node 22, and Node 24.
 - existing adapter registry tests: 14/14 PASS.
 - existing doctor CLI tests: 16/16 PASS.
 - existing schema validation tests: 26/26 PASS.
@@ -66,3 +66,21 @@ isolation and approval path.
   recorded as a full-suite pass.
 
 These numbers are branch-local evidence, not a release certification.
+
+
+## Defect-closeout boundary
+
+The current T22 corrective slice is deliberately limited to input/security/evidence hardening. It
+does not add a framework, execution backend, registry entry, CLI command, package allowlist or
+default activation.
+
+The data-only invariants remain:
+- `executable: false`
+- `requiresApproval: true`
+- `autoInstall: false`
+- `autoImport: false`
+
+T03 owns support/certification policy. T22 only projects the five-state status/diagnostics and refuses
+arbitrary string evidence for a non-legacy supported projection. T01 `sbf.artifact-ref/1` values
+are kept as opaque exact references; independent byte verification remains upstream. T20 remains
+the authority for effective permission/trust enforcement, and T23 remains the package/CI owner.
