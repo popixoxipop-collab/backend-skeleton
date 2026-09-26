@@ -73,7 +73,20 @@ test('pinned-repo evidence can certify only the requested non-runtime scope',()=
 });
 
 test('provider mismatch fails even when entity shapes happen to match',()=>{
-	const report=evaluatePersistenceConformance({ir:ir({provider:'typeorm'}),profile:profile()});
+	const actual=createPersistenceIr({
+		provider:'typeorm',source_kind:'source',
+		entities:[{
+			provider:'typeorm',name:'User',
+			table:{name:'users',schema:'auth',source:'explicit'},
+			primary_key:{columns:['user_id'],type:'String',source:'source'},
+			fields:[
+				{name:'user_id',type:'String',nullable:false,source:'source'},
+				{name:'email',type:'String',nullable:false,source:'source'},
+			],
+			relations:[],
+		}],
+	});
+	const report=evaluatePersistenceConformance({ir:actual,profile:profile()});
 	assert.equal(report.status,'fail');
 	assert.ok(report.failures.some((x)=>x.code==='provider-mismatch'));
 });

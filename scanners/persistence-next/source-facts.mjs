@@ -142,7 +142,8 @@ export function fromPersistenceSourceFacts(input) {
 	});
 
 	const entities = facts.entities.map((entity) => ({
-		...(entity.id ? { id: entity.id } : {}),
+		// Upstream source-fact ids are correlation hints only. Persistence IR identity is
+		// deterministically derived from provider/name/source locator and cannot be caller-selected.
 		provider: facts.persistence_id,
 		name: entity.name,
 		module: entity.module,

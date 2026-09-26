@@ -29,6 +29,19 @@ function stableIdPart(value) {
 	return encodeURIComponent(String(value).replaceAll('\\', '/'));
 }
 
+function normalizeRepoRelativeFile(value, label) {
+	if (value == null) return null;
+	const raw = nonEmptyString(value, label);
+	if (/[\u0000-\u001f\u007f]/.test(raw)) throw new TypeError(`${label} contains control characters`);
+	const normalized = raw.replaceAll('\\', '/');
+	if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) {
+		throw new TypeError(`${label} must be repository-relative`);
+	}
+	const parts = normalized.split('/');
+	if (parts.some((part) => part === '..')) throw new TypeError(`${label} must not escape the repository`);
+	return parts.filter((part) => part !== '' && part !== '.').join('/');
+}
+
 export function sourcePath(file, repoRoot = null) {
 	if (file == null) return null;
 	const normalized = String(file).replaceAll('\\', '/');
@@ -47,15 +60,22 @@ export function makeEntityId({ provider, className, file = null, table = null })
 
 export function makeSourceRef({ kind, provider, file = null, line = null, detail = null }) {
 	if (!EVIDENCE_KIND.has(kind)) throw new TypeError(`source ref kind must be one of ${[...EVIDENCE_KIND].join(', ')}`);
-	nonEmptyString(provider, 'source ref provider');
+	const normalizedProvider = nonEmptyString(provider, 'source ref provider');
 	if (line != null && (!Number.isInteger(line) || line < 1)) throw new TypeError('source ref line must be a positive integer or null');
 	return {
 		kind,
-		provider,
-		file: nullableString(file, 'source ref file'),
+		provider: normalizedProvider,
+		file: normalizeRepoRelativeFile(file, 'source ref file'),
 		line: line ?? null,
 		detail: detail == null ? null : String(detail),
 	};
+}
+
+function normalizeSourceRef(ref, entityProvider) {
+	if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new TypeError('source ref must be an object');
+	const normalized = makeSourceRef(ref);
+	if (normalized.provider !== entityProvider) throw new TypeError('source ref provider must match entity.provider');
+	return normalized;
 }
 
 export function normalizeTable({ name = null, schema = null, source = 'unknown' } = {}) {
@@ -97,11 +117,16 @@ export function normalizeEntity(entity) {
 	const table = normalizeTable(entity.table);
 	const file = nullableString(entity.file, 'entity.file');
 	const primaryKey = normalizePrimaryKey(entity.primary_key);
+	const derivedId = makeEntityId({ provider, className: name, file, table: table.name });
+	if (entity.id != null && entity.id !== derivedId) {
+		throw new TypeError('entity.id must equal the deterministic persistence entity id');
+	}
 	return {
-		id: entity.id ?? makeEntityId({ provider, className: name, file, table: table.name }),
+		id: derivedId,
 		provider,
 		name,
 		module: nullableString(entity.module, 'entity.module'),
+		file,
 		table,
 		primary_key: primaryKey,
 		fields: Array.isArray(entity.fields) ? entity.fields.map((f) => ({
@@ -111,7 +136,11 @@ export function normalizeEntity(entity) {
 			source: f.source ?? 'unknown',
 		})) : [],
 		relations: Array.isArray(entity.relations) ? entity.relations.map(normalizeRelation) : [],
-		source_refs: Array.isArray(entity.source_refs) ? entity.source_refs : [],
+		source_refs: entity.source_refs == null
+			? []
+			: Array.isArray(entity.source_refs)
+				? entity.source_refs.map((ref) => normalizeSourceRef(ref, provider))
+				: (() => { throw new TypeError('entity.source_refs must be an array'); })(),
 	};
 }
 
@@ -120,6 +149,9 @@ export function createPersistenceIr({ provider, source_kind, entities = [], diag
 	if (!EVIDENCE_KIND.has(source_kind)) throw new TypeError(`source_kind must be one of ${[...EVIDENCE_KIND].join(', ')}`);
 	if (!Array.isArray(entities)) throw new TypeError('entities must be an array');
 	const normalized = entities.map(normalizeEntity);
+	for (const entity of normalized) {
+		if (entity.provider !== provider) throw new TypeError('entity.provider must match persistence IR provider');
+	}
 	const ids = new Set();
 	for (const entity of normalized) {
 		if (ids.has(entity.id)) throw new Error(`duplicate persistence entity id: ${entity.id}`);

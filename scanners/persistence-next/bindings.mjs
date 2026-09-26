@@ -126,10 +126,14 @@ export function matchPhysicalTable({ persistence, schema = null, table }) {
 	return matches;
 }
 
-export function verifyResourceBindingsAgainstObserved({ binding_result, observed, default_schema = null }) {
+export function verifyResourceBindingsAgainstObserved({ binding_result, observed, expected_live_provider, default_schema = null }) {
 	if (!binding_result || !Array.isArray(binding_result.bindings)) throw new TypeError('binding_result.bindings must be an array');
+	const expectedLiveProvider = nonEmpty(expected_live_provider, 'expected_live_provider');
 	const live = assertPersistenceIr(observed);
 	if (live.source_kind !== 'live') throw new TypeError('observed persistence IR must have source_kind=live');
+	if (live.provider !== expectedLiveProvider) {
+		throw new TypeError(`observed live provider mismatch: expected ${expectedLiveProvider}, got ${live.provider}`);
+	}
 	const effectiveDefaultSchema = default_schema ?? live.metadata?.schema ?? null;
 	const byTable = new Map();
 	for (const entity of live.entities) {
@@ -192,7 +196,15 @@ export function verifyResourceBindingsAgainstObserved({ binding_result, observed
 					effective_key_type: effectiveKeyType,
 					key_type_status: keyTypeStatus,
 				},
-				verification: { source_kind: 'live', table: tableStatus, primary_key: keyStatus, key_type: keyTypeStatus },
+				verification: {
+					source_kind: 'live',
+					provider: 'verified',
+					expected_provider: expectedLiveProvider,
+					observed_provider: live.provider,
+					table: tableStatus,
+					primary_key: keyStatus,
+					key_type: keyTypeStatus,
+				},
 			};
 		}),
 	};

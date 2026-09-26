@@ -2,7 +2,7 @@ import { buildHandleCompositionHandoff } from './generation-handoff.mjs';
 
 export const PERSISTENCE_CERTIFICATION_CONTRACT = 'sbf.persistence-certification/1';
 
-function certifyOne(httpProviderId, binding) {
+function certifyOne(httpProviderId, binding, generationContext) {
 	const blockers = [];
 	if (!binding?.entity_id) blockers.push({ code:'entity-binding-missing', message:'no bound persistence entity' });
 	if (!binding?.table?.name) blockers.push({ code:'physical-table-unknown', message:'physical table is unknown' });
@@ -14,7 +14,14 @@ function certifyOne(httpProviderId, binding) {
 	if (!candidateRead) blockers.push({ code:'read-by-primary-key-not-candidate', message:'source facts do not establish a physical table + primary key candidate' });
 	if (!verifiedRead) blockers.push({ code:'read-by-primary-key-not-verified', message:'live persistence verification has not established the read mapping' });
 
-	const handoff = buildHandleCompositionHandoff({ http_provider_id:httpProviderId, binding });
+	const handoff = buildHandleCompositionHandoff({
+		http_provider_id:httpProviderId,
+		binding,
+		producer_revision:generationContext?.producer_revision ?? null,
+		candidate_revision:generationContext?.candidate_revision ?? null,
+		profile_id:generationContext?.profile_id ?? null,
+		execution_ref:generationContext?.execution_ref ?? null,
+	});
 	return {
 		resource_id: binding?.resource_id ?? null,
 		entity_id: binding?.entity_id ?? null,
@@ -33,12 +40,12 @@ function certifyOne(httpProviderId, binding) {
 	};
 }
 
-export function certifyPersistenceBindings({ http_provider_id, binding_result }) {
+export function certifyPersistenceBindings({ http_provider_id, binding_result, generation_context = null }) {
 	if (typeof http_provider_id !== 'string' || !http_provider_id) throw new TypeError('http_provider_id is required');
 	if (!binding_result || !Array.isArray(binding_result.bindings)) throw new TypeError('binding_result.bindings must be an array');
 
 	const resources = binding_result.bindings
-		.map((binding) => certifyOne(http_provider_id, binding))
+		.map((binding) => certifyOne(http_provider_id, binding, generation_context))
 		.sort((a,b)=>(a.resource_id ?? '').localeCompare(b.resource_id ?? ''));
 
 	const globalBlockers = [];
