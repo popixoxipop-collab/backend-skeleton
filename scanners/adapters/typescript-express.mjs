@@ -28,9 +28,21 @@ import {
 	expressDiagnostics,
 } from './_express-shared.mjs';
 
-const VERB_CALL_RE = new RegExp(`\\brouter\\.(${VERBS.join('|')})\\s*\\(`, 'gi');
-const ROUTER_USE_RE = /\brouter\.use\s*\(/g;
 const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*export\s+class\s+(\w+)/g;
+
+// Only identifiers locally assigned to Express Router() are trusted as route receivers.
+// This removes the accidental literal-name dependency on `router` without accepting arbitrary
+// objects that merely expose get()/use()-shaped methods.
+function routerVariables(text) {
+	const out = new Set();
+	const declarationRe = /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::\s*[^=;\n]+)?\s*=\s*(?:[A-Za-z_$][\w$]*\s*\.\s*)?Router\s*\(/g;
+	for (const match of text.matchAll(declarationRe)) out.add(match[1]);
+	return [...out].sort();
+}
+
+function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
+	return new RegExp('\\b' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
+}
 
 // D-gate-precision (Continued, part 3): a pure PATH-CONVENTION heuristic, mirroring java-spring's
 // own identical solution to the identical problem (`.../presentation/dto/`) rather than inventing
@@ -62,7 +74,7 @@ export function detectTypeScriptExpressRoot(repoRoot) {
 	if (!pkgFile) return null;
 
 	const projectRoot = path.dirname(pkgFile);
-	const sourceFiles = rgFilesMatching("import\\s*\\{[^}]*\\bRouter\\b[^}]*\\}\\s*from\\s*['\"]express['\"]", ['*.ts'], projectRoot);
+	const sourceFiles = rgFilesMatching("import\\s+(?:[$\\w]+\\s*,\\s*)?\\{[^}]*\\bRouter\\b[^}]*\\}\\s*from\\s*['\"]express['\"]", ['*.ts'], projectRoot);
 	if (sourceFiles.length === 0) return null;
 	// G6: `\bRouter\s*\(`, not `\bRouter\s*\(\s*\)` -- `Router({ mergeParams: true })` is ordinary
 	// Express, and requiring empty parens made this whole adapter fail to detect a repo whose
@@ -71,7 +83,7 @@ export function detectTypeScriptExpressRoot(repoRoot) {
 	// no word boundary inside `makeRouter(`, so this cannot match an unrelated factory.
 	const callsRouter = sourceFiles.some((f) => {
 		try {
-			return /\bRouter\s*\(/.test(maskJsComments(fs.readFileSync(f, 'utf8')));
+			return routerVariables(maskJsComments(fs.readFileSync(f, 'utf8'))).length > 0;
 		} catch {
 			return false;
 		}
@@ -103,29 +115,33 @@ function listTypeScriptFiles(projectRoot) {
 // DECISIONS.md) -- this is NOT a new failure mode, just a new, real way to reach the existing one.
 const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
 
-function extractEndpoints(text) {
+function extractEndpoints(text, routerNames) {
 	const endpoints = [];
-	for (const m of text.matchAll(VERB_CALL_RE)) {
-		const verb = m[1].toUpperCase();
-		const openIdx = m.index + m[0].length - 1;
-		const closeIdx = matchBalancedParens(text, openIdx);
-		if (closeIdx === -1) continue;
-		const argsText = text.slice(openIdx + 1, closeIdx);
-		const pathMatch = argsText.match(STRING_LITERAL_RE);
-		if (!pathMatch) continue; // no path literal (e.g. built dynamically) -- skip rather than guess
+	for (const routerName of routerNames) {
+		const verbCallRe = routerMemberCallRe(routerName, VERBS.join('|'), 'gi');
+		for (const m of text.matchAll(verbCallRe)) {
+			const verb = m[1].toUpperCase();
+			const openIdx = m.index + m[0].length - 1;
+			const closeIdx = matchBalancedParens(text, openIdx);
+			if (closeIdx === -1) continue;
+			const argsText = text.slice(openIdx + 1, closeIdx);
+			const pathMatch = argsText.match(STRING_LITERAL_RE);
+			if (!pathMatch) continue;
 
-		const args = splitTopLevelArgs(argsText);
-		const lastArg = args[args.length - 1]?.trim();
-		const handlerMatch = lastArg?.match(/^(\w+)$/);
-		const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
-		// Neither a bare identifier nor a recognizable inline function expression (e.g. a member
-		// expression like `controller.show`, or something built dynamically) -- skip rather than
-		// guess, same discipline as the missing-path-literal case just above.
-		if (!handlerMatch && !isInlineHandler) continue;
+			const args = splitTopLevelArgs(argsText);
+			const lastArg = args[args.length - 1]?.trim();
+			const handlerMatch = lastArg?.match(/^(\w+)$/);
+			const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
+			if (!handlerMatch && !isInlineHandler) continue;
 
-		endpoints.push({ verb, path: pathMatch[1], operationId: null, method: handlerMatch ? handlerMatch[1] : null, line: lineNumberAt(text, m.index) });
+			endpoints.push({
+				verb, path: pathMatch[1], operationId: null,
+				method: handlerMatch ? handlerMatch[1] : null,
+				line: lineNumberAt(text, m.index), _offset: m.index,
+			});
+		}
 	}
-	return endpoints;
+	return endpoints.sort((a, b) => a._offset - b._offset).map(({ _offset, ...endpoint }) => endpoint);
 }
 
 // Resolves a bare specifier's own file on disk, extension-probed the same way Node's own resolver
@@ -151,23 +167,26 @@ function buildMountEdges(files, fileTexts) {
 	const edges = []; // { fromFile, toFile, prefix }
 	for (const file of files) {
 		const text = fileTexts.get(file);
-		for (const m of text.matchAll(ROUTER_USE_RE)) {
-			const openIdx = m.index + m[0].length - 1;
-			const closeIdx = matchBalancedParens(text, openIdx);
-			if (closeIdx === -1) continue;
-			const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
-			if (args.length !== 2) continue; // single-arg router.use(subRouter) is a page/catch-all mount, not a prefixed module
-			const pathMatch = args[0].match(STRING_LITERAL_RE);
-			const identMatch = args[1].match(/^(\w+)$/);
-			if (!pathMatch || !identMatch) continue;
+		for (const routerName of routerVariables(text)) {
+			const useRe = routerMemberCallRe(routerName, 'use');
+			for (const m of text.matchAll(useRe)) {
+				const openIdx = m.index + m[0].length - 1;
+				const closeIdx = matchBalancedParens(text, openIdx);
+				if (closeIdx === -1) continue;
+				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
+				if (args.length !== 2) continue;
+				const pathMatch = args[0].match(STRING_LITERAL_RE);
+				const identMatch = args[1].match(/^(\w+)$/);
+				if (!pathMatch || !identMatch) continue;
 
-			const importRe = new RegExp(`import\\s+${identMatch[1]}\\s+from\\s*["']([^"']+)["']`);
-			const importMatch = text.match(importRe);
-			if (!importMatch) continue;
-			const toFile = resolveRelativeImport(file, importMatch[1]);
-			if (!toFile || !files.includes(toFile)) continue;
+				const importRe = new RegExp('import\\s+' + identMatch[1] + '\\s+from\\s*["\x27]([^"\x27]+)["\x27]');
+				const importMatch = text.match(importRe);
+				if (!importMatch) continue;
+				const toFile = resolveRelativeImport(file, importMatch[1]);
+				if (!toFile || !files.includes(toFile)) continue;
 
-			edges.push({ fromFile: file, toFile, prefix: pathMatch[1] });
+				edges.push({ fromFile: file, toFile, prefix: pathMatch[1] });
+			}
 		}
 	}
 	return edges;
@@ -267,8 +286,9 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		// G6: `\bRouter\s*\(` -- see detectTypeScriptExpressRoot above. Same widening for the same
 		// reason: a router declared as `Router({ mergeParams: true })` is ordinary Express, and
 		// this per-file gate previously skipped its whole file.
-		if (/\bRouter\s*\(/.test(text) && /\brouter\.\w+\s*\(/.test(text)) {
-			const localEndpoints = extractEndpoints(text);
+		const routers = routerVariables(text);
+		if (routers.length > 0) {
+			const localEndpoints = extractEndpoints(text, routers);
 			if (localEndpoints.length > 0) {
 				const prefix = prefixChainFor(file, edges);
 				const moduleName = path.basename(file, '.ts');

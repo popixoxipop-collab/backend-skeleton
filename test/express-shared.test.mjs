@@ -224,6 +224,32 @@ test('typescript-express: a router declared as Router({ mergeParams: true }) is 
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
 });
 
+test('typescript-express: combined default+named import and typed arbitrary Router variables preserve mount prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes/index.ts': [
+			"import express, { Router } from 'express';",
+			"import userRouter from './users';",
+			'const apiRouter: Router = express.Router();',
+			"apiRouter.use('/users', userRouter);",
+			'export default apiRouter;',
+		].join('\n'),
+		'src/routes/users.ts': [
+			"import express, { Router } from 'express';",
+			'const userRouter: Router = express.Router();',
+			"userRouter.get('/:id', authentication, getUserById);",
+			'export default userRouter;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot, 'default+named Express import with typed Router variable must detect');
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => e.verb + ' ' + e.path), ['GET /users/:id']);
+	assert.equal(endpoints[0].method, 'getUserById');
+});
+
 test('javascript-express: a router declared as express.Router({ mergeParams: true }) is still detected and scanned', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
