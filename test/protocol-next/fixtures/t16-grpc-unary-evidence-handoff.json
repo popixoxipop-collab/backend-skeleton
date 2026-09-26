@@ -1,0 +1,54 @@
+{
+  "handoff": "t18.t16-protocol-evidence-handoff/1",
+  "status": "candidate-static-handoff",
+  "profile": {
+    "id": "t18-grpc-unary-binding/1",
+    "family": "grpc",
+    "plane": "methods",
+    "static_selector": {
+      "service": "Orders",
+      "method": "Get"
+    },
+    "source_file": "orders.proto",
+    "runtime_execution": "not-performed",
+    "runtime_tested": false
+  },
+  "source_fixture": {
+    "family": "grpc",
+    "file": "orders.proto",
+    "text": "syntax = \"proto3\";\npackage shop.v1;\nmessage Req { string id = 1; }\nmessage Res { string id = 1; }\nservice Orders { rpc Get (Req) returns (Res); }\n"
+  },
+  "consumer_boundary": {
+    "consume_exact_protocol_item_ref": true,
+    "consume_exact_contract_artifact_ref": true,
+    "result_must_bind_exact_frozen_action_ref": true,
+    "evidence_digest_must_commit_to_action_ref": true,
+    "display_name_matching_forbidden": true,
+    "action_ref_null_must_remain_null": true,
+    "new_runtime_binding_forbidden": true,
+    "new_executor_forbidden": true
+  },
+  "expected_t16_negatives": [
+    {
+      "id": "stale-contract-bytes",
+      "expected_error": "PROTOCOL_RUNTIME_ARTIFACT_MISMATCH"
+    },
+    {
+      "id": "wrong-item",
+      "expected_error": "PROTOCOL_RUNTIME_ITEM_INVALID"
+    },
+    {
+      "id": "cross-attempt-evidence",
+      "expected_error": "RUNTIME_EVIDENCE_BINDING_MISMATCH"
+    },
+    {
+      "id": "cross-item-evidence-swap",
+      "expected_error": "PROTOCOL_RUNTIME_ASSERTION_ITEM_MISMATCH"
+    }
+  ],
+  "semantics": {
+    "ordering_does_not_imply_causation": true,
+    "correlation_does_not_imply_causation": true,
+    "unexecuted_protocol_remains_runtime_unverified": true
+  }
+}
