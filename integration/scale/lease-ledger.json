@@ -638,9 +638,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:14:30Z",
       "expires_at": "2026-09-26T12:14:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 81,
-      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Exact root-test cleanup completed; final candidate nested-next CI green."
     },
     {
       "claim_id": "T00-ROOT-T04-cleanup-20260926",
@@ -663,9 +665,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:14:30Z",
       "expires_at": "2026-09-26T12:14:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 73,
-      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Exact root-test cleanup completed; final candidate nested-next CI green."
     },
     {
       "claim_id": "T00-ROOT-T05-cleanup-20260926",
@@ -685,9 +689,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:14:30Z",
       "expires_at": "2026-09-26T12:14:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 86,
-      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Exact root-test cleanup completed; final candidate nested-next CI green."
     },
     {
       "claim_id": "T00-ROOT-T07-cleanup-20260926",
@@ -716,9 +722,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:14:30Z",
       "expires_at": "2026-09-26T12:14:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 69,
-      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Exact root-test cleanup completed; final candidate nested-next CI green."
     },
     {
       "claim_id": "T00-ROOT-T14-cleanup-20260926",
@@ -738,9 +746,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:14:30Z",
       "expires_at": "2026-09-26T12:14:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 71,
-      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Exact root-test cleanup completed; final candidate nested-next CI green."
     },
     {
       "claim_id": "T00-ROOT-T21-cleanup-20260926",
@@ -760,9 +770,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:14:30Z",
       "expires_at": "2026-09-26T12:14:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 80,
-      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Exact root-test cleanup completed; final candidate nested-next CI green."
     },
     {
       "claim_id": "T11-pr77-express-ts-fix-20260926",
@@ -805,8 +817,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T06:33:30Z",
       "expires_at": "2026-09-26T12:33:30Z",
-      "state": "ACTIVE",
-      "reason": "Narrow stable TypeScript Express #119 repair only; no registry/shared/package/workflow or other adapter changes."
+      "state": "RELEASED",
+      "reason": "Narrow stable TypeScript Express #119 repair only; no registry/shared/package/workflow or other adapter changes.",
+      "released_at": "2026-09-26T07:24:30Z",
+      "release_reason": "Stable TypeScript Express #119 repair completed at d1ce48f; exact-head CI #1301 SUCCESS and direct focused validation green. Fresh exact lease required for any follow-up write."
     },
     {
       "claim_id": "T16-pr60-outcome-item-binding-fix-20260926-r2",
