@@ -36,7 +36,8 @@
     "T00-BSKEL-INTEGRATION": 1,
     "T00-BEVAL-INTEGRATION": 1,
     "T00-BECODER-INTEGRATION": 1,
-    "T00-BEVAL-T01-06-PACKED-REPLAY": 1
+    "T00-BEVAL-T01-06-PACKED-REPLAY": 1,
+    "T00-T23-RELEASE-CONTROL": 1
   },
   "claims": [
     {
@@ -1227,6 +1228,27 @@
       "expires_at": "2026-09-27T00:35:00Z",
       "state": "ACTIVE",
       "reason": "Close the remaining T01-06 packed-artifact evidence gap by replaying the reviewed T01 conformance pack from the installed Backend-evaluation tarball. No default activation, release, or production certification."
+    },
+    {
+      "claim_id": "T00-T23-RELEASE-CONTROL-20260927-r1",
+      "task_id": "T23-release-control-rebaseline",
+      "track": "T00-T23-RELEASE-CONTROL",
+      "canonical_track": "T23",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t23-release-control-rebaseline-r1",
+      "worker": "T00-release-integration",
+      "worktree": "github-contents-api",
+      "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "observed_head_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "path_scopes": [
+        "release/next/**"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T19:00:00Z",
+      "expires_at": "2026-09-27T01:00:00Z",
+      "state": "ACTIVE",
+      "reason": "Rebaseline release-control artifacts on integrated mains without changing default writers, production registry, package allowlists, workflows, or release state."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
