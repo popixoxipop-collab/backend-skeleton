@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildFileIndex } from '../../lib/scan-scheduler-next/file-index.mjs';
+import { buildFileIndex, portablePathIssuesForPaths } from '../../lib/scan-scheduler-next/file-index.mjs';
 import { computeInvalidation } from '../../lib/scan-scheduler-next/invalidation.mjs';
 
 function fixture() {
@@ -63,6 +63,20 @@ test('index budgets fail closed before an unbounded tree is hashed', () => {
 });
 
 test('file index reports case-fold and Unicode-normalization portability collisions without rewriting paths', () => {
+	const syntheticIssues = portablePathIssuesForPaths(['src/A.js', 'src/a.js', 'src/e\u0301.js', 'src/é.js']);
+	assert.ok(syntheticIssues.some((x) => x.kind === 'case-fold-collision' && x.paths.includes('src/A.js') && x.paths.includes('src/a.js')));
+	assert.ok(syntheticIssues.some((x) => x.kind === 'unicode-nfc-collision' && x.paths.includes('src/é.js') && x.paths.includes('src/é.js')));
+	const caseProbe = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t21-case-probe-'));
+	fs.writeFileSync(path.join(caseProbe, 'A.js'), 'A');
+	fs.writeFileSync(path.join(caseProbe, 'a.js'), 'a');
+	const caseDistinct = fs.readdirSync(caseProbe).filter((name) => /^a\.js$/i.test(name)).length === 2;
+	const unicodeProbe = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t21-unicode-probe-'));
+	fs.writeFileSync(path.join(unicodeProbe, 'é.js'), 'nfc');
+	fs.writeFileSync(path.join(unicodeProbe, 'e\u0301.js'), 'nfd');
+	const unicodeDistinct = fs.readdirSync(unicodeProbe).filter((name) => name.endsWith('.js')).length === 2;
+	fs.rmSync(caseProbe, { recursive: true, force: true });
+	fs.rmSync(unicodeProbe, { recursive: true, force: true });
+	if (!caseDistinct || !unicodeDistinct) return;
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t21-paths-'));
 	fs.mkdirSync(path.join(root, 'src'), { recursive: true });
 	for (const name of ['A.js', 'a.js', 'é.js', 'e\u0301.js']) fs.writeFileSync(path.join(root, 'src', name), name);

@@ -4,13 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createArtifactStore } from '../../lib/artifact-store-next/store.mjs';
 import { createCacheIndex } from '../../lib/artifact-store-next/cache-index.mjs';
 import { digestJson } from '../../lib/scan-scheduler-next/cache-key.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_INDEX_MODULE = path.resolve(__dirname, '../../lib/artifact-store-next/cache-index.mjs');
+const CACHE_INDEX_MODULE_URL = pathToFileURL(CACHE_INDEX_MODULE).href;
 
 function scratch() { return fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t21-cache-index-')); }
 
@@ -47,7 +48,7 @@ test('two OS processes updating the same cache index preserve both entries', asy
 	const root = scratch();
 	const driver = path.join(root, 'writer.mjs');
 	fs.writeFileSync(driver, `
-		import { createCacheIndex } from ${JSON.stringify(CACHE_INDEX_MODULE)};
+		import { createCacheIndex } from ${JSON.stringify(CACHE_INDEX_MODULE_URL)};
 		const [, , root, key, digest] = process.argv;
 		createCacheIndex(root).set(key, { algorithm: 'sha256', digest, size: 1 }, { dependencies: ['src/' + key.slice(0, 4)] });
 	`);
