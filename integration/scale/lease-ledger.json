@@ -20,7 +20,7 @@
     "T23-BEVAL": 4,
     "T00-BSKEL-SHARED": 2,
     "T10": 1,
-    "T16": 2,
+    "T16": 3,
     "T13": 1,
     "T00-ROOT-T03": 1,
     "T00-ROOT-T04": 1,
@@ -841,9 +841,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T06:48:30Z",
       "expires_at": "2026-09-26T12:48:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 60,
-      "reason": "Restack #60 on accepted #59 and close T18-reproduced same-request cross-ProtocolItemRef evidence-swap; result/evidence must bind exact frozen action_ref."
+      "reason": "Restack #60 on accepted #59 and close T18-reproduced same-request cross-ProtocolItemRef evidence-swap; result/evidence must bind exact frozen action_ref.",
+      "released_at": "2026-09-26T07:28:45Z",
+      "release_reason": "PR #60 exact-head CI #1022 completed SUCCESS; cross-ProtocolItemRef evidence-swap closed. Superseded by PR #61 executor restack."
     },
     {
       "claim_id": "T16-pr60-item-binding-fix-20260926-r2",
@@ -893,6 +895,29 @@
       "reason": "Exact #119 TypeScript Express stable-scanner fix only: combined default+named Express import, express.Router() constructor, proven arbitrary router variable, and mount prefix regression.",
       "released_at": "2026-09-26T07:02:10Z",
       "release_reason": "Duplicate exact-scope claim created during concurrent coordination; superseded by earlier T00-T11-STABLE-EXPRESS-20260926-r1."
+    },
+    {
+      "claim_id": "T16-pr61-executor-restack-20260926-r3",
+      "task_id": "T16-pr61-executor-restack",
+      "track": "T16",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "scale/T16/protocol-runtime-executor-post51",
+      "worker": "T00-assisted-T16",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t16-pr61-r4-wt",
+      "base_sha": "e0af62e9c022f5884c02d6c02616ee2c37d800c5",
+      "observed_head_sha": "622109466b95ae1b0da36d4fb215b414ff8b4ae4",
+      "path_scopes": [
+        "lib/next-runtime/**",
+        "test/next-runtime/**",
+        "docs/next-runtime/**"
+      ],
+      "fencing_token": 3,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T07:28:45Z",
+      "expires_at": "2026-09-26T13:28:45Z",
+      "state": "ACTIVE",
+      "pr": 61,
+      "reason": "Restack #61 on accepted #60 exact head. Executor must pass through exact action_ref + evidence_binding_hash from the independent executor; T16 must not synthesize item binding after observation."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
