@@ -63,7 +63,7 @@ test('promotion evidence is mandatory and its required state is fixed to ACCEPTE
 
 test('release cannot hide an observed blocker',()=>{
   const x=clone(plan);
-  x.blockers=x.blockers.filter((v)=>v!=='T01_06_NOT_ACCEPTED');
+  x.blockers=x.blockers.filter((v)=>v!=='TRUST_POLICY_NOT_READY');
   assert.ok(verifyReleasePlan(x,inventory).errors.some((e)=>e.code==='OBSERVED_BLOCKER_NOT_DECLARED'));
 });
 
