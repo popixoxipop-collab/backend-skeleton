@@ -14,7 +14,7 @@ const CATALOG=JSON.parse(fs.readFileSync(path.join(HERE,'product-mutations.json'
 test('product mutation catalog is safe and links every mutant to a planned negative vector',()=>{
  const result=validateProductMutationCatalog(CATALOG);
  assert.equal(result.ok,true,result.errors.join('\n'));
- assert.equal(result.stats.mutants,9);
+ assert.equal(result.stats.mutants,13);
  assert.ok(CATALOG.mutants.every((m)=>m.vector_id.startsWith('NEG-')));
 });
 
@@ -45,7 +45,7 @@ test('product mutation runner CLI writes a machine-readable report',()=>{
   const report=JSON.parse(fs.readFileSync(outPath,'utf8'));
   assert.equal(report.contract,'sbf.qa-product-mutation-report/1');
   assert.equal(report.pass,true,JSON.stringify(report,null,2));
-  assert.equal(report.mutants.length,9);
+  assert.equal(report.mutants.length,13);
   assert.ok(report.mutants.every((m)=>m.status==='killed'));
  }finally{fs.rmSync(outDir,{recursive:true,force:true});}
 });
