@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T03:21:00+09:00",
+  "observed_at": "2026-09-27T03:35:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -242,7 +242,19 @@
     "T19 review for claimed support level",
     "runtime evidence from T16/beval for runtime-tested claims"
   ],
-  "active_leases": {},
+  "active_leases": {
+    "T00-BEVAL-T01-06-PACKED-REPLAY-20260927-r1": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t01-06-beval-packed-replay-r1",
+      "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "path_scopes": [
+        "scripts/package-install-smoke.mjs"
+      ],
+      "fencing_token": 1,
+      "expires_at": "2026-09-27T00:35:00Z",
+      "state": "ACTIVE"
+    }
+  },
   "review_candidates": {
     "T03": {
       "pr": 81,
@@ -565,5 +577,11 @@
       }
     ],
     "verification": "ls-remote returned no deleted target branches; only the two intentionally preserved bskel branches remained among the checked set."
+  },
+  "promotion_gate": {
+    "phase": "T01_06_PACKED_REPLAY_CLOSURE",
+    "default_activation": false,
+    "release": false,
+    "blocker": "Backend-evaluation packed artifact must replay the exact reviewed 12-case T01 identity conformance pack from the installed tarball, not only compare the vendored byte hash."
   }
 }
