@@ -100,7 +100,8 @@
     "FINAL_MAIN_PUSH_CI_NOT_DIRECT",
     "INDEPENDENT_QA_NOT_READY",
     "TRUST_POLICY_NOT_READY",
-    "FINAL_RELEASE_REHEARSAL_NOT_RUN"
+    "FINAL_RELEASE_REHEARSAL_NOT_RUN",
+    "RELEASE_CHECKS_NOT_COMPLETE"
   ],
   "note": "T01-06 additive consumer compatibility is accepted. Release/default activation remains blocked on direct final-main release CI, T19-03, T20-03, and final release rehearsal; legacy HTTP identity remains authoritative.",
   "release_rehearsal": {
@@ -108,5 +109,67 @@
     "observed_state": "NOT_RUN",
     "evidence_refs": [],
     "note": "Must be an externally recorded rollback/replay rehearsal on the final candidate matrix before release can open."
-  }
+  },
+  "release_check_results": [
+    {
+      "id": "bskel npm run test:pack",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "becoder npm run test:pack",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "beval npm run test:pack",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "T01-06 accepted consumer-set evidence",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "direct exact-head CI for final main release SHAs",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "historical contract/run replay",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "rollback rehearsal without destructive database downgrade",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "T19-03 independent QA acceptance",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "T20-03 externally observed enforcement acceptance",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    },
+    {
+      "id": "support matrix generated only from admitted evidence-backed profiles",
+      "required_state": "PASS",
+      "observed_state": "NOT_RUN",
+      "evidence_refs": []
+    }
+  ]
 }
