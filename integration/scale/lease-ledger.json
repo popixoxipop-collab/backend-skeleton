@@ -875,8 +875,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T07:01:30Z",
       "expires_at": "2026-09-26T13:01:30Z",
-      "state": "ACTIVE",
-      "reason": "Exact #119 TypeScript Express stable-scanner fix only: combined default+named Express import, express.Router() constructor, proven arbitrary router variable, and mount prefix regression."
+      "state": "RELEASED",
+      "reason": "Exact #119 TypeScript Express stable-scanner fix only: combined default+named Express import, express.Router() constructor, proven arbitrary router variable, and mount prefix regression.",
+      "released_at": "2026-09-26T07:02:10Z",
+      "release_reason": "Duplicate exact-scope claim created during concurrent coordination; superseded by earlier T00-T11-STABLE-EXPRESS-20260926-r1."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
