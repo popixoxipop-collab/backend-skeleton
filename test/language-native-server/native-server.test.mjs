@@ -458,9 +458,9 @@ test('runner: spawn contract uses absolute Node worker, exact timeout and a secr
 	assert.equal(path.basename(observed.args[0]), 'worker.mjs');
 	assert.equal(observed.options.timeout, 1234);
 	assert.equal(observed.options.windowsHide, true);
-	assert.deepEqual(Object.keys(observed.options.env).sort(), Object.keys(observed.options.env).filter((k) => ['SystemRoot', 'WINDIR'].includes(k)).sort());
-	assert.equal('PATH' in observed.options.env, false);
-	assert.equal('NODE_OPTIONS' in observed.options.env, false);
+	assert.equal(observed.options.shell, false);
+	assert.deepEqual(Object.keys(observed.options.env), []);
+	assert.equal(Object.getPrototypeOf(observed.options.env), null);
 });
 
 test('runner: timeout is a distinct fail-closed error', () => {
@@ -470,6 +470,23 @@ test('runner: timeout is a distinct fail-closed error', () => {
 			spawnFn: () => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '', error: timedOut }),
 		}),
 		(err) => err instanceof NativeWorkerRunError && err.code === 'WORKER_TIMEOUT' && /77/.test(err.message),
+	);
+});
+
+test('runner: oversized stdout is rejected before response decoding', () => {
+	const req = request({ requestId: 'runner-output-limit', budget: { maxOutputBytes: 128 } });
+	const spawnFn = () => ({
+		status: 0,
+		signal: null,
+		error: null,
+		stderr: '',
+		stdout: 'x'.repeat(129),
+	});
+	assert.throws(
+		() => runNativeServerWorker(req, { spawnFn }),
+		(err) => err instanceof NativeWorkerRunError
+			&& err.code === 'WORKER_OUTPUT_LIMIT'
+			&& /maxOutputBytes/.test(err.message),
 	);
 });
 

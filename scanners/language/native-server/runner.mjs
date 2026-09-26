@@ -79,6 +79,7 @@ export function runNativeServerWorker(message, { spawnFn = spawnSync, profileLim
 		input,
 		encoding: 'utf8',
 		windowsHide: true,
+		shell: false,
 		timeout: budget.wallTimeMs,
 		maxBuffer: budget.maxOutputBytes + 64 * 1024,
 		env: workerEnvironment(),
