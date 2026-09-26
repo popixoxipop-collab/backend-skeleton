@@ -1,5 +1,7 @@
 # T00-04B Plane / Profile Promotion Matrix
 
+> **Status note (2026-09-26):** this matrix is a historical 04B decision snapshot. For current PR/SHA/CI/merge state and the active integration order, use `integration/scale/T00-05-EXECUTION-BOARD.md`. Do not treat stale track-state labels below as current execution status.
+
 Generated: 2026-09-25  
 Coordinator: T00  
 Status: **DRAFT_MATRIX — applies after T00-04A activation**
