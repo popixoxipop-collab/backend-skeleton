@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T14:39:00+09:00",
+  "observed_at": "2026-09-26T15:10:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -58,7 +58,7 @@
       "required": "Reapply #58 five-file shared CI/package delta to current main and rerun full repair+game fixture integration plus Node20/22/24 unit+next-runtime+package smoke.",
       "r4_head": "62cc61ee57ea7791c631be690e38ed22d4932973",
       "r4_ci_run": 36221149473,
-      "r4_state": "exact_head_ci_running",
+      "r4_state": "ACCEPTED_AS_T16_STACK_BASE",
       "r4_direct": {
         "selector": "12/12",
         "docker_cache": "3/3",
@@ -72,19 +72,22 @@
           "test/ci-webgame-repair-selection.test.mjs"
         ],
         "push": "fast-forward fbf02c2 -> 62cc61e; no force"
+      },
+      "r4_ci_conclusion": "success",
+      "r4_integration": {
+        "selector": "full/all/all",
+        "repair_corpus": "32/32",
+        "game_fixtures": "10/10",
+        "integration_tests": "59 pass"
       }
     },
     "T16_protocol_stack": {
-      "repo": "popixoxipop-collab/Backend-evaluation",
-      "top_pr": 62,
-      "current_heads": {
-        "59": "b4f147ed64810ac29562541ffd9bf63e455dc930",
-        "60": "00a7aa8ecdc29189a0f2b25d7d4e3d938db53ee6",
-        "61": "622109466b95ae1b0da36d4fb215b414ff8b4ae4",
-        "62": "accce80a4a4c48e8bfc0e32c5d6e42bfd2394956"
-      },
-      "state": "HOLD_until_T23_r4_exact_head_acceptance",
-      "known_blocker": "T18 reproduced same-request cross-ProtocolItemRef evidence swap still accepted by current #60; T16 must fix after #59 restack."
+      "state": "PR59_RESTACK_CI",
+      "accepted_base": "62cc61ee57ea7791c631be690e38ed22d4932973",
+      "pr59_head": "16d6958d009fbc285313790804eaf16b2280d74e",
+      "pr59_ci_run": 36222854544,
+      "pr59_local": "34/34 next-runtime + package smoke PASS",
+      "current_blocker_after_pr59": "T16 #60 same-request cross-ProtocolItemRef evidence swap; fix spec comment 5843702149"
     },
     "T19": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -150,28 +153,26 @@
     "T10": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "pr": 84,
-      "head": "1095e855f425746865cccd9f6453e645f5f0eaa5",
-      "state": "blocked_no_worktree_lease",
-      "t19_verdict": "BLOCKED(PERSISTENCE_CERTIFICATION_PROVENANCE)",
-      "defects": [
-        "caller-controlled entity id accepted",
-        "malformed/out-of-repo-like source_refs accepted",
-        "different live provider can satisfy verified_read_by_primary_key on shape match",
-        "generation handoff lacks immutable revision/artifact/provider-profile-combination provenance"
-      ]
+      "head": "69b3087d80157dc78d0b80fc4187b231785e80ac",
+      "lease": "T10-pr84-provenance-fix-20260926",
+      "fencing_token": 1,
+      "direct": "125/125 pass, 0 fail, 0 skip",
+      "direct_request": "b879c04c-ad19-4186-a1be-6486b68117fd",
+      "ci_run": 36222550481,
+      "nested_node22": "125/125 PASS",
+      "nested_node24": "SUCCESS",
+      "state": "CI_RUNNING_T19_REVIEW_REQUESTED",
+      "t19_request_comment": 5843780017
     },
     "T12": {
       "repo": "popixoxipop-collab/backend-skeleton",
-      "historical_pr": 117,
       "clean_resubmission_pr": 140,
       "head": "6fc55acae0d1d506be06ecb37a785b511f20b46f",
-      "state": "exact_head_ci_running",
+      "ci_run": 36221223150,
+      "ci_conclusion": "success",
       "focused": "20/20",
-      "scope": "14 files only under adapters/http-wave-a/** and test/http-wave-a/**",
-      "blocked_profiles": [
-        "Fastify: upstream receiver/plugin fact gap",
-        "Django/DRF: upstream action/method fact gap"
-      ]
+      "historical_pr_117": "closed_superseded",
+      "state": "AWAITING_T19"
     },
     "T18": {
       "final_local_head": "89d2cfb3dcb5ce6e393bc3dc024a335275d6f4ed",
@@ -502,17 +503,13 @@
   "shared_ci": {
     "pr": 141,
     "head": "e6ec24ffe2d547d81af5c72d8c72bec97b4e3c7a",
-    "base": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-    "lease": "T00-BSKEL-SHARED-nested-ci-main-20260926-r2",
-    "fencing_token": 2,
-    "policy_revision": "T00-03-r3",
-    "scope": [
-      "scripts/run-next-nested-tests.mjs",
-      ".github/workflows/ci.yml"
-    ],
-    "purpose": "required nested T03/T04/T05/T07/T10/T12/T13/T14/T21 coverage + ripgrep for nested-next",
-    "coordination_validation_run": 36220633140,
-    "main_pr_run": 36221411678,
-    "state": "ci_running"
-  }
+    "merge_commit": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+    "ci_run": 36221411678,
+    "ci_conclusion": "success",
+    "nested_node22": "success",
+    "nested_node24": "success",
+    "state": "MERGED_TO_MAIN",
+    "effect": "required nested suites T03/T04/T05/T07/T10/T12/T13/T14/T21 visible; nested-next ripgrep installed"
+  },
+  "bskel_main_anchor": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd"
 }
