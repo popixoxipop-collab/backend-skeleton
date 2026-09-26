@@ -4,7 +4,11 @@
   "last_fencing_token": {
     "T17": 2,
     "T21": 2,
-    "T02": 2
+    "T02": 2,
+    "T09": 2,
+    "T18": 2,
+    "T20": 2,
+    "T22": 2
   },
   "claims": [
     {
@@ -73,6 +77,94 @@
       "state": "ACTIVE",
       "pr": 72,
       "reason": "Locale-independent ProjectGraph ordering defect correction, portability/staleness validation, and T21 handoff only."
+    },
+    {
+      "claim_id": "T09-pr83-evidence-binding-fix-20260926",
+      "task_id": "T09-pr83-evidence-binding-fix",
+      "track": "T09",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T09/reconciliation-next-foundation",
+      "worker": "agent-T09",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t09-pr83-wt",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "7074e815e0c471ec7770f3f5f50f691c9e275b5d",
+      "path_scopes": [
+        "contracts/reconciliation-next/**",
+        "test/reconciliation-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 83,
+      "reason": "Require T01 exact ArtifactRefs and verified T16 runtime binding/evidence for runtime-backed reconciliation; preserve uncertainty and stable v9."
+    },
+    {
+      "claim_id": "T18-protocol-item-binding-fix-20260926",
+      "task_id": "T18-protocol-item-binding-fix",
+      "track": "T18",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T00/bootstrap-baseline",
+      "worker": "agent-T18",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t18-protocol-t16-boundary-wt-r2",
+      "base_sha": "be76e28bc415b6bd5fbbc87faa409d634f395107",
+      "observed_head_sha": "be76e28bc415b6bd5fbbc87faa409d634f395107",
+      "path_scopes": [
+        "adapters/protocol-next/**",
+        "test/protocol-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "reason": "Add exact ProtocolItemRef/action_ref handoff fixture and negatives for T16/T19; no runtime implementation or protocol expansion."
+    },
+    {
+      "claim_id": "T20-pr79-evidence-echo-fix-20260926",
+      "task_id": "T20-pr79-evidence-echo-fix",
+      "track": "T20",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T20/trust-boundary-foundation",
+      "worker": "agent-T20",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/backend-skeleton-t20",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "281a78871723025a3598844154ad19d1dd0eb9e8",
+      "path_scopes": [
+        "lib/trust-next/**",
+        "test/trust-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 79,
+      "reason": "Fail closed on self-reported enforced:true without independently verified content-addressed evidence refs; keep unimplemented isolation cases unmet."
+    },
+    {
+      "claim_id": "T22-pr85-sdk-boundary-fix-20260926",
+      "task_id": "T22-pr85-sdk-boundary-fix",
+      "track": "T22",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t22/sdk-ux",
+      "worker": "agent-T22",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/bskel-t22",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "d7081713724c016499d6c48186e26be2dc89671e",
+      "path_scopes": [
+        "sdk/next/**",
+        "docs/scale-sdk/**",
+        "test/sdk-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 85,
+      "reason": "Close env-injection, input-size, snapshotRef, immutable conformance-input defects while preserving data-only non-executable SDK boundary."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim."
