@@ -33,13 +33,43 @@ const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*ex
 // Only identifiers locally assigned to Express Router() are trusted as route receivers.
 // This removes the accidental literal-name dependency on `router` without accepting arbitrary
 // objects that merely expose get()/use()-shaped methods.
-function routerVariables(text) {
-	const out = new Set();
-	const declarationRe = /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::\s*[^=;\n]+)?\s*=\s*(?:[A-Za-z_$][\w$]*\s*\.\s*)?Router\s*\(/g;
-	for (const match of text.matchAll(declarationRe)) out.add(match[1]);
-	return [...out].sort();
+function escapeRegex(value) {
+	const specials = '\\^$.*+?()[]{}|';
+	let out = '';
+	for (const ch of value) out += specials.includes(ch) ? '\\' + ch : ch;
+	return out;
 }
 
+function expressRouterFactoryPatterns(text) {
+	const patterns = new Set();
+	const importRe = /import\s+(?:([A-Za-z_$][\w$]*)\s*,\s*)?\{([^}]*)\}\s*from\s*['"]express['"]/g;
+	for (const match of text.matchAll(importRe)) {
+		let hasRouterBinding = false;
+		for (const raw of match[2].split(',')) {
+			const binding = raw.trim().match(/^Router(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+			if (!binding) continue;
+			hasRouterBinding = true;
+			patterns.add('\\b' + escapeRegex(binding[1] ?? 'Router') + '\\b');
+		}
+		if (hasRouterBinding && match[1]) {
+			patterns.add('\\b' + escapeRegex(match[1]) + '\\s*\\.\\s*Router\\b');
+		}
+	}
+	return [...patterns];
+}
+
+function routerVariables(text) {
+	const out = new Set();
+	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
+		const declarationRe = new RegExp(
+			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
+			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
+			'g',
+		);
+		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
+	}
+	return [...out].sort();
+}
 function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
 	return new RegExp('\\b' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
 }
