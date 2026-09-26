@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-ownership-policy/1",
-  "revision": "T00-03-r6",
+  "revision": "T00-03-r7",
   "tracks": {
     "T00": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -285,6 +285,54 @@
         "test/t03-capability-view.test.mjs"
       ],
       "reason": "Exact historical #11 out-of-scope cleanup subject. These three files may only be removed or moved into T15-owned lib/next/** or test/next/** during the evidence-bound capability consumer restack."
+    },
+    "T00-BSKEL-INTEGRATION": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "contracts/next/**",
+        "schemas/next/**",
+        "test/contract-next/**",
+        "scanners/project-graph/**",
+        "test/project-graph/**",
+        "scanners/capability-next/**",
+        "test/capability-next/**",
+        "scanners/language/js-ts/**",
+        "test/language-js-ts/**",
+        "scanners/language/jvm/**",
+        "test/language-jvm/**",
+        "scanners/language/python/**",
+        "test/language-python/**",
+        "scanners/language/ruby-php/**",
+        "test/language-ruby-php/**",
+        "scanners/language/native-server/**",
+        "test/language-native-server/**",
+        "scanners/persistence-next/**",
+        "test/persistence-next/**",
+        "scanners/adapters/typescript-express.mjs",
+        "test/express-shared.test.mjs",
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**",
+        "adapters/http-wave-bc/**",
+        "test/http-wave-bc/**",
+        "handles/composition-next/**",
+        "test/provider-composition-next/**",
+        "adapters/protocol-next/**",
+        "test/protocol-next/**",
+        "lib/trust-next/**",
+        "test/trust-next/**",
+        "lib/artifact-store-next/**",
+        "lib/scan-scheduler-next/**",
+        "test/perf-next/**",
+        "sdk/next/**",
+        "docs/scale-sdk/**",
+        "test/sdk-next/**",
+        "contracts/reconciliation-next/**",
+        "test/reconciliation-next/**",
+        "adapters/game-next/**",
+        "test/game-next/native-text-source-exporters.test.mjs"
+      ],
+      "reason": "Merge-only T00 integration subject for T19-reviewed T-series exact bytes. No semantic edits or conflict invention are authorized."
     }
   },
   "scope_amendments": [
@@ -420,6 +468,22 @@
         "No stable CLI/default UI/support-matrix wiring",
         "No merge/release/default activation"
       ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-BSKEL-INTEGRATION",
+      "revision": "T00-03-r7",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T14:10:00Z",
+      "activation_basis": "Terminal T19 PASS set for T-series reviewed candidates",
+      "purpose": "Build and validate a combined backend-skeleton integration candidate from exact reviewed track bytes before main merge.",
+      "restrictions": [
+        "Merge reviewed branch heads without modifying their accepted bytes.",
+        "For coordination-based T09/T17, copy only T19-reviewed owned paths; do not import coordination branch ancestry.",
+        "If any content conflict occurs, stop and clean-restack the owning track instead of inventing a manual semantic merge.",
+        "No registry/default activation/stable schema/release changes.",
+        "Final main merge only after combined exact-head CI succeeds."
+      ]
     }
   ],
   "reserved_hot_paths": [
@@ -434,5 +498,5 @@
     "contracts/openapi.mjs",
     "schemas/feature-contract.schema.json"
   ],
-  "reserved_policy": "All reserved paths remain reserved. r6 adds T00-T15-CLEANUP for exactly three historical backend-decoder #11 files and only for deletion/move into T15-owned lib/next/** or test/next/**. T15's normal writable scope remains lib/next/**, test/next/**, docs/next/**."
+  "reserved_policy": "All reserved paths remain reserved. r7 adds T00-BSKEL-INTEGRATION as a merge-only subject over the enumerated T-series reviewed scopes. It does not authorize semantic edits, registry/default activation, stable-schema promotion, or release."
 }
