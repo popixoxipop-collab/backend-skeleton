@@ -27,7 +27,7 @@ test('current integrated-main inventory is structurally valid but release remain
     'INDEPENDENT_QA_NOT_READY',
     'TRUST_POLICY_NOT_READY',
   ]);
-  assert.deepEqual(releasePlanBlockers(plan),['FINAL_RELEASE_REHEARSAL_NOT_RUN']);
+  assert.deepEqual(releasePlanBlockers(plan),['FINAL_RELEASE_REHEARSAL_NOT_RUN','RELEASE_CHECKS_NOT_COMPLETE']);
   assert.equal(plan.release_allowed,false);
   assert.equal(plan.default_activation_allowed,false);
 });
@@ -108,13 +108,15 @@ test('consumer-first migration order is immutable',()=>{
   assert.ok(verifyReleasePlan(x,inventory).errors.some((e)=>e.code==='MIGRATION_ORDER'));
 });
 
-test('destructive rollback and old-writer overwrite remain forbidden',()=>{
+test('destructive rollback, old-writer overwrite, and stale cache reuse remain forbidden',()=>{
   const x=clone(plan);
   x.rollback_policy.destructive_down_migration_allowed=true;
   x.rollback_policy.old_writer_may_overwrite_next_artifacts=true;
+  x.rollback_policy.cache_namespace_or_revision_must_change_on_semantic_revision=false;
   const codes=verifyReleasePlan(x,inventory).errors.map((e)=>e.code);
   assert.ok(codes.includes('DESTRUCTIVE_DOWN_MIGRATION'));
   assert.ok(codes.includes('OLD_WRITER_OVERWRITE'));
+  assert.ok(codes.includes('CACHE_REVISION_ISOLATION'));
 });
 
 test('all documented release checks remain mandatory',()=>{
@@ -129,4 +131,24 @@ test('legacy HTTP identity stays authoritative during additive T01 shipping',()=
   const x=clone(inventory);
   x.invariants.legacy_http_identity_authoritative=false;
   assert.ok(verifyCompatibilityInventory(x).errors.some((e)=>e.code==='LEGACY_IDENTITY_AUTHORITY'));
+});
+
+
+test('every release check requires an explicit PASS result with content-addressed evidence before release',()=>{
+  const missing=clone(plan);
+  missing.release_check_results=missing.release_check_results.filter((item)=>item.id!=='historical contract/run replay');
+  assert.ok(verifyReleasePlan(missing,inventory).errors.some((e)=>e.code==='RELEASE_CHECK_RESULT_MISSING'));
+
+  const fakePass=clone(plan);
+  const item=fakePass.release_check_results.find((x)=>x.id==='bskel npm run test:pack');
+  item.observed_state='PASS';
+  item.evidence_refs=[];
+  assert.ok(verifyReleasePlan(fakePass,inventory).errors.some((e)=>e.code==='RELEASE_CHECK_PASS_WITHOUT_EVIDENCE'));
+  assert.ok(releasePlanBlockers(fakePass).includes('RELEASE_CHECKS_NOT_COMPLETE'));
+
+  const badRef=clone(plan);
+  const bad=badRef.release_check_results.find((x)=>x.id==='beval npm run test:pack');
+  bad.observed_state='PASS';
+  bad.evidence_refs=['sha256:short'];
+  assert.ok(verifyReleasePlan(badRef,inventory).errors.some((e)=>e.code==='RELEASE_CHECK_EVIDENCE_REF_INVALID'));
 });
