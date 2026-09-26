@@ -973,8 +973,10 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T08:33:30Z",
       "expires_at": "2026-09-26T14:33:30Z",
-      "state": "ACTIVE",
-      "reason": "Clean resubmission of T18 protocol-next static handoff on current main; exact 25 owned files only, no registry/package/workflow/default activation."
+      "state": "RELEASED",
+      "reason": "Clean resubmission of T18 protocol-next static handoff on current main; exact 25 owned files only, no registry/package/workflow/default activation.",
+      "released_at": "2026-09-26T14:17:00Z",
+      "release_reason": "PR #144 exact-head CI #1309 SUCCESS and T19 PASS(T18_PROTOCOL_STATIC_HANDOFF); frozen for integration."
     },
     {
       "claim_id": "T06-python-next-resubmit-20260926-r3",
@@ -994,8 +996,10 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T08:39:00Z",
       "expires_at": "2026-09-26T14:39:00Z",
-      "state": "ACTIVE",
-      "reason": "Clean resubmission of T06 Python analyzer on current main so required nested-next runs with merged ripgrep support; no shared/package/registry/default activation changes."
+      "state": "RELEASED",
+      "reason": "Clean resubmission of T06 Python analyzer on current main so required nested-next runs with merged ripgrep support; no shared/package/registry/default activation changes.",
+      "released_at": "2026-09-26T14:17:00Z",
+      "release_reason": "PR #145 exact-head CI #1313 SUCCESS and T19 PASS(T06_PYTHON_ANALYZER); frozen for integration."
     },
     {
       "claim_id": "T15-pr11-evidence-bound-consumer-20260926-r1",
