@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   scanT07CorpusCheckout,
@@ -12,7 +13,13 @@ import {
 } from '../../scanners/language/ruby-php/corpus.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
-const MANIFEST = JSON.parse(fs.readFileSync(path.join(HERE, 'corpus-manifest.json'), 'utf8'));
+const REPO_ROOT = path.resolve(HERE, '..', '..');
+const MANIFEST_PATH = path.join(HERE, 'corpus-manifest.json');
+const MANIFEST = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
 
 function localRepo(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t07-corpus-test-'));
@@ -180,21 +187,78 @@ test('selected corpus ids are checked before any checkout starts', () => {
 });
 
 
-test('observed real-repo snapshot matches pinned manifest refs and self-consistent aggregates', () => {
+test('observed real-repo snapshot binds analyzer commit/source bytes, manifest and read-set digests', () => {
   const observed = JSON.parse(
-    fs.readFileSync(path.join(HERE, 'corpus-observed-2026-09-25.json'), 'utf8'),
+    fs.readFileSync(path.join(HERE, 'corpus-observed-2026-09-26.json'), 'utf8'),
   );
   assert.equal(observed.contract, 'sbf.t07-ruby-php-corpus-observation/1');
-  assert.match(observed.scanner_revision, /^[0-9a-f]{40}$/);
+  assert.match(observed.analyzer_binding.analyzer_commit, /^[0-9a-f]{40}$/);
   assert.equal(observed.environment.target_applications_executed, false);
+  assert.equal(observed.runtime_route_equivalence_verified, false);
   assert.equal(observed.results.length, MANIFEST.entries.length);
+
+  execFileSync(
+    'git',
+    ['merge-base', '--is-ancestor', observed.analyzer_binding.analyzer_commit, 'HEAD'],
+    { cwd: REPO_ROOT, stdio: 'ignore' },
+  );
+
+  const sourcePaths = execFileSync(
+    'git',
+    ['ls-files', 'scanners/language/ruby-php/*.mjs'],
+    { cwd: REPO_ROOT, encoding: 'utf8' },
+  ).trim().split('\n').filter(Boolean).sort();
+  const actualSources = sourcePaths.map((relativePath) => {
+    const bytes = fs.readFileSync(path.join(REPO_ROOT, relativePath));
+    const gitBlob = execFileSync(
+      'git',
+      ['rev-parse', `HEAD:${relativePath}`],
+      { cwd: REPO_ROOT, encoding: 'utf8' },
+    ).trim();
+    return {
+      path: relativePath,
+      sha256: sha256(bytes),
+      size_bytes: bytes.length,
+      git_blob_sha: gitBlob,
+    };
+  });
+  const sourceFrame = actualSources
+    .map((entry) => `${entry.path}\0${entry.sha256}\0${entry.size_bytes}\n`)
+    .join('');
+  assert.equal(
+    observed.analyzer_binding.analyzer_source_digest_sha256,
+    sha256(Buffer.from(sourceFrame, 'utf8')),
+  );
+  assert.deepEqual(
+    observed.analyzer_binding.analyzer_sources,
+    actualSources.map(({ git_blob_sha: _gitBlobSha, ...entry }) => entry),
+  );
+  assert.deepEqual(
+    observed.analyzer_binding.analyzer_source_git_blobs,
+    Object.fromEntries(actualSources.map((entry) => [entry.path, entry.git_blob_sha])),
+  );
+  assert.equal(
+    observed.analyzer_binding.manifest_sha256,
+    sha256(fs.readFileSync(MANIFEST_PATH)),
+  );
 
   const manifestById = new Map(MANIFEST.entries.map((entry) => [entry.id, entry]));
   for (const result of observed.results) {
     const entry = manifestById.get(result.id);
     assert.ok(entry, result.id);
     assert.equal(result.ref, entry.ref);
+    assert.match(result.source_read_set_sha256, /^[0-9a-f]{64}$/);
+    assert.ok(Number.isInteger(result.source_read_set_count) && result.source_read_set_count > 0);
+    assert.ok(Number.isInteger(result.source_read_set_bytes) && result.source_read_set_bytes > 0);
   }
+
+  const readSetFrame = observed.results
+    .map((result) =>
+      result.id + '\0' + result.ref + '\0' + result.source_read_set_sha256 + '\0'
+      + result.source_read_set_count + '\0' + result.source_read_set_bytes + '\n'
+    )
+    .join('');
+  assert.equal(observed.read_set_binding_sha256, sha256(Buffer.from(readSetFrame, 'utf8')));
 
   const sum = (field) => observed.results.reduce((total, row) => total + (row[field] ?? 0), 0);
   for (const field of [
@@ -208,9 +272,15 @@ test('observed real-repo snapshot matches pinned manifest refs and self-consiste
     'explicit_tables',
     'explicit_primary_keys',
     'model_unknowns',
+    'source_read_set_count',
+    'source_read_set_bytes',
   ]) {
-    assert.equal(observed.aggregate[field], sum(field), field);
+    const aggregateField = field === 'source_read_set_count'
+      ? 'source_read_set_files'
+      : field;
+    assert.equal(observed.aggregate[aggregateField], sum(field), aggregateField);
   }
   assert.equal(observed.aggregate.repositories, observed.results.length);
   assert.match(observed.scope, /not runtime-route certification/);
 });
+
