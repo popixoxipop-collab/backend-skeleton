@@ -12,6 +12,24 @@ const REQUIRED_PREREQUISITES = new Map([
   ['T19-03', 'ACCEPTED'],
   ['T20-03', 'ACCEPTED'],
 ]);
+const REQUIRED_PROMOTION_EVIDENCE = new Map([
+  ['t01_06', 'T01_06_NOT_ACCEPTED'],
+  ['t19_03', 'INDEPENDENT_QA_NOT_READY'],
+  ['t20_03', 'TRUST_POLICY_NOT_READY'],
+]);
+const EVIDENCE_REF_RE = /^sha256:[a-f0-9]{64}$/;
+const REQUIRED_RELEASE_CHECKS = [
+  'bskel npm run test:pack',
+  'becoder npm run test:pack',
+  'beval npm run test:pack',
+  'T01-06 accepted consumer-set evidence',
+  'direct exact-head CI for final main release SHAs',
+  'historical contract/run replay',
+  'rollback rehearsal without destructive database downgrade',
+  'T19-03 independent QA acceptance',
+  'T20-03 externally observed enforcement acceptance',
+  'support matrix generated only from admitted evidence-backed profiles',
+];
 
 function push(errors, code, detail = {}) { errors.push({ code, ...detail }); }
 function repoMap(inventory) { return new Map((inventory.repositories ?? []).map((x) => [x.role, x])); }
@@ -36,10 +54,11 @@ export function observedBlockers(inventory) {
     if (v.direct_main_ci !== true || v.ci_head_sha !== repo.head_sha) blockers.add('FINAL_MAIN_PUSH_CI_NOT_DIRECT');
   }
 
-  const evidence = inventory?.promotion_evidence ?? {};
-  if (evidence.t01_06?.observed_state !== evidence.t01_06?.required_state) blockers.add('T01_06_NOT_ACCEPTED');
-  if (evidence.t19_03?.observed_state !== evidence.t19_03?.required_state) blockers.add('INDEPENDENT_QA_NOT_READY');
-  if (evidence.t20_03?.observed_state !== evidence.t20_03?.required_state) blockers.add('TRUST_POLICY_NOT_READY');
+  const evidence = inventory?.promotion_evidence;
+  for (const [key, blocker] of REQUIRED_PROMOTION_EVIDENCE) {
+    const item = evidence?.[key];
+    if (!item || item.required_state !== 'ACCEPTED' || item.observed_state !== 'ACCEPTED') blockers.add(blocker);
+  }
   return [...blockers].sort();
 }
 
@@ -83,6 +102,19 @@ export function verifyCompatibilityInventory(inventory) {
     }
   }
   for (const role of ROLES) if (!seen.has(role)) push(errors, 'ROLE_MISSING', { role });
+
+  const promotion = inventory?.promotion_evidence;
+  if (!promotion || typeof promotion !== 'object' || Array.isArray(promotion)) {
+    push(errors, 'PROMOTION_EVIDENCE_REQUIRED');
+  }
+  for (const [key] of REQUIRED_PROMOTION_EVIDENCE) {
+    const item = promotion?.[key];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      push(errors, 'PROMOTION_EVIDENCE_MISSING', { key });
+      continue;
+    }
+    if (item.required_state !== 'ACCEPTED') push(errors, 'PROMOTION_REQUIRED_STATE', { key, expected: 'ACCEPTED', actual: item.required_state ?? null });
+  }
 
   const inv = inventory?.invariants ?? {};
   if (inv.legacy_http_identity_authoritative !== true) push(errors, 'LEGACY_IDENTITY_AUTHORITY');
@@ -157,18 +189,24 @@ export function verifyReleasePlan(plan, inventory) {
   if (plan.release_allowed === true && (!allAccepted || declared.size>0 || dynamic.length>0)) push(errors, 'PREMATURE_RELEASE');
   if (plan.default_activation_allowed === true && plan.release_allowed !== true) push(errors, 'PREMATURE_DEFAULT_ACTIVATION');
 
-  const checks=new Set(plan?.required_release_checks ?? []);
-  for (const required of [
-    'bskel npm run test:pack','becoder npm run test:pack','beval npm run test:pack',
-    'T01-06 accepted consumer-set evidence','direct exact-head CI for final main release SHAs',
-    'rollback rehearsal without destructive database downgrade',
-    'T19-03 independent QA acceptance','T20-03 externally observed enforcement acceptance'
-  ]) if (!checks.has(required)) push(errors, 'REQUIRED_RELEASE_CHECK_MISSING', { check: required });
+  const checkList = plan?.required_release_checks;
+  const checks = new Set(Array.isArray(checkList) ? checkList : []);
+  if (!Array.isArray(checkList)) push(errors, 'REQUIRED_RELEASE_CHECKS_REQUIRED');
+  for (const required of REQUIRED_RELEASE_CHECKS) {
+    if (!checks.has(required)) push(errors, 'REQUIRED_RELEASE_CHECK_MISSING', { check: required });
+  }
 
   const rehearsal=plan?.release_rehearsal ?? {};
   if (rehearsal.required_state !== 'PASS') push(errors, 'REHEARSAL_REQUIRED_STATE');
-  if (!Array.isArray(rehearsal.evidence_refs)) push(errors, 'REHEARSAL_EVIDENCE_REFS');
-  if (rehearsal.observed_state === 'PASS' && rehearsal.evidence_refs.length === 0) push(errors, 'REHEARSAL_PASS_WITHOUT_EVIDENCE');
+  const rehearsalRefs = rehearsal.evidence_refs;
+  if (!Array.isArray(rehearsalRefs)) {
+    push(errors, 'REHEARSAL_EVIDENCE_REFS');
+  } else {
+    for (const [index, ref] of rehearsalRefs.entries()) {
+      if (typeof ref !== 'string' || !EVIDENCE_REF_RE.test(ref)) push(errors, 'REHEARSAL_EVIDENCE_REF_INVALID', { index });
+    }
+    if (rehearsal.observed_state === 'PASS' && rehearsalRefs.length === 0) push(errors, 'REHEARSAL_PASS_WITHOUT_EVIDENCE');
+  }
 
   return { ok: errors.length===0, errors };
 }
