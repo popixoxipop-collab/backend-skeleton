@@ -1,0 +1,337 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import {
+  extractRailsDslFacts,
+  extractLaravelDslFacts,
+  extractSymfonyRouteAttributeFacts,
+} from './dsl-facts.mjs';
+import { expandDslFacts } from './dsl-expand.mjs';
+import {
+  extractActiveRecordModelFacts,
+  extractEloquentModelFacts,
+} from './model-facts.mjs';
+
+export const T07_CORPUS_CONTRACT = 'sbf.t07-ruby-php-corpus/1';
+const SHA_RE = /^[0-9a-f]{40}$/i;
+const SHA256_RE = /^[0-9a-f]{64}$/;
+const FRAMEWORKS = new Set(['rails', 'laravel', 'symfony']);
+
+function safeRel(value) {
+  if (typeof value !== 'string' || !value || path.isAbsolute(value) || value.includes('\\')) return false;
+  return !value.split('/').some((part) => part === '..' || part === '');
+}
+
+export function validateT07CorpusManifest(value) {
+  if (!value || value.contract !== T07_CORPUS_CONTRACT || !Array.isArray(value.entries)) {
+    throw new TypeError(`expected ${T07_CORPUS_CONTRACT}`);
+  }
+  if (value.entries.length !== 9) throw new TypeError('T07 corpus must contain exactly nine pinned entries');
+  const ids = new Set();
+  const frameworks = new Map();
+  for (const entry of value.entries) {
+    if (!entry?.id || ids.has(entry.id)) throw new TypeError('corpus entry ids must be unique');
+    ids.add(entry.id);
+    if (!FRAMEWORKS.has(entry.framework)) throw new TypeError(`unsupported corpus framework: ${entry.framework}`);
+    if (!entry.owner || !entry.repo || !SHA_RE.test(entry.ref ?? '')) throw new TypeError(`${entry.id}: owner/repo/exact 40-hex ref required`);
+    if (!Array.isArray(entry.route_roots) || !Array.isArray(entry.model_roots)) throw new TypeError(`${entry.id}: route_roots/model_roots required`);
+    for (const root of [...entry.route_roots, ...entry.model_roots]) {
+      if (!safeRel(root)) throw new TypeError(`${entry.id}: unsafe root ${root}`);
+    }
+    frameworks.set(entry.framework, (frameworks.get(entry.framework) ?? 0) + 1);
+  }
+  for (const framework of FRAMEWORKS) {
+    if (frameworks.get(framework) !== 3) throw new TypeError(`expected three ${framework} entries`);
+  }
+  return true;
+}
+
+function sh(cmd, args, cwd) {
+  return execFileSync(cmd, args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 120_000,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+}
+
+function exactCheckout(entry) {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), `bskel-t07-${entry.framework}-`));
+  const dir = path.join(parent, 'repo');
+  const url = `https://github.com/${entry.owner}/${entry.repo}.git`;
+  try {
+    fs.mkdirSync(dir);
+    sh('git', ['init', '--quiet'], dir);
+    sh('git', ['remote', 'add', 'origin', url], dir);
+    sh('git', ['fetch', '--quiet', '--depth', '1', '--filter=blob:none', 'origin', entry.ref], dir);
+    sh('git', ['update-ref', 'refs/heads/t07-corpus', 'FETCH_HEAD'], dir);
+    sh('git', ['symbolic-ref', 'HEAD', 'refs/heads/t07-corpus'], dir);
+    sh('git', ['sparse-checkout', 'init', '--cone'], dir);
+    const roots = [...new Set([...entry.route_roots, ...entry.model_roots])];
+    sh('git', ['sparse-checkout', 'set', '--skip-checks', ...roots], dir);
+    sh('git', ['reset', '--quiet', '--hard', 'HEAD'], dir);
+    const actual = sh('git', ['rev-parse', 'HEAD'], dir).trim();
+    if (actual.toLowerCase() !== entry.ref.toLowerCase()) {
+      throw new Error(`checkout mismatch: expected ${entry.ref}, got ${actual}`);
+    }
+    return { dir, cleanupRoot: parent };
+  } catch (error) {
+    fs.rmSync(parent, { recursive: true, force: true });
+    throw error;
+  }
+}
+function trackedFiles(root) {
+  return sh('git', ['ls-files', '-z'], root).split('\0').filter(Boolean).sort();
+}
+
+function isUnder(file, roots) {
+  return roots.some((root) => file === root || file.startsWith(`${root}/`));
+}
+
+function routeFiles(entry, files) {
+  if (entry.framework === 'rails') {
+    return files.filter((file) =>
+      (file === 'config/routes.rb' || file.startsWith('config/routes/'))
+      && file.endsWith('.rb')
+      && isUnder(file, entry.route_roots));
+  }
+  if (entry.framework === 'laravel') {
+    return files.filter((file) => file.endsWith('.php') && isUnder(file, entry.route_roots));
+  }
+  return files.filter((file) => file.endsWith('.php') && isUnder(file, entry.route_roots));
+}
+
+function modelFiles(entry, files) {
+  if (entry.framework === 'symfony') return [];
+  const ext = entry.framework === 'rails' ? '.rb' : '.php';
+  return files.filter((file) => file.endsWith(ext) && isUnder(file, entry.model_roots));
+}
+
+function bump(obj, key, n = 1) {
+  obj[key] = (obj[key] ?? 0) + n;
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function recordSourceRead(readSet, file, source, role) {
+  const bytes = Buffer.from(source, 'utf8');
+  const current = readSet.get(file);
+  if (current) {
+    if (current.sha256 !== sha256(bytes) || current.size_bytes !== bytes.length) {
+      throw new Error(`source changed while scanning: ${file}`);
+    }
+    if (!current.roles.includes(role)) current.roles.push(role);
+    current.roles.sort();
+    return;
+  }
+  readSet.set(file, {
+    path: file,
+    sha256: sha256(bytes),
+    size_bytes: bytes.length,
+    roles: [role],
+  });
+}
+
+export function digestT07ReadSet(entries) {
+  if (!Array.isArray(entries)) throw new TypeError('read-set entries must be an array');
+  const normalized = entries.map((entry) => ({
+    path: entry.path,
+    sha256: entry.sha256,
+    size_bytes: entry.size_bytes,
+    roles: [...(entry.roles ?? [])].sort(),
+  })).sort((a, b) => a.path.localeCompare(b.path));
+  for (const entry of normalized) {
+    if (!safeRel(entry.path) || !SHA256_RE.test(entry.sha256 ?? '') || !Number.isInteger(entry.size_bytes) || entry.size_bytes < 0) {
+      throw new TypeError('invalid T07 read-set entry');
+    }
+    if (!entry.roles.length || entry.roles.some((role) => !['route', 'model'].includes(role))) {
+      throw new TypeError('invalid T07 read-set role');
+    }
+  }
+  const framed = normalized
+    .map((entry) => `${entry.path}\0${entry.sha256}\0${entry.size_bytes}\0${entry.roles.join(',')}\n`)
+    .join('');
+  return sha256(Buffer.from(framed, 'utf8'));
+}
+
+function scanRouteFile(entry, root, file, readSet) {
+  const full = path.join(root, file);
+  const source = fs.readFileSync(full, 'utf8');
+  recordSourceRead(readSet, file, source, 'route');
+  if (entry.framework === 'symfony' && !source.includes('#[')) return null;
+  const facts = entry.framework === 'rails'
+    ? extractRailsDslFacts(source, { file })
+    : entry.framework === 'laravel'
+      ? extractLaravelDslFacts(source, { file })
+      : extractSymfonyRouteAttributeFacts(source, { file });
+  const expanded = expandDslFacts(facts);
+  return { facts, expanded };
+}
+
+function scanModelFile(entry, root, file, readSet) {
+  const source = fs.readFileSync(path.join(root, file), 'utf8');
+  recordSourceRead(readSet, file, source, 'model');
+  if (entry.framework === 'rails' && !/(?:<\s*ApplicationRecord\b|<\s*ActiveRecord::Base\b)/.test(source)) return null;
+  if (entry.framework === 'laravel' && !/\bextends\s+(?:\\?Illuminate\\Database\\Eloquent\\Model|Model)\b/.test(source)) return null;
+  return entry.framework === 'rails'
+    ? extractActiveRecordModelFacts(source, { file })
+    : extractEloquentModelFacts(source, { file });
+}
+
+export function scanT07CorpusCheckout(entry, root) {
+  const files = trackedFiles(root);
+  const routeCandidates = routeFiles(entry, files);
+  const modelCandidates = modelFiles(entry, files);
+  const sourceReadSet = new Map();
+  const report = {
+    id: entry.id,
+    framework: entry.framework,
+    repository: `${entry.owner}/${entry.repo}`,
+    ref: entry.ref,
+    tracked_files: files.length,
+    route_files_considered: routeCandidates.length,
+    route_files_with_facts: 0,
+    route_facts: 0,
+    route_fact_status: {},
+    route_fact_kinds: {},
+    route_candidates: 0,
+    route_unknowns: 0,
+    route_unknown_codes: {},
+    route_unknown_examples: [],
+    model_files_considered: modelCandidates.length,
+    model_files_with_models: 0,
+    models: 0,
+    explicit_tables: 0,
+    explicit_primary_keys: 0,
+    model_unknowns: 0,
+    model_unknown_codes: {},
+    model_unknown_examples: [],
+  };
+
+  for (const file of routeCandidates) {
+    const scanned = scanRouteFile(entry, root, file, sourceReadSet);
+    if (!scanned) continue;
+    const { facts, expanded } = scanned;
+    if (facts.facts.length) report.route_files_with_facts++;
+    report.route_facts += facts.facts.length;
+    for (const fact of facts.facts) {
+      bump(report.route_fact_status, fact.status);
+      bump(report.route_fact_kinds, fact.kind);
+    }
+    report.route_candidates += expanded.candidates.length;
+    report.route_unknowns += expanded.unknowns.length;
+    for (const unknown of expanded.unknowns) {
+      bump(report.route_unknown_codes, unknown.code);
+      if (report.route_unknown_examples.length < 8) {
+        report.route_unknown_examples.push({
+          code: unknown.code,
+          file: unknown.source?.file ?? file,
+          line: unknown.source?.line ?? null,
+          reason: unknown.reason,
+        });
+      }
+    }
+  }
+
+  for (const file of modelCandidates) {
+    const scanned = scanModelFile(entry, root, file, sourceReadSet);
+    if (!scanned) continue;
+    if (scanned.models.length) report.model_files_with_models++;
+    report.models += scanned.models.length;
+    for (const model of scanned.models) {
+      if (model.table) report.explicit_tables++;
+      if (model.primaryKey) report.explicit_primary_keys++;
+    }
+    report.model_unknowns += scanned.unknowns.length;
+    for (const unknown of scanned.unknowns) {
+      bump(report.model_unknown_codes, unknown.code);
+      if (report.model_unknown_examples.length < 8) {
+        report.model_unknown_examples.push({
+          code: unknown.code,
+          model: unknown.model ?? null,
+          relation: unknown.relation ?? null,
+          reason: unknown.reason,
+          file,
+        });
+      }
+    }
+  }
+  report.source_read_set = [...sourceReadSet.values()].sort((a, b) => a.path.localeCompare(b.path));
+  report.source_read_set_count = report.source_read_set.length;
+  report.source_read_set_bytes = report.source_read_set.reduce((sum, entry) => sum + entry.size_bytes, 0);
+  report.source_read_set_sha256 = digestT07ReadSet(report.source_read_set);
+  return report;
+}
+
+function normalizeAnalysisBinding(binding) {
+  if (binding == null) return null;
+  if (!binding || typeof binding !== 'object' || Array.isArray(binding)) throw new TypeError('analysisBinding must be an object');
+  if (!SHA_RE.test(binding.analyzer_commit ?? '')) throw new TypeError('analysisBinding.analyzer_commit must be exact 40-hex');
+  if (!SHA256_RE.test(binding.analyzer_source_digest_sha256 ?? '')) throw new TypeError('analysisBinding.analyzer_source_digest_sha256 must be sha256');
+  if (!SHA256_RE.test(binding.manifest_sha256 ?? '')) throw new TypeError('analysisBinding.manifest_sha256 must be sha256');
+  if (!Array.isArray(binding.analyzer_sources) || binding.analyzer_sources.length === 0) throw new TypeError('analysisBinding.analyzer_sources must be non-empty');
+  const sources = binding.analyzer_sources.map((entry) => ({
+    path: entry.path,
+    sha256: entry.sha256,
+    size_bytes: entry.size_bytes,
+  })).sort((a, b) => a.path.localeCompare(b.path));
+  for (const entry of sources) {
+    if (!safeRel(entry.path) || !SHA256_RE.test(entry.sha256 ?? '') || !Number.isInteger(entry.size_bytes) || entry.size_bytes < 0) {
+      throw new TypeError('invalid analyzer source entry');
+    }
+  }
+  const framed = sources.map((entry) => `${entry.path}\0${entry.sha256}\0${entry.size_bytes}\n`).join('');
+  if (sha256(Buffer.from(framed, 'utf8')) !== binding.analyzer_source_digest_sha256) {
+    throw new TypeError('analysisBinding analyzer source digest mismatch');
+  }
+  return {
+    analyzer_commit: binding.analyzer_commit.toLowerCase(),
+    analyzer_source_digest_sha256: binding.analyzer_source_digest_sha256,
+    manifest_sha256: binding.manifest_sha256,
+    analyzer_sources: sources,
+  };
+}
+
+export function runT07Corpus(manifest, { keepCheckouts = false, ids = null, analysisBinding = null } = {}) {
+  validateT07CorpusManifest(manifest);
+  const normalizedAnalysisBinding = normalizeAnalysisBinding(analysisBinding);
+  const selectedIds = ids == null ? null : new Set(ids);
+  if (selectedIds) {
+    for (const id of selectedIds) {
+      if (!manifest.entries.some((entry) => entry.id === id)) throw new TypeError(`unknown corpus entry: ${id}`);
+    }
+  }
+  const selectedEntries = selectedIds
+    ? manifest.entries.filter((entry) => selectedIds.has(entry.id))
+    : manifest.entries;
+  const results = [];
+  for (const entry of selectedEntries) {
+    let root = null;
+    try {
+      const checkout = exactCheckout(entry);
+      root = checkout.cleanupRoot;
+      results.push({ ...scanT07CorpusCheckout(entry, checkout.dir), error: null });
+    } catch (error) {
+      results.push({
+        id: entry.id,
+        framework: entry.framework,
+        repository: `${entry.owner}/${entry.repo}`,
+        ref: entry.ref,
+        error: String(error?.message ?? error),
+      });
+    } finally {
+      if (root && !keepCheckouts) fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+  return {
+    contract: 'sbf.t07-ruby-php-corpus-report/1',
+    generated_at: new Date().toISOString(),
+    analysis_binding: normalizedAnalysisBinding,
+    results,
+  };
+}

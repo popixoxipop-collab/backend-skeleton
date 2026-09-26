@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:adapter-worker-request:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "direction",
+    "requestId",
+    "operation",
+    "adapterId",
+    "snapshotRef",
+    "payload"
+  ],
+  "properties": {
+    "contract": {
+      "const": "sbf.adapter-worker/1"
+    },
+    "direction": {
+      "const": "request"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "operation": {
+      "enum": [
+        "detect",
+        "analyze",
+        "diagnostics",
+        "read-set"
+      ]
+    },
+    "adapterId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 128
+    },
+    "snapshotRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

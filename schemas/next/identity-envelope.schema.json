@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:identity-envelope:1",
+  "title": "bskel backward-compatible identity envelope",
+  "description": "Wraps an existing sbf.contract-ref/1, sbf.action-ref/1, or sbf.field-ref/1 without changing its bytes or meaning. Version 1 deliberately supports the HTTP identity family only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["identity_envelope", "family", "reference_kind", "reference"],
+  "properties": {
+    "identity_envelope": { "const": "sbf.identity-envelope/1" },
+    "family": { "const": "http" },
+    "reference_kind": { "enum": ["contract", "action", "field"] },
+    "reference": { "$ref": "urn:sbf:contract-identity:1" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "reference_kind": { "const": "contract" } }, "required": ["reference_kind"] },
+      "then": { "properties": { "reference": { "properties": { "contract_ref": { "const": "sbf.contract-ref/1" } }, "required": ["contract_ref"] } } }
+    },
+    {
+      "if": { "properties": { "reference_kind": { "const": "action" } }, "required": ["reference_kind"] },
+      "then": { "properties": { "reference": { "properties": { "action_ref": { "const": "sbf.action-ref/1" } }, "required": ["action_ref"] } } }
+    },
+    {
+      "if": { "properties": { "reference_kind": { "const": "field" } }, "required": ["reference_kind"] },
+      "then": { "properties": { "reference": { "properties": { "field_ref": { "const": "sbf.field-ref/1" } }, "required": ["field_ref"] } } }
+    }
+  ]
+}

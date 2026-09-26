@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:protocol-item-ref:draft-1",
+  "title": "T18 draft typed protocol item reference",
+  "description": "Shadow consumer of T01 sbf.artifact-ref/1. T01 remains canonical owner of ArtifactRef.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_item_ref",
+    "contract",
+    "family",
+    "plane",
+    "item_id"
+  ],
+  "properties": {
+    "protocol_item_ref": {
+      "const": "sbf.protocol-item-ref/draft-1"
+    },
+    "contract": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/artifactRef"
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "protocol-contract"
+            },
+            "version": {
+              "const": "1"
+            },
+            "media_type": {
+              "const": "application/json"
+            }
+          }
+        }
+      ]
+    },
+    "family": {
+      "enum": [
+        "grpc",
+        "graphql",
+        "asyncapi",
+        "websocket"
+      ]
+    },
+    "plane": {
+      "type": "string",
+      "minLength": 1
+    },
+    "item_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "family": {
+            "const": "grpc"
+          }
+        },
+        "required": [
+          "family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "plane": {
+            "enum": [
+              "packages",
+              "services",
+              "methods",
+              "messages"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "family": {
+            "const": "graphql"
+          }
+        },
+        "required": [
+          "family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "plane": {
+            "enum": [
+              "schemas",
+              "types",
+              "fields",
+              "operations"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "family": {
+            "const": "asyncapi"
+          }
+        },
+        "required": [
+          "family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "plane": {
+            "enum": [
+              "channels",
+              "operations",
+              "messages"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "family": {
+            "const": "websocket"
+          }
+        },
+        "required": [
+          "family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "plane": {
+            "enum": [
+              "connections",
+              "messages"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_ref",
+        "family",
+        "version",
+        "media_type",
+        "byte_sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "artifact_ref": {
+          "const": "sbf.artifact-ref/1"
+        },
+        "family": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.-]*$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[^\\s/]+/[^\\s]+$"
+        },
+        "byte_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    }
+  }
+}

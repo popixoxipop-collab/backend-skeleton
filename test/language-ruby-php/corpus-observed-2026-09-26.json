@@ -1,0 +1,328 @@
+{
+  "contract": "sbf.t07-ruby-php-corpus-observation/1",
+  "observed_at": "2026-09-26T13:10:53+09:00",
+  "analyzer_binding": {
+    "analyzer_commit": "a2497dfcef062b168eb31e2d3bcdd28bbb93e2f2",
+    "analyzer_source_digest_sha256": "b1941a4d05647a953a3f8686a18dd8705bfc9c7324c92740bd065066be05f866",
+    "manifest_sha256": "5b93f2e3f46431df2d48fc3981d41f25f382d98d1af52231976e9dd028a0fc6c",
+    "analyzer_sources": [
+      {
+        "path": "scanners/language/ruby-php/_route-candidates.mjs",
+        "sha256": "d6a53f7f3f4212a8b96240a461b9ed25915c1dffce6d1d9fc7f56d1a8ea5ada0",
+        "size_bytes": 2926
+      },
+      {
+        "path": "scanners/language/ruby-php/conformance.mjs",
+        "sha256": "32997b671e11ba7fd8f2ec772cde8178c3988c9c6b7bbce2efcd5060ec3d8564",
+        "size_bytes": 3484
+      },
+      {
+        "path": "scanners/language/ruby-php/corpus.mjs",
+        "sha256": "534b471a69c9fc3fa17271cfa0d19354a58a20faf2e26ed6a2988c3c2d4a515e",
+        "size_bytes": 13521
+      },
+      {
+        "path": "scanners/language/ruby-php/dsl-expand.mjs",
+        "sha256": "164cf9087ea0ba60f2a5ef65470d9fa2ee15db0e625a79125bb94ef5dd21fc1d",
+        "size_bytes": 935
+      },
+      {
+        "path": "scanners/language/ruby-php/dsl-facts.mjs",
+        "sha256": "d2b7151853c79a2811737221405b616c0ec7a35bc27821b29522825467ae30a6",
+        "size_bytes": 29430
+      },
+      {
+        "path": "scanners/language/ruby-php/expand-laravel.mjs",
+        "sha256": "2118e0218f504297bc5629941196141d8bf477e108856e74ef4e0a70d01fc14e",
+        "size_bytes": 3388
+      },
+      {
+        "path": "scanners/language/ruby-php/expand-rails.mjs",
+        "sha256": "aded4974de7d364a7b15a6e18135fddea7ba280b640aaf66844bb835cb7c4bbc",
+        "size_bytes": 11669
+      },
+      {
+        "path": "scanners/language/ruby-php/expand-symfony.mjs",
+        "sha256": "4d13c9db0f6f4cf5ec8809cecf578cfd7a2bcdbccb5531e40549f8135adc6e0f",
+        "size_bytes": 1306
+      },
+      {
+        "path": "scanners/language/ruby-php/model-facts.mjs",
+        "sha256": "f66c40248c0e4a33ed21cc50534f7b812e55d308a01cfbea4d249acef5f050c5",
+        "size_bytes": 10760
+      },
+      {
+        "path": "scanners/language/ruby-php/runtime-route-snapshot.mjs",
+        "sha256": "9c8b2eea5d6ad5b47717c1a8bc5220d8186cadaac8fb1e30dda8d8c60670a286",
+        "size_bytes": 6431
+      }
+    ],
+    "analyzer_source_git_blobs": {
+      "scanners/language/ruby-php/_route-candidates.mjs": "bef527ecf24cc8aeb5c297587dfb844ec7c315dc",
+      "scanners/language/ruby-php/conformance.mjs": "8c5c67375520a9b4e4c42034b162d971be2cd8c4",
+      "scanners/language/ruby-php/corpus.mjs": "56ffdf77e23cb757446b83e5b0ffcfb4da9ee42f",
+      "scanners/language/ruby-php/dsl-expand.mjs": "6cc2a5ff0388d7bb92f2a67d1b5763999e76a4b7",
+      "scanners/language/ruby-php/dsl-facts.mjs": "82759e32d3173ef00bab6c7d605b7b905a175c98",
+      "scanners/language/ruby-php/expand-laravel.mjs": "a3e4b266889ca5925ff21394c6826301c9fc189c",
+      "scanners/language/ruby-php/expand-rails.mjs": "a1174425c7628fed18dd5f9d1b5bfd006940e872",
+      "scanners/language/ruby-php/expand-symfony.mjs": "fbd33c33a1b99788c1ea6efbae02f3d10a186569",
+      "scanners/language/ruby-php/model-facts.mjs": "71530d4f5027540896b1881e1ba895622aa4bb3c",
+      "scanners/language/ruby-php/runtime-route-snapshot.mjs": "9084afd7c7b53a2ed6c7aad3bc07b7e65ca5287b"
+    }
+  },
+  "environment": {
+    "host": "EOE.local",
+    "execution": "exact-SHA sparse checkout; source bytes read only",
+    "target_applications_executed": false
+  },
+  "scope": "static real-repository corpus evidence; not runtime-route certification",
+  "runtime_route_equivalence_verified": false,
+  "read_set_binding_sha256": "2e1d619a0606ae1d264f27bc1c3177d59897a80d1ca32e058c19167cd99df1bc",
+  "results": [
+    {
+      "id": "rails-discourse",
+      "framework": "rails",
+      "repository": "discourse/discourse",
+      "ref": "0be6cfbf552e4056589b9b43b873d18d42581d19",
+      "route_facts": 993,
+      "literal": 717,
+      "partial": 70,
+      "unknown": 206,
+      "route_candidates": 873,
+      "route_unknowns": 177,
+      "route_unknown_codes": {
+        "DSL_DYNAMIC_DECLARATION": 177
+      },
+      "models": 227,
+      "explicit_tables": 3,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 456,
+      "model_unknown_codes": {
+        "MODEL_POLYMORPHIC_RELATION": 5,
+        "MODEL_TABLE_IMPLICIT": 224,
+        "MODEL_PRIMARY_KEY_IMPLICIT": 227
+      },
+      "source_read_set_count": 392,
+      "source_read_set_bytes": 1672687,
+      "source_read_set_sha256": "e97fcb166edd031881117a58de6ac5ead904e7efe2c465a431c92e5adb97d6f7"
+    },
+    {
+      "id": "rails-forem",
+      "framework": "rails",
+      "repository": "forem/forem",
+      "ref": "5f76f390fefbd3e018722986e4c2116d504c11e0",
+      "route_facts": 587,
+      "literal": 446,
+      "partial": 118,
+      "unknown": 23,
+      "route_candidates": 878,
+      "route_unknowns": 10,
+      "route_unknown_codes": {
+        "DSL_DYNAMIC_DECLARATION": 10
+      },
+      "models": 120,
+      "explicit_tables": 5,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 255,
+      "model_unknown_codes": {
+        "MODEL_TABLE_IMPLICIT": 115,
+        "MODEL_PRIMARY_KEY_IMPLICIT": 120,
+        "MODEL_POLYMORPHIC_RELATION": 20
+      },
+      "source_read_set_count": 172,
+      "source_read_set_bytes": 614692,
+      "source_read_set_sha256": "8442567fa9b96b4ed4e83f282381e893f0d8545d3bab70864a8a5824e8465b86"
+    },
+    {
+      "id": "rails-mastodon",
+      "framework": "rails",
+      "repository": "mastodon/mastodon",
+      "ref": "b4d0f69a809405eb32e253529bac36f86418e9e4",
+      "route_facts": 530,
+      "literal": 396,
+      "partial": 123,
+      "unknown": 11,
+      "route_candidates": 759,
+      "route_unknowns": 3,
+      "route_unknown_codes": {
+        "DSL_CONTEXT_UNRESOLVED": 3
+      },
+      "models": 111,
+      "explicit_tables": 0,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 225,
+      "model_unknown_codes": {
+        "MODEL_TABLE_IMPLICIT": 111,
+        "MODEL_PRIMARY_KEY_IMPLICIT": 111,
+        "MODEL_POLYMORPHIC_RELATION": 3
+      },
+      "source_read_set_count": 254,
+      "source_read_set_bytes": 506729,
+      "source_read_set_sha256": "af1da0d3f5cc3eba660a8e6d5c374b2aa26bccf0d3d983f97da6ff937161892a"
+    },
+    {
+      "id": "laravel-reference",
+      "framework": "laravel",
+      "repository": "laravel/laravel",
+      "ref": "aa0cf127fc365a56ee016867144ddffabc2290ae",
+      "route_facts": 1,
+      "literal": 1,
+      "partial": 0,
+      "unknown": 0,
+      "route_candidates": 1,
+      "route_unknowns": 0,
+      "route_unknown_codes": {},
+      "models": 0,
+      "explicit_tables": 0,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 0,
+      "model_unknown_codes": {},
+      "source_read_set_count": 3,
+      "source_read_set_bytes": 1158,
+      "source_read_set_sha256": "a3f3049ac42861e63035f13b991bc7638f1bfdd3de6ae71bf9e597663b50cdf5"
+    },
+    {
+      "id": "laravel-koel",
+      "framework": "laravel",
+      "repository": "koel/koel",
+      "ref": "918406d3b3257e61ea5bb77bd227389878192e43",
+      "route_facts": 149,
+      "literal": 148,
+      "partial": 0,
+      "unknown": 1,
+      "route_candidates": 170,
+      "route_unknowns": 9,
+      "route_unknown_codes": {
+        "DSL_RESOURCE_KEY_UNRESOLVED": 8,
+        "DSL_DYNAMIC_DECLARATION": 1
+      },
+      "models": 21,
+      "explicit_tables": 0,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 45,
+      "model_unknown_codes": {
+        "MODEL_TABLE_IMPLICIT": 21,
+        "MODEL_PRIMARY_KEY_IMPLICIT": 21,
+        "MODEL_POLYMORPHIC_RELATION": 3
+      },
+      "source_read_set_count": 44,
+      "source_read_set_bytes": 100785,
+      "source_read_set_sha256": "252e1bb127252e9be2940ce70d220f9609cf8e338de8482317f39bb09de028cf"
+    },
+    {
+      "id": "laravel-monica",
+      "framework": "laravel",
+      "repository": "monicahq/monica",
+      "ref": "6e6ec217457e946e330ba7cd3b28107f4332c7b1",
+      "route_facts": 350,
+      "literal": 349,
+      "partial": 0,
+      "unknown": 1,
+      "route_candidates": 333,
+      "route_unknowns": 1,
+      "route_unknown_codes": {
+        "DSL_DYNAMIC_DECLARATION": 1
+      },
+      "models": 64,
+      "explicit_tables": 45,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 99,
+      "model_unknown_codes": {
+        "MODEL_TABLE_IMPLICIT": 19,
+        "MODEL_PRIMARY_KEY_IMPLICIT": 64,
+        "MODEL_POLYMORPHIC_RELATION": 16
+      },
+      "source_read_set_count": 750,
+      "source_read_set_bytes": 1783848,
+      "source_read_set_sha256": "e3eee4251c2e3210d2e5d1c79826974a15de303c0fc19abdaf8b44304115dd77"
+    },
+    {
+      "id": "symfony-demo",
+      "framework": "symfony",
+      "repository": "symfony/demo",
+      "ref": "8d2e2ef75c3e18df173d8bf2379a14abb58c4c31",
+      "route_facts": 18,
+      "literal": 18,
+      "partial": 0,
+      "unknown": 0,
+      "route_candidates": 18,
+      "route_unknowns": 1,
+      "route_unknown_codes": {
+        "DSL_ROUTE_PARTIAL": 1
+      },
+      "models": 0,
+      "explicit_tables": 0,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 0,
+      "model_unknown_codes": {},
+      "source_read_set_count": 4,
+      "source_read_set_bytes": 19239,
+      "source_read_set_sha256": "f8f2ca9102c1988a6d445d18d34e094e3904cf1e2546df376f035596b6ae24f4"
+    },
+    {
+      "id": "symfony-wallabag",
+      "framework": "symfony",
+      "repository": "wallabag/wallabag",
+      "ref": "6b9bd67bef2dbfcb71446960dc5616e3552d4532",
+      "route_facts": 123,
+      "literal": 123,
+      "partial": 0,
+      "unknown": 0,
+      "route_candidates": 149,
+      "route_unknowns": 0,
+      "route_unknown_codes": {},
+      "models": 0,
+      "explicit_tables": 0,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 0,
+      "model_unknown_codes": {},
+      "source_read_set_count": 38,
+      "source_read_set_bytes": 233018,
+      "source_read_set_sha256": "c622774e63521b2e9adcd1b4cc92c70f3bf8c89b9d002cb4d0b52365c2780869"
+    },
+    {
+      "id": "symfony-sylius",
+      "framework": "symfony",
+      "repository": "Sylius/Sylius",
+      "ref": "38588aff004e9ad66fe78e3c8b61791709b57659",
+      "route_facts": 0,
+      "literal": 0,
+      "partial": 0,
+      "unknown": 0,
+      "route_candidates": 0,
+      "route_unknowns": 0,
+      "route_unknown_codes": {},
+      "models": 0,
+      "explicit_tables": 0,
+      "explicit_primary_keys": 0,
+      "model_unknowns": 0,
+      "model_unknown_codes": {},
+      "source_read_set_count": 4794,
+      "source_read_set_bytes": 13179871,
+      "source_read_set_sha256": "558062f2b021ee246ea4bae8180b42ab8f46ac3ecbe1599c2c187ecbb385bba4",
+      "limitation": "This slice scans Symfony PHP Route attributes only; this repository is config-driven for routing."
+    }
+  ],
+  "aggregate": {
+    "repositories": 9,
+    "route_facts": 2751,
+    "literal": 2198,
+    "partial": 311,
+    "unknown": 242,
+    "route_candidates": 3181,
+    "route_unknowns": 201,
+    "models": 543,
+    "explicit_tables": 53,
+    "explicit_primary_keys": 0,
+    "model_unknowns": 1080,
+    "source_read_set_files": 6451,
+    "source_read_set_bytes": 18112027
+  },
+  "limitations": [
+    "Static corpus observation does not prove runtime route equality.",
+    "Implicit ActiveRecord/Eloquent table and primary-key conventions remain unknown by design.",
+    "Rails runtime conditions remain unknown instead of being evaluated.",
+    "Symfony YAML/XML/PHP-config routing is outside the current attribute-only slice.",
+    "Runtime-tested status requires separately bound T16 runtime evidence and independent certification."
+  ]
+}

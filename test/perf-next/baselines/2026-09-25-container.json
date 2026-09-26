@@ -1,0 +1,50 @@
+{
+  "schema": "sbf.t21-benchmark-baseline/1",
+  "status": "advisory-measurement-not-slo",
+  "measured_on": "2026-09-25",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "Linux 6.18.44 x86_64",
+    "note": "assistant container; not a supported-platform certification"
+  },
+  "implementation": {
+    "file_index": "chunked sha256, no persistent cache wired into stable runScan",
+    "branch": "scale/t21/incremental-store"
+  },
+  "workloads": [
+    {
+      "files": 100,
+      "bytes_per_file": 256,
+      "cold_ms": 11.411,
+      "warm_ms": 2.427,
+      "cold_rss_delta": 2748416,
+      "warm_rss_delta": 131072,
+      "source_digest": "4a4dd708d379d6c3c55f58a8b407095783b87a52be49be432b6bcbe84a2e4d82"
+    },
+    {
+      "files": 10000,
+      "bytes_per_file": 128,
+      "cold_ms": 206.857,
+      "warm_ms": 221.477,
+      "cold_rss_delta": 24432640,
+      "warm_rss_delta": 12791808,
+      "source_digest": "e2e17628b9860a9788ae074d89c275b6fe584d9c6dfb2cbcdeb1f7bfada1a402"
+    },
+    {
+      "files": 100000,
+      "bytes_per_file": 96,
+      "cold_ms": 1776.879,
+      "warm_ms": 1499.973,
+      "cold_rss_delta": 94531584,
+      "warm_rss_delta": 29663232,
+      "max_rss_kib_external_time": 164184,
+      "source_digest": "6442a96c4b27b088b963d1279b8b7e2caaedae0e8bfc01eebd0393bf010b6fc6"
+    }
+  ],
+  "caveats": [
+    "synthetic generated files only",
+    "warm means a second same-process full rehash, not a cache hit",
+    "timings are not release SLOs",
+    "stable scanner adapters still perform their existing discovery/read paths"
+  ]
+}

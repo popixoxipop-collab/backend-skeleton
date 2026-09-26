@@ -1,0 +1,220 @@
+import { assertPersistenceIr } from './ir.mjs';
+
+function nonEmpty(value, label) {
+	if (typeof value !== 'string' || value.trim() === '') throw new TypeError(`${label} must be a non-empty string`);
+	return value;
+}
+
+function entityIndex(ir) {
+	return new Map(ir.entities.map((entity) => [entity.id, entity]));
+}
+
+function tableKey(table) {
+	if (!table?.name) return null;
+	return `${table.schema ?? ''}\u0000${table.name}`;
+}
+
+function normalizeKeyType(value) {
+	const raw = String(value ?? 'unknown').trim();
+	const lower = raw.toLowerCase();
+	if (['uuid', 'java.util.uuid'].includes(lower)) return 'uuid';
+	if (lower === 'non-uuid') return 'non-uuid';
+	if (!raw || lower === 'unknown') return 'unknown';
+	return raw;
+}
+
+function readCapability(entity) {
+	const tableKnown = Boolean(entity.table?.name);
+	const keyColumns = entity.primary_key?.columns ?? [];
+	const keyType = normalizeKeyType(entity.primary_key?.type);
+	return {
+		candidate_read_by_primary_key: tableKnown && keyColumns.length > 0,
+		verified_read_by_primary_key: false,
+		write: false,
+		key_shape: keyColumns.length === 0 ? 'unknown' : keyColumns.length === 1 ? 'single' : 'composite',
+		key_type: keyType,
+		observed_key_type: null,
+		effective_key_type: keyType,
+		key_type_status: 'unverified',
+	};
+}
+
+function sameOrdered(a, b) {
+	return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+export function composeResourceBindings({ resources = [], persistence, explicit_bindings = [] }) {
+	const ir = assertPersistenceIr(persistence);
+	if (!Array.isArray(resources)) throw new TypeError('resources must be an array');
+	if (!Array.isArray(explicit_bindings)) throw new TypeError('explicit_bindings must be an array');
+	const entities = entityIndex(ir);
+	const resourceById = new Map();
+	for (const resource of resources) {
+		const id = nonEmpty(resource.id, 'resource.id');
+		if (resourceById.has(id)) throw new Error(`duplicate resource id: ${id}`);
+		resourceById.set(id, resource);
+	}
+
+	const requested = new Map();
+	const conflicts = [];
+	for (const binding of explicit_bindings) {
+		const resourceId = nonEmpty(binding.resource_id, 'explicit binding resource_id');
+		const entityId = nonEmpty(binding.entity_id, 'explicit binding entity_id');
+		if (!resourceById.has(resourceId)) {
+			conflicts.push({ resource_id: resourceId, code: 'resource-not-found', entity_ids: [entityId] });
+			continue;
+		}
+		if (!entities.has(entityId)) {
+			conflicts.push({ resource_id: resourceId, code: 'entity-not-found', entity_ids: [entityId] });
+			continue;
+		}
+		if (!requested.has(resourceId)) requested.set(resourceId, []);
+		requested.get(resourceId).push({ entityId, source: binding.source ?? 'explicit' });
+	}
+
+	for (const resource of resources) {
+		if (!resource.entity_ref) continue;
+		if (!entities.has(resource.entity_ref)) {
+			conflicts.push({ resource_id: resource.id, code: 'entity-ref-not-found', entity_ids: [resource.entity_ref] });
+			continue;
+		}
+		if (!requested.has(resource.id)) requested.set(resource.id, []);
+		requested.get(resource.id).push({ entityId: resource.entity_ref, source: 'entity-ref' });
+	}
+
+	const bindings = [];
+	const unbound = [];
+	for (const resource of resources) {
+		const refs = requested.get(resource.id) ?? [];
+		const uniqueEntityIds = [...new Set(refs.map((r) => r.entityId))];
+		if (uniqueEntityIds.length === 0) {
+			unbound.push({ resource_id: resource.id, reason: 'no explicit binding or entity_ref; name/table similarity is deliberately not used' });
+			continue;
+		}
+		if (uniqueEntityIds.length > 1) {
+			conflicts.push({ resource_id: resource.id, code: 'multiple-entities', entity_ids: uniqueEntityIds.sort() });
+			continue;
+		}
+		const entity = entities.get(uniqueEntityIds[0]);
+		bindings.push({
+			resource_id: resource.id,
+			entity_id: entity.id,
+			persistence_id: ir.provider,
+			persistence_source_kind: ir.source_kind,
+			table: entity.table,
+			primary_key: entity.primary_key,
+			capabilities: readCapability(entity),
+			provenance: refs.filter((r) => r.entityId === entity.id).map((r) => r.source),
+		});
+	}
+
+	return {
+		bindings: bindings.sort((a, b) => a.resource_id.localeCompare(b.resource_id)),
+		unbound_resources: unbound.sort((a, b) => a.resource_id.localeCompare(b.resource_id)),
+		conflicts: conflicts.sort((a, b) => a.resource_id.localeCompare(b.resource_id) || a.code.localeCompare(b.code)),
+		diagnostics: [{
+			code: 'automatic-name-binding-disabled', level: 'info',
+			message: 'resource/entity names and table names are not used as implicit bindings; provide entity_ref or an explicit binding',
+		}],
+	};
+}
+
+export function matchPhysicalTable({ persistence, schema = null, table }) {
+	const ir = assertPersistenceIr(persistence);
+	nonEmpty(table, 'table');
+	const matches = ir.entities.filter((entity) => tableKey(entity.table) === tableKey({ schema, name: table }));
+	return matches;
+}
+
+export function verifyResourceBindingsAgainstObserved({ binding_result, observed, expected_live_provider, expected_live_snapshot_ref, default_schema = null }) {
+	if (!binding_result || !Array.isArray(binding_result.bindings)) throw new TypeError('binding_result.bindings must be an array');
+	const expectedLiveProvider = nonEmpty(expected_live_provider, 'expected_live_provider');
+	const expectedLiveSnapshotRef = nonEmpty(expected_live_snapshot_ref, 'expected_live_snapshot_ref');
+	if (!/^sha256:[a-f0-9]{64}$/.test(expectedLiveSnapshotRef)) throw new TypeError('expected_live_snapshot_ref must be sha256:<64 lowercase hex>');
+	const live = assertPersistenceIr(observed);
+	if (live.source_kind !== 'live') throw new TypeError('observed persistence IR must have source_kind=live');
+	if (live.provider !== expectedLiveProvider) {
+		throw new TypeError(`observed live provider mismatch: expected ${expectedLiveProvider}, got ${live.provider}`);
+	}
+	if (live.metadata?.snapshot_ref !== expectedLiveSnapshotRef) {
+		throw new TypeError('observed live snapshot mismatch');
+	}
+	const effectiveDefaultSchema = default_schema ?? live.metadata?.schema ?? null;
+	const byTable = new Map();
+	for (const entity of live.entities) {
+		if (!entity.table?.name) continue;
+		const key = tableKey({ schema: entity.table.schema ?? effectiveDefaultSchema, name: entity.table.name });
+		if (!byTable.has(key)) byTable.set(key, []);
+		byTable.get(key).push(entity);
+	}
+	return {
+		...binding_result,
+		bindings: binding_result.bindings.map((binding) => {
+			const table = binding.table;
+			const key = table?.name ? tableKey({ schema: table.schema ?? effectiveDefaultSchema, name: table.name }) : null;
+			const matches = key ? (byTable.get(key) ?? []) : [];
+			let tableStatus = 'unknown';
+			let keyStatus = 'unknown';
+			let keyTypeStatus = 'unknown';
+			let observedKeyType = null;
+			let effectiveKeyType = binding.capabilities?.key_type ?? 'unknown';
+			let verified = false;
+			if (key && matches.length === 0) tableStatus = 'missing';
+			else if (matches.length > 1) tableStatus = 'ambiguous';
+			else if (matches.length === 1) {
+				tableStatus = 'verified';
+				const expected = binding.primary_key?.columns ?? [];
+				const actual = matches[0].primary_key?.columns ?? [];
+				if (matches[0].primary_key?.source !== 'live') keyStatus = 'unknown';
+				else if (sameOrdered(expected, actual) && expected.length > 0) {
+					keyStatus = 'verified';
+					if (actual.length === 1) {
+						const observedField = matches[0].fields?.find((field) => field.name === actual[0]) ?? null;
+						observedKeyType = normalizeKeyType(observedField?.type);
+					}
+					const sourceKeyType = normalizeKeyType(binding.capabilities?.key_type);
+					if (sourceKeyType === 'unknown') {
+						keyTypeStatus = observedKeyType && observedKeyType !== 'unknown' ? 'observed' : 'unknown';
+						effectiveKeyType = observedKeyType && observedKeyType !== 'unknown' ? observedKeyType : 'unknown';
+						verified = true;
+					} else if (!observedKeyType || observedKeyType === 'unknown') {
+						keyTypeStatus = 'source-only';
+						effectiveKeyType = sourceKeyType;
+						verified = true;
+					} else if (sourceKeyType === observedKeyType || (sourceKeyType === 'non-uuid' && observedKeyType !== 'uuid')) {
+						keyTypeStatus = 'verified';
+						effectiveKeyType = sourceKeyType === 'non-uuid' ? observedKeyType : sourceKeyType;
+						verified = true;
+					} else {
+						keyTypeStatus = 'mismatch';
+						effectiveKeyType = sourceKeyType;
+						verified = false;
+					}
+				} else keyStatus = 'mismatch';
+			}
+			return {
+				...binding,
+				capabilities: {
+					...binding.capabilities,
+					verified_read_by_primary_key: verified,
+					observed_key_type: observedKeyType,
+					effective_key_type: effectiveKeyType,
+					key_type_status: keyTypeStatus,
+				},
+				verification: {
+					source_kind: 'live',
+					provider: 'verified',
+					expected_provider: expectedLiveProvider,
+					observed_provider: live.provider,
+					expected_snapshot_ref: expectedLiveSnapshotRef,
+					observed_snapshot_ref: live.metadata.snapshot_ref,
+					table: tableStatus,
+					primary_key: keyStatus,
+					key_type: keyTypeStatus,
+				},
+			};
+		}),
+	};
+}
+
+export { normalizeKeyType };

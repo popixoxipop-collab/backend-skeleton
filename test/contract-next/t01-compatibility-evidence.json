@@ -1,0 +1,117 @@
+{
+  "evidence": "sbf.t01-compatibility-evidence/1",
+  "status": "partial-blocked-on-consumers-and-t00-freeze",
+  "observed_at": "2026-09-25T04:31:13.280Z",
+  "package_source": {
+    "repository": "popixoxipop-collab/backend-skeleton",
+    "head": "303358738861387524020ae07c23a1a1d0cc8b0d",
+    "base": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "pull_request": 82,
+    "scope": [
+      "contracts/next/**",
+      "schemas/next/**",
+      "test/contract-next/**"
+    ]
+  },
+  "direct_execution": {
+    "host": "eoe",
+    "checkout_head": "303358738861387524020ae07c23a1a1d0cc8b0d",
+    "install": {
+      "command": "npm ci --silent",
+      "exit_code": 0
+    },
+    "test": {
+      "command": "node --test test/contract-next/contract-identity-next.test.mjs test/contract-next/identity-conformance.test.mjs test/contract-next/package-identity-next.test.mjs test/contract-next/consumer-conformance.test.mjs",
+      "pass": 23,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "exit_code": 0
+    }
+  },
+  "packed_artifact": {
+    "command": "npm pack ./t01-bskel-check --json",
+    "filename": "backend-skeleton-1.9.0.tgz",
+    "npm_shasum_sha1": "510d9e3251f070dd4eebeafd17cbdba5cf92953c",
+    "npm_integrity_sha512": "sha512-M8Q0RIgB6G1azViIB2RRSgXlBrvzRGcP8BByV1GfHXOCG4hL5dCCHotD4rBFRXIAPOkdCMn8oocwBPyd1nhQlQ==",
+    "packed_size_bytes": 701608,
+    "unpacked_size_bytes": 2271382,
+    "required_entries": [
+      "contracts/next/identity.mjs",
+      "contracts/next/consumer-conformance.mjs",
+      "contracts/next/README.md",
+      "schemas/next/artifact-ref.schema.json",
+      "schemas/next/identity-envelope.schema.json",
+      "schemas/next/identity.golden.json",
+      "schemas/next/identity-conformance.json",
+      "schemas/next/identity-consumer-result.schema.json",
+      "schemas/next/identity-consumer-set.schema.json"
+    ]
+  },
+  "consumer_result_contract": {
+    "version": "sbf.identity-consumer-result/1",
+    "verifier": "contracts/next/consumer-conformance.mjs",
+    "schema": "schemas/next/identity-consumer-result.schema.json",
+    "expected_case_count": 12,
+    "guarantees_checked": [
+      "exact conformance-pack SHA-256",
+      "consumer repository and exact commit",
+      "bskel runtime import/spawn both false",
+      "complete unique reviewed case set",
+      "no operation-ID repair",
+      "exact-byte ArtifactRef equality",
+      "negative cases remain fail-closed",
+      "summary cannot overstate pass count"
+    ],
+    "consumer_set": {
+      "version": "sbf.identity-consumer-set/1",
+      "schema": "schemas/next/identity-consumer-set.schema.json",
+      "verifier_function": "verifyRequiredConsumerSet",
+      "intended_required_repositories": [
+        "popixoxipop-collab/backend-decoder",
+        "popixoxipop-collab/Backend-evaluation"
+      ],
+      "guarantees_checked": [
+        "duplicate consumer repositories rejected",
+        "missing required repositories rejected",
+        "unexpected repositories rejected",
+        "output order is locale-independent"
+      ]
+    }
+  },
+  "external_consumer_state": {
+    "becoder": {
+      "repository": "popixoxipop-collab/backend-decoder",
+      "former_pull_request": 8,
+      "disposition": "closed-without-merge; split required",
+      "independent_t01_reader_result": "not-submitted"
+    },
+    "beval": {
+      "repository": "popixoxipop-collab/Backend-evaluation",
+      "former_pull_request": 41,
+      "disposition": "closed-without-merge; split required",
+      "independent_t01_reader_result": "not-submitted",
+      "ci_note": "observed red integration was caused by unauthorized cross-repo private checkout; unit run reached 319 pass, 0 fail, 1 skip before cancellation"
+    }
+  },
+  "coordination": {
+    "t00_state": "T01 exact-byte semantics accepted only as T00-04A candidate; activation still blocked by baseline infrastructure/freeze gates",
+    "t19_state": "valid evidence candidate; not covered/certified",
+    "t18_state": "protocol shadow consumer uses T01-shaped exact ArtifactRef without claiming ownership"
+  },
+  "remaining_requirements": [
+    "T15 split reader independently replays identity-conformance.json and emits sbf.identity-consumer-result/1.",
+    "T16 split reader independently replays identity-conformance.json and emits sbf.identity-consumer-result/1.",
+    "T01 verifier accepts both exact consumer results.",
+    "Packed becoder/beval artifacts replay the same reviewed vectors under exact repository SHAs.",
+    "T00/T20/T23 approve the private cross-repo artifact or credential handoff without weakening repository privacy.",
+    "T00-04 activation/final freeze authorizes compatibility promotion."
+  ],
+  "interpretation": "Package-side identity and result-verifier evidence is green. T01-05 and T01-06 are not complete until independent consumer results and coordination gates are satisfied.",
+  "conformance_pack": {
+    "path": "schemas/next/identity-conformance.json",
+    "byte_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
+    "size_bytes": 10446,
+    "identity_conformance": "sbf.identity-conformance/1"
+  }
+}

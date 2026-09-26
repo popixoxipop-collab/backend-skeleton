@@ -1,0 +1,198 @@
+{
+  "fixture": "t03.status-diagnostics/2",
+  "targetId": "t03-consumer-fixture",
+  "adapterId": "python-fastapi",
+  "source_t03_base_head": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
+  "certification": null,
+  "legacyCompatibility": null,
+  "records": [
+    {
+      "name": "identity.artifact-ref",
+      "status": "supported",
+      "evidenceRefs": [
+        {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "t01-artifact-ref-schema",
+          "version": "1",
+          "media_type": "application/schema+json",
+          "byte_sha256": "9c23e23d76937476752b3a3ddc72ee0b0ce24c23ff4b00cf6f18f174400ac8bd",
+          "size_bytes": 880
+        }
+      ],
+      "reason": null,
+      "conditions": [
+        "verified against exact T01 ArtifactRef schema bytes"
+      ],
+      "source": "t03-verified-artifact-evidence"
+    },
+    {
+      "name": "runtime.certification",
+      "status": "partial",
+      "evidenceRefs": [
+        {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "t19-runtime-core-review",
+          "version": "1",
+          "media_type": "text/markdown",
+          "byte_sha256": "4d7fd6d5e234282715f35e01f0da2760ea3c1be28cdeb4dd78caf4feaf2d998f",
+          "size_bytes": 3270
+        }
+      ],
+      "reason": "T19 independently passed the immutable runtime-binding/process-policy core only; it explicitly did not certify any capability as runtime-tested",
+      "conditions": [
+        "runtime-tested remains blocked until exact T16 runtime-execution evidence is independently accepted by T19 for the same target/profile/combination"
+      ],
+      "source": "t19-core-review"
+    },
+    {
+      "name": "codegen.behavior-tested",
+      "status": "unsupported",
+      "evidenceRefs": [],
+      "reason": "no verified runtime behavior evidence is attached to this fixture",
+      "conditions": [],
+      "source": "t03-policy"
+    },
+    {
+      "name": "api.security.enforced",
+      "status": "unknown",
+      "evidenceRefs": [],
+      "reason": "no accepted enforcement evidence is present",
+      "conditions": [],
+      "source": "t03-policy"
+    },
+    {
+      "name": "persistence.fetch",
+      "status": "not-applicable",
+      "evidenceRefs": [],
+      "reason": "fixture contains no persistence target",
+      "conditions": [],
+      "source": "t03-policy"
+    }
+  ],
+  "capabilityMap": {
+    "identity.artifact-ref": {
+      "name": "identity.artifact-ref",
+      "status": "supported",
+      "evidenceRefs": [
+        {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "t01-artifact-ref-schema",
+          "version": "1",
+          "media_type": "application/schema+json",
+          "byte_sha256": "9c23e23d76937476752b3a3ddc72ee0b0ce24c23ff4b00cf6f18f174400ac8bd",
+          "size_bytes": 880
+        }
+      ],
+      "reason": null,
+      "conditions": [
+        "verified against exact T01 ArtifactRef schema bytes"
+      ],
+      "source": "t03-verified-artifact-evidence"
+    },
+    "runtime.certification": {
+      "name": "runtime.certification",
+      "status": "partial",
+      "evidenceRefs": [
+        {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "t19-runtime-core-review",
+          "version": "1",
+          "media_type": "text/markdown",
+          "byte_sha256": "4d7fd6d5e234282715f35e01f0da2760ea3c1be28cdeb4dd78caf4feaf2d998f",
+          "size_bytes": 3270
+        }
+      ],
+      "reason": "T19 independently passed the immutable runtime-binding/process-policy core only; it explicitly did not certify any capability as runtime-tested",
+      "conditions": [
+        "runtime-tested remains blocked until exact T16 runtime-execution evidence is independently accepted by T19 for the same target/profile/combination"
+      ],
+      "source": "t19-core-review"
+    },
+    "codegen.behavior-tested": {
+      "name": "codegen.behavior-tested",
+      "status": "unsupported",
+      "evidenceRefs": [],
+      "reason": "no verified runtime behavior evidence is attached to this fixture",
+      "conditions": [],
+      "source": "t03-policy"
+    },
+    "api.security.enforced": {
+      "name": "api.security.enforced",
+      "status": "unknown",
+      "evidenceRefs": [],
+      "reason": "no accepted enforcement evidence is present",
+      "conditions": [],
+      "source": "t03-policy"
+    },
+    "persistence.fetch": {
+      "name": "persistence.fetch",
+      "status": "not-applicable",
+      "evidenceRefs": [],
+      "reason": "fixture contains no persistence target",
+      "conditions": [],
+      "source": "t03-policy"
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "CAPABILITY_STATUS_REJECTED",
+      "severity": "blocked",
+      "policyId": "runtime-certification",
+      "capability": "runtime.certification",
+      "status": "partial",
+      "acceptedStatuses": [
+        "supported"
+      ],
+      "evidenceRefs": [
+        {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "t19-runtime-core-review",
+          "version": "1",
+          "media_type": "text/markdown",
+          "byte_sha256": "4d7fd6d5e234282715f35e01f0da2760ea3c1be28cdeb4dd78caf4feaf2d998f",
+          "size_bytes": 3270
+        }
+      ],
+      "reason": "runtime core validation is not runtime-execution certification",
+      "nextAction": "supply exact T16 runtime-execution evidence independently accepted by T19 for the same target/profile/combination"
+    },
+    {
+      "code": "CAPABILITY_UNKNOWN",
+      "severity": "blocked",
+      "policyId": "security-enforcement",
+      "capability": "api.security.enforced",
+      "status": "unknown",
+      "acceptedStatuses": [
+        "supported"
+      ],
+      "evidenceRefs": [],
+      "reason": "no accepted enforcement evidence is present",
+      "nextAction": "supply independently verified enforcement evidence"
+    }
+  ],
+  "nextActions": {
+    "runtime.certification": [
+      "obtain exact T16 runtime-execution evidence",
+      "obtain independent T19 acceptance for same target/profile/combination"
+    ],
+    "api.security.enforced": [
+      "supply independently verified enforcement evidence"
+    ]
+  },
+  "notes": [
+    "Typed ArtifactRefs are provenance/identity data, never paths or URLs.",
+    "This fixture carries no support certification."
+  ],
+  "aggregation_example": {
+    "status": "conflict",
+    "meaning": "consumer/reconciliation-only; conflict is not a T03 capability status and must never be converted to supported"
+  },
+  "rules": {
+    "unknown_never_supported": true,
+    "partial_never_implicitly_supported": true,
+    "conflict_never_supported": true,
+    "runtime_binding_presence_is_not_runtime_tested": true,
+    "mock_success_is_not_runtime_tested": true,
+    "support_and_codegen_axes_are_independent": true
+  }
+}
