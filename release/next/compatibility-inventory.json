@@ -1,0 +1,207 @@
+{
+  "schema": "bskel.scale-release-compatibility/1",
+  "task_id": "T23-01",
+  "captured_on": "2026-09-25",
+  "coordination_baseline": {
+    "source": "T00-01 epoch-4 draft PR #100",
+    "task_id": "T00-01",
+    "state": "SUBMITTED",
+    "accepted": false,
+    "head_sha": "608ad6ff5af395b71d555c1653fe9594ac9a6201",
+    "repositories": {
+      "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+    },
+    "note": "Epoch 4 supersedes epoch 3 and matches observed repository mains, but remains SUBMITTED/NOT ACCEPTED until exact-head CI and independent T19 verification are complete."
+  },
+  "repositories": [
+    {
+      "role": "bskel",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "default_branch": "main",
+      "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "coordination_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "package": {
+        "name": "backend-skeleton",
+        "version": "1.9.0",
+        "node_engine": ">=18",
+        "bins": [
+          "bskel"
+        ],
+        "pack_test": "npm run test:pack",
+        "package_json_blob": "735a10bf6c274acb22759a620d57b3c5f2f69068",
+        "workflow_blob": "11f5b42bd6bf409ef03d93bc7d89ae7e9bf31089",
+        "files": [
+          "bin/",
+          "lib/",
+          "contracts/",
+          "scanners/",
+          "handles/",
+          "new/",
+          "stack/",
+          "patterns/",
+          "rules/",
+          "schemas/",
+          "scripts/preflight-base-ref.sh",
+          "action.yml"
+        ]
+      },
+      "compatibility_surfaces": [
+        "installed bskel CLI",
+        "HTTP contract schemas and contract emitters",
+        "webgame contract schema and scanner",
+        "handles providers/templates",
+        "database introspection/DDL/ERD runtime assets"
+      ],
+      "exact_head_ci": {
+        "workflow": "CI",
+        "run_id": 36040486375,
+        "head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    },
+    {
+      "role": "becoder",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "default_branch": "main",
+      "head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "coordination_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "package": {
+        "name": "backend-decoder",
+        "version": "0.5.0",
+        "node_engine": ">=18",
+        "bins": [
+          "becoder"
+        ],
+        "pack_test": "npm run test:pack",
+        "package_json_blob": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b",
+        "workflow_blob": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4",
+        "files": [
+          "COMPATIBILITY.md",
+          "DESIGN.md",
+          "ROADMAP.md",
+          "docs/",
+          "bin/",
+          "lib/",
+          "renderers/",
+          "schemas/"
+        ]
+      },
+      "compatibility_surfaces": [
+        "installed becoder CLI",
+        "vendored HTTP/webgame contract readers",
+        "SurfacePlan/GamePlan schemas",
+        "generated React/static/Three harness assets",
+        "request-bound execution evidence formats"
+      ],
+      "exact_head_ci": {
+        "workflow": "CI",
+        "run_id": 36083442722,
+        "head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    },
+    {
+      "role": "beval",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "default_branch": "main",
+      "head_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "coordination_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+      "package": {
+        "name": "backend-evaluator",
+        "version": "0.1.0",
+        "node_engine": ">=20",
+        "bins": [
+          "beval",
+          "beval-oracle-evaluator"
+        ],
+        "pack_test": "npm run test:pack",
+        "package_json_blob": "714575e9cbaff966e4fc00138da6317ef84ac2a4",
+        "workflow_blob": "c1ac2ad7dc8e32a9bfe2820d3a69452b12089ad3",
+        "files": [
+          "PLAN.md",
+          "README.md",
+          "STATUS.md",
+          "bin/",
+          "lib/",
+          "migrations/",
+          "schemas/",
+          "profiles/",
+          "scripts/",
+          "docs/contract-binding/",
+          "docs/release/",
+          "templates/"
+        ]
+      },
+      "compatibility_surfaces": [
+        "installed beval CLI and oracle evaluator",
+        "database migrations/readers",
+        "vendored contract/evidence schemas",
+        "runtime profiles and immutable run bindings",
+        "release and contract-binding reports"
+      ],
+      "exact_head_ci": {
+        "workflow": "ci",
+        "run_id": 36083709046,
+        "run_attempt": 3,
+        "head_sha": "7a04cb705ca4cd162091d67fea5589e19fad163f",
+        "status": "completed",
+        "conclusion": "cancelled"
+      },
+      "integration_observation": {
+        "job_id": 107937336166,
+        "runner_id": 21,
+        "runner_name": "alienware-wsl2-backend-ci",
+        "labels": [
+          "self-hosted",
+          "Linux",
+          "X64",
+          "backend-ci"
+        ],
+        "status": "completed",
+        "conclusion": "failure",
+        "failed_boundary": "third actions/checkout@v4 step, corresponding to backend-decoder cross-repository checkout in the checked-in workflow",
+        "downstream_steps": "skipped",
+        "cause": "not asserted; available metadata proves the checkout did not complete, but not why"
+      },
+      "unit_observation": {
+        "node20": "success",
+        "node24": "success",
+        "node22": "cancelled-before-run"
+      }
+    }
+  ],
+  "required_cross_repo_checks": [
+    "all three packages are tested from npm pack artifacts rather than source paths alone",
+    "the exact bskel contract bytes used by a consumer are preserved and re-hashed by that consumer",
+    "becoder and beval do not import or spawn bskel as a runtime dependency to reinterpret contract identity",
+    "historical beval runs remain bound to their execution-time immutable references when current case metadata changes",
+    "new writer families remain opt-in until all consumers can read them and exact-revision integration evidence is green"
+  ],
+  "observed_release_blockers": [
+    "BASELINE_NOT_ACCEPTED",
+    "CURRENT_MAIN_CI_NOT_GREEN",
+    "CURRENT_MAIN_INTEGRATION_INCOMPLETE",
+    "INTERFACE_FREEZE_NOT_READY",
+    "INDEPENDENT_QA_NOT_READY",
+    "TRUST_POLICY_NOT_READY",
+    "CROSS_REPO_INTEGRATION_NOT_ACCEPTED"
+  ],
+  "change_requests_recorded_not_implemented": [
+    "common nested-test discovery after T00-04 for T02/T17/T18/T19/T22-owned nested suites",
+    "one T23 package decision for approved top-level adapters/** subtrees after T00 integration lease",
+    "sdk/next package inclusion after T20/T00 approval",
+    "becoder R3F installed-compatibility CI after T15/T00 approval",
+    "beval exact-head cross-repo CI must complete green; runner restoration alone does not satisfy release gates"
+  ],
+  "operational_observations": [
+    "The previously unavailable Linux/X64/backend-ci runner is now observed as alienware-wsl2-backend-ci (runner_id 21).",
+    "Runner recovery is not a release success: beval exact-head CI #868 attempt 3 completed non-green.",
+    "Node 20 and Node 24 unit jobs passed; Node 22 did not complete.",
+    "The integration job reached the backend-decoder cross-repository checkout and did not complete that checkout; product integration tests were skipped.",
+    "T23 does not infer the checkout cancellation cause without a usable job log/annotation."
+  ]
+}

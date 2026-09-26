@@ -1,0 +1,129 @@
+{
+  "schema": "bskel.scale-release-plan/1",
+  "owner_track": "T23",
+  "status": "PREPARED_BLOCKED",
+  "release_allowed": false,
+  "coordination_baseline": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+  },
+  "observed_current_main": {
+    "bskel": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+    "becoder": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+    "beval": "7a04cb705ca4cd162091d67fea5589e19fad163f"
+  },
+  "prerequisites": [
+    {
+      "id": "T00-01",
+      "required_state": "ACCEPTED",
+      "observed_state": "SUBMITTED"
+    },
+    {
+      "id": "T00-04",
+      "required_state": "FINAL_FREEZE",
+      "observed_state": "BLOCKED_PREFREEZE"
+    },
+    {
+      "id": "T19-03",
+      "required_state": "ACCEPTED",
+      "observed_state": "PLANNED"
+    },
+    {
+      "id": "T20-03",
+      "required_state": "ACCEPTED",
+      "observed_state": "PLANNED"
+    },
+    {
+      "id": "T00-05",
+      "required_state": "ACCEPTED",
+      "observed_state": "PLANNED"
+    }
+  ],
+  "migration_stages": [
+    {
+      "id": "M1-consumer-first",
+      "writer_mode": "legacy-only",
+      "consumer_mode": "legacy-plus-next-readers",
+      "promotion": false,
+      "rollback": "disable next readers without rewriting historical artifacts"
+    },
+    {
+      "id": "M2-shadow",
+      "writer_mode": "legacy-plus-shadow-next",
+      "consumer_mode": "compare-only",
+      "promotion": false,
+      "rollback": "stop shadow production; retain shadow artifacts as audit evidence"
+    },
+    {
+      "id": "M3-opt-in-writer",
+      "writer_mode": "next-for-explicit-approved-profiles",
+      "consumer_mode": "approved-combination-only",
+      "promotion": false,
+      "rollback": "turn the profile off and continue reading legacy plus historical next artifacts"
+    },
+    {
+      "id": "M4-per-profile-default",
+      "writer_mode": "next-only-for-certified-profile",
+      "consumer_mode": "certified-package-matrix",
+      "promotion": false,
+      "rollback": "restore the previous package combination and make the affected profile read-only"
+    }
+  ],
+  "rollback_policy": {
+    "destructive_down_migration_allowed": false,
+    "delete_historical_evidence_allowed": false,
+    "old_binary_and_old_artifacts_must_remain_readable": true,
+    "old_writer_may_overwrite_next_artifacts": false,
+    "new_data_namespace_must_be_isolated_until_default_cutover": true,
+    "cache_namespace_or_revision_must_change_on_semantic_revision": true
+  },
+  "required_release_checks": [
+    "bskel npm run test:pack",
+    "becoder npm run test:pack",
+    "beval npm run test:pack",
+    "exact-head CI for the final integration SHAs",
+    "consumer-first compatibility replay",
+    "historical contract/run replay",
+    "rollback rehearsal without destructive database downgrade",
+    "support matrix generated only from admitted evidence-backed profiles"
+  ],
+  "ci_lane_plan": {
+    "workflows_modified_by_T23_01_or_T23_02": false,
+    "lanes": [
+      "pr-cheap",
+      "crossrepo",
+      "nightly",
+      "runtime",
+      "native",
+      "release"
+    ],
+    "activation_gate": "T00-04 final freeze + T23-03 + T19/T20 prerequisites",
+    "exact_head_required": true,
+    "privileged_pull_request_target_for_untrusted_code": false,
+    "recorded_change_requests": [
+      "nested test discovery for test/project-graph/**, test/game-next/**, test/protocol-next/**, test/conformance-next/** and test/sdk-next/**",
+      "one package decision for approved adapters/** subtrees rather than one-off track package edits",
+      "sdk/next package inclusion after trust/integration approval",
+      "becoder installed R3F compatibility lane",
+      "beval exact-head integration completion on the authorized backend-ci lane"
+    ],
+    "current_beval_exact_head": {
+      "run_id": 36083709046,
+      "run_attempt": 3,
+      "overall": "cancelled",
+      "runner_restored": true,
+      "integration": "failed at backend-decoder cross-repository checkout before package/install/integration steps",
+      "release_effect": "blocked"
+    }
+  },
+  "blockers": [
+    "BASELINE_NOT_ACCEPTED",
+    "CURRENT_MAIN_CI_NOT_GREEN",
+    "CURRENT_MAIN_INTEGRATION_INCOMPLETE",
+    "INTERFACE_FREEZE_NOT_READY",
+    "INDEPENDENT_QA_NOT_READY",
+    "TRUST_POLICY_NOT_READY",
+    "CROSS_REPO_INTEGRATION_NOT_ACCEPTED"
+  ]
+}

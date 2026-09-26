@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "inventory": {
+    "ok": true,
+    "errors": [],
+    "observed_blockers": [
+      "BASELINE_NOT_ACCEPTED",
+      "COORDINATION_BASELINE_DRIFT",
+      "CURRENT_MAIN_CI_NOT_GREEN"
+    ]
+  },
+  "release_plan": {
+    "ok": true,
+    "errors": []
+  },
+  "note": "The inventory is structurally valid while release remains fail-closed. This is T23 control-plane evidence only, not product release certification."
+}
