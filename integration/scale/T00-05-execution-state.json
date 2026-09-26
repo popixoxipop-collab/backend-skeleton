@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T15:10:00+09:00",
+  "observed_at": "2026-09-26T16:27:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -42,52 +42,37 @@
     "T23_next_runtime_ci": {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "pr": 58,
-      "historical_r3_head": "fbf02c2d7d974905626c3ffeb67e474d105c302a",
-      "historical_r3_ci_run": 36215553365,
-      "historical_r3_ci_conclusion": "success",
-      "historical_r3_status": "superseded_as_stack_base_by_execution_impacting_main_drift",
       "current_required_base": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
-      "shared_lease": {
-        "claim_id": "T23-BEVAL-shared-ci-20260926-r4",
-        "fencing_token": 4,
-        "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t23-beval-ci-integration-wt-r4",
-        "coordination_head": "a386ed799f6cb3ad5deb3b3b55f3a1e78452b6ff",
-        "verifier": "PASS"
-      },
-      "state": "r4_restack_required",
-      "required": "Reapply #58 five-file shared CI/package delta to current main and rerun full repair+game fixture integration plus Node20/22/24 unit+next-runtime+package smoke.",
       "r4_head": "62cc61ee57ea7791c631be690e38ed22d4932973",
       "r4_ci_run": 36221149473,
-      "r4_state": "ACCEPTED_AS_T16_STACK_BASE",
-      "r4_direct": {
-        "selector": "12/12",
-        "docker_cache": "3/3",
-        "next_runtime": "28/28",
-        "package_smoke": "PASS",
-        "changed_files": [
-          ".github/workflows/ci.yml",
-          "package.json",
-          "scripts/ci-webgame-repair-selection.mjs",
-          "scripts/package-install-smoke.mjs",
-          "test/ci-webgame-repair-selection.test.mjs"
-        ],
-        "push": "fast-forward fbf02c2 -> 62cc61e; no force"
-      },
       "r4_ci_conclusion": "success",
+      "r4_state": "ACCEPTED_AS_T16_STACK_BASE",
       "r4_integration": {
         "selector": "full/all/all",
         "repair_corpus": "32/32",
         "game_fixtures": "10/10",
-        "integration_tests": "59 pass"
+        "integration_tests": "59/59"
+      },
+      "direct": {
+        "selector": "12/12",
+        "docker_cache": "3/3",
+        "next_runtime": "28/28",
+        "package_smoke": "PASS"
       }
     },
     "T16_protocol_stack": {
-      "state": "PR59_RESTACK_CI",
+      "state": "PR60_EXACT_HEAD_CI_PENDING",
       "accepted_base": "62cc61ee57ea7791c631be690e38ed22d4932973",
       "pr59_head": "16d6958d009fbc285313790804eaf16b2280d74e",
       "pr59_ci_run": 36222854544,
-      "pr59_local": "34/34 next-runtime + package smoke PASS",
-      "current_blocker_after_pr59": "T16 #60 same-request cross-ProtocolItemRef evidence swap; fix spec comment 5843702149"
+      "pr59_ci_conclusion": "success",
+      "pr59_direct": "34/34 next-runtime + package smoke PASS",
+      "pr60_head": "e0af62e9c022f5884c02d6c02616ee2c37d800c5",
+      "pr60_ci_run": 36225285709,
+      "pr60_ci_conclusion": null,
+      "pr60_direct": "43/43 next-runtime + package smoke PASS",
+      "pr60_fix": "exact frozen action_ref + evidence_binding_hash commits RuntimeBinding hash/attempt/target/assertion/action_ref/evidence hash; cross-ProtocolItemRef swap rejected",
+      "next": "After PR60 exact-head green, restack PR61; executor must return action_ref + evidence_binding_hash rather than T16 synthesizing them."
     },
     "T19": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -111,16 +96,18 @@
     },
     "T13": {
       "repo": "popixoxipop-collab/backend-skeleton",
-      "pr": 67,
-      "head": "9a292ebe8fc7f66e510352d2fd2d13d332be5cf9",
-      "ci_run": 36212144892,
+      "clean_resubmission_pr": 142,
+      "head": "34437011d78441f617854547a29f65e393cdd632",
+      "ci_run": 36223203385,
       "ci_conclusion": "success",
-      "state": "scope_cleanup_and_nested_ci_before_t19",
-      "blockers": [
-        "root test/http-wave-bc.test.mjs outside ownership",
-        "nine duplicate test/fixtures/http-wave-bc files outside ownership",
-        "no approved required nested T13 lane yet"
-      ]
+      "focused": "66/66",
+      "current_main_delta": "25 files only under adapters/http-wave-bc/** and test/http-wave-bc/**",
+      "profiles": [
+        "Hono",
+        "Koa",
+        "Next.js"
+      ],
+      "state": "AWAITING_T19_FINAL_VERDICT"
     },
     "T02": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -153,32 +140,51 @@
     "T10": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "pr": 84,
-      "head": "69b3087d80157dc78d0b80fc4187b231785e80ac",
-      "lease": "T10-pr84-provenance-fix-20260926",
-      "fencing_token": 1,
-      "direct": "125/125 pass, 0 fail, 0 skip",
-      "direct_request": "b879c04c-ad19-4186-a1be-6486b68117fd",
-      "ci_run": 36222550481,
-      "nested_node22": "125/125 PASS",
-      "nested_node24": "SUCCESS",
-      "state": "CI_RUNNING_T19_REVIEW_REQUESTED",
-      "t19_request_comment": 5843780017
+      "head": "495235c2a703facc0f5850d5887ac0339bc90148",
+      "ci_run": 36222985391,
+      "ci_conclusion": "success",
+      "direct": "126/126 pass, 0 fail, 0 skip",
+      "state": "AWAITING_T19_FINAL_VERDICT",
+      "closed_boundaries": [
+        "canonical entity id and repo-relative entity.file",
+        "source-ref provider/path validation",
+        "approved live provider + content-addressed snapshot identity",
+        "immutable generation provenance and exact ArtifactRef byte binding"
+      ]
     },
     "T12": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "clean_resubmission_pr": 140,
-      "head": "6fc55acae0d1d506be06ecb37a785b511f20b46f",
-      "ci_run": 36221223150,
+      "head": "acdf1aad07127a3e656135335ed04abdb4c537bf",
+      "ci_run": 36222528405,
       "ci_conclusion": "success",
       "focused": "20/20",
-      "historical_pr_117": "closed_superseded",
-      "state": "AWAITING_T19"
+      "current_main_delta": "14 files only under adapters/http-wave-a/** and test/http-wave-a/**",
+      "state": "AWAITING_T19_FINAL_VERDICT"
     },
     "T18": {
       "final_local_head": "89d2cfb3dcb5ce6e393bc3dc024a335275d6f4ed",
       "focused": "75/75",
-      "state": "BLOCKED_ON_T16_FIX",
-      "reproduced_defect": "current T16 #60 accepts same-request cross-ProtocolItemRef evidence swap"
+      "state": "PR60_FIX_CANDIDATE_CI_PENDING",
+      "reproduced_defect": "same-request cross-ProtocolItemRef evidence swap",
+      "candidate_resolution": "T16 PR60 e0af62e rejects swap with PROTOCOL_RUNTIME_ASSERTION_ITEM_MISMATCH; replay again after exact-head CI"
+    },
+    "T11": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "compatibility_pr": 77,
+      "compatibility_head": "5d328f906dd81fde508c1cd652a6ab159e22a29e",
+      "stable_fix_pr": 143,
+      "stable_fix_head": "d1ce48f03a88da9b46fc93a23ad1d4e01658f68b",
+      "stable_fix_ci_run": 36226028948,
+      "stable_fix_ci_conclusion": "success",
+      "direct": {
+        "express_shared": "23/23",
+        "typescript_express_cli": "8/8",
+        "conformance": "5/5",
+        "t11_nested": "35/35"
+      },
+      "fix": "#119 combined default+named Express import, express.Router(), arbitrary typed router variable, mount-prefix reconstruction; unrelated toolkit.Router rejected",
+      "state": "AWAITING_T19_FINAL_VERDICT"
     }
   },
   "no_merge_without": [
@@ -405,50 +411,50 @@
   "review_candidates": {
     "T03": {
       "pr": 81,
-      "head": "0a0fbf1a75c5001d42a459a02540765aef6fa6be",
-      "ci": 36218075782,
+      "head": "40d451dbaf98ededd519cd6a47f6ec041b1512da",
+      "ci": 36223276575,
       "ci_conclusion": "success",
       "focused": "48/48",
       "state": "awaiting_T19"
     },
     "T04": {
       "pr": 73,
-      "head": "c5a79f1e167391ebe9d48ef9be3b2fce416f7a70",
-      "ci": 36217208293,
+      "head": "1e2d037dedc5ba035248e4d67255c2850973afe8",
+      "ci": 36223280662,
       "ci_conclusion": "success",
       "focused": "62/62",
-      "state": "awaiting_T19_and_shared_root_cleanup"
+      "state": "awaiting_T19"
     },
     "T05": {
       "pr": 86,
-      "head": "40387266db543bd68651399729214bcb01db6317",
-      "ci": 36217529908,
+      "head": "59409145fd101452385129307fe99ab3ba9805ab",
+      "ci": 36223376986,
       "ci_conclusion": "success",
-      "focused": "84/84",
-      "state": "awaiting_T19_runtime_profile_remains_blocked"
+      "focused": "47/47 nested after root cleanup",
+      "state": "awaiting_T19"
     },
     "T06": {
       "pr": 75,
       "head": "91d474847aa0bfb199ab1f75bae6bcb323b9921d",
       "ci": 36217306344,
       "ci_conclusion": "success",
-      "focused": "62/62",
-      "state": "awaiting_T19_shared_nested_rg_issue_external"
+      "focused": "62/62; shared rg blocker resolved by #141",
+      "state": "awaiting_T19"
     },
     "T07": {
       "pr": 69,
-      "head": "17610d9b2ef02808c7bbc5304fafd461a8a5d399",
-      "ci": 36218768913,
+      "head": "7d5ef0282f03b613a1f83bcc8d91e2fc9caa7202",
+      "ci": 36223382943,
       "ci_conclusion": "success",
       "focused": "63/63",
-      "state": "awaiting_T19_shallow_clone_defect_fixed"
+      "state": "awaiting_T19"
     },
     "T08": {
       "pr": 76,
       "head": "98cfb059e502608834495d875e44369161ea2d58",
       "ci": 36217094272,
       "ci_conclusion": "success",
-      "focused": "59/59_macOS_and_Windows",
+      "focused": "59/59 macOS+Windows",
       "state": "awaiting_T19"
     },
     "T09": {
@@ -459,13 +465,45 @@
       "focused": "110/110",
       "state": "awaiting_T19"
     },
+    "T10": {
+      "pr": 84,
+      "head": "495235c2a703facc0f5850d5887ac0339bc90148",
+      "ci": 36222985391,
+      "ci_conclusion": "success",
+      "focused": "126/126",
+      "state": "awaiting_T19"
+    },
+    "T11": {
+      "pr": 143,
+      "head": "d1ce48f03a88da9b46fc93a23ad1d4e01658f68b",
+      "ci": 36226028948,
+      "ci_conclusion": "success",
+      "focused": "23/23 + 8/8 + 5/5; T11 nested 35/35",
+      "state": "awaiting_T19"
+    },
+    "T12": {
+      "pr": 140,
+      "head": "acdf1aad07127a3e656135335ed04abdb4c537bf",
+      "ci": 36222528405,
+      "ci_conclusion": "success",
+      "focused": "20/20",
+      "state": "awaiting_T19"
+    },
+    "T13": {
+      "pr": 142,
+      "head": "34437011d78441f617854547a29f65e393cdd632",
+      "ci": 36223203385,
+      "ci_conclusion": "success",
+      "focused": "66/66",
+      "state": "awaiting_T19"
+    },
     "T14": {
       "pr": 71,
-      "head": "4ca25543d4f396e80a4883c8bafed5239b5c2fd3",
-      "ci": 36219146705,
+      "head": "9026e64e9668529c2d499e72ced27b96403b7255",
+      "ci": 36223386405,
       "ci_conclusion": "success",
-      "focused": "7/7_nested + 18/18_legacy",
-      "state": "awaiting_T19_behavior_real_handoff_blocked"
+      "focused": "25/25",
+      "state": "awaiting_T19"
     },
     "T17": {
       "pr": 138,
@@ -480,16 +518,16 @@
       "head": "a6e614b3c1a4d216e24f9143473995843388e623",
       "ci": 36217201599,
       "ci_conclusion": "success",
-      "focused": "121/121;33/33",
-      "state": "awaiting_T19_actual_T16_matrix_still_4_PASS_7_FAIL_3_NOT_RUN"
+      "focused": "121/121 + 33/33",
+      "state": "awaiting_T19; actual T16 matrix still 4 PASS/7 FAIL/3 NOT_RUN"
     },
     "T21": {
       "pr": 80,
-      "head": "434f28e72e8f21ccd9f23b80cd3618dc2b0a5222",
-      "ci": 36217108961,
+      "head": "3a4ac0ea73933ea83b076653d3ba0816f0fcbff3",
+      "ci": 36223673370,
       "ci_conclusion": "success",
-      "focused": "19 T21 cases observed on Node22/24",
-      "state": "awaiting_T19"
+      "focused": "Linux nested Node22/24 success",
+      "state": "awaiting_T19; Windows Node25 holdout 44/58 portability follow-up"
     },
     "T22": {
       "pr": 85,
@@ -497,7 +535,7 @@
       "ci": 36217909460,
       "ci_conclusion": "success",
       "focused": "65/65 Node18/22/24",
-      "state": "awaiting_T19_package_inclusion_external"
+      "state": "awaiting_T19"
     }
   },
   "shared_ci": {
