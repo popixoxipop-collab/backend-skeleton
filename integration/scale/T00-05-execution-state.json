@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T04:00:00+09:00",
+  "observed_at": "2026-09-27T04:20:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -273,6 +273,21 @@
         "lib/next-runtime/hardened-docker-sandbox.mjs",
         "test/next-runtime/hardened-docker-sandbox.test.mjs",
         "docs/next-runtime/T20_03_LINUX_DOCKER_SANDBOX.md"
+      ],
+      "fencing_token": 1,
+      "expires_at": "2026-09-27T07:20:00Z",
+      "state": "ACTIVE"
+    },
+    "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r1": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t20-03-linux-container-enforcement-r1",
+      "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "path_scopes": [
+        "lib/next-runtime/linux-container-sandbox.mjs",
+        "test/next-runtime/linux-container-sandbox.test.mjs",
+        "test/integration/t20-linux-container-sandbox.test.mjs",
+        "scripts/t20-linux-container-evidence.mjs",
+        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md"
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T07:20:00Z",
@@ -640,8 +655,13 @@
     "note": "Rebaseline release policy/inventory only. Product defaults remain legacy-authoritative/additive-next under T00-04A."
   },
   "t20_03": {
-    "state": "IMPLEMENTING_FIRST_LINUX_DOCKER_ENFORCEMENT_SLICE",
-    "full_acceptance": false,
-    "note": "Slice may reduce adversarial failures but cannot clear T20-03 until required external evidence matrix is complete."
+    "state": "LINUX_CONTAINER_ENFORCEMENT_IN_PROGRESS",
+    "scope": "one hardened Linux/container target-runtime profile",
+    "no_claims": [
+      "cross-platform parity",
+      "release readiness",
+      "native engine certification"
+    ],
+    "branch": "t00/t20-03-linux-container-enforcement-r1"
   }
 }
