@@ -1,3 +1,4 @@
+import './profile-evidence.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HTTP_WAVE_BC_TARGETS, validateWaveBcCatalog } from '../../adapters/http-wave-bc/catalog.mjs';
