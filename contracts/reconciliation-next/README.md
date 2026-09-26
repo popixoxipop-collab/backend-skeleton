@@ -86,11 +86,11 @@ Run the whole T09 slice directly:
 node --test test/reconciliation-next/*.test.mjs
 ```
 
-All T09 tests now remain inside the leased `test/reconciliation-next/**` path. The repository's
-current shared `npm test` pattern (`test/*.test.mjs`) does **not** discover nested tests, and T09
-does not own `package.json` or workflow wiring. A shared-owner change request is open on T00 PR #65
-to connect `test/reconciliation-next/*.test.mjs` to central CI. Until then, generic `npm test`
-green is not evidence that the 98 T09 focused tests ran.
+All T09 tests remain inside the leased `test/reconciliation-next/**` path. The legacy root
+`npm test` pattern still does not discover nested tests, and T09 does not own package/workflow
+wiring. T00/T23's required `nested-next` dispatcher now explicitly executes the T09 directory;
+exact-head evidence must show `NESTED_SUITE T09 RUN 7 files` and terminal counts on Node 22/24.
+Generic root-test success alone is still not T09 focused evidence.
 
 The current T09 suite contains **110 tests**:
 
@@ -99,8 +99,8 @@ The current T09 suite contains **110 tests**:
 - 22 OpenAPI context/root/operation-security/duplicate-ID/schema-presence/context-provenance regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
 - 22 exact ArtifactRef/T16 binding/evidence regressions,
-- 24 bound runtime-route reconciliation regressions,
-- 17 policy-neutral promotion-readiness regressions.
+- 22 bound runtime-route reconciliation regressions,
+- 16 policy-neutral promotion-readiness regressions.
 
 It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled/absent/media-skipped states, explicit and inherited declared security,
