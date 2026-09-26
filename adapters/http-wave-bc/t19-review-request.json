@@ -39,17 +39,21 @@
       "fixture": "test/http-wave-bc/fixtures/koa-router-official-readme",
       "official_ref": "koajs/router@dc285194dfbd9887b7ab9937996370dc4fda55d7",
       "review_claims": [
+        "koa + @koa/router dependency and constructor detection",
+        "same-file app.use(router.routes()) mount requirement",
         "literal standard methods",
-        "named route",
+        "named routes",
         "literal constructor prefix",
-        "ESM/CJS/generic bindings"
+        "ESM/CommonJS/generic bindings"
       ],
       "negative_cases": [
-        "comment-only false detection",
-        "dynamic route",
+        "comment/string false detection",
+        "missing dependency",
+        "unmounted router withheld",
+        "dynamic/array/RegExp route withheld",
         "prefix() mutation fail-closed",
-        "all/use unknown",
-        "regex/comment false route"
+        "nested use/all/register/redirect unknown",
+        "host/matching option fail-closed"
       ],
       "runtime_claim": false
     },
