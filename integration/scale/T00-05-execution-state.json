@@ -1,0 +1,100 @@
+{
+  "schema": "bskel.t00-execution-state/1",
+  "observed_at": "2026-09-26T11:43:00+09:00",
+  "coordinator": "T00",
+  "coordination_branch": "scale/T00/bootstrap-baseline",
+  "coordination_head_after_t00_docs": "1a437540746175e48f828e9b1cdf591723eaa122",
+  "beval_main_anchor": {
+    "source_pr": 65,
+    "candidate_head": "14671926d55446b2491854b3f39b80ea5002f56d",
+    "ci_run": 36206087532,
+    "ci_conclusion": "success",
+    "merge_commit": "1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a",
+    "state": "merged"
+  },
+  "gates": {
+    "T21": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 80,
+      "head": "efd1eecec81a1a16556da685dde4d892114f7b5b",
+      "ci_run": 36093320002,
+      "ci_conclusion": "failure",
+      "t19_review_head": "7770378890e541c831c65be865be09649a196fc5",
+      "classification": "TEST_ORACLE_MISMATCH",
+      "required": "Update only T21 expected serialized project order to T02 project_root order, retain ordered assertion, add perturbation regression, exact-head Node 22/24 green."
+    },
+    "T23_webgame_ci": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "pr": 66,
+      "head": "7ff35ec09a64a2e04165c82de01a0d96ae4a7312",
+      "ci_run": 36206449861,
+      "ci_conclusion": "success",
+      "integration_observation": "chord-forward-right repaired_and_passed in real Docker/browser smoke",
+      "state": "hold_for_policy_completion",
+      "required": "Ordinary PR smoke; webgame/execution-impacting PR full; main/nightly full; path-classification fail closed."
+    },
+    "T23_next_runtime_ci": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "pr": 58,
+      "head": "364df37ece2e7b01361556ea09cd2f8cd7ebc246",
+      "ci_run": 36150923266,
+      "ci_conclusion": "success",
+      "mergeable": false,
+      "state": "restack_required",
+      "required": "Restack on accepted main after #65/#66 and retain both test:webgame-repair-game-fixtures-live and test:next-runtime."
+    },
+    "T16_protocol_stack": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "top_pr": 62,
+      "head": "accce80a4a4c48e8bfc0e32c5d6e42bfd2394956",
+      "ci_run": 36206061712,
+      "ci_conclusion": "success",
+      "state": "stacked_hold",
+      "dependency_chain": [
+        58,
+        59,
+        60,
+        61,
+        62
+      ]
+    },
+    "T19": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 118,
+      "current_observed_head": "d6fd24a577ff82c7beadb4a89fa62758999be047",
+      "ci_run": 36212350881,
+      "ci_conclusion": null,
+      "state": "active_review_head_moving",
+      "notes": [
+        "T21 ordering independently classified as stale test oracle.",
+        "Docker/chord classification: historical chord execution-layer unknown; current #66 real smoke passes; no broad runtime certification."
+      ]
+    },
+    "T17": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 138,
+      "head": "dee914da4f3454273836cefbd5dc67378acc0969",
+      "prior_ci_run": 36209092348,
+      "prior_ci_conclusion": "success",
+      "state": "needs_delta_t19_review_and_rebase_if_base_moved"
+    },
+    "T13": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 67,
+      "current_observed_head": "9a292ebe8fc7f66e510352d2fd2d13d332be5cf9",
+      "ci_run": 36212144892,
+      "ci_conclusion": null,
+      "state": "active_validation",
+      "notes": [
+        "latest delta changes only T13-owned Hono/Koa/Next.js tests and adds stronger source line/file assertions"
+      ]
+    }
+  },
+  "no_merge_without": [
+    "terminal exact-head CI",
+    "focused/nested tests actually executed",
+    "T00 ownership/lease compliance",
+    "T19 review for claimed support level",
+    "runtime evidence from T16/beval for runtime-tested claims"
+  ]
+}
