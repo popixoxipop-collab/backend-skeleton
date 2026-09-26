@@ -36,6 +36,8 @@ The remaining Wave B/C entries in `catalog.mjs` are admission targets, not imple
 
 Each fixture directory carries its own attribution and scope note.
 
+The current machine-readable profile evidence and explicit blockers are recorded in [`profile-evidence.json`](./profile-evidence.json). T23 re-home / required nested-suite integration is tracked in repository issue #137; T19 independent review was requested on PR #118.
+
 ## Test and ownership boundary
 
 T13 owns only `adapters/http-wave-bc/**` and `test/http-wave-bc/**` under the T00-03 r1 ownership policy. Reference fixtures therefore live under `test/http-wave-bc/fixtures/**`.
@@ -48,7 +50,7 @@ node --test test/http-wave-bc/*.test.mjs
 
 Making nested suites part of required root CI is a T00/T23 integration change. Until that integration lands, a green repository-wide CI run does not by itself prove that the latest T13 focused tests executed.
 
-The T00-04B draft promotion matrix currently classifies T13 as `PROFILE_BY_PROFILE` and forbids new T13 framework fan-out until T00-04A becomes active. Hono, Koa, and Next.js are therefore the only active T13 implementation slices on this branch; the remaining catalog entries stay admission targets only.
+T00-04A is now active on the coordinator integration line and T00-04B classifies T13 as `PROFILE_BY_PROFILE`. The current Hono, Koa, and Next.js slices have exact-head static CI evidence, but promotion is still held for T19 independent review and T23 lease/nested-suite integration. Until one of these profiles completes that review path, the remaining catalog entries stay admission targets rather than new implementation fan-out.
 
 ## Promotion rule
 
