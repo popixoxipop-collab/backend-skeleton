@@ -79,3 +79,19 @@ Implemented in native export envelope revision 2:
 This remains aligned with the T01 ArtifactRef candidate shape and does not create a competing global project/path identity. T02 still owns portable project identity once frozen.
 
 Remaining gap: the future actual Unity/Godot/Unreal producer must be reviewed to ensure it calls this boundary with the true input bytes rather than fabricated refs.
+
+
+### Source-only exporter implementation
+
+T17 now has a no-engine-execution first slice for:
+- Unity text `.unity` / `.prefab`;
+- Godot text `.tscn`.
+
+These producers create exact source refs from the raw source bytes before generating draft JSON and then reuse the native envelope/normalizer. They do not require T20 target-runtime permission because they execute no engine/editor/compiler.
+
+Current focused EOE evidence from latest GitHub branch bytes:
+- legacy webgame bridge: 9/9;
+- native export envelope + structure normalizer: 24/24;
+- Unity/Godot text source exporters: 7/7.
+
+Total: 40/40 focused tests. Nested GitHub CI discovery remains T23-owned and generic root CI is not counted as execution proof for these suites.
