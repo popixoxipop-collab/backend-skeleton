@@ -158,11 +158,13 @@ test('official Quick Start shape, constructor prefix, named route and app wiring
       endpoint.routeName,
       endpoint.method,
       endpoint.operationId,
+      endpoint.line,
     ]), [
-      ['GET', '/api/users/:id', null, 'getUser', null],
-      ['POST', '/api/users', 'createUser', 'createUser', null],
+      ['GET', '/api/users/:id', null, 'getUser', null, 5],
+      ['POST', '/api/users', 'createUser', 'createUser', null, 6],
     ]);
     assert.equal(controller.basePath, '/api/users');
+    assert.ok(controller.file.endsWith(path.join('src', 'app.js')));
   } finally {
     cleanup(root);
   }
