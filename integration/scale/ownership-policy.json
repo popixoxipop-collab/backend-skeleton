@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-ownership-policy/1",
-  "revision": "T00-03-r3",
+  "revision": "T00-03-r4",
   "tracks": {
     "T00": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -197,6 +197,66 @@
         ".github/workflows/ci.yml"
       ],
       "reason": "Post-04A exact shared-CI lease subject for central nested-suite coverage and required tool availability only."
+    },
+    "T00-ROOT-T03": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/capability-next.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T04": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/js-ts-backend-comparison.test.mjs",
+        "test/js-ts-module-resolver.test.mjs",
+        "test/js-ts-snapshot-graph.test.mjs",
+        "test/js-ts-source-facts.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T05": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/jvm-language-foundation.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T07": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/t07-ruby-php-conformance.test.mjs",
+        "test/t07-ruby-php-corpus.test.mjs",
+        "test/t07-ruby-php-expand.test.mjs",
+        "test/t07-ruby-php-laravel-empty-uri.test.mjs",
+        "test/t07-ruby-php-model.test.mjs",
+        "test/t07-ruby-php-rails-scope-literals.test.mjs",
+        "test/t07-ruby-php-runtime-parity.test.mjs",
+        "test/t07-ruby-php-runtime.test.mjs",
+        "test/t07-ruby-php-symfony-attributes.test.mjs",
+        "test/t07-ruby-php.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T14": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/t14-provider-composition.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-ROOT-T21": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "test/t21-performance-next.test.mjs"
+      ],
+      "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
     }
   },
   "scope_amendments": [
@@ -260,6 +320,28 @@
         "default activation",
         "release/deploy"
       ]
+    },
+    {
+      "track": "T00",
+      "revision": "T00-03-r4",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T06:14:00Z",
+      "purpose": "Delete historical root test bridges now that nested-next is merged to main. T14 legacy test content was first copied into test/provider-composition-next under T14 ownership.",
+      "lease_subjects": [
+        "T00-ROOT-T03",
+        "T00-ROOT-T04",
+        "T00-ROOT-T05",
+        "T00-ROOT-T07",
+        "T00-ROOT-T14",
+        "T00-ROOT-T21"
+      ],
+      "exclusions": [
+        "product source changes",
+        "nested test semantic changes",
+        "package/lock/registry/schema/CLI changes",
+        "default activation",
+        "release/deploy"
+      ]
     }
   ],
   "reserved_hot_paths": [
@@ -274,5 +356,5 @@
     "contracts/openapi.mjs",
     "schemas/feature-contract.schema.json"
   ],
-  "reserved_policy": "All reserved paths remain reserved. Post-04A r3 additionally admits exactly scripts/run-next-nested-tests.mjs and .github/workflows/ci.yml in backend-skeleton through T00-BSKEL-SHARED with an ACTIVE fenced lease. T23-BEVAL r2 remains unchanged. No track receives implicit shared-file rights."
+  "reserved_policy": "All reserved paths remain reserved. r4 adds six exact root-test cleanup subjects for T00 only, after nested-next was merged through PR #141. These subjects authorize deletion of only the enumerated historical root test files under ACTIVE fenced leases; they do not authorize product or nested-test semantic changes."
 }
