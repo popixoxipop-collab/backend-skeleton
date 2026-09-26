@@ -1,0 +1,103 @@
+{
+  "schema": "sbf.track-a-static-fixtures-report/2",
+  "track": "A",
+  "validation": {
+    "commit": "cb6049d68ba0049a4fe7fef6975c2beaab157174",
+    "workflow_run_id": 36027868011,
+    "workflow_run_number": 300,
+    "workflow_conclusion": "success",
+    "node22": {
+      "job_id": 107728957374,
+      "conclusion": "success"
+    },
+    "node24": {
+      "job_id": 107728957377,
+      "conclusion": "success"
+    },
+    "baseline_suite": {
+      "tests": 1879,
+      "pass": 1869,
+      "fail": 0,
+      "skipped": 10
+    },
+    "validated_suite": {
+      "tests": 1909,
+      "pass": 1899,
+      "fail": 0,
+      "skipped": 10
+    },
+    "track_a_tests": 30
+  },
+  "fixture": {
+    "path": "fixtures/webgame-static/mixed-repo",
+    "source_tree_unchanged": true,
+    "expected_summary": {
+      "project_count": 2,
+      "domain_count": 6,
+      "active_game_runtime_count": 1,
+      "api_domain_count": 1,
+      "websocket_server_project_count": 1,
+      "unresolved_count": 0
+    },
+    "projects": [
+      {
+        "project_id": "project:backend",
+        "root": "backend",
+        "package_role": "active",
+        "domains": [
+          "api",
+          "network"
+        ]
+      },
+      {
+        "project_id": "project:frontend",
+        "root": "frontend",
+        "package_role": "active",
+        "domains": [
+          "asset",
+          "game-runtime",
+          "network",
+          "worker"
+        ]
+      }
+    ],
+    "renderer_evidence": {
+      "source_path": "frontend/src/MessengerScene.svelte",
+      "source_digest": "sha256:4a09b95401e7c641aefd8743c4227a9c569f3cbbcc5579c0801d47855d033fea",
+      "line": 5,
+      "column": 20,
+      "collector": "threejs-runtime",
+      "confidence": "direct",
+      "imported_symbol": "WebGLRenderer",
+      "binding": "renderer"
+    },
+    "package_digests": {
+      "backend": "sha256:6938522251c0aaef72618be2b257df56a26181578d1684992a944484f062b240",
+      "frontend": "sha256:92ff748e5a0ee333c11a63250454749db0e9c5a3047f4748df44afb4f2ff29d5"
+    }
+  },
+  "guards": [
+    "comment/template text inert",
+    "regex literal text inert",
+    "Svelte HTML-commented script inert",
+    "unclosed Svelte HTML comment unresolved and inert",
+    "reference-only runtime remains partial",
+    "nested example/test package remains reference-only",
+    "syntax damage unresolved",
+    "non-literal dynamic import unresolved",
+    "template interpolation uncertainty unresolved",
+    "Three.js dependency-only remains partial",
+    "generator template cannot become playable runtime",
+    "renderer call must be bound to a renderer instance",
+    "Three.js constructor must originate from Three.js import provenance",
+    "Three.js alias/namespace import provenance retained",
+    "same-named local renderer/scene rejected",
+    "WebSocket client-only does not imply server",
+    "ws plus unrelated http.Server does not imply WebSocket server",
+    "plain HTTP server separated from multiplayer server",
+    "ws dependency-only network remains partial",
+    "read-only deterministic scan",
+    "committed schemas validate Track A output"
+  ],
+  "note": "Acceptance summary is grounded in committed fixture assertions and GitHub Actions logs; it is not mislabeled as a raw scanMultiplane payload."
+}

@@ -1,0 +1,24 @@
+{
+  "schema": "sbf.track-a-remote-acceptance/1",
+  "repository": "owenyuwono/poseidon",
+  "revision": "671053b812fcbffe8ecc4668eaa6ab7ffeb63287",
+  "mode": "remote-source-inspection",
+  "full_filesystem_scan": false,
+  "status": "source-evidence-confirmed",
+  "observations": [
+    {"path":"package.json","kind":"dependency","value":"three@0.184.0"},
+    {"path":"src/main.js","kind":"three-import","value":"three/webgpu"},
+    {"path":"src/main.js","kind":"tsl-import","value":"three/tsl"},
+    {"path":"src/main.js","kind":"scene","value":"new Scene()"},
+    {"path":"src/main.js","kind":"renderer","value":"new WebGPURenderer(...)"},
+    {"path":"src/main.js","kind":"render-call","value":"renderer.render(scene, camera)"}
+  ],
+  "expected_track_a_classification": {
+    "domain": "game-runtime",
+    "status": "complete",
+    "webgpu": true,
+    "tsl": true,
+    "playable_runtime_claimed": true
+  },
+  "limitation": "This artifact records inspected GitHub source evidence. It is not represented as output from scanMultiplane() because no local repository snapshot was available in this session."
+}

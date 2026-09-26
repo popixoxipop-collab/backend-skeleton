@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:multiplane-scan:1",
+  "title": "BSKEL webgame multi-domain static scan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repo_root", "projects", "domains", "graph", "unresolved", "files_read", "summary"],
+  "properties": {
+    "schema": { "const": "sbf.multiplane-scan/1" },
+    "repo_root": { "const": "." },
+    "projects": { "type": "array" },
+    "domains": { "type": "array" },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": { "type": "array" },
+        "edges": { "type": "array" }
+      }
+    },
+    "unresolved": { "type": "array" },
+    "files_read": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_count", "domain_count", "active_game_runtime_count", "partial_game_runtime_count", "api_domain_count", "websocket_server_project_count", "unresolved_count"],
+      "properties": {
+        "project_count": { "type": "integer", "minimum": 0 },
+        "domain_count": { "type": "integer", "minimum": 0 },
+        "active_game_runtime_count": { "type": "integer", "minimum": 0 },
+        "partial_game_runtime_count": { "type": "integer", "minimum": 0 },
+        "api_domain_count": { "type": "integer", "minimum": 0 },
+        "websocket_server_project_count": { "type": "integer", "minimum": 0 },
+        "unresolved_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
