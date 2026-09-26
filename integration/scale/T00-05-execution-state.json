@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T17:36:00+09:00",
+  "observed_at": "2026-09-26T23:05:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -163,13 +163,15 @@
     },
     "T12": {
       "repo": "popixoxipop-collab/backend-skeleton",
-      "clean_resubmission_pr": 140,
+      "clean_resubmission_pr": 146,
       "head": "acdf1aad07127a3e656135335ed04abdb4c537bf",
-      "ci_run": 36222528405,
+      "ci_run": 36235588457,
       "ci_conclusion": "success",
       "focused": "20/20",
       "current_main_delta": "14 files only under adapters/http-wave-a/** and test/http-wave-a/**",
-      "state": "AWAITING_T19_FINAL_VERDICT"
+      "state": "IMPLEMENTATION_COMPLETE_FROZEN",
+      "base": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "t19_verdict": "PASS(T12_WAVE_A_STATIC_LEAVES)"
     },
     "T18": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -208,6 +210,30 @@
       },
       "fix": "#119 combined default+named Express import, express.Router(), arbitrary typed router variable, mount-prefix reconstruction; unrelated toolkit.Router rejected",
       "state": "AWAITING_T19_FINAL_VERDICT"
+    },
+    "T15": {
+      "repo": "popixoxipop-collab/backend-decoder",
+      "pr": 11,
+      "head": "47da5c9bb5e9cc406549c4d7326fe386e09b7b9c",
+      "base": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "ci_run": 36244998719,
+      "ci_conclusion": "success",
+      "direct": {
+        "capability_view": "11/11",
+        "t03_compatibility": "2/2",
+        "combined_focused": "13/13",
+        "root_regression": "250/250",
+        "portable_node18": "success",
+        "portable_node22": "success",
+        "portable_node24": "success"
+      },
+      "t19_verdict": "PASS(T15_EVIDENCE_BOUND_CAPABILITY_CONSUMER)",
+      "state": "IMPLEMENTATION_COMPLETE_FROZEN",
+      "limitations": [
+        "No target is certified runtime-tested by this verdict.",
+        "T16 protocol-binding PASS is not production capability certification.",
+        "No stable/default support matrix activation, merge or release is implied."
+      ]
     }
   },
   "no_merge_without": [
