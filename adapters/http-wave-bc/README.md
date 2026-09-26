@@ -23,7 +23,7 @@ Pinned framework-author-maintained fixtures improve regression quality but do no
 | Target | Static first slice | Explicitly withheld / unknown |
 |---|---|---|
 | `node-hono` | literal per-verb routes, literal `basePath()`, bounded same-file / relative-import `route()` graph, source provenance, pure `showRoutes()` output parser | dynamic paths/basePath, `all/on/use/mount`, unresolved imports, schema/security/persistence/codegen, runtime execution |
-| `node-koa` | `@koa/router` literal standard-method routes, named routes, constructor prefix, ESM/CommonJS/generic Router bindings | `prefix()` mutation, `all()`, `use()` nested routers, RegExp paths, host/custom-method semantics, runtime middleware behavior |
+| `node-koa` | same-file mounted Koa + `@koa/router`, literal standard-method routes, named routes, constructor prefix, ESM/CommonJS/generic Router bindings | unmounted/cross-file router wiring, `prefix()` mutation, `all()/use()/register()/redirect()`, dynamic/array/RegExp paths, host/custom-method semantics, runtime middleware behavior |
 | `typescript-nextjs` | App Router `route.js|ts`, explicit method exports, route groups, simple `[param]`, literal `basePath`, local export aliases | catch-all/optional catch-all, intercepting/parallel/private segments, Pages API method control flow, external re-export following, framework-generated OPTIONS |
 
 The remaining Wave B/C entries in `catalog.mjs` are admission targets, not implemented support.
