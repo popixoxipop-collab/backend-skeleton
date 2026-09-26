@@ -204,6 +204,38 @@ test('parallel/intercepting/private route segments are not emitted as ordinary U
   }
 });
 
+test('string literals cannot impersonate Next.js method exports', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
+    'app/api/route.ts': [
+      "const fake = 'export function POST() {}'",
+      'export function GET() {}',
+    ].join('\n'),
+  });
+  try {
+    const report = scanNext(root);
+    const endpoints = report.modules[0].controllers[0].endpoints;
+    assert.deepEqual(endpoints.map((x) => x.verb), ['GET']);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test('string literals in next.config cannot impersonate basePath configuration', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
+    'next.config.js': "module.exports = { note: \"basePath: '/fake'\" }\n",
+    'app/api/route.ts': 'export function GET() {}',
+  });
+  try {
+    const report = scanNext(root);
+    assert.deepEqual(report.modules[0].controllers[0].endpoints.map((x) => x.path), ['/api']);
+    assert.ok(!report.scanNotes.some((x) => x.includes('basePath is present but not a simple literal')));
+  } finally {
+    cleanup(root);
+  }
+});
+
 test('regex literals cannot unmask commented-out Next.js method exports', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { next: '16.4.0-canary.45' } }),
