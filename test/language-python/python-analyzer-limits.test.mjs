@@ -53,3 +53,23 @@ test('T06 honors a valid PEP 263 non-UTF-8 source encoding without changing the 
   assert.equal(result.source.encoding, 'iso-8859-1');
   assert.equal(result.facts.assignments[0].value.value, 'café');
 });
+
+
+test('T06 fails closed when Python helper output exceeds the configured buffer', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-output-limit-'));
+  let source = '';
+  for (let i = 0; i < 3500; i++) {
+    source += `v_${String(i).padStart(4, '0')} = "${'x'.repeat(24)}"\n`;
+  }
+  fs.writeFileSync(path.join(root, 'module.py'), source);
+  const result = analyzePythonFile({
+    repoRoot: root,
+    file: 'module.py',
+    maxBuffer: 65536,
+    maxSourceBytes: 1024 * 1024,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'PYTHON_ANALYZER_FAILED');
+  assert.match(result.error.message, /ENOBUFS|maxBuffer|buffer/i);
+  assert.equal(result.source.sha256, crypto.createHash('sha256').update(Buffer.from(source)).digest('hex'));
+});
