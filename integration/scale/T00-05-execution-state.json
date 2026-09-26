@@ -1,16 +1,16 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T11:56:00+09:00",
+  "observed_at": "2026-09-26T12:14:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
   "beval_main_anchor": {
-    "source_pr": 65,
-    "candidate_head": "14671926d55446b2491854b3f39b80ea5002f56d",
-    "ci_run": 36206087532,
-    "ci_conclusion": "success",
-    "merge_commit": "1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a",
-    "state": "merged"
+    "source_pr": 66,
+    "predecessor_docker_pr": 65,
+    "main_sha": "481730a25fcb37210144ae4eba4d994b87689080",
+    "docker_merge_commit": "1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a",
+    "webgame_ci_merge_commit": "481730a25fcb37210144ae4eba4d994b87689080",
+    "state": "current_main_after_65_66"
   },
   "gates": {
     "T21": {
@@ -21,7 +21,7 @@
       "ci_conclusion": "failure",
       "t19_review_head": "7770378890e541c831c65be865be09649a196fc5",
       "classification": "TEST_ORACLE_MISMATCH",
-      "required": "Update only T21 expected serialized project order to T02 project_root order, retain ordered assertion, add perturbation regression, exact-head Node 22/24 green."
+      "required": "Wait for T19 PASS on T02 head 78afb964..., then update T21 stale expected order to the accepted T02 code-unit/project_root invariant, retain ordered assertion, add input-order perturbation regression, exact-head Node 22/24 green."
     },
     "T23_webgame_ci": {
       "repo": "popixoxipop-collab/Backend-evaluation",
@@ -30,8 +30,9 @@
       "ci_run": 36206449861,
       "ci_conclusion": "success",
       "integration_observation": "chord-forward-right repaired_and_passed in real Docker/browser smoke",
-      "state": "hold_for_policy_completion",
-      "required": "Ordinary PR smoke; webgame/execution-impacting PR full; main/nightly full; path-classification fail closed."
+      "state": "merged_partial_policy_followup_required",
+      "required": "Merged #66 provides PR smoke vs main full; T23 must complete execution-impacting-PR full + nightly full + classifier fail-closed as part of shared CI follow-up.",
+      "merge_commit": "481730a25fcb37210144ae4eba4d994b87689080"
     },
     "T23_next_runtime_ci": {
       "repo": "popixoxipop-collab/Backend-evaluation",
@@ -41,7 +42,16 @@
       "ci_conclusion": "success",
       "mergeable": false,
       "state": "restack_required",
-      "required": "Restack on accepted main after #65/#66 and retain both test:webgame-repair-game-fixtures-live and test:next-runtime."
+      "required": "Restack on accepted main after #65/#66 and retain both test:webgame-repair-game-fixtures-live and test:next-runtime.",
+      "base_required": "481730a25fcb37210144ae4eba4d994b87689080",
+      "shared_lease": {
+        "claim_id": "T23-BEVAL-shared-ci-20260926-r3",
+        "fencing_token": 3,
+        "base_sha": "481730a25fcb37210144ae4eba4d994b87689080",
+        "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t23-beval-ci-integration-wt-r2",
+        "lease_commit": "6749d9e4cb560f35ca8b4ba4f2d28c31114139b9",
+        "verifier": "PASS"
+      }
     },
     "T16_protocol_stack": {
       "repo": "popixoxipop-collab/Backend-evaluation",
@@ -94,10 +104,13 @@
     "T02": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "pr": 72,
-      "head": "989e7d332761ab8bcda453b2af9e84a5102b1281",
-      "state": "active_defect_fix",
-      "defect": "localeCompare() makes project graph/scan plan ordering locale-sensitive",
-      "dependency_for": "T21 final ordering/cache acceptance"
+      "prior_head": "989e7d332761ab8bcda453b2af9e84a5102b1281",
+      "head": "78afb96442a193cf61183df0d57585be94db3768",
+      "ci_run": 36213434791,
+      "ci_conclusion": "success",
+      "state": "awaiting_t19_delta_review",
+      "fix": "replace locale-sensitive localeCompare with explicit code-unit comparison; add non-ASCII order regressions",
+      "dependency_for": "T21 final serialized-order/cache oracle acceptance"
     },
     "T06_nested_ci": {
       "candidate_head": "9e78d01c5ae937f55c9e1496b9cafe65371e9c8d",
