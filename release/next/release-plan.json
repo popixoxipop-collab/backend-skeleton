@@ -1,0 +1,107 @@
+{
+  "schema": "bskel.scale-release-plan/2",
+  "owner_track": "T23",
+  "status": "REBASELINED_BLOCKED",
+  "release_allowed": false,
+  "default_activation_allowed": false,
+  "coordination_baseline": {
+    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+    "becoder": "eb8164560ddd343306234a9140dc89c001519792",
+    "beval": "fe65484f078c50f33f64248f83b5c518fb896961"
+  },
+  "observed_current_main": {
+    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+    "becoder": "eb8164560ddd343306234a9140dc89c001519792",
+    "beval": "fe65484f078c50f33f64248f83b5c518fb896961"
+  },
+  "prerequisites": [
+    {
+      "id": "T00-01",
+      "required_state": "ACCEPTED",
+      "observed_state": "ACCEPTED"
+    },
+    {
+      "id": "T00-04A",
+      "required_state": "ACTIVE_CORE_FREEZE",
+      "observed_state": "ACTIVE_CORE_FREEZE"
+    },
+    {
+      "id": "T00-05",
+      "required_state": "ACCEPTED",
+      "observed_state": "ACCEPTED"
+    },
+    {
+      "id": "T01-06",
+      "required_state": "ACCEPTED",
+      "observed_state": "PENDING_BEVAL_PR_71"
+    },
+    {
+      "id": "T19-03",
+      "required_state": "ACCEPTED",
+      "observed_state": "NOT_ACCEPTED"
+    },
+    {
+      "id": "T20-03",
+      "required_state": "ACCEPTED",
+      "observed_state": "NOT_ACCEPTED"
+    }
+  ],
+  "migration_stages": [
+    {
+      "id": "M1-consumer-first",
+      "writer_mode": "legacy-only",
+      "consumer_mode": "legacy-plus-next-readers",
+      "promotion": false,
+      "rollback": "disable additive next readers; do not rewrite historical artifacts"
+    },
+    {
+      "id": "M2-shadow",
+      "writer_mode": "legacy-plus-shadow-next",
+      "consumer_mode": "compare-only",
+      "promotion": false,
+      "rollback": "stop shadow production; retain referenced evidence"
+    },
+    {
+      "id": "M3-opt-in-writer",
+      "writer_mode": "next-for-explicit-approved-profiles",
+      "consumer_mode": "approved-combination-only",
+      "promotion": false,
+      "rollback": "turn profile off; keep next artifacts read-only"
+    },
+    {
+      "id": "M4-per-profile-default",
+      "writer_mode": "next-only-for-certified-profile",
+      "consumer_mode": "certified-package-matrix",
+      "promotion": false,
+      "rollback": "restore previous package/profile and invalidate semantic cache revision"
+    }
+  ],
+  "rollback_policy": {
+    "destructive_down_migration_allowed": false,
+    "delete_historical_evidence_allowed": false,
+    "old_binary_and_old_artifacts_must_remain_readable": true,
+    "old_writer_may_overwrite_next_artifacts": false,
+    "new_data_namespace_must_be_isolated_until_default_cutover": true,
+    "cache_namespace_or_revision_must_change_on_semantic_revision": true
+  },
+  "required_release_checks": [
+    "bskel npm run test:pack",
+    "becoder npm run test:pack",
+    "beval npm run test:pack",
+    "T01-06 accepted consumer-set evidence",
+    "direct exact-head CI for final main release SHAs",
+    "historical contract/run replay",
+    "rollback rehearsal without destructive database downgrade",
+    "T19-03 independent QA acceptance",
+    "T20-03 externally observed enforcement acceptance",
+    "support matrix generated only from admitted evidence-backed profiles"
+  ],
+  "blockers": [
+    "T01_06_NOT_ACCEPTED",
+    "FINAL_MAIN_PUSH_CI_NOT_DIRECT",
+    "INDEPENDENT_QA_NOT_READY",
+    "TRUST_POLICY_NOT_READY",
+    "FINAL_RELEASE_REHEARSAL_NOT_RUN"
+  ],
+  "note": "This plan intentionally keeps release/default activation false. T01 additive readers may ship only after T01-06 acceptance; legacy HTTP identity remains authoritative until a separately leased per-profile default cutover."
+}
