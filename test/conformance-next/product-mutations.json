@@ -108,6 +108,54 @@
         "test/conformance-next/product-security-invariants.test.mjs"
       ],
       "invariant": "Repo-relative parent traversal is rejected by resolveWithinRoot; this fixture covers lexical ../ escape and does not claim symlink containment."
+    },
+    {
+      "id": "PMUT-EXACT-BYTE-HASH-SEMANTICIZED",
+      "vector_id": "NEG-ID-01",
+      "critical": true,
+      "file": "lib/fsutil.mjs",
+      "find": "return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');",
+      "replace": "return createHash('sha256').update(JSON.stringify(JSON.parse(fs.readFileSync(filePath, 'utf8')))).digest('hex');",
+      "test_files": [
+        "test/conformance-next/product-security-invariants.test.mjs"
+      ],
+      "invariant": "Artifact identity hashes exact file bytes; semantically equal JSON with different bytes must not collapse."
+    },
+    {
+      "id": "PMUT-ATTEST-EXPECT-HEAD-BYPASS",
+      "vector_id": "NEG-RUN-01",
+      "critical": true,
+      "file": "bin/bskel.mjs",
+      "find": "const ok = actual === flags['expect-head'];",
+      "replace": "const ok = true;",
+      "test_files": [
+        "test/attest-cli.test.mjs"
+      ],
+      "invariant": "An attestation asserted against the wrong exact git head must fail the replay/snapshot assertion."
+    },
+    {
+      "id": "PMUT-PRIVATE-KEY-MODE-RELAXED",
+      "vector_id": "NEG-TRUST-04",
+      "critical": true,
+      "file": "bin/bskel.mjs",
+      "find": "writeFileAtomic(privatePath, privateKeyPem, 0o600);",
+      "replace": "writeFileAtomic(privatePath, privateKeyPem);",
+      "test_files": [
+        "test/attest-cli.test.mjs"
+      ],
+      "invariant": "Generated private attestation keys are owner-read/write only from first write."
+    },
+    {
+      "id": "PMUT-TS-ACCESS-STUB-ALLOWS",
+      "vector_id": "NEG-GEN-02",
+      "critical": true,
+      "file": "handles/providers/typescript-express/templates/resolver.ts.tmpl",
+      "find": "throw new HandleAccessDeniedError('access check not yet implemented for {{RESOURCE_TYPE}}');",
+      "replace": "return;",
+      "test_files": [
+        "test/conformance-next/product-security-invariants.test.mjs"
+      ],
+      "invariant": "Generated authorization stubs remain fail-closed until explicit application authorization is implemented."
     }
   ]
 }
