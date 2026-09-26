@@ -20,7 +20,7 @@
     "T23-BEVAL": 4,
     "T00-BSKEL-SHARED": 2,
     "T10": 1,
-    "T16": 3,
+    "T16": 4,
     "T13": 1,
     "T00-ROOT-T03": 1,
     "T00-ROOT-T04": 1,
@@ -915,9 +915,34 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T07:28:45Z",
       "expires_at": "2026-09-26T13:28:45Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 61,
-      "reason": "Restack #61 on accepted #60 exact head. Executor must pass through exact action_ref + evidence_binding_hash from the independent executor; T16 must not synthesize item binding after observation."
+      "reason": "Restack #61 on accepted #60 exact head. Executor must pass through exact action_ref + evidence_binding_hash from the independent executor; T16 must not synthesize item binding after observation.",
+      "released_at": "2026-09-26T08:25:10Z",
+      "release_reason": "PR #61 exact-head CI #1023 completed SUCCESS; superseded by PR #62 network-probe restack."
+    },
+    {
+      "claim_id": "T16-pr62-network-probes-restack-20260926-r4",
+      "task_id": "T16-pr62-network-probes-restack",
+      "track": "T16",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "scale/T16/protocol-network-probes-post51",
+      "worker": "T00-assisted-T16",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t16-pr62-r4-wt",
+      "base_sha": "93d9c6e08e5e1aae54235f382c55b9e7d330bd54",
+      "observed_head_sha": "accce80a4a4c48e8bfc0e32c5d6e42bfd2394956",
+      "path_scopes": [
+        "lib/next-runtime/**",
+        "test/next-runtime/**",
+        "docs/next-runtime/**"
+      ],
+      "fencing_token": 4,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T08:25:10Z",
+      "expires_at": "2026-09-26T14:25:10Z",
+      "state": "ACTIVE",
+      "pr": 62,
+      "reason": "Restack #62 on accepted #61 exact head and validate disposable gRPC/GraphQL/event/WebSocket wire pilots without claiming production protocol certification."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
