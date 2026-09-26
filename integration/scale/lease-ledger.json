@@ -3,7 +3,8 @@
   "policy_revision": "T00-03-r1",
   "last_fencing_token": {
     "T17": 2,
-    "T21": 2
+    "T21": 2,
+    "T02": 2
   },
   "claims": [
     {
@@ -50,6 +51,28 @@
       "state": "ACTIVE",
       "pr": 80,
       "reason": "T21-owned defect correction/integration validation only. Root test shim cleanup is not included in this r1 lease and remains T00/T23 integration work."
+    },
+    {
+      "claim_id": "T02-pr72-locale-fix-20260926",
+      "task_id": "T02-pr72-locale-fix",
+      "track": "T02",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t02/project-graph-foundation",
+      "worker": "agent-T02",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t02-pr72-wt",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "989e7d332761ab8bcda453b2af9e84a5102b1281",
+      "path_scopes": [
+        "scanners/project-graph/**",
+        "test/project-graph/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 72,
+      "reason": "Locale-independent ProjectGraph ordering defect correction, portability/staleness validation, and T21 handoff only."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim."
