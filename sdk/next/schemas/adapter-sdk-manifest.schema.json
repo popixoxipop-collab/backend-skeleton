@@ -30,15 +30,18 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]*$"
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "maxLength": 128
         },
         "title": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 512
         },
         "version": {
           "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+          "maxLength": 128
         },
         "descriptorContract": {
           "const": "sbf.adapter/2"
@@ -62,11 +65,13 @@
           "properties": {
             "minInclusive": {
               "type": "string",
-              "minLength": 5
+              "minLength": 5,
+              "maxLength": 128
             },
             "maxExclusive": {
               "type": "string",
-              "minLength": 5
+              "minLength": 5,
+              "maxLength": 128
             }
           }
         }
@@ -107,13 +112,15 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/permissionRoot"
-          }
+          },
+          "maxItems": 256
         },
         "writeRoots": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/permissionRoot"
-          }
+          },
+          "maxItems": 256
         },
         "network": {
           "const": "deny-by-default"
@@ -122,8 +129,35 @@
           "type": "array",
           "items": {
             "type": "string",
-            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-          }
+            "maxLength": 128,
+            "pattern": "^[A-Z_][A-Z0-9_]*$",
+            "not": {
+              "enum": [
+                "BASH_ENV",
+                "CLASSPATH",
+                "DYLD_INSERT_LIBRARIES",
+                "DYLD_LIBRARY_PATH",
+                "ENV",
+                "GEM_HOME",
+                "GEM_PATH",
+                "JDK_JAVA_OPTIONS",
+                "JAVA_TOOL_OPTIONS",
+                "LD_LIBRARY_PATH",
+                "LD_PRELOAD",
+                "NODE_OPTIONS",
+                "NODE_PATH",
+                "PERL5LIB",
+                "PERL5OPT",
+                "PYTHONPATH",
+                "PYTHONSTARTUP",
+                "RUBYLIB",
+                "RUBYOPT",
+                "_JAVA_OPTIONS"
+              ]
+            }
+          },
+          "maxItems": 128,
+          "uniqueItems": true
         },
         "subprocess": {
           "const": "deny-by-default"
@@ -135,7 +169,9 @@
       "minItems": 1,
       "items": {
         "$ref": "#/$defs/relativePath"
-      }
+      },
+      "maxItems": 256,
+      "uniqueItems": true
     },
     "verificationBasis": {
       "enum": [
@@ -194,7 +230,8 @@
             "pattern": "//"
           }
         }
-      ]
+      ],
+      "maxLength": 4096
     },
     "permissionRoot": {
       "anyOf": [

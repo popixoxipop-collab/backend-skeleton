@@ -133,3 +133,64 @@ test('protocol rejects excessively deep JSON values without overflowing the vali
 	});
 	assert.equal(result.ok, false);
 });
+
+
+test('snapshotRef is opaque but bounded and control-free', () => {
+	for (const snapshotRef of ['x'.repeat(4097), 'opaque\ncontrol', 'opaque\u0000control']) {
+		const result = validateSdkRequest({
+			contract: SDK_ENTRYPOINT_PROTOCOL,
+			direction: 'request',
+			requestId: 'req-snapshot-bound',
+			operation: 'detect',
+			adapterId: 'typescript-nestjs',
+			snapshotRef,
+			payload: {},
+		});
+		assert.equal(result.ok, false);
+		assert.match(result.errors.map((e) => e.path).join('\n'), /snapshotRef/);
+	}
+	const opaque = '{"artifact_ref":"sbf.artifact-ref/1","byte_sha256":"' + 'a'.repeat(64) + '"}';
+	const request = makeSdkRequest({
+		requestId: 'req-snapshot-opaque',
+		operation: 'detect',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: opaque,
+		payload: {},
+	});
+	assert.equal(request.snapshotRef, opaque);
+});
+
+test('protocol rejects a single huge string and aggregate request beyond the 1 MiB budget', () => {
+	const hugeString = {
+		contract: SDK_ENTRYPOINT_PROTOCOL,
+		direction: 'request',
+		requestId: 'req-huge-string',
+		operation: 'analyze',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: 'snapshot:opaque',
+		payload: { blob: 'x'.repeat(300_000) },
+	};
+	assert.equal(validateSdkRequest(hugeString).ok, false);
+	assert.throws(() => makeSdkRequest({
+		requestId: 'req-huge-string-build',
+		operation: 'analyze',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: 'snapshot:opaque',
+		payload: hugeString.payload,
+	}), /byte budget/);
+
+	const aggregatePayload = {};
+	for (let i = 0; i < 6; i += 1) aggregatePayload['chunk' + i] = 'x'.repeat(200_000);
+	const aggregate = {
+		contract: SDK_ENTRYPOINT_PROTOCOL,
+		direction: 'request',
+		requestId: 'req-huge-aggregate',
+		operation: 'analyze',
+		adapterId: 'typescript-nestjs',
+		snapshotRef: 'snapshot:opaque',
+		payload: aggregatePayload,
+	};
+	const result = validateSdkRequest(aggregate);
+	assert.equal(result.ok, false);
+	assert.match(result.errors.map((e) => e.message).join('\n'), /serialized|bounded JSON|byte budget/i);
+});

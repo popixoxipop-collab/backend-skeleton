@@ -155,3 +155,30 @@ test('inventory rejects reserved device names and trailing dot/space segments', 
 		assert.match(result.errors.map((item) => item.message).join('\n'), /portable package-relative path/);
 	}
 });
+
+
+test('inventory rejects excessive file counts and aggregate declared bytes', () => {
+	const tooMany = validateAdapterPackageInventory({
+		contract: 'sbf.adapter-package-inventory/1',
+		packageSha256: 'a'.repeat(64),
+		files: Array.from({ length: 4097 }, (_, i) => ({
+			path: 'f/' + i + '.txt',
+			sha256: 'b'.repeat(64),
+			sizeBytes: 1,
+			kind: 'file',
+		})),
+	});
+	assert.equal(tooMany.ok, false);
+	assert.match(tooMany.errors.map((e) => e.message).join('\n'), /at most 4096/);
+
+	const tooLarge = validateAdapterPackageInventory({
+		contract: 'sbf.adapter-package-inventory/1',
+		packageSha256: 'a'.repeat(64),
+		files: [
+			{ path: 'a.bin', sha256: 'b'.repeat(64), sizeBytes: 300_000_000, kind: 'file' },
+			{ path: 'b.bin', sha256: 'c'.repeat(64), sizeBytes: 300_000_000, kind: 'file' },
+		],
+	});
+	assert.equal(tooLarge.ok, false);
+	assert.match(tooLarge.errors.map((e) => e.message).join('\n'), /declared package bytes|no greater than/);
+});

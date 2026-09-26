@@ -25,7 +25,8 @@
     },
     "adapterId": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*$"
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 128
     },
     "status": {
       "enum": [
@@ -45,7 +46,8 @@
       "type": "array",
       "items": {
         "type": "object"
-      }
+      },
+      "maxItems": 1024
     }
   }
 }

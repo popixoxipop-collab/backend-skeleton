@@ -6,8 +6,19 @@ import {
 	projectFiveStateCapabilities,
 } from '../../sdk/next/index.mjs';
 
+function artifactRef(seed = 'a') {
+	return {
+		artifact_ref: 'sbf.artifact-ref/1',
+		family: 'capability-evidence',
+		version: '1',
+		media_type: 'application/json',
+		byte_sha256: seed.repeat(64).slice(0, 64),
+		size_bytes: 1,
+	};
+}
+
 function record(name, status, {
-	evidenceRefs = status === 'supported' ? ['ev:' + name] : [],
+	evidenceRefs = status === 'supported' ? [artifactRef()] : [],
 	reason = status === 'supported' ? null : status + ' reason',
 	conditions = [],
 	source = 't03-compatible-test',
@@ -25,7 +36,7 @@ test('five-state records project one-to-one without fabricating conflict', () =>
 		});
 		assert.equal(explanation.capabilities[0].status, status);
 		assert.notEqual(explanation.capabilities[0].status, 'conflict');
-		assert.match(explanation.notes[1], /conflict is intentionally not a record status/);
+		assert.match(explanation.notes[1], /T22 does not create a separate supported verdict/);
 	}
 });
 
@@ -33,7 +44,7 @@ test('conflict arises only when separate evidence explanations disagree', () => 
 	const yes = projectFiveStateCapabilities({
 		subject: 'typescript-nestjs:source',
 		adapterId: 'typescript-nestjs',
-		records: [record('api.routes', 'supported', { evidenceRefs: ['source:route'] })],
+		records: [record('api.routes', 'supported', { evidenceRefs: [artifactRef('b')] })],
 	});
 	const no = projectFiveStateCapabilities({
 		subject: 'typescript-nestjs:runtime',
@@ -79,7 +90,7 @@ test('projection rejects direct conflict and malformed five-state semantics', ()
 		subject: 'x',
 		adapterId: 'typescript-nestjs',
 		records: [{ name: 'api.routes', status: 'supported', evidenceRefs: [], reason: null, conditions: [], source: 't03-preview' }],
-	}), /supported capability requires evidenceRefs/);
+	}), /supported capability requires T01/);
 
 	assert.throws(() => projectFiveStateCapabilities({
 		subject: 'x',
@@ -109,4 +120,32 @@ test('prototype-like capability names remain ordinary data', () => {
 	assert.equal(Object.prototype.polluted, undefined);
 	assert.deepEqual(explanation.capabilities.map((item) => item.name).sort(), ['__proto__', 'constructor']);
 	assert.deepEqual(explanation.capabilities.find((item) => item.name === '__proto__').nextActions, ['review proto']);
+});
+
+
+test('supported projection rejects arbitrary string evidenceRefs and accepts T01 ArtifactRef identity only as non-certifying display evidence', () => {
+	assert.throws(() => projectFiveStateCapabilities({
+		subject: 'x',
+		adapterId: 'typescript-nestjs',
+		records: [record('api.routes', 'supported', { evidenceRefs: ['display-only-string'] })],
+	}), /arbitrary strings are not certification evidence|sbf\.artifact-ref\/1/);
+
+	const explanation = projectFiveStateCapabilities({
+		subject: 'x',
+		adapterId: 'typescript-nestjs',
+		records: [record('api.routes', 'supported', { evidenceRefs: [artifactRef('c')] })],
+	});
+	assert.equal(explanation.capabilities[0].status, 'supported');
+	assert.equal(explanation.capabilities[0].evidenceRefs[0].includes('\"artifact_ref\":\"sbf.artifact-ref/1\"'), true);
+	assert.match(explanation.notes[1], /non-certifying|independently verified/);
+});
+
+test('explicit legacy boolean supported bridge remains a projection without invented evidence', () => {
+	const explanation = projectFiveStateCapabilities({
+		subject: 'legacy',
+		adapterId: 'java-spring',
+		records: [{ name: 'api.routes', status: 'supported', evidenceRefs: [], reason: null, conditions: [], source: 'legacy-adapter-boolean' }],
+	});
+	assert.equal(explanation.capabilities[0].status, 'supported');
+	assert.deepEqual(explanation.capabilities[0].evidenceRefs, []);
 });

@@ -65,6 +65,9 @@ test('conformance harness uses only a caller-supplied invoke function', async ()
 	assert.equal(report.status, 'pass');
 	assert.equal(report.executed, true);
 	assert.equal(report.activation.executable, false);
+	assert.equal(report.inputBinding.format, 'sbf.adapter-sdk-conformance-input-json/1');
+	assert.match(report.inputBinding.sha256, /^[0-9a-f]{64}$/);
+	assert.equal(report.inputBinding.certificationAuthority, false);
 	assert.match(report.activation.note, /never spawned or imported adapter code/);
 });
 
@@ -92,4 +95,46 @@ test('SDK source has no process spawning, environment reads, dynamic import, or 
 		assert.doesNotMatch(source, /\bimport\s*\(/);
 		assert.doesNotMatch(source, /\.\.\/(?:\.\.\/)*(?:scanners|contracts|handles|lib|bin)\//);
 	}
+});
+
+
+test('conformance snapshots manifest/cases and freezes each request before invoke', async () => {
+	const mutableManifest = manifest();
+	const mutableCases = [
+		{ operation: 'detect', payload: { nested: { value: 1 } }, expectStatus: 'ok' },
+		{ operation: 'detect', payload: { nested: { value: 2 } }, expectStatus: 'ok' },
+	];
+	const seen = [];
+	let first = true;
+	const report = await runAdapterSdkConformance({
+		manifest: mutableManifest,
+		snapshotRef: 'snapshot:immutable',
+		cases: mutableCases,
+		invoke: async (request) => {
+			seen.push({ adapterId: request.adapterId, value: request.payload.nested.value, frozen: Object.isFrozen(request) && Object.isFrozen(request.payload) });
+			if (first) {
+				first = false;
+				mutableManifest.adapter.id = 'mutated-adapter';
+				mutableCases[1].payload.nested.value = 999;
+				assert.throws(() => { request.adapterId = 'invoke-mutated'; }, TypeError);
+			}
+			return {
+				contract: SDK_ENTRYPOINT_PROTOCOL,
+				direction: 'response',
+				requestId: request.requestId,
+				adapterId: request.adapterId,
+				status: 'ok',
+				result: {},
+				diagnostics: [],
+			};
+		},
+	});
+	assert.equal(report.status, 'pass');
+	assert.equal(report.adapterId, 'typescript-nestjs');
+	assert.deepEqual(seen, [
+		{ adapterId: 'typescript-nestjs', value: 1, frozen: true },
+		{ adapterId: 'typescript-nestjs', value: 2, frozen: true },
+	]);
+	assert.equal(report.inputBinding.certificationAuthority, false);
+	assert.match(report.inputBinding.note, /not a T01 ArtifactRef|not.*certification/i);
 });

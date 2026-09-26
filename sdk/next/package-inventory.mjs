@@ -1,4 +1,5 @@
 import {
+	SDK_INPUT_LIMITS,
 	hasOnlyKeys,
 	isPlainObject,
 	pushError,
@@ -6,7 +7,6 @@ import {
 	validSha256,
 } from './_util.mjs';
 import { validateAdapterSdkManifest } from './manifest.mjs';
-
 
 const WINDOWS_RESERVED_SEGMENT = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
@@ -34,13 +34,13 @@ function validateFileEntry(file, index, errors) {
 		return;
 	}
 	if (!portablePackagePath(file.path)) {
-		pushError(errors, `${base}/path`, 'must be a portable package-relative path without traversal, reserved device names, control characters, or trailing dot/space segments');
+		pushError(errors, `${base}/path`, `must be a portable package-relative path of at most ${SDK_INPUT_LIMITS.pathBytes} UTF-8 bytes without traversal, reserved device names, control characters, or trailing dot/space segments`);
 	}
 	if (!validSha256(file.sha256)) {
 		pushError(errors, `${base}/sha256`, 'must be a lowercase SHA-256 digest');
 	}
-	if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0) {
-		pushError(errors, `${base}/sizeBytes`, 'must be a non-negative safe integer');
+	if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0 || file.sizeBytes > SDK_INPUT_LIMITS.packageDeclaredBytes) {
+		pushError(errors, `${base}/sizeBytes`, `must be a non-negative safe integer no greater than ${SDK_INPUT_LIMITS.packageDeclaredBytes}`);
 	}
 	if (file.kind !== 'file') {
 		pushError(errors, `${base}/kind`, 'must equal file; symlinks/special entries are not accepted by this preview');
@@ -64,11 +64,22 @@ export function validateAdapterPackageInventory(inventory) {
 	if (!Array.isArray(inventory.files) || inventory.files.length === 0) {
 		pushError(errors, '/files', 'must be a non-empty array of regular-file entries');
 	} else {
+		if (inventory.files.length > SDK_INPUT_LIMITS.packageFiles) {
+			pushError(errors, '/files', `must contain at most ${SDK_INPUT_LIMITS.packageFiles} entries`);
+		}
 		const seen = new Map();
 		const portableSeen = new Map();
+		let declaredBytes = 0;
 		for (let index = 0; index < inventory.files.length; index += 1) {
 			const file = inventory.files[index];
 			validateFileEntry(file, index, errors);
+			if (isPlainObject(file) && Number.isSafeInteger(file.sizeBytes) && file.sizeBytes >= 0) {
+				declaredBytes += file.sizeBytes;
+				if (!Number.isSafeInteger(declaredBytes) || declaredBytes > SDK_INPUT_LIMITS.packageDeclaredBytes) {
+					pushError(errors, '/files', `declared package bytes must not exceed ${SDK_INPUT_LIMITS.packageDeclaredBytes}`);
+					declaredBytes = SDK_INPUT_LIMITS.packageDeclaredBytes + 1;
+				}
+			}
 			if (isPlainObject(file) && typeof file.path === 'string') {
 				if (seen.has(file.path)) {
 					pushError(errors, `/files/${index}/path`, `duplicates files/${seen.get(file.path)}/path`);
@@ -92,6 +103,7 @@ export function validateAdapterPackageInventory(inventory) {
 }
 
 export function createAdapterPackageInventory({ packageSha256, files }) {
+	if (!Array.isArray(files)) throw new TypeError('files must be an array');
 	const inventory = {
 		contract: PACKAGE_INVENTORY_CONTRACT,
 		packageSha256,

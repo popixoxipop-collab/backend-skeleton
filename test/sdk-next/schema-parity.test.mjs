@@ -166,6 +166,7 @@ test('manifest schema and runtime validator both reject obvious execution/path e
 		(m) => { m.permissions.writeRoots = ['C:\\temp']; },
 		(m) => { m.permissions.network = 'allow'; },
 		(m) => { m.permissions.environment = ['TOKEN=secret']; },
+		(m) => { m.permissions.environment = ['NODE_OPTIONS']; },
 	]) {
 		const m = manifest();
 		mutate(m);
@@ -227,4 +228,22 @@ test('schema catalog IDs and package-relative files match the checked-in JSON sc
 		assert.equal(relative.startsWith('schemas/'), true, key);
 	}
 	assert.deepEqual(Object.keys(SDK_SCHEMA_FILES).sort(), Object.keys(SDK_SCHEMA_IDS).sort());
+});
+
+
+test('worker request schema and runtime both reject overlong/control snapshot refs', () => {
+	const v = validators();
+	for (const snapshotRef of ['x'.repeat(4097), 'opaque\ncontrol']) {
+		const request = {
+			contract: SDK_ENTRYPOINT_PROTOCOL,
+			direction: 'request',
+			requestId: 'schema-ref',
+			operation: 'detect',
+			adapterId: 'typescript-nestjs',
+			snapshotRef,
+			payload: {},
+		};
+		assert.equal(validateSdkRequest(request).ok, false);
+		assert.equal(v.request(request), false);
+	}
 });

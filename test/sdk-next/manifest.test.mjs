@@ -140,3 +140,24 @@ test('manifest builder refuses unsafe roots instead of returning a partial manif
 		readRoots: ['../outside'],
 	}), /invalid adapter SDK manifest/);
 });
+
+
+test('manifest rejects T20 injection-class inherited environment names', () => {
+	for (const name of ['NODE_OPTIONS', 'NODE_PATH', 'PYTHONPATH', 'RUBYOPT', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'JAVA_TOOL_OPTIONS']) {
+		const manifest = validManifest();
+		manifest.permissions.environment = [name];
+		const result = validateAdapterSdkManifest(manifest);
+		assert.equal(result.ok, false, name);
+		assert.match(result.errors.map((e) => e.message).join('\n'), /injection|runner-owned|forbidden/i);
+	}
+});
+
+test('manifest bounds large permission and fixture collections', () => {
+	const roots = validManifest();
+	roots.permissions.readRoots = Array.from({ length: 257 }, (_, i) => `src/r${i}`);
+	assert.equal(validateAdapterSdkManifest(roots).ok, false);
+
+	const fixtures = validManifest();
+	fixtures.fixtures = Array.from({ length: 257 }, (_, i) => `fixtures/f${i}`);
+	assert.equal(validateAdapterSdkManifest(fixtures).ok, false);
+});

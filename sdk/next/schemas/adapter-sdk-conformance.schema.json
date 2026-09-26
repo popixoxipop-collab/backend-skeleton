@@ -8,6 +8,7 @@
     "adapterId",
     "status",
     "executed",
+    "inputBinding",
     "activation",
     "observations",
     "failures"
@@ -46,6 +47,39 @@
       "items": {
         "type": "object"
       }
+    },
+    "inputBinding": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "sha256",
+            "certificationAuthority",
+            "note"
+          ],
+          "properties": {
+            "format": {
+              "const": "sbf.adapter-sdk-conformance-input-json/1"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "certificationAuthority": {
+              "const": false
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
     }
   }
 }

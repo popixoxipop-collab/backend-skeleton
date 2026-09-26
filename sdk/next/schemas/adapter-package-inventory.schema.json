@@ -64,7 +64,8 @@
                   "pattern": "//"
                 }
               }
-            ]
+            ],
+            "maxLength": 4096
           },
           "sha256": {
             "type": "string",
@@ -73,13 +74,14 @@
           "sizeBytes": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991
+            "maximum": 536870912
           },
           "kind": {
             "const": "file"
           }
         }
-      }
+      },
+      "maxItems": 4096
     }
   }
 }
