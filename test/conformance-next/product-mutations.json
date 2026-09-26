@@ -84,6 +84,30 @@
         "test/gate-definitions.test.mjs"
       ],
       "invariant": "The scan gate remains required and cannot become silently optional."
+    },
+    {
+      "id": "PMUT-HAND-EDITED-FILE-OVERWRITE",
+      "vector_id": "NEG-GEN-01",
+      "critical": true,
+      "file": "lib/handles-manifest.mjs",
+      "find": "if (!matchesPristineRender) return 'conflict';",
+      "replace": "if (!matchesPristineRender) return 'update';",
+      "test_files": [
+        "test/handles-manifest.test.mjs"
+      ],
+      "invariant": "A file with no trusted manifest provenance and no pristine-render match remains a conflict; a human-edited generated file is never silently overwritten."
+    },
+    {
+      "id": "PMUT-ROOT-TRAVERSAL-ALLOWED",
+      "vector_id": "NEG-TRUST-02",
+      "critical": true,
+      "file": "lib/fsutil.mjs",
+      "find": "if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;",
+      "replace": "if (rel === '..' || path.isAbsolute(rel)) return null;",
+      "test_files": [
+        "test/conformance-next/product-security-invariants.test.mjs"
+      ],
+      "invariant": "Repo-relative parent traversal is rejected by resolveWithinRoot; this fixture covers lexical ../ escape and does not claim symlink containment."
     }
   ]
 }
