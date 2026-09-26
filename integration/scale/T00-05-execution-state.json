@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T03:35:00+09:00",
+  "observed_at": "2026-09-27T03:43:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -582,6 +582,30 @@
     "phase": "T01_06_PACKED_REPLAY_CLOSURE",
     "default_activation": false,
     "release": false,
-    "blocker": "Backend-evaluation packed artifact must replay the exact reviewed 12-case T01 identity conformance pack from the installed tarball, not only compare the vendored byte hash."
+    "blocker": "Backend-evaluation packed artifact must replay the exact reviewed 12-case T01 identity conformance pack from the installed tarball, not only compare the vendored byte hash.",
+    "direct_evidence": {
+      "bskel_main": {
+        "sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+        "focused": "23/23 PASS",
+        "request_id": "58ce9d78-72d9-439d-b8a5-f05ac02abdf1",
+        "packed_module_replay": true
+      },
+      "becoder_main": {
+        "sha": "eb8164560ddd343306234a9140dc89c001519792",
+        "packed_cross_repo_replay": "12/12 PASS against exact bskel main tarball",
+        "pack_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
+        "request_id": "295c5a40-a7a4-4a96-a6ca-d1b30ed5ee3a"
+      },
+      "beval_candidate": {
+        "pr": 71,
+        "head": "80c075b27966e8a221333cd84dd076b75b8ed654",
+        "packed_replay": "12/12 PASS",
+        "next_runtime": "54/54 PASS",
+        "package_request_id": "c801f065-2694-4248-bedc-f7a2e851dd41",
+        "runtime_request_id": "bf130790-154a-4cb1-9293-b7158aca7c8f",
+        "ci_run": 36263181735,
+        "state": "WAITING_TERMINAL_CI"
+      }
+    }
   }
 }
