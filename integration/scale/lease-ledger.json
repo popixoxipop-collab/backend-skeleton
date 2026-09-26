@@ -10,7 +10,7 @@
     "T20": 2,
     "T22": 2,
     "T05": 2,
-    "T12": 2,
+    "T12": 3,
     "T14": 2,
     "T03": 2,
     "T04": 2,
@@ -217,8 +217,10 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
-      "reason": "Resubmit the existing seven Wave A candidates as unregistered leaves inside owned paths only; no framework expansion or live registration."
+      "state": "RELEASED",
+      "reason": "Resubmit the existing seven Wave A candidates as unregistered leaves inside owned paths only; no framework expansion or live registration.",
+      "released_at": "2026-09-26T05:59:47Z",
+      "release_reason": "Superseded after shared nested CI merged to main; exact candidate preserved at 6fc55ac."
     },
     {
       "claim_id": "T14-pr71-evidence-boundary-fix-20260926",
@@ -536,6 +538,27 @@
       "state": "ACTIVE",
       "pr": 84,
       "reason": "Fix caller-controlled entity identity, malformed source_refs, provider-identity/live-read confusion, and missing immutable generation provenance. No shared files or stable writer changes."
+    },
+    {
+      "claim_id": "T12-wave-a-resubmit-main-20260926-r3",
+      "task_id": "T12-wave-a-resubmit-main",
+      "track": "T12",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t12/resubmit-wave-a-leaves",
+      "worker": "ChatGPT-T12-20260926",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t12-resubmit-r3",
+      "base_sha": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "observed_head_sha": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "path_scopes": [
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**"
+      ],
+      "fencing_token": 3,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T05:59:47Z",
+      "expires_at": "2026-09-26T11:59:47Z",
+      "state": "ACTIVE",
+      "reason": "Restack clean Wave A leaf resubmission onto main after shared nested CI merge so T12 executes in required Node22/24 nested lane."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
