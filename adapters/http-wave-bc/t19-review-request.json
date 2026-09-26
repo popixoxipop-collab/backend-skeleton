@@ -1,0 +1,92 @@
+{
+  "schema": "bskel.t13-t19-review-request/1",
+  "status": "REQUESTED_NOT_ACCEPTED",
+  "source_pr": 67,
+  "implementation_evidence_head": "46bcff62731da3498cb9e7764e33cdfec83cc6ce",
+  "exact_ci": {
+    "run_id": 36095053997,
+    "node_22_job": 107945452066,
+    "node_24_job": 107945451920,
+    "conclusion": "success",
+    "focused_suite_observed": true
+  },
+  "profiles": [
+    {
+      "id": "node-hono",
+      "fixture": "test/http-wave-bc/fixtures/hono-official-readme",
+      "official_ref": "honojs/hono@3ed3a14f6d47f3a000f6f0206912261fc0e4b6cd",
+      "review_claims": [
+        "literal routes",
+        "literal basePath",
+        "bounded route() graph",
+        "registration order",
+        "source provenance",
+        "showRoutes output parsing"
+      ],
+      "negative_cases": [
+        "comment-only false detection",
+        "regex/comment false route",
+        "dynamic basePath",
+        "interpolated template route",
+        "all/on/use/mount unknown",
+        "unresolved route() child",
+        "mount ordering"
+      ],
+      "runtime_claim": false
+    },
+    {
+      "id": "node-koa",
+      "fixture": "test/http-wave-bc/fixtures/koa-router-official-readme",
+      "official_ref": "koajs/router@dc285194dfbd9887b7ab9937996370dc4fda55d7",
+      "review_claims": [
+        "literal standard methods",
+        "named route",
+        "literal constructor prefix",
+        "ESM/CJS/generic bindings"
+      ],
+      "negative_cases": [
+        "comment-only false detection",
+        "dynamic route",
+        "prefix() mutation fail-closed",
+        "all/use unknown",
+        "regex/comment false route"
+      ],
+      "runtime_claim": false
+    },
+    {
+      "id": "typescript-nextjs",
+      "fixture": "test/http-wave-bc/fixtures/nextjs-official-route-handler",
+      "official_ref": "vercel/next.js@cb95ca373be557309a962d8a6e64a75c6732bc5d",
+      "review_claims": [
+        "App Route method exports",
+        "route groups",
+        "simple [param]",
+        "literal basePath",
+        "local export alias",
+        "root app precedence"
+      ],
+      "negative_cases": [
+        "catch-all unknown",
+        "dynamic basePath fail-closed",
+        "external re-export unknown",
+        "Pages API no method synthesis",
+        "route-group collision preserved",
+        "parallel/intercepting/private unknown",
+        "regex/comment false export"
+      ],
+      "runtime_claim": false
+    }
+  ],
+  "reviewer_requirements": [
+    "Expected outputs must be independently authored or verified; do not copy adapter output as the oracle.",
+    "Review static Discovery/Contract scope only. Runtime-tested/codegen/persistence/security claims are out of scope.",
+    "Any false positive on path/method identity blocks profile promotion.",
+    "Unknown/withheld cases are valid outcomes and must not be normalized to supported.",
+    "Record review against exact adapter bytes and fixture bytes, not only profile names."
+  ],
+  "non_qa_blockers": [
+    "T23 issue #137 must re-home out-of-lease files and register required nested T13 CI.",
+    "T23 must make a separate package-shadow allowlist decision before shipping adapters/http-wave-bc/**.",
+    "Production scanners/adapters registration requires a separate T00/T23 integration-owner change."
+  ]
+}
