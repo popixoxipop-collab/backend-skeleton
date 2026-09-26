@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-lease-ledger/1",
-  "policy_revision": "T00-03-r5",
+  "policy_revision": "T00-03-r6",
   "last_fencing_token": {
     "T17": 2,
     "T21": 2,
@@ -30,7 +30,9 @@
     "T00-ROOT-T21": 1,
     "T11": 1,
     "T00-T11-STABLE-EXPRESS": 1,
-    "T00-T11-STABLE-TS-EXPRESS": 1
+    "T00-T11-STABLE-TS-EXPRESS": 1,
+    "T15": 1,
+    "T00-T15-CLEANUP": 1
   },
   "claims": [
     {
@@ -991,6 +993,53 @@
       "expires_at": "2026-09-26T14:39:00Z",
       "state": "ACTIVE",
       "reason": "Clean resubmission of T06 Python analyzer on current main so required nested-next runs with merged ripgrep support; no shared/package/registry/default activation changes."
+    },
+    {
+      "claim_id": "T15-pr11-evidence-bound-consumer-20260926-r1",
+      "task_id": "T15-pr11-evidence-bound-consumer",
+      "track": "T15",
+      "canonical_track": "T15",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "branch": "scale/t15-t03-capability-view",
+      "worker": "T15",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t15-pr11-wt",
+      "base_sha": "cba631fa553a064a36032482d081bb366580e535",
+      "observed_head_sha": "cba631fa553a064a36032482d081bb366580e535",
+      "path_scopes": [
+        "lib/next/**",
+        "test/next/**"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T12:45:00Z",
+      "expires_at": "2026-09-26T18:45:00Z",
+      "state": "ACTIVE",
+      "pr": 11,
+      "reason": "Restack T15 #11 onto final T03 evidence-bound capability semantics. New/edited consumer implementation and tests must remain under lib/next/** and test/next/** only."
+    },
+    {
+      "claim_id": "T00-T15-CLEANUP-pr11-20260926-r1",
+      "task_id": "T00-T15-CLEANUP-pr11",
+      "track": "T00-T15-CLEANUP",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "branch": "scale/t15-t03-capability-view",
+      "worker": "T15-cleanup-under-T00",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t15-pr11-wt",
+      "base_sha": "cba631fa553a064a36032482d081bb366580e535",
+      "observed_head_sha": "cba631fa553a064a36032482d081bb366580e535",
+      "path_scopes": [
+        "scripts/t03-capability-view-compatibility-smoke.mjs",
+        "test/t03-capability-view-compatibility-smoke.test.mjs",
+        "test/t03-capability-view.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T12:45:00Z",
+      "expires_at": "2026-09-26T18:45:00Z",
+      "state": "ACTIVE",
+      "pr": 11,
+      "reason": "Deletion/move-only cleanup of the three historical #11 files outside T15 ownership. Replacement content, if any, must live under the separate T15 lease scopes."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
