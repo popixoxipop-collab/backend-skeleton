@@ -17,7 +17,8 @@
     "T06": 2,
     "T07": 2,
     "T08": 2,
-    "T23-BEVAL": 4
+    "T23-BEVAL": 4,
+    "T00-BSKEL-SHARED": 1
   },
   "claims": [
     {
@@ -460,6 +461,30 @@
         "No package-lock, unrelated workflow/source, credentials, Docker system prune, volume/shared-image deletion, merge/deploy or default activation.",
         "Recheck current main before final acceptance; if main advances with execution-impacting changes, do not reuse this result without T00 reconciliation.",
         "T16 #59-#62 remain held until the r4 #58 exact head is terminal green and T00 accepts it."
+      ]
+    },
+    {
+      "claim_id": "T00-BSKEL-SHARED-nested-ci-20260926-r1",
+      "track": "T00-BSKEL-SHARED",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "worker": "T00-shared-ci",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-bskel-shared-ci-r1",
+      "base_sha": "7b91f7759ded6065e0f6666228a874ab914cd48c",
+      "path_scopes": [
+        "scripts/run-next-nested-tests.mjs",
+        ".github/workflows/ci.yml"
+      ],
+      "fencing_token": 1,
+      "issued_at": "2026-09-26T05:21:37Z",
+      "expires_at": "2026-09-26T11:21:37Z",
+      "state": "ACTIVE",
+      "purpose": "Add approved nested suites T04/T05/T07/T14/T21 and install ripgrep in nested-next so T06/T07 parity checks execute under required Node22/24 CI.",
+      "restrictions": [
+        "No package.json/package-lock changes.",
+        "No root-test shim creation/deletion in this claim.",
+        "No product semantics, registry, schema, CLI, release or default activation changes.",
+        "Only exact two shared CI files may change."
       ]
     }
   ],
