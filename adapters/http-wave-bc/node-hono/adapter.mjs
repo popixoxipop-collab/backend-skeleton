@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { maskHonoSourceComments, scanHonoProject } from './route-graph.mjs';
+import { isHonoCodeIndex, maskHonoSourceComments, scanHonoProject } from './route-graph.mjs';
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.git', 'coverage']);
@@ -54,8 +54,16 @@ function sourceFiles(projectRoot) {
     .sort();
 }
 
+function hasCodeMatch(masked, re) {
+  const flags = re.flags.includes('g') ? re.flags : re.flags + 'g';
+  for (const match of masked.matchAll(new RegExp(re.source, flags))) {
+    if (isHonoCodeIndex(masked, match.index)) return true;
+  }
+  return false;
+}
+
 function hasLiveHonoImport(masked) {
-  return HONO_IMPORT_RE.test(masked) || HONO_REQUIRE_RE.test(masked);
+  return hasCodeMatch(masked, HONO_IMPORT_RE) || hasCodeMatch(masked, HONO_REQUIRE_RE);
 }
 
 export function detectHonoRoot(repoRoot) {
@@ -67,7 +75,7 @@ export function detectHonoRoot(repoRoot) {
     const detected = sourceFiles(projectRoot).some((file) => {
       try {
         const masked = maskHonoSourceComments(fs.readFileSync(file, 'utf8'));
-        return hasLiveHonoImport(masked) && HONO_CONSTRUCTOR_RE.test(masked);
+        return hasLiveHonoImport(masked) && hasCodeMatch(masked, HONO_CONSTRUCTOR_RE);
       } catch {
         return false;
       }
