@@ -2,6 +2,7 @@ import { resolveApprovedCombination } from './catalog.mjs';
 import {
   inspectPersistenceHandoff,
   inspectRuntimeBehaviorProjection,
+  validateBoundCertificationEvidence,
 } from './evidence-boundary.mjs';
 
 const LEVELS = Object.freeze(['preview-tested', 'build-tested', 'behavior-tested']);
@@ -11,10 +12,6 @@ const PROVIDER_BUILD_EVIDENCE = Object.freeze({
   'python-fastapi': 'python-integration',
   'typescript-express': 'typescript-compile',
 });
-
-function evidenceKey(entry) {
-  return entry?.kind ?? null;
-}
 
 function validRevision(revision) {
   return typeof revision === 'string' && /^[0-9a-f]{40}$/.test(revision);
@@ -32,9 +29,9 @@ export function requiredEvidenceFor({ providerId, level }) {
     if (!buildEvidence) throw new Error(`no build evidence profile for provider ${providerId}`);
     required.push(buildEvidence);
   }
-  // Preserve the current public evaluator contract for preview/build callers and existing tests.
-  // Generic persistence/runtime records remain necessary inputs for behavior-tested, but are never
-  // sufficient: typed T10/T16 boundaries below must also validate and the integration lock remains.
+  // Generic persistence/runtime evidence remains a compatibility-visible requirement for
+  // behavior-tested, but it is never sufficient. Typed T10 + T16/T19 handoffs below are also
+  // mandatory and the integration lock remains fail-closed.
   if (level === 'behavior-tested') {
     required.push('persistence-conformance', 'runtime-behavior');
   }
@@ -74,19 +71,20 @@ function inspectBehaviorInputs({
   return { persistence, runtime };
 }
 
-// T14-06 remains a pure, fail-closed evaluator. It never queries CI, signs a certificate,
-// merges a PR, or converts a preview into an apply permission.
+// Pure, fail-closed certification evaluator. It does not query CI, sign a certificate, merge a PR,
+// or convert a preview into an apply permission.
 //
-// Preview/build compatibility is deliberately preserved for existing callers. behavior-tested is
-// stricter: an exact profile plus typed, artifact-bound T10 and T16/T19 inputs are required, and
-// the current integration lock remains closed until those cross-track handoffs are independently
-// accepted. RuntimeBinding existence, build success, or generic/mock records cannot open it.
+// Every certification level now requires exact artifact-bound evidence with revision, provider,
+// combination, profile, and execution identity. A plain caller-created success record cannot mint
+// preview-tested/build-tested. behavior-tested additionally requires typed T10 persistence and
+// T16/T19 runtime evidence, and remains integration-locked until those producer contracts are
+// independently accepted for a concrete fixture/profile.
 export function evaluateCompositionCertification({
   providerId,
   persistenceId,
   keyType,
   revision,
-  profileId = null,
+  profileId,
   level,
   providerBaselineAudit,
   generationPreview,
@@ -102,6 +100,9 @@ export function evaluateCompositionCertification({
   }
   if (!validRevision(revision)) {
     blockers.push({ code: 'invalid-revision', message: 'revision must be an exact 40-character lowercase git SHA' });
+  }
+  if (!nonEmptyString(profileId)) {
+    blockers.push({ code: 'profile-missing', message: 'certification requires an exact profile identity' });
   }
   if (providerBaselineAudit?.ok !== true) {
     blockers.push({ code: 'provider-baseline-drift', message: 'legacy provider baseline audit did not pass' });
@@ -134,40 +135,38 @@ export function evaluateCompositionCertification({
 
   const acceptedEvidence = [];
   for (const kind of required) {
-    const matches = evidence.filter((entry) => evidenceKey(entry) === kind);
+    const matches = evidence.filter((entry) => entry?.kind === kind);
     if (matches.length === 0) {
       blockers.push({ code: 'missing-evidence', kind, message: `missing required evidence: ${kind}` });
       continue;
     }
-    const exact = matches.find((entry) => (
-      entry.revision === revision
-      && entry.status === 'success'
-      && entry.scope?.providerId === providerId
-      && entry.scope?.combinationId === combination?.id
-    ));
-    if (!exact) {
+    if (matches.length > 1) {
+      blockers.push({ code: 'duplicate-evidence', kind, message: `multiple evidence envelopes claim kind ${kind}` });
+      continue;
+    }
+
+    const checked = validateBoundCertificationEvidence({
+      expectedKind: kind,
+      revision,
+      providerId,
+      combinationId: combination?.id ?? null,
+      profileId,
+      evidence: matches[0],
+    });
+    if (!checked.ok) {
       blockers.push({
         code: 'invalid-evidence',
         kind,
-        message: `no successful ${kind} evidence is bound to this exact revision/provider/combination`,
+        message: `${kind} evidence is not exact-artifact bound`,
+        reasons: checked.blockers,
       });
       continue;
     }
-    acceptedEvidence.push({
-      kind,
-      revision: exact.revision,
-      source: exact.source ?? null,
-      runId: exact.runId ?? null,
-      artifactRef: exact.artifactRef ?? null,
-    });
+    acceptedEvidence.push(checked.accepted);
   }
 
   let crossTrackEvidence = null;
   if (level === 'behavior-tested') {
-    if (!nonEmptyString(profileId)) {
-      blockers.push({ code: 'profile-missing', message: 'behavior-tested requires an exact profile identity' });
-    }
-
     crossTrackEvidence = inspectBehaviorInputs({
       combination,
       revision,
