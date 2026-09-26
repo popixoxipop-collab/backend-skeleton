@@ -2,7 +2,8 @@
   "schema": "bskel.scale-lease-ledger/1",
   "policy_revision": "T00-03-r1",
   "last_fencing_token": {
-    "T17": 2
+    "T17": 2,
+    "T21": 2
   },
   "claims": [
     {
@@ -26,6 +27,29 @@
       "state": "ACTIVE",
       "pr": 138,
       "reason": "Fail-closed defect fix only: enforce Unity 32-hex GUIDs and signed-64-bit fileID bounds; no scope expansion."
+    },
+    {
+      "claim_id": "T21-pr80-defect-fix-20260926",
+      "task_id": "T21-pr80-defect-fix",
+      "track": "T21",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t21/incremental-store",
+      "worker": "agent-T21-pr80-defectfix",
+      "worktree": "G:\\UEProjects\\backend-skeleton-t21-pr80-fix",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "efd1eecec81a1a16556da685dde4d892114f7b5b",
+      "path_scopes": [
+        "lib/artifact-store-next/**",
+        "lib/scan-scheduler-next/**",
+        "test/perf-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:47:13Z",
+      "expires_at": "2026-09-26T08:47:13Z",
+      "state": "ACTIVE",
+      "pr": 80,
+      "reason": "T21-owned defect correction/integration validation only. Root test shim cleanup is not included in this r1 lease and remains T00/T23 integration work."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim."
