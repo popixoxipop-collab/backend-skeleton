@@ -1,13 +1,16 @@
 // T09 runtime route observation reconciliation.
 //
 // This module consumes an already-produced runtime route observation. It does NOT execute the app,
-// start a server, probe authorization, or define beval's runner format. T16 may later supply a trusted
-// observation envelope. T09 only checks that the envelope is bound to the same runtime evidence and
-// compares route facts conservatively.
+// start a server, probe authorization, or define beval's runner format.
+//
+// Runtime route facts are accepted only when the surrounding T09 evidence binding has already
+// validated the exact T16 RuntimeBinding + evidence pair and the supplied route observation is the
+// exact route_observation content hashed inside the bound candidate evidence.
 
 import { OPERATION_ID_RE, canonicalRouteShape } from '../openapi.mjs';
 import { attachEvidenceBinding } from './evidence-binding.mjs';
 import { hasOpenApiContextAudit } from './openapi-context.mjs';
+import { t16HashJson } from './t16-runtime-evidence.mjs';
 
 const METHODS = Object.freeze(new Set([
   'GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH', 'TRACE',
@@ -55,25 +58,25 @@ export function validateRuntimeRouteObservation(observation, binding) {
     return { ok: false, reason: 'runtime-evidence-binding-not-bound' };
   }
 
-  for (const key of ['runtimeRef', 'repository', 'revision', 'buildFingerprint', 'environmentFingerprint']) {
+  for (const key of ['runtimeBindingHash', 'profileApprovalHash', 'attemptNonce']) {
     if (!isString(observation[key])) {
       return { ok: false, reason: 'runtime-observation-' + key + '-missing' };
     }
   }
-  if (observation.runtimeRef !== binding.runtime.ref) {
-    return { ok: false, reason: 'runtime-observation-ref-mismatch' };
+  if (observation.runtimeBindingHash !== binding.runtime.bindingHash) {
+    return { ok: false, reason: 'runtime-observation-binding-hash-mismatch' };
   }
-  if (observation.repository !== binding.runtime.repository) {
-    return { ok: false, reason: 'runtime-observation-repository-mismatch' };
+  if (observation.profileApprovalHash !== binding.runtime.profileApprovalHash) {
+    return { ok: false, reason: 'runtime-observation-profile-mismatch' };
   }
-  if (observation.revision !== binding.runtime.revision) {
-    return { ok: false, reason: 'runtime-observation-revision-mismatch' };
+  if (observation.attemptNonce !== binding.runtime.attemptNonce) {
+    return { ok: false, reason: 'runtime-observation-attempt-mismatch' };
   }
-  if (observation.buildFingerprint !== binding.runtime.buildFingerprint) {
-    return { ok: false, reason: 'runtime-observation-build-mismatch' };
+  if (!binding.runtime.routeObservationHash) {
+    return { ok: false, reason: 'runtime-route-observation-not-bound-to-candidate-evidence' };
   }
-  if (observation.environmentFingerprint !== binding.runtime.environmentFingerprint) {
-    return { ok: false, reason: 'runtime-observation-environment-mismatch' };
+  if (t16HashJson(observation) !== binding.runtime.routeObservationHash) {
+    return { ok: false, reason: 'runtime-route-observation-content-mismatch' };
   }
   if (!['complete', 'partial'].includes(observation.completeness)) {
     return { ok: false, reason: 'runtime-observation-completeness-invalid' };
@@ -101,7 +104,7 @@ export function validateRuntimeRouteObservation(observation, binding) {
   routes.sort((a, b) => {
     const ak = a.method + ' ' + a.path + ' ' + (a.operationId ?? '');
     const bk = b.method + ' ' + b.path + ' ' + (b.operationId ?? '');
-    return ak.localeCompare(bk, 'en');
+    return ak < bk ? -1 : ak > bk ? 1 : 0;
   });
   return { ok: true, routes };
 }
@@ -230,6 +233,7 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
       });
       continue;
     }
+
     endpoints.push({
       endpointKey: endpoint.endpointKey,
       state: observation.completeness === 'complete' ? 'missing' : 'unknown',
@@ -249,7 +253,11 @@ export function reconcileRuntimeRoutes({ graph, binding, observation }) {
     state: 'ready',
     sourceRef: binding.source?.ref ?? null,
     openapiRef: binding.openapi?.ref ?? null,
-    runtimeRef: observation.runtimeRef,
+    runtimeBindingHash: binding.runtime?.bindingHash ?? null,
+    profileApprovalHash: binding.runtime?.profileApprovalHash ?? null,
+    attemptNonce: binding.runtime?.attemptNonce ?? null,
+    oracleEvidenceHash: binding.runtime?.oracleEvidenceHash ?? null,
+    candidateEvidenceHash: binding.runtime?.candidateEvidenceHash ?? null,
     completeness: observation.completeness,
     endpoints,
     runtimeOnlyRoutes,

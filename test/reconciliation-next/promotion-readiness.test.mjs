@@ -2,101 +2,136 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEvidenceBinding } from '../../contracts/reconciliation-next/evidence-binding.mjs';
 import { buildPromotionReadinessReport } from '../../contracts/reconciliation-next/promotion-readiness.mjs';
-
-const sourceRef = 'scan:sha256:source';
-const openapiRef = 'openapi:sha256:document';
-const runtimeRef = 'runtime:sha256:routes';
-
-function binding({ runtime = true, openapiRevision = 'abc123' } = {}) {
-  return buildEvidenceBinding({
-    source: { ref: sourceRef, repository: 'repo/example', revision: 'abc123' },
-    openapi: {
-      ref: openapiRef,
-      repository: 'repo/example',
-      revision: openapiRevision,
-      ...(runtime ? { buildFingerprint: 'build-1' } : {}),
-    },
-    runtime: runtime ? {
-      ref: runtimeRef,
-      repository: 'repo/example',
-      revision: 'abc123',
-      buildFingerprint: 'build-1',
-      environmentFingerprint: 'env-1',
-    } : null,
-  });
-}
+import { reconcileRuntimeRoutes } from '../../contracts/reconciliation-next/runtime-routes.mjs';
+import {
+  openapiInput,
+  runtimeInput,
+  sourceInput,
+} from './approved-evidence-fixture.mjs';
 
 function endpoint({
   endpointKey = '0:0',
+  operationId = 'findWidget',
+  method = 'GET',
+  path = '/widgets/{id}',
   identityState = 'resolved',
   methodState = 'resolved',
   pathState = 'resolved',
 } = {}) {
-  const evidence = [
+  return { endpointKey, operationId, method, path, identityState, methodState, pathState };
+}
+
+function graph(source, openapi, endpoints = [endpoint()], { context = true } = {}) {
+  const sourceRef = source.artifactRef.byte_sha256;
+  const openapiRef = openapi.artifactRef.byte_sha256;
+  const both = [
     { role: 'scan', ref: sourceRef },
     { role: 'openapi', ref: openapiRef },
   ];
   return {
-    endpointKey,
-    fields: [
-      { field: 'operation.identity', state: identityState, value: identityState === 'resolved' ? 'findWidget' : undefined, evidence, reason: identityState === 'resolved' ? undefined : 'identity-conflict' },
-      { field: 'http.method', state: methodState, value: methodState === 'resolved' ? 'GET' : undefined, evidence, reason: methodState === 'resolved' ? undefined : 'method-conflict' },
-      { field: 'http.path', state: pathState, value: pathState === 'resolved' ? '/widgets' : undefined, evidence, reason: pathState === 'resolved' ? undefined : 'path-conflict' },
-    ],
-  };
-}
-
-function graph(endpoints = [endpoint()], { context = true } = {}) {
-  return {
     version: 'bskel.reconciliation-decision-graph/0-draft',
-    ...(context ? { openApiContext: { attached: true, version: 'bskel.openapi-context-audit/0-draft', openapiRef } } : {}),
-    endpoints,
+    ...(context ? {
+      openApiContext: {
+        attached: true,
+        version: 'bskel.openapi-context-audit/0-draft',
+        openapiRef,
+      },
+    } : {}),
+    endpoints: endpoints.map((entry) => ({
+      endpointKey: entry.endpointKey,
+      fields: [
+        {
+          field: 'operation.identity',
+          state: entry.identityState,
+          ...(entry.identityState === 'resolved' ? { value: entry.operationId } : { reason: 'identity-conflict' }),
+          evidence: both,
+        },
+        {
+          field: 'http.method',
+          state: entry.methodState,
+          ...(entry.methodState === 'resolved' ? { value: entry.method } : { reason: 'method-conflict' }),
+          evidence: both,
+        },
+        {
+          field: 'http.path',
+          state: entry.pathState,
+          ...(entry.pathState === 'resolved' ? { value: entry.path } : { reason: 'path-conflict' }),
+          evidence: both,
+        },
+      ],
+    })),
   };
 }
 
-function runtimeReport(entries = [{
-  endpointKey: '0:0',
-  state: 'observed',
-  reason: 'runtime-route-exact-match',
-  expected: { operationId: 'findWidget', method: 'GET', path: '/widgets' },
-}], overrides = {}) {
-  return {
-    version: 'bskel.runtime-route-reconciliation/0-draft',
-    state: 'ready',
-    sourceRef,
-    openapiRef,
-    runtimeRef,
-    endpoints: entries,
-    ...overrides,
-  };
+function setup({
+  withRuntime = true,
+  source = sourceInput(),
+  openapi = openapiInput(),
+  routes = [{ method: 'GET', path: '/widgets/{id}', operationId: 'findWidget' }],
+  completeness = 'complete',
+  endpoints = [endpoint()],
+  context = true,
+  runtimeOptions = {},
+} = {}) {
+  let runtime = null;
+  let observation = null;
+  if (withRuntime) {
+    const built = runtimeInput({
+      source,
+      openapi,
+      routeRoutes: routes,
+      completeness,
+      ...runtimeOptions,
+    });
+    runtime = built.runtime;
+    observation = built.observation;
+  }
+  const binding = buildEvidenceBinding({ source, openapi, runtime });
+  const g = graph(source, openapi, endpoints, { context });
+  const runtimeReport = withRuntime
+    ? reconcileRuntimeRoutes({ graph: g, binding, observation })
+    : null;
+  return { source, openapi, binding, graph: g, runtimeReport };
 }
 
-test('source/spec readiness is true when route fields, context and exact revision binding are ready', () => {
+test('source/spec readiness requires exact T01 artifact binding plus resolved route fields', () => {
+  const fx = setup({ withRuntime: false });
   const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding({ runtime: false }),
+    graph: fx.graph,
+    binding: fx.binding,
   });
   assert.equal(report.advisoryOnly, true);
+  assert.equal(report.stableCapabilityWire, false);
   assert.equal(report.endpoints[0].sourceSpecReady, true);
   assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.deepEqual(report.verifiedEvidence.sourceArtifactRef, fx.source.artifactRef);
+  assert.deepEqual(report.verifiedEvidence.openapiArtifactRef, fx.openapi.artifactRef);
+  assert.equal(report.verifiedEvidence.runtime, null);
 });
 
-test('runtime route readiness becomes true only with bound runtime and an observed route result', () => {
+test('runtime route readiness requires exact bound T16 evidence and an observed endpoint', () => {
+  const fx = setup();
   const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport(),
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: fx.runtimeReport,
   });
   assert.equal(report.endpoints[0].sourceSpecReady, true);
   assert.equal(report.endpoints[0].runtimeRouteReady, true);
   assert.deepEqual(report.endpoints[0].runtimeBlockers, []);
+  assert.equal(report.verifiedEvidence.runtime.runtimeBindingHash, fx.binding.runtime.bindingHash);
+  assert.equal(report.verifiedEvidence.runtime.profileApprovalHash, fx.binding.runtime.profileApprovalHash);
+  assert.equal(report.verifiedEvidence.runtime.attemptNonce, fx.binding.runtime.attemptNonce);
 });
 
-test('a path conflict is reported as a source/spec blocker', () => {
+test('path conflict remains an explicit source/spec blocker', () => {
+  const fx = setup({
+    endpoints: [endpoint({ pathState: 'conflict' })],
+  });
   const report = buildPromotionReadinessReport({
-    graph: graph([endpoint({ pathState: 'conflict' })]),
-    binding: binding(),
-    runtimeReport: runtimeReport(),
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: fx.runtimeReport,
   });
   assert.equal(report.endpoints[0].sourceSpecReady, false);
   assert.equal(report.endpoints[0].runtimeRouteReady, false);
@@ -108,141 +143,169 @@ test('a path conflict is reported as a source/spec blocker', () => {
   }]);
 });
 
-test('OpenAPI context audit is a required source/spec readiness input', () => {
+test('OpenAPI context audit is required before source/spec readiness', () => {
+  const fx = setup({ context: false });
   const report = buildPromotionReadinessReport({
-    graph: graph([endpoint()], { context: false }),
-    binding: binding(),
-    runtimeReport: runtimeReport(),
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: fx.runtimeReport,
   });
   assert.equal(report.endpoints[0].sourceSpecReady, false);
   assert.equal(report.endpoints[0].sourceSpecBlockers[0].code, 'openapi-context-not-attached');
 });
 
-test('revision mismatch is exposed as a binding blocker instead of being repaired', () => {
+test('repository/revision mismatch stays conflict and blocks readiness', () => {
+  const openapi = openapiInput({ revision: 'different' });
+  const fx = setup({ openapi, withRuntime: false });
   const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding({ openapiRevision: 'different' }),
+    graph: fx.graph,
+    binding: fx.binding,
   });
   const blocker = report.endpoints[0].sourceSpecBlockers.find((entry) => entry.code === 'source-spec-binding-not-bound');
   assert.equal(blocker.state, 'conflict');
   assert.equal(blocker.reason, 'source-openapi-revision-mismatch');
 });
 
-test('a complete runtime report that says route missing remains a runtime blocker', () => {
+test('partial runtime snapshot absence remains a runtime blocker, not absent', () => {
+  const fx = setup({ routes: [], completeness: 'partial' });
   const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport([
-      { endpointKey: '0:0', state: 'missing', reason: 'runtime-route-missing-from-complete-snapshot' },
-    ]),
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: fx.runtimeReport,
   });
+  assert.equal(fx.runtimeReport.endpoints[0].state, 'unknown');
   assert.equal(report.endpoints[0].runtimeRouteReady, false);
   assert.deepEqual(report.endpoints[0].runtimeBlockers, [{
     code: 'runtime-route-not-observed',
-    state: 'missing',
-    reason: 'runtime-route-missing-from-complete-snapshot',
+    state: 'unknown',
+    reason: 'runtime-observation-partial',
   }]);
 });
 
-test('runtime report from a different runtime ref is rejected as readiness input', () => {
+test('complete runtime snapshot missing route remains a blocker', () => {
+  const fx = setup({ routes: [], completeness: 'complete' });
   const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport(undefined, { runtimeRef: 'runtime:sha256:other' }),
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: fx.runtimeReport,
   });
+  assert.equal(fx.runtimeReport.endpoints[0].state, 'missing');
   assert.equal(report.endpoints[0].runtimeRouteReady, false);
-  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-ref-mismatch');
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-route-not-observed');
 });
 
-test('readiness counts are aggregated without changing endpoint decisions', () => {
+test('foreign runtime report version cannot satisfy readiness', () => {
+  const fx = setup();
   const report = buildPromotionReadinessReport({
-    graph: graph([
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, version: 'other/runtime-report' },
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-version-unsupported');
+});
+
+test('runtime report bound to another source ArtifactRef is rejected', () => {
+  const fx = setup();
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, sourceRef: 'f'.repeat(64) },
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-source-ref-mismatch');
+});
+
+test('runtime report bound to another OpenAPI ArtifactRef is rejected', () => {
+  const fx = setup();
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, openapiRef: 'f'.repeat(64) },
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-openapi-ref-mismatch');
+});
+
+test('runtime binding hash mismatch is rejected at readiness handoff', () => {
+  const fx = setup();
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, runtimeBindingHash: 'f'.repeat(64) },
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-binding-hash-mismatch');
+});
+
+test('runtime profile mismatch is rejected at readiness handoff', () => {
+  const fx = setup();
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, profileApprovalHash: 'f'.repeat(64) },
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-profile-mismatch');
+});
+
+test('runtime attempt mismatch is rejected at readiness handoff', () => {
+  const fx = setup();
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, attemptNonce: '223e4567-e89b-42d3-a456-426614174000' },
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-attempt-mismatch');
+});
+
+test('runtime oracle/candidate evidence hash mismatch is rejected', () => {
+  const fx = setup();
+  const oracle = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, oracleEvidenceHash: 'f'.repeat(64) },
+  });
+  assert.equal(oracle.endpoints[0].runtimeBlockers[0].code, 'runtime-report-oracle-evidence-mismatch');
+
+  const candidate = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: { ...fx.runtimeReport, candidateEvidenceHash: 'f'.repeat(64) },
+  });
+  assert.equal(candidate.endpoints[0].runtimeBlockers[0].code, 'runtime-report-candidate-evidence-mismatch');
+});
+
+test('tampered runtime expected route remains explicit blocker', () => {
+  const fx = setup();
+  const runtimeReport = structuredClone(fx.runtimeReport);
+  runtimeReport.endpoints[0].expected.path = '/other';
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport,
+  });
+  assert.equal(report.endpoints[0].runtimeRouteReady, false);
+  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-expected-route-mismatch');
+});
+
+test('readiness counts aggregate without weakening ordered endpoint decisions', () => {
+  const fx = setup({
+    endpoints: [
       endpoint({ endpointKey: '0:0' }),
       endpoint({ endpointKey: '0:1', identityState: 'conflict' }),
-    ]),
-    binding: binding(),
-    runtimeReport: runtimeReport([
-      {
-        endpointKey: '0:0',
-        state: 'observed',
-        reason: 'runtime-route-exact-match',
-        expected: { operationId: 'findWidget', method: 'GET', path: '/widgets' },
-      },
-      {
-        endpointKey: '0:1',
-        state: 'observed',
-        reason: 'runtime-route-exact-match',
-        expected: { operationId: 'findWidget', method: 'GET', path: '/widgets' },
-      },
-    ]),
+    ],
+    routes: [{ method: 'GET', path: '/widgets/{id}', operationId: 'findWidget' }],
+  });
+  const report = buildPromotionReadinessReport({
+    graph: fx.graph,
+    binding: fx.binding,
+    runtimeReport: fx.runtimeReport,
   });
   assert.deepEqual(report.counts, {
     endpoints: 2,
     sourceSpecReady: 1,
     runtimeRouteReady: 1,
   });
-});
-
-
-test('readiness rejects a foreign runtime report version even when it claims observed', () => {
-  const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport(undefined, {
-      version: 'other/runtime-report',
-      state: 'ready',
-    }),
-  });
-  assert.equal(report.endpoints[0].runtimeRouteReady, false);
-  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-version-unsupported');
-});
-
-
-test('runtime readiness rejects a report bound to a different source ref', () => {
-  const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport(undefined, { sourceRef: 'scan:sha256:other' }),
-  });
-  assert.equal(report.endpoints[0].runtimeRouteReady, false);
-  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-source-ref-mismatch');
-});
-
-test('runtime readiness rejects a report bound to a different OpenAPI ref', () => {
-  const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport(undefined, { openapiRef: 'openapi:sha256:other' }),
-  });
-  assert.equal(report.endpoints[0].runtimeRouteReady, false);
-  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-report-openapi-ref-mismatch');
-});
-
-test('runtime readiness rejects an observed endpoint whose expected route was tampered', () => {
-  const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport([{
-      endpointKey: '0:0',
-      state: 'observed',
-      reason: 'runtime-route-exact-match',
-      expected: { operationId: 'findWidget', method: 'GET', path: '/other' },
-    }]),
-  });
-  assert.equal(report.endpoints[0].runtimeRouteReady, false);
-  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-expected-route-mismatch');
-});
-
-test('runtime readiness rejects an observed endpoint missing its expected route binding', () => {
-  const report = buildPromotionReadinessReport({
-    graph: graph(),
-    binding: binding(),
-    runtimeReport: runtimeReport([{
-      endpointKey: '0:0',
-      state: 'observed',
-      reason: 'runtime-route-exact-match',
-    }]),
-  });
-  assert.equal(report.endpoints[0].runtimeRouteReady, false);
-  assert.equal(report.endpoints[0].runtimeBlockers[0].code, 'runtime-expected-route-mismatch');
 });

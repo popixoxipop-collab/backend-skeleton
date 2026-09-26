@@ -98,8 +98,20 @@ function runtimeBlocker(endpoint, runtimeReport, runtimeIndex, binding) {
   if (runtimeReport.openapiRef !== binding.openapi?.ref) {
     return { code: 'runtime-report-openapi-ref-mismatch' };
   }
-  if (runtimeReport.runtimeRef !== binding.runtime?.ref) {
-    return { code: 'runtime-report-ref-mismatch' };
+  if (runtimeReport.runtimeBindingHash !== binding.runtime?.bindingHash) {
+    return { code: 'runtime-report-binding-hash-mismatch' };
+  }
+  if (runtimeReport.profileApprovalHash !== binding.runtime?.profileApprovalHash) {
+    return { code: 'runtime-report-profile-mismatch' };
+  }
+  if (runtimeReport.attemptNonce !== binding.runtime?.attemptNonce) {
+    return { code: 'runtime-report-attempt-mismatch' };
+  }
+  if (runtimeReport.oracleEvidenceHash !== binding.runtime?.oracleEvidenceHash) {
+    return { code: 'runtime-report-oracle-evidence-mismatch' };
+  }
+  if (runtimeReport.candidateEvidenceHash !== binding.runtime?.candidateEvidenceHash) {
+    return { code: 'runtime-report-candidate-evidence-mismatch' };
   }
 
   const observed = runtimeIndex.get(endpoint.endpointKey);
@@ -162,7 +174,21 @@ export function buildPromotionReadinessReport({ graph, binding, runtimeReport = 
   return {
     version: 'bskel.reconciliation-promotion-readiness/0-draft',
     advisoryOnly: true,
+    stableCapabilityWire: false,
     endpoints,
     counts,
+    verifiedEvidence: {
+      sourceArtifactRef: binding.source?.artifactRef ?? null,
+      openapiArtifactRef: binding.openapi?.artifactRef ?? null,
+      runtime: binding.runtimeBinding?.state === 'bound' ? {
+        runtimeBindingHash: binding.runtime?.bindingHash ?? null,
+        contractHash: binding.runtime?.contractHash ?? null,
+        caseRevisionHash: binding.runtime?.caseRevisionHash ?? null,
+        profileApprovalHash: binding.runtime?.profileApprovalHash ?? null,
+        attemptNonce: binding.runtime?.attemptNonce ?? null,
+        oracleEvidenceHash: binding.runtime?.oracleEvidenceHash ?? null,
+        candidateEvidenceHash: binding.runtime?.candidateEvidenceHash ?? null,
+      } : null,
+    },
   };
 }

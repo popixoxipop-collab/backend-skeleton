@@ -92,15 +92,15 @@ does not own `package.json` or workflow wiring. A shared-owner change request is
 to connect `test/reconciliation-next/*.test.mjs` to central CI. Until then, generic `npm test`
 green is not evidence that the 98 T09 focused tests ran.
 
-The current T09 suite contains **98 tests**:
+The current T09 suite contains **110 tests**:
 
 - 19 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
 - 22 OpenAPI context/root/operation-security/duplicate-ID/schema-presence/context-provenance regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
-- 13 revision/build/runtime evidence-binding regressions,
-- 22 bound runtime-route reconciliation regressions,
-- 13 policy-neutral promotion-readiness regressions.
+- 22 exact ArtifactRef/T16 binding/evidence regressions,
+- 24 bound runtime-route reconciliation regressions,
+- 17 policy-neutral promotion-readiness regressions.
 
 It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled/absent/media-skipped states, explicit and inherited declared security,
@@ -109,19 +109,26 @@ duplicate operation IDs, provenance matching, route-only promotion, legacy-to-ne
 ## T09-05 evidence binding
 
 `evidence-binding.mjs` refuses to infer that two artifacts belong together from names, timestamps or
-branch labels. Source and OpenAPI are bound only when callers provide the same repository and exact
-revision. Runtime-required promotion additionally needs the same source revision, the same explicit
-OpenAPI/runtime build fingerprint, and a runtime environment fingerprint.
+branch labels. Source and OpenAPI are bound only when each exact byte stream matches a valid
+`sbf.artifact-ref/1`, both artifacts name the same repository and exact revision, and the decision
+graph provenance ref equals the corresponding ArtifactRef `byte_sha256`.
+
+Runtime-backed promotion additionally requires the independently reviewed T16 immutable core:
+a canonical `beval.runtime-binding/1`, its exact binding hash, a canonical
+`beval.runtime-evidence-pair/1`, matching contract/case/profile/attempt values, and source/OpenAPI
+artifact digests present in the binding's artifact map. Local repo/revision/build/environment strings
+alone can no longer create a bound runtime relation.
 
 A bound source/OpenAPI relation is enough only for source/spec-level route promotion. Callers that ask
 for runtime-backed promotion receive no promotable operation until `runtimeBinding.state === "bound"`.
-Binding refs must also exactly match the decision graph provenance refs.
+This remains a T09 shadow readiness fact, not T03 stable certification.
 
 ## T09-06 runtime route observations
 
 `runtime-routes.mjs` consumes a **pre-existing** bound runtime route observation. It does not start the
-application or define T16/beval's runner protocol. The observation must match the evidence binding's
-runtime ref, repository, revision, build fingerprint, and environment fingerprint.
+application or define T16/beval's runner protocol. The observation must match the exact T16 runtime
+binding hash, profile approval hash and attempt nonce, and its canonical content must be the
+`route_observation` content hashed inside the bound candidate evidence.
 
 A complete runtime snapshot may prove a route missing; a partial snapshot may not. Runtime routes are
 compared with the existing canonical parameter-shape rule (`{id}` vs `:id`/constrained parameters), while
@@ -138,8 +145,10 @@ bound runtime route was actually observed, and the exact blockers when they are 
 
 The report requires the OpenAPI context audit, source/spec evidence binding, and resolved
 `operation.identity/http.method/http.path`. Runtime readiness additionally requires a bound runtime
-relation, matching source/OpenAPI/runtime refs, and an observed endpoint whose embedded expected
-operation/method/path exactly matches the current decision graph. Missing/conflict/partial-runtime outcomes remain blockers.
+relation, matching source/OpenAPI ArtifactRef digests plus T16 binding/profile/attempt/evidence hashes,
+and an observed endpoint whose embedded expected operation/method/path exactly matches the current
+decision graph. Missing/conflict/partial-runtime outcomes remain blockers. The report exposes these
+verified references with `stableCapabilityWire:false`; T03 remains the capability/certification owner.
 
 ## Next T09 slices
 

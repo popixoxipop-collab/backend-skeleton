@@ -49,11 +49,14 @@ Adds raw OpenAPI context that the legacy result does not retain:
 
 Requires explicit artifact relation rather than name/time inference:
 
+- source/OpenAPI: valid `sbf.artifact-ref/1` + exact byte hash/size match,
 - source ↔ OpenAPI: same repository + exact revision,
-- runtime: same source revision,
-- runtime-backed claims: same OpenAPI/runtime build fingerprint,
-- runtime observation: explicit environment fingerprint,
-- graph evidence refs must equal binding refs.
+- graph evidence refs equal each ArtifactRef `byte_sha256`,
+- runtime: canonical `beval.runtime-binding/1` + exact binding hash,
+- runtime evidence: canonical `beval.runtime-evidence-pair/1` + exact oracle/candidate evidence hashes,
+- runtime: exact contract/case/profile/attempt match,
+- T16 binding artifact map must contain the exact source/OpenAPI ArtifactRef digests,
+- arbitrary local string refs or build/environment labels cannot create a bound relation.
 
 ### runtime-routes.mjs
 
@@ -81,9 +84,10 @@ Produces advisory blockers only. It never mutates contract/capability state.
 
 `runtimeRouteReady` additionally requires:
 
-1. bound runtime evidence,
-2. supported runtime-report version,
-3. matching source/OpenAPI/runtime refs,
+1. bound T16 runtime binding + evidence pair,
+2. exact binding/profile/attempt/evidence hashes in the runtime report,
+3. supported runtime-report version,
+3. matching source/OpenAPI ArtifactRefs and T16 runtime binding hash,
 4. endpoint state `observed`,
 5. runtime report's expected operation/method/path exactly matches the current graph.
 
@@ -115,7 +119,7 @@ Do not turn `promotion-readiness.mjs` into the stable policy engine.
 
 ### T16 — runtime / evidence
 
-T09 needs a trusted producer for a future runtime observation envelope. T16 should own:
+T16 now owns the merged immutable `beval.runtime-binding/1` and `beval.runtime-evidence-pair/1` core. T09 consumes those exact identities and T16 should continue to own:
 
 - process/container isolation,
 - application startup,
@@ -125,7 +129,7 @@ T09 needs a trusted producer for a future runtime observation envelope. T16 shou
 - runtime artifact signing/binding,
 - authorization behavior observations.
 
-T09 currently validates and reconciles the supplied route facts only.
+T09 validates the T16 binding/evidence pair, exact profile/attempt/contract/case hashes, source/OpenAPI artifact digests, and the route observation content bound inside candidate evidence; it still does not execute the application or certify Runtime-tested status.
 
 ### T19 — corpus / QA
 
@@ -149,7 +153,7 @@ This branch does not edit:
 - `bin/bskel.mjs`,
 - `package.json` or lockfiles.
 
-The 98 focused T09 tests live entirely under `test/reconciliation-next/**`.
+The 110 focused T09 tests live entirely under `test/reconciliation-next/**`.
 The current shared `test/*.test.mjs` command does not discover them. The out-of-lease root shim was
 removed at commit `92ee509c0654ef1d235851d4abe61cf74bb5c65d`. A shared-owner change request on
 T00 PR #65 asks central CI to include `test/reconciliation-next/*.test.mjs` without granting T09 a
