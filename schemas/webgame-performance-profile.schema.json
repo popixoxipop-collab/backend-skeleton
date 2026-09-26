@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:webgame-performance-profile:1",
+  "title": "BSKEL webgame performance profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profile_id", "metrics"],
+  "properties": {
+    "schema": { "const": "sbf.webgame-performance-profile/1" },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "required_capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "metrics": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "min": { "type": "number" },
+          "max": { "type": "number" }
+        },
+        "anyOf": [
+          { "required": ["min"] },
+          { "required": ["max"] }
+        ]
+      }
+    }
+  }
+}
