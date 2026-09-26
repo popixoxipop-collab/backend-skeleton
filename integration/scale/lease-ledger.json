@@ -1167,8 +1167,10 @@
       "resource_class": "integration-medium",
       "issued_at": "2026-09-26T14:31:30Z",
       "expires_at": "2026-09-27T02:31:30Z",
-      "state": "ACTIVE",
-      "reason": "Integrate independently reviewed T15 T01 identity consumer and T03 evidence-bound capability consumer onto current backend-decoder main."
+      "state": "RELEASED",
+      "reason": "Integrate independently reviewed T15 T01 identity consumer and T03 evidence-bound capability consumer onto current backend-decoder main.",
+      "released_at": "2026-09-26T14:48:00Z",
+      "release_reason": "backend-decoder integration PR #12 merged to main at eb8164560ddd343306234a9140dc89c001519792; reviewed consumer bytes integrated and source drafts #10/#11 closed as superseded."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
