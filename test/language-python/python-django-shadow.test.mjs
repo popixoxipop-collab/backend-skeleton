@@ -193,3 +193,36 @@ def helper():
   assert.equal(shadow.registrations.length, 1);
   assert.equal(shadow.registrations[0].patternSegments[0].value, 'first/');
 });
+
+
+test('T06 Django shadow treats non-append list mutators as unknown completeness', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-list-mutators-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+def first(request):
+    pass
+def second(request):
+    pass
+urlpatterns = [path("first/", first)]
+urlpatterns.insert(0, path("second/", second))
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.registrations.length, 0);
+  assert.ok(shadow.unknowns.some((x) => x.reason === 'urlpatterns-mutated'));
+});
+
+test('T06 Django shadow detects conditional destructive list mutation', { skip: !runtime }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-django-destructive-mutation-'));
+  fs.writeFileSync(path.join(root, 'urls.py'), `
+from django.urls import path
+DEBUG = True
+def first(request):
+    pass
+urlpatterns = [path("first/", first)]
+if DEBUG:
+    urlpatterns.clear()
+`);
+  const shadow = buildDjangoUrlShadow(project(root, ['urls.py']));
+  assert.equal(shadow.registrations.length, 0);
+  assert.ok(shadow.unknowns.some((x) => x.reason === 'urlpatterns-mutated'));
+});
