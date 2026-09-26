@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-lease-ledger/1",
-  "policy_revision": "T00-03-r2",
+  "policy_revision": "T00-03-r3",
   "last_fencing_token": {
     "T17": 2,
     "T21": 2,
@@ -18,7 +18,7 @@
     "T07": 2,
     "T08": 2,
     "T23-BEVAL": 4,
-    "T00-BSKEL-SHARED": 1
+    "T00-BSKEL-SHARED": 2
   },
   "claims": [
     {
@@ -478,13 +478,38 @@
       "fencing_token": 1,
       "issued_at": "2026-09-26T05:21:37Z",
       "expires_at": "2026-09-26T11:21:37Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "purpose": "Add approved nested suites T04/T05/T07/T14/T21 and install ripgrep in nested-next so T06/T07 parity checks execute under required Node22/24 CI.",
       "restrictions": [
         "No package.json/package-lock changes.",
         "No root-test shim creation/deletion in this claim.",
         "No product semantics, registry, schema, CLI, release or default activation changes.",
         "Only exact two shared CI files may change."
+      ],
+      "released_at": "2026-09-26T05:36:00Z",
+      "release_reason": "Coordination-head validation complete; superseded by main-based product CI lease."
+    },
+    {
+      "claim_id": "T00-BSKEL-SHARED-nested-ci-main-20260926-r2",
+      "track": "T00-BSKEL-SHARED",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "worker": "T00-shared-ci-main",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-shared-ci-main-r2",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "path_scopes": [
+        "scripts/run-next-nested-tests.mjs",
+        ".github/workflows/ci.yml"
+      ],
+      "fencing_token": 2,
+      "issued_at": "2026-09-26T05:36:00Z",
+      "expires_at": "2026-09-26T11:36:00Z",
+      "state": "ACTIVE",
+      "purpose": "Create a minimal main-target shared CI patch that adds approved nested suites and ripgrep to nested-next without root-test shims.",
+      "restrictions": [
+        "Exactly scripts/run-next-nested-tests.mjs and .github/workflows/ci.yml may change.",
+        "No package/package-lock/root-test/product semantics/registry/schema/CLI/release/default activation changes.",
+        "The product branch must be based on exact bskel main 5472a8b82655840d1d3ce76cb926987376e37ca6."
       ]
     }
   ],
