@@ -102,6 +102,15 @@ function requireAuthorizationBundle(authorization) {
 	if (!plain(trustEvidenceEcho) || trustEvidenceEcho.contract !== T20_TRUST_ECHO_CONTRACT) {
 		throw new Error('T20 trust evidence echo is required');
 	}
+	if (!Array.isArray(trustEvidenceEcho.evidence_refs) ||
+		trustEvidenceEcho.evidence_refs.length === 0 ||
+		trustEvidenceEcho.evidence_refs.some((ref) => typeof ref !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(ref))) {
+		throw new Error('T20 trust evidence echo requires content-addressed evidence refs');
+	}
+	const verifiedEvidenceRefs = [...new Set(trustEvidenceEcho.evidence_refs)].sort();
+	if (verifiedEvidenceRefs.length !== trustEvidenceEcho.evidence_refs.length) {
+		throw new Error('T20 trust evidence refs must be unique');
+	}
 	if (trustEvidenceEcho.permission?.sha256 !== trustRequirements.permission.sha256 ||
 		trustEvidenceEcho.permission?.enforced !== true) {
 		throw new Error('T20 permission enforcement evidence does not match helper requirements');
@@ -134,6 +143,7 @@ function requireAuthorizationBundle(authorization) {
 		helperRequirements,
 		trustEvidenceEcho,
 		trustRequirements,
+		verifiedEvidenceRefs,
 		runtimeBinding,
 		runtimeBindingHash,
 		runtimeEvidencePair,
@@ -192,11 +202,15 @@ function requireT20Proof(proof, bundle, observedHelper) {
 	for (const [field, wanted] of Object.entries(expected)) {
 		if (proof[field] !== wanted) throw new Error('T20 verification proof mismatch: ' + field);
 	}
+	if (!Array.isArray(proof.evidenceRefs) ||
+		JSON.stringify([...proof.evidenceRefs].sort()) !== JSON.stringify(bundle.verifiedEvidenceRefs)) {
+		throw new Error('T20 verification proof mismatch: evidenceRefs');
+	}
 	if (observedHelper.basename !== expected.launcherBasename ||
 		observedHelper.sha256 !== expected.launcherSha256) {
 		throw new Error('helper executable identity does not match T20-approved launcher');
 	}
-	return Object.freeze({ ...expected });
+	return Object.freeze({ ...expected, evidenceRefs: Object.freeze([...bundle.verifiedEvidenceRefs]) });
 }
 
 function requireT16Proof(proof, bundle) {
@@ -295,6 +309,7 @@ export function createJvmSemanticRecordBackend({
 					permissionSha256: t20Proof.permissionSha256,
 					artifactPolicySha256: t20Proof.artifactPolicySha256,
 					artifactPolicyGeneration: t20Proof.artifactPolicyGeneration,
+					trustEvidenceRefs: [...t20Proof.evidenceRefs],
 					runtimeBindingHash: t16Proof.runtimeBindingHash,
 					attemptNonce: t16Proof.attemptNonce,
 					runnerImplementationHash: t16Proof.runnerImplementationHash,

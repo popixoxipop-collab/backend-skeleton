@@ -70,6 +70,7 @@ function authorizationFixture() {
 	};
 	const trustEvidenceEcho = {
 		contract: 'bskel.trust-evidence-echo/1',
+		evidence_refs: ['sha256:' + '7'.repeat(64)],
 		permission: {
 			format: 'bskel.trust-permissions-json/1',
 			sha256: permissionSha256,
@@ -115,6 +116,7 @@ function t20Proof(authorization) {
 		permissionSha256: trust.permission.sha256,
 		artifactPolicySha256: trust.artifact_policy.sha256,
 		artifactPolicyGeneration: trust.artifact_policy.generation,
+		evidenceRefs: [...authorization.trustEvidenceEcho.evidence_refs],
 	};
 }
 
@@ -323,6 +325,22 @@ test('semantic backend rejects helper executable digest mismatch before T20/T16 
 			/helper executable identity does not match/,
 		);
 		assert.deepEqual(calls, { inspect: 1, t20: 0, t16: 0, classify: 0 });
+	} finally {
+		fs.rmSync(f.root, { recursive: true, force: true });
+	}
+});
+
+test('semantic backend rejects missing T20 content-addressed evidence refs before executable inspection', async () => {
+	const f = fixture();
+	const authorization = authorizationFixture();
+	delete authorization.trustEvidenceEcho.evidence_refs;
+	try {
+		const { backend, calls } = backendFixture(authorization);
+		await assert.rejects(
+			backend.analyze({ request: f.request, repoRoot: f.root, authorization }),
+			/T20 trust evidence echo requires content-addressed evidence refs/,
+		);
+		assert.deepEqual(calls, { inspect: 0, t20: 0, t16: 0, classify: 0 });
 	} finally {
 		fs.rmSync(f.root, { recursive: true, force: true });
 	}
