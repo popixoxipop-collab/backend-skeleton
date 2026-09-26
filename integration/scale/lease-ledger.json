@@ -37,7 +37,8 @@
     "T00-BEVAL-INTEGRATION": 1,
     "T00-BECODER-INTEGRATION": 1,
     "T00-BEVAL-T01-06-PACKED-REPLAY": 1,
-    "T00-T23-RELEASE-CONTROL": 1
+    "T00-T23-RELEASE-CONTROL": 1,
+    "T00-T20-T16-SANDBOX": 1
   },
   "claims": [
     {
@@ -1249,6 +1250,29 @@
       "expires_at": "2026-09-27T01:00:00Z",
       "state": "ACTIVE",
       "reason": "Rebaseline release-control artifacts on integrated mains without changing default writers, production registry, package allowlists, workflows, or release state."
+    },
+    {
+      "claim_id": "T00-T20-T16-SANDBOX-20260927-r1",
+      "task_id": "T20-03-linux-docker-enforcement-slice",
+      "track": "T00-T20-T16-SANDBOX",
+      "canonical_track": "T20",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t20-03-linux-docker-sandbox-r1",
+      "worker": "T00-T20-T16-integration",
+      "worktree": "github-contents-api",
+      "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "observed_head_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+      "path_scopes": [
+        "lib/next-runtime/hardened-docker-sandbox.mjs",
+        "test/next-runtime/hardened-docker-sandbox.test.mjs",
+        "docs/next-runtime/T20_03_LINUX_DOCKER_SANDBOX.md"
+      ],
+      "fencing_token": 1,
+      "resource_class": "runtime-medium",
+      "issued_at": "2026-09-26T19:20:00Z",
+      "expires_at": "2026-09-27T07:20:00Z",
+      "state": "ACTIVE",
+      "reason": "First externally enforced Linux/Docker slice for T20-03. Default-deny network, read-only source/root, no-new-privileges, cap-drop, no device/socket mounts, bounded env/resources/output/time. Does not claim full T20-03 or release acceptance."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
