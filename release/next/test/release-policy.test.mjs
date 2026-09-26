@@ -25,7 +25,6 @@ test('current integrated-main inventory is structurally valid but release remain
   assert.deepEqual(result.inventory.observed_blockers,[
     'FINAL_MAIN_PUSH_CI_NOT_DIRECT',
     'INDEPENDENT_QA_NOT_READY',
-    'T01_06_NOT_ACCEPTED',
     'TRUST_POLICY_NOT_READY',
   ]);
   assert.deepEqual(releasePlanBlockers(plan),['FINAL_RELEASE_REHEARSAL_NOT_RUN']);
