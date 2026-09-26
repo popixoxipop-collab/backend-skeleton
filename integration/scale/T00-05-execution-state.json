@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T03:43:00+09:00",
+  "observed_at": "2026-09-27T04:00:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -252,6 +252,17 @@
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T00:35:00Z",
+      "state": "ACTIVE"
+    },
+    "T00-T23-RELEASE-CONTROL-20260927-r1": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t23-release-control-rebaseline-r1",
+      "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "path_scopes": [
+        "release/next/**"
+      ],
+      "fencing_token": 1,
+      "expires_at": "2026-09-27T01:00:00Z",
       "state": "ACTIVE"
     }
   },
@@ -607,5 +618,12 @@
         "state": "WAITING_TERMINAL_CI"
       }
     }
+  },
+  "release_control": {
+    "phase": "REBASELINE_ON_INTEGRATED_MAINS",
+    "branch": "t00/t23-release-control-rebaseline-r1",
+    "release_allowed": false,
+    "default_activation": false,
+    "note": "Rebaseline release policy/inventory only. Product defaults remain legacy-authoritative/additive-next under T00-04A."
   }
 }
