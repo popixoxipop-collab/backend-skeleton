@@ -56,9 +56,11 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T02:47:13Z",
       "expires_at": "2026-09-26T08:47:13Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 138,
-      "reason": "Fail-closed defect fix only: enforce Unity 32-hex GUIDs and signed-64-bit fileID bounds; no scope expansion."
+      "reason": "Fail-closed defect fix only: enforce Unity 32-hex GUIDs and signed-64-bit fileID bounds; no scope expansion.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T17 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T21-pr80-defect-fix-20260926",
@@ -79,9 +81,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:47:13Z",
       "expires_at": "2026-09-26T08:47:13Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 80,
-      "reason": "T21-owned defect correction/integration validation only. Root test shim cleanup is not included in this r1 lease and remains T00/T23 integration work."
+      "reason": "T21-owned defect correction/integration validation only. Root test shim cleanup is not included in this r1 lease and remains T00/T23 integration work.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T21 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T02-pr72-locale-fix-20260926",
@@ -101,9 +105,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 72,
-      "reason": "Locale-independent ProjectGraph ordering defect correction, portability/staleness validation, and T21 handoff only."
+      "reason": "Locale-independent ProjectGraph ordering defect correction, portability/staleness validation, and T21 handoff only.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T02 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T09-pr83-evidence-binding-fix-20260926",
@@ -123,9 +129,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 83,
-      "reason": "Require T01 exact ArtifactRefs and verified T16 runtime binding/evidence for runtime-backed reconciliation; preserve uncertainty and stable v9."
+      "reason": "Require T01 exact ArtifactRefs and verified T16 runtime binding/evidence for runtime-backed reconciliation; preserve uncertainty and stable v9.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T09 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T18-protocol-item-binding-fix-20260926",
@@ -168,9 +176,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 79,
-      "reason": "Fail closed on self-reported enforced:true without independently verified content-addressed evidence refs; keep unimplemented isolation cases unmet."
+      "reason": "Fail closed on self-reported enforced:true without independently verified content-addressed evidence refs; keep unimplemented isolation cases unmet.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T20 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T22-pr85-sdk-boundary-fix-20260926",
@@ -191,9 +201,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 85,
-      "reason": "Close env-injection, input-size, snapshotRef, immutable conformance-input defects while preserving data-only non-executable SDK boundary."
+      "reason": "Close env-injection, input-size, snapshotRef, immutable conformance-input defects while preserving data-only non-executable SDK boundary.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T22 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T05-pr86-helper-boundary-fix-20260926",
@@ -213,9 +225,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 86,
-      "reason": "Require T20 helper/trust inputs plus T16 effective runtime/evidence before real helper execution; static JVM remains no-target-execution."
+      "reason": "Require T20 helper/trust inputs plus T16 effective runtime/evidence before real helper execution; static JVM remains no-target-execution.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T05 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T12-wave-a-resubmit-20260926",
@@ -258,9 +272,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 71,
-      "reason": "Close T10/T16 evidence-validation boundaries and move new focused tests under owned nested scope; applyAllowed remains false."
+      "reason": "Close T10/T16 evidence-validation boundaries and move new focused tests under owned nested scope; applyAllowed remains false.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T14 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T03-evidence-binding-fix-20260926",
@@ -280,9 +296,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 81,
-      "reason": "Bind capability evidence to verified T01 ArtifactRefs and keep runtime-tested/behavior-tested fail-closed absent accepted T16/T19 runtime evidence."
+      "reason": "Bind capability evidence to verified T01 ArtifactRefs and keep runtime-tested/behavior-tested fail-closed absent accepted T16/T19 runtime evidence.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T03 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T04-pr73-scope-and-evidence-fix-20260926",
@@ -302,9 +320,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 73,
-      "reason": "Re-home/strengthen owned nested tests and lexical/syntax evidence boundaries only; no parser/package/framework expansion."
+      "reason": "Re-home/strengthen owned nested tests and lexical/syntax evidence boundaries only; no parser/package/framework expansion.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T04 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T06-pr75-validation-fix-20260926",
@@ -348,9 +368,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 69,
-      "reason": "Validate existing DSL/model/runtime-export bridge and corpus binding only; root shim cleanup excluded."
+      "reason": "Validate existing DSL/model/runtime-export bridge and corpus binding only; root shim cleanup excluded.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T07 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T08-pr76-runner-hardening-20260926",
@@ -370,9 +392,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 76,
-      "reason": "Explicit shell:false, exactly-empty-env and oversized-output runner regressions; no new frameworks or OS-sandbox claim."
+      "reason": "Explicit shell:false, exactly-empty-env and oversized-output runner regressions; no new frameworks or OS-sandbox claim.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T08 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T23-BEVAL-shared-ci-20260926-r2",
@@ -557,9 +581,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T05:42:23Z",
       "expires_at": "2026-09-26T11:42:23Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 84,
-      "reason": "Fix caller-controlled entity identity, malformed source_refs, provider-identity/live-read confusion, and missing immutable generation provenance. No shared files or stable writer changes."
+      "reason": "Fix caller-controlled entity identity, malformed source_refs, provider-identity/live-read confusion, and missing immutable generation provenance. No shared files or stable writer changes.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T10 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T12-wave-a-resubmit-main-20260926-r3",
@@ -628,8 +654,10 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T06:13:15Z",
       "expires_at": "2026-09-26T12:13:15Z",
-      "state": "ACTIVE",
-      "reason": "Clean resubmission of existing Hono/Koa/Next.js Wave B/C leaves on current main; remove historical root/duplicate-fixture shape by materializing only T13-owned paths; no fourth framework or stable wiring."
+      "state": "RELEASED",
+      "reason": "Clean resubmission of existing Hono/Koa/Next.js Wave B/C leaves on current main; remove historical root/duplicate-fixture shape by materializing only T13-owned paths; no fourth framework or stable wiring.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Track T13 reviewed bytes are integrated through T00 PR #147 into backend-skeleton main bb18182c54a3a8f682ed2d1a6bac26749fcf267e; old lease expired and is frozen. Fresh current-main lease required for any new write."
     },
     {
       "claim_id": "T00-ROOT-T03-cleanup-20260926",
@@ -805,9 +833,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T06:30:30Z",
       "expires_at": "2026-09-26T12:30:30Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 77,
-      "reason": "Fix Express TypeScript Router-typed assignment and mount-prefix reconstruction within T11-owned compatibility paths; no stable scanner/registry/shared files."
+      "reason": "Fix Express TypeScript Router-typed assignment and mount-prefix reconstruction within T11-owned compatibility paths; no stable scanner/registry/shared files.",
+      "released_at": "2026-09-26T15:15:00Z",
+      "release_reason": "Historical T11 compatibility PR #77 was not part of the accepted integration; lease expired and is released. Stable #119 scanner fix was integrated separately via T00 PR #147. Any future #77 work requires a fresh current-main lease and re-review."
     },
     {
       "claim_id": "T00-T11-STABLE-EXPRESS-20260926-r1",
