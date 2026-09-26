@@ -113,6 +113,40 @@ function maskComments(text) {
   return out.join('');
 }
 
+function isCodeIndex(text, target) {
+  let quote = null;
+  let lastSignificant = null;
+  for (let i = 0; i < target; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+      const stop = skipRegexLiteral(text, i);
+      if (stop > target) return false;
+      i = Math.max(i, stop - 1);
+      lastSignificant = '/';
+      continue;
+    }
+    if (!/\s/.test(ch)) lastSignificant = ch;
+  }
+  return quote === null;
+}
+
+function firstCodeMatch(text, re) {
+  for (const match of text.matchAll(re)) {
+    if (isCodeIndex(text, match.index)) return match;
+  }
+  return null;
+}
+
+
 function projectRoots(projectRoot) {
   const rootApp = path.join(projectRoot, 'app');
   const srcApp = path.join(projectRoot, 'src', 'app');
@@ -154,8 +188,8 @@ function readBasePath(projectRoot) {
     let raw;
     try { raw = fs.readFileSync(file, 'utf8'); } catch { continue; }
     const masked = maskComments(raw);
-    const any = /\bbasePath\s*:/.test(masked);
-    const literal = masked.match(/\bbasePath\s*:\s*(['"`])([^'"`]+)\1/);
+    const any = firstCodeMatch(masked, /\bbasePath\s*:/g);
+    const literal = firstCodeMatch(masked, /\bbasePath\s*:\s*(['"`])([^'"`]+)\1/g);
     if (literal && !(literal[1] === '`' && literal[2].includes('${'))) {
       if (value && value !== literal[2]) {
         unknown = true;
@@ -211,17 +245,20 @@ function explicitMethods(text) {
 
   const fnRe = /\bexport\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*\(/g;
   for (const m of masked.matchAll(fnRe)) {
+    if (!isCodeIndex(masked, m.index)) continue;
     if (!found.has(m[1])) found.set(m[1], { method: m[1], handler: m[1], line: lineNumberAt(text, m.index), form: 'function' });
   }
 
   const constRe = /\bexport\s+const\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*=/g;
   for (const m of masked.matchAll(constRe)) {
+    if (!isCodeIndex(masked, m.index)) continue;
     if (!found.has(m[1])) found.set(m[1], { method: m[1], handler: m[1], line: lineNumberAt(text, m.index), form: 'const' });
   }
 
   const exportListRe = /\bexport\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]+['"])?/g;
   const unsupportedReExports = [];
   for (const m of masked.matchAll(exportListRe)) {
+    if (!isCodeIndex(masked, m.index)) continue;
     const full = m[0];
     const external = /\}\s*from\s*['"]/.test(full);
     for (const part of m[1].split(',')) {
