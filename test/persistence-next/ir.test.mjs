@@ -64,6 +64,32 @@ test('source refs reject repository escape, absolute paths, control characters, 
 	);
 });
 
+test('entity file locator is repository-relative before it participates in canonical identity', () => {
+	const valid = normalizeEntity({
+		provider:'typeorm',
+		name:'User',
+		file:'src\\models\\User.ts',
+		table:{name:'users',source:'explicit'},
+		primary_key:{columns:['id'],type:'uuid',source:'source'},
+	});
+	assert.equal(valid.file,'src/models/User.ts');
+	assert.equal(valid.id, makeEntityId({provider:'typeorm',className:'User',file:'src/models/User.ts',table:'users'}));
+
+	for (const file of ['../secret.ts','/tmp/secret.ts','C:\\secret.ts','src/evil\n.ts']) {
+		assert.throws(
+			() => normalizeEntity({
+				provider:'typeorm',
+				name:'User',
+				file,
+				table:{name:'users',source:'explicit'},
+				primary_key:{columns:['id'],type:'uuid',source:'source'},
+			}),
+			/entity\.file/,
+			file,
+		);
+	}
+});
+
 test('top-level Persistence IR provider owns every normalized entity', () => {
 	assert.throws(
 		() => createPersistenceIr({

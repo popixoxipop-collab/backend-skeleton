@@ -115,7 +115,7 @@ export function normalizeEntity(entity) {
 	const provider = nonEmptyString(entity.provider, 'entity.provider');
 	const name = nonEmptyString(entity.name, 'entity.name');
 	const table = normalizeTable(entity.table);
-	const file = nullableString(entity.file, 'entity.file');
+	const file = normalizeRepoRelativeFile(entity.file, 'entity.file');
 	const primaryKey = normalizePrimaryKey(entity.primary_key);
 	const derivedId = makeEntityId({ provider, className: name, file, table: table.name });
 	if (entity.id != null && entity.id !== derivedId) {
