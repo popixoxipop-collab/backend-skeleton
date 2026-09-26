@@ -8,6 +8,7 @@ import {
   scanT07CorpusCheckout,
   validateT07CorpusManifest,
   runT07Corpus,
+  digestT07ReadSet,
 } from '../../scanners/language/ruby-php/corpus.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -67,6 +68,16 @@ test('Rails local corpus path aggregates DSL candidates and explicit model metad
     assert.equal(report.models, 1);
     assert.equal(report.explicit_tables, 1);
     assert.equal(report.explicit_primary_keys, 1);
+    assert.equal(report.source_read_set_count, 2);
+    assert.deepEqual(
+      report.source_read_set.map((entry) => [entry.path, entry.roles]),
+      [
+        ['app/models/widget.rb', ['model']],
+        ['config/routes.rb', ['route']],
+      ],
+    );
+    assert.equal(report.source_read_set_sha256, digestT07ReadSet(report.source_read_set));
+    assert.equal(report.source_read_set.some((entry) => entry.path === 'README.md'), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -130,6 +141,35 @@ test('Symfony local corpus scans only controller PHP files with route attributes
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('read-set digest is deterministic and rejects malformed source identities', () => {
+  const rows = [
+    { path: 'config/routes.rb', sha256: 'a'.repeat(64), size_bytes: 12, roles: ['route'] },
+    { path: 'app/models/widget.rb', sha256: 'b'.repeat(64), size_bytes: 23, roles: ['model'] },
+  ];
+  assert.equal(digestT07ReadSet(rows), digestT07ReadSet([...rows].reverse()));
+  assert.throws(
+    () => digestT07ReadSet([{ ...rows[0], path: '../routes.rb' }]),
+    /invalid T07 read-set entry/,
+  );
+});
+
+test('analysis binding digest mismatch fails before any corpus checkout', () => {
+  assert.throws(
+    () => runT07Corpus(MANIFEST, {
+      ids: ['laravel-reference'],
+      analysisBinding: {
+        analyzer_commit: '0'.repeat(40),
+        analyzer_source_digest_sha256: '3'.repeat(64),
+        manifest_sha256: '1'.repeat(64),
+        analyzer_sources: [
+          { path: 'scanners/language/ruby-php/corpus.mjs', sha256: '2'.repeat(64), size_bytes: 1 },
+        ],
+      },
+    }),
+    /analyzer source digest mismatch/,
+  );
 });
 
 test('selected corpus ids are checked before any checkout starts', () => {

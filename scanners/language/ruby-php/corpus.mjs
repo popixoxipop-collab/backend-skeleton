@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   extractRailsDslFacts,
@@ -15,6 +16,7 @@ import {
 
 export const T07_CORPUS_CONTRACT = 'sbf.t07-ruby-php-corpus/1';
 const SHA_RE = /^[0-9a-f]{40}$/i;
+const SHA256_RE = /^[0-9a-f]{64}$/;
 const FRAMEWORKS = new Set(['rails', 'laravel', 'symfony']);
 
 function safeRel(value) {
@@ -112,9 +114,55 @@ function bump(obj, key, n = 1) {
   obj[key] = (obj[key] ?? 0) + n;
 }
 
-function scanRouteFile(entry, root, file) {
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function recordSourceRead(readSet, file, source, role) {
+  const bytes = Buffer.from(source, 'utf8');
+  const current = readSet.get(file);
+  if (current) {
+    if (current.sha256 !== sha256(bytes) || current.size_bytes !== bytes.length) {
+      throw new Error(`source changed while scanning: ${file}`);
+    }
+    if (!current.roles.includes(role)) current.roles.push(role);
+    current.roles.sort();
+    return;
+  }
+  readSet.set(file, {
+    path: file,
+    sha256: sha256(bytes),
+    size_bytes: bytes.length,
+    roles: [role],
+  });
+}
+
+export function digestT07ReadSet(entries) {
+  if (!Array.isArray(entries)) throw new TypeError('read-set entries must be an array');
+  const normalized = entries.map((entry) => ({
+    path: entry.path,
+    sha256: entry.sha256,
+    size_bytes: entry.size_bytes,
+    roles: [...(entry.roles ?? [])].sort(),
+  })).sort((a, b) => a.path.localeCompare(b.path));
+  for (const entry of normalized) {
+    if (!safeRel(entry.path) || !SHA256_RE.test(entry.sha256 ?? '') || !Number.isInteger(entry.size_bytes) || entry.size_bytes < 0) {
+      throw new TypeError('invalid T07 read-set entry');
+    }
+    if (!entry.roles.length || entry.roles.some((role) => !['route', 'model'].includes(role))) {
+      throw new TypeError('invalid T07 read-set role');
+    }
+  }
+  const framed = normalized
+    .map((entry) => `${entry.path}\0${entry.sha256}\0${entry.size_bytes}\0${entry.roles.join(',')}\n`)
+    .join('');
+  return sha256(Buffer.from(framed, 'utf8'));
+}
+
+function scanRouteFile(entry, root, file, readSet) {
   const full = path.join(root, file);
   const source = fs.readFileSync(full, 'utf8');
+  recordSourceRead(readSet, file, source, 'route');
   if (entry.framework === 'symfony' && !source.includes('#[')) return null;
   const facts = entry.framework === 'rails'
     ? extractRailsDslFacts(source, { file })
@@ -125,8 +173,9 @@ function scanRouteFile(entry, root, file) {
   return { facts, expanded };
 }
 
-function scanModelFile(entry, root, file) {
+function scanModelFile(entry, root, file, readSet) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
+  recordSourceRead(readSet, file, source, 'model');
   if (entry.framework === 'rails' && !/(?:<\s*ApplicationRecord\b|<\s*ActiveRecord::Base\b)/.test(source)) return null;
   if (entry.framework === 'laravel' && !/\bextends\s+(?:\\?Illuminate\\Database\\Eloquent\\Model|Model)\b/.test(source)) return null;
   return entry.framework === 'rails'
@@ -138,6 +187,7 @@ export function scanT07CorpusCheckout(entry, root) {
   const files = trackedFiles(root);
   const routeCandidates = routeFiles(entry, files);
   const modelCandidates = modelFiles(entry, files);
+  const sourceReadSet = new Map();
   const report = {
     id: entry.id,
     framework: entry.framework,
@@ -164,7 +214,7 @@ export function scanT07CorpusCheckout(entry, root) {
   };
 
   for (const file of routeCandidates) {
-    const scanned = scanRouteFile(entry, root, file);
+    const scanned = scanRouteFile(entry, root, file, sourceReadSet);
     if (!scanned) continue;
     const { facts, expanded } = scanned;
     if (facts.facts.length) report.route_files_with_facts++;
@@ -189,7 +239,7 @@ export function scanT07CorpusCheckout(entry, root) {
   }
 
   for (const file of modelCandidates) {
-    const scanned = scanModelFile(entry, root, file);
+    const scanned = scanModelFile(entry, root, file, sourceReadSet);
     if (!scanned) continue;
     if (scanned.models.length) report.model_files_with_models++;
     report.models += scanned.models.length;
@@ -211,11 +261,45 @@ export function scanT07CorpusCheckout(entry, root) {
       }
     }
   }
+  report.source_read_set = [...sourceReadSet.values()].sort((a, b) => a.path.localeCompare(b.path));
+  report.source_read_set_count = report.source_read_set.length;
+  report.source_read_set_bytes = report.source_read_set.reduce((sum, entry) => sum + entry.size_bytes, 0);
+  report.source_read_set_sha256 = digestT07ReadSet(report.source_read_set);
   return report;
 }
 
-export function runT07Corpus(manifest, { keepCheckouts = false, ids = null } = {}) {
+function normalizeAnalysisBinding(binding) {
+  if (binding == null) return null;
+  if (!binding || typeof binding !== 'object' || Array.isArray(binding)) throw new TypeError('analysisBinding must be an object');
+  if (!SHA_RE.test(binding.analyzer_commit ?? '')) throw new TypeError('analysisBinding.analyzer_commit must be exact 40-hex');
+  if (!SHA256_RE.test(binding.analyzer_source_digest_sha256 ?? '')) throw new TypeError('analysisBinding.analyzer_source_digest_sha256 must be sha256');
+  if (!SHA256_RE.test(binding.manifest_sha256 ?? '')) throw new TypeError('analysisBinding.manifest_sha256 must be sha256');
+  if (!Array.isArray(binding.analyzer_sources) || binding.analyzer_sources.length === 0) throw new TypeError('analysisBinding.analyzer_sources must be non-empty');
+  const sources = binding.analyzer_sources.map((entry) => ({
+    path: entry.path,
+    sha256: entry.sha256,
+    size_bytes: entry.size_bytes,
+  })).sort((a, b) => a.path.localeCompare(b.path));
+  for (const entry of sources) {
+    if (!safeRel(entry.path) || !SHA256_RE.test(entry.sha256 ?? '') || !Number.isInteger(entry.size_bytes) || entry.size_bytes < 0) {
+      throw new TypeError('invalid analyzer source entry');
+    }
+  }
+  const framed = sources.map((entry) => `${entry.path}\0${entry.sha256}\0${entry.size_bytes}\n`).join('');
+  if (sha256(Buffer.from(framed, 'utf8')) !== binding.analyzer_source_digest_sha256) {
+    throw new TypeError('analysisBinding analyzer source digest mismatch');
+  }
+  return {
+    analyzer_commit: binding.analyzer_commit.toLowerCase(),
+    analyzer_source_digest_sha256: binding.analyzer_source_digest_sha256,
+    manifest_sha256: binding.manifest_sha256,
+    analyzer_sources: sources,
+  };
+}
+
+export function runT07Corpus(manifest, { keepCheckouts = false, ids = null, analysisBinding = null } = {}) {
   validateT07CorpusManifest(manifest);
+  const normalizedAnalysisBinding = normalizeAnalysisBinding(analysisBinding);
   const selectedIds = ids == null ? null : new Set(ids);
   if (selectedIds) {
     for (const id of selectedIds) {
@@ -247,6 +331,7 @@ export function runT07Corpus(manifest, { keepCheckouts = false, ids = null } = {
   return {
     contract: 'sbf.t07-ruby-php-corpus-report/1',
     generated_at: new Date().toISOString(),
+    analysis_binding: normalizedAnalysisBinding,
     results,
   };
 }
