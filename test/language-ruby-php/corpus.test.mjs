@@ -283,4 +283,3 @@ test('observed real-repo snapshot binds analyzer commit/source bytes, manifest a
   assert.equal(observed.aggregate.repositories, observed.results.length);
   assert.match(observed.scope, /not runtime-route certification/);
 });
-
