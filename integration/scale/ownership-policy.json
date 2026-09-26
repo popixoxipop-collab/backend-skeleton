@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-ownership-policy/1",
-  "revision": "T00-03-r4",
+  "revision": "T00-03-r5",
   "tracks": {
     "T00": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -257,6 +257,15 @@
         "test/t21-performance-next.test.mjs"
       ],
       "reason": "Exact historical root-test cleanup after #141 required nested-next coverage; no product semantics or new tests."
+    },
+    "T00-T11-STABLE-EXPRESS": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "canonical_track": "T00",
+      "allowed_scopes": [
+        "scanners/adapters/typescript-express.mjs",
+        "test/express-shared.test.mjs"
+      ],
+      "reason": "Exact stable-scanner integration repair for T11 issue #119: combined default+named Express import and proven arbitrary Router variable/mount extraction."
     }
   },
   "scope_amendments": [
@@ -342,6 +351,23 @@
         "default activation",
         "release/deploy"
       ]
+    },
+    {
+      "track": "T00",
+      "lease_subject": "T00-T11-STABLE-EXPRESS",
+      "revision": "T00-03-r5",
+      "approved_by": "T00",
+      "approved_at": "2026-09-26T06:33:00Z",
+      "purpose": "Close stable TypeScript Express #119 holdout without widening T11 product scope.",
+      "source_handoff": "T04 import-binding facts + T11 read-only defect reproduction",
+      "exclusions": [
+        "scanners/registry.mjs",
+        "shared schemas/contracts",
+        "other adapters",
+        "package/lock/workflows",
+        "operationId synthesis",
+        "generic low-confidence fallback weakening"
+      ]
     }
   ],
   "reserved_hot_paths": [
@@ -356,5 +382,5 @@
     "contracts/openapi.mjs",
     "schemas/feature-contract.schema.json"
   ],
-  "reserved_policy": "All reserved paths remain reserved. r4 adds six exact root-test cleanup subjects for T00 only, after nested-next was merged through PR #141. These subjects authorize deletion of only the enumerated historical root test files under ACTIVE fenced leases; they do not authorize product or nested-test semantic changes."
+  "reserved_policy": "All reserved paths remain reserved. r5 additionally admits exactly scanners/adapters/typescript-express.mjs and test/express-shared.test.mjs through T00-T11-STABLE-EXPRESS under an ACTIVE fenced lease. No other stable scanner or shared path is authorized."
 }
