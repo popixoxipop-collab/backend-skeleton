@@ -84,6 +84,63 @@ test('official hono/quick and hono/tiny presets are detected without widening to
   finally { cleanup(unsupported); }
 });
 
+test('string literals cannot impersonate Hono imports or constructors', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.13.9' } }),
+    'src/fake.ts': [
+      "const fakeImport = \"import { Hono } from 'hono'\"",
+      "const fakeCtor = 'const app = new Hono()'",
+    ].join('\n'),
+  });
+  try {
+    assert.equal(detectHonoRoot(root), null);
+  } finally { cleanup(root); }
+});
+
+test('string literals cannot impersonate Hono route registrations', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.13.9' } }),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      'const app = new Hono()',
+      "const fake = \"app.get('/ghost', ghost)\"",
+      "app.get('/live', live)",
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules[0].controllers.flatMap((controller) => controller.endpoints);
+    assert.deepEqual(endpoints.map((endpoint) => endpoint.path), ['/live']);
+  } finally { cleanup(root); }
+});
+
+test('string literals cannot impersonate relative imports used by route() graph resolution', () => {
+  const root = fixture({
+    'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.13.9' } }),
+    'src/users.ts': [
+      "import { Hono } from 'hono'",
+      'const users = new Hono()',
+      "users.get('/users', listUsers)",
+      'export default users',
+    ].join('\n'),
+    'src/app.ts': [
+      "import { Hono } from 'hono'",
+      'const app = new Hono()',
+      "const fakeImport = \"import users from './users'\"",
+      "app.route('/api', users)",
+      "app.get('/health', health)",
+      'export default app',
+    ].join('\n'),
+  });
+  try {
+    const report = scanHono(root);
+    const endpoints = report.modules[0].controllers.flatMap((controller) => controller.endpoints);
+    assert.deepEqual(endpoints.map((endpoint) => endpoint.path).sort(), ['/health', '/users']);
+    assert.ok(report.scanNotes.some((note) => note.includes('could not be resolved')));
+    assert.ok(!endpoints.some((endpoint) => endpoint.path === '/api/users'));
+  } finally { cleanup(root); }
+});
+
 test('generic-typed Hono constructors are detected and scanned', () => {
   const root = fixture({
     'package.json': JSON.stringify({ name: 'demo', dependencies: { hono: '4.0.0' } }),
