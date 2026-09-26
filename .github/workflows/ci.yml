@@ -114,19 +114,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: install ripgrep
+        if: runner.os != 'macOS'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - name: T01 contract-next
         run: node scripts/run-next-nested-tests.mjs T01
       - name: T02 project-graph
         run: node scripts/run-next-nested-tests.mjs T02
+      - name: T03 capability-next
+        run: node scripts/run-next-nested-tests.mjs T03
+      - name: T04 language-js-ts
+        run: node scripts/run-next-nested-tests.mjs T04
+      - name: T05 language-jvm
+        run: node scripts/run-next-nested-tests.mjs T05
       - name: T06 language-python
         run: node scripts/run-next-nested-tests.mjs T06
+      - name: T07 language-ruby-php
+        run: node scripts/run-next-nested-tests.mjs T07
       - name: T08 language-native-server
         run: node scripts/run-next-nested-tests.mjs T08
       - name: T09 reconciliation-next
         run: node scripts/run-next-nested-tests.mjs T09
+      - name: T10 persistence-next
+        run: node scripts/run-next-nested-tests.mjs T10
       - name: T11 http-legacy-next
         run: node scripts/run-next-nested-tests.mjs T11
+      - name: T12 http-wave-a
+        run: node scripts/run-next-nested-tests.mjs T12
+      - name: T13 http-wave-bc
+        run: node scripts/run-next-nested-tests.mjs T13
+      - name: T14 provider-composition-next
+        run: node scripts/run-next-nested-tests.mjs T14
       - name: T17 game-next
         run: node scripts/run-next-nested-tests.mjs T17
       - name: T18 protocol-next
@@ -135,6 +154,8 @@ jobs:
         run: node scripts/run-next-nested-tests.mjs T19
       - name: T20 trust-next
         run: node scripts/run-next-nested-tests.mjs T20
+      - name: T21 perf-next
+        run: node scripts/run-next-nested-tests.mjs T21
       - name: T22 sdk-next
         run: node scripts/run-next-nested-tests.mjs T22
   # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
