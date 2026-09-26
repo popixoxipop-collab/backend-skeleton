@@ -147,3 +147,33 @@ A `source-export` must include at least one `source_inputs[]` item. Each item re
 A future Unity `.unity`, Godot `.tscn`, or Unreal/T08 source producer must create refs from the actual source bytes. Reformatting or changing those bytes creates a different source artifact even if a later parser would derive the same structure.
 
 The normalized native structure carries these refs unchanged while keeping `source_structure_verified=false`. An exact source ref proves which bytes were named; it does not by itself prove the parser or exporter interpreted them correctly.
+
+
+## Implemented text-source producers
+
+T17 now includes a conservative source-only producer for Unity text scenes/prefabs and Godot text scenes.
+
+### Unity producer
+
+Recognized source facts:
+- Unity serialized document header `--- !u!<classID> &<fileID>`;
+- document body type;
+- `m_Name`;
+- `m_GameObject` fileID;
+- `m_Father` fileID;
+- inline GUID/fileID serialized references.
+
+Other source lines are counted as unmodeled diagnostics rather than interpreted. Duplicate document fileIDs and malformed required references fail closed.
+
+### Godot producer
+
+Recognized source facts:
+- `gd_scene`;
+- `ext_resource` / `sub_resource`;
+- `node` name/type/parent;
+- node script `ExtResource` / `SubResource` reference;
+- `connection` signal/from/to/method.
+
+Other sections/lines are diagnostics. Duplicate derived node paths and duplicate resource IDs fail closed.
+
+These are source exporters into the draft interchange, not claims that every Unity YAML or Godot text construct is supported. The exact original source bytes are retained separately from the generated JSON bytes.
