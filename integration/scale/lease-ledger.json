@@ -11,7 +11,12 @@
     "T22": 2,
     "T05": 2,
     "T12": 2,
-    "T14": 2
+    "T14": 2,
+    "T03": 2,
+    "T04": 2,
+    "T06": 2,
+    "T07": 2,
+    "T08": 2
   },
   "claims": [
     {
@@ -233,6 +238,116 @@
       "state": "ACTIVE",
       "pr": 71,
       "reason": "Close T10/T16 evidence-validation boundaries and move new focused tests under owned nested scope; applyAllowed remains false."
+    },
+    {
+      "claim_id": "T03-evidence-binding-fix-20260926",
+      "task_id": "T03-evidence-binding-fix",
+      "track": "T03",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t03/fix-evidence-binding",
+      "worker": "ChatGPT-T03-20260926",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t03-worktree",
+      "base_sha": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
+      "observed_head_sha": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
+      "path_scopes": [
+        "scanners/capability-next/**",
+        "test/capability-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 81,
+      "reason": "Bind capability evidence to verified T01 ArtifactRefs and keep runtime-tested/behavior-tested fail-closed absent accepted T16/T19 runtime evidence."
+    },
+    {
+      "claim_id": "T04-pr73-scope-and-evidence-fix-20260926",
+      "task_id": "T04-pr73-scope-and-evidence-fix",
+      "track": "T04",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t04-scope-repair",
+      "worker": "agent-T04",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/bskel-t04-73-repair-wt",
+      "base_sha": "9416f90fc571b281ffeeb5d890b08479e2124d0e",
+      "observed_head_sha": "9416f90fc571b281ffeeb5d890b08479e2124d0e",
+      "path_scopes": [
+        "scanners/language/js-ts/**",
+        "test/language-js-ts/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 73,
+      "reason": "Re-home/strengthen owned nested tests and lexical/syntax evidence boundaries only; no parser/package/framework expansion."
+    },
+    {
+      "claim_id": "T06-pr75-validation-fix-20260926",
+      "task_id": "T06-pr75-validation-fix",
+      "track": "T06",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t06-python-analysis-phase1",
+      "worker": "agent-T06",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t06-wt-f010",
+      "base_sha": "9e78d01c5ae937f55c9e1496b9cafe65371e9c8d",
+      "observed_head_sha": "9e78d01c5ae937f55c9e1496b9cafe65371e9c8d",
+      "path_scopes": [
+        "scanners/language/python/**",
+        "test/language-python/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 75,
+      "reason": "Current Python analyzer defect correction/verification only; shared nested-next ripgrep blocker remains T23-owned."
+    },
+    {
+      "claim_id": "T07-pr69-runtime-bridge-validation-20260926",
+      "task_id": "T07-pr69-runtime-bridge-validation",
+      "track": "T07",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T07/ruby-php-dsl-foundation",
+      "worker": "agent-T07",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t07-pr69-defectfix",
+      "base_sha": "20853afa50316503d55f36dfb5c4c55de67d2497",
+      "observed_head_sha": "20853afa50316503d55f36dfb5c4c55de67d2497",
+      "path_scopes": [
+        "scanners/language/ruby-php/**",
+        "test/language-ruby-php/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 69,
+      "reason": "Validate existing DSL/model/runtime-export bridge and corpus binding only; root shim cleanup excluded."
+    },
+    {
+      "claim_id": "T08-pr76-runner-hardening-20260926",
+      "task_id": "T08-pr76-runner-hardening",
+      "track": "T08",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t08-audit-20260926",
+      "worker": "agent-T08",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t08-backend-skeleton/t08-pr76-audit",
+      "base_sha": "8cf2a3b3f70c3929cb121ad49b7227e97cda5953",
+      "observed_head_sha": "8cf2a3b3f70c3929cb121ad49b7227e97cda5953",
+      "path_scopes": [
+        "scanners/language/native-server/**",
+        "test/language-native-server/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 76,
+      "reason": "Explicit shell:false, exactly-empty-env and oversized-output runner regressions; no new frameworks or OS-sandbox claim."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim."
