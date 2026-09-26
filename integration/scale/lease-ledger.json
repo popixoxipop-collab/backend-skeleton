@@ -14,7 +14,7 @@
     "T14": 2,
     "T03": 2,
     "T04": 2,
-    "T06": 2,
+    "T06": 3,
     "T07": 2,
     "T08": 2,
     "T23-BEVAL": 4,
@@ -319,9 +319,11 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 75,
-      "reason": "Current Python analyzer defect correction/verification only; shared nested-next ripgrep blocker remains T23-owned."
+      "reason": "Current Python analyzer defect correction/verification only; shared nested-next ripgrep blocker remains T23-owned.",
+      "released_at": "2026-09-26T08:39:00Z",
+      "release_reason": "Superseded by clean current-main T06 resubmission after shared nested-next ripgrep fix merged."
     },
     {
       "claim_id": "T07-pr69-runtime-bridge-validation-20260926",
@@ -966,6 +968,27 @@
       "expires_at": "2026-09-26T14:33:30Z",
       "state": "ACTIVE",
       "reason": "Clean resubmission of T18 protocol-next static handoff on current main; exact 25 owned files only, no registry/package/workflow/default activation."
+    },
+    {
+      "claim_id": "T06-python-next-resubmit-20260926-r3",
+      "task_id": "T06-python-next-resubmit",
+      "track": "T06",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t06/resubmit-python-next",
+      "worker": "T00-assisted-T06",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t06-resubmit-python-next",
+      "base_sha": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "observed_head_sha": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "path_scopes": [
+        "scanners/language/python/**",
+        "test/language-python/**"
+      ],
+      "fencing_token": 3,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T08:39:00Z",
+      "expires_at": "2026-09-26T14:39:00Z",
+      "state": "ACTIVE",
+      "reason": "Clean resubmission of T06 Python analyzer on current main so required nested-next runs with merged ripgrep support; no shared/package/registry/default activation changes."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
