@@ -1,0 +1,92 @@
+# T00-05 Execution Board
+
+Observed: 2026-09-26 11:32 KST  
+Coordinator: T00  
+Mode: integration / evidence closure; no new framework fan-out
+
+## Rules
+
+1. A green generic CI is not enough when focused/nested tests did not run.
+2. Static analysis, runtime evidence, independent certification, merge, and release are separate states.
+3. Shared hot files remain T00/T23-owned. Track workers submit change requests instead of editing them concurrently.
+4. Exact-head SHA and terminal CI are required at every integration step.
+5. Do not weaken failures with skip/waive/golden rewrites. Infrastructure retry is allowed only for explicitly classified infrastructure faults.
+6. Heavy jobs sharing one Docker daemon are serialized by T23.
+
+## Completed integration this round
+
+| Repo | PR | Exact candidate | Result |
+|---|---:|---|---|
+| Backend-evaluation | #65 | `14671926d55446b2491854b3f39b80ea5002f56d` | MERGED to main as `1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a` after CI #1003 SUCCESS |
+
+#65 is the Docker cache lifecycle hardening:
+- cleanup removes only the unique final image with `docker image rm --force --no-prune`;
+- only recognized Docker cache/snapshot corruption retries once with `--no-cache`;
+- candidate compile/build failures are not retried.
+
+## Priority queue
+
+| Order | Owner | Target | Current evidence | Gate before integration |
+|---:|---|---|---|---|
+| 1 | T23 | beval #66 | head `7ff35ec...`, CI #1005 SUCCESS | expand policy to PR smoke vs webgame-related full vs main/nightly full; path-detection fail-closed; re-run exact-head CI |
+| 2 | T23 | beval #58 | head `364df37...`, CI #987 SUCCESS but mergeable=false | restack on current main after #65/#66 while preserving benchmark/package changes; exact-head CI |
+| 3 | T16 | beval #59-#62 | #62 head `accce80...`, CI #1002 SUCCESS | restack the chain on accepted #58 base; focused next-runtime + package + integration evidence |
+| 4 | T16/T23 | chord-forward-right | Docker fix now in main | single-case run with runtime_state + bounded/redacted Docker logs; classify infra/build/runtime/assertion failure |
+| 5 | T21 | bskel #80 | head `efd1eec...`, CI #799 FAILURE | resolve project-cache plan ordering contract without deleting meaningful ordering checks; Node 22/24 exact-head pass |
+| 6 | T01 | bskel #82 + becoder #10 + beval consumer | both consumer implementations exist | validate exact 12-vector pack with consumer-set aggregation; bind package/code SHAs |
+| 7 | T19 | bskel #118 | head `cacf60a...`, CI #1199 SUCCESS | review deltas from T21/T16/T01; do not call 79 catalog cases executable |
+| 8 | T20 | bskel #79 | policy foundation green | produce actual externally-observed enforcement evidence for admitted runner profile; policy validity alone is insufficient |
+
+## Green candidates not yet authorized for merge
+
+| Track | PR | Current status | Why not merged yet |
+|---|---:|---|---|
+| T17 | bskel #138 | head `dee914d...`, CI #1192 SUCCESS | follow-up Unity/Godot source-only exporter still needs delta-focused T19 review; no native engine runtime claim |
+| T13 | bskel #67 | head `322e808...`, CI #1201 SUCCESS | profile-by-profile T19 review + scope cleanup; no live registry activation |
+| T19 | bskel #118 | CI #1199 SUCCESS | QA authority remains draft; executable mutation coverage is partial |
+| T16 | beval #62 | CI #1002 SUCCESS | stacked on unmerged #61/#60/#59/#58, so current green run is not a mainline integration proof |
+| T23 | beval #58 | CI #987 SUCCESS | mergeable=false / stale integration base |
+| T23 | beval #66 | CI #1005 SUCCESS | current branch only distinguishes generic PR vs main; requested webgame-related-PR/full and nightly policy still pending |
+
+## T21 known failure
+
+CI #799 fails at `test/perf-next/t21-project-cache.test.mjs:69`.
+
+Observed:
+- implementation sorts project-cache plan by `project_root`, then `adapter_id`;
+- test expects FastAPI before Spring;
+- both projects are present, so this is an ordering-contract mismatch, not missing work.
+
+T21 must first decide the canonical serialization order from T02/T21 contracts. It may not replace the ordered assertion with a set comparison merely to make CI green. DAG scheduling order and serialized plan order must remain explicitly distinct.
+
+## Merge / restack order for beval
+
+1. #65 — DONE, main = `1dbdafdcdfe4acb3a15f7e9ca89ce62795f1124a` at this integration point.
+2. T23 updates #66 on current main and completes the requested changed-path/nightly policy.
+3. Merge #66 only after its new exact-head CI succeeds.
+4. Restack #58 on the then-current main and resolve workflow/package conflicts without dropping benchmark changes.
+5. After #58 exact-head CI succeeds, restack #59 -> #60 -> #61 -> #62 in order.
+6. Run the single `chord-forward-right` repair case on the accepted Docker/CI base before relying on full-corpus results.
+7. Only after single-case classification run PR smoke/full as defined by #66 policy.
+
+## Promotion reminders
+
+- T03 may not promote runtime-tested from the presence of a RuntimeBinding alone.
+- T14 may not produce behavior-tested from build/mock evidence.
+- T17/T18 static/package-shadow success is not native/protocol runtime certification.
+- T20 signed permission data is not proof the OS actually enforced it.
+- T22 remains data-only unless T20/T23 separately approve execution/package integration.
+
+## T00 acceptance packet
+
+Every track result submitted back to T00 must contain:
+- repo, branch, actual worktree identity;
+- base SHA and final code HEAD;
+- changed paths;
+- exact focused test commands and pass/fail/skip counts;
+- exact CI run/job IDs;
+- artifact/evidence path + SHA-256 where applicable;
+- independent T19 status;
+- unresolved blockers and owner.
+
+T00 will integrate only the smallest candidate that satisfies the above at its exact head.
