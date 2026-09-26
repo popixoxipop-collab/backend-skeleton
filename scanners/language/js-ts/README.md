@@ -28,16 +28,35 @@ It does **not** resolve package exports or tsconfig aliases, execute package hoo
 
 `backend-comparison.mjs` defines a provisional first-party parser backend boundary and a deterministic corpus comparator. The bounded lexical backend is the current reference because it is the only implemented backend in this branch; that does **not** declare it semantically superior. Future Tree-sitter or TypeScript Compiler candidates can be plugged into the comparator after their dependencies, sandboxing, packaging, and version ranges are approved. Differences are reported by field instead of automatically selecting a winner.
 
-## Why no parser dependency yet
+## Validation boundary and Legacy A reconciliation
 
-The repository currently has no Tree-sitter or TypeScript compiler dependency in its root package. T04 begins with a small deterministic boundary and a regression corpus so candidate parser backends can be measured against stable facts before changing package/lock files or existing adapter behavior.
+`complete: true` means the bounded lexical pass finished; it does **not** mean JavaScript/TypeScript syntax is valid. Delimiter damage can still leave literal module facts visible while `syntaxValidated` remains false. Actual syntax/semantic claims require a separately approved parser backend and its own execution evidence.
+
+Coordinates are exact for the **source string supplied to this API**. If a caller extracts a `<script>` fragment from a Svelte/HTML container, these line/byte coordinates are fragment-relative unless the container parser supplies host-file offset/provenance. T04 does not duplicate Legacy A's Svelte parser or claim host-container coordinates.
+
+Legacy A PR #63 contributes differential counterexamples only in this lane: comments, strings and regexes must stay inert; unterminated block comments/regexes are surfaced as lexical uncertainty and their trailing text is never promoted to module facts; syntax damage must never become a syntax-valid claim; source coordinates must remain explicit. Project IDs and game/runtime meaning remain owned by T02/T17/T18.
+
+Issue #119 contributes an Express detector counterexample only: T04 preserves `import express, { Router } from 'express'` bindings as lexical facts, while T11 owns interpreting `express.Router()` as framework detector evidence.
+
+## Parser dependency decision boundary
+
+The repository root still has no approved parser dependency for T04. `backend-comparison.mjs` is the decision seam: a candidate backend must preserve the common source-fact shape, keep its syntax-validation capability explicit, accept only the bounded common options, and report differences instead of becoming authoritative automatically.
+
+Before any package/lock change, T20/T23 approval is required for the exact parser package/version range, install/runtime trust boundary, package-size/build effect, supported source modes, execution permissions, and rollback path. T04 will not install Tree-sitter/TypeScript/compiler plugins or modify `package.json` / `package-lock.json` on this branch.
+
+The current common comparison shape records `syntaxValidated` only. It has **no semantic-validation claim**: type resolution/type-checker correctness, framework meaning, and runtime behavior are outside #73. A future semantic capability requires a separately reviewed contract/evidence decision; it must not be inferred from `complete: true`, a parser process exiting 0, or `syntaxValidated: true`.
 
 ## Test
 
-The plan assigns T04 a nested test namespace, so this slice is tested directly without changing the shared root `package.json` test glob:
+T04-owned tests live only under the nested ownership path. They are executed explicitly until T00/T23 provides centrally-owned nested-test discovery:
 
 ```bash
-node --test test/js-ts-source-facts.test.mjs test/js-ts-module-resolver.test.mjs test/js-ts-snapshot-graph.test.mjs test/js-ts-backend-comparison.test.mjs
+node --test \
+  test/language-js-ts/source-facts.test.mjs \
+  test/language-js-ts/module-resolver.test.mjs \
+  test/language-js-ts/snapshot-graph.test.mjs \
+  test/language-js-ts/backend-comparison.test.mjs \
+  test/language-js-ts/legacy-a-regressions.test.mjs
 ```
 
-A tiny root bridge now imports the nested source-facts corpus so the existing `test/*.test.mjs` command sees it without changing `package.json`; the resolver test already lives at the root test level. No shared package/lock file was changed.
+No root test shim, package script, workflow, registry, stable schema, or lockfile change is owned by T04.

@@ -71,7 +71,9 @@ function skipLineComment(source, start) {
 
 function skipBlockComment(source, start) {
   const end = source.indexOf('*/', start + 2);
-  return end === -1 ? source.length : end + 2;
+  return end === -1
+    ? { end: source.length, terminated: false }
+    : { end: end + 2, terminated: true };
 }
 
 function skipTemplate(source, start) {
@@ -99,7 +101,9 @@ function skipRegex(source, start) {
   while (i < source.length) {
     const ch = source[i];
     if (ch === '\\') { i += 2; continue; }
-    if (ch === '\n' || ch === '\r') return start + 1; // probably division; consume only '/'
+    if (ch === '\n' || ch === '\r') {
+      return { end: i, terminated: false };
+    }
     if (inClass) {
       if (ch === ']') inClass = false;
       i++;
@@ -109,11 +113,11 @@ function skipRegex(source, start) {
     if (ch === '/') {
       i++;
       while (i < source.length && /[A-Za-z]/.test(source[i])) i++;
-      return i;
+      return { end: i, terminated: true };
     }
     i++;
   }
-  return start + 1;
+  return { end: source.length, terminated: false };
 }
 
 function tokenize(source, maxTokens) {
@@ -129,7 +133,14 @@ function tokenize(source, maxTokens) {
     const ch = source[i];
     if (/\s/.test(ch)) { i++; continue; }
     if (ch === '/' && source[i + 1] === '/') { i = skipLineComment(source, i); continue; }
-    if (ch === '/' && source[i + 1] === '*') { i = skipBlockComment(source, i); continue; }
+    if (ch === '/' && source[i + 1] === '*') {
+      const comment = skipBlockComment(source, i);
+      if (!comment.terminated) {
+        diagnostics.push(diag('unterminated-block-comment', 'unterminated block comment; trailing text is treated as inert comment content', i));
+      }
+      i = comment.end;
+      continue;
+    }
     if (ch === '\'' || ch === '"') {
       const r = readQuotedString(source, i, ch);
       const token = { type: 'string', value: r.value, start: i, end: r.end, literalComplete: r.terminated && r.value !== null };
@@ -146,8 +157,12 @@ function tokenize(source, maxTokens) {
       continue;
     }
     if (ch === '/' && canStartRegex(previousToken)) {
-      const end = skipRegex(source, i);
-      if (end > i + 1) { i = end; continue; }
+      const regex = skipRegex(source, i);
+      if (!regex.terminated) {
+        diagnostics.push(diag('unterminated-regex', 'unterminated regex literal; regex body is not tokenized as executable source', i));
+      }
+      i = Math.max(regex.end, i + 1);
+      continue;
     }
     if (isIdentifierStart(ch)) {
       let end = i + 1;
