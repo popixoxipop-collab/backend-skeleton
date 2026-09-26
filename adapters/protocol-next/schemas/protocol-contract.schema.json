@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:protocol-contract:1",
+  "title": "T18 shadow protocol contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sbf_protocol_contract",
+    "feature_id",
+    "feature_uid",
+    "protocol",
+    "source",
+    "planes",
+    "warnings",
+    "completeness"
+  ],
+  "properties": {
+    "sbf_protocol_contract": {
+      "const": "1"
+    },
+    "feature_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "feature_uid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "dialect"
+      ],
+      "properties": {
+        "family": {
+          "enum": [
+            "grpc",
+            "graphql",
+            "asyncapi",
+            "websocket"
+          ]
+        },
+        "dialect": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter",
+        "adapter_revision",
+        "source_hash",
+        "source_hash_basis",
+        "files"
+      ],
+      "properties": {
+        "adapter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adapter_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_hash_basis": {
+          "enum": [
+            "raw-bytes",
+            "canonical-parsed-object"
+          ]
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "planes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grpc",
+        "graphql",
+        "asyncapi",
+        "websocket"
+      ],
+      "properties": {
+        "grpc": {
+          "$ref": "#/$defs/grpc"
+        },
+        "graphql": {
+          "$ref": "#/$defs/graphql"
+        },
+        "asyncapi": {
+          "$ref": "#/$defs/asyncapi"
+        },
+        "websocket": {
+          "$ref": "#/$defs/websocket"
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "completeness": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "grpc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packages",
+        "services",
+        "methods",
+        "messages"
+      ],
+      "properties": {
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        }
+      }
+    },
+    "graphql": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemas",
+        "types",
+        "fields",
+        "operations"
+      ],
+      "properties": {
+        "schemas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        }
+      }
+    },
+    "asyncapi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channels",
+        "operations",
+        "messages"
+      ],
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        }
+      }
+    },
+    "websocket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connections",
+        "messages"
+      ],
+      "properties": {
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        }
+      }
+    }
+  }
+}

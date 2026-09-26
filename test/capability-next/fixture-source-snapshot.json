@@ -1,0 +1,60 @@
+{
+  "snapshot": "t03.integration-evidence-snapshot/1",
+  "observed_on": "2026-09-26",
+  "t01": {
+    "repository": "popixoxipop-collab/backend-skeleton",
+    "pr": 82,
+    "head": "e499073aaa7fe9c116e30fbff0536cccecb6eb69",
+    "path": "schemas/next/artifact-ref.schema.json",
+    "git_blob": "d69366533844c4d002de8746140776edfdccbb25",
+    "file_sha256": "9c23e23d76937476752b3a3ddc72ee0b0ce24c23ff4b00cf6f18f174400ac8bd",
+    "size_bytes": 880,
+    "artifact_ref": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "t01-artifact-ref-schema",
+      "version": "1",
+      "media_type": "application/schema+json",
+      "byte_sha256": "9c23e23d76937476752b3a3ddc72ee0b0ce24c23ff4b00cf6f18f174400ac8bd",
+      "size_bytes": 880
+    }
+  },
+  "t16": {
+    "repository": "popixoxipop-collab/Backend-evaluation",
+    "current_main": "cca451503bcc52cd4fbaade03587bfa795d50149",
+    "reviewed_pr": 52,
+    "reviewed_head": "7a7ec02e0e765bb9c7367b737ce1fc44e5fcb93b",
+    "merge_commit": "795c11bc78a6cfd9ce0d40392a564bb3ffc542e4",
+    "path": "lib/next-runtime/runtime-binding.mjs",
+    "git_blob": "6af4770dbc31ca64dd94ac8ec83ae570bb00104d",
+    "file_sha256": "97222d92b6b3450b0c2729aa2b38d27670c4d5e37e0e9d9c693616d02d4ad2ec",
+    "size_bytes": 5063,
+    "artifact_ref": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "t16-runtime-binding-source",
+      "version": "beval.runtime-binding/1",
+      "media_type": "text/javascript",
+      "byte_sha256": "97222d92b6b3450b0c2729aa2b38d27670c4d5e37e0e9d9c693616d02d4ad2ec",
+      "size_bytes": 5063
+    }
+  },
+  "t19": {
+    "repository": "popixoxipop-collab/backend-skeleton",
+    "pr": 136,
+    "head": "21cf8e519addcbe56dbf093967816e47a35ee2cf",
+    "path": "evidence/next/T19-T16-CORE-POST04B-REVIEW.md",
+    "git_blob": "6990553e297b493c3a4a480b1b7bec03b822a6b8",
+    "file_sha256": "4d7fd6d5e234282715f35e01f0da2760ea3c1be28cdeb4dd78caf4feaf2d998f",
+    "size_bytes": 3270,
+    "verdict": "PASS_FOR_IMMUTABLE_BINDING_PROCESS_POLICY_CORE_ONLY",
+    "observed_runtime_execution": false,
+    "runtime_tested_certification": false,
+    "artifact_ref": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "t19-runtime-core-review",
+      "version": "1",
+      "media_type": "text/markdown",
+      "byte_sha256": "4d7fd6d5e234282715f35e01f0da2760ea3c1be28cdeb4dd78caf4feaf2d998f",
+      "size_bytes": 3270
+    }
+  }
+}

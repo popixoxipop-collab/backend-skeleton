@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:support-evidence-matrix:1",
+  "title": "bskel support evidence matrix projection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "capabilityNames",
+    "rows",
+    "note"
+  ],
+  "properties": {
+    "contract": {
+      "const": "sbf.support-evidence-matrix/1"
+    },
+    "capabilityNames": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "adapterId",
+          "capabilities"
+        ],
+        "properties": {
+          "adapterId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "capabilities": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "evidenceRefs",
+                "constraints",
+                "nextActions"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "supported",
+                    "partial",
+                    "unsupported",
+                    "unknown",
+                    "not-applicable",
+                    "conflict"
+                  ]
+                },
+                "evidenceRefs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "constraints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "nextActions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

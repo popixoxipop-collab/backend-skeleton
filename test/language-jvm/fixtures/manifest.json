@@ -1,0 +1,47 @@
+{
+  "schema": "bskel.jvm-fixture-manifest/0-draft",
+  "fixtures": [
+    {
+      "id": "interface-mapping",
+      "file": "interface-mapping/Api.java",
+      "purpose": "preserve interface inheritance and annotations without interpreting Spring semantics",
+      "expectedTopLevelTypes": ["WidgetApi", "BaseApi", "WidgetDto"]
+    },
+    {
+      "id": "meta-annotation",
+      "file": "meta-annotation/ReadOnlyEndpoint.java",
+      "purpose": "preserve composed annotation declarations and their own annotations",
+      "expectedTopLevelTypes": ["ReadOnlyEndpoint"]
+    },
+    {
+      "id": "record-generic",
+      "file": "record-generic/PageEnvelope.java",
+      "purpose": "preserve nested generic record headers/components without resolving their types",
+      "expectedTopLevelTypes": ["PageEnvelope"]
+    },
+    {
+      "id": "mapped-superclass-base",
+      "file": "mapped-superclass/BaseEntity.java",
+      "purpose": "preserve mapped-superclass annotation, abstract modifier and generic declaration",
+      "expectedTopLevelTypes": ["BaseEntity"]
+    },
+    {
+      "id": "mapped-superclass-child",
+      "file": "mapped-superclass/Widget.java",
+      "purpose": "preserve raw extends/implements facts without inferring inherited IDs",
+      "expectedTopLevelTypes": ["Widget", "NamedEntity"]
+    },
+    {
+      "id": "multiple-top-level-types",
+      "file": "multi-top-level/Multi.java",
+      "purpose": "keep multiple top-level declarations distinct while ignoring braces in comments/strings/chars",
+      "expectedTopLevelTypes": ["First", "Second", "Marker"]
+    },
+    {
+      "id": "meta-annotation-cycle",
+      "file": "meta-annotation/Cycle.java",
+      "purpose": "bound composed-annotation graph traversal and report cycles instead of recursing forever",
+      "expectedTopLevelTypes": ["A", "B"]
+    }
+  ]
+}

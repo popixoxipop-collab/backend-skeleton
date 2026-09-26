@@ -1,0 +1,128 @@
+{
+  "schema": "bskel.t13-profile-evidence/1",
+  "captured_on": "2026-09-26",
+  "pr": 67,
+  "branch": "scale/T13/http-wave-bc-bootstrap",
+  "exact_head": "46bcff62731da3498cb9e7764e33cdfec83cc6ce",
+  "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+  "ci": {
+    "run_id": 36095053997,
+    "conclusion": "success",
+    "focused_tests_observed": true,
+    "node_jobs": [
+      {
+        "node": "24.x",
+        "job_id": 107945451920,
+        "conclusion": "success"
+      },
+      {
+        "node": "22.x",
+        "job_id": 107945452066,
+        "conclusion": "success"
+      }
+    ],
+    "note": "Focused T13 tests are visible in the exact-head CI logs. This evidence was obtained through the temporary root aggregation shim currently outside the T13 lease; T23 required nested-suite integration is still needed for promotion."
+  },
+  "profiles": [
+    {
+      "id": "node-hono",
+      "state": "STATIC_EVIDENCE_GREEN",
+      "verificationBasis": "synthetic-only",
+      "official_reference": {
+        "repo": "honojs/hono",
+        "commit": "3ed3a14f6d47f3a000f6f0206912261fc0e4b6cd",
+        "package_version": "4.13.9"
+      },
+      "claimed_scope": [
+        "dependency + live source detection",
+        "literal per-verb routes",
+        "literal basePath",
+        "bounded same-file/relative-import route() graph",
+        "source provenance",
+        "showRoutes output parser"
+      ],
+      "explicitly_unclaimed": [
+        "api.operations",
+        "request/response schema",
+        "security enforcement",
+        "persistence",
+        "codegen",
+        "runtime execution",
+        "dynamic paths/basePath",
+        "all/on/use/mount"
+      ]
+    },
+    {
+      "id": "node-koa",
+      "state": "STATIC_EVIDENCE_GREEN",
+      "verificationBasis": "synthetic-only",
+      "official_reference": {
+        "repo": "koajs/router",
+        "commit": "dc285194dfbd9887b7ab9937996370dc4fda55d7",
+        "package_version": "15.7.0"
+      },
+      "claimed_scope": [
+        "koa + @koa/router dependency and live constructor detection",
+        "same-file router mounted through app.use(router.routes())",
+        "literal standard-method routes",
+        "named routes",
+        "literal constructor prefix",
+        "ESM/CommonJS/generic Router bindings"
+      ],
+      "explicitly_unclaimed": [
+        "api.operations",
+        "request/response schema",
+        "security enforcement",
+        "persistence",
+        "codegen",
+        "runtime middleware semantics",
+        "unmounted or cross-file router wiring",
+        "prefix() mutation",
+        "all()/use()/register()/redirect()",
+        "dynamic/array/RegExp paths",
+        "host/method/sensitive/strict matching options"
+      ]
+    },
+    {
+      "id": "typescript-nextjs",
+      "state": "STATIC_EVIDENCE_GREEN",
+      "verificationBasis": "synthetic-only",
+      "official_reference": {
+        "repo": "vercel/next.js",
+        "commit": "cb95ca373be557309a962d8a6e64a75c6732bc5d",
+        "package_version": "16.4.0-canary.45"
+      },
+      "claimed_scope": [
+        "App Router route.js/route.ts",
+        "explicit GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS exports",
+        "route groups",
+        "simple [param]",
+        "literal basePath",
+        "local export aliases",
+        "root app over src/app precedence"
+      ],
+      "explicitly_unclaimed": [
+        "api.operations",
+        "request/response schema",
+        "security enforcement",
+        "persistence",
+        "codegen",
+        "framework-generated OPTIONS",
+        "catch-all/optional catch-all",
+        "intercepting/parallel/private routes",
+        "Pages API control-flow methods",
+        "external re-export following",
+        "runtime behavior"
+      ]
+    }
+  ],
+  "promotion_blockers": [
+    "T19 independent negative/corpus review has not yet accepted any T13 profile.",
+    "T23 must re-home/remove the out-of-lease root aggregation shim and make test/http-wave-bc/*.test.mjs a required nested CI suite.",
+    "T23 must decide package allowlisting for adapters/http-wave-bc/** before any shipped shadow profile.",
+    "No T13 leaf may enter the production scanners/adapters registry without a separate integration-owner change.",
+    "Runtime-tested claims require T16/beval verifier-produced evidence."
+  ],
+  "promotion_state": "HOLD_T19_T23",
+  "new_framework_fanout": "DEFER_UNTIL_PROFILE_REVIEW"
+}

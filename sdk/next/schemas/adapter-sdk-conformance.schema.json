@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:adapter-sdk-conformance:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "adapterId",
+    "status",
+    "executed",
+    "inputBinding",
+    "activation",
+    "observations",
+    "failures"
+  ],
+  "properties": {
+    "contract": {
+      "const": "sbf.adapter-sdk-conformance/1"
+    },
+    "adapterId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "invalid-manifest"
+      ]
+    },
+    "executed": {
+      "type": "boolean"
+    },
+    "activation": {
+      "type": "object"
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "inputBinding": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "sha256",
+            "certificationAuthority",
+            "note"
+          ],
+          "properties": {
+            "format": {
+              "const": "sbf.adapter-sdk-conformance-input-json/1"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "certificationAuthority": {
+              "const": false
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}

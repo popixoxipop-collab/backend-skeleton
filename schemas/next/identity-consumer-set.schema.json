@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:identity-consumer-set:1",
+  "title": "T01 verified independent identity consumer set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "identity_consumer_set",
+    "conformance_pack_sha256",
+    "required_repositories",
+    "consumers"
+  ],
+  "properties": {
+    "identity_consumer_set": {
+      "const": "sbf.identity-consumer-set/1"
+    },
+    "conformance_pack_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "required_repositories": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "consumers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "repository",
+          "commit_sha",
+          "implementation_path",
+          "verified_cases"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commit_sha": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+          },
+          "implementation_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verified_cases": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}
