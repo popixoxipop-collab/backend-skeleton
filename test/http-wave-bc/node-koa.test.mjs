@@ -155,11 +155,12 @@ test('official Quick Start shape, constructor prefix, named route and app wiring
     assert.deepEqual(controller.endpoints.map((endpoint) => [
       endpoint.verb,
       endpoint.path,
+      endpoint.routeName,
       endpoint.method,
       endpoint.operationId,
     ]), [
-      ['GET', '/api/users/:id', 'getUser', null],
-      ['POST', '/api/users', 'createUser', null],
+      ['GET', '/api/users/:id', null, 'getUser', null],
+      ['POST', '/api/users', 'createUser', 'createUser', null],
     ]);
     assert.equal(controller.basePath, '/api/users');
   } finally {
