@@ -62,10 +62,11 @@
         "package_version": "15.7.0"
       },
       "claimed_scope": [
-        "@koa/router detection",
+        "koa + @koa/router dependency and live constructor detection",
+        "same-file router mounted through app.use(router.routes())",
         "literal standard-method routes",
         "named routes",
-        "constructor literal prefix",
+        "literal constructor prefix",
         "ESM/CommonJS/generic Router bindings"
       ],
       "explicitly_unclaimed": [
@@ -75,10 +76,11 @@
         "persistence",
         "codegen",
         "runtime middleware semantics",
+        "unmounted or cross-file router wiring",
         "prefix() mutation",
-        "all()",
-        "use()/nested routers",
-        "RegExp/host/custom-method semantics"
+        "all()/use()/register()/redirect()",
+        "dynamic/array/RegExp paths",
+        "host/method/sensitive/strict matching options"
       ]
     },
     {
