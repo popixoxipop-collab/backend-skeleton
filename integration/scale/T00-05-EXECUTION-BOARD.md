@@ -57,7 +57,7 @@ Observed:
 - test expects FastAPI before Spring;
 - both projects are present, so this is an ordering-contract mismatch, not missing work.
 
-T21 must first decide the canonical serialization order from T02/T21 contracts. It may not replace the ordered assertion with a set comparison merely to make CI green. DAG scheduling order and serialized plan order must remain explicitly distinct.
+T19 independently checked T02 head `989e7d332761ab8bcda453b2af9e84a5102b1281` and confirmed T02 also serializes/plans by `project.root` / `project_root`. T19 verdict at `7770378890e541c831c65be865be09649a196fc5` is `BLOCKED(TEST_ORACLE_MISMATCH)`: T21 should update only its own expected order to the T02 `project_root` order, then rerun focused + Node 22/24 CI. Product semantics must not be changed to satisfy the stale test. DAG scheduling order and serialized plan order remain explicitly distinct.
 
 ## Merge / restack order for beval
 
