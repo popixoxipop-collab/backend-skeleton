@@ -199,3 +199,56 @@ test('source exporters reject path escape, invalid UTF-8 and source byte budget 
     /byte budget/,
   );
 });
+
+
+test('Unity serialized refs reject short GUID and signed-64-bit overflow', () => {
+  const shortGuid = Buffer.from(unityFixture().toString('utf8').replace(
+    '9cbd8cdf99d44b58972fbc7f6f38088f',
+    'abc',
+  ), 'utf8');
+  assert.throws(
+    () => parseUnityTextScene(shortGuid, { path: 'Assets/Main.unity' }),
+    /GUID must be exactly 32 hexadecimal characters/,
+  );
+
+  const positiveOverflow = Buffer.from(unityFixture().toString('utf8').replace(
+    'fileID: 11500000',
+    'fileID: 9223372036854775808',
+  ), 'utf8');
+  assert.throws(
+    () => parseUnityTextScene(positiveOverflow, { path: 'Assets/Main.unity' }),
+    /outside signed 64-bit range/,
+  );
+
+  const negativeOverflow = Buffer.from(unityFixture().toString('utf8').replace(
+    'fileID: 11500000',
+    'fileID: -9223372036854775809',
+  ), 'utf8');
+  assert.throws(
+    () => parseUnityTextScene(negativeOverflow, { path: 'Assets/Main.unity' }),
+    /outside signed 64-bit range/,
+  );
+});
+
+test('Unity signed-64-bit boundary fileIDs remain accepted', () => {
+  for (const boundary of ['9223372036854775807', '-9223372036854775808']) {
+    const raw = Buffer.from(unityFixture().toString('utf8').replace(
+      'fileID: 11500000',
+      `fileID: ${boundary}`,
+    ), 'utf8');
+    const parsed = parseUnityTextScene(raw, { path: 'Assets/Main.unity' });
+    assert.ok(parsed.payload.documents.some((doc) =>
+      doc.references?.some((ref) => ref.file_id === boundary)));
+  }
+});
+
+test('Unity document header fileID also rejects signed-64-bit overflow', () => {
+  const raw = Buffer.from(unityFixture().toString('utf8').replace(
+    '--- !u!1 &6',
+    '--- !u!1 &9223372036854775808',
+  ), 'utf8');
+  assert.throws(
+    () => parseUnityTextScene(raw, { path: 'Assets/Main.unity' }),
+    /document fileID.*outside signed 64-bit range/,
+  );
+});

@@ -51,11 +51,30 @@ function producer(value) {
   return value;
 }
 
+const UNITY_GUID_RE = /^[0-9a-fA-F]{32}$/;
+const UNITY_FILE_ID_MIN = -(1n << 63n);
+const UNITY_FILE_ID_MAX = (1n << 63n) - 1n;
+
+function unityFileId(value, label = 'Unity fileID') {
+  const text = String(value);
+  if (!/^-?\d+$/.test(text)) throw new TypeError(`${label} must be a decimal integer`);
+  const numeric = BigInt(text);
+  if (numeric < UNITY_FILE_ID_MIN || numeric > UNITY_FILE_ID_MAX) {
+    throw new RangeError(`${label} is outside signed 64-bit range`);
+  }
+  return text;
+}
+
 function inlineUnityRef(text) {
-  const match = text.match(/\{\s*fileID:\s*(-?\d+)(?:\s*,\s*guid:\s*([0-9a-fA-F]+))?(?:\s*,\s*type:\s*\d+)?\s*\}/);
-  if (!match) return null;
-  const ref = { file_id: match[1] };
-  if (match[2]) ref.guid = match[2].toLowerCase();
+  const token = text.match(/\{[^{}]*\}/)?.[0] ?? null;
+  if (!token || !/\bfileID\s*:/.test(token)) return null;
+  const match = token.match(/^\{\s*fileID:\s*(-?\d+)(?:\s*,\s*guid:\s*([0-9a-fA-F]+))?(?:\s*,\s*type:\s*\d+)?\s*\}$/);
+  if (!match) throw new TypeError('Unity serialized reference syntax is invalid');
+  const ref = { file_id: unityFileId(match[1], 'Unity reference fileID') };
+  if (match[2]) {
+    if (!UNITY_GUID_RE.test(match[2])) throw new TypeError('Unity GUID must be exactly 32 hexadecimal characters');
+    ref.guid = match[2].toLowerCase();
+  }
   return ref;
 }
 
@@ -97,7 +116,7 @@ export function parseUnityTextScene(sourceBytes, { path, maxBytes = MAX_SOURCE_B
       const classId = Number(header[1]);
       if (!Number.isSafeInteger(classId)) throw new Error(`Unity class ID out of range on line ${i + 1}`);
       current = {
-        file_id: header[2],
+        file_id: unityFileId(header[2], `Unity document fileID on line ${i + 1}`),
         class_id: classId,
         references: [],
       };
