@@ -127,3 +127,32 @@ Native export envelope revision 2 now carries `source_inputs[]`. Each item conta
 `source-export` is rejected when this list is empty. The envelope verifier can additionally receive the actual source bytes by path and rejects missing or mismatched bytes. Absolute paths, parent traversal, backslashes and duplicate source paths fail closed.
 
 The normalized native structure retains the same source refs unchanged. This establishes byte identity/provenance, but does not set `source_structure_verified`; independent verification remains a separate evidence step.
+
+
+## Source-only Unity and Godot exporters
+
+`native-text-source-exporters.mjs` implements a deliberately narrow, no-engine-execution source path:
+
+- Unity: `.unity` / `.prefab` text serialization document headers, `m_Name`, `m_GameObject`, `m_Father`, and inline fileID/GUID references;
+- Godot: `.tscn` scene/node/ext-resource/sub-resource declarations, script references, and signal connections.
+
+Each source parser:
+
+1. reads bounded UTF-8 bytes;
+2. creates an exact `game-native-source` ArtifactRef from the original source bytes;
+3. emits one of the pinned draft JSON payloads;
+4. creates a `source-export` native envelope that contains the exact source ref;
+5. feeds the existing native structure normalizer.
+
+Unknown Unity lines and unsupported Godot sections/lines are diagnostics; they are not converted into behavior. The output remains `declared-structure-only`, and all producer/source/runtime/causal verification claims remain false.
+
+The first source-only slice does **not** parse:
+- arbitrary Unity YAML semantics, nested managed-reference graphs, prefab override execution, or runtime lifecycle;
+- arbitrary Godot property expressions, script execution, imported binary resources, or runtime signal emission;
+- Unreal C++ source. Unreal source analysis remains a T08/T17 integration boundary.
+
+Focused test:
+
+```bash
+node --test test/game-next/native-text-source-exporters.test.mjs
+```
