@@ -17,7 +17,7 @@
     "T06": 2,
     "T07": 2,
     "T08": 2,
-    "T23-BEVAL": 3
+    "T23-BEVAL": 4
   },
   "claims": [
     {
@@ -408,7 +408,7 @@
       "fencing_token": 3,
       "issued_at": "2026-09-26T03:12:22Z",
       "expires_at": "2026-09-26T09:12:22Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "request_comments": [
         5842414530,
         5842466269,
@@ -421,6 +421,45 @@
         "Restack #58 onto this exact base and preserve all existing benchmark/game-fixture/failure-diagnostic main changes.",
         "No package-lock, unrelated workflow/source, credentials, cache prune, merge/deploy or default activation.",
         "T16 runtime code remains T16-owned; #59-#62 restack only after #58 exact-head acceptance."
+      ],
+      "released_at": "2026-09-26T04:43:45Z",
+      "release_reason": "Superseded before T16 stack integration because beval main advanced through execution-impacting webgame changes (#68/#69) to af7f45f54b4977d2f06fee2deaec0577a45dbfa6."
+    },
+    {
+      "claim_id": "T23-BEVAL-shared-ci-20260926-r4",
+      "track": "T23-BEVAL",
+      "canonical_track": "T23",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "worker": "agent-T23",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t23-beval-ci-integration-wt-r4",
+      "base_sha": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
+      "required_integration_anchor": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
+      "path_scopes": [
+        "lib/docker-runner.mjs",
+        "test/docker-runner-cache.test.mjs",
+        ".github/workflows/ci.yml",
+        "package.json",
+        "scripts/package-install-smoke.mjs",
+        "test/ci-webgame-repair-selection.test.mjs",
+        "scripts/ci-webgame-repair-selection.mjs"
+      ],
+      "fencing_token": 4,
+      "issued_at": "2026-09-26T04:43:45Z",
+      "expires_at": "2026-09-26T10:43:45Z",
+      "state": "ACTIVE",
+      "request_comments": [
+        5843192073,
+        5843196980
+      ],
+      "worktree_verification": "EOE worktree add at 2026-09-26T04:43:44Z created a clean detached worktree at exact beval main af7f45f54b4977d2f06fee2deaec0577a45dbfa6.",
+      "restrictions": [
+        "Preserve merged #65 Docker cache lifecycle and #66 path-aware repair selection behavior.",
+        "Preserve execution-impacting webgame changes merged after r3, including #68 value-preserving worker edit shapes and #69 benchmark attempt-trace changes.",
+        "Reapply/restack only the authorized #58 shared-CI/package delta onto this exact base; do not alter T16 runtime-owned source.",
+        "Because the post-r3 main changes touch webgame execution/benchmark integration, exact-head integration must run full repair corpus and full game-fixture corpus.",
+        "No package-lock, unrelated workflow/source, credentials, Docker system prune, volume/shared-image deletion, merge/deploy or default activation.",
+        "Recheck current main before final acceptance; if main advances with execution-impacting changes, do not reuse this result without T00 reconciliation.",
+        "T16 #59-#62 remain held until the r4 #58 exact head is terminal green and T00 accepts it."
       ]
     }
   ],
