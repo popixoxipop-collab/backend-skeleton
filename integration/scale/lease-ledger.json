@@ -6,7 +6,7 @@
     "T21": 2,
     "T02": 2,
     "T09": 2,
-    "T18": 2,
+    "T18": 3,
     "T20": 2,
     "T22": 2,
     "T05": 2,
@@ -140,8 +140,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-26T02:49:08Z",
       "expires_at": "2026-09-26T08:49:08Z",
-      "state": "ACTIVE",
-      "reason": "Add exact ProtocolItemRef/action_ref handoff fixture and negatives for T16/T19; no runtime implementation or protocol expansion."
+      "state": "RELEASED",
+      "reason": "Add exact ProtocolItemRef/action_ref handoff fixture and negatives for T16/T19; no runtime implementation or protocol expansion.",
+      "released_at": "2026-09-26T08:33:30Z",
+      "release_reason": "Superseded by clean current-main T18 resubmission after cross-repo T16 item-binding replay succeeded."
     },
     {
       "claim_id": "T20-pr79-evidence-echo-fix-20260926",
@@ -943,6 +945,27 @@
       "state": "ACTIVE",
       "pr": 62,
       "reason": "Restack #62 on accepted #61 exact head and validate disposable gRPC/GraphQL/event/WebSocket wire pilots without claiming production protocol certification."
+    },
+    {
+      "claim_id": "T18-protocol-next-resubmit-20260926-r3",
+      "task_id": "T18-protocol-next-resubmit",
+      "track": "T18",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t18/resubmit-protocol-next",
+      "worker": "T00-assisted-T18",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t18-resubmit-protocol-next",
+      "base_sha": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "observed_head_sha": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "path_scopes": [
+        "adapters/protocol-next/**",
+        "test/protocol-next/**"
+      ],
+      "fencing_token": 3,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T08:33:30Z",
+      "expires_at": "2026-09-26T14:33:30Z",
+      "state": "ACTIVE",
+      "reason": "Clean resubmission of T18 protocol-next static handoff on current main; exact 25 owned files only, no registry/package/workflow/default activation."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
