@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-lease-ledger/1",
-  "policy_revision": "T00-03-r3",
+  "policy_revision": "T00-03-r4",
   "last_fencing_token": {
     "T17": 2,
     "T21": 2,
@@ -21,7 +21,13 @@
     "T00-BSKEL-SHARED": 2,
     "T10": 1,
     "T16": 1,
-    "T13": 1
+    "T13": 1,
+    "T00-ROOT-T03": 1,
+    "T00-ROOT-T04": 1,
+    "T00-ROOT-T05": 1,
+    "T00-ROOT-T07": 1,
+    "T00-ROOT-T14": 1,
+    "T00-ROOT-T21": 1
   },
   "claims": [
     {
@@ -607,6 +613,150 @@
       "expires_at": "2026-09-26T12:13:15Z",
       "state": "ACTIVE",
       "reason": "Clean resubmission of existing Hono/Koa/Next.js Wave B/C leaves on current main; remove historical root/duplicate-fixture shape by materializing only T13-owned paths; no fourth framework or stable wiring."
+    },
+    {
+      "claim_id": "T00-ROOT-T03-cleanup-20260926",
+      "task_id": "T00-ROOT-T03-cleanup-20260926",
+      "track": "T00-ROOT-T03",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T03/capability-policy-next",
+      "worker": "T00-root-cleanup",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t03-worktree",
+      "base_sha": "0a0fbf1a75c5001d42a459a02540765aef6fa6be",
+      "observed_head_sha": "0a0fbf1a75c5001d42a459a02540765aef6fa6be",
+      "path_scopes": [
+        "test/capability-next.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T06:14:30Z",
+      "expires_at": "2026-09-26T12:14:30Z",
+      "state": "ACTIVE",
+      "pr": 81,
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+    },
+    {
+      "claim_id": "T00-ROOT-T04-cleanup-20260926",
+      "task_id": "T00-ROOT-T04-cleanup-20260926",
+      "track": "T00-ROOT-T04",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T04-js-ts-source-facts",
+      "worker": "T00-root-cleanup",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/bskel-t04-73-repair-wt",
+      "base_sha": "c5a79f1e167391ebe9d48ef9be3b2fce416f7a70",
+      "observed_head_sha": "c5a79f1e167391ebe9d48ef9be3b2fce416f7a70",
+      "path_scopes": [
+        "test/js-ts-backend-comparison.test.mjs",
+        "test/js-ts-module-resolver.test.mjs",
+        "test/js-ts-snapshot-graph.test.mjs",
+        "test/js-ts-source-facts.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T06:14:30Z",
+      "expires_at": "2026-09-26T12:14:30Z",
+      "state": "ACTIVE",
+      "pr": 73,
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+    },
+    {
+      "claim_id": "T00-ROOT-T05-cleanup-20260926",
+      "task_id": "T00-ROOT-T05-cleanup-20260926",
+      "track": "T00-ROOT-T05",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "agent/t05-jvm-foundation",
+      "worker": "T00-root-cleanup",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t05-pr86-fix",
+      "base_sha": "40387266db543bd68651399729214bcb01db6317",
+      "observed_head_sha": "40387266db543bd68651399729214bcb01db6317",
+      "path_scopes": [
+        "test/jvm-language-foundation.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T06:14:30Z",
+      "expires_at": "2026-09-26T12:14:30Z",
+      "state": "ACTIVE",
+      "pr": 86,
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+    },
+    {
+      "claim_id": "T00-ROOT-T07-cleanup-20260926",
+      "task_id": "T00-ROOT-T07-cleanup-20260926",
+      "track": "T00-ROOT-T07",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/T07/ruby-php-dsl-foundation",
+      "worker": "T00-root-cleanup",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t07-pr69-defectfix",
+      "base_sha": "17610d9b2ef02808c7bbc5304fafd461a8a5d399",
+      "observed_head_sha": "17610d9b2ef02808c7bbc5304fafd461a8a5d399",
+      "path_scopes": [
+        "test/t07-ruby-php-conformance.test.mjs",
+        "test/t07-ruby-php-corpus.test.mjs",
+        "test/t07-ruby-php-expand.test.mjs",
+        "test/t07-ruby-php-laravel-empty-uri.test.mjs",
+        "test/t07-ruby-php-model.test.mjs",
+        "test/t07-ruby-php-rails-scope-literals.test.mjs",
+        "test/t07-ruby-php-runtime-parity.test.mjs",
+        "test/t07-ruby-php-runtime.test.mjs",
+        "test/t07-ruby-php-symfony-attributes.test.mjs",
+        "test/t07-ruby-php.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T06:14:30Z",
+      "expires_at": "2026-09-26T12:14:30Z",
+      "state": "ACTIVE",
+      "pr": 69,
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+    },
+    {
+      "claim_id": "T00-ROOT-T14-cleanup-20260926",
+      "task_id": "T00-ROOT-T14-cleanup-20260926",
+      "track": "T00-ROOT-T14",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t14-provider-composition-next",
+      "worker": "T00-root-cleanup",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t14-worktree",
+      "base_sha": "cdfc0381a48ed3f7f937aa8ef9f37482d09ea114",
+      "observed_head_sha": "cdfc0381a48ed3f7f937aa8ef9f37482d09ea114",
+      "path_scopes": [
+        "test/t14-provider-composition.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T06:14:30Z",
+      "expires_at": "2026-09-26T12:14:30Z",
+      "state": "ACTIVE",
+      "pr": 71,
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+    },
+    {
+      "claim_id": "T00-ROOT-T21-cleanup-20260926",
+      "task_id": "T00-ROOT-T21-cleanup-20260926",
+      "track": "T00-ROOT-T21",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t21/incremental-store",
+      "worker": "T00-root-cleanup",
+      "worktree": "G:\\UEProjects\\backend-skeleton-t21-pr80-fix",
+      "base_sha": "434f28e72e8f21ccd9f23b80cd3618dc2b0a5222",
+      "observed_head_sha": "434f28e72e8f21ccd9f23b80cd3618dc2b0a5222",
+      "path_scopes": [
+        "test/t21-performance-next.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-26T06:14:30Z",
+      "expires_at": "2026-09-26T12:14:30Z",
+      "state": "ACTIVE",
+      "pr": 80,
+      "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
