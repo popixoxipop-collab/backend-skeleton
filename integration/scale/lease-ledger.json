@@ -1,6 +1,6 @@
 {
   "schema": "bskel.scale-lease-ledger/1",
-  "policy_revision": "T00-03-r7",
+  "policy_revision": "T00-03-r8",
   "last_fencing_token": {
     "T17": 2,
     "T21": 2,
@@ -33,7 +33,9 @@
     "T00-T11-STABLE-TS-EXPRESS": 1,
     "T15": 1,
     "T00-T15-CLEANUP": 1,
-    "T00-BSKEL-INTEGRATION": 1
+    "T00-BSKEL-INTEGRATION": 1,
+    "T00-BEVAL-INTEGRATION": 1,
+    "T00-BECODER-INTEGRATION": 1
   },
   "claims": [
     {
@@ -1112,6 +1114,61 @@
       "expires_at": "2026-09-27T02:16:00Z",
       "state": "ACTIVE",
       "reason": "Merge-only integration of independently reviewed T-series exact bytes onto current backend-skeleton main; no semantic conflict resolution."
+    },
+    {
+      "claim_id": "T00-BEVAL-INTEGRATION-t16-stack-20260926-r1",
+      "task_id": "T00-BEVAL-INTEGRATION-t16-stack",
+      "track": "T00-BEVAL-INTEGRATION",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/integrate-t16-stack-r1",
+      "worker": "T00-integration",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-beval-integration-r1",
+      "base_sha": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
+      "observed_head_sha": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
+      "path_scopes": [
+        ".github/workflows/ci.yml",
+        "package.json",
+        "scripts/ci-webgame-repair-selection.mjs",
+        "scripts/package-install-smoke.mjs",
+        "test/ci-webgame-repair-selection.test.mjs",
+        "docs/next-runtime/**",
+        "lib/next-runtime/**",
+        "test/next-runtime/**"
+      ],
+      "fencing_token": 1,
+      "resource_class": "integration-medium",
+      "issued_at": "2026-09-26T14:31:30Z",
+      "expires_at": "2026-09-27T02:31:30Z",
+      "state": "ACTIVE",
+      "reason": "Integrate the independently reviewed cumulative #58-#62 T23/T16 stack onto current Backend-evaluation main without semantic rewrites."
+    },
+    {
+      "claim_id": "T00-BECODER-INTEGRATION-t15-consumers-20260926-r1",
+      "task_id": "T00-BECODER-INTEGRATION-t15-consumers",
+      "track": "T00-BECODER-INTEGRATION",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "branch": "t00/integrate-t15-consumers-r1",
+      "worker": "T00-integration",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-becoder-integration-r1",
+      "base_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "observed_head_sha": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
+      "path_scopes": [
+        "lib/next/**",
+        "schemas/next/**",
+        "scripts/t01-next-identity-compatibility-smoke.mjs",
+        "test/next/**",
+        "test/next-identity-consumer-result.test.mjs",
+        "test/next-identity-consumer.test.mjs",
+        "test/t01-next-identity-compatibility-smoke.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "integration-medium",
+      "issued_at": "2026-09-26T14:31:30Z",
+      "expires_at": "2026-09-27T02:31:30Z",
+      "state": "ACTIVE",
+      "reason": "Integrate independently reviewed T15 T01 identity consumer and T03 evidence-bound capability consumer onto current backend-decoder main."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
