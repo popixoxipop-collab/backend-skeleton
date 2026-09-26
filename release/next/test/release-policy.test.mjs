@@ -47,6 +47,21 @@ test('direct main CI cannot reuse an older or merely tree-equivalent CI head',()
   assert.ok(observedBlockers(x).includes('FINAL_MAIN_PUSH_CI_NOT_DIRECT'));
 });
 
+test('promotion evidence is mandatory and its required state is fixed to ACCEPTED',()=>{
+  const missing=clone(inventory);
+  delete missing.promotion_evidence.t19_03;
+  const missingResult=verifyCompatibilityInventory(missing);
+  assert.ok(missingResult.errors.some((e)=>e.code==='PROMOTION_EVIDENCE_MISSING'));
+  assert.ok(observedBlockers(missing).includes('INDEPENDENT_QA_NOT_READY'));
+
+  const weakened=clone(inventory);
+  weakened.promotion_evidence.t20_03.required_state='NOT_ACCEPTED';
+  weakened.promotion_evidence.t20_03.observed_state='NOT_ACCEPTED';
+  const weakenedResult=verifyCompatibilityInventory(weakened);
+  assert.ok(weakenedResult.errors.some((e)=>e.code==='PROMOTION_REQUIRED_STATE'));
+  assert.ok(observedBlockers(weakened).includes('TRUST_POLICY_NOT_READY'));
+});
+
 test('release cannot hide an observed blocker',()=>{
   const x=clone(plan);
   x.blockers=x.blockers.filter((v)=>v!=='T01_06_NOT_ACCEPTED');
@@ -63,7 +78,7 @@ test('every mandatory prerequisite must remain present with its pinned required 
   assert.ok(verifyReleasePlan(weakened,inventory).errors.some((e)=>e.code==='PREREQUISITE_REQUIRED_STATE'));
 });
 
-test('release rehearsal is a real gate and PASS requires evidence',()=>{
+test('release rehearsal is a real gate and PASS requires content-addressed evidence',()=>{
   const hidden=clone(plan);
   hidden.blockers=hidden.blockers.filter((v)=>v!=='FINAL_RELEASE_REHEARSAL_NOT_RUN');
   assert.ok(verifyReleasePlan(hidden,inventory).errors.some((e)=>e.code==='OBSERVED_BLOCKER_NOT_DECLARED'));
@@ -72,6 +87,14 @@ test('release rehearsal is a real gate and PASS requires evidence',()=>{
   fakePass.release_rehearsal.observed_state='PASS';
   fakePass.blockers=fakePass.blockers.filter((v)=>v!=='FINAL_RELEASE_REHEARSAL_NOT_RUN');
   assert.ok(verifyReleasePlan(fakePass,inventory).errors.some((e)=>e.code==='REHEARSAL_PASS_WITHOUT_EVIDENCE'));
+
+  for (const bad of [null, {}, '', 'sha256:short']) {
+    const invalid=clone(plan);
+    invalid.release_rehearsal.observed_state='PASS';
+    invalid.release_rehearsal.evidence_refs=[bad];
+    invalid.blockers=invalid.blockers.filter((v)=>v!=='FINAL_RELEASE_REHEARSAL_NOT_RUN');
+    assert.ok(verifyReleasePlan(invalid,inventory).errors.some((e)=>e.code==='REHEARSAL_EVIDENCE_REF_INVALID'));
+  }
 });
 
 test('release cannot activate default writer while release gate is closed',()=>{
@@ -93,6 +116,14 @@ test('destructive rollback and old-writer overwrite remain forbidden',()=>{
   const codes=verifyReleasePlan(x,inventory).errors.map((e)=>e.code);
   assert.ok(codes.includes('DESTRUCTIVE_DOWN_MIGRATION'));
   assert.ok(codes.includes('OLD_WRITER_OVERWRITE'));
+});
+
+test('all documented release checks remain mandatory',()=>{
+  for (const check of ['historical contract/run replay','support matrix generated only from admitted evidence-backed profiles']) {
+    const x=clone(plan);
+    x.required_release_checks=x.required_release_checks.filter((item)=>item!==check);
+    assert.ok(verifyReleasePlan(x,inventory).errors.some((e)=>e.code==='REQUIRED_RELEASE_CHECK_MISSING'),check);
+  }
 });
 
 test('legacy HTTP identity stays authoritative during additive T01 shipping',()=>{
