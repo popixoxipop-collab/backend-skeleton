@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
 	CAPABILITY_STATUSES,
+	SUPPORT_LEVELS,
+	CODEGEN_STATES,
 	assertArtifactRefMatchesBytes,
 	assertCurrentRuntimeCoreReviewIsNotCertification,
 	capabilityRecord,
@@ -14,6 +16,8 @@ import {
 	evaluateCapabilityPolicy,
 	externalCapabilityFromLegacySatisfier,
 	verifyArtifactEvidence,
+	verifyT01ArtifactRefSchemaEvidence,
+	verifyT19RuntimeCoreReviewEvidence,
 } from '../../scanners/capability-next/index.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -27,13 +31,22 @@ function sha256(bytes) {
 	return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function t01Evidence() {
-	return verifyArtifactEvidence({
+function t01IdentityEvidence() {
+	return verifyT01ArtifactRefSchemaEvidence({
 		ref: snapshot.t01.artifact_ref,
 		bytes: t01Bytes,
-		expectedFamily: 't01-artifact-ref-schema',
-		expectedVersion: '1',
 	});
+}
+
+function t19RuntimeCoreEvidence() {
+	return verifyT19RuntimeCoreReviewEvidence({
+		ref: snapshot.t19.artifact_ref,
+		bytes: t19Bytes,
+	});
+}
+
+function identityOnly(ref, bytes) {
+	return verifyArtifactEvidence({ ref, bytes });
 }
 
 test('source snapshots are exact bytes from the reviewed T01/T16/T19 artifacts', () => {
@@ -49,7 +62,7 @@ test('source snapshots are exact bytes from the reviewed T01/T16/T19 artifacts',
 });
 
 test('T01 ArtifactRef must match exact bytes before it can become T03 evidence', () => {
-	const evidence = t01Evidence();
+	const evidence = t01IdentityEvidence();
 	assert.deepEqual(evidence.ref, snapshot.t01.artifact_ref);
 	assert.equal(assertArtifactRefMatchesBytes(snapshot.t01.artifact_ref, t01Bytes).byte_sha256, snapshot.t01.file_sha256);
 });
@@ -64,7 +77,7 @@ test('forged ArtifactRef digest is rejected against the real bytes', () => {
 	assert.throws(() => verifyArtifactEvidence({ ref: forged, bytes: t01Bytes }), /do not match/);
 });
 
-test('wrong ArtifactRef family/version is rejected by a scoped verifier', () => {
+test('wrong ArtifactRef family/version is rejected by a scoped identity verifier', () => {
 	assert.throws(() => verifyArtifactEvidence({
 		ref: snapshot.t01.artifact_ref,
 		bytes: t01Bytes,
@@ -82,7 +95,7 @@ test('a string evidence token can no longer create supported capability state', 
 		name: 'api.routes',
 		status: 'supported',
 		evidence: ['proof'],
-	}), /verifyArtifactEvidence/);
+	}), /T03 evidence verifier/);
 });
 
 test('a raw ArtifactRef object is not enough without exact-byte verification receipt', () => {
@@ -90,39 +103,49 @@ test('a raw ArtifactRef object is not enough without exact-byte verification rec
 		name: 'api.routes',
 		status: 'supported',
 		evidence: [snapshot.t01.artifact_ref],
-	}), /verifyArtifactEvidence/);
+	}), /T03 evidence verifier/);
 });
 
-test('verified exact-byte evidence can support only the explicit static claim', () => {
+test('exact-byte identity receipt alone does not authorize an arbitrary capability', () => {
+	assert.throws(() => capabilityRecord({
+		name: 'api.routes',
+		status: 'supported',
+		evidence: [identityOnly(snapshot.t01.artifact_ref, t01Bytes)],
+	}), /do not authorize capability api\.routes status supported/);
+});
+
+test('reviewed T01 schema evidence authorizes only identity.artifact-ref supported', () => {
+	const evidence = t01IdentityEvidence();
 	const record = capabilityRecord({
 		name: 'identity.artifact-ref',
 		status: 'supported',
-		evidence: [t01Evidence()],
+		evidence: [evidence],
 		conditions: ['verified against exact T01 ArtifactRef schema bytes'],
 	});
 	assert.equal(record.status, 'supported');
 	assert.deepEqual(record.evidenceRefs, [snapshot.t01.artifact_ref]);
+	assert.throws(() => capabilityRecord({
+		name: 'api.routes',
+		status: 'supported',
+		evidence: [evidence],
+	}), /do not authorize capability api\.routes status supported/);
 });
 
-test('legacy OpenAPI satisfier also requires verified exact-byte evidence, not a string or raw ref', () => {
+test('caller cannot spoof legacy bridge source to create supported state', () => {
+	assert.throws(() => capabilityRecord({
+		name: 'api.routes',
+		status: 'supported',
+		source: 'legacy-adapter-boolean',
+	}), /semantically scoped verified evidence/);
+});
+
+test('legacy OpenAPI satisfier remains a hint until separately reviewed capability evidence exists', () => {
+	const exactButIdentityOnly = identityOnly(snapshot.t01.artifact_ref, t01Bytes);
 	assert.throws(() => externalCapabilityFromLegacySatisfier({
 		capability: 'api.operations',
 		flag: 'openapi-file',
-		evidence: 'sha256:fake',
-	}), /verifyArtifactEvidence/);
-	assert.throws(() => externalCapabilityFromLegacySatisfier({
-		capability: 'api.operations',
-		flag: 'openapi-file',
-		evidence: snapshot.t01.artifact_ref,
-	}), /verifyArtifactEvidence/);
-	const result = externalCapabilityFromLegacySatisfier({
-		capability: 'api.operations',
-		flag: 'openapi-file',
-		evidence: t01Evidence(),
-	});
-	assert.equal(result.status, 'supported');
-	assert.deepEqual(result.evidenceRefs, [snapshot.t01.artifact_ref]);
-	assert.match(result.conditions[0], /does not.*certify runtime behavior/);
+		evidence: exactButIdentityOnly,
+	}), /do not authorize capability api\.operations status supported/);
 });
 
 test('unknown can never be accepted by policy', () => {
@@ -131,11 +154,12 @@ test('unknown can never be accepted by policy', () => {
 	}), /unknown cannot/);
 });
 
-test('partial remains partial and is never rewritten to supported', () => {
+test('reviewed T19 runtime-core evidence authorizes partial only, never supported', () => {
+	const evidence = t19RuntimeCoreEvidence();
 	const partial = capabilityRecord({
 		name: 'runtime.certification',
 		status: 'partial',
-		evidence: [verifyArtifactEvidence({ ref: snapshot.t19.artifact_ref, bytes: t19Bytes })],
+		evidence: [evidence],
 		reason: 'runtime core review is not runtime-execution certification',
 	});
 	const result = evaluateCapabilityPolicy({
@@ -145,6 +169,11 @@ test('partial remains partial and is never rewritten to supported', () => {
 	assert.equal(result.allowed, true);
 	assert.equal(result.decisions[0].status, 'partial');
 	assert.notEqual(result.decisions[0].status, 'supported');
+	assert.throws(() => capabilityRecord({
+		name: 'runtime.certification',
+		status: 'supported',
+		evidence: [evidence],
+	}), /do not authorize capability runtime\.certification status supported/);
 });
 
 test('conflict is not a T03 capability status and cannot be promoted', () => {
@@ -165,11 +194,29 @@ test('current exact T16 + T19 core review is explicitly blocked from runtime-tes
 		t19ReviewRef: snapshot.t19.artifact_ref,
 		t19ReviewBytes: t19Bytes,
 	});
-	assert.deepEqual(result.eligible, false);
+	assert.equal(result.eligible, false);
 	assert.equal(result.status, 'blocked');
 	assert.equal(result.code, 'RUNTIME_CERTIFICATION_NOT_REVIEWED');
 	assert.match(result.reason, /core-only/);
 	assert.equal(snapshot.t19.runtime_tested_certification, false);
+});
+
+test('different T16 source or T19 review artifact cannot impersonate the reviewed pair', () => {
+	const otherT16 = { ...snapshot.t16.artifact_ref, version: 'beval.runtime-binding/2' };
+	assert.throws(() => assertCurrentRuntimeCoreReviewIsNotCertification({
+		runtimeBindingImplementationRef: otherT16,
+		runtimeBindingImplementationBytes: t16Bytes,
+		t19ReviewRef: snapshot.t19.artifact_ref,
+		t19ReviewBytes: t19Bytes,
+	}), /does not match the reviewed exact ArtifactRef/);
+
+	const otherT19 = { ...snapshot.t19.artifact_ref, family: 'other-review' };
+	assert.throws(() => assertCurrentRuntimeCoreReviewIsNotCertification({
+		runtimeBindingImplementationRef: snapshot.t16.artifact_ref,
+		runtimeBindingImplementationBytes: t16Bytes,
+		t19ReviewRef: otherT19,
+		t19ReviewBytes: t19Bytes,
+	}), /does not match the reviewed exact ArtifactRef/);
 });
 
 test('stale or forged T19 review artifacts fail before their review text is considered', () => {
@@ -185,7 +232,7 @@ test('stale or forged T19 review artifacts fail before their review text is cons
 		runtimeBindingImplementationBytes: t16Bytes,
 		t19ReviewRef: forged,
 		t19ReviewBytes: t19Bytes,
-	}), /do not match/);
+	}), /does not match the reviewed exact ArtifactRef/);
 });
 
 test('RuntimeBinding presence and a profile string cannot create runtime-tested certification', () => {
@@ -193,7 +240,7 @@ test('RuntimeBinding presence and a profile string cannot create runtime-tested 
 		targetId: 'python-fastapi',
 		level: 'runtime-tested',
 		profile: 'python-3.12-linux',
-		evidence: [verifyArtifactEvidence({ ref: snapshot.t16.artifact_ref, bytes: t16Bytes })],
+		evidence: [identityOnly(snapshot.t16.artifact_ref, t16Bytes)],
 	}), /runtime-tested requires exact T16 runtime-execution evidence/);
 });
 
@@ -203,39 +250,36 @@ test('different profile/combination-looking runtime inputs cannot bypass the blo
 			targetId: 'python-fastapi',
 			level: 'contract',
 			profile,
-			evidence: [t01Evidence()],
+			evidence: [t01IdentityEvidence()],
 			runtimeVerification: { pretend: true },
 			combinationHash: 'a'.repeat(64),
 		}), /not accepted until the T16\/T19 runtime-execution verifier contract is frozen/);
 	}
 });
 
-test('behavior-tested codegen cannot be declared from static evidence', () => {
+test('generic exact-byte evidence cannot mint discovery or contract certification', () => {
+	for (const level of ['discovery', 'contract']) {
+		assert.throws(() => certificationRecord({
+			targetId: 'python-fastapi',
+			level,
+			evidence: [t01IdentityEvidence()],
+		}), /does not carry independent certification authority/);
+	}
+});
+
+test('behavior-tested codegen cannot be declared from static or generic build evidence', () => {
 	assert.throws(() => certificationRecord({
 		targetId: 'python-fastapi',
 		level: 'contract',
 		codegen: 'behavior-tested',
-		evidence: [t01Evidence()],
-	}), /requires verified runtime behavior evidence/);
+		evidence: [t01IdentityEvidence()],
+	}), /generic CI, build success, mocks, or RuntimeBinding presence are insufficient/);
 });
 
-test('discovery/contract and codegen state remain independent without implying runtime-tested', () => {
-	const discovery = certificationRecord({
-		targetId: 'python-fastapi',
-		level: 'discovery',
-		codegen: 'none',
-		evidence: [t01Evidence()],
-	});
-	const contract = certificationRecord({
-		targetId: 'python-fastapi',
-		level: 'contract',
-		codegen: 'scaffold',
-		evidence: [t01Evidence()],
-	});
-	assert.equal(discovery.level, 'discovery');
-	assert.equal(discovery.codegen, 'none');
-	assert.equal(contract.level, 'contract');
-	assert.equal(contract.codegen, 'scaffold');
+test('support level and codegen state remain separate even while authoritative certification is absent', () => {
+	assert.deepEqual(SUPPORT_LEVELS, ['discovery', 'contract', 'runtime-tested']);
+	assert.deepEqual(CODEGEN_STATES, ['none', 'scaffold', 'build-tested', 'behavior-tested']);
+	assert.equal(statusFixture.certification, null);
 });
 
 test('shared T15/T22 fixture keeps unknown, partial, conflict, runtime and codegen boundaries explicit', () => {
@@ -251,4 +295,5 @@ test('shared T15/T22 fixture keeps unknown, partial, conflict, runtime and codeg
 	assert.equal(statusFixture.rules.conflict_never_supported, true);
 	assert.equal(statusFixture.rules.runtime_binding_presence_is_not_runtime_tested, true);
 	assert.equal(statusFixture.rules.mock_success_is_not_runtime_tested, true);
+	assert.equal(statusFixture.rules.support_and_codegen_axes_are_independent, true);
 });

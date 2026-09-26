@@ -7,6 +7,8 @@ import { ADAPTERS } from '../../scanners/registry.mjs';
 import { PROVIDERS } from '../../handles/registry.mjs';
 import {
 	CAPABILITY_STATUSES,
+	SUPPORT_LEVELS,
+	CODEGEN_STATES,
 	capabilityRecord,
 	fromLegacyCapabilities,
 	evaluateCapabilityPolicy,
@@ -26,11 +28,11 @@ import {
 	verifyArtifactEvidence,
 } from '../../scanners/capability-next/index.mjs';
 
-function evidence(label) {
-	const bytes = Buffer.from(`t03-test-evidence:${label}\n`, 'utf8');
+function identityOnlyEvidence(label) {
+	const bytes = Buffer.from(`t03-identity-only-evidence:${label}\n`, 'utf8');
 	const ref = {
 		artifact_ref: 'sbf.artifact-ref/1',
-		family: 't03-test-evidence',
+		family: 't03-identity-only-test',
 		version: '1',
 		media_type: 'application/octet-stream',
 		byte_sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
@@ -41,6 +43,15 @@ function evidence(label) {
 
 test('five capability statuses remain the 04A frozen vocabulary', () => {
 	assert.deepEqual(CAPABILITY_STATUSES, ['supported', 'partial', 'unsupported', 'unknown', 'not-applicable']);
+});
+
+test('supported cannot be caller-minted without scoped evidence even by spoofing legacy source', () => {
+	assert.throws(() => capabilityRecord({ name: 'api.routes', status: 'supported' }), /semantically scoped verified evidence/);
+	assert.throws(() => capabilityRecord({
+		name: 'api.routes',
+		status: 'supported',
+		source: 'legacy-adapter-boolean',
+	}), /semantically scoped verified evidence/);
 });
 
 test('non-supported states require a reason', () => {
@@ -90,7 +101,6 @@ test('partial fails by default but explicit acceptance never rewrites its status
 		name: 'api.routes',
 		status: 'partial',
 		reason: 'dynamic mounts unresolved',
-		evidence: [evidence('partial')],
 	});
 	assert.equal(evaluateCapabilityPolicy({
 		capabilities: { 'api.routes': partial },
@@ -102,6 +112,12 @@ test('partial fails by default but explicit acceptance never rewrites its status
 	});
 	assert.equal(accepted.allowed, true);
 	assert.equal(accepted.decisions[0].status, 'partial');
+});
+
+test('unknown can never be an accepted policy state', () => {
+	assert.throws(() => evaluateCapabilityPolicy({
+		requirements: [{ capability: 'api.routes', acceptedStatuses: ['unknown'] }],
+	}), /unknown cannot/);
 });
 
 test('not-applicable never passes accidentally', () => {
@@ -147,24 +163,9 @@ test('waivers require exact scope, exact failure coverage and unexpired approval
 		expiresAt: '2026-10-01T00:00:00Z',
 		failureCodes: ['quality.low-recall'],
 	};
-	assert.equal(evaluateWaiver({
-		failureCode: 'quality.low-recall',
-		subject: 'target:b',
-		now: '2026-09-25T00:00:00Z',
-		waiver,
-	}).allowed, false);
-	assert.equal(evaluateWaiver({
-		failureCode: 'quality.low-recall',
-		subject: 'target:a',
-		now: '2026-09-25T00:00:00Z',
-		waiver,
-	}).allowed, true);
-	assert.equal(evaluateWaiver({
-		failureCode: 'quality.low-recall',
-		subject: 'target:a',
-		now: '2026-10-02T00:00:00Z',
-		waiver,
-	}).allowed, false);
+	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:b', now: '2026-09-25T00:00:00Z', waiver }).allowed, false);
+	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', now: '2026-09-25T00:00:00Z', waiver }).allowed, true);
+	assert.equal(evaluateWaiver({ failureCode: 'quality.low-recall', subject: 'target:a', now: '2026-10-02T00:00:00Z', waiver }).allowed, false);
 });
 
 test('waiver failure codes reject duplicates', () => {
@@ -182,49 +183,40 @@ test('waiver failure codes reject duplicates', () => {
 	}), /must not contain duplicates/);
 });
 
-test('discovery and contract certification require verified evidence receipts', () => {
-	assert.throws(() => certificationRecord({ targetId: 'x', level: 'discovery' }), /requires verified T01 ArtifactRef evidence/);
+test('exact-byte identity alone cannot mint discovery or contract certification', () => {
+	const evidence = identityOnlyEvidence('cert');
+	for (const level of ['discovery', 'contract']) {
+		assert.throws(() => certificationRecord({
+			targetId: 'python-fastapi',
+			level,
+			evidence: [evidence],
+		}), /does not carry independent certification authority/);
+	}
+});
+
+test('runtime-tested and behavior-tested remain blocked beyond RuntimeBinding, generic CI, build or mock success', () => {
+	const evidence = identityOnlyEvidence('runtime');
 	assert.throws(() => certificationRecord({
-		targetId: 'x',
+		targetId: 'python-fastapi',
+		level: 'runtime-tested',
+		profile: 'python-3.12-linux',
+		evidence: [evidence],
+	}), /exact T16 runtime-execution evidence plus independent T19 acceptance/);
+	assert.throws(() => certificationRecord({
+		targetId: 'python-fastapi',
 		level: 'contract',
-		evidence: ['proof'],
-	}), /verifyArtifactEvidence/);
-	const discovery = certificationRecord({
-		targetId: 'x',
-		level: 'discovery',
-		evidence: [evidence('discovery')],
-	});
-	const contract = certificationRecord({
-		targetId: 'x',
-		level: 'contract',
-		codegen: 'scaffold',
-		evidence: [evidence('contract')],
-	});
-	assert.equal(discovery.level, 'discovery');
-	assert.equal(discovery.codegen, 'none');
-	assert.equal(contract.level, 'contract');
-	assert.equal(contract.codegen, 'scaffold');
+		codegen: 'behavior-tested',
+		evidence: [evidence],
+	}), /generic CI, build success, mocks, or RuntimeBinding presence are insufficient/);
 });
 
-test('support matrix is deterministic and rejects duplicate certification rows', () => {
-	const matrix = buildSupportMatrix([
-		{ targetId: 'z', level: 'discovery', evidence: [evidence('z')] },
-		{ targetId: 'a', level: 'contract', evidence: [evidence('a')] },
-	]);
-	assert.deepEqual(matrix.map((x) => x.targetId), ['a', 'z']);
+test('support and codegen axes stay distinct even while authoritative certification is fail-closed', () => {
+	assert.deepEqual(SUPPORT_LEVELS, ['discovery', 'contract', 'runtime-tested']);
+	assert.deepEqual(CODEGEN_STATES, ['none', 'scaffold', 'build-tested', 'behavior-tested']);
+	assert.deepEqual(buildSupportMatrix([]), []);
 	assert.throws(() => buildSupportMatrix([
-		{ targetId: 'a', level: 'discovery', evidence: [evidence('a1')] },
-		{ targetId: 'a', level: 'discovery', evidence: [evidence('a2')] },
-	]), /duplicate certification row/);
-});
-
-test('duplicate exact evidence refs are rejected', () => {
-	const receipt = evidence('same');
-	assert.throws(() => capabilityRecord({
-		name: 'x',
-		status: 'supported',
-		evidence: [receipt, receipt],
-	}), /duplicate ArtifactRefs/);
+		{ targetId: 'x', level: 'contract', codegen: 'scaffold', evidence: [identityOnlyEvidence('matrix')] },
+	]), /does not carry independent certification authority/);
 });
 
 test('legacy command requirements are projected from the stable command capability table', () => {
@@ -244,7 +236,7 @@ test('provider requirements stay independent from command dispatch capabilities'
 	}), [{ capability: 'resource.fetch', acceptedStatuses: ['supported'] }]);
 });
 
-test('legacy satisfier metadata is only a hint; verified artifact evidence is required', () => {
+test('legacy satisfier metadata is only a hint and exact-byte identity alone cannot promote it', () => {
 	const hints = legacySatisfierHints();
 	assert.equal(hints['api.operations'].flag, 'openapi-file');
 	const fastapi = {
@@ -257,23 +249,18 @@ test('legacy satisfier metadata is only a hint; verified artifact evidence is re
 		},
 	};
 	assert.equal(evaluateLegacyCommandPolicy({ adapter: fastapi, command: 'contract emit' }).allowed, false);
-	const external = externalCapabilityFromLegacySatisfier({
+	assert.throws(() => externalCapabilityFromLegacySatisfier({
 		capability: 'api.operations',
 		flag: 'openapi-file',
-		evidence: evidence('openapi'),
-	});
-	assert.equal(evaluateLegacyCommandPolicy({
-		adapter: fastapi,
-		command: 'contract emit',
-		externalCapabilities: { 'api.operations': external },
-	}).allowed, true);
+		evidence: identityOnlyEvidence('openapi'),
+	}), /do not authorize capability api\.operations status supported/);
 });
 
 test('wrong satisfier flags and fabricated serialized external records fail closed', () => {
 	assert.throws(() => externalCapabilityFromLegacySatisfier({
 		capability: 'api.operations',
 		flag: 'something-else',
-		evidence: evidence('x'),
+		evidence: identityOnlyEvidence('x'),
 	}), /openapi-file/);
 	const adapter = { id: 'x', capabilities: { 'api.operations': false } };
 	assert.throws(() => evaluateLegacyCommandPolicy({

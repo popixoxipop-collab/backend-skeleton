@@ -1,4 +1,4 @@
-import { normalizeEvidenceReceipts } from './evidence.mjs';
+import { normalizeCapabilityEvidenceReceipts } from './evidence.mjs';
 
 export const CAPABILITY_STATUSES = Object.freeze([
 	'supported',
@@ -20,8 +20,14 @@ function nonEmpty(value, name) {
 	return value;
 }
 
-export function capabilityRecord({
-	name, status, evidence = [], reason = null, conditions = [], source = 'next',
+function makeCapabilityRecord({
+	name,
+	status,
+	evidence = [],
+	reason = null,
+	conditions = [],
+	source = 'next',
+	legacyBooleanBridge = false,
 } = {}) {
 	nonEmpty(name, 'name');
 	if (!STATUS_SET.has(status)) throw new TypeError(`status must be one of: ${CAPABILITY_STATUSES.join(', ')}`);
@@ -30,25 +36,39 @@ export function capabilityRecord({
 	}
 	if (reason !== null && (typeof reason !== 'string' || reason.trim() === '')) throw new TypeError('reason must be null or a non-empty string');
 	nonEmpty(source, 'source');
-	const evidenceRefs = normalizeEvidenceReceipts(evidence);
-	if (status === 'supported' && evidenceRefs.length === 0 && source !== 'legacy-adapter-boolean') {
-		throw new TypeError('supported capability records require verified T01 ArtifactRef evidence unless they are an explicit legacy boolean bridge');
+
+	const evidenceRefs = evidence.length > 0
+		? normalizeCapabilityEvidenceReceipts(evidence, { capability: name, status })
+		: Object.freeze([]);
+
+	if (status === 'supported' && evidenceRefs.length === 0 && !legacyBooleanBridge) {
+		throw new TypeError('supported capability records require semantically scoped verified evidence');
 	}
 	if (status !== 'supported' && reason === null) throw new TypeError(`${status} capability records require a reason`);
+
 	return Object.freeze({
-		name, status, evidenceRefs, reason,
-		conditions: Object.freeze([...conditions]), source,
+		name,
+		status,
+		evidenceRefs,
+		reason,
+		conditions: Object.freeze([...conditions]),
+		source,
 		[CAPABILITY_RECORD]: true,
 	});
 }
 
+export function capabilityRecord(input = {}) {
+	return makeCapabilityRecord(input);
+}
+
 export function fromLegacyBoolean(name, value) {
 	if (typeof value !== 'boolean') throw new TypeError(`legacy capability ${name} must be boolean`);
-	return capabilityRecord({
+	return makeCapabilityRecord({
 		name,
 		status: value ? 'supported' : 'unsupported',
 		reason: value ? null : 'legacy adapter boolean is false',
 		source: 'legacy-adapter-boolean',
+		legacyBooleanBridge: true,
 		conditions: ['Semantics are limited to the legacy capability definition; this bridge does not widen that definition.'],
 	});
 }
