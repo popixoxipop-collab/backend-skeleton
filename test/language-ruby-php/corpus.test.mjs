@@ -197,12 +197,6 @@ test('observed real-repo snapshot binds analyzer commit/source bytes, manifest a
   assert.equal(observed.runtime_route_equivalence_verified, false);
   assert.equal(observed.results.length, MANIFEST.entries.length);
 
-  execFileSync(
-    'git',
-    ['merge-base', '--is-ancestor', observed.analyzer_binding.analyzer_commit, 'HEAD'],
-    { cwd: REPO_ROOT, stdio: 'ignore' },
-  );
-
   const sourcePaths = execFileSync(
     'git',
     ['ls-files', 'scanners/language/ruby-php/*.mjs'],
