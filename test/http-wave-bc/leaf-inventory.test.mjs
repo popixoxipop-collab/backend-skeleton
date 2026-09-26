@@ -24,10 +24,7 @@ test('every experimental Wave B/C leaf maps to exactly one catalog target and cu
   const catalogIds = new Set(HTTP_WAVE_BC_TARGETS.map((target) => target.id));
   const leaves = leafDirectories();
 
-  assert.ok(leaves.length >= 3);
-  assert.ok(leaves.includes('node-hono'));
-  assert.ok(leaves.includes('node-koa'));
-  assert.ok(leaves.includes('typescript-nextjs'));
+  assert.deepEqual(leaves, ['node-hono', 'node-koa', 'typescript-nextjs']);
 
   for (const id of leaves) {
     assert.ok(catalogIds.has(id), `experimental leaf ${id} is missing from catalog.mjs`);
@@ -39,6 +36,12 @@ test('every experimental Wave B/C leaf maps to exactly one catalog target and cu
     const { detect, scan, diagnostics, listReadSet, introspectRoutes, ...data } = descriptor;
     assert.equal(validate(data), true, `${id}: ${JSON.stringify(validate.errors)}`);
   }
+});
+
+test('T13 fan-out is scope-locked until the profile evidence hold is deliberately cleared', () => {
+  const evidence = JSON.parse(fs.readFileSync(path.join(waveRoot, 'profile-evidence.json'), 'utf8'));
+  assert.equal(evidence.new_framework_fanout, 'DEFER_UNTIL_PROFILE_REVIEW');
+  assert.deepEqual(leafDirectories(), ['node-hono', 'node-koa', 'typescript-nextjs']);
 });
 
 test('experimental leaf inventory is deterministic and contains no uncatalogued directories', () => {
