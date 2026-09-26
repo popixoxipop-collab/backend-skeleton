@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T16:27:00+09:00",
+  "observed_at": "2026-09-26T17:36:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -61,7 +61,7 @@
       }
     },
     "T16_protocol_stack": {
-      "state": "PR60_EXACT_HEAD_CI_PENDING",
+      "state": "PR62_EXACT_HEAD_CI_PENDING",
       "accepted_base": "62cc61ee57ea7791c631be690e38ed22d4932973",
       "pr59_head": "16d6958d009fbc285313790804eaf16b2280d74e",
       "pr59_ci_run": 36222854544,
@@ -69,10 +69,19 @@
       "pr59_direct": "34/34 next-runtime + package smoke PASS",
       "pr60_head": "e0af62e9c022f5884c02d6c02616ee2c37d800c5",
       "pr60_ci_run": 36225285709,
-      "pr60_ci_conclusion": null,
+      "pr60_ci_conclusion": "success",
       "pr60_direct": "43/43 next-runtime + package smoke PASS",
       "pr60_fix": "exact frozen action_ref + evidence_binding_hash commits RuntimeBinding hash/attempt/target/assertion/action_ref/evidence hash; cross-ProtocolItemRef swap rejected",
-      "next": "After PR60 exact-head green, restack PR61; executor must return action_ref + evidence_binding_hash rather than T16 synthesizing them."
+      "next": "After PR60 exact-head green, restack PR61; executor must return action_ref + evidence_binding_hash rather than T16 synthesizing them.",
+      "pr61_head": "93d9c6e08e5e1aae54235f382c55b9e7d330bd54",
+      "pr61_ci_run": 36227068388,
+      "pr61_ci_conclusion": "success",
+      "pr61_direct": "7/7 executor focused + 50/50 next-runtime + package smoke PASS",
+      "pr62_head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
+      "pr62_ci_run": 36229802400,
+      "pr62_ci_conclusion": null,
+      "pr62_direct": "4/4 network probes + 54/54 next-runtime + package smoke PASS",
+      "pr62_scope": "disposable gRPC unary / GraphQL HTTP / event TCP / RFC6455 WebSocket pilots only; no production protocol certification"
     },
     "T19": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -163,11 +172,25 @@
       "state": "AWAITING_T19_FINAL_VERDICT"
     },
     "T18": {
-      "final_local_head": "89d2cfb3dcb5ce6e393bc3dc024a335275d6f4ed",
-      "focused": "75/75",
-      "state": "PR60_FIX_CANDIDATE_CI_PENDING",
-      "reproduced_defect": "same-request cross-ProtocolItemRef evidence swap",
-      "candidate_resolution": "T16 PR60 e0af62e rejects swap with PROTOCOL_RUNTIME_ASSERTION_ITEM_MISMATCH; replay again after exact-head CI"
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "historical_local_head": "89d2cfb3dcb5ce6e393bc3dc024a335275d6f4ed",
+      "clean_resubmission_pr": 144,
+      "clean_head": "38179bb6cae26a1463e4a3db11a5f3829d450144",
+      "base": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "direct": "75/75 PASS after npm ci",
+      "direct_request": "26657678-a703-4af1-ac37-7a5d4972e42f",
+      "nested_node22": "success",
+      "nested_node24": "success",
+      "ci_run": 36230235608,
+      "ci_conclusion": null,
+      "state": "CLEAN_RESUBMISSION_CI_RUNNING",
+      "cross_repo_replay": {
+        "evidence_commit": "7d6e1933e0565eef194c62bf24ea2114e9c8d1bd",
+        "evidence_path": "integration/scale/evidence/T00-05/T18-T16-CROSS-ITEM-REPLAY.json",
+        "request_id": "7e328c44-215a-41e7-9ca8-05d4415a5324",
+        "swapped_evidence_package_rejected": true,
+        "rejection_code": "PROTOCOL_RUNTIME_ASSERTION_ITEM_MISMATCH"
+      }
     },
     "T11": {
       "repo": "popixoxipop-collab/backend-skeleton",
