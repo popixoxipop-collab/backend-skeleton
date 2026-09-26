@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T00:12:00+09:00",
+  "observed_at": "2026-09-27T00:16:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -242,220 +242,7 @@
     "T19 review for claimed support level",
     "runtime evidence from T16/beval for runtime-tested claims"
   ],
-  "active_leases": {
-    "T17": {
-      "claim_id": "T17-pr138-defect-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/T17/native-text-source-exporters-post135",
-      "base_sha": "3e2db88d25da1f11b830e2dd1f24d60f3f291d43",
-      "observed_head_sha": "dee914da4f3454273836cefbd5dc67378acc0969",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t17-bskel-wt-138",
-      "path_scopes": [
-        "adapters/game-next/native-text-source-exporters.mjs",
-        "test/game-next/native-text-source-exporters.test.mjs"
-      ],
-      "expires_at": "2026-09-26T08:47:13Z"
-    },
-    "T21": {
-      "claim_id": "T21-pr80-defect-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/t21/incremental-store",
-      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "observed_head_sha": "efd1eecec81a1a16556da685dde4d892114f7b5b",
-      "worktree": "G:\\UEProjects\\backend-skeleton-t21-pr80-fix",
-      "path_scopes": [
-        "lib/artifact-store-next/**",
-        "lib/scan-scheduler-next/**",
-        "test/perf-next/**"
-      ],
-      "expires_at": "2026-09-26T08:47:13Z"
-    },
-    "T02": {
-      "claim_id": "T02-pr72-locale-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/t02/project-graph-foundation",
-      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "observed_head_sha": "989e7d332761ab8bcda453b2af9e84a5102b1281",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t02-pr72-wt",
-      "path_scopes": [
-        "scanners/project-graph/**",
-        "test/project-graph/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T09": {
-      "claim_id": "T09-pr83-evidence-binding-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/T09/reconciliation-next-foundation",
-      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "observed_head_sha": "7074e815e0c471ec7770f3f5f50f691c9e275b5d",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t09-pr83-wt",
-      "path_scopes": [
-        "contracts/reconciliation-next/**",
-        "test/reconciliation-next/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T18": {
-      "claim_id": "T18-protocol-item-binding-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/T00/bootstrap-baseline",
-      "base_sha": "be76e28bc415b6bd5fbbc87faa409d634f395107",
-      "observed_head_sha": "be76e28bc415b6bd5fbbc87faa409d634f395107",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t18-protocol-t16-boundary-wt-r2",
-      "path_scopes": [
-        "adapters/protocol-next/**",
-        "test/protocol-next/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T20": {
-      "claim_id": "T20-pr79-evidence-echo-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/T20/trust-boundary-foundation",
-      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "observed_head_sha": "281a78871723025a3598844154ad19d1dd0eb9e8",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/backend-skeleton-t20",
-      "path_scopes": [
-        "lib/trust-next/**",
-        "test/trust-next/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T22": {
-      "claim_id": "T22-pr85-sdk-boundary-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/t22/sdk-ux",
-      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "observed_head_sha": "d7081713724c016499d6c48186e26be2dc89671e",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/bskel-t22",
-      "path_scopes": [
-        "sdk/next/**",
-        "docs/scale-sdk/**",
-        "test/sdk-next/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T05": {
-      "claim_id": "T05-pr86-helper-boundary-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "agent/t05-jvm-foundation",
-      "base_sha": "931abb6867a136bf020bc2cb6359e8a34f9edbcf",
-      "observed_head_sha": "931abb6867a136bf020bc2cb6359e8a34f9edbcf",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t05-pr86-fix",
-      "path_scopes": [
-        "scanners/language/jvm/**",
-        "test/language-jvm/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T12": {
-      "claim_id": "T12-wave-a-resubmit-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t12/resubmit-wave-a-leaves",
-      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "observed_head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t12-resubmit-worktree",
-      "path_scopes": [
-        "adapters/http-wave-a/**",
-        "test/http-wave-a/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T14": {
-      "claim_id": "T14-pr71-evidence-boundary-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/t14-provider-composition-next",
-      "base_sha": "6ef66955f8cd1180063c9ff17b1d2619a8d6036c",
-      "observed_head_sha": "6ef66955f8cd1180063c9ff17b1d2619a8d6036c",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t14-worktree",
-      "path_scopes": [
-        "handles/composition-next/**",
-        "test/provider-composition-next/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T03": {
-      "claim_id": "T03-evidence-binding-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t03/fix-evidence-binding",
-      "base_sha": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
-      "observed_head_sha": "9795ab4ef3d24e0dd2d30646c373343c76a081c3",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t03-worktree",
-      "path_scopes": [
-        "scanners/capability-next/**",
-        "test/capability-next/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T04": {
-      "claim_id": "T04-pr73-scope-and-evidence-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t04-scope-repair",
-      "base_sha": "9416f90fc571b281ffeeb5d890b08479e2124d0e",
-      "observed_head_sha": "9416f90fc571b281ffeeb5d890b08479e2124d0e",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/bskel-t04-73-repair-wt",
-      "path_scopes": [
-        "scanners/language/js-ts/**",
-        "test/language-js-ts/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T06": {
-      "claim_id": "T06-pr75-validation-fix-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/t06-python-analysis-phase1",
-      "base_sha": "9e78d01c5ae937f55c9e1496b9cafe65371e9c8d",
-      "observed_head_sha": "9e78d01c5ae937f55c9e1496b9cafe65371e9c8d",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t06-wt-f010",
-      "path_scopes": [
-        "scanners/language/python/**",
-        "test/language-python/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T07": {
-      "claim_id": "T07-pr69-runtime-bridge-validation-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "scale/T07/ruby-php-dsl-foundation",
-      "base_sha": "20853afa50316503d55f36dfb5c4c55de67d2497",
-      "observed_head_sha": "20853afa50316503d55f36dfb5c4c55de67d2497",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t07-pr69-defectfix",
-      "path_scopes": [
-        "scanners/language/ruby-php/**",
-        "test/language-ruby-php/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    },
-    "T08": {
-      "claim_id": "T08-pr76-runner-hardening-20260926",
-      "token": 2,
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t08-audit-20260926",
-      "base_sha": "8cf2a3b3f70c3929cb121ad49b7227e97cda5953",
-      "observed_head_sha": "8cf2a3b3f70c3929cb121ad49b7227e97cda5953",
-      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t08-backend-skeleton/t08-pr76-audit",
-      "path_scopes": [
-        "scanners/language/native-server/**",
-        "test/language-native-server/**"
-      ],
-      "expires_at": "2026-09-26T08:49:08Z"
-    }
-  },
+  "active_leases": {},
   "review_candidates": {
     "T03": {
       "pr": 81,
@@ -463,7 +250,7 @@
       "ci": 36223276575,
       "ci_conclusion": "success",
       "focused": "48/48",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T04": {
       "pr": 73,
@@ -471,7 +258,7 @@
       "ci": 36223280662,
       "ci_conclusion": "success",
       "focused": "62/62",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T05": {
       "pr": 86,
@@ -479,7 +266,7 @@
       "ci": 36223376986,
       "ci_conclusion": "success",
       "focused": "47/47 nested after root cleanup",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T06": {
       "pr": 75,
@@ -487,7 +274,7 @@
       "ci": 36217306344,
       "ci_conclusion": "success",
       "focused": "62/62; shared rg blocker resolved by #141",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T07": {
       "pr": 69,
@@ -495,7 +282,7 @@
       "ci": 36223382943,
       "ci_conclusion": "success",
       "focused": "63/63",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T08": {
       "pr": 76,
@@ -503,7 +290,7 @@
       "ci": 36217094272,
       "ci_conclusion": "success",
       "focused": "59/59 macOS+Windows",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T09": {
       "pr": 83,
@@ -511,7 +298,7 @@
       "ci": 36218010788,
       "ci_conclusion": "success",
       "focused": "110/110",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T10": {
       "pr": 84,
@@ -519,7 +306,7 @@
       "ci": 36222985391,
       "ci_conclusion": "success",
       "focused": "126/126",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T11": {
       "pr": 143,
@@ -535,7 +322,7 @@
       "ci": 36222528405,
       "ci_conclusion": "success",
       "focused": "20/20",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T13": {
       "pr": 142,
@@ -543,7 +330,7 @@
       "ci": 36223203385,
       "ci_conclusion": "success",
       "focused": "66/66",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T14": {
       "pr": 71,
@@ -551,7 +338,7 @@
       "ci": 36223386405,
       "ci_conclusion": "success",
       "focused": "25/25",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T17": {
       "pr": 138,
@@ -559,7 +346,7 @@
       "ci": 36217030347,
       "ci_conclusion": "success",
       "focused": "50/50",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T20": {
       "pr": 79,
@@ -567,7 +354,7 @@
       "ci": 36217201599,
       "ci_conclusion": "success",
       "focused": "121/121 + 33/33",
-      "state": "awaiting_T19; actual T16 matrix still 4 PASS/7 FAIL/3 NOT_RUN"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T21": {
       "pr": 80,
@@ -575,7 +362,7 @@
       "ci": 36223673370,
       "ci_conclusion": "success",
       "focused": "Linux nested Node22/24 success",
-      "state": "awaiting_T19; Windows Node25 holdout 44/58 portability follow-up"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     },
     "T22": {
       "pr": 85,
@@ -583,7 +370,7 @@
       "ci": 36217909460,
       "ci_conclusion": "success",
       "focused": "65/65 Node18/22/24",
-      "state": "awaiting_T19"
+      "state": "INTEGRATED_OR_SUPERSEDED_BY_MAIN_INTEGRATION"
     }
   },
   "shared_ci": {
@@ -664,7 +451,7 @@
       "state": "MERGED_AND_ACCEPTED"
     }
   },
-  "phase": "T_SERIES_INTEGRATED_TO_MAIN",
+  "phase": "T_SERIES_MAIN_INTEGRATION_CLOSED",
   "becoder_main_anchor": {
     "main_sha": "eb8164560ddd343306234a9140dc89c001519792",
     "state": "T15_CONSUMERS_INTEGRATED",
@@ -680,6 +467,28 @@
     "release": false,
     "runtime_tested_promotion": false,
     "production_protocol_certification": false,
-    "next_phase": "Post-integration cleanup / optional stable promotion gates such as T01-06 and explicit release/default-activation work."
+    "next_phase": "Optional stable-promotion/release work only under fresh leases; T01-06 and explicit default/release gates remain separate.",
+    "bskel_main": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+    "beval_main": "fe65484f078c50f33f64248f83b5c518fb896961",
+    "becoder_main": "eb8164560ddd343306234a9140dc89c001519792",
+    "bskel_pr": 147,
+    "bskel_ci": 36248587163,
+    "beval_pr": 70,
+    "beval_ci": 36248956436,
+    "becoder_pr": 12,
+    "becoder_ci": 36249066547,
+    "merge_tree_checks": {
+      "bskel": "integration head c429cb52... -> main bb18182c...: ahead 1, file delta 0",
+      "beval": "integration head 902424d0... -> main fe65484f...: ahead 1, file delta 0",
+      "becoder": "integration head 67b94292... -> main eb816456...: ahead 1, file delta 0"
+    },
+    "historical_nonintegrated": [
+      "T11 compatibility PR #77"
+    ]
+  },
+  "lease_closeout": {
+    "active_write_authority_count": 0,
+    "final_release_commit": "a8a5b4d70c8a05f1fa784bd5be210e4ed705e435",
+    "note": "All T-series implementation/integration leases are RELEASED. T11 historical compatibility PR #77 is not integrated and has no active write authority. Any new work requires fresh current-main lease."
   }
 }
