@@ -1,18 +1,17 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-26T23:37:00+09:00",
+  "observed_at": "2026-09-27T00:12:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
   "beval_main_anchor": {
-    "main_sha": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
-    "notes": [
-      "#65 Docker cache lifecycle merged",
-      "#66 path-aware webgame selection merged",
-      "#68 value-preserving webgame worker edit-shape fix merged",
-      "#69 benchmark attempt-trace changes merged"
-    ],
-    "state": "current_execution_anchor_requires_r4_revalidation"
+    "main_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
+    "state": "T16_STACK_INTEGRATED",
+    "integration_pr": 70,
+    "integration_head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
+    "ci_run": 36248956436,
+    "ci_conclusion": "success",
+    "merge_tree_relation": "main is 1 merge commit ahead of integration head with zero file delta"
   },
   "gates": {
     "T21": {
@@ -598,18 +597,19 @@
     "state": "MERGED_TO_MAIN",
     "effect": "required nested suites T03/T04/T05/T07/T10/T12/T13/T14/T21 visible; nested-next ripgrep installed"
   },
-  "bskel_main_anchor": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+  "bskel_main_anchor": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
   "integration": {
     "bskel": {
       "pr": 147,
       "base": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
-      "head": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e",
-      "commits": [
-        "152a3fc6eac518c3f16a7e330ee849075b09b69d",
-        "c429cb52bcc94c15c934b0cfa4a87f2b7053129e"
-      ],
+      "integration_head": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e",
+      "final_main": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "ci_run": 36248587163,
+      "ci_conclusion": "success",
       "changed_files": 391,
-      "byte_exact_tracks": [
+      "lease": "T00-BSKEL-INTEGRATION-reviewed-series-20260926-r1",
+      "fencing_token": 1,
+      "included_tracks": [
         "T01",
         "T02",
         "T03",
@@ -620,7 +620,7 @@
         "T08",
         "T09",
         "T10",
-        "T11-fix",
+        "T11-stable-fix",
         "T12",
         "T13",
         "T14",
@@ -630,36 +630,56 @@
         "T21",
         "T22"
       ],
-      "t17_reviewed_dependencies": [
-        "adapters/game-next/native-export-envelope.mjs",
-        "adapters/game-next/native-structure-normalizer.mjs"
-      ],
-      "local_nested": "all included suites PASS after T17 dependency restoration",
+      "exact_byte_validation": "PASS",
+      "nested_node22": "success",
+      "nested_node24": "success",
       "express_119": "23/23 PASS",
-      "ci_run": 36248587163,
-      "state": "CI_RUNNING"
+      "merge_tree_relation": "main is 1 merge commit ahead of integration head with zero file delta",
+      "state": "MERGED_AND_ACCEPTED"
     },
     "beval": {
       "pr": 70,
       "base": "af7f45f54b4977d2f06fee2deaec0577a45dbfa6",
-      "head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
-      "method": "ff-only cumulative reviewed T16 stack",
-      "t19_verdict": "PASS(T16_PROTOCOL_RUNTIME_BINDING_STACK)",
+      "integration_head": "902424d0622c7731840acc11b9b4d07e3c60ac5a",
+      "final_main": "fe65484f078c50f33f64248f83b5c518fb896961",
       "ci_run": 36248956436,
-      "state": "CI_QUEUED"
+      "ci_conclusion": "success",
+      "t19_verdict": "PASS(T16_PROTOCOL_RUNTIME_BINDING_STACK)",
+      "merge_tree_relation": "main is 1 merge commit ahead of integration head with zero file delta",
+      "state": "MERGED_AND_ACCEPTED"
     },
     "becoder": {
       "pr": 12,
       "base": "37ffb1d8fab6a1e4485fb6b12515d5416963bc48",
-      "head": "67b9429283a6736322b205ef4f941fc8436be14d",
-      "sources": {
-        "t01": "9697098f45893d4647060cce02694655864e3300",
-        "t15": "47da5c9bb5e9cc406549c4d7326fe386e09b7b9c"
-      },
-      "local_focused": "22/22 PASS",
-      "local_root": "259/259 PASS",
+      "integration_head": "67b9429283a6736322b205ef4f941fc8436be14d",
+      "final_main": "eb8164560ddd343306234a9140dc89c001519792",
       "ci_run": 36249066547,
-      "state": "CI_QUEUED"
+      "ci_conclusion": "success",
+      "focused": "22/22 PASS",
+      "t19_verdicts": [
+        "PASS(T01-05_CONSUMER_COMPATIBILITY)",
+        "PASS(T15_EVIDENCE_BOUND_CAPABILITY_CONSUMER)"
+      ],
+      "merge_tree_relation": "main is 1 merge commit ahead of integration head with zero file delta",
+      "state": "MERGED_AND_ACCEPTED"
     }
+  },
+  "phase": "T_SERIES_INTEGRATED_TO_MAIN",
+  "becoder_main_anchor": {
+    "main_sha": "eb8164560ddd343306234a9140dc89c001519792",
+    "state": "T15_CONSUMERS_INTEGRATED",
+    "integration_pr": 12,
+    "integration_head": "67b9429283a6736322b205ef4f941fc8436be14d",
+    "ci_run": 36249066547,
+    "ci_conclusion": "success",
+    "merge_tree_relation": "main is 1 merge commit ahead of integration head with zero file delta"
+  },
+  "integration_closeout": {
+    "completed": true,
+    "default_activation": false,
+    "release": false,
+    "runtime_tested_promotion": false,
+    "production_protocol_certification": false,
+    "next_phase": "Post-integration cleanup / optional stable promotion gates such as T01-06 and explicit release/default-activation work."
   }
 }
