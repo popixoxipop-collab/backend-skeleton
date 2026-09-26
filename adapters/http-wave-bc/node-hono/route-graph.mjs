@@ -55,6 +55,32 @@ function skipRegexLiteral(text, start) {
   return i;
 }
 
+export function isHonoCodeIndex(text, target) {
+  let quote = null;
+  let lastSignificant = null;
+  for (let i = 0; i < target; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '\x60') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+      const stop = skipRegexLiteral(text, i);
+      if (stop > target) return false;
+      i = Math.max(i, stop - 1);
+      lastSignificant = '/';
+      continue;
+    }
+    if (!/\s/.test(ch)) lastSignificant = ch;
+  }
+  return quote === null;
+}
+
 export function maskHonoSourceComments(text) {
   const out = text.split('');
   let quote = null;
@@ -137,6 +163,7 @@ function parseHonoVariables(masked) {
   const vars = new Map();
   const re = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*new\s+Hono(?:\s*<[^>\n]{1,500}>)?\s*\([^)]*\)(?:\s*\.\s*basePath\s*\(\s*([^)]*)\))?/g;
   for (const m of masked.matchAll(re)) {
+    if (!isHonoCodeIndex(masked, m.index)) continue;
     const base = parseBasePath(m[2]);
     vars.set(m[1], {
       name: m[1],
@@ -152,6 +179,7 @@ function parseImports(masked) {
   const imports = new Map();
   const fromRelative = /\bfrom\s*['"](\.[^'"]+)['"]/g;
   for (const m of masked.matchAll(fromRelative)) {
+    if (!isHonoCodeIndex(masked, m.index)) continue;
     const before = masked.slice(Math.max(0, m.index - 500), m.index);
     const importMatches = [...before.matchAll(/\bimport\b/g)];
     if (importMatches.length === 0) continue;
@@ -184,7 +212,9 @@ function parseExports(masked) {
   const named = new Map();
   let defaultExport = null;
   for (const m of masked.matchAll(/\bexport\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) named.set(m[1], m[1]);
+    if (!isHonoCodeIndex(masked, m.index)) continue;
   for (const m of masked.matchAll(/\bexport\s*\{([^}]*)\}/g)) {
+    if (!isHonoCodeIndex(masked, m.index)) continue;
     for (const part of m[1].split(',')) {
       const item = part.trim();
       if (!item) continue;
@@ -196,7 +226,10 @@ function parseExports(masked) {
       else named.set(exported, local);
     }
   }
-  const def = masked.match(/\bexport\s+default\s+([A-Za-z_$][\w$]*)/);
+  let def = null;
+  for (const m of masked.matchAll(/\bexport\s+default\s+([A-Za-z_$][\w$]*)/g)) {
+    if (isHonoCodeIndex(masked, m.index)) { def = m; break; }
+  }
   if (def) defaultExport = def[1];
   return { named, defaultExport };
 }
@@ -221,6 +254,7 @@ function parseFile(file, text) {
     const routeRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*(get|post|put|patch|delete|options|head)\\s*\\(\\s*([\\\'"\\x60])([^\\\'"\\x60]+)\\2\\s*,([^;\\n]*)', 'gi');
     const recognizedMethodIndexes = new Set();
     for (const m of masked.matchAll(routeRe)) {
+      if (!isHonoCodeIndex(masked, m.index)) continue;
       recognizedMethodIndexes.add(m.index);
       if (m[2] === '\x60' && m[3].includes('${')) {
         notes.push('Hono interpolated template route at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' is not emitted.');
@@ -238,6 +272,7 @@ function parseFile(file, text) {
 
     const anyMethodRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*(get|post|put|patch|delete|options|head)\\s*\\(', 'gi');
     for (const m of masked.matchAll(anyMethodRe)) {
+      if (!isHonoCodeIndex(masked, m.index)) continue;
       if (!recognizedMethodIndexes.has(m.index)) {
         notes.push('Hono ' + m[1] + '() at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' uses a non-literal or chained path form and is not emitted by the T13 first slice.');
       }
@@ -246,6 +281,7 @@ function parseFile(file, text) {
     const routeReLiteral = new RegExp('\\b' + escaped + '\\s*\\.\\s*route\\s*\\(\\s*([\\\'"\\x60])([^\\\'"\\x60]+)\\1\\s*,\\s*([A-Za-z_$][\\w$]*)', 'g');
     const recognizedMountIndexes = new Set();
     for (const m of masked.matchAll(routeReLiteral)) {
+      if (!isHonoCodeIndex(masked, m.index)) continue;
       recognizedMountIndexes.add(m.index);
       if (m[1] === '\x60' && m[2].includes('${')) {
         notes.push('Hono interpolated route() mount at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' is not expanded.');
@@ -262,6 +298,7 @@ function parseFile(file, text) {
 
     const anyMountRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*route\\s*\\(', 'g');
     for (const m of masked.matchAll(anyMountRe)) {
+      if (!isHonoCodeIndex(masked, m.index)) continue;
       if (!recognizedMountIndexes.has(m.index)) {
         notes.push('Hono route() at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' has a dynamic path or non-identifier child and is not expanded.');
       }
@@ -269,6 +306,7 @@ function parseFile(file, text) {
 
     const unsupportedRe = new RegExp('\\b' + escaped + '\\s*\\.\\s*(all|on|use|mount)\\s*\\(', 'gi');
     for (const m of masked.matchAll(unsupportedRe)) {
+      if (!isHonoCodeIndex(masked, m.index)) continue;
       notes.push('Hono ' + m[1] + '() at ' + path.basename(file) + ':' + lineNumberAt(text, m.index) + ' has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice.');
     }
     events.get(name).sort((a, b) => a.index - b.index);
