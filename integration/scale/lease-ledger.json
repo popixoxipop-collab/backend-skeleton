@@ -20,7 +20,7 @@
     "T23-BEVAL": 4,
     "T00-BSKEL-SHARED": 2,
     "T10": 1,
-    "T16": 1,
+    "T16": 2,
     "T13": 1,
     "T00-ROOT-T03": 1,
     "T00-ROOT-T04": 1,
@@ -591,9 +591,12 @@
       "resource_class": "static-medium",
       "issued_at": "2026-09-26T06:06:10Z",
       "expires_at": "2026-09-26T12:06:10Z",
-      "state": "ACTIVE",
+      "state": "RELEASED",
       "pr": 59,
-      "reason": "Restack #59 onto accepted T23 r4 #58 exact base only; preserve T16 protocol binding semantics, no shared workflow/package edits in T16 result diff."
+      "reason": "Restack #59 onto accepted T23 r4 #58 exact base only; preserve T16 protocol binding semantics, no shared workflow/package edits in T16 result diff.",
+      "released_at": "2026-09-26T06:48:30Z",
+      "release_reason": "PR #59 exact-head CI #1021 terminal success; superseded by #60 outcome-fix lease.",
+      "accepted_head_sha": "16d6958d009fbc285313790804eaf16b2280d74e"
     },
     {
       "claim_id": "T13-wave-bc-resubmit-20260926-r1",
@@ -803,6 +806,29 @@
       "expires_at": "2026-09-26T12:33:30Z",
       "state": "ACTIVE",
       "reason": "Narrow stable TypeScript Express #119 repair only; no registry/shared/package/workflow or other adapter changes."
+    },
+    {
+      "claim_id": "T16-pr60-outcome-item-binding-fix-20260926-r2",
+      "task_id": "T16-pr60-outcome-item-binding-fix",
+      "track": "T16",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "scale/T16/protocol-runtime-outcome-post51",
+      "worker": "T00-assisted-T16",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t16-pr60-r4-wt",
+      "base_sha": "16d6958d009fbc285313790804eaf16b2280d74e",
+      "observed_head_sha": "00a7aa8ecdc29189a0f2b25d7d4e3d938db53ee6",
+      "path_scopes": [
+        "lib/next-runtime/**",
+        "test/next-runtime/**",
+        "docs/next-runtime/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T06:48:30Z",
+      "expires_at": "2026-09-26T12:48:30Z",
+      "state": "ACTIVE",
+      "pr": 60,
+      "reason": "Restack #60 on accepted #59 and close T18-reproduced same-request cross-ProtocolItemRef evidence-swap; result/evidence must bind exact frozen action_ref."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
