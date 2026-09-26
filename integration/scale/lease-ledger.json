@@ -8,7 +8,10 @@
     "T09": 2,
     "T18": 2,
     "T20": 2,
-    "T22": 2
+    "T22": 2,
+    "T05": 2,
+    "T12": 2,
+    "T14": 2
   },
   "claims": [
     {
@@ -165,6 +168,71 @@
       "state": "ACTIVE",
       "pr": 85,
       "reason": "Close env-injection, input-size, snapshotRef, immutable conformance-input defects while preserving data-only non-executable SDK boundary."
+    },
+    {
+      "claim_id": "T05-pr86-helper-boundary-fix-20260926",
+      "task_id": "T05-pr86-helper-boundary-fix",
+      "track": "T05",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "agent/t05-jvm-foundation",
+      "worker": "agent-T05",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t05-pr86-fix",
+      "base_sha": "931abb6867a136bf020bc2cb6359e8a34f9edbcf",
+      "observed_head_sha": "931abb6867a136bf020bc2cb6359e8a34f9edbcf",
+      "path_scopes": [
+        "scanners/language/jvm/**",
+        "test/language-jvm/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 86,
+      "reason": "Require T20 helper/trust inputs plus T16 effective runtime/evidence before real helper execution; static JVM remains no-target-execution."
+    },
+    {
+      "claim_id": "T12-wave-a-resubmit-20260926",
+      "task_id": "T12-wave-a-resubmit",
+      "track": "T12",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t12/resubmit-wave-a-leaves",
+      "worker": "ChatGPT-T12-20260926",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t12-resubmit-worktree",
+      "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "observed_head_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
+      "path_scopes": [
+        "adapters/http-wave-a/**",
+        "test/http-wave-a/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "reason": "Resubmit the existing seven Wave A candidates as unregistered leaves inside owned paths only; no framework expansion or live registration."
+    },
+    {
+      "claim_id": "T14-pr71-evidence-boundary-fix-20260926",
+      "task_id": "T14-pr71-evidence-boundary-fix",
+      "track": "T14",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t14-provider-composition-next",
+      "worker": "agent-T14",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t14-worktree",
+      "base_sha": "6ef66955f8cd1180063c9ff17b1d2619a8d6036c",
+      "observed_head_sha": "6ef66955f8cd1180063c9ff17b1d2619a8d6036c",
+      "path_scopes": [
+        "handles/composition-next/**",
+        "test/provider-composition-next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T02:49:08Z",
+      "expires_at": "2026-09-26T08:49:08Z",
+      "state": "ACTIVE",
+      "pr": 71,
+      "reason": "Close T10/T16 evidence-validation boundaries and move new focused tests under owned nested scope; applyAllowed remains false."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim."
