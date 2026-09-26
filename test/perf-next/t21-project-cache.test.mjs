@@ -129,7 +129,7 @@ test('T21 serialized plan order is invariant to project and edge input order; or
 });
 
 test('T21 uses locale-independent code-unit root ordering without normalization or case folding', () => {
-	const roots = ['나', 'ä', 'z', '가', 'a'];
+	const roots = ['나', 'é', 'ä', 'z', 'e\u0301', '가', 'a', 'A'];
 	const graph = {
 		schema: 'sbf.project-graph/draft-1',
 		repo_root: '.',
@@ -144,7 +144,7 @@ test('T21 uses locale-independent code-unit root ordering without normalization 
 		project_edges: [],
 	};
 	const plan = buildProjectCachePlan(graph);
-	assert.deepEqual(plan.projects.map((x) => x.project_root), ['a', 'z', 'ä', '가', '나']);
+	assert.deepEqual(plan.projects.map((x) => x.project_root), ['A', 'a', 'é', 'z', 'ä', 'é', '가', '나']);
 });
 
 test('T21 project invalidation propagates dependency -> transitive consumers but ignores containment', () => {
