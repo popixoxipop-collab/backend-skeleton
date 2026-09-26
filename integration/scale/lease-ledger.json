@@ -27,7 +27,8 @@
     "T00-ROOT-T05": 1,
     "T00-ROOT-T07": 1,
     "T00-ROOT-T14": 1,
-    "T00-ROOT-T21": 1
+    "T00-ROOT-T21": 1,
+    "T11": 1
   },
   "claims": [
     {
@@ -757,6 +758,28 @@
       "state": "ACTIVE",
       "pr": 80,
       "reason": "Delete only historical root-level test bridge(s) after #141 nested-next main coverage; no product/nested test semantic change."
+    },
+    {
+      "claim_id": "T11-pr77-express-ts-fix-20260926",
+      "task_id": "T11-pr77-express-ts-fix",
+      "track": "T11",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "scale/t11-http-legacy-modernization",
+      "worker": "T00-assisted-T11",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t11-pr77-fix",
+      "base_sha": "5d328f906dd81fde508c1cd652a6ab159e22a29e",
+      "observed_head_sha": "5d328f906dd81fde508c1cd652a6ab159e22a29e",
+      "path_scopes": [
+        "adapters/http-legacy-next/**",
+        "test/http-legacy-next/**"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-medium",
+      "issued_at": "2026-09-26T06:30:30Z",
+      "expires_at": "2026-09-26T12:30:30Z",
+      "state": "ACTIVE",
+      "pr": 77,
+      "reason": "Fix Express TypeScript Router-typed assignment and mount-prefix reconstruction within T11-owned compatibility paths; no stable scanner/registry/shared files."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
