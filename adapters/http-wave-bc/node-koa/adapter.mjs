@@ -256,9 +256,11 @@ function parseRouteCall(call, prefix) {
   const first = parseLiteral(args[0]);
   const second = args.length > 1 ? parseLiteral(args[1]) : null;
   let routePath = null;
+  let routeName = null;
   if (first !== null && first.startsWith('/')) {
     routePath = first;
   } else if (first !== null && second !== null && second.startsWith('/')) {
+    routeName = first;
     routePath = second; // named route: name, path, ...middleware
   }
   if (routePath === null) {
@@ -272,6 +274,7 @@ function parseRouteCall(call, prefix) {
       verb: ROUTE_METHODS.get(call.method),
       path: joinPath(prefix, routePath),
       operationId: null,
+      routeName,
       method: handler,
       line: call.line,
     },
