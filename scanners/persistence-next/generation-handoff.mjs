@@ -58,6 +58,9 @@ export function buildHandleCompositionHandoff({
 	if (binding.verification?.provider !== 'verified' || !binding.verification?.observed_provider) {
 		blockers.push({ code:'live-provider-not-verified', message:'live persistence verifier/provider identity is not bound' });
 	}
+	if (!/^sha256:[a-f0-9]{64}$/.test(binding.verification?.observed_snapshot_ref ?? '')) {
+		blockers.push({ code:'live-snapshot-not-verified', message:'live persistence snapshot identity is not content-addressed and bound' });
+	}
 	if (binding.capabilities?.key_shape !== 'single') {
 		blockers.push({ code:'unsupported-key-shape', message:`handles composition requires a single key, got ${binding.capabilities?.key_shape ?? 'unknown'}` });
 	}
@@ -95,6 +98,7 @@ export function buildHandleCompositionHandoff({
 		profileId,
 		executionRef,
 		liveProvider: binding.verification?.observed_provider ?? null,
+		liveSnapshotRef: binding.verification?.observed_snapshot_ref ?? null,
 		blockers,
 	};
 }
@@ -123,9 +127,11 @@ export function bindHandleCompositionHandoffArtifact({ handoff_bytes, artifact_r
 		['profileId', 'profile id'],
 		['executionRef', 'execution ref'],
 		['liveProvider', 'live provider'],
+		['liveSnapshotRef', 'live snapshot ref'],
 	]) {
 		nonEmpty(handoff[key], `handoff ${label}`);
 	}
+	if (!/^sha256:[a-f0-9]{64}$/.test(handoff.liveSnapshotRef)) throw new TypeError('handoff live snapshot ref is invalid');
 	return {
 		contract: GENERATION_HANDOFF_PROVENANCE,
 		status: 'bound',
@@ -135,6 +141,7 @@ export function bindHandleCompositionHandoffArtifact({ handoff_bytes, artifact_r
 		profileId: handoff.profileId,
 		executionRef: handoff.executionRef,
 		liveProvider: handoff.liveProvider,
+		liveSnapshotRef: handoff.liveSnapshotRef,
 		artifactRef: { ...artifact_ref },
 		note: 'bound proves immutable T10 handoff identity only; independent T19/T14 acceptance is still required',
 	};

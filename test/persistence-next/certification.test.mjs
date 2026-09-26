@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { certifyPersistenceBindings } from '../../scanners/persistence-next/certification.mjs';
 
+const SNAPSHOT_REF='sha256:'+'a'.repeat(64);
+
 const GENERATION_CONTEXT={
 	producer_revision:'a'.repeat(40),
 	candidate_revision:'b'.repeat(40),
@@ -29,6 +31,8 @@ function verifiedBinding(overrides={}) {
 			provider:'verified',
 			expected_provider:'postgres-introspection',
 			observed_provider:'postgres-introspection',
+			expected_snapshot_ref:SNAPSHOT_REF,
+			observed_snapshot_ref:SNAPSHOT_REF,
 			table:'verified',
 			primary_key:'verified',
 			key_type:'verified',

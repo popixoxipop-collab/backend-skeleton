@@ -145,6 +145,11 @@ function liveRelationGroups(table) {
 export function fromLivePostgres(live) {
 	const provider = 'postgres-introspection';
 	const schema = live?.schema ?? 'public';
+	const snapshotRef = live?.snapshot_ref ?? (
+		typeof live?.schema_hash === 'string' && /^[a-f0-9]{64}$/.test(live.schema_hash)
+			? `sha256:${live.schema_hash}`
+			: null
+	);
 	const entities = (live?.tables ?? []).map((table) => ({
 		provider,
 		name: table.name,
@@ -161,6 +166,6 @@ export function fromLivePostgres(live) {
 		source_kind: 'live',
 		entities,
 		diagnostics: [],
-		metadata: { schema, schema_hash: live?.schema_hash ?? null, generated_at: live?.generated_at ?? null },
+		metadata: { schema, schema_hash: live?.schema_hash ?? null, snapshot_ref: snapshotRef, generated_at: live?.generated_at ?? null },
 	});
 }

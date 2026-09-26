@@ -6,6 +6,8 @@ import {
 	bindHandleCompositionHandoffArtifact,
 } from '../../scanners/persistence-next/generation-handoff.mjs';
 
+const SNAPSHOT_REF='sha256:'+'a'.repeat(64);
+
 const CONTEXT = {
 	producer_revision:'a'.repeat(40),
 	candidate_revision:'b'.repeat(40),
@@ -29,6 +31,8 @@ function binding(overrides={}) {
 			provider:'verified',
 			expected_provider:'postgres-introspection',
 			observed_provider:'postgres-introspection',
+			expected_snapshot_ref:SNAPSHOT_REF,
+			observed_snapshot_ref:SNAPSHOT_REF,
 			table:'verified',
 			primary_key:'verified',
 			key_type:'verified',
@@ -69,6 +73,7 @@ test('verified single UUID binding requires immutable generation provenance befo
 	assert.equal(out.profileId,CONTEXT.profile_id);
 	assert.equal(out.executionRef,CONTEXT.execution_ref);
 	assert.equal(out.liveProvider,'postgres-introspection');
+	assert.equal(out.liveSnapshotRef,SNAPSHOT_REF);
 	assert.deepEqual(out.blockers,[]);
 });
 
@@ -86,6 +91,13 @@ test('missing live verifier identity is fail-closed',()=>{
 	const out=buildHandleCompositionHandoff({http_provider_id:'java-spring',binding:b,...CONTEXT});
 	assert.equal(out.status,'blocked');
 	assert.ok(out.blockers.some((x)=>x.code==='live-provider-not-verified'));
+});
+
+test('missing live snapshot identity is fail-closed',()=>{
+	const b=binding(); delete b.verification.observed_snapshot_ref;
+	const out=buildHandleCompositionHandoff({http_provider_id:'java-spring',binding:b,...CONTEXT});
+	assert.equal(out.status,'blocked');
+	assert.ok(out.blockers.some((x)=>x.code==='live-snapshot-not-verified'));
 });
 
 test('source-only persistence binding cannot become generation-ready',()=>{
@@ -129,6 +141,7 @@ test('exact handoff bytes bind to a T01 ArtifactRef without self-accepting certi
 	assert.equal(bound.profileId,CONTEXT.profile_id);
 	assert.equal(bound.executionRef,CONTEXT.execution_ref);
 	assert.equal(bound.liveProvider,'postgres-introspection');
+	assert.equal(bound.liveSnapshotRef,SNAPSHOT_REF);
 	assert.deepEqual(bound.artifactRef,ref);
 	assert.match(bound.note,/independent T19\/T14 acceptance/);
 });

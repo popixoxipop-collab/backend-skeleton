@@ -126,13 +126,18 @@ export function matchPhysicalTable({ persistence, schema = null, table }) {
 	return matches;
 }
 
-export function verifyResourceBindingsAgainstObserved({ binding_result, observed, expected_live_provider, default_schema = null }) {
+export function verifyResourceBindingsAgainstObserved({ binding_result, observed, expected_live_provider, expected_live_snapshot_ref, default_schema = null }) {
 	if (!binding_result || !Array.isArray(binding_result.bindings)) throw new TypeError('binding_result.bindings must be an array');
 	const expectedLiveProvider = nonEmpty(expected_live_provider, 'expected_live_provider');
+	const expectedLiveSnapshotRef = nonEmpty(expected_live_snapshot_ref, 'expected_live_snapshot_ref');
+	if (!/^sha256:[a-f0-9]{64}$/.test(expectedLiveSnapshotRef)) throw new TypeError('expected_live_snapshot_ref must be sha256:<64 lowercase hex>');
 	const live = assertPersistenceIr(observed);
 	if (live.source_kind !== 'live') throw new TypeError('observed persistence IR must have source_kind=live');
 	if (live.provider !== expectedLiveProvider) {
 		throw new TypeError(`observed live provider mismatch: expected ${expectedLiveProvider}, got ${live.provider}`);
+	}
+	if (live.metadata?.snapshot_ref !== expectedLiveSnapshotRef) {
+		throw new TypeError('observed live snapshot mismatch');
 	}
 	const effectiveDefaultSchema = default_schema ?? live.metadata?.schema ?? null;
 	const byTable = new Map();
@@ -201,6 +206,8 @@ export function verifyResourceBindingsAgainstObserved({ binding_result, observed
 					provider: 'verified',
 					expected_provider: expectedLiveProvider,
 					observed_provider: live.provider,
+					expected_snapshot_ref: expectedLiveSnapshotRef,
+					observed_snapshot_ref: live.metadata.snapshot_ref,
 					table: tableStatus,
 					primary_key: keyStatus,
 					key_type: keyTypeStatus,
