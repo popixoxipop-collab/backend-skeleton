@@ -1142,8 +1142,10 @@
       "resource_class": "integration-medium",
       "issued_at": "2026-09-26T14:31:30Z",
       "expires_at": "2026-09-27T02:31:30Z",
-      "state": "ACTIVE",
-      "reason": "Integrate the independently reviewed cumulative #58-#62 T23/T16 stack onto current Backend-evaluation main without semantic rewrites."
+      "state": "RELEASED",
+      "reason": "Integrate the independently reviewed cumulative #58-#62 T23/T16 stack onto current Backend-evaluation main without semantic rewrites.",
+      "released_at": "2026-09-26T15:10:00Z",
+      "release_reason": "Backend-evaluation integration PR #70 exact-head CI #1025 SUCCESS and merged to main at fe65484f078c50f33f64248f83b5c518fb896961; merge commit has zero file delta from reviewed integration head 902424d."
     },
     {
       "claim_id": "T00-BECODER-INTEGRATION-t15-consumers-20260926-r1",
