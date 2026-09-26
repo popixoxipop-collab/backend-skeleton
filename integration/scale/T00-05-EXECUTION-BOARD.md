@@ -31,7 +31,7 @@ Mode: integration / evidence closure; no new framework fan-out
 | 1 | T23 | beval #66 | head `7ff35ec...`, CI #1005 SUCCESS | expand policy to PR smoke vs webgame-related full vs main/nightly full; path-detection fail-closed; re-run exact-head CI |
 | 2 | T23 | beval #58 | head `364df37...`, CI #987 SUCCESS but mergeable=false | restack on current main after #65/#66 while preserving benchmark/package changes; exact-head CI |
 | 3 | T16 | beval #59-#62 | #62 head `accce80...`, CI #1002 SUCCESS | restack the chain on accepted #58 base; focused next-runtime + package + integration evidence |
-| 4 | T16/T23 | chord-forward-right | Docker fix now in main | single-case run with runtime_state + bounded/redacted Docker logs; classify infra/build/runtime/assertion failure |
+| 4 | T16/T23 | chord-forward-right | T19 review `d6fd24a...`: historical attempt = execution-layer BLOCKED/unknown; #66 real Docker/browser smoke = `repaired_and_passed` | preserve runtime_state + bounded/redacted Docker logs on future failure; rerun after #65 + completed #66 restack |
 | 5 | T21 | bskel #80 | head `efd1eec...`, CI #799 FAILURE | resolve project-cache plan ordering contract without deleting meaningful ordering checks; Node 22/24 exact-head pass |
 | 6 | T01 | bskel #82 + becoder #10 + beval consumer | both consumer implementations exist | validate exact 12-vector pack with consumer-set aggregation; bind package/code SHAs |
 | 7 | T19 | bskel #118 | head `cacf60a...`, CI #1199 SUCCESS | review deltas from T21/T16/T01; do not call 79 catalog cases executable |
@@ -43,7 +43,7 @@ Mode: integration / evidence closure; no new framework fan-out
 |---|---:|---|---|
 | T17 | bskel #138 | head `dee914d...`, CI #1192 SUCCESS | follow-up Unity/Godot source-only exporter still needs delta-focused T19 review; no native engine runtime claim |
 | T13 | bskel #67 | head `322e808...`, CI #1201 SUCCESS | profile-by-profile T19 review + scope cleanup; no live registry activation |
-| T19 | bskel #118 | CI #1199 SUCCESS | QA authority remains draft; executable mutation coverage is partial |
+| T19 | bskel #118 | latest head moving under active review; prior #1199 SUCCESS; new T21 + Docker/chord review evidence added | latest exact-head full CI must be terminal before coordination merge; executable mutation coverage remains partial |
 | T16 | beval #62 | CI #1002 SUCCESS | stacked on unmerged #61/#60/#59/#58, so current green run is not a mainline integration proof |
 | T23 | beval #58 | CI #987 SUCCESS | mergeable=false / stale integration base |
 | T23 | beval #66 | CI #1005 SUCCESS | current branch only distinguishes generic PR vs main; requested webgame-related-PR/full and nightly policy still pending |
@@ -90,3 +90,15 @@ Every track result submitted back to T00 must contain:
 - unresolved blockers and owner.
 
 T00 will integrate only the smallest candidate that satisfies the above at its exact head.
+
+
+## T19 Docker/chord decision
+
+Latest T19 evidence classifies the observed failure boundary as follows:
+- historical `chord-forward-right` attempt: execution-layer failure before behavior comparison; exact sub-cause is not recoverable from the old summary because runtime_state/log were not persisted;
+- Docker `No such image: sha256:...` / missing parent snapshot signatures: verified infrastructure failure class;
+- #65 retry policy: approved as narrow infrastructure hardening;
+- #66 selected real integration smoke: chord passed as `repaired_and_passed`;
+- this does not grant broad Runtime-tested certification.
+
+T00 therefore removes "possible chord behavior bug" from the primary blocker list. The remaining requirement is diagnostic preservation on failure and a post-#65/#66-restack exact-head rerun.
