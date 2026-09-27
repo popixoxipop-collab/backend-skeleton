@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T18:17:00+09:00",
+  "observed_at": "2026-09-27T18:28:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -264,7 +264,7 @@
       "repo": "popixoxipop-collab/Backend-evaluation",
       "branch": "t00/t20-03-linux-container-enforcement-r1",
       "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
-      "observed_head_sha": "dc49fa27db1e6aceb3b8153873085337da85bc15",
+      "observed_head_sha": "27741d72d4d16fc9b43405de3ec31bbe3bd75899",
       "path_scopes": [
         "lib/next-runtime/linux-container-sandbox.mjs",
         "test/next-runtime/linux-container-sandbox.test.mjs",
@@ -650,7 +650,7 @@
     ]
   },
   "t20_03": {
-    "state": "PRE_ABORT_FIX_VALIDATED_REVIEW_PENDING",
+    "state": "IMAGE_INDEPENDENT_VERIFY_VALIDATED_REVIEW_PENDING",
     "scope": "one hardened Linux/container target-runtime profile",
     "no_claims": [
       "cross-platform parity",
@@ -658,12 +658,12 @@
       "native engine certification"
     ],
     "branch": "t00/t20-03-linux-container-enforcement-r1",
-    "candidate_head": "dc49fa27db1e6aceb3b8153873085337da85bc15",
+    "candidate_head": "27741d72d4d16fc9b43405de3ec31bbe3bd75899",
     "focused_tests": "33/33 PASS",
     "next_runtime": "87/87 PASS",
     "pack_smoke": "PASS",
     "real_docker_external_enforcement": "1/1 PASS",
-    "evidence_observed_at": "2026-09-27T09:15:13.441Z",
+    "evidence_observed_at": "2026-09-27T09:26:22.751Z",
     "full_closeout": false,
     "blockers": [
       "TRUST_PROC_03",
@@ -677,7 +677,7 @@
     "reviewed_head": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
     "release_ready": false,
     "diff_check": "PASS",
-    "exact_head_blob_identity": "7/7 lease-owned Git blobs match GitHub PR #72 head dc49fa27db1e6aceb3b8153873085337da85bc15",
+    "exact_head_blob_identity": "7/7 lease-owned Git blobs match GitHub PR #72 head 27741d72d4d16fc9b43405de3ec31bbe3bd75899",
     "expired_parallel_slice": {
       "claim_id": "T00-T20-T16-SANDBOX-20260927-r1",
       "branch": "t00/t20-03-linux-docker-sandbox-r1",
@@ -695,7 +695,7 @@
       "PRIVATE_STAGING_IDENTITY",
       "BOUNDED_STREAMING_SOURCE_COPY"
     ],
-    "latest_codex_review": "PENDING_EXACT_HEAD_DC49",
+    "latest_codex_review": "PENDING_EXACT_HEAD_27741",
     "eoe_verification_overlay": {
       "local_commit": "4185531f1b8ecbf6d0361492d91c0a4a2c9f74f6",
       "parent": "c03caad53c06fa975a016d98b4b1051e948dd50f",
@@ -720,7 +720,8 @@
       "cross_platform_parity": false,
       "t20_03_complete": false,
       "release_ready": false
-    }
+    },
+    "image_verification": "docker create + docker cp -L + evaluator-side SHA-256; no target-image sha256sum/shell utility dependency"
   },
   "t19_03": {
     "state": "PACKET_INTEGRATED_BLOCKED",
