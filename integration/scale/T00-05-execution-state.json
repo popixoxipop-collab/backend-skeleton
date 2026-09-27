@@ -247,17 +247,6 @@
     "runtime evidence from T16/beval for runtime-tested claims"
   ],
   "active_leases": {
-    "T00-T23-RELEASE-CONTROL-20260927-r1": {
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t00/t23-release-control-rebaseline-r1",
-      "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
-      "path_scopes": [
-        "release/next/**"
-      ],
-      "fencing_token": 1,
-      "expires_at": "2026-09-27T01:00:00Z",
-      "state": "ACTIVE"
-    },
     "T00-T20-T16-SANDBOX-20260927-r1": {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "branch": "t00/t20-03-linux-docker-sandbox-r1",
@@ -657,11 +646,23 @@
     "next": "Release/default remains separately gated by T19-03, T20-03, direct final-main release CI, and final release rehearsal."
   },
   "release_control": {
-    "phase": "REBASELINE_ON_INTEGRATED_MAINS",
-    "branch": "t00/t23-release-control-rebaseline-r1",
+    "phase": "MERGED_BLOCKED",
+    "pr": 148,
+    "reviewed_head": "0c0d03e94f1b8a72db3510f2bf40a88a7db46ec0",
+    "merge_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+    "ci_run": 36286918045,
+    "ci_conclusion": "success",
+    "policy_regressions": "15/15 PASS",
+    "evidence_resolution": "checked-in manifest + byte rehash + check-id + exact release-head binding",
     "release_allowed": false,
-    "default_activation": false,
-    "note": "Rebaseline release policy/inventory only. Product defaults remain legacy-authoritative/additive-next under T00-04A."
+    "default_activation_allowed": false,
+    "remaining_blockers": [
+      "FINAL_MAIN_PUSH_CI_NOT_DIRECT",
+      "INDEPENDENT_QA_NOT_READY",
+      "TRUST_POLICY_NOT_READY",
+      "FINAL_RELEASE_REHEARSAL_NOT_RUN",
+      "RELEASE_CHECKS_NOT_COMPLETE"
+    ]
   },
   "t20_03": {
     "state": "LINUX_CONTAINER_ENFORCEMENT_IN_PROGRESS",
