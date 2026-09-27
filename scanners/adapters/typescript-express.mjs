@@ -109,7 +109,7 @@ function expressDefaultBindings(text) {
 	return [...out].sort();
 }
 
-const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', ';']);
 const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
 
 function scopeRegexStarts(lastSignificant, recentText) {
@@ -117,6 +117,9 @@ function scopeRegexStarts(lastSignificant, recentText) {
 	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
 	if (/=>\s*$/.test(recentText)) return true;
 	if (lastSignificant === ')' && /\b(?:if|while|for|with|switch|catch)\s*\([\s\S]*\)\s*$/.test(recentText)) return true;
+	// `}` is ambiguous: object-literal division (`{} / 2`) must stay division, while a regex
+	// statement after a completed block is normally separated by a line break.
+	if (lastSignificant === '}' && /}\s*\n\s*$/.test(recentText)) return true;
 	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
 }
 
@@ -607,6 +610,10 @@ function arrowExpressionContainsTarget(text, arrowIndex, targetIndex) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; sawBodyToken = true; lastSignificant = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(arrowIndex + 2, i - 512), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; sawBodyToken = true; lastSignificant = '/'; continue; }
+		}
 		const atBase = round === initial.round && square === initial.square && curly === initial.curly;
 		if ((ch === ',' || ch === ';') && atBase) return false;
 		if (ch === '\n' && atBase && sawBodyToken) {
@@ -932,7 +939,7 @@ const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(
 
 function extractEndpoints(text, binding) {
 	const endpoints = [];
-	const verbCallRe = routerMemberCallRe(binding.name, VERBS.join('|'), 'gi');
+	const verbCallRe = routerMemberCallRe(binding.name, VERBS.join('|'), 'g');
 	for (const m of text.matchAll(verbCallRe)) {
 		if (!isCodePosition(text, m.index)) continue;
 		const activeBinding = receiverBindingAt(text, binding.name, m.index);
