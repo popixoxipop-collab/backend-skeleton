@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:55:00+09:00",
+  "observed_at": "2026-09-27T19:07:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -276,19 +276,6 @@
       ],
       "fencing_token": 3,
       "expires_at": "2026-09-27T12:14:00Z",
-      "state": "ACTIVE"
-    },
-    "T00-BSKEL-JS-EXPRESS-FIX-20260927-r1": {
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "fix/javascript-express-member-handlers-middleware-mounts",
-      "base_sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
-      "path_scopes": [
-        "DECISIONS.md",
-        "scanners/adapters/javascript-express.mjs",
-        "test/express-shared.test.mjs"
-      ],
-      "fencing_token": 1,
-      "expires_at": "2026-09-27T12:55:00Z",
       "state": "ACTIVE"
     }
   },
@@ -771,17 +758,19 @@
     "note": "Current backend-skeleton main includes T19 packet integration, T23 authenticated release-control hardening, and T19 QA authority pin follow-up."
   },
   "pr153": {
-    "state": "INTEGRATION_REVIEW_IN_PROGRESS",
+    "state": "MERGED_AND_VERIFIED",
     "pr": 153,
-    "head_sha": "8a2eebc2bf1ef1751fcba398fc28fb00041a63bb",
-    "base_sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
+    "reviewed_head": "8a2eebc2bf1ef1751fcba398fc28fb00041a63bb",
+    "merge_sha": "754756b6f1cc396a7c2e0be526f64936b1ef74e7",
     "ci_run": 36309711576,
     "ci_conclusion": "success",
+    "eoe_focus": "31/31 PASS",
+    "merge_tree_relation": "ahead 1, behind 0, file delta 0",
     "scope": [
       "DECISIONS.md",
       "scanners/adapters/javascript-express.mjs",
       "test/express-shared.test.mjs"
     ],
-    "note": "Code change was originally authored without a lease; T00 integration lease now explicitly governs review/merge. No overlap with active T19/T20/T23 scopes."
+    "lease": "RELEASED"
   }
 }
