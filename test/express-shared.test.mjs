@@ -1323,6 +1323,65 @@ test('typescript-express: definite top-level update expressions invalidate mutab
 	}
 });
 
+test('typescript-express: exponentiation assignment invalidates a mutable application receiver', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'app **= 2;',
+			"app.get('/phantom', phantomHandler);",
+		].join('\\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: var redeclaration initializer invalidates the existing mutable application receiver', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'var app: any = express();',
+			'var app: any = fakeApp;',
+			"app.get('/phantom', phantomHandler);",
+		].join('\\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: conditional update expressions do not invalidate a still-possible application receiver', () => {
+	for (const update of ['app++', '++app', 'app--', '--app']) {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				'let app: any = express();',
+				`if (flag) ${update};`,
+				"app.get('/real', realHandler);",
+			].join('\\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+		assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+	}
+});
+
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
