@@ -1387,7 +1387,7 @@
       "worker": "T00-T19-integration",
       "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-t19-release-packet-r1",
       "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
-      "observed_head_sha": "06a65d80d87d1aa7f2df783689bd6771b2678f38",
+      "observed_head_sha": "2cf923ca9b698094e94eb278c61e357b9e4a7dcc",
       "path_scopes": [
         "evidence/next/T19-RELEASE-ACCEPTANCE.json",
         "test/t19-release-acceptance/**",
@@ -1397,8 +1397,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-27T02:19:00Z",
       "expires_at": "2026-09-27T10:19:00Z",
-      "state": "ACTIVE",
-      "reason": "Restacked T19 release-acceptance packet on current control-plane main. Owns only the packet, its dedicated guard directory, and shared nested-suite registration. Verdict remains fail-closed/BLOCKED unless holdout #119, T20-03, and release certificate blockers are actually cleared."
+      "state": "RELEASED",
+      "reason": "Restacked T19 release-acceptance packet on current control-plane main. Owns only the packet, its dedicated guard directory, and shared nested-suite registration. Verdict remains fail-closed/BLOCKED unless holdout #119, T20-03, and release certificate blockers are actually cleared.",
+      "released_at": "2026-09-27T04:16:00Z",
+      "release_reason": "PR #149 exact-head CI #1362 completed SUCCESS, exact-head Codex review returned no new findings, all review threads were resolved, and merge commit 60c4a6e121024eea0cec96b61038cd4dcec6bce8 is ahead 1 / behind 0 with zero file delta from reviewed head."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
