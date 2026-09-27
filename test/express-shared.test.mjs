@@ -250,6 +250,78 @@ test('typescript-express: combined default+named import and typed arbitrary Rout
 	assert.equal(endpoints[0].method, 'getUserById');
 });
 
+test('typescript-express: an express() application receiver contributes its own route and absolute prefixes for imported routers', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express from 'express';",
+			"import userRouter from './routes/user.routes';",
+			"import authRouter from './routes/auth.routes';",
+			'export const application = express();',
+			"application.get('/main/healthcheck', (req, res, next) => res.status(200).json({ ok: true }));",
+			"application.use('/api/users', userRouter);",
+			"application.use('/api/auth', authRouter);",
+		].join('\n'),
+		'src/routes/auth.routes.ts': [
+			"import express, { Router } from 'express';",
+			'const authRouter: Router = express.Router();',
+			"authRouter.post('/register', registerUser);",
+			"authRouter.post('/login', loginUser);",
+			'export default authRouter;',
+		].join('\n'),
+		'src/routes/user.routes.ts': [
+			"import express, { Router } from 'express';",
+			'const userRouter: Router = express.Router();',
+			"const authentication = (req, res, next) => next();",
+			"const authorizeRoles = () => (req, res, next) => next();",
+			"const protectedRoute = (req, res) => res.sendStatus(200);",
+			"const getUserById = (req, res) => res.sendStatus(200);",
+			"const deleteUser = (req, res) => res.sendStatus(204);",
+			"const updateUser = (req, res) => res.sendStatus(200);",
+			"userRouter.get('/protected', authentication, protectedRoute);",
+			"userRouter.get('/:id', authentication, getUserById);",
+			"userRouter.delete('/:id', authentication, authorizeRoles('admin'), deleteUser);",
+			"userRouter.put('/:id', authentication, updateUser);",
+			'export default userRouter;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot, 'the Router-bearing child modules must detect the TypeScript Express project');
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'DELETE /api/users/:id',
+		'GET /api/users/:id',
+		'GET /api/users/protected',
+		'GET /main/healthcheck',
+		'POST /api/auth/login',
+		'POST /api/auth/register',
+		'PUT /api/users/:id',
+	].sort());
+});
+
+test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes.ts': [
+			"import { Router } from 'express';",
+			"import toolkit from 'toolkit';",
+			'const router: Router = Router();',
+			"router.get('/real', realHandler);",
+			'const application = toolkit();',
+			"application.get('/phantom', phantomHandler);",
+			'export default router;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+
 test('typescript-express: an Express Router type import does not authorize an unrelated .Router factory', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),

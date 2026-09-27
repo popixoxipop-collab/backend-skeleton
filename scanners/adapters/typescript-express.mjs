@@ -70,6 +70,36 @@ function routerVariables(text) {
 	}
 	return [...out].sort();
 }
+
+// T19 real-holdout finding: an Express application created with the module's actual default
+// import is also a route receiver. Keep this separate from routerVariables(): detect() still
+// requires the stronger named-Router + Router() signal, while scan() may additionally follow the
+// already-detected project's application root (`const application = express()`). An arbitrary
+// callable, or an unrelated object's .Router(), never becomes authoritative through this path.
+function expressDefaultBindings(text) {
+	const out = new Set();
+	const importRe = /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]express['"]/g;
+	for (const match of text.matchAll(importRe)) out.add(match[1]);
+	return [...out].sort();
+}
+
+function applicationVariables(text) {
+	const out = new Set();
+	for (const expressBinding of expressDefaultBindings(text)) {
+		const declarationRe = new RegExp(
+			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
+			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + escapeRegex(expressBinding) + '\\s*\\(',
+			'g',
+		);
+		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
+	}
+	return [...out].sort();
+}
+
+function routeReceiverVariables(text) {
+	return [...new Set([...routerVariables(text), ...applicationVariables(text)])].sort();
+}
+
 function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
 	return new RegExp('\\b' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
 }
@@ -145,9 +175,9 @@ function listTypeScriptFiles(projectRoot) {
 // DECISIONS.md) -- this is NOT a new failure mode, just a new, real way to reach the existing one.
 const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
 
-function extractEndpoints(text, routerNames) {
+function extractEndpoints(text, receiverNames) {
 	const endpoints = [];
-	for (const routerName of routerNames) {
+	for (const routerName of receiverNames) {
 		const verbCallRe = routerMemberCallRe(routerName, VERBS.join('|'), 'gi');
 		for (const m of text.matchAll(verbCallRe)) {
 			const verb = m[1].toUpperCase();
@@ -197,7 +227,7 @@ function buildMountEdges(files, fileTexts) {
 	const edges = []; // { fromFile, toFile, prefix }
 	for (const file of files) {
 		const text = fileTexts.get(file);
-		for (const routerName of routerVariables(text)) {
+		for (const routerName of routeReceiverVariables(text)) {
 			const useRe = routerMemberCallRe(routerName, 'use');
 			for (const m of text.matchAll(useRe)) {
 				const openIdx = m.index + m[0].length - 1;
@@ -316,9 +346,9 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		// G6: `\bRouter\s*\(` -- see detectTypeScriptExpressRoot above. Same widening for the same
 		// reason: a router declared as `Router({ mergeParams: true })` is ordinary Express, and
 		// this per-file gate previously skipped its whole file.
-		const routers = routerVariables(text);
-		if (routers.length > 0) {
-			const localEndpoints = extractEndpoints(text, routers);
+		const receivers = routeReceiverVariables(text);
+		if (receivers.length > 0) {
+			const localEndpoints = extractEndpoints(text, receivers);
 			if (localEndpoints.length > 0) {
 				const prefix = prefixChainFor(file, edges);
 				const moduleName = path.basename(file, '.ts');
