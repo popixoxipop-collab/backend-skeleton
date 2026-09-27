@@ -382,6 +382,39 @@ test('typescript-express: a nested parameter shadowing an authorized app name ca
 	]);
 });
 
+test('typescript-express: destructuring cannot shadow an authorized app receiver into phantom routes or mounts', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			"app.get('/real', realHandler);",
+			"app.use('/api', router);",
+			'function localShadow(source: { app: { get: Function; use: Function } }) {',
+			'  const { app } = source;',
+			"  app.get('/phantom-local', phantomHandler);",
+			"  app.use('/wrong-local', router);",
+			'}',
+			'function parameterShadow({ app }: { app: { get: Function; use: Function } }) {',
+			"  app.get('/phantom-param', phantomHandler);",
+			"  app.use('/wrong-param', router);",
+			'}',
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/child',
+		'GET /real',
+	]);
+});
+
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),

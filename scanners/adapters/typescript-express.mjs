@@ -178,15 +178,277 @@ function activeCodeScopeOpeningsAt(text, targetIndex) {
 	return openings;
 }
 
+function topLevelSyntaxIndex(text, token) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+		else if (ch === token && round === 0 && square === 0 && curly === 0) return i;
+	}
+	return -1;
+}
+
+function leadingBindingPattern(text) {
+	let value = text.trim().replace(/^\.\.\.\s*/, '');
+	if (!value) return '';
+	if (/^[A-Za-z_$][\w$]*/.test(value)) return value.match(/^([A-Za-z_$][\w$]*)/)[1];
+	const opener = value[0];
+	if (opener !== '{' && opener !== '[') return '';
+	const closer = opener === '{' ? '}' : ']';
+	let depth = 0;
+	let quote = null;
+	for (let i = 0; i < value.length; i++) {
+		const ch = value[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === opener) depth++;
+		else if (ch === closer && --depth === 0) return value.slice(0, i + 1);
+	}
+	return '';
+}
+
+function bindingPatternBindsName(pattern, name) {
+	let value = pattern.trim().replace(/^\.\.\.\s*/, '');
+	const assignment = topLevelSyntaxIndex(value, '=');
+	if (assignment !== -1) value = value.slice(0, assignment).trim();
+	if (/^[A-Za-z_$][\w$]*$/.test(value)) return value === name;
+	if ((value.startsWith('{') && value.endsWith('}')) || (value.startsWith('[') && value.endsWith(']'))) {
+		const inner = value.slice(1, -1);
+		return splitTopLevelArgs(inner).some((entry) => {
+			const item = entry.trim();
+			if (!item) return false;
+			const colon = topLevelSyntaxIndex(item, ':');
+			return bindingPatternBindsName(colon === -1 ? item : item.slice(colon + 1), name);
+		});
+	}
+	return false;
+}
+
+function parameterBindsName(parameter, name) {
+	const pattern = leadingBindingPattern(parameter);
+	return pattern ? bindingPatternBindsName(pattern, name) : false;
+}
+
+function scopeBodyDeclaresName(text, name) {
+	const escaped = escapeRegex(name);
+	if (new RegExp(`\\b(?:function|class)\\s+${escaped}\\b`).test(text)) return true;
+	if (new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\b`).test(text)) return true;
+	for (const match of text.matchAll(/\b(?:const|let|var)\s+([^;\n]+)/g)) {
+		for (const declarator of splitTopLevelArgs(match[1])) {
+			const pattern = leadingBindingPattern(declarator);
+			if ((pattern.startsWith('{') || pattern.startsWith('[')) && bindingPatternBindsName(pattern, name)) return true;
+		}
+	}
+	return false;
+}
+
 function scopeHeaderShadowsName(text, openIndex, name) {
 	const header = text.slice(Math.max(0, openIndex - 2048), openIndex).trimEnd();
 	const escaped = escapeRegex(name);
 
 	// Single-parameter arrow: `app => {`, `async app => {`, `app: App => {`.
-	const singleArrow = new RegExp(`(?:^|[^\\w$])(?:async\\s+)?${escaped}\\s*(?::[^=]+)?=>\\s*$`);
+	const singleArrow = new RegExp(`(?:^|[^\\w$])(?:async\\s+)?${escaped}\\s*(?::[^=]+)?=>\\s*// G5 (D-typescript-express-provider): the third scanner adapter, alongside java-spring.mjs (G1)
+// and python-fastapi.mjs (G2) -- same philosophy (ripgrep-for-discovery + regex-for-structure,
+// no real TS AST parser/tsc shell-out). Unlike G2, no framework-maintained reference oracle
+// exists for Express (deliberately unopinionated framework, confirmed via real research before
+// this file was written) -- verified instead against the best-validated real community boilerplate
+// found (`mkosir/typeorm-express-typescript`, 461 stars/149 forks, not a fork itself, freshly
+// cloned and read). See D-typescript-express-provider in DECISIONS.md for why this item's
+// verification confidence is honestly, permanently weaker than G2's own.
+import fs from 'node:fs';
+import path from 'node:path';
+import { lineNumberAt } from '../text-util.mjs';
+// G6: these were this file's own private helpers until `javascript-express.mjs` needed the exact
+// same ones -- moved verbatim to `_express-shared.mjs` (a `_`-prefixed shared helper, the same
+// convention `_java-spring-analyzer.mjs` uses) rather than copy-pasted. No behavior change; see
+// D-javascript-express-adapter in DECISIONS.md for why only these primitives are shared and the
+// mount-tree/endpoint logic deliberately is not.
+import {
+	VERBS,
+	STRING_LITERAL_RE,
+	listRgFiles,
+	rgFilesMatching,
+	listCandidatePackageFiles,
+	declaresExpress,
+	matchBalancedParens,
+	splitTopLevelArgs,
+	joinPath,
+	maskJsComments,
+	expressDiagnostics,
+} from './_express-shared.mjs';
+
+const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*export\s+class\s+(\w+)/g;
+
+// Only identifiers locally assigned to Express Router() are trusted as route receivers.
+// This removes the accidental literal-name dependency on `router` without accepting arbitrary
+// objects that merely expose get()/use()-shaped methods.
+function escapeRegex(value) {
+	const specials = '\\^$.*+?()[]{}|';
+	let out = '';
+	for (const ch of value) out += specials.includes(ch) ? '\\' + ch : ch;
+	return out;
+}
+
+function expressRouterFactoryPatterns(text) {
+	const patterns = new Set();
+	const importRe = /import\s+(?:([A-Za-z_$][\w$]*)\s*,\s*)?\{([^}]*)\}\s*from\s*['"]express['"]/g;
+	for (const match of text.matchAll(importRe)) {
+		let hasRouterBinding = false;
+		for (const raw of match[2].split(',')) {
+			const binding = raw.trim().match(/^Router(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+			if (!binding) continue;
+			hasRouterBinding = true;
+			patterns.add('\\b' + escapeRegex(binding[1] ?? 'Router') + '\\b');
+		}
+		if (hasRouterBinding && match[1]) {
+			patterns.add('\\b' + escapeRegex(match[1]) + '\\s*\\.\\s*Router\\b');
+		}
+	}
+	return [...patterns];
+}
+
+function routerVariables(text) {
+	const out = new Set();
+	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
+		const declarationRe = new RegExp(
+			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
+			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
+			'g',
+		);
+		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
+	}
+	return [...out].sort();
+}
+
+// T19 real-holdout finding: an Express application created with the module's actual default
+// import is also a route receiver. Keep this separate from routerVariables(): detect() still
+// requires the stronger named-Router + Router() signal, while scan() may additionally follow the
+// already-detected project's application root (`const application = express()`). An arbitrary
+// callable, or an unrelated object's .Router(), never becomes authoritative through this path.
+function expressDefaultBindings(text) {
+	const out = new Set();
+	const importRe = /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]express['"]/g;
+	for (const match of text.matchAll(importRe)) out.add(match[1]);
+	return [...out].sort();
+}
+
+const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+
+function scopeRegexStarts(lastSignificant, recentText) {
+	if (lastSignificant === null) return true;
+	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
+}
+
+function skipScopeRegexLiteral(text, start) {
+	let i = start + 1;
+	let inClass = false;
+	while (i < text.length) {
+		const ch = text[i];
+		if (ch === '\\') { i += 2; continue; }
+		if (ch === '\n') return i;
+		if (inClass) {
+			if (ch === ']') inClass = false;
+			i++;
+			continue;
+		}
+		if (ch === '[') { inClass = true; i++; continue; }
+		if (ch === '/') {
+			i++;
+			while (/[A-Za-z]/.test(text[i] ?? '')) i++;
+			return i;
+		}
+		i++;
+	}
+	return i;
+}
+
+// The Express default import is only authoritative in its module scope. A nested function/block
+// may shadow that identifier, so application factories are accepted only at top level. Comments
+// are already masked by the caller; this walk also skips strings/templates/regex literals so
+// braces inside them cannot fabricate lexical depth.
+function isTopLevelCodePosition(text, targetIndex) {
+	let depth = 0;
+	let quote = null;
+	let lastSignificant = null;
+	let i = 0;
+	while (i < targetIndex) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i += 2; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			i++;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > targetIndex) return false;
+			i = next;
+			lastSignificant = '/';
+			continue;
+		}
+		if (ch === '{') depth++;
+		else if (ch === '}') depth = Math.max(0, depth - 1);
+		if (!/\s/.test(ch)) lastSignificant = ch;
+		i++;
+	}
+	return quote === null && depth === 0;
+}
+
+// Returns the currently-active code-block opening braces at a call site. This mirrors the lexical
+// skipping rules above but keeps the stack so application references inside a function can remain
+// valid when they still resolve to the top-level Express binding.
+function activeCodeScopeOpeningsAt(text, targetIndex) {
+	const openings = [];
+	let quote = null;
+	let lastSignificant = null;
+	let i = 0;
+	while (i < targetIndex) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i += 2; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			i++;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			i = skipScopeRegexLiteral(text, i);
+			lastSignificant = '/';
+			continue;
+		}
+		if (ch === '{') openings.push(i);
+		else if (ch === '}') openings.pop();
+		if (!/\s/.test(ch)) lastSignificant = ch;
+		i++;
+	}
+	return openings;
+}
+
+);
 	if (singleArrow.test(header)) return true;
 
-	// Parenthesized function/method/arrow parameters immediately preceding this block.
+	// Parenthesized function/method/arrow/catch parameters immediately preceding this block.
 	const paramsMatch = header.match(/\(([^()]*)\)\s*(?::[^{}=]+)?(?:=>)?\s*$/);
 	if (!paramsMatch) return false;
 	const params = paramsMatch[1];
@@ -194,28 +456,19 @@ function scopeHeaderShadowsName(text, openIndex, name) {
 	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
 	const isArrow = /=>\s*$/.test(header);
 
-	// Control-statement parens are not lexical parameter bindings. A for-loop declaration is.
 	if (['if', 'while', 'switch', 'with'].includes(leader) && !isArrow) return false;
-	if (leader === 'for' && !isArrow) {
-		return new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\b`).test(params);
-	}
-	return splitTopLevelArgs(params).some((param) => {
-		const binding = param.trim().match(/^(?:\.\.\.\s*)?([A-Za-z_$][\w$]*)/);
-		return binding?.[1] === name;
-	});
+	if (leader === 'for' && !isArrow) return scopeBodyDeclaresName(params, name);
+	return splitTopLevelArgs(params).some((param) => parameterBindsName(param, name));
 }
 
 // A top-level Express application may legitimately be configured inside another function (the
-// T19 holdout does exactly this in Main()). Reject only active lexical scopes that introduce a
-// same-named binding, rather than rejecting every nested call wholesale.
+// T19 holdout does exactly this in Main()). Reject active lexical scopes that introduce a
+// same-named binding, including parameters and object/array destructuring.
 function applicationReferenceIsAuthorized(text, name, targetIndex) {
 	if (isTopLevelCodePosition(text, targetIndex)) return true;
-	const escaped = escapeRegex(name);
 	for (const openIndex of activeCodeScopeOpeningsAt(text, targetIndex)) {
 		if (scopeHeaderShadowsName(text, openIndex, name)) return false;
-		const scopePrefix = text.slice(openIndex + 1, targetIndex);
-		const localDecl = new RegExp(`\\b(?:const|let|var|function|class)\\s+${escaped}\\b`);
-		if (localDecl.test(scopePrefix)) return false;
+		if (scopeBodyDeclaresName(text.slice(openIndex + 1, targetIndex), name)) return false;
 	}
 	return true;
 }
