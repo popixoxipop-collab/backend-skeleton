@@ -254,11 +254,15 @@ function listTypeScriptFiles(projectRoot) {
 // DECISIONS.md) -- this is NOT a new failure mode, just a new, real way to reach the existing one.
 const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
 
-function extractEndpoints(text, receiverNames) {
+function extractEndpoints(text, receiverNames, topLevelOnlyNames = new Set()) {
 	const endpoints = [];
 	for (const routerName of receiverNames) {
 		const verbCallRe = routerMemberCallRe(routerName, VERBS.join('|'), 'gi');
 		for (const m of text.matchAll(verbCallRe)) {
+			// Application receivers are authorized from a top-level import binding. A nested scope
+			// may redeclare the same identifier (for example configure(app: FakeApp)), so do not
+			// let same-spelled nested calls inherit that authority. Router() behavior is unchanged.
+			if (topLevelOnlyNames.has(routerName) && !isTopLevelCodePosition(text, m.index)) continue;
 			const verb = m[1].toUpperCase();
 			const openIdx = m.index + m[0].length - 1;
 			const closeIdx = matchBalancedParens(text, openIdx);
@@ -312,36 +316,48 @@ function buildMountEdges(files, fileTexts) {
 	const fileSet = new Set(files);
 	for (const file of files) {
 		const text = fileTexts.get(file);
-		const localReceivers = new Set(routeReceiverVariables(text));
+		const applicationReceivers = new Set(applicationVariables(text));
+		const localReceivers = new Set([...routerVariables(text), ...applicationReceivers]);
 		for (const receiver of localReceivers) {
 			const useRe = routerMemberCallRe(receiver, 'use');
 			for (const m of text.matchAll(useRe)) {
+				// Same authority rule as endpoint extraction: a top-level Express application name
+				// does not authorize a same-spelled parameter/local inside a nested scope.
+				if (applicationReceivers.has(receiver) && !isTopLevelCodePosition(text, m.index)) continue;
 				const openIdx = m.index + m[0].length - 1;
 				const closeIdx = matchBalancedParens(text, openIdx);
 				if (closeIdx === -1) continue;
 				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
-				if (args.length !== 2) continue;
+				if (args.length < 2) continue;
 				const prefix = staticPathLiteral(args[0]);
-				const identMatch = args[1].match(/^([A-Za-z_$][\w$]*)$/);
-				if (prefix === null || !identMatch) continue;
-				const target = identMatch[1];
+				if (prefix === null) continue;
 
-				if (localReceivers.has(target)) {
-					edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
-					continue;
+				// Express accepts middleware before/after a mounted router:
+				// app.use('/api', authenticate, userRouter). Treat every argument after the path as a
+				// candidate, but only a proven local receiver or default-imported exported receiver
+				// becomes a graph edge; ordinary middleware naturally resolves to nothing.
+				for (const candidate of args.slice(1)) {
+					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
+					if (!identMatch) continue;
+					const target = identMatch[1];
+
+					if (localReceivers.has(target)) {
+						edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
+						continue;
+					}
+
+					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
+					const importMatch = text.match(importRe);
+					if (!importMatch) continue;
+					const toFile = resolveRelativeImport(file, importMatch[1]);
+					if (!toFile || !fileSet.has(toFile)) continue;
+					const toText = fileTexts.get(toFile);
+					const toReceivers = new Set(routeReceiverVariables(toText));
+					const toReceiver = defaultExportedReceiverName(toText, toReceivers);
+					if (!toReceiver) continue;
+
+					edges.push({ from: nodeKey(file, receiver), to: nodeKey(toFile, toReceiver), prefix });
 				}
-
-				const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
-				const importMatch = text.match(importRe);
-				if (!importMatch) continue;
-				const toFile = resolveRelativeImport(file, importMatch[1]);
-				if (!toFile || !fileSet.has(toFile)) continue;
-				const toText = fileTexts.get(toFile);
-				const toReceivers = new Set(routeReceiverVariables(toText));
-				const toReceiver = defaultExportedReceiverName(toText, toReceivers);
-				if (!toReceiver) continue;
-
-				edges.push({ from: nodeKey(file, receiver), to: nodeKey(toFile, toReceiver), prefix });
 			}
 		}
 	}
@@ -442,11 +458,12 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		// G6: `\bRouter\s*\(` -- see detectTypeScriptExpressRoot above. Same widening for the same
 		// reason: a router declared as `Router({ mergeParams: true })` is ordinary Express, and
 		// this per-file gate previously skipped its whole file.
-		const receivers = routeReceiverVariables(text);
+		const applicationReceivers = new Set(applicationVariables(text));
+		const receivers = [...new Set([...routerVariables(text), ...applicationReceivers])].sort();
 		const moduleName = path.basename(file, '.ts');
 		const moduleClassBase = `${moduleName.charAt(0).toUpperCase()}${moduleName.slice(1)}`;
 		for (const receiver of receivers) {
-			const localEndpoints = extractEndpoints(text, [receiver]);
+			const localEndpoints = extractEndpoints(text, [receiver], applicationReceivers);
 			if (localEndpoints.length === 0) continue;
 			const prefix = prefixChainFor(nodeKey(file, receiver), edges);
 			const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));
