@@ -88,7 +88,7 @@ function applicationVariables(text) {
 	for (const expressBinding of expressDefaultBindings(text)) {
 		const declarationRe = new RegExp(
 			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
-			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + escapeRegex(expressBinding) + '\\s*\\(',
+			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + escapeRegex(expressBinding) + '\\s*\\(\\s*\\)',
 			'g',
 		);
 		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
@@ -216,9 +216,9 @@ function resolveRelativeImport(fromFile, specifier) {
 	return null;
 }
 
-// Builds the router mount-tree: for every file with `export default router` (or `export default
-// <name>` where <name> was assigned `= Router()`), finds every `router.use('/literal', identifier)`
-// edge and resolves `identifier` via THAT FILE'S OWN relative `import` statement only -- bare/
+// Builds the route-receiver mount-tree: Router() receivers plus a trusted `express()` application
+// root may contribute `.use('/literal', identifier)` edges. For Router() files, default-export
+// hand-off remains the normal shape; every edge resolves `identifier` via THAT FILE'S OWN relative import only -- bare/
 // baseUrl-relative specifiers (`'controllers/users'`) are deliberately not resolved here, only for
 // router-to-router mounts, which the real oracle confirms are always relative (`import v1 from
 // './v1/'`). A file with no incoming edge is a root. Bounded, not general: a computed/dynamic mount

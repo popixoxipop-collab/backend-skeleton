@@ -306,12 +306,14 @@ test('typescript-express: an unrelated callable is not treated as an Express app
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
 		'tsconfig.json': '{}',
 		'src/routes.ts': [
-			"import { Router } from 'express';",
+			"import express, { Router } from 'express';",
 			"import toolkit from 'toolkit';",
 			'const router: Router = Router();',
 			"router.get('/real', realHandler);",
 			'const application = toolkit();',
 			"application.get('/phantom', phantomHandler);",
+			'const configuredApplication = express(config);',
+			"configuredApplication.get('/also-phantom', phantomHandler);",
 			'export default router;',
 		].join('\n'),
 	});
