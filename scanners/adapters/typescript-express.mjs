@@ -1159,17 +1159,16 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 
 function isBoundedTypeExpression(text) {
 	const value = text.trim();
-	if (!value || !/[A-Za-z_$0-9'"`[{(]/.test(value)) return false;
-	// Delimiters/quotes must balance; the character allowlist deliberately covers TypeScript type
-	// punctuation (union/intersection, tuples, object members, generics, function types) but not
-	// statement-level braces or arbitrary source text outside a type assertion.
+	if (!value || !/[A-Za-z_$0-9'"\`[{(]/.test(value)) return false;
 	if (!delimitersBalanced(value)) return false;
-	// The suffix is already in a TypeScript assertion position. Require balanced delimiters and
-	// reject runtime short-circuit operators that would mean the assertion ended before the tail.
-	// Single `&`/`|` remain valid for intersection/union types.
-	if (/&&|\|\||\?\?/.test(value)) return false;
+	// Conservative assertion-type recognizer: balanced TypeScript type punctuation is allowed,
+	// but top-level runtime operators prove the assertion ended before the remaining expression.
 	let angle = 0;
+	let round = 0;
+	let square = 0;
+	let curly = 0;
 	let quote = null;
+	let sawTopLevelExtends = false;
 	for (let i = 0; i < value.length; i++) {
 		const ch = value[i];
 		if (quote) {
@@ -1177,14 +1176,31 @@ function isBoundedTypeExpression(text) {
 			if (ch === quote) quote = null;
 			continue;
 		}
-		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
-		if (ch === '<') angle++;
-		else if (ch === '>' && value[i - 1] !== '=') {
+		if (ch === '\'' || ch === '"' || ch === '\`') { quote = ch; continue; }
+		if (ch === '(') { round++; continue; }
+		if (ch === ')') { round--; continue; }
+		if (ch === '[') { square++; continue; }
+		if (ch === ']') { square--; continue; }
+		if (ch === '{') { curly++; continue; }
+		if (ch === '}') { curly--; continue; }
+		if (round !== 0 || square !== 0 || curly !== 0) continue;
+		if (ch === '<') { angle++; continue; }
+		if (ch === '>' && value[i - 1] !== '=') {
 			if (angle === 0) return false;
 			angle--;
+			continue;
 		}
+		if (angle !== 0) continue;
+		if (/^extends\b/.test(value.slice(i))) { sawTopLevelExtends = true; i += 'extends'.length - 1; continue; }
+		if (value.startsWith('&&', i) || value.startsWith('||', i) || value.startsWith('??', i) ||
+			value.startsWith('===', i) || value.startsWith('!==', i) || value.startsWith('==', i) || value.startsWith('!=', i) ||
+			value.startsWith('<=', i) || value.startsWith('>=', i)) return false;
+		if (ch === ',' || ch === '+' || ch === '*' || ch === '/' || ch === '%') return false;
+		if (ch === '=' && value[i + 1] !== '>') return false;
+		if (ch === '?' && !sawTopLevelExtends) return false;
+		if (ch === '-' && !(i === 0 && /[0-9]/.test(value[i + 1] ?? ''))) return false;
 	}
-	return angle === 0;
+	return angle === 0 && round === 0 && square === 0 && curly === 0;
 }
 
 function leadingTypeAssertionLength(value) {
@@ -1416,8 +1432,31 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	return false;
 }
 
+function forHeaderWritesApplicationName(text, binding, targetIndex) {
+	const re = /\bfor\s*(?:await\s*)?\(/g;
+	for (const match of text.matchAll(re)) {
+		if (match.index < binding.initializationEnd || match.index >= targetIndex || !isCodePosition(text, match.index)) continue;
+		const openIndex = match.index + match[0].lastIndexOf('(');
+		const closeIndex = matchingParenClose(text, openIndex);
+		if (closeIndex === -1 || openIndex >= targetIndex) continue;
+		const header = text.slice(openIndex + 1, closeIndex);
+		const split = header.match(/^\s*([\s\S]*?)\s+(?:of|in)\s+[\s\S]*$/);
+		if (!split) continue;
+		let lhs = peelAssignmentGrouping(split[1].trim());
+		if (/^(?:const|let|var)\b/.test(lhs)) continue;
+		const writes = lhs === binding.name ||
+			(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
+		if (!writes) continue;
+		const nameOffset = header.indexOf(binding.name);
+		const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
+		if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
+	}
+	return false;
+}
+
 function applicationBindingStillTrusted(text, binding, targetIndex) {
 	if (binding.declarationKind === 'const') return true;
+	if (forHeaderWritesApplicationName(text, binding, targetIndex)) return false;
 	for (const match of text.matchAll(/=/g)) {
 		const equalsIndex = match.index;
 		if (equalsIndex < binding.initializationEnd || equalsIndex >= targetIndex) continue;
