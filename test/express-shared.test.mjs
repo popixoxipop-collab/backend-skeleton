@@ -529,6 +529,7 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'const namedFunction = function app() {',
 			"  app.get('/phantom-named-function', phantomHandler);",
 			'};',
+			"const HeritageHolder = class app extends app.get('/phantom-class-heritage', phantomHandler) {};",
 			'const namedGenericFunction = function app<T>() {',
 			"  app.get('/phantom-generic-named-function', phantomHandler);",
 			'};',
@@ -575,6 +576,9 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			"  ['computed'](app = fakeApp, x = app.get('/phantom-computed-object-method-default', phantomHandler)) {},",
 			"  'configure'(app = fakeApp, x = app.get('/phantom-literal-method-default', phantomHandler)) {},",
 			"  123(app = fakeApp, x = app.get('/phantom-numeric-method-default', phantomHandler)) {},",
+			"  0x1(app = fakeApp, x = app.get('/phantom-hex-method-default', phantomHandler)) {},",
+			"  1e3(app = fakeApp, x = app.get('/phantom-exponent-method-default', phantomHandler)) {},",
+			"  2n(app = fakeApp, x = app.get('/phantom-bigint-method-default', phantomHandler)) {},",
 			'};',
 			'export default app;',
 		].join('\n'),
@@ -785,6 +789,25 @@ test('typescript-express: for-header shadow ends after an unbraced try/finally b
 			'} finally {',
 			'  cleanup();',
 			'}',
+			"app.get('/real', realHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+test('typescript-express: for-header shadow includes a complete unbraced do/while body', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"for (const app of fakeApps) do work(); while (app.get('/phantom-loop', phantomHandler));",
 			"app.get('/real', realHandler);",
 			'export default app;',
 		].join('\n'),

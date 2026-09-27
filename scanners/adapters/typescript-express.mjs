@@ -690,6 +690,24 @@ function singleStatementEnd(text, startIndex) {
 		}
 	}
 
+	if (/^do\b/.test(text.slice(start))) {
+		const bodyStart = skipStatementWhitespace(text, start + 2);
+		const bodyEnd = singleStatementEnd(text, bodyStart);
+		let next = skipStatementWhitespace(text, bodyEnd);
+		if (/^while\b/.test(text.slice(next))) {
+			next = skipStatementWhitespace(text, next + 5);
+			if (text[next] === '(') {
+				const close = matchingParenClose(text, next);
+				if (close !== -1) {
+					let end = skipStatementWhitespace(text, close + 1);
+					if (text[end] === ';') end++;
+					return end;
+				}
+			}
+		}
+		return bodyEnd;
+	}
+
 	if (/^try\b/.test(text.slice(start))) {
 		let bodyStart = skipStatementWhitespace(text, start + 3);
 		if (text[bodyStart] === '{') {
@@ -1017,7 +1035,7 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 		const methodHeader = stripTrailingTypeParameters(before);
 		const methodName = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*$/.test(methodHeader);
 		const computedMethod = /\]\s*$/.test(methodHeader);
-		const literalMethod = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\d+(?:\.\d+)?)\s*$/.test(methodHeader);
+		const literalMethod = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|0[xX][0-9A-Fa-f_]+n?|0[bB][01_]+n?|0[oO][0-7_]+n?|\d[\d_]*n|(?:\d[\d_]*(?:\.[\d_]*)?|\.[\d_]+)(?:[eE][+-]?[\d_]+)?)\s*$/.test(methodHeader);
 		const hasMethodBody = /^\s*(?::[\s\S]*?)?\{/.test(after);
 		const isMethod = (methodName || computedMethod || literalMethod) && hasMethodBody;
 		if (!isFunction && !isConstructor && !isArrow && !isMethod) continue;
@@ -1026,8 +1044,41 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 	}
 	return false;
 }
+function classHeritageShadowsNameAt(text, name, targetIndex) {
+	const classRe = new RegExp('\\bclass\\s+' + escapeRegex(name) + '\\s+extends\\b', 'g');
+	for (const match of text.matchAll(classRe)) {
+		if (match.index >= targetIndex || !isCodePosition(text, match.index)) continue;
+		let round = 0;
+		let square = 0;
+		let quote = null;
+		let lastSignificant = null;
+		let bodyOpened = false;
+		for (let i = match.index + match[0].length; i < targetIndex; i++) {
+			const ch = text[i];
+			if (quote) {
+				if (ch === '\\') { i++; continue; }
+				if (ch === quote) { quote = null; lastSignificant = ch; }
+				continue;
+			}
+			if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+			if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(match.index, i - 512), i))) {
+				const next = skipScopeRegexLiteral(text, i);
+				if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+			}
+			if (ch === '(') round++;
+			else if (ch === ')') round = Math.max(0, round - 1);
+			else if (ch === '[') square++;
+			else if (ch === ']') square = Math.max(0, square - 1);
+			else if (ch === '{' && round === 0 && square === 0) { bodyOpened = true; break; }
+			if (!/\s/.test(ch)) lastSignificant = ch;
+		}
+		if (!bodyOpened) return true;
+	}
+	return false;
+}
 function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	if (!isCodePosition(text, targetIndex)) return false;
+	if (classHeritageShadowsNameAt(text, name, targetIndex)) return false;
 	if (parameterScopeShadowsNameAt(text, name, targetIndex)) return false;
 	if (expressionArrowShadowsName(text, name, targetIndex)) return false;
 	if (activeForHeaderBindingAt(text, name, targetIndex)) return false;
@@ -1044,6 +1095,7 @@ function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 }
 function routerBindingAt(text, name, targetIndex) {
 	if (!isCodePosition(text, targetIndex)) return null;
+	if (classHeritageShadowsNameAt(text, name, targetIndex)) return null;
 	if (parameterScopeShadowsNameAt(text, name, targetIndex)) return null;
 	if (expressionArrowShadowsName(text, name, targetIndex)) return null;
 	const forBinding = activeForHeaderBindingAt(text, name, targetIndex);
