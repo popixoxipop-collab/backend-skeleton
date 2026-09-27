@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:05:00+09:00",
+  "observed_at": "2026-09-27T16:14:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -289,18 +289,6 @@
       "fencing_token": 1,
       "expires_at": "2026-09-27T14:06:00Z",
       "state": "ACTIVE"
-    },
-    "T00-T23-RELEASE-CONTROL-20260927-r2": {
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t00/t23-release-auth-hardening-r2",
-      "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-      "path_scopes": [
-        "release/next/**"
-      ],
-      "fencing_token": 2,
-      "expires_at": "2026-09-27T10:12:00Z",
-      "state": "ACTIVE",
-      "observed_head_sha": "f0a2fc8949a53888636908fbfb352ccc6949f415"
     },
     "T00-T19-RELEASE-ACCEPTANCE-20260927-r3": {
       "repo": "popixoxipop-collab/backend-skeleton",
@@ -659,13 +647,13 @@
     "next": "Release/default remains separately gated by T19-03, T20-03, direct final-main release CI, and final release rehearsal."
   },
   "release_control": {
-    "phase": "POST_T19_RESTACK_VALIDATION",
+    "phase": "AUTH_HARDENING_INTEGRATED_BLOCKED",
     "pr": 148,
     "reviewed_head": "0c0d03e94f1b8a72db3510f2bf40a88a7db46ec0",
     "merge_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
     "ci_run": 36286918045,
     "ci_conclusion": "success",
-    "policy_regressions": "28/28 PASS",
+    "policy_regressions": "29/29 PASS",
     "evidence_resolution": "checked-in manifest + byte rehash + check-id + exact release-head binding",
     "release_allowed": false,
     "default_activation_allowed": false,
@@ -681,7 +669,12 @@
     "default_activation": false,
     "auth_hardening_branch": "t00/t23-release-auth-hardening-r2",
     "auth_hardening_candidate_head": "f0a2fc8949a53888636908fbfb352ccc6949f415",
-    "auth_hardening_base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8"
+    "auth_hardening_base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+    "hardening_pr": 151,
+    "hardening_reviewed_head": "09194807950f886341ffc3672fe57beb8861b151",
+    "hardening_merge_sha": "8015f7c78d62f3e5c8e0122cb0f1a891583a7665",
+    "hardening_ci_run": 36301534905,
+    "hardening_ci_conclusion": "success"
   },
   "t20_03": {
     "state": "LINUX_CONTAINER_SLICE_VALIDATED_NOT_ACCEPTED",
