@@ -400,19 +400,25 @@ function scopeBodyDeclaresName(text, name) {
 function matchingParenClose(text, openIndex) {
 	let depth = 0;
 	let quote = null;
+	let lastSignificant = null;
 	for (let i = openIndex; i < text.length; i++) {
 		const ch = text[i];
 		if (quote) {
 			if (ch === '\\') { i++; continue; }
-			if (ch === quote) quote = null;
+			if (ch === quote) { quote = null; lastSignificant = ch; }
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
 		if (ch === '(') depth++;
 		else if (ch === ')') {
 			depth--;
 			if (depth === 0) return i;
 		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
 	return -1;
 }
@@ -714,8 +720,9 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 		// Requiring a following body brace avoids treating ordinary call expressions as methods.
 		const methodHeader = stripTrailingTypeParameters(before);
 		const methodName = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*$/.test(methodHeader);
+		const computedMethod = /\]\s*$/.test(methodHeader);
 		const hasMethodBody = /^\s*(?::[\s\S]*?)?\{/.test(after);
-		const isMethod = methodName && hasMethodBody;
+		const isMethod = (methodName || computedMethod) && hasMethodBody;
 		if (!isFunction && !isConstructor && !isArrow && !isMethod) continue;
 		const params = text.slice(openIndex + 1, closeIndex);
 		if (splitTopLevelArgs(params).some((param) => parameterBindsName(param, name))) return true;
@@ -849,7 +856,7 @@ function staticPathLiteral(expression) {
 }
 
 function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
-	return new RegExp('(?<![\\w$\\.])' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
+	return new RegExp('(?<![\\w$\\.#])' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
 }
 
 // D-gate-precision (Continued, part 3): a pure PATH-CONVENTION heuristic, mirroring java-spring's
