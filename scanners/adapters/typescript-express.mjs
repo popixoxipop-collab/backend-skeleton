@@ -690,6 +690,38 @@ function singleStatementEnd(text, startIndex) {
 		}
 	}
 
+	if (/^try\b/.test(text.slice(start))) {
+		let bodyStart = skipStatementWhitespace(text, start + 3);
+		if (text[bodyStart] === '{') {
+			let close = matchingBraceClose(text, bodyStart);
+			if (close !== -1) {
+				let end = close + 1;
+				let next = skipStatementWhitespace(text, end);
+				if (/^catch\b/.test(text.slice(next))) {
+					next = skipStatementWhitespace(text, next + 5);
+					if (text[next] === '(') {
+						const catchClose = matchingParenClose(text, next);
+						if (catchClose === -1) return text.length;
+						next = skipStatementWhitespace(text, catchClose + 1);
+					}
+					if (text[next] !== '{') return text.length;
+					close = matchingBraceClose(text, next);
+					if (close === -1) return text.length;
+					end = close + 1;
+					next = skipStatementWhitespace(text, end);
+				}
+				if (/^finally\b/.test(text.slice(next))) {
+					next = skipStatementWhitespace(text, next + 7);
+					if (text[next] !== '{') return text.length;
+					close = matchingBraceClose(text, next);
+					if (close === -1) return text.length;
+					end = close + 1;
+				}
+				return end;
+			}
+		}
+	}
+
 	const headerStatement = text.slice(start).match(/^(?:switch|while|with|for(?:\s+await)?)\b/);
 	if (headerStatement) {
 		let open = start + headerStatement[0].length;
@@ -985,8 +1017,9 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 		const methodHeader = stripTrailingTypeParameters(before);
 		const methodName = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*$/.test(methodHeader);
 		const computedMethod = /\]\s*$/.test(methodHeader);
+		const literalMethod = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\d+(?:\.\d+)?)\s*$/.test(methodHeader);
 		const hasMethodBody = /^\s*(?::[\s\S]*?)?\{/.test(after);
-		const isMethod = (methodName || computedMethod) && hasMethodBody;
+		const isMethod = (methodName || computedMethod || literalMethod) && hasMethodBody;
 		if (!isFunction && !isConstructor && !isArrow && !isMethod) continue;
 		const params = text.slice(openIndex + 1, closeIndex);
 		if (splitTopLevelArgs(params).some((param) => parameterBindsName(param, name))) return true;

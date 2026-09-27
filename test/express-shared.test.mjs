@@ -573,6 +573,8 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			"  configure(app = fakeApp, x = app.get('/phantom-object-method-default', phantomHandler)) {},",
 			"  generic<T>(app = fakeApp, x = app.get('/phantom-generic-object-method-default', phantomHandler)) {},",
 			"  ['computed'](app = fakeApp, x = app.get('/phantom-computed-object-method-default', phantomHandler)) {},",
+			"  'configure'(app = fakeApp, x = app.get('/phantom-literal-method-default', phantomHandler)) {},",
+			"  123(app = fakeApp, x = app.get('/phantom-numeric-method-default', phantomHandler)) {},",
 			'};',
 			'export default app;',
 		].join('\n'),
@@ -759,6 +761,29 @@ test('typescript-express: for-header shadow ends after an unbraced braced statem
 			'const router: Router = Router();',
 			'for (const app of fakeApps) switch (mode) {',
 			"  case 1: app.get('/phantom-loop', phantomHandler); break;",
+			'}',
+			"app.get('/real', realHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+test('typescript-express: for-header shadow ends after an unbraced try/finally body', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			'for (const app of fakeApps) try {',
+			"  app.get('/phantom-loop', phantomHandler);",
+			'} finally {',
+			'  cleanup();',
 			'}',
 			"app.get('/real', realHandler);",
 			'export default app;',
