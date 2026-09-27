@@ -71,18 +71,24 @@ function routerVariables(text) {
 	return [...out].sort();
 }
 
-function routerDeclarationPositions(text, name) {
+function routerDeclarations(text, name) {
 	const out = [];
 	const escapedName = escapeRegex(name);
 	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
 		const declarationRe = new RegExp(
-			'\\b(?:export\\s+)?(?:const|let|var)\\s+' + escapedName +
+			'\\b(?:export\\s+)?(const|let|var)\\s+' + escapedName +
 			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
 			'g',
 		);
-		for (const match of text.matchAll(declarationRe)) out.push(match.index);
+		for (const match of text.matchAll(declarationRe)) {
+			out.push({ index: match.index, declarationKind: match[1] });
+		}
 	}
-	return out.sort((x, y) => x - y);
+	return out.sort((x, y) => x.index - y.index);
+}
+
+function routerDeclarationPositions(text, name) {
+	return routerDeclarations(text, name).map((declaration) => declaration.index);
 }
 
 // T19 real-holdout finding: an Express application created with the module's actual default
@@ -663,9 +669,18 @@ function routerBindingAt(text, name, targetIndex) {
 	}
 
 	let best = null;
-	for (const declarationIndex of routerDeclarationPositions(text, name)) {
+	for (const declaration of routerDeclarations(text, name)) {
+		const declarationIndex = declaration.index;
 		if (declarationIndex >= targetIndex || !isCodePosition(text, declarationIndex)) continue;
-		const declarationScopes = activeCodeScopeOpeningsAt(text, declarationIndex);
+		let declarationScopes = activeCodeScopeOpeningsAt(text, declarationIndex);
+		if (declaration.declarationKind === 'var') {
+			const functionOpen = nearestFunctionScopeOpenAt(text, declarationIndex);
+			if (functionOpen === null) declarationScopes = [];
+			else {
+				const functionScopeIndex = declarationScopes.indexOf(functionOpen);
+				if (functionScopeIndex !== -1) declarationScopes = declarationScopes.slice(0, functionScopeIndex + 1);
+			}
+		}
 		if (declarationScopes.length > callScopes.length) continue;
 		let sameChain = true;
 		for (let i = 0; i < declarationScopes.length; i++) {
@@ -674,7 +689,7 @@ function routerBindingAt(text, name, targetIndex) {
 		if (!sameChain) continue;
 		if (!best || declarationScopes.length > best.depth ||
 			(declarationScopes.length === best.depth && declarationIndex > best.index)) {
-			best = { index: declarationIndex, depth: declarationScopes.length };
+			best = { index: declarationIndex, depth: declarationScopes.length, declarationKind: declaration.declarationKind };
 		}
 	}
 	if (!best) return null;
@@ -683,7 +698,7 @@ function routerBindingAt(text, name, targetIndex) {
 		if (scopeHeaderShadowsName(text, callScopes[i], name)) return null;
 		if (scopeDirectlyDeclaresName(text, callScopes[i], name)) return null;
 	}
-	return { kind: 'router', name, declarationIndex: best.index };
+	return { kind: 'router', name, declarationIndex: best.index, declarationKind: best.declarationKind };
 }
 
 function routerReferenceIsAuthorized(text, name, targetIndex) {
@@ -714,8 +729,8 @@ function applicationVariables(text) {
 function routerBindings(text) {
 	const out = [];
 	for (const name of routerVariables(text)) {
-		for (const declarationIndex of routerDeclarationPositions(text, name)) {
-			out.push({ kind: 'router', name, declarationIndex });
+		for (const declaration of routerDeclarations(text, name)) {
+			out.push({ kind: 'router', name, declarationIndex: declaration.index, declarationKind: declaration.declarationKind });
 		}
 	}
 	return out.sort((x, y) => x.declarationIndex - y.declarationIndex);
@@ -834,6 +849,7 @@ function extractEndpoints(text, binding) {
 	const endpoints = [];
 	const verbCallRe = routerMemberCallRe(binding.name, VERBS.join('|'), 'gi');
 	for (const m of text.matchAll(verbCallRe)) {
+		if (!isCodePosition(text, m.index)) continue;
 		const activeBinding = receiverBindingAt(text, binding.name, m.index);
 		if (!sameReceiverBinding(activeBinding, binding)) continue;
 		const verb = m[1].toUpperCase();
@@ -892,6 +908,7 @@ function buildMountEdges(files, fileTexts) {
 		for (const receiverName of routeReceiverVariables(text)) {
 			const useRe = routerMemberCallRe(receiverName, 'use');
 			for (const m of text.matchAll(useRe)) {
+				if (!isCodePosition(text, m.index)) continue;
 				const fromBinding = receiverBindingAt(text, receiverName, m.index);
 				if (!fromBinding) continue;
 				const openIdx = m.index + m[0].length - 1;

@@ -509,6 +509,31 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 		'GET /api/child',
 	]);
 });
+test('typescript-express: source-like route and mount calls inside strings are ignored', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			'const example = "app.get(\'/phantom\', phantomHandler)";',
+			'const mountExample = "app.use(\'/wrong\', router)";',
+			"app.get('/real', realHandler);",
+			"app.use('/api', router);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/child',
+		'GET /real',
+	]);
+});
 test('typescript-express: same-named Router bindings in separate scopes keep distinct mount prefixes', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
@@ -568,6 +593,27 @@ test('typescript-express: an out-of-scope same-named local Router does not suppr
 		'GET /api/child',
 		'GET /local-only',
 	]);
+});
+test('typescript-express: var Router() declared in a child block remains visible in its containing function', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'function install() {',
+			'  { var router: Router = Router(); }',
+			"  router.get('/child', childHandler);",
+			"  app.use('/api', router);",
+			'}',
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/child']);
 });
 test('typescript-express: a Router() declared and mounted inside a function keeps its local mount prefix', () => {
 	const root = writeTree({
