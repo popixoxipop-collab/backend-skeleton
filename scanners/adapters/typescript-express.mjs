@@ -1050,7 +1050,15 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 }
 
 function isEmptyExpressFactoryExpression(expression, binding) {
-	const value = expression.trim();
+	let value = expression.trim();
+	// TypeScript assertions are commonly parenthesized as a whole:
+	// `const app = (express() as Application)`. Peel only parentheses that balance across
+	// the ENTIRE expression so inner calls/grouping keep their original meaning.
+	while (value.startsWith('(')) {
+		const close = matchingParenClose(value, 0);
+		if (close !== value.length - 1) break;
+		value = value.slice(1, -1).trim();
+	}
 	const factoryRe = new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)');
 	const match = value.match(factoryRe);
 	if (!match) return false;
