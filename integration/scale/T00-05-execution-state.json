@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T15:54:00+09:00",
+  "observed_at": "2026-09-27T16:50:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -247,19 +247,6 @@
     "runtime evidence from T16/beval for runtime-tested claims"
   ],
   "active_leases": {
-    "T00-T20-T16-SANDBOX-20260927-r1": {
-      "repo": "popixoxipop-collab/Backend-evaluation",
-      "branch": "t00/t20-03-linux-docker-sandbox-r1",
-      "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
-      "path_scopes": [
-        "lib/next-runtime/hardened-docker-sandbox.mjs",
-        "test/next-runtime/hardened-docker-sandbox.test.mjs",
-        "docs/next-runtime/T20_03_LINUX_DOCKER_SANDBOX.md"
-      ],
-      "fencing_token": 1,
-      "expires_at": "2026-09-27T07:20:00Z",
-      "state": "ACTIVE"
-    },
     "T00-T19-CURRENT-MAIN-QA-20260927-r1": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "branch": "t00/t19-current-main-qa-r1",
@@ -690,7 +677,13 @@
     "reviewed_head": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
     "release_ready": false,
     "diff_check": "PASS",
-    "exact_head_blob_identity": "7/7 Git blob SHA matched GitHub"
+    "exact_head_blob_identity": "7/7 Git blob SHA matched GitHub",
+    "expired_parallel_slice": {
+      "claim_id": "T00-T20-T16-SANDBOX-20260927-r1",
+      "branch": "t00/t20-03-linux-docker-sandbox-r1",
+      "preserved_head": "c2c224676c1bde69e39f4c23c122ea670f7b256b",
+      "state": "RELEASED_EXPIRED_NO_PR"
+    }
   },
   "t19_03": {
     "state": "PACKET_INTEGRATED_BLOCKED",
