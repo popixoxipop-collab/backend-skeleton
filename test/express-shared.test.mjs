@@ -1200,6 +1200,26 @@ test('typescript-express: qualified receiver properties do not impersonate a tru
 		'GET /real',
 	]);
 });
+test('typescript-express: keyword runtime operators after an assertion do not authorize fake applications', () => {
+	for (const rhs of ['express() as any instanceof Fake', 'express() as any in fakeRegistry']) {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				`const app = ${rhs};`,
+				"app.get('/phantom', phantomHandler);",
+			].join('\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+		assert.deepEqual(endpoints, []);
+	}
+});
+
 test('typescript-express: runtime conditional tails after an as-assertion do not authorize fake applications', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
