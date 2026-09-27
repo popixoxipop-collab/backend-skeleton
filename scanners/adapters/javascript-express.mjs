@@ -370,8 +370,12 @@ function buildMountEdges(files, fileInfo, suffixes) {
 				// is ordinary and the router need not be last. Each candidate is resolved on its own
 				// below and only a genuine mountable becomes an edge; middleware falls out naturally.
 				// A multi-argument use() WITHOUT a leading path literal stays skipped, as before.
-				const pathMatch = args[0].match(STRING_LITERAL_RE);
-				if (!pathMatch) continue;
+				const pathArg = args[0].trim();
+				const pathMatch = pathArg.match(STRING_LITERAL_RE);
+				// STRING_LITERAL_RE is intentionally a prefix matcher elsewhere. A mount prefix must
+				// be the ENTIRE argument, otherwise `'/api' + suffix` would be misreported as
+				// `/api`. Template literals with interpolation are dynamic for the same reason.
+				if (!pathMatch || pathMatch[0] !== pathArg || (pathArg.startsWith('`') && pathMatch[1].includes('${'))) continue;
 				prefix = pathMatch[1];
 				candidates = args.slice(1);
 			} else if (args.length === 1) {

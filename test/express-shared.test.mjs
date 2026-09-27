@@ -614,6 +614,40 @@ test('javascript-express: an aliased named export never binds an unrelated same-
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'export { middleware as guard } must not make the local guard router inherit /api');
 });
 
+test('javascript-express: multi-handler mounts reject computed or interpolated path prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import concatRouter from './concat.js';",
+			"import templateRouter from './template.js';",
+			'const app = express();',
+			"const suffix = '/v1';",
+			'const guard = (req, res, next) => next();',
+			"app.use('/api' + suffix, guard, concatRouter);",
+			"app.use(`/api/${suffix}`, guard, templateRouter);",
+		].join('\n'),
+		'concat.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/concat', show);",
+			'export default router;',
+		].join('\n'),
+		'template.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/template', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /concat',
+		'GET /template',
+	]);
+});
+
 test('javascript-express: grouped named imports preserve the mounted router prefix', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
