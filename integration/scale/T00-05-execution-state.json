@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T13:23:00+09:00",
+  "observed_at": "2026-09-27T16:05:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -301,6 +301,17 @@
       "expires_at": "2026-09-27T10:12:00Z",
       "state": "ACTIVE",
       "observed_head_sha": "f0a2fc8949a53888636908fbfb352ccc6949f415"
+    },
+    "T00-T19-RELEASE-ACCEPTANCE-20260927-r3": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t19-release-provenance-hardening-r3",
+      "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+      "path_scopes": [
+        "test/t19-release-acceptance/**"
+      ],
+      "fencing_token": 3,
+      "expires_at": "2026-09-27T15:05:00Z",
+      "state": "ACTIVE"
     }
   },
   "review_candidates": {
@@ -698,7 +709,7 @@
     ]
   },
   "t19_03": {
-    "state": "INTEGRATED_BLOCKED",
+    "state": "BLOCKED_PROVENANCE_HARDENING",
     "pr": 149,
     "reviewed_head": "2cf923ca9b698094e94eb278c61e357b9e4a7dcc",
     "merge_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
@@ -712,6 +723,10 @@
       "HOLDOUT_ISSUE_119_OPEN",
       "NO_T19_RELEASE_CERTIFICATE",
       "T20_03_NOT_ACCEPTED"
-    ]
+    ],
+    "merged_packet_pr": 149,
+    "merged_main_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+    "followup_branch": "t00/t19-release-provenance-hardening-r3",
+    "verdict": "BLOCKED"
   }
 }
