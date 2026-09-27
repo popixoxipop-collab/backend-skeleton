@@ -1365,8 +1365,8 @@
       "branch": "t00/t23-release-auth-hardening-r2",
       "worker": "T00-release-integration",
       "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-t23-release-auth-r2",
-      "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
-      "observed_head_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+      "observed_head_sha": "f0a2fc8949a53888636908fbfb352ccc6949f415",
       "path_scopes": [
         "release/next/**"
       ],
@@ -1375,7 +1375,7 @@
       "issued_at": "2026-09-27T02:12:00Z",
       "expires_at": "2026-09-27T10:12:00Z",
       "state": "ACTIVE",
-      "reason": "Post-merge hardening of release evidence authentication, explicit release status consistency, and separate default-activation lease gate. No release/default activation is authorized."
+      "reason": "Post-merge release-control authentication hardening restacked on T19-integrated main. No release/default activation is authorized."
     },
     {
       "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r2",
