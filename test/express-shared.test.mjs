@@ -800,8 +800,10 @@ test('typescript-express: empty express() factories remain trusted through bound
 			"router.get('/child', childHandler);",
 			'const app = express() as Application;',
 			'const secondary = express() satisfies Application;',
+			'const parenthesized = (express() as Application);',
 			"app.get('/health', healthHandler);",
 			"secondary.get('/secondary', secondaryHandler);",
+			"parenthesized.get('/parenthesized', parenthesizedHandler);",
 			"app.use('/api', router);",
 			'export default app;',
 		].join('\n'),
@@ -813,6 +815,7 @@ test('typescript-express: empty express() factories remain trusted through bound
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /api/child',
 		'GET /health',
+		'GET /parenthesized',
 		'GET /secondary',
 	]);
 });
