@@ -1366,7 +1366,10 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 		else if (ch === ')') round = Math.max(0, round - 1);
 		else if (ch === '[') square++;
 		else if (ch === ']') square = Math.max(0, square - 1);
-		else if (ch === '{') curly++;
+		else if (ch === '{') {
+			if (round === 0 && square === 0 && isStandaloneBlockOpen(text, i)) statementStart = i + 1;
+			curly++;
+		}
 		else if (ch === '}') {
 			curly = Math.max(0, curly - 1);
 			if (round === 0 && square === 0 && curly === 0) statementStart = i + 1;
@@ -1471,9 +1474,26 @@ function definiteApplicationWritePosition(text, equalsIndex) {
 	return scopes.length > 0 && scopes.every((openIndex) => isStandaloneBlockOpen(text, openIndex));
 }
 
+function updateExpressionWritesApplicationName(text, binding, targetIndex) {
+	const escaped = escapeRegex(binding.name);
+	const boundary = '[$\\p{ID_Continue}\\u200C\\u200D.#]';
+	const updateRe = new RegExp(
+		'(?:(?<!' + boundary + ')(?:\\+\\+|--)\\s*' + escaped + '(?!' + boundary + ')' +
+		'|(?<!' + boundary + ')' + escaped + '\\s*(?:\\+\\+|--)(?!' + boundary + '))',
+		'gu',
+	);
+	for (const match of text.matchAll(updateRe)) {
+		if (match.index < binding.initializationEnd || match.index >= targetIndex) continue;
+		if (!isCodePosition(text, match.index) || !definiteApplicationWritePosition(text, match.index)) continue;
+		return true;
+	}
+	return false;
+}
+
 function applicationBindingStillTrusted(text, binding, targetIndex) {
 	if (binding.declarationKind === 'const') return true;
 	if (forHeaderWritesApplicationName(text, binding, targetIndex)) return false;
+	if (updateExpressionWritesApplicationName(text, binding, targetIndex)) return false;
 	for (const match of text.matchAll(/=/g)) {
 		const equalsIndex = match.index;
 		if (equalsIndex < binding.initializationEnd || equalsIndex >= targetIndex) continue;
