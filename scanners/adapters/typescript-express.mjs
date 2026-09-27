@@ -1157,14 +1157,95 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 	return routerBindingAt(text, name, targetIndex) !== null;
 }
 
+function isBoundedTypeExpression(text) {
+	const value = text.trim();
+	if (!value || !/[A-Za-z_$0-9'"`[{(]/.test(value)) return false;
+	// Delimiters/quotes must balance; the character allowlist deliberately covers TypeScript type
+	// punctuation (union/intersection, tuples, object members, generics, function types) but not
+	// statement-level braces or arbitrary source text outside a type assertion.
+	if (!delimitersBalanced(value)) return false;
+	if (!/^[A-Za-z0-9_$\\s.<>{}\\[\\](),:;?'"`|&=!~+*/%-]+$/u.test(value)) return false;
+	let angle = 0;
+	let quote = null;
+	for (let i = 0; i < value.length; i++) {
+		const ch = value[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '<') angle++;
+		else if (ch === '>' && value[i - 1] !== '=') {
+			if (angle === 0) return false;
+			angle--;
+		}
+	}
+	return angle === 0;
+}
+
+function leadingTypeAssertionLength(value) {
+	if (!value.startsWith('<')) return 0;
+	let angle = 0;
+	let quote = null;
+	for (let i = 0; i < value.length; i++) {
+		const ch = value[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '<') angle++;
+		else if (ch === '>' && value[i - 1] !== '=') {
+			angle--;
+			if (angle === 0) {
+				const candidate = value.slice(1, i);
+				return isBoundedTypeExpression(candidate) ? i + 1 : 0;
+			}
+		}
+	}
+	return 0;
+}
+
+function trailingTypeAssertionStart(value) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	const positions = [];
+	for (let i = 0; i < value.length; i++) {
+		const ch = value[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+		if (round !== 0 || square !== 0 || curly !== 0) continue;
+		for (const keyword of ['as', 'satisfies']) {
+			if (value.slice(i, i + keyword.length) !== keyword) continue;
+			const before = value[i - 1] ?? ' ';
+			const after = value[i + keyword.length] ?? ' ';
+			if (/[$A-Za-z0-9_]/.test(before) || /[$A-Za-z0-9_]/.test(after)) continue;
+			positions.push({ index: i, length: keyword.length });
+		}
+	}
+	for (let i = positions.length - 1; i >= 0; i--) {
+		const entry = positions[i];
+		if (isBoundedTypeExpression(value.slice(entry.index + entry.length))) return entry.index;
+	}
+	return -1;
+}
+
 function isEmptyExpressFactoryExpression(expression, binding) {
 	let value = expression.trim();
-	const typeRef = '(?:readonly\\s+)?[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*(?:\\s*<[^;=()]+>)?(?:\\s*\\[\\])*';
-	const leadingAssertionRe = new RegExp('^<\\s*' + typeRef + '\\s*>\\s*');
-	const trailingAssertionRe = new RegExp('\\s+(?:as|satisfies)\\s+' + typeRef + '\\s*$');
-
-	// Assertions and grouping can nest in either order: `<T>(express())`,
-	// `(<T>express())`, or `(express()) as T`. Peel only bounded wrappers until stable.
 	let changed = true;
 	while (changed) {
 		changed = false;
@@ -1174,20 +1255,17 @@ function isEmptyExpressFactoryExpression(expression, binding) {
 			value = value.slice(1, -1).trim();
 			changed = true;
 		}
-		if (value.startsWith('<')) {
-			const assertion = value.match(leadingAssertionRe);
-			if (assertion) {
-				value = value.slice(assertion[0].length).trim();
-				changed = true;
-			}
+		const leadingLength = leadingTypeAssertionLength(value);
+		if (leadingLength > 0) {
+			value = value.slice(leadingLength).trim();
+			changed = true;
 		}
-		const trailing = value.match(trailingAssertionRe);
-		if (trailing && trailing.index != null) {
-			value = value.slice(0, trailing.index).trim();
+		const trailingStart = trailingTypeAssertionStart(value);
+		if (trailingStart !== -1) {
+			value = value.slice(0, trailingStart).trim();
 			changed = true;
 		}
 	}
-
 	const factoryRe = new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)$');
 	return factoryRe.test(value);
 }
@@ -1311,7 +1389,7 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	// Only a standalone assignment target is definite. Conditional prefixes such as `if (flag)`,
 	// `flag &&`, and ternaries intentionally fail this check rather than invalidating the binding.
 	let direct = lhs;
-	const compoundOperators = ['&&', '||', '??', '+', '-', '*', '/', '%', '&', '|', '^'];
+	const compoundOperators = ['&&', '+', '-', '*', '/', '%', '&', '|', '^'];
 	for (const operator of compoundOperators) {
 		if (direct.endsWith(operator)) {
 			direct = direct.slice(0, -operator.length).trimEnd();
@@ -1351,7 +1429,10 @@ function applicationBindingStillTrusted(text, binding, targetIndex) {
 function receiverBindingAt(text, name, targetIndex) {
 	const router = routerBindingAt(text, name, targetIndex);
 	if (router) return router;
-	const application = applicationBindings(text).find((binding) => binding.name === name);
+	let application = null;
+	for (const binding of applicationBindings(text)) {
+		if (binding.name === name && binding.declarationIndex < targetIndex) application = binding;
+	}
 	if (application && applicationBindingStillTrusted(text, application, targetIndex) &&
 		topLevelReferenceIsAuthorized(text, name, targetIndex)) return application;
 	return null;

@@ -327,6 +327,25 @@ test('typescript-express: an express() application receiver contributes its own 
 	].sort());
 });
 
+test('typescript-express: application calls before the express() factory declaration are rejected', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			"app.get('/phantom-before', phantomHandler);",
+			'const app = express();',
+			"app.get('/real', realHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
 test('typescript-express: same-file app -> router mounts keep receiver-specific prefixes and reject dynamic paths', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
@@ -920,12 +939,20 @@ test('typescript-express: empty express() factories remain trusted through bound
 			'const prefixed = <express.Application>express();',
 			'const parenthesizedPrefixed = (<express.Application>express());',
 			'const outerAsserted = (express()) as Application;',
+			'const augmented = express() as express.Express & { feature: string };',
+			'const unioned = express() as express.Express | { feature: string };',
+			'const tupled = express() as unknown as [express.Express, express.Express];',
+			'const objectTyped = express() as unknown as { feature: string; enabled: boolean };',
 			"app.get('/health', healthHandler);",
 			"secondary.get('/secondary', secondaryHandler);",
 			"parenthesized.get('/parenthesized', parenthesizedHandler);",
 			"prefixed.get('/prefixed', prefixedHandler);",
 			"parenthesizedPrefixed.get('/parenthesized-prefixed', parenthesizedPrefixedHandler);",
 			"outerAsserted.get('/outer-asserted', outerAssertedHandler);",
+			"augmented.get('/augmented', augmentedHandler);",
+			"unioned.get('/unioned', unionedHandler);",
+			"tupled.get('/tupled', tupledHandler);",
+			"objectTyped.get('/object-typed', objectTypedHandler);",
 			"app.use('/api', router);",
 			'export default app;',
 		].join('\n'),
@@ -936,12 +963,16 @@ test('typescript-express: empty express() factories remain trusted through bound
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /api/child',
+		'GET /augmented',
 		'GET /health',
+		'GET /object-typed',
 		'GET /outer-asserted',
 		'GET /parenthesized',
 		'GET /parenthesized-prefixed',
 		'GET /prefixed',
 		'GET /secondary',
+		'GET /tupled',
+		'GET /unioned',
 	]);
 });
 
@@ -1030,6 +1061,26 @@ test('typescript-express: grouping around the final sequence assignment target s
 	const result = scanTypeScriptExpress(root, projectRoot);
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /before']);
+});
+test('typescript-express: ||= and ??= preserve an already trusted express() application binding', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app = express();',
+			'app ||= fakeApp;',
+			'app ??= fakeApp;',
+			"app.get('/real', realHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
 });
 test('typescript-express: conditional top-level-looking reassignment does not invalidate the application binding', () => {
 	const root = writeTree({
