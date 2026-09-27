@@ -112,14 +112,50 @@ function expressDefaultBindings(text) {
 const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', ';']);
 const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
 
+function matchingOpenParenForClose(text, closeIndex) {
+	const searchStart = Math.max(0, closeIndex - 4096);
+	for (let open = closeIndex; open >= searchStart; open--) {
+		if (text[open] !== '(') continue;
+		if (matchingParenClose(text, open) === closeIndex) return open;
+	}
+	return -1;
+}
+
+function controlHeaderEndsAtRecentText(recentText) {
+	let close = recentText.length - 1;
+	while (close >= 0 && /\s/.test(recentText[close])) close--;
+	if (close < 0 || recentText[close] !== ')') return false;
+	const open = matchingOpenParenForClose(recentText, close);
+	if (open === -1) return false;
+	const before = recentText.slice(Math.max(0, open - 128), open).trimEnd();
+	return /\b(?:if|while|for|with|switch|catch)\s*$/.test(before);
+}
+
+function statementBlockEndsAtRecentText(recentText) {
+	let close = recentText.length - 1;
+	while (close >= 0 && /\s/.test(recentText[close])) close--;
+	if (close < 0 || recentText[close] !== '}') return false;
+	const searchStart = Math.max(0, close - 8192);
+	let open = -1;
+	for (let candidate = close; candidate >= searchStart; candidate--) {
+		if (recentText[candidate] !== '{') continue;
+		if (matchingBraceClose(recentText, candidate) === close) { open = candidate; break; }
+	}
+	if (open === -1) return false;
+	if (parameterListBeforeBlock(recentText, open)) return true;
+	const before = recentText.slice(0, open).trimEnd();
+	if (/\b(?:else|do|try|finally)\s*$/.test(before)) return true;
+	if (/=>\s*$/.test(before)) return true;
+	if (/\b(?:class|namespace|enum)\b[^{}]*$/.test(before)) return true;
+	return before === '' || /[;{}]\s*$/.test(before);
+}
+
 function scopeRegexStarts(lastSignificant, recentText) {
 	if (lastSignificant === null) return true;
 	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
 	if (/=>\s*$/.test(recentText)) return true;
-	if (lastSignificant === ')' && /\b(?:if|while|for|with|switch|catch)\s*\([\s\S]*\)\s*$/.test(recentText)) return true;
-	// `}` is ambiguous: object-literal division (`{} / 2`) must stay division, while a regex
-	// statement after a completed block is normally separated by a line break.
-	if (lastSignificant === '}' && /}\s*\n\s*$/.test(recentText)) return true;
+	if (lastSignificant === ')' && controlHeaderEndsAtRecentText(recentText)) return true;
+	if (lastSignificant === '}' && statementBlockEndsAtRecentText(recentText)) return true;
 	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
 }
 
@@ -526,6 +562,15 @@ function scopeIsFunctionLike(text, openIndex) {
 	return !['if', 'while', 'switch', 'with', 'for', 'catch'].includes(leader);
 }
 
+function isInsideForHeader(text, targetIndex) {
+	for (const openIndex of activeParenOpeningsAt(text, targetIndex).reverse()) {
+		const closeIndex = matchingParenClose(text, openIndex);
+		if (closeIndex === -1 || closeIndex < targetIndex) continue;
+		const before = text.slice(Math.max(0, openIndex - 128), openIndex).trimEnd();
+		if (/\bfor\s*$/.test(before)) return true;
+	}
+	return false;
+}
 function scopeDirectlyDeclaresName(text, openIndex, name) {
 	const closeIndex = matchingBraceClose(text, openIndex);
 	const scopeEnd = closeIndex === -1 ? text.length : closeIndex;
@@ -540,9 +585,11 @@ function scopeDirectlyDeclaresName(text, openIndex, name) {
 		if (!isCodePosition(segment, match.index)) continue;
 		if (match[1] === name && directlyInside(match.index)) return true;
 	}
-	for (const match of segment.matchAll(/\b(?:const|let|var)\b/g)) {
+	for (const match of segment.matchAll(/\b(const|let|var)\b/g)) {
 		if (!isCodePosition(segment, match.index) || !directlyInside(match.index)) continue;
-		const absoluteEnd = readVariableDeclarationClause(text, segmentStart + match.index + match[0].length, scopeEnd);
+		const absoluteIndex = segmentStart + match.index;
+		if (match[1] !== 'var' && isInsideForHeader(text, absoluteIndex)) continue;
+		const absoluteEnd = readVariableDeclarationClause(text, absoluteIndex + match[0].length, scopeEnd);
 		if (variableClauseBindsName(absoluteEnd, name)) return true;
 	}
 	return false;
