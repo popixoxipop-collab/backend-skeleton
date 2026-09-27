@@ -18,5 +18,7 @@ Run:
 
 ```bash
 node --test release/next/test/release-policy.test.mjs
-node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json
+node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json release/next/evidence-manifest.json
 ```
+
+Evidence references are resolved through `release/next/evidence-manifest.json`. A syntactically valid `sha256:...` string is never sufficient by itself: the verifier reads the referenced artifact bytes, recomputes SHA-256, and requires the artifact to bind the exact release check and all three current release-head SHAs.
