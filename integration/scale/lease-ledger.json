@@ -39,7 +39,7 @@
     "T00-BEVAL-T01-06-PACKED-REPLAY": 1,
     "T00-T23-RELEASE-CONTROL": 2,
     "T00-T20-T16-SANDBOX": 1,
-    "T00-BEVAL-T20-03-LINUX-SANDBOX": 3,
+    "T00-BEVAL-T20-03-LINUX-SANDBOX": 4,
     "T00-T19-RELEASE-ACCEPTANCE": 3,
     "T00-T19-CURRENT-MAIN-QA": 1,
     "T00-BSKEL-JS-EXPRESS-FIX": 1
@@ -1310,8 +1310,8 @@
       "expires_at": "2026-09-27T07:20:00Z",
       "state": "RELEASED",
       "reason": "Implement and externally verify one hardened Linux/container runtime profile for T20-03. Scope also includes the existing Docker lease wrapper metadata needed to preserve lease labels while enforcing aggregate streaming and externally recoverable cleanup. No cross-platform parity or release readiness claim.",
-      "released_at": "2026-09-27T07:22:00Z",
-      "release_reason": "Lease window reached expiry while PR #72 remained under review; restacked with fresh fencing token on current exact head e272f2bdb69bc7f9a677ab03d0f6fe8c0fd8adfc."
+      "released_at": "2026-09-27T10:07:00Z",
+      "release_reason": "Lease horizon elapsed before PR #72 completed review. Superseded by fencing token 2 integration-review lease; no release/T20 closeout is inferred."
     },
     {
       "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r1",
@@ -1512,6 +1512,33 @@
       "reason": "Review and integrate PR #153 after-the-fact under explicit T00 ownership. Scope is exactly the three PR files; no other scanner/release/T19/T20 files are authorized.",
       "released_at": "2026-09-27T10:07:00Z",
       "release_reason": "PR #153 exact-head CI #1379 SUCCESS, EOE express-shared 31/31 PASS, Codex rereview clean on 8a2eebc2bf1ef1751fcba398fc28fb00041a63bb, and merge commit 754756b6f1cc396a7c2e0be526f64936b1ef74e7 is ahead by one with zero file delta."
+    },
+    {
+      "claim_id": "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r2",
+      "task_id": "T20-03-linux-container-enforcement-integration-review",
+      "track": "T00-BEVAL-T20-03-LINUX-SANDBOX",
+      "canonical_track": "T20",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t20-03-linux-container-enforcement-r1",
+      "worker": "T00-T20-integration",
+      "worktree": "github-contents-api",
+      "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "observed_head_sha": "97f13d968e59172411782dc1e21b4b11a2865584",
+      "path_scopes": [
+        "lib/next-runtime/linux-container-sandbox.mjs",
+        "test/next-runtime/linux-container-sandbox.test.mjs",
+        "test/integration/t20-linux-container-sandbox.test.mjs",
+        "scripts/t20-linux-container-evidence.mjs",
+        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md",
+        "lib/next-runtime/docker-resource-lease.mjs",
+        "test/next-runtime/runtime-docker-lease.test.mjs"
+      ],
+      "fencing_token": 4,
+      "resource_class": "docker-heavy",
+      "issued_at": "2026-09-27T10:07:00Z",
+      "expires_at": "2026-09-27T16:07:00Z",
+      "state": "ACTIVE",
+      "reason": "Fresh T00 ownership for PR #72 integration review after the prior lease horizon elapsed. Governs current head review/fixes/merge only; does not authorize T20-03 full closeout or release."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
