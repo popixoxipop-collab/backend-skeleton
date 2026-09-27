@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:22:00+09:00",
+  "observed_at": "2026-09-27T16:50:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -288,7 +288,8 @@
       ],
       "fencing_token": 2,
       "expires_at": "2026-09-27T15:22:00Z",
-      "state": "ACTIVE"
+      "state": "ACTIVE",
+      "observed_head_sha": "35b27af8c782a683ef29c0c5cedda3b540092ba1"
     }
   },
   "review_candidates": {
@@ -675,11 +676,11 @@
     ],
     "branch": "t00/t20-03-linux-container-enforcement-r1",
     "candidate_head": "c03caad53c06fa975a016d98b4b1051e948dd50f",
-    "focused_tests": "16/16 PASS",
-    "next_runtime": "70/70 PASS",
+    "focused_tests": "21/21 PASS",
+    "next_runtime": "75/75 PASS",
     "pack_smoke": "PASS",
     "real_docker_external_enforcement": "1/1 PASS",
-    "evidence_observed_at": "2026-09-27T04:09:20.677Z",
+    "evidence_observed_at": "2026-09-27T07:44:06.422Z",
     "full_closeout": false,
     "blockers": [
       "TRUST_PROC_03",
@@ -690,8 +691,10 @@
       "CROSS_PLATFORM_PARITY"
     ],
     "fencing_token": 2,
-    "reviewed_head": "e272f2bdb69bc7f9a677ab03d0f6fe8c0fd8adfc",
-    "release_ready": false
+    "reviewed_head": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
+    "release_ready": false,
+    "diff_check": "PASS",
+    "exact_head_blob_identity": "7/7 Git blob SHA matched GitHub"
   },
   "t19_03": {
     "state": "BLOCKED_PACKET_INTEGRATED",
