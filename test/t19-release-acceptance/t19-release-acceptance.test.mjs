@@ -14,6 +14,8 @@ const EXPECTED_RELEASE_HEADS={
 };
 const EXPECTED_DIRECT_EOE_REQUEST='95631e68-a325-4b91-a4dc-46869c983b51';
 const EXPECTED_QA={
+  repo:'popixoxipop-collab/backend-skeleton',
+  pr:118,
   head:'1a4e4da3b62bf0113d240c32bfede06f7884966d',
   run_id:36218926731,
   run_number:1259,
@@ -27,6 +29,8 @@ function validate(value) {
   for (const role of ['bskel','becoder','beval']) {
     if (value?.release_heads?.[role]!==EXPECTED_RELEASE_HEADS[role]) errors.push('HEAD_'+role);
   }
+  if (value?.qa_authority?.repo!==EXPECTED_QA.repo) errors.push('QA_REPO');
+  if (value?.qa_authority?.pr!==EXPECTED_QA.pr) errors.push('QA_PR');
   if (value?.qa_authority?.head!==EXPECTED_QA.head) errors.push('QA_HEAD');
   const ci=value?.qa_authority?.exact_head_ci??{};
   if (ci.conclusion!=='success') errors.push('QA_CI');
@@ -127,4 +131,20 @@ test('direct EOE request identifier is immutable',()=>{
   const y=structuredClone(packet);
   delete y.qa_authority.direct_eoe.request_id;
   assert.ok(validate(y).includes('DIRECT_QA_REQUEST'));
+});
+
+
+test('QA repository and PR identity are immutable',()=>{
+  const repo=structuredClone(packet);
+  repo.qa_authority.repo='popixoxipop-collab/not-backend-skeleton';
+  assert.ok(validate(repo).includes('QA_REPO'));
+  const pr=structuredClone(packet);
+  pr.qa_authority.pr=999;
+  assert.ok(validate(pr).includes('QA_PR'));
+  const missing=structuredClone(packet);
+  delete missing.qa_authority.repo;
+  delete missing.qa_authority.pr;
+  const errors=validate(missing);
+  assert.ok(errors.includes('QA_REPO'));
+  assert.ok(errors.includes('QA_PR'));
 });
