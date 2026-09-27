@@ -1201,7 +1201,7 @@ test('typescript-express: qualified receiver properties do not impersonate a tru
 	]);
 });
 test('typescript-express: keyword runtime operators after an assertion do not authorize fake applications', () => {
-	for (const rhs of ['express() as any instanceof Fake', 'express() as any in fakeRegistry']) {
+	for (const rhs of ['express() as any instanceof Fake', 'express() as any in fakeRegistry', 'express() as any ^ 0']) {
 		const root = writeTree({
 			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
 			'tsconfig.json': '{}',
@@ -1236,6 +1236,49 @@ test('typescript-express: runtime conditional tails after an as-assertion do not
 	const result = scanTypeScriptExpress(root, projectRoot);
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: a definite write inside a standalone block invalidates a mutable application', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'{ app = fakeApp; }',
+			"app.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: using declarations shadow an outer application receiver', () => {
+	for (const declaration of ['using app = fakeApp;', 'await using app = fakeAsyncApp;']) {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				'const app = express();',
+				'async function configure() {',
+				`  ${declaration}`,
+				"  app.get('/phantom', phantomHandler);",
+				'}',
+				"app.get('/real', realHandler);",
+			].join('\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+		assert.deepEqual(endpoints.map((e) => [e.method, e.path]), [['GET', '/real']]);
+	}
 });
 
 test('typescript-express: for-of writes invalidate an existing mutable application receiver', () => {
