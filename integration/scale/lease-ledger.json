@@ -1531,14 +1531,15 @@
         "scripts/t20-linux-container-evidence.mjs",
         "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md",
         "lib/next-runtime/docker-resource-lease.mjs",
-        "test/next-runtime/runtime-docker-lease.test.mjs"
+        "test/next-runtime/runtime-docker-lease.test.mjs",
+        "lib/command.mjs"
       ],
       "fencing_token": 4,
       "resource_class": "docker-heavy",
       "issued_at": "2026-09-27T10:07:00Z",
       "expires_at": "2026-09-27T16:07:00Z",
       "state": "ACTIVE",
-      "reason": "Fresh T00 ownership for PR #72 integration review after the prior lease horizon elapsed. Governs current head review/fixes/merge only; does not authorize T20-03 full closeout or release."
+      "reason": "Continue T20 hardened Linux/container slice under latest fencing epoch. Scope includes lib/command.mjs only to add backward-compatible AbortSignal propagation required by early Docker preflight cancellation. No full T20-03 or release claim."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
