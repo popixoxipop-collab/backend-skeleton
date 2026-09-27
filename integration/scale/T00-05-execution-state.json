@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T13:16:00+09:00",
+  "observed_at": "2026-09-27T13:23:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -293,13 +293,14 @@
     "T00-T23-RELEASE-CONTROL-20260927-r2": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "branch": "t00/t23-release-auth-hardening-r2",
-      "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
       "path_scopes": [
         "release/next/**"
       ],
       "fencing_token": 2,
       "expires_at": "2026-09-27T10:12:00Z",
-      "state": "ACTIVE"
+      "state": "ACTIVE",
+      "observed_head_sha": "f0a2fc8949a53888636908fbfb352ccc6949f415"
     }
   },
   "review_candidates": {
@@ -647,7 +648,7 @@
     "next": "Release/default remains separately gated by T19-03, T20-03, direct final-main release CI, and final release rehearsal."
   },
   "release_control": {
-    "phase": "POST_MERGE_AUTH_HARDENING",
+    "phase": "POST_T19_RESTACK_VALIDATION",
     "pr": 148,
     "reviewed_head": "0c0d03e94f1b8a72db3510f2bf40a88a7db46ec0",
     "merge_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
@@ -668,7 +669,8 @@
     "hardening_branch": "t00/t23-release-auth-hardening-r2",
     "default_activation": false,
     "auth_hardening_branch": "t00/t23-release-auth-hardening-r2",
-    "auth_hardening_candidate_head": "bd9ae213cf7a94f1b2025bc9e76e1ba27627dade"
+    "auth_hardening_candidate_head": "f0a2fc8949a53888636908fbfb352ccc6949f415",
+    "auth_hardening_base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8"
   },
   "t20_03": {
     "state": "LINUX_CONTAINER_SLICE_VALIDATED_NOT_ACCEPTED",
