@@ -690,6 +690,19 @@ function singleStatementEnd(text, startIndex) {
 		}
 	}
 
+	const headerStatement = text.slice(start).match(/^(?:switch|while|with|for(?:\s+await)?)\b/);
+	if (headerStatement) {
+		let open = start + headerStatement[0].length;
+		while (open < text.length && /\s/.test(text[open])) open++;
+		if (text[open] === '(') {
+			const close = matchingParenClose(text, open);
+			if (close !== -1) {
+				const bodyStart = skipStatementWhitespace(text, close + 1);
+				return singleStatementEnd(text, bodyStart);
+			}
+		}
+	}
+
 	let round = 0;
 	let square = 0;
 	let curly = 0;
@@ -1128,10 +1141,42 @@ function routeReceiverVariables(text) {
 	return [...new Set(routeReceiverBindings(text).map((binding) => binding.name))].sort();
 }
 
+function assignmentStatementStart(text, startIndex, equalsIndex) {
+	let statementStart = startIndex;
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	let lastSignificant = null;
+	for (let i = startIndex; i < equalsIndex; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(startIndex, i - 512), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') {
+			curly = Math.max(0, curly - 1);
+			if (round === 0 && square === 0 && curly === 0) statementStart = i + 1;
+		}
+		else if (ch === ';' && round === 0 && square === 0 && curly === 0) statementStart = i + 1;
+		if (!/\s/.test(ch)) lastSignificant = ch;
+	}
+	return statementStart;
+}
 function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
-	const sinceInitialization = text.slice(binding.initializationEnd, equalsIndex);
-	const statementStart = sinceInitialization.lastIndexOf(';') + 1;
-	let lhs = sinceInitialization.slice(statementStart).trim();
+	const statementStart = assignmentStatementStart(text, binding.initializationEnd, equalsIndex);
+	let lhs = text.slice(statementStart, equalsIndex).trim();
 	if (!lhs) return false;
 
 	// Only a standalone assignment target is definite. Conditional prefixes such as `if (flag)`,

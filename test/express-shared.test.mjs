@@ -749,6 +749,27 @@ test('typescript-express: Router() in a later variable declarator is detected an
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/child']);
 });
+test('typescript-express: for-header shadow ends after an unbraced braced statement body', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			'for (const app of fakeApps) switch (mode) {',
+			"  case 1: app.get('/phantom-loop', phantomHandler); break;",
+			'}',
+			"app.get('/real', realHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
 test('typescript-express: Router() declared in a for header is the active receiver inside that loop body', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
@@ -889,6 +910,27 @@ test('typescript-express: conditional top-level-looking reassignment does not in
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
 });
 
+test('typescript-express: definite reassignment after a semicolon-free braced statement invalidates the app binding', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app = express();',
+			"app.get('/before', beforeHandler);",
+			'function setup() {}',
+			'app = fakeApp;',
+			"app.get('/phantom-after-block', phantomHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /before']);
+});
 test('typescript-express: definite top-level destructuring reassignment invalidates a mutable application binding', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
