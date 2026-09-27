@@ -516,7 +516,7 @@ test('typescript-express: an out-of-scope same-named local Router does not suppr
 			'}',
 			'export default app;',
 		].join('\n'),
-		'child.ts': [
+		'src/child.ts': [
 			"import { Router } from 'express';",
 			'const child: Router = Router();',
 			"child.get('/child', childHandler);",
