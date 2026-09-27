@@ -1366,7 +1366,7 @@
       "worker": "T00-release-integration",
       "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-t23-release-auth-r2",
       "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-      "observed_head_sha": "f0a2fc8949a53888636908fbfb352ccc6949f415",
+      "observed_head_sha": "09194807950f886341ffc3672fe57beb8861b151",
       "path_scopes": [
         "release/next/**"
       ],
@@ -1374,8 +1374,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-27T02:12:00Z",
       "expires_at": "2026-09-27T10:12:00Z",
-      "state": "ACTIVE",
-      "reason": "Post-merge release-control authentication hardening restacked on T19-integrated main. No release/default activation is authorized."
+      "state": "RELEASED",
+      "reason": "Post-merge release-control authentication hardening restacked on T19-integrated main. No release/default activation is authorized.",
+      "released_at": "2026-09-27T07:14:00Z",
+      "release_reason": "PR #151 exact-head CI #1368 SUCCESS, Codex latest-head review clean, EOE release-policy 29/29 PASS, merged as 8015f7c78d62f3e5c8e0122cb0f1a891583a7665 with zero file delta from reviewed head."
     },
     {
       "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r2",
