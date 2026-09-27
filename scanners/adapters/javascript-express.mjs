@@ -329,9 +329,17 @@ function importSourceFor(text, target) {
 	const defaultImportRe = new RegExp(`import\\s+${target}\\s*(?:,\\s*\\{[^}]*\\})?\\s*from\\s*["']([^"']+)["']`);
 	const defaultMatch = text.match(defaultImportRe);
 	if (defaultMatch) return { source: defaultMatch[1], kind: 'default' };
-	const namedImportRe = new RegExp(`import\\s*\\{\\s*${target}\\s*\\}\\s*from\\s*["']([^"']+)["']`);
-	const namedMatch = text.match(namedImportRe);
-	return namedMatch ? { source: namedMatch[1], kind: 'named' } : null;
+	// Named imports commonly share one brace list (`import { guard, router } from './routes.js'`).
+	// Parse that list and accept only the exact unaliased local binding; aliases stay deliberately
+	// unresolved, matching namedExportedMountable()'s same-binding rule.
+	const namedImportRe = /import\\s+(?:[\\w$]+\\s*,\\s*)?\\{([^}]*)\\}\\s*from\\s*["']([^"']+)["']/g;
+	for (const match of text.matchAll(namedImportRe)) {
+		const specifiers = splitTopLevelArgs(match[1]);
+		if (specifiers.some((specifier) => specifier.trim() === target)) {
+			return { source: match[2], kind: 'named' };
+		}
+	}
+	return null;
 }
 
 // Builds the mount graph over (file, variable) nodes. Two edge kinds, from either

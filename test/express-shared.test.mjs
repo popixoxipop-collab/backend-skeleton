@@ -614,6 +614,28 @@ test('javascript-express: an aliased named export never binds an unrelated same-
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'export { middleware as guard } must not make the local guard router inherit /api');
 });
 
+test('javascript-express: grouped named imports preserve the mounted router prefix', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { guard, things } from './routes.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'routes.js': [
+			"import express from 'express';",
+			'const things = express.Router();',
+			"things.get('/:id', show);",
+			'const guard = (req, res, next) => next();',
+			'export { guard, things };',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/:id']);
+});
+
 test('javascript-express: computed or call-expression handlers are still skipped, not guessed at', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
