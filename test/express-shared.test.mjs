@@ -542,8 +542,8 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 		'GET /after-block',
 		'GET /after-for-loop',
 		'GET /after-regex-initializer',
-		'GET /after-unbraced-for',
 		'GET /after-string',
+		'GET /after-unbraced-for',
 		'GET /api/child',
 		'GET /block-regex/child',
 	]);
