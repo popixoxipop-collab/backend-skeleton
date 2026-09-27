@@ -1321,14 +1321,15 @@
       "observed_head_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
       "path_scopes": [
         "evidence/next/T19-RELEASE-ACCEPTANCE.json",
-        "test/t19-release-acceptance/**"
+        "test/t19-release-acceptance/**",
+        "scripts/run-next-nested-tests.mjs"
       ],
       "fencing_token": 1,
       "resource_class": "static-small",
       "issued_at": "2026-09-27T01:59:45Z",
       "expires_at": "2026-09-27T09:59:45Z",
       "state": "RELEASED",
-      "reason": "Create a fail-closed T19 release-acceptance packet without overlapping the separate T19 current-main QA lease. No release/default approval is authorized.",
+      "reason": "Create a fail-closed T19 release-acceptance packet without overlapping the separate T19 current-main QA lease. Scope includes only the shared nested-suite registration needed to execute the relocated release-acceptance guard. No release/default approval is authorized.",
       "released_at": "2026-09-27T02:19:00Z",
       "release_reason": "Superseded before restack because backend-skeleton main advanced to release-control merge 84a54e27114098d23cd0dafe1d9f6beb9baf090b."
     },
