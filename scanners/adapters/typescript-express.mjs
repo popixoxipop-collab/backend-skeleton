@@ -104,6 +104,7 @@ function scopeRegexStarts(lastSignificant, recentText) {
 	if (lastSignificant === null) return true;
 	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
 	if (/=>\s*$/.test(recentText)) return true;
+	if (lastSignificant === ')' && /\b(?:if|while|for|with|switch|catch)\s*\([\s\S]*\)\s*$/.test(recentText)) return true;
 	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
 }
 
@@ -148,7 +149,7 @@ function isTopLevelCodePosition(text, targetIndex) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
 			const next = skipScopeRegexLiteral(text, i);
 			if (next > targetIndex) return false;
 			i = next;
@@ -180,7 +181,7 @@ function activeCodeScopeOpeningsAt(text, targetIndex) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
 			i = skipScopeRegexLiteral(text, i);
 			lastSignificant = '/';
 			continue;
@@ -281,7 +282,7 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(startIndex, i - 12), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(startIndex, i - 512), i))) {
 			const next = skipScopeRegexLiteral(text, i);
 			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
 		}
@@ -316,7 +317,7 @@ function splitBindingDeclarators(text) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
 			const next = skipScopeRegexLiteral(text, i);
 			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
 		}
@@ -359,7 +360,7 @@ function isCodePosition(text, targetIndex) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
 			const next = skipScopeRegexLiteral(text, i);
 			if (next > targetIndex) return false;
 			i = next;
@@ -457,6 +458,8 @@ function scopeHeaderShadowsName(text, openIndex, name) {
 	if (!list) return false;
 	const before = text.slice(Math.max(0, list.open - 256), list.open).trimEnd();
 	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
+	const namedFunction = before.match(/\bfunction\s+([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? null;
+	if (namedFunction === name) return true;
 	const tail = text.slice(list.close + 1, openIndex);
 	const isArrow = /=>\s*$/.test(tail);
 	if (['if', 'while', 'switch', 'with'].includes(leader) && !isArrow) return false;
@@ -476,7 +479,7 @@ function matchingBraceClose(text, openIndex) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
 			const next = skipScopeRegexLiteral(text, i);
 			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
 		}
@@ -652,11 +655,11 @@ function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	}
 	return true;
 }
-function routerReferenceIsAuthorized(text, name, targetIndex) {
-	if (expressionArrowShadowsName(text, name, targetIndex)) return false;
+function routerBindingAt(text, name, targetIndex) {
+	if (expressionArrowShadowsName(text, name, targetIndex)) return null;
 	const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
 	for (const openIndex of callScopes) {
-		if (scopeHeaderShadowsName(text, openIndex, name)) return false;
+		if (scopeHeaderShadowsName(text, openIndex, name)) return null;
 	}
 
 	let best = null;
@@ -674,18 +677,21 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 			best = { index: declarationIndex, depth: declarationScopes.length };
 		}
 	}
-	if (!best) return false;
+	if (!best) return null;
 
-	// Any closer lexical scope that binds the same name supersedes the proven Router() binding.
 	for (let i = best.depth; i < callScopes.length; i++) {
-		if (scopeHeaderShadowsName(text, callScopes[i], name)) return false;
-		if (scopeDirectlyDeclaresName(text, callScopes[i], name)) return false;
+		if (scopeHeaderShadowsName(text, callScopes[i], name)) return null;
+		if (scopeDirectlyDeclaresName(text, callScopes[i], name)) return null;
 	}
-	return true;
+	return { kind: 'router', name, declarationIndex: best.index };
 }
 
-function applicationVariables(text) {
-	const out = new Set();
+function routerReferenceIsAuthorized(text, name, targetIndex) {
+	return routerBindingAt(text, name, targetIndex) !== null;
+}
+
+function applicationBindings(text) {
+	const out = [];
 	for (const expressBinding of expressDefaultBindings(text)) {
 		const declarationRe = new RegExp(
 			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
@@ -693,18 +699,52 @@ function applicationVariables(text) {
 			'g',
 		);
 		for (const match of text.matchAll(declarationRe)) {
-			if (isTopLevelCodePosition(text, match.index)) out.add(match[1]);
+			if (isTopLevelCodePosition(text, match.index)) {
+				out.push({ kind: 'application', name: match[1], declarationIndex: match.index });
+			}
 		}
 	}
-	return [...out].sort();
+	return out.sort((x, y) => x.declarationIndex - y.declarationIndex);
+}
+
+function applicationVariables(text) {
+	return [...new Set(applicationBindings(text).map((binding) => binding.name))].sort();
+}
+
+function routerBindings(text) {
+	const out = [];
+	for (const name of routerVariables(text)) {
+		for (const declarationIndex of routerDeclarationPositions(text, name)) {
+			out.push({ kind: 'router', name, declarationIndex });
+		}
+	}
+	return out.sort((x, y) => x.declarationIndex - y.declarationIndex);
+}
+
+function routeReceiverBindings(text) {
+	return [...routerBindings(text), ...applicationBindings(text)]
+		.sort((x, y) => x.declarationIndex - y.declarationIndex || x.name.localeCompare(y.name));
 }
 
 function routeReceiverVariables(text) {
-	return [...new Set([...routerVariables(text), ...applicationVariables(text)])].sort();
+	return [...new Set(routeReceiverBindings(text).map((binding) => binding.name))].sort();
 }
 
-function nodeKey(file, receiverName) {
-	return `${file}\0${receiverName}`;
+function receiverBindingAt(text, name, targetIndex) {
+	const router = routerBindingAt(text, name, targetIndex);
+	if (router) return router;
+	const application = applicationBindings(text).find((binding) => binding.name === name);
+	if (application && topLevelReferenceIsAuthorized(text, name, targetIndex)) return application;
+	return null;
+}
+
+function sameReceiverBinding(left, right) {
+	return Boolean(left && right && left.kind === right.kind && left.name === right.name &&
+		left.declarationIndex === right.declarationIndex);
+}
+
+function nodeKey(file, binding) {
+	return `${file}\0${binding.kind}\0${binding.name}\0${binding.declarationIndex}`;
 }
 
 function staticPathLiteral(expression) {
@@ -790,37 +830,33 @@ function listTypeScriptFiles(projectRoot) {
 // DECISIONS.md) -- this is NOT a new failure mode, just a new, real way to reach the existing one.
 const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
 
-function extractEndpoints(text, receiverNames, topLevelOnlyNames = new Set()) {
+function extractEndpoints(text, binding) {
 	const endpoints = [];
-	for (const routerName of receiverNames) {
-		const verbCallRe = routerMemberCallRe(routerName, VERBS.join('|'), 'gi');
-		for (const m of text.matchAll(verbCallRe)) {
-			// Application receivers are authorized from a top-level import binding. A nested scope
-			// may redeclare the same identifier (for example configure(app: FakeApp)), so do not
-			// let same-spelled nested calls inherit that authority. Router() behavior is unchanged.
-			if (topLevelOnlyNames.has(routerName) && !topLevelReferenceIsAuthorized(text, routerName, m.index)) continue;
-			const verb = m[1].toUpperCase();
-			const openIdx = m.index + m[0].length - 1;
-			const closeIdx = matchBalancedParens(text, openIdx);
-			if (closeIdx === -1) continue;
-			const argsText = text.slice(openIdx + 1, closeIdx);
-			const args = splitTopLevelArgs(argsText);
-			const routePath = staticPathLiteral(args[0]);
-			if (routePath === null) continue;
+	const verbCallRe = routerMemberCallRe(binding.name, VERBS.join('|'), 'gi');
+	for (const m of text.matchAll(verbCallRe)) {
+		const activeBinding = receiverBindingAt(text, binding.name, m.index);
+		if (!sameReceiverBinding(activeBinding, binding)) continue;
+		const verb = m[1].toUpperCase();
+		const openIdx = m.index + m[0].length - 1;
+		const closeIdx = matchBalancedParens(text, openIdx);
+		if (closeIdx === -1) continue;
+		const argsText = text.slice(openIdx + 1, closeIdx);
+		const args = splitTopLevelArgs(argsText);
+		const routePath = staticPathLiteral(args[0]);
+		if (routePath === null) continue;
 
-			const lastArg = args[args.length - 1]?.trim();
-			const handlerMatch = lastArg?.match(/^(\w+)$/);
-			const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
-			if (!handlerMatch && !isInlineHandler) continue;
+		const lastArg = args[args.length - 1]?.trim();
+		const handlerMatch = lastArg?.match(/^(\w+)$/);
+		const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
+		if (!handlerMatch && !isInlineHandler) continue;
 
-			endpoints.push({
-				verb, path: routePath, operationId: null,
-				method: handlerMatch ? handlerMatch[1] : null,
-				line: lineNumberAt(text, m.index), _offset: m.index,
-			});
-		}
+		endpoints.push({
+			verb, path: routePath, operationId: null,
+			method: handlerMatch ? handlerMatch[1] : null,
+			line: lineNumberAt(text, m.index), _offset: m.index,
+		});
 	}
-	return endpoints.sort((a, b) => a._offset - b._offset).map(({ _offset, ...endpoint }) => endpoint);
+	return endpoints.sort((x, y) => x._offset - y._offset).map(({ _offset, ...endpoint }) => endpoint);
 }
 
 // Resolves a bare specifier's own file on disk, extension-probed the same way Node's own resolver
@@ -842,24 +878,22 @@ function resolveRelativeImport(fromFile, specifier) {
 // router-to-router mounts, which the real oracle confirms are always relative (`import v1 from
 // './v1/'`). A file with no incoming edge is a root. Bounded, not general: a computed/dynamic mount
 // (`router.use(prefix, buildRouter())`) is skipped, never guessed at.
-function defaultExportedReceiverName(text, receivers) {
+function defaultExportedReceiverBinding(text) {
 	const match = text.match(/\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/);
-	return match && receivers.has(match[1]) ? match[1] : null;
+	if (!match) return null;
+	return receiverBindingAt(text, match[1], match.index);
 }
 
 function buildMountEdges(files, fileTexts) {
-	const edges = []; // { from: nodeKey, to: nodeKey, prefix }
+	const edges = [];
 	const fileSet = new Set(files);
 	for (const file of files) {
 		const text = fileTexts.get(file);
-		const applicationReceivers = new Set(applicationVariables(text));
-		const localReceivers = new Set([...routerVariables(text), ...applicationReceivers]);
-		for (const receiver of localReceivers) {
-			const useRe = routerMemberCallRe(receiver, 'use');
+		for (const receiverName of routeReceiverVariables(text)) {
+			const useRe = routerMemberCallRe(receiverName, 'use');
 			for (const m of text.matchAll(useRe)) {
-				// Same authority rule as endpoint extraction: a top-level Express application name
-				// does not authorize a same-spelled parameter/local inside a nested scope.
-				if (applicationReceivers.has(receiver) && !topLevelReferenceIsAuthorized(text, receiver, m.index)) continue;
+				const fromBinding = receiverBindingAt(text, receiverName, m.index);
+				if (!fromBinding) continue;
 				const openIdx = m.index + m[0].length - 1;
 				const closeIdx = matchBalancedParens(text, openIdx);
 				if (closeIdx === -1) continue;
@@ -868,40 +902,25 @@ function buildMountEdges(files, fileTexts) {
 				const prefix = staticPathLiteral(args[0]);
 				if (prefix === null) continue;
 
-				// Express accepts middleware before/after a mounted router:
-				// app.use('/api', authenticate, userRouter). Treat every argument after the path as a
-				// candidate, but only a proven local receiver or default-imported exported receiver
-				// becomes a graph edge; ordinary middleware naturally resolves to nothing.
 				for (const candidate of args.slice(1)) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
 					if (!identMatch) continue;
 					const target = identMatch[1];
-
-					if (localReceivers.has(target)) {
-						const localAuthorized = applicationReceivers.has(target)
-							? topLevelReferenceIsAuthorized(text, target, m.index)
-							: routerReferenceIsAuthorized(text, target, m.index);
-						if (localAuthorized) {
-							edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
-							continue;
-						}
+					const localBinding = receiverBindingAt(text, target, m.index);
+					if (localBinding) {
+						edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(file, localBinding), prefix });
+						continue;
 					}
 
-					// A same-named Router() elsewhere in the file must not suppress the binding that is
-					// actually active here; if the local receiver was out of scope, fall through to the
-					// top-level import resolver.
 					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
 					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
 					const importMatch = text.match(importRe);
 					if (!importMatch) continue;
 					const toFile = resolveRelativeImport(file, importMatch[1]);
 					if (!toFile || !fileSet.has(toFile)) continue;
-					const toText = fileTexts.get(toFile);
-					const toReceivers = new Set(routeReceiverVariables(toText));
-					const toReceiver = defaultExportedReceiverName(toText, toReceivers);
-					if (!toReceiver) continue;
-
-					edges.push({ from: nodeKey(file, receiver), to: nodeKey(toFile, toReceiver), prefix });
+					const toBinding = defaultExportedReceiverBinding(fileTexts.get(toFile));
+					if (!toBinding) continue;
+					edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(toFile, toBinding), prefix });
 				}
 			}
 		}
@@ -1003,19 +1022,23 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		// G6: `\bRouter\s*\(` -- see detectTypeScriptExpressRoot above. Same widening for the same
 		// reason: a router declared as `Router({ mergeParams: true })` is ordinary Express, and
 		// this per-file gate previously skipped its whole file.
-		const applicationReceivers = new Set(applicationVariables(text));
-		const receivers = [...new Set([...routerVariables(text), ...applicationReceivers])].sort();
+		const bindings = routeReceiverBindings(text);
+		const nameCounts = new Map();
+		for (const binding of bindings) nameCounts.set(binding.name, (nameCounts.get(binding.name) ?? 0) + 1);
 		const moduleName = path.basename(file, '.ts');
 		const moduleClassBase = `${moduleName.charAt(0).toUpperCase()}${moduleName.slice(1)}`;
-		for (const receiver of receivers) {
-			const localEndpoints = extractEndpoints(text, [receiver], applicationReceivers);
+		for (const binding of bindings) {
+			const localEndpoints = extractEndpoints(text, binding);
 			if (localEndpoints.length === 0) continue;
-			const prefix = prefixChainFor(nodeKey(file, receiver), edges);
+			const prefix = prefixChainFor(nodeKey(file, binding), edges);
 			const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));
-			const receiverSuffix = `${receiver.charAt(0).toUpperCase()}${receiver.slice(1)}`;
-			const className = receivers.length === 1
+			const receiverSuffix = `${binding.name.charAt(0).toUpperCase()}${binding.name.slice(1)}`;
+			const duplicateSuffix = (nameCounts.get(binding.name) ?? 0) > 1
+				? `L${lineNumberAt(text, binding.declarationIndex)}`
+				: '';
+			const className = bindings.length === 1
 				? `${moduleClassBase}Router`
-				: `${moduleClassBase}${receiverSuffix}Router`;
+				: `${moduleClassBase}${receiverSuffix}${duplicateSuffix}Router`;
 			moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
 		}
 		if (file.includes(DTO_DIR_SEGMENT) || DTO_NAME_SUFFIX_RE.test(path.basename(file, '.ts'))) {

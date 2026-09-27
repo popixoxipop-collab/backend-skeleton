@@ -486,6 +486,14 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'  const app = fakeApp;',
 			"  app.get('/phantom-throw-regex', phantomHandler);",
 			'}',
+			'const namedFunction = function app() {',
+			"  app.get('/phantom-named-function', phantomHandler);",
+			'};',
+			'function controlHeaderRegexThenShadow() {',
+			'  if (enabled) /[}]/.test(value);',
+			'  const app = fakeApp;',
+			"  app.get('/phantom-control-regex', phantomHandler);",
+			'}',
 			'export default app;',
 		].join('\n'),
 	});
@@ -499,6 +507,35 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 		'GET /after-regex-initializer',
 		'GET /after-string',
 		'GET /api/child',
+	]);
+});
+test('typescript-express: same-named Router bindings in separate scopes keep distinct mount prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'function one() {',
+			'  const router: Router = Router();',
+			"  router.get('/one', oneHandler);",
+			"  app.use('/a', router);",
+			'}',
+			'function two() {',
+			'  const router: Router = Router();',
+			"  router.get('/two', twoHandler);",
+			"  app.use('/b', router);",
+			'}',
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /a/one',
+		'GET /b/two',
 	]);
 });
 test('typescript-express: an out-of-scope same-named local Router does not suppress the active imported mount target', () => {
