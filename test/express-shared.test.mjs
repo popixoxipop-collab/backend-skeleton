@@ -1333,7 +1333,7 @@ test('typescript-express: exponentiation assignment invalidates a mutable applic
 			'let app: any = express();',
 			'app **= 2;',
 			"app.get('/phantom', phantomHandler);",
-		].join('\\n'),
+		].join('\n'),
 	});
 	const projectRoot = detectTypeScriptExpressRoot(root);
 	assert.ok(projectRoot);
@@ -1352,7 +1352,7 @@ test('typescript-express: var redeclaration initializer invalidates the existing
 			'var app: any = express();',
 			'var app: any = fakeApp;',
 			"app.get('/phantom', phantomHandler);",
-		].join('\\n'),
+		].join('\n'),
 	});
 	const projectRoot = detectTypeScriptExpressRoot(root);
 	assert.ok(projectRoot);
@@ -1372,7 +1372,7 @@ test('typescript-express: conditional update expressions do not invalidate a sti
 				'let app: any = express();',
 				`if (flag) ${update};`,
 				"app.get('/real', realHandler);",
-			].join('\\n'),
+			].join('\n'),
 		});
 		const projectRoot = detectTypeScriptExpressRoot(root);
 		assert.ok(projectRoot);
