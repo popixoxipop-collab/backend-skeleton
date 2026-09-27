@@ -1415,7 +1415,7 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	// Only a standalone assignment target is definite. Conditional prefixes such as `if (flag)`,
 	// `flag &&`, and ternaries intentionally fail this check rather than invalidating the binding.
 	let direct = lhs;
-	const compoundOperators = ['&&', '**', '+', '-', '*', '/', '%', '&', '|', '^'];
+	const compoundOperators = ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^'];
 	for (const operator of compoundOperators) {
 		if (direct.endsWith(operator)) {
 			direct = direct.slice(0, -operator.length).trimEnd();
@@ -1454,15 +1454,33 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		if (closeIndex === -1 || openIndex >= targetIndex) continue;
 		const header = text.slice(openIndex + 1, closeIndex);
 		const split = header.match(/^\s*([\s\S]*?)\s+(?:of|in)\s+[\s\S]*$/);
-		if (!split) continue;
-		let lhs = peelAssignmentGrouping(split[1].trim());
-		if (/^(?:(?:await\s+)?using|const|let|var)\b/.test(lhs)) continue;
-		const writes = lhs === binding.name ||
-			(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
-		if (!writes) continue;
-		const nameOffset = header.indexOf(binding.name);
-		const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
-		if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
+		if (split) {
+			let lhs = peelAssignmentGrouping(split[1].trim());
+			const declaration = lhs.match(/^(const|let|var)\b([\s\S]*)$/);
+			if (declaration) {
+				// let/const create a loop-local shadow. var reuses the containing function/module
+				// binding, so each iteration overwrites an existing mutable var application.
+				if (declaration[1] === 'var' && binding.declarationKind === 'var' &&
+					variableClauseBindsName(declaration[2], binding.name)) return true;
+				continue;
+			}
+			if (/^(?:await\s+)?using\b/.test(lhs)) continue;
+			const writes = lhs === binding.name ||
+				(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
+			if (!writes) continue;
+			const nameOffset = header.indexOf(binding.name);
+			const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
+			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
+			continue;
+		}
+
+		// Classic for initializers execute exactly once before the first condition check.
+		// A var redeclaration therefore overwrites an existing function/module-scoped var binding.
+		const firstSemi = topLevelBindingSeparator(header, ';');
+		if (firstSemi === -1) continue;
+		const initializer = header.slice(0, firstSemi).trim();
+		const varInit = initializer.match(/^var\b([\s\S]*)$/);
+		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) return true;
 	}
 	return false;
 }
@@ -1480,6 +1498,26 @@ function definiteApplicationWritePosition(text, equalsIndex) {
 	return scopes.length > 0 && scopes.every((openIndex) => isStandaloneBlockOpen(text, openIndex));
 }
 
+function isDirectlyInUnconditionalDoBody(text, binding, targetIndex) {
+	const scopes = activeCodeScopeOpeningsAt(text, targetIndex);
+	if (scopes.length === 0) return false;
+	for (let scopeIndex = scopes.length - 1; scopeIndex >= 0; scopeIndex--) {
+		const openIndex = scopes[scopeIndex];
+		let i = openIndex - 1;
+		while (i >= 0 && /\s/.test(text[i])) i--;
+		const prefix = text.slice(Math.max(0, i - 1), i + 1);
+		if (prefix !== 'do' || (i - 2 >= 0 && /[$A-Za-z0-9_]/.test(text[i - 2]))) continue;
+		const doIndex = i - 1;
+		const statementStart = assignmentStatementStart(text, binding.initializationEnd, doIndex);
+		if (text.slice(statementStart, doIndex).trim() !== '') return false;
+		for (let j = scopeIndex + 1; j < scopes.length; j++) {
+			if (!isStandaloneBlockOpen(text, scopes[j])) return false;
+		}
+		return true;
+	}
+	return false;
+}
+
 function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 	const escaped = escapeRegex(binding.name);
 	const boundary = '[$\\p{ID_Continue}\\u200C\\u200D.#]';
@@ -1490,12 +1528,16 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 	);
 	for (const match of text.matchAll(updateRe)) {
 		if (match.index < binding.initializationEnd || match.index >= targetIndex) continue;
-		if (!isCodePosition(text, match.index) || !definiteApplicationWritePosition(text, match.index)) continue;
-		// `if (flag) app++` and similar control-prefixed updates are conditional writes. Reuse
-		// the statement-boundary walker used by assignments: only an empty prefix means the update
-		// itself is the definitely executed statement (including inside a standalone block).
-		const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
-		if (text.slice(statementStart, match.index).trim() !== '') continue;
+		if (!isCodePosition(text, match.index)) continue;
+		const ordinaryDefinite = definiteApplicationWritePosition(text, match.index);
+		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, match.index);
+		if (!ordinaryDefinite && !doBodyDefinite) continue;
+		// `if (flag) app++` and similar control-prefixed updates are conditional writes.
+		// A plain do-body is handled separately above because its body executes at least once.
+		if (!doBodyDefinite) {
+			const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
+			if (text.slice(statementStart, match.index).trim() !== '') continue;
+		}
 		return true;
 	}
 	return false;
@@ -1511,7 +1553,10 @@ function applicationBindingStillTrusted(text, binding, targetIndex) {
 		if (!isCodePosition(text, equalsIndex) || !definiteApplicationWritePosition(text, equalsIndex)) continue;
 		const previous = text[equalsIndex - 1] ?? '';
 		const next = text[equalsIndex + 1] ?? '';
-		if (next === '=' || next === '>' || ['=', '<', '>', '!'].includes(previous)) continue;
+		if (next === '=' || next === '>' || previous === '=' || previous === '!') continue;
+		// <= and >= are comparisons, while <<=, >>= and >>>= are writes. The repeated shift
+		// character immediately before the operator distinguishes them at the '=' token.
+		if ((previous === '<' || previous === '>') && text[equalsIndex - 2] !== previous) continue;
 		if (assignmentLhsDefinitelyWritesName(text, binding, equalsIndex)) return false;
 	}
 	return true;
