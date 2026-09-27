@@ -39,7 +39,8 @@
     "T00-BEVAL-T01-06-PACKED-REPLAY": 1,
     "T00-T23-RELEASE-CONTROL": 1,
     "T00-T20-T16-SANDBOX": 1,
-    "T00-BEVAL-T20-03-LINUX-SANDBOX": 1
+    "T00-BEVAL-T20-03-LINUX-SANDBOX": 1,
+    "T00-T19-RELEASE-ACCEPTANCE": 1
   },
   "claims": [
     {
@@ -1301,6 +1302,28 @@
       "expires_at": "2026-09-27T07:20:00Z",
       "state": "ACTIVE",
       "reason": "Implement and externally verify one hardened Linux/container runtime profile for T20-03 without claiming cross-platform parity or release readiness."
+    },
+    {
+      "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r1",
+      "task_id": "T19-03-release-acceptance-packet",
+      "track": "T00-T19-RELEASE-ACCEPTANCE",
+      "canonical_track": "T19",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t19-release-acceptance-r1",
+      "worker": "T00-T19-integration",
+      "worktree": "github-contents-api",
+      "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "observed_head_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "path_scopes": [
+        "evidence/next/T19-RELEASE-ACCEPTANCE.json",
+        "test/conformance-next/t19-release-acceptance.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-27T01:59:45Z",
+      "expires_at": "2026-09-27T09:59:45Z",
+      "state": "ACTIVE",
+      "reason": "Create an independent fail-closed T19 release-acceptance packet for the current integrated heads. The packet may remain BLOCKED; no release/default approval is authorized."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
