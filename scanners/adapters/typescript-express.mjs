@@ -44,6 +44,7 @@ function expressRouterFactoryPatterns(text) {
 	const patterns = new Set();
 	const importRe = /import\s+(?:([A-Za-z_$][\w$]*)\s*,\s*)?\{([^}]*)\}\s*from\s*['"]express['"]/g;
 	for (const match of text.matchAll(importRe)) {
+		if (!isCodePosition(text, match.index)) continue;
 		let hasRouterBinding = false;
 		for (const raw of match[2].split(',')) {
 			const binding = raw.trim().match(/^Router(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
@@ -66,7 +67,9 @@ function routerVariables(text) {
 			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
 			'g',
 		);
-		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
+		for (const match of text.matchAll(declarationRe)) {
+			if (isCodePosition(text, match.index)) out.add(match[1]);
+		}
 	}
 	return [...out].sort();
 }
@@ -81,6 +84,7 @@ function routerDeclarations(text, name) {
 			'g',
 		);
 		for (const match of text.matchAll(declarationRe)) {
+			if (!isCodePosition(text, match.index)) continue;
 			out.push({ index: match.index, declarationKind: match[1] });
 		}
 	}
@@ -677,6 +681,26 @@ function activeParenOpeningsAt(text, targetIndex) {
 	return openings;
 }
 
+function stripTrailingTypeParameters(text) {
+	let value = text.trimEnd();
+	if (!value.endsWith('>')) return value;
+	let depth = 0;
+	let quote = null;
+	for (let i = value.length - 1; i >= 0; i--) {
+		const ch = value[i];
+		if (quote) {
+			if (ch === quote && value[i - 1] !== '\\') quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '>') depth++;
+		else if (ch === '<') {
+			depth--;
+			if (depth === 0) return value.slice(0, i).trimEnd();
+		}
+	}
+	return value;
+}
 function parameterScopeShadowsNameAt(text, name, targetIndex) {
 	for (const openIndex of activeParenOpeningsAt(text, targetIndex).reverse()) {
 		const closeIndex = matchingParenClose(text, openIndex);
@@ -688,7 +712,8 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 		const isArrow = /^\s*(?::[\s\S]*?)?=>/.test(after);
 		// Class/object methods also create a parameter environment before their body opens.
 		// Requiring a following body brace avoids treating ordinary call expressions as methods.
-		const methodName = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*$/.test(before);
+		const methodHeader = stripTrailingTypeParameters(before);
+		const methodName = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*$/.test(methodHeader);
 		const hasMethodBody = /^\s*(?::[\s\S]*?)?\{/.test(after);
 		const isMethod = methodName && hasMethodBody;
 		if (!isFunction && !isConstructor && !isArrow && !isMethod) continue;
@@ -1007,12 +1032,19 @@ function buildMountEdges(files, fileTexts) {
 
 // Prefixes belong to receiver nodes, not whole files: one file may contain both an application
 // root and a Router mounted beneath it. Cycles are bounded rather than recursively guessed through.
-function prefixChainFor(node, edges, seen = new Set()) {
-	if (seen.has(node)) return '';
-	seen.add(node);
-	const incoming = edges.find((e) => e.to === node);
-	if (!incoming) return '';
-	return joinPath(prefixChainFor(incoming.from, edges, seen), incoming.prefix);
+function prefixChainsFor(node, edges, seen = new Set()) {
+	if (seen.has(node)) return [];
+	const nextSeen = new Set(seen);
+	nextSeen.add(node);
+	const incoming = edges.filter((edge) => edge.to === node);
+	if (incoming.length === 0) return [''];
+	const prefixes = [];
+	for (const edge of incoming) {
+		for (const parentPrefix of prefixChainsFor(edge.from, edges, nextSeen)) {
+			prefixes.push(joinPath(parentPrefix, edge.prefix));
+		}
+	}
+	return [...new Set(prefixes)];
 }
 
 // `@Entity('users') export class User { @PrimaryGeneratedColumn() id: number; ... }` -- table name
@@ -1107,16 +1139,20 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		for (const binding of bindings) {
 			const localEndpoints = extractEndpoints(text, binding);
 			if (localEndpoints.length === 0) continue;
-			const prefix = prefixChainFor(nodeKey(file, binding), edges);
-			const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));
+			const prefixes = prefixChainsFor(nodeKey(file, binding), edges);
 			const receiverSuffix = `${binding.name.charAt(0).toUpperCase()}${binding.name.slice(1)}`;
 			const duplicateSuffix = (nameCounts.get(binding.name) ?? 0) > 1
 				? `L${lineNumberAt(text, binding.declarationIndex)}`
 				: '';
-			const className = bindings.length === 1
-				? `${moduleClassBase}Router`
-				: `${moduleClassBase}${receiverSuffix}${duplicateSuffix}Router`;
-			moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
+			for (let prefixIndex = 0; prefixIndex < prefixes.length; prefixIndex++) {
+				const prefix = prefixes[prefixIndex];
+				const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));
+				const mountSuffix = prefixes.length > 1 ? `M${prefixIndex + 1}` : '';
+				const className = bindings.length === 1 && prefixes.length === 1
+					? `${moduleClassBase}Router`
+					: `${moduleClassBase}${receiverSuffix}${duplicateSuffix}${mountSuffix}Router`;
+				moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
+			}
 		}
 		if (file.includes(DTO_DIR_SEGMENT) || DTO_NAME_SUFFIX_RE.test(path.basename(file, '.ts'))) {
 			allDtos.push({ className: path.basename(file, '.ts'), file }); // no `line` -- path/name-based, no content parsed

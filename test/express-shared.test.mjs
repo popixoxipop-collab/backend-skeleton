@@ -497,9 +497,11 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			"function parameterDefault(app = fakeApp, x = app.get('/phantom-param-default', phantomHandler)) {}",
 			'class MethodHolder {',
 			"  configure(app = fakeApp, x = app.get('/phantom-method-default', phantomHandler)) {}",
+			"  generic<T>(app = fakeApp, x = app.get('/phantom-generic-method-default', phantomHandler)) {}",
 			'}',
 			'const objectHolder = {',
 			"  configure(app = fakeApp, x = app.get('/phantom-object-method-default', phantomHandler)) {},",
+			"  generic<T>(app = fakeApp, x = app.get('/phantom-generic-object-method-default', phantomHandler)) {},",
 			'};',
 			'export default app;',
 		].join('\n'),
@@ -542,6 +544,29 @@ test('typescript-express: source-like route and mount calls inside strings are i
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /api/child',
 		'GET /real',
+	]);
+});
+test('typescript-express: a reused Router mounted under multiple prefixes exposes every absolute route', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			"app.use('/v1', router);",
+			"app.use('/v2', router);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /v1/child',
+		'GET /v2/child',
 	]);
 });
 test('typescript-express: same-named Router bindings in separate scopes keep distinct mount prefixes', () => {
@@ -697,6 +722,19 @@ test('typescript-express: an unrelated callable is not treated as an Express app
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
 });
 
+test('typescript-express: named Express import text inside a string cannot authorize a fake Router factory', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/fake.ts': [
+			"const docs = \"import { Router } from 'express'\";",
+			'function Router() { return fakeApi; }',
+			'const router = Router();',
+			"router.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	assert.equal(detectTypeScriptExpressRoot(root), null);
+});
 test('typescript-express: an Express Router type import does not authorize an unrelated .Router factory', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
