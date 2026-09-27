@@ -15,10 +15,7 @@ function validate(value) {
   if (!SHA40.test(value?.qa_authority?.head??'')) errors.push('QA_HEAD');
   if (value?.qa_authority?.exact_head_ci?.conclusion!=='success') errors.push('QA_CI');
   const direct=value?.qa_authority?.direct_eoe??{};
-  const local=direct.local_recheck??{};
-  const ci=direct.exact_head_ci_long_product_mutations??{};
-  if (local.fast_tests!==38 || local.passed!==38 || local.failed!==0 || local.transport_limited_product_tests!==2) errors.push('DIRECT_QA');
-  if (ci.t19_total_tests!==40 || ci.passed!==40 || ci.failed!==0 || ci.product_mutation_pilot!=='PASS' || ci.product_mutation_cli!=='PASS') errors.push('LONG_PRODUCT_QA');
+  if (direct.tests!==40 || direct.passed!==40 || direct.failed!==0 || direct.skipped!==0) errors.push('DIRECT_QA');
   if (value?.qa_authority?.negative_program?.catalog_total!==79) errors.push('CATALOG');
   if (value?.qa_authority?.negative_program?.all_catalog_cases_claimed_executable!==false) errors.push('CATALOG_OVERCLAIM');
   if (value?.qa_authority?.current_pr_release_certification_claimed!==false) errors.push('PR_RELEASE_OVERCLAIM');

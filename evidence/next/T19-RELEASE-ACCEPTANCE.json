@@ -1,11 +1,11 @@
 {
   "schema": "bskel.t19-release-acceptance/1",
-  "observed_at": "2026-09-27T02:11:00Z",
+  "observed_at": "2026-09-27T02:21:00Z",
   "state": "BLOCKED",
   "release_approved": false,
   "default_activation_approved": false,
   "release_heads": {
-    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+    "bskel": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
     "becoder": "eb8164560ddd343306234a9140dc89c001519792",
     "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
   },
@@ -21,24 +21,12 @@
       "nested_node24_job": 108340401697
     },
     "direct_eoe": {
-      "local_recheck": {
-        "fast_tests": 38,
-        "passed": 38,
-        "failed": 0,
-        "transport_limited_product_tests": 2,
-        "note": "The two full product-mutation tests each exceed the Tailnet 10s single-exec ceiling; they were not counted as local completion."
-      },
-      "exact_head_ci_long_product_mutations": {
-        "node22_job": 108340401748,
-        "node24_job": 108340401697,
-        "t19_total_tests": 40,
-        "passed": 40,
-        "failed": 0,
-        "product_mutation_pilot": "PASS",
-        "product_mutation_cli": "PASS",
-        "node24_pilot_duration_ms": 44480.142717,
-        "node24_cli_duration_ms": 43997.246366
-      }
+      "request_id": "95631e68-a325-4b91-a4dc-46869c983b51",
+      "tests": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "note": "Exact T19 head direct EOE rerun of five conformance/mutation/security suites."
     },
     "negative_program": {
       "catalog_total": 79,
@@ -64,7 +52,7 @@
     "gate": "T20-03",
     "state": "NOT_ACCEPTED",
     "candidate_pr": 72,
-    "candidate_head": "a6199c22ff9ccdd824bf9242fa27ebc8962c3d00",
+    "candidate_head": "ff82daefd2657e52dd707ee243b6434d43f30dde",
     "candidate_scope": "partial hardened Linux/container slice",
     "full_closeout_claimed": false
   },
@@ -73,5 +61,5 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "T20_03_NOT_ACCEPTED"
   ],
-  "note": "T19 exact-head QA is green: required nested Node22/24 each executed 40/40 T19 tests, including the long product mutation pilot and CLI. Release acceptance remains BLOCKED because issue #119 is open, T19 has not issued a release certificate, and T20-03 is not accepted."
+  "note": "T19 exact-head QA is green, including direct EOE 40/40 and exact-head CI. Release acceptance remains BLOCKED because issue #119 is open, T19 has not issued a release certificate, and T20-03 is not accepted."
 }
