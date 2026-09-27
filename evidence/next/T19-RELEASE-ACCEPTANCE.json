@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t19-release-acceptance/1",
-  "observed_at": "2026-09-27T02:03:00Z",
+  "observed_at": "2026-09-27T02:11:00Z",
   "state": "BLOCKED",
   "release_approved": false,
   "default_activation_approved": false,
@@ -21,17 +21,32 @@
       "nested_node24_job": 108340401697
     },
     "direct_eoe": {
-      "request_id": "95631e68-a325-4b91-a4dc-46869c983b51",
-      "tests": 40,
-      "passed": 40,
-      "failed": 0,
-      "skipped": 0
+      "local_recheck": {
+        "fast_tests": 38,
+        "passed": 38,
+        "failed": 0,
+        "transport_limited_product_tests": 2,
+        "note": "The two full product-mutation tests each exceed the Tailnet 10s single-exec ceiling; they were not counted as local completion."
+      },
+      "exact_head_ci_long_product_mutations": {
+        "node22_job": 108340401748,
+        "node24_job": 108340401697,
+        "t19_total_tests": 40,
+        "passed": 40,
+        "failed": 0,
+        "product_mutation_pilot": "PASS",
+        "product_mutation_cli": "PASS",
+        "node24_pilot_duration_ms": 44480.142717,
+        "node24_cli_duration_ms": 43997.246366
+      }
     },
     "negative_program": {
       "catalog_total": 79,
       "harness_mutants_executed": 7,
       "product_mutants_executed": 13,
-      "all_catalog_cases_claimed_executable": false
+      "all_catalog_cases_claimed_executable": false,
+      "total_mutants_executed": 20,
+      "note": "79 negative vectors are catalogued; 20 executable mutation fixtures are represented (7 harness + 13 product). This packet does not equate mutation-fixture count with full release certification."
     },
     "current_pr_release_certification_claimed": false
   },
@@ -58,5 +73,5 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "T20_03_NOT_ACCEPTED"
   ],
-  "note": "T19 exact-head QA and mutation tests are green, but this packet deliberately does not convert strong internal QA evidence into release certification. The open holdout defect and unaccepted T20-03 boundary remain explicit."
+  "note": "T19 exact-head QA is green: required nested Node22/24 each executed 40/40 T19 tests, including the long product mutation pilot and CLI. Release acceptance remains BLOCKED because issue #119 is open, T19 has not issued a release certificate, and T20-03 is not accepted."
 }
