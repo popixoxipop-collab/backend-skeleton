@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:21:00+09:00",
+  "observed_at": "2026-09-27T16:22:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -260,23 +260,6 @@
       "expires_at": "2026-09-27T07:20:00Z",
       "state": "ACTIVE"
     },
-    "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r1": {
-      "repo": "popixoxipop-collab/Backend-evaluation",
-      "branch": "t00/t20-03-linux-container-enforcement-r1",
-      "base_sha": "fe65484f078c50f33f64248f83b5c518fb896961",
-      "path_scopes": [
-        "lib/next-runtime/linux-container-sandbox.mjs",
-        "test/next-runtime/linux-container-sandbox.test.mjs",
-        "test/integration/t20-linux-container-sandbox.test.mjs",
-        "scripts/t20-linux-container-evidence.mjs",
-        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md",
-        "lib/next-runtime/docker-resource-lease.mjs",
-        "test/next-runtime/runtime-docker-lease.test.mjs"
-      ],
-      "fencing_token": 1,
-      "expires_at": "2026-09-27T07:20:00Z",
-      "state": "ACTIVE"
-    },
     "T00-T19-CURRENT-MAIN-QA-20260927-r1": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "branch": "t00/t19-current-main-qa-r1",
@@ -288,6 +271,23 @@
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T14:06:00Z",
+      "state": "ACTIVE"
+    },
+    "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r2": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t20-03-linux-container-enforcement-r1",
+      "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "path_scopes": [
+        "lib/next-runtime/linux-container-sandbox.mjs",
+        "test/next-runtime/linux-container-sandbox.test.mjs",
+        "test/integration/t20-linux-container-sandbox.test.mjs",
+        "scripts/t20-linux-container-evidence.mjs",
+        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md",
+        "lib/next-runtime/docker-resource-lease.mjs",
+        "test/next-runtime/runtime-docker-lease.test.mjs"
+      ],
+      "fencing_token": 2,
+      "expires_at": "2026-09-27T15:22:00Z",
       "state": "ACTIVE"
     }
   },
@@ -666,7 +666,7 @@
     "hardening_ci_conclusion": "success"
   },
   "t20_03": {
-    "state": "LINUX_CONTAINER_SLICE_VALIDATED_NOT_ACCEPTED",
+    "state": "LINUX_CONTAINER_SLICE_REVIEW_IN_PROGRESS",
     "scope": "one hardened Linux/container target-runtime profile",
     "no_claims": [
       "cross-platform parity",
@@ -688,7 +688,10 @@
       "TRUST_ADAPTER_01",
       "TRUST_BUILD_01",
       "CROSS_PLATFORM_PARITY"
-    ]
+    ],
+    "fencing_token": 2,
+    "reviewed_head": "e272f2bdb69bc7f9a677ab03d0f6fe8c0fd8adfc",
+    "release_ready": false
   },
   "t19_03": {
     "state": "BLOCKED_PACKET_INTEGRATED",
