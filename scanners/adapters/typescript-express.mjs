@@ -71,6 +71,20 @@ function routerVariables(text) {
 	return [...out].sort();
 }
 
+function routerDeclarationPositions(text, name) {
+	const out = [];
+	const escapedName = escapeRegex(name);
+	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
+		const declarationRe = new RegExp(
+			'\\b(?:export\\s+)?(?:const|let|var)\\s+' + escapedName +
+			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
+			'g',
+		);
+		for (const match of text.matchAll(declarationRe)) out.push(match.index);
+	}
+	return out.sort((x, y) => x - y);
+}
+
 // T19 real-holdout finding: an Express application created with the module's actual default
 // import is also a route receiver. Keep this separate from routerVariables(): detect() still
 // requires the stronger named-Router + Router() signal, while scan() may additionally follow the
@@ -89,6 +103,7 @@ const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|dele
 function scopeRegexStarts(lastSignificant, recentText) {
 	if (lastSignificant === null) return true;
 	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+	if (/=>\s*$/.test(recentText)) return true;
 	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
 }
 
@@ -266,18 +281,18 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(startIndex, i - 12), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
 		if (ch === '(') round++;
 		else if (ch === ')') round = Math.max(0, round - 1);
 		else if (ch === '[') square++;
 		else if (ch === ']') square = Math.max(0, square - 1);
 		else if (ch === '{') curly++;
 		else if (ch === '}') curly = Math.max(0, curly - 1);
-		else if (ch === ';' && round === 0 && square === 0 && curly === 0) {
-			return text.slice(startIndex, i);
-		}
+		else if (ch === ';' && round === 0 && square === 0 && curly === 0) return text.slice(startIndex, i);
 		else if (ch === '\n' && round === 0 && square === 0 && curly === 0) {
-			// ASI normally ends a declaration here, except when the declaration itself clearly
-			// continues (most importantly `const a = x,\n b = y`).
 			if (lastSignificant == null || !',=.?+-*/%&|^!:'.includes(lastSignificant)) return text.slice(startIndex, i);
 		}
 		if (!/\s/.test(ch)) lastSignificant = ch;
@@ -285,8 +300,47 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 	return text.slice(startIndex, limitIndex);
 }
 
+function splitBindingDeclarators(text) {
+	const parts = [];
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	let lastSignificant = null;
+	let start = 0;
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+		else if (ch === ',' && round === 0 && square === 0 && curly === 0) {
+			parts.push(text.slice(start, i).trim());
+			start = i + 1;
+			lastSignificant = ',';
+			continue;
+		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
+	}
+	const last = text.slice(start).trim();
+	if (last) parts.push(last);
+	return parts;
+}
+
 function variableClauseBindsName(clause, name) {
-	return splitTopLevelArgs(clause).some((declarator) => {
+	return splitBindingDeclarators(clause).some((declarator) => {
 		const pattern = leadingBindingPattern(declarator);
 		return pattern ? bindingPatternBindsName(pattern, name) : false;
 	});
@@ -598,6 +652,37 @@ function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	}
 	return true;
 }
+function routerReferenceIsAuthorized(text, name, targetIndex) {
+	if (expressionArrowShadowsName(text, name, targetIndex)) return false;
+	const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
+	for (const openIndex of callScopes) {
+		if (scopeHeaderShadowsName(text, openIndex, name)) return false;
+	}
+
+	let best = null;
+	for (const declarationIndex of routerDeclarationPositions(text, name)) {
+		if (declarationIndex >= targetIndex || !isCodePosition(text, declarationIndex)) continue;
+		const declarationScopes = activeCodeScopeOpeningsAt(text, declarationIndex);
+		if (declarationScopes.length > callScopes.length) continue;
+		let sameChain = true;
+		for (let i = 0; i < declarationScopes.length; i++) {
+			if (declarationScopes[i] !== callScopes[i]) { sameChain = false; break; }
+		}
+		if (!sameChain) continue;
+		if (!best || declarationScopes.length > best.depth ||
+			(declarationScopes.length === best.depth && declarationIndex > best.index)) {
+			best = { index: declarationIndex, depth: declarationScopes.length };
+		}
+	}
+	if (!best) return false;
+
+	// Any closer lexical scope that binds the same name supersedes the proven Router() binding.
+	for (let i = best.depth; i < callScopes.length; i++) {
+		if (scopeHeaderShadowsName(text, callScopes[i], name)) return false;
+		if (scopeDirectlyDeclaresName(text, callScopes[i], name)) return false;
+	}
+	return true;
+}
 
 function applicationVariables(text) {
 	const out = new Set();
@@ -791,13 +876,16 @@ function buildMountEdges(files, fileTexts) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
 					if (!identMatch) continue;
 					const target = identMatch[1];
-					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
 
 					if (localReceivers.has(target)) {
+						if (applicationReceivers.has(target)) {
+							if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
+						} else if (!routerReferenceIsAuthorized(text, target, m.index)) continue;
 						edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
 						continue;
 					}
 
+					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
 					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
 					const importMatch = text.match(importRe);
 					if (!importMatch) continue;

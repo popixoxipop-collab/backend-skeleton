@@ -472,6 +472,15 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'  const app = fakeApp;',
 			"  app.get('/phantom-regex-brace', phantomHandler);",
 			'}',
+			'function regexInitializerNoise() {',
+			'  const pattern = /x, app/;',
+			"  app.get('/after-regex-initializer', regexHandler);",
+			'}',
+			'function arrowRegexThenShadow() {',
+			'  const pattern = () => /[}]/;',
+			'  const app = fakeApp;',
+			"  app.get('/phantom-arrow-regex', phantomHandler);",
+			'}',
 			'export default app;',
 		].join('\n'),
 	});
@@ -482,9 +491,31 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /after-asi',
 		'GET /after-block',
+		'GET /after-regex-initializer',
 		'GET /after-string',
 		'GET /api/child',
 	]);
+});
+test('typescript-express: a Router() declared and mounted inside a function keeps its local mount prefix', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'function install() {',
+			'  const localRouter: Router = Router();',
+			"  localRouter.get('/child', childHandler);",
+			"  app.use('/local-api', localRouter);",
+			'}',
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /local-api/child']);
 });
 test('typescript-express: qualified receiver properties do not impersonate a trusted bare receiver', () => {
 	const root = writeTree({
