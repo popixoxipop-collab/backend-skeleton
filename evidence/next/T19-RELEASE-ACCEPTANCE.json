@@ -5,7 +5,7 @@
   "release_approved": false,
   "default_activation_approved": false,
   "release_heads": {
-    "bskel": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
     "becoder": "eb8164560ddd343306234a9140dc89c001519792",
     "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
   },
@@ -61,5 +61,5 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "T20_03_NOT_ACCEPTED"
   ],
-  "note": "T19 exact-head QA is green, including direct EOE 40/40 and exact-head CI. Release acceptance remains BLOCKED because issue #119 is open, T19 has not issued a release certificate, and T20-03 is not accepted."
+  "note": "T19 exact-head QA is green, including direct EOE/CI evidence, but the release candidate remains the release-control anchor bb18182/eb816/f7189 rather than the later control-plane-only bskel merge commit. Release acceptance remains BLOCKED because issue #119 is open, T19 has not issued a release certificate, and T20-03 is not accepted."
 }
