@@ -99,7 +99,9 @@ function routerDeclarationPositions(text, name) {
 function expressDefaultBindings(text) {
 	const out = new Set();
 	const importRe = /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]express['"]/g;
-	for (const match of text.matchAll(importRe)) out.add(match[1]);
+	for (const match of text.matchAll(importRe)) {
+		if (isCodePosition(text, match.index)) out.add(match[1]);
+	}
 	return [...out].sort();
 }
 
@@ -684,7 +686,12 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 		const isFunction = /\bfunction(?:\s+[A-Za-z_$][\w$]*)?\s*$/.test(before);
 		const isConstructor = /\bconstructor\s*$/.test(before);
 		const isArrow = /^\s*(?::[\s\S]*?)?=>/.test(after);
-		if (!isFunction && !isConstructor && !isArrow) continue;
+		// Class/object methods also create a parameter environment before their body opens.
+		// Requiring a following body brace avoids treating ordinary call expressions as methods.
+		const methodName = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*$/.test(before);
+		const hasMethodBody = /^\s*(?::[\s\S]*?)?\{/.test(after);
+		const isMethod = methodName && hasMethodBody;
+		if (!isFunction && !isConstructor && !isArrow && !isMethod) continue;
 		const params = text.slice(openIndex + 1, closeIndex);
 		if (splitTopLevelArgs(params).some((param) => parameterBindsName(param, name))) return true;
 	}

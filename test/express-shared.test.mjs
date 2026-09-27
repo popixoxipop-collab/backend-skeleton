@@ -495,6 +495,12 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			"  app.get('/phantom-control-regex', phantomHandler);",
 			'}',
 			"function parameterDefault(app = fakeApp, x = app.get('/phantom-param-default', phantomHandler)) {}",
+			'class MethodHolder {',
+			"  configure(app = fakeApp, x = app.get('/phantom-method-default', phantomHandler)) {}",
+			'}',
+			'const objectHolder = {',
+			"  configure(app = fakeApp, x = app.get('/phantom-object-method-default', phantomHandler)) {},",
+			'};',
 			'export default app;',
 		].join('\n'),
 	});
@@ -516,6 +522,9 @@ test('typescript-express: source-like route and mount calls inside strings are i
 		'tsconfig.json': '{}',
 		'src/server.ts': [
 			"import express, { Router } from 'express';",
+			"const fakeImport = \"import factory from 'express'\";",
+			'const unrelated = factory();',
+			"unrelated.get('/phantom-fake-import', phantomHandler);",
 			'const app = express();',
 			'const router: Router = Router();',
 			"router.get('/child', childHandler);",
