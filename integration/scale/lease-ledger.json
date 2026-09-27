@@ -1297,14 +1297,16 @@
         "test/next-runtime/linux-container-sandbox.test.mjs",
         "test/integration/t20-linux-container-sandbox.test.mjs",
         "scripts/t20-linux-container-evidence.mjs",
-        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md"
+        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md",
+        "lib/next-runtime/docker-resource-lease.mjs",
+        "test/next-runtime/runtime-docker-lease.test.mjs"
       ],
       "fencing_token": 1,
       "resource_class": "docker-heavy",
       "issued_at": "2026-09-26T19:20:00Z",
       "expires_at": "2026-09-27T07:20:00Z",
       "state": "ACTIVE",
-      "reason": "Implement and externally verify one hardened Linux/container runtime profile for T20-03 without claiming cross-platform parity or release readiness."
+      "reason": "Implement and externally verify one hardened Linux/container runtime profile for T20-03. Scope also includes the existing Docker lease wrapper metadata needed to preserve lease labels while enforcing aggregate streaming and externally recoverable cleanup. No cross-platform parity or release readiness claim."
     },
     {
       "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r1",
