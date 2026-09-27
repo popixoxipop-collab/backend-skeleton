@@ -1390,14 +1390,15 @@
       "observed_head_sha": "06a65d80d87d1aa7f2df783689bd6771b2678f38",
       "path_scopes": [
         "evidence/next/T19-RELEASE-ACCEPTANCE.json",
-        "test/conformance-next/t19-release-acceptance.test.mjs"
+        "test/t19-release-acceptance/**",
+        "scripts/run-next-nested-tests.mjs"
       ],
       "fencing_token": 2,
       "resource_class": "static-small",
       "issued_at": "2026-09-27T02:19:00Z",
       "expires_at": "2026-09-27T10:19:00Z",
       "state": "ACTIVE",
-      "reason": "Restack the already reviewed BLOCKED T19 release-acceptance packet on current bskel main. No verdict weakening or release/default approval."
+      "reason": "Restacked T19 release-acceptance packet on current control-plane main. Owns only the packet, its dedicated guard directory, and shared nested-suite registration. Verdict remains fail-closed/BLOCKED unless holdout #119, T20-03, and release certificate blockers are actually cleared."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
