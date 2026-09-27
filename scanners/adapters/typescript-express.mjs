@@ -105,7 +105,7 @@ function splitBindingDeclaratorsWithOffsets(text) {
 function routerDeclarationsAll(text) {
 	const out = [];
 	const factoryPatterns = expressRouterFactoryPatterns(text);
-	for (const declaration of text.matchAll(/\b(const|let|var)\b/g)) {
+	for (const declaration of text.matchAll(/\b((?:await\s+)?using|const|let|var)\b/g)) {
 		if (!isCodePosition(text, declaration.index)) continue;
 		const clauseStart = declaration.index + declaration[0].length;
 		const clause = readVariableDeclarationClause(text, clauseStart);
@@ -518,7 +518,7 @@ function scopeBodyDeclaresName(text, name) {
 	for (const match of text.matchAll(new RegExp('\\b(?:function|class)\\s+' + escaped + '\\b', 'g'))) {
 		if (isCodePosition(text, match.index)) return true;
 	}
-	for (const match of text.matchAll(/\b(?:const|let|var)\b/g)) {
+	for (const match of text.matchAll(/\b(?:(?:await\s+)?using|const|let|var)\b/g)) {
 		if (!isCodePosition(text, match.index)) continue;
 		const clause = readVariableDeclarationClause(text, match.index + match[0].length);
 		if (variableClauseBindsName(clause, name)) return true;
@@ -791,7 +791,7 @@ function activeForHeaderBindingAt(text, name, targetIndex) {
 		const closeIndex = matchingParenClose(text, openIndex);
 		if (closeIndex === -1) continue;
 		const header = text.slice(openIndex + 1, closeIndex);
-		for (const declaration of header.matchAll(/\b(const|let|var)\b/g)) {
+		for (const declaration of header.matchAll(/\b((?:await\s+)?using|const|let|var)\b/g)) {
 			if (!isCodePosition(header, declaration.index)) continue;
 			const clause = readVariableDeclarationClause(header, declaration.index + declaration[0].length, header.length);
 			if (!variableClauseBindsName(clause, name)) continue;
@@ -1199,7 +1199,7 @@ function isBoundedTypeExpression(text) {
 		if (value.startsWith('&&', i) || value.startsWith('||', i) || value.startsWith('??', i) ||
 			value.startsWith('===', i) || value.startsWith('!==', i) || value.startsWith('==', i) || value.startsWith('!=', i) ||
 			value.startsWith('<=', i) || value.startsWith('>=', i)) return false;
-		if (ch === ',' || ch === '+' || ch === '*' || ch === '/' || ch === '%') return false;
+		if (ch === ',' || ch === '+' || ch === '*' || ch === '/' || ch === '%' || ch === '^' || ch === '~') return false;
 		if (ch === '=' && value[i + 1] !== '>') return false;
 		if (ch === '?' && !sawTopLevelExtends) return false;
 		if (ch === '-' && !(i === 0 && /[0-9]/.test(value[i + 1] ?? ''))) return false;
@@ -1295,7 +1295,7 @@ function isEmptyExpressFactoryExpression(expression, binding) {
 function applicationBindings(text) {
 	const out = [];
 	const expressBindings = expressDefaultBindings(text);
-	for (const declaration of text.matchAll(/\b(?:const|let|var)\b/g)) {
+	for (const declaration of text.matchAll(/\b(?:(?:await\s+)?using|const|let|var)\b/g)) {
 		if (!isTopLevelCodePosition(text, declaration.index)) continue;
 		const clauseStart = declaration.index + declaration[0].length;
 		const clause = readVariableDeclarationClause(text, clauseStart);
@@ -1447,7 +1447,7 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const split = header.match(/^\s*([\s\S]*?)\s+(?:of|in)\s+[\s\S]*$/);
 		if (!split) continue;
 		let lhs = peelAssignmentGrouping(split[1].trim());
-		if (/^(?:const|let|var)\b/.test(lhs)) continue;
+		if (/^(?:(?:await\s+)?using|const|let|var)\b/.test(lhs)) continue;
 		const writes = lhs === binding.name ||
 			(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
 		if (!writes) continue;
@@ -1458,13 +1458,26 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 	return false;
 }
 
+function isStandaloneBlockOpen(text, openIndex) {
+	let i = openIndex - 1;
+	while (i >= 0 && /\s/.test(text[i])) i--;
+	if (i < 0) return true;
+	return text[i] === ';' || text[i] === '}' || text[i] === '{';
+}
+
+function definiteApplicationWritePosition(text, equalsIndex) {
+	if (isTopLevelCodePosition(text, equalsIndex)) return true;
+	const scopes = activeCodeScopeOpeningsAt(text, equalsIndex);
+	return scopes.length > 0 && scopes.every((openIndex) => isStandaloneBlockOpen(text, openIndex));
+}
+
 function applicationBindingStillTrusted(text, binding, targetIndex) {
 	if (binding.declarationKind === 'const') return true;
 	if (forHeaderWritesApplicationName(text, binding, targetIndex)) return false;
 	for (const match of text.matchAll(/=/g)) {
 		const equalsIndex = match.index;
 		if (equalsIndex < binding.initializationEnd || equalsIndex >= targetIndex) continue;
-		if (!isCodePosition(text, equalsIndex) || !isTopLevelCodePosition(text, equalsIndex)) continue;
+		if (!isCodePosition(text, equalsIndex) || !definiteApplicationWritePosition(text, equalsIndex)) continue;
 		const previous = text[equalsIndex - 1] ?? '';
 		const next = text[equalsIndex + 1] ?? '';
 		if (next === '=' || next === '>' || ['=', '<', '>', '!'].includes(previous)) continue;
