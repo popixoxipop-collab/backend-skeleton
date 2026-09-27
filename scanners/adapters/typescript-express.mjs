@@ -318,8 +318,14 @@ function parameterListBeforeBlock(text, blockOpenIndex) {
 	let close = blockOpenIndex - 1;
 	while (close >= 0 && /\s/.test(text[close])) close--;
 	if (text[close] !== ')') {
-		close = text.lastIndexOf(')', blockOpenIndex - 1);
-		if (close === -1) return null;
+		const candidateClose = text.lastIndexOf(')', blockOpenIndex - 1);
+		if (candidateClose === -1) return null;
+		// Reaching backward past the immediately preceding token is only valid for TS return-type
+		// tails (`): Type {`) or parenthesized arrows (`) => {`). A bare child block must never
+		// reuse an older function/call `)` and become a fake function scope.
+		const tail = text.slice(candidateClose + 1, blockOpenIndex).trim();
+		if (!tail || /[{};]/.test(tail) || (!tail.startsWith(':') && !tail.includes('=>'))) return null;
+		close = candidateClose;
 	}
 	const searchStart = Math.max(0, close - 4096);
 	for (let open = close; open >= searchStart; open--) {
