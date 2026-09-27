@@ -23,7 +23,12 @@ export const SUITES = [
   { id: 'T14', sourcePaths: ['handles/composition-next'], testDir: 'test/provider-composition-next' },
   { id: 'T17', sourcePaths: ['adapters/game-next'], testDir: 'test/game-next' },
   { id: 'T18', sourcePaths: ['adapters/protocol-next'], testDir: 'test/protocol-next' },
-  { id: 'T19', sourcePaths: ['test/conformance-next', 'test/corpus-next', 'evidence/next'], testDir: 'test/conformance-next' },
+  {
+    id: 'T19',
+    sourcePaths: ['test/conformance-next', 'test/corpus-next', 'evidence/next'],
+    testDirs: ['test/conformance-next', 'test/t19-release-acceptance'],
+    requiredTestDirs: ['test/t19-release-acceptance']
+  },
   { id: 'T20', sourcePaths: ['lib/trust-next'], testDir: 'test/trust-next' },
   { id: 'T21', sourcePaths: ['lib/artifact-store-next', 'lib/scan-scheduler-next'], testDir: 'test/perf-next' },
   { id: 'T22', sourcePaths: ['sdk/next'], testDir: 'test/sdk-next' }
@@ -50,16 +55,28 @@ export function collectTests(root, relativeDir) {
 
 export function inspectSuite(suite, root = REPO_ROOT) {
   const sourcePresent = suite.sourcePaths.some((p) => exists(root, p));
-  const testDirPresent = exists(root, suite.testDir);
-  const tests = collectTests(root, suite.testDir);
+  const testDirs = Array.isArray(suite.testDirs) ? suite.testDirs : [suite.testDir];
+  const presentTestDirs = testDirs.filter((relativeDir) => exists(root, relativeDir));
+  const requiredTestDirs = Array.isArray(suite.requiredTestDirs) ? suite.requiredTestDirs : [];
+  const missingRequiredTestDirs = requiredTestDirs.filter((relativeDir) => !exists(root, relativeDir));
+  const tests = presentTestDirs.flatMap((relativeDir) => collectTests(root, relativeDir)).sort();
 
-  if (!sourcePresent && !testDirPresent) {
+  if (sourcePresent && missingRequiredTestDirs.length > 0) {
+    return { id: suite.id, status: 'FAIL_MISSING_REQUIRED_TEST_DIR', tests, missingRequiredTestDirs };
+  }
+  for (const relativeDir of requiredTestDirs) {
+    if (collectTests(root, relativeDir).length === 0) {
+      return { id: suite.id, status: 'FAIL_MISSING_REQUIRED_TESTS', tests, missingRequiredTestDirs: [] };
+    }
+  }
+
+  if (!sourcePresent && presentTestDirs.length === 0) {
     return { id: suite.id, status: 'NOT_PRESENT', tests: [] };
   }
-  if (!sourcePresent && testDirPresent) {
+  if (!sourcePresent && presentTestDirs.length > 0) {
     return { id: suite.id, status: 'FAIL_ORPHAN_TESTS', tests };
   }
-  if (sourcePresent && (!testDirPresent || tests.length === 0)) {
+  if (sourcePresent && (presentTestDirs.length === 0 || tests.length === 0)) {
     return { id: suite.id, status: 'FAIL_MISSING_TESTS', tests };
   }
   return { id: suite.id, status: 'READY', tests };
