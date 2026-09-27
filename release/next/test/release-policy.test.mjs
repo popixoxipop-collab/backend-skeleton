@@ -453,36 +453,8 @@ test('activation lease must match externally pinned fencing token and claim id',
 });
 
 
-test('support-matrix source evidence refs must resolve to admitted signed PASS artifacts', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-support-matrix-sources-'));
-  try {
-    const authority = makeAuthority(temp);
-    const payload = {
-      schema: 'bskel.scale-release-evidence/1',
-      check_id: 'support matrix generated only from admitted evidence-backed profiles',
-      outcome: 'PASS',
-      observed_at: '2026-09-27T00:00:00Z',
-      release_heads: heads(),
-      verifier: {
-        kind: 't23-support-matrix',
-        admitted_profiles: 1,
-        unsupported_profiles: 0,
-        source_evidence_refs: ['sha256:' + '0'.repeat(64)],
-      },
-    };
-    const artifact = signedArtifact(payload, authority.keys, authority.keyId);
-    const { manifestPath } = writeEvidenceStore(temp, artifact, 'support-matrix.json');
-    const store = loadEvidenceStore(manifestPath, authority.loaded);
-    assert.equal(store.ok, false);
-    assert.ok(store.errors.some((e) => e.code === 'EVIDENCE_SUPPORT_MATRIX_SOURCE_NOT_FOUND'));
-    assert.equal(store.entries.size, 0);
-  } finally {
-    fs.rmSync(temp, { recursive: true, force: true });
-  }
-});
-
-test('support-matrix evidence cannot recursively cite another support matrix', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-support-matrix-recursive-'));
+test('support matrix rejects generic PASS evidence that is not profile admission evidence', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-support-matrix-generic-'));
   try {
     const authority = makeAuthority(temp);
     const artifactDir = path.join(temp, 'evidence-artifacts');
@@ -493,7 +465,7 @@ test('support-matrix evidence cannot recursively cite another support matrix', (
     const packRef = shaRef(packBytes);
     fs.writeFileSync(path.join(artifactDir, 'pack.json'), packBytes);
 
-    const childPayload = {
+    const supportPayload = {
       schema: 'bskel.scale-release-evidence/1',
       check_id: 'support matrix generated only from admitted evidence-backed profiles',
       outcome: 'PASS',
@@ -503,40 +475,181 @@ test('support-matrix evidence cannot recursively cite another support matrix', (
         kind: 't23-support-matrix',
         admitted_profiles: 1,
         unsupported_profiles: 0,
+        profile_ids: ['linux-node22'],
         source_evidence_refs: [packRef],
       },
     };
-    const child = signedArtifact(childPayload, authority.keys, authority.keyId);
-    const childBytes = JSON.stringify(child, null, 2) + '\n';
-    const childRef = shaRef(childBytes);
-    fs.writeFileSync(path.join(artifactDir, 'child-support.json'), childBytes);
-
-    const parentPayload = {
-      ...childPayload,
-      verifier: {
-        ...childPayload.verifier,
-        source_evidence_refs: [childRef],
-      },
-    };
-    const parent = signedArtifact(parentPayload, authority.keys, authority.keyId);
-    const parentBytes = JSON.stringify(parent, null, 2) + '\n';
-    const parentRef = shaRef(parentBytes);
-    fs.writeFileSync(path.join(artifactDir, 'parent-support.json'), parentBytes);
+    const support = signedArtifact(supportPayload, authority.keys, authority.keyId);
+    const supportBytes = JSON.stringify(support, null, 2) + '\n';
+    const supportRef = shaRef(supportBytes);
+    fs.writeFileSync(path.join(artifactDir, 'support.json'), supportBytes);
 
     const manifestPath = path.join(temp, 'evidence-manifest.json');
     fs.writeFileSync(manifestPath, JSON.stringify({
       schema: 'bskel.scale-release-evidence-manifest/1',
       entries: [
         { ref: packRef, path: 'evidence-artifacts/pack.json' },
-        { ref: childRef, path: 'evidence-artifacts/child-support.json' },
-        { ref: parentRef, path: 'evidence-artifacts/parent-support.json' },
+        { ref: supportRef, path: 'evidence-artifacts/support.json' },
       ],
     }, null, 2) + '\n');
 
     const store = loadEvidenceStore(manifestPath, authority.loaded);
     assert.equal(store.ok, false);
-    assert.ok(store.errors.some((e) => e.code === 'EVIDENCE_SUPPORT_MATRIX_SOURCE_RECURSIVE'));
-    assert.equal(store.entries.has(parentRef), false);
+    assert.ok(store.errors.some((e) => e.code === 'EVIDENCE_SUPPORT_MATRIX_SOURCE_NOT_PROFILE_ADMISSION'));
+    assert.equal(store.entries.has(supportRef), false);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('support matrix admits exactly one resolved profile-admission artifact per profile id', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-support-matrix-profile-'));
+  try {
+    const authority = makeAuthority(temp);
+    const artifactDir = path.join(temp, 'evidence-artifacts');
+    fs.mkdirSync(artifactDir, { recursive: true });
+
+    const pack = signedArtifact(bskelPackPayload(), authority.keys, authority.keyId);
+    const packBytes = JSON.stringify(pack, null, 2) + '\n';
+    const packRef = shaRef(packBytes);
+    fs.writeFileSync(path.join(artifactDir, 'pack.json'), packBytes);
+
+    const profilePayload = {
+      schema: 'bskel.scale-release-evidence/1',
+      check_id: 'T23 admitted profile evidence',
+      outcome: 'PASS',
+      observed_at: '2026-09-27T00:00:00Z',
+      release_heads: heads(),
+      verifier: {
+        kind: 't23-profile-admission',
+        profile_id: 'linux-node22',
+        admitted: true,
+        source_evidence_refs: [packRef],
+      },
+    };
+    const profile = signedArtifact(profilePayload, authority.keys, authority.keyId);
+    const profileBytes = JSON.stringify(profile, null, 2) + '\n';
+    const profileRef = shaRef(profileBytes);
+    fs.writeFileSync(path.join(artifactDir, 'profile.json'), profileBytes);
+
+    const supportPayload = {
+      schema: 'bskel.scale-release-evidence/1',
+      check_id: 'support matrix generated only from admitted evidence-backed profiles',
+      outcome: 'PASS',
+      observed_at: '2026-09-27T00:00:00Z',
+      release_heads: heads(),
+      verifier: {
+        kind: 't23-support-matrix',
+        admitted_profiles: 1,
+        unsupported_profiles: 0,
+        profile_ids: ['linux-node22'],
+        source_evidence_refs: [profileRef],
+      },
+    };
+    const support = signedArtifact(supportPayload, authority.keys, authority.keyId);
+    const supportBytes = JSON.stringify(support, null, 2) + '\n';
+    const supportRef = shaRef(supportBytes);
+    fs.writeFileSync(path.join(artifactDir, 'support.json'), supportBytes);
+
+    const manifestPath = path.join(temp, 'evidence-manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({
+      schema: 'bskel.scale-release-evidence-manifest/1',
+      entries: [
+        { ref: packRef, path: 'evidence-artifacts/pack.json' },
+        { ref: profileRef, path: 'evidence-artifacts/profile.json' },
+        { ref: supportRef, path: 'evidence-artifacts/support.json' },
+      ],
+    }, null, 2) + '\n');
+
+    const store = loadEvidenceStore(manifestPath, authority.loaded);
+    assert.equal(store.ok, true, JSON.stringify(store.errors));
+    assert.equal(store.entries.has(profileRef), true);
+    assert.equal(store.entries.has(supportRef), true);
+
+    const wrongCountPayload = {
+      ...supportPayload,
+      verifier: {
+        ...supportPayload.verifier,
+        admitted_profiles: 2,
+        profile_ids: ['linux-node22', 'linux-node24'],
+      },
+    };
+    const wrongCount = signedArtifact(wrongCountPayload, authority.keys, authority.keyId);
+    const wrongBytes = JSON.stringify(wrongCount, null, 2) + '\n';
+    const wrongRef = shaRef(wrongBytes);
+    fs.writeFileSync(path.join(artifactDir, 'wrong-support.json'), wrongBytes);
+    fs.writeFileSync(path.join(temp, 'wrong-manifest.json'), JSON.stringify({
+      schema: 'bskel.scale-release-evidence-manifest/1',
+      entries: [
+        { ref: packRef, path: 'evidence-artifacts/pack.json' },
+        { ref: profileRef, path: 'evidence-artifacts/profile.json' },
+        { ref: wrongRef, path: 'evidence-artifacts/wrong-support.json' },
+      ],
+    }, null, 2) + '\n');
+    const wrongStore = loadEvidenceStore(path.join(temp, 'wrong-manifest.json'), authority.loaded);
+    assert.equal(wrongStore.ok, false);
+    assert.ok(wrongStore.errors.some((e) =>
+      e.code === 'EVIDENCE_SUPPORT_MATRIX_VERIFIER_MISMATCH'
+      || e.code === 'EVIDENCE_SUPPORT_MATRIX_PROFILE_SET_MISMATCH'
+    ));
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('profile admission evidence cannot recursively cite another profile admission or support matrix', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-profile-admission-recursive-'));
+  try {
+    const authority = makeAuthority(temp);
+    const artifactDir = path.join(temp, 'evidence-artifacts');
+    fs.mkdirSync(artifactDir, { recursive: true });
+
+    const firstPayload = {
+      schema: 'bskel.scale-release-evidence/1',
+      check_id: 'T23 admitted profile evidence',
+      outcome: 'PASS',
+      observed_at: '2026-09-27T00:00:00Z',
+      release_heads: heads(),
+      verifier: {
+        kind: 't23-profile-admission',
+        profile_id: 'linux-node22',
+        admitted: true,
+        source_evidence_refs: ['sha256:' + '0'.repeat(64)],
+      },
+    };
+    const first = signedArtifact(firstPayload, authority.keys, authority.keyId);
+    const firstBytes = JSON.stringify(first, null, 2) + '\n';
+    const firstRef = shaRef(firstBytes);
+    fs.writeFileSync(path.join(artifactDir, 'profile.json'), firstBytes);
+
+    const recursivePayload = {
+      ...firstPayload,
+      verifier: {
+        ...firstPayload.verifier,
+        profile_id: 'linux-node24',
+        source_evidence_refs: [firstRef],
+      },
+    };
+    const recursive = signedArtifact(recursivePayload, authority.keys, authority.keyId);
+    const recursiveBytes = JSON.stringify(recursive, null, 2) + '\n';
+    const recursiveRef = shaRef(recursiveBytes);
+    fs.writeFileSync(path.join(artifactDir, 'recursive.json'), recursiveBytes);
+
+    const manifestPath = path.join(temp, 'evidence-manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({
+      schema: 'bskel.scale-release-evidence-manifest/1',
+      entries: [
+        { ref: firstRef, path: 'evidence-artifacts/profile.json' },
+        { ref: recursiveRef, path: 'evidence-artifacts/recursive.json' },
+      ],
+    }, null, 2) + '\n');
+
+    const store = loadEvidenceStore(manifestPath, authority.loaded);
+    assert.equal(store.ok, false);
+    assert.ok(store.errors.some((e) =>
+      e.code === 'EVIDENCE_PROFILE_ADMISSION_SOURCE_NOT_FOUND'
+      || e.code === 'EVIDENCE_PROFILE_ADMISSION_SOURCE_RECURSIVE'
+    ));
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
