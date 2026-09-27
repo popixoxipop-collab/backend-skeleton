@@ -1161,9 +1161,10 @@ function isEmptyExpressFactoryExpression(expression, binding) {
 	let value = expression.trim();
 	const typeRef = '(?:readonly\\s+)?[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*(?:\\s*<[^;=()]+>)?(?:\\s*\\[\\])*';
 	const leadingAssertionRe = new RegExp('^<\\s*' + typeRef + '\\s*>\\s*');
+	const trailingAssertionRe = new RegExp('\\s+(?:as|satisfies)\\s+' + typeRef + '\\s*$');
 
-	// Prefix assertions and whole-expression parentheses can nest in either order, e.g.
-	// `(<express.Application>express())`. Peel only bounded wrappers and repeat until stable.
+	// Assertions and grouping can nest in either order: `<T>(express())`,
+	// `(<T>express())`, or `(express()) as T`. Peel only bounded wrappers until stable.
 	let changed = true;
 	while (changed) {
 		changed = false;
@@ -1180,14 +1181,15 @@ function isEmptyExpressFactoryExpression(expression, binding) {
 				changed = true;
 			}
 		}
+		const trailing = value.match(trailingAssertionRe);
+		if (trailing && trailing.index != null) {
+			value = value.slice(0, trailing.index).trim();
+			changed = true;
+		}
 	}
 
-	const factoryRe = new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)');
-	const match = value.match(factoryRe);
-	if (!match) return false;
-	const rest = value.slice(match[0].length).trim();
-	if (!rest) return true;
-	return new RegExp('^(?:(?:as|satisfies)\\s+' + typeRef + '\\s*)+$').test(rest);
+	const factoryRe = new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)$');
+	return factoryRe.test(value);
 }
 function applicationBindings(text) {
 	const out = [];
@@ -1273,26 +1275,31 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 	}
 	return statementStart;
 }
-function topLevelSequenceAssignmentTarget(lhs) {
-	let value = lhs.trim();
-	if (/^(?:if|for|while|with|switch)\\b/.test(value)) return value;
-
-	while (value.startsWith('(')) {
-		const close = matchingParenClose(value, 0);
-		if (close === value.length - 1) {
-			value = value.slice(1, -1).trim();
+function peelAssignmentGrouping(value) {
+	let out = value.trim();
+	while (out.startsWith('(')) {
+		const close = matchingParenClose(out, 0);
+		if (close === out.length - 1) {
+			out = out.slice(1, -1).trim();
 			continue;
 		}
-		// While scanning only the LHS, a grouping paren around a sequence has no closing `)` yet:
-		// `(cleanup(), app = fake)` appears here as `(cleanup(), app`. Peel that unmatched wrapper.
+		// The analyzed LHS stops at `=`, so `(app = value)` appears here as `(app`.
 		if (close === -1) {
-			value = value.slice(1).trimStart();
+			out = out.slice(1).trimStart();
 			continue;
 		}
 		break;
 	}
+	return out;
+}
+
+function topLevelSequenceAssignmentTarget(lhs) {
+	let value = lhs.trim();
+	if (/^(?:if|for|while|with|switch)\\b/.test(value)) return value;
+	value = peelAssignmentGrouping(value);
 	const parts = splitTopLevelArgs(value);
-	return parts.length > 1 ? parts[parts.length - 1].trim() : value;
+	value = parts.length > 1 ? parts[parts.length - 1].trim() : value;
+	return peelAssignmentGrouping(value);
 }
 
 function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
@@ -1497,11 +1504,24 @@ function resolveRelativeImport(fromFile, specifier) {
 // './v1/'`). A file with no incoming edge is a root. Bounded, not general: a computed/dynamic mount
 // (`router.use(prefix, buildRouter())`) is skipped, never guessed at.
 function defaultExportedReceiverBinding(text) {
-	const exportRe = /\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/g;
-	for (const match of text.matchAll(exportRe)) {
+	const directRe = /\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/g;
+	for (const match of text.matchAll(directRe)) {
 		if (!isCodePosition(text, match.index)) continue;
 		const binding = receiverBindingAt(text, match[1], match.index);
 		if (binding) return binding;
+	}
+
+	// ESM also permits `export { router as default }`. Re-exports with `from` are excluded:
+	// they do not prove a local receiver binding in this file.
+	const specifierRe = /\bexport\s*\{([^}]*)\}(?!\s*from\b)/g;
+	for (const match of text.matchAll(specifierRe)) {
+		if (!isCodePosition(text, match.index)) continue;
+		for (const specifier of splitTopLevelArgs(match[1])) {
+			const alias = specifier.trim().match(/^([A-Za-z_$][\w$]*)\s+as\s+default$/);
+			if (!alias) continue;
+			const binding = receiverBindingAt(text, alias[1], match.index);
+			if (binding) return binding;
+		}
 	}
 	return null;
 }

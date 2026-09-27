@@ -680,6 +680,30 @@ test('typescript-express: same-named Router bindings in separate scopes keep dis
 		'GET /b/two',
 	]);
 });
+test('typescript-express: default export specifier aliases preserve imported router mount prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			"import child from './child';",
+			'const app = express();',
+			"app.use('/api', child);",
+			'export default app;',
+		].join('\n'),
+		'src/child.ts': [
+			"import { Router } from 'express';",
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			'export { router as default };',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/child']);
+});
 test('typescript-express: an out-of-scope same-named local Router does not suppress the active imported mount target', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
@@ -895,11 +919,13 @@ test('typescript-express: empty express() factories remain trusted through bound
 			'const parenthesized = (express() as Application);',
 			'const prefixed = <express.Application>express();',
 			'const parenthesizedPrefixed = (<express.Application>express());',
+			'const outerAsserted = (express()) as Application;',
 			"app.get('/health', healthHandler);",
 			"secondary.get('/secondary', secondaryHandler);",
 			"parenthesized.get('/parenthesized', parenthesizedHandler);",
 			"prefixed.get('/prefixed', prefixedHandler);",
 			"parenthesizedPrefixed.get('/parenthesized-prefixed', parenthesizedPrefixedHandler);",
+			"outerAsserted.get('/outer-asserted', outerAssertedHandler);",
 			"app.use('/api', router);",
 			'export default app;',
 		].join('\n'),
@@ -911,6 +937,7 @@ test('typescript-express: empty express() factories remain trusted through bound
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /api/child',
 		'GET /health',
+		'GET /outer-asserted',
 		'GET /parenthesized',
 		'GET /parenthesized-prefixed',
 		'GET /prefixed',
@@ -975,6 +1002,26 @@ test('typescript-express: a parenthesized top-level sequence write invalidates t
 			"app.get('/before', beforeHandler);",
 			'(cleanup(), app = fakeApp);',
 			"app.get('/phantom-after-parenthesized-sequence', phantomHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /before']);
+});
+test('typescript-express: grouping around the final sequence assignment target still invalidates the mutable app', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app = express();',
+			"app.get('/before', beforeHandler);",
+			'cleanup(), (app = fakeApp);',
+			"app.get('/phantom-after-grouped-target', phantomHandler);",
 			'export default app;',
 		].join('\n'),
 	});
