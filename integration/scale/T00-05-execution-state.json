@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T17:14:00+09:00",
+  "observed_at": "2026-09-27T18:05:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -264,7 +264,7 @@
       "repo": "popixoxipop-collab/Backend-evaluation",
       "branch": "t00/t20-03-linux-container-enforcement-r1",
       "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
-      "observed_head_sha": "4bd223b8ce1d543d8dde24bed8d2942a6a17a042",
+      "observed_head_sha": "a750fbe70433bb669717ce667955148fbba80771",
       "path_scopes": [
         "lib/next-runtime/linux-container-sandbox.mjs",
         "test/next-runtime/linux-container-sandbox.test.mjs",
@@ -650,7 +650,7 @@
     ]
   },
   "t20_03": {
-    "state": "SNAPSHOT_HARDENING_IN_PROGRESS",
+    "state": "FINAL_EXACT_HEAD_REVIEW_IN_PROGRESS",
     "scope": "one hardened Linux/container target-runtime profile",
     "no_claims": [
       "cross-platform parity",
@@ -658,12 +658,12 @@
       "native engine certification"
     ],
     "branch": "t00/t20-03-linux-container-enforcement-r1",
-    "candidate_head": "4bd223b8ce1d543d8dde24bed8d2942a6a17a042",
-    "focused_tests": "24/24 PASS",
-    "next_runtime": "78/78 PASS",
+    "candidate_head": "a750fbe70433bb669717ce667955148fbba80771",
+    "focused_tests": "32/32 PASS",
+    "next_runtime": "86/86 PASS",
     "pack_smoke": "PASS",
     "real_docker_external_enforcement": "1/1 PASS",
-    "evidence_observed_at": "2026-09-27T08:08:14.178Z",
+    "evidence_observed_at": "2026-09-27T08:58:30.272Z",
     "full_closeout": false,
     "blockers": [
       "TRUST_PROC_03",
@@ -686,15 +686,16 @@
     },
     "exact_head_local_overlay": "byte-identical PR-owned files",
     "unit_tests": "353/353 PASS",
-    "latest_ci_run": 36304950509,
+    "latest_ci_run": 36307761674,
     "latest_ci_status": "in_progress",
-    "latest_ci_run_number": 1066,
+    "latest_ci_run_number": 1082,
     "latest_ci_completed_jobs": "next-runtime 20/22/24 success; unit 20/22/24 success; integration in_progress",
     "remaining_review_findings": [
       "NOFOLLOW_DIRECTORY_TRAVERSAL",
       "PRIVATE_STAGING_IDENTITY",
       "BOUNDED_STREAMING_SOURCE_COPY"
-    ]
+    ],
+    "latest_codex_review": "PENDING_EXACT_HEAD"
   },
   "t19_03": {
     "state": "PACKET_INTEGRATED_BLOCKED",
