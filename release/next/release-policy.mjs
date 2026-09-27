@@ -74,6 +74,8 @@ const EVIDENCE_AUTHORITY_SCHEMA = 'bskel.scale-release-evidence-authority/1';
 const EVIDENCE_ATTESTATION_SCHEMA = 'bskel.scale-release-evidence-attestation/1';
 const ACTIVATION_LEASE_SCHEMA = 'bskel.scale-default-activation-lease/1';
 const ACTIVATION_ATTESTATION_SCHEMA = 'bskel.scale-default-activation-lease-attestation/1';
+const PROFILE_ADMISSION_CHECK = 'T23 admitted profile evidence';
+const PROFILE_ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 
 function push(errors, code, detail = {}) {
   errors.push({ code, ...detail });
@@ -347,6 +349,21 @@ function validateCheckSpecificEvidence(artifact, errors, ref) {
     return;
   }
 
+  if (id === PROFILE_ADMISSION_CHECK) {
+    if (
+      verifier.kind !== 't23-profile-admission'
+      || verifier.admitted !== true
+      || typeof verifier.profile_id !== 'string'
+      || !PROFILE_ID_RE.test(verifier.profile_id)
+      || !Array.isArray(verifier.source_evidence_refs)
+      || verifier.source_evidence_refs.length === 0
+      || verifier.source_evidence_refs.some((item) => typeof item !== 'string' || !SHA256_REF.test(item))
+    ) {
+      push(errors, 'EVIDENCE_PROFILE_ADMISSION_VERIFIER_MISMATCH', { ref });
+    }
+    return;
+  }
+
   if (id === 'support matrix generated only from admitted evidence-backed profiles') {
     if (
       verifier.kind !== 't23-support-matrix'
@@ -354,8 +371,12 @@ function validateCheckSpecificEvidence(artifact, errors, ref) {
       || verifier.admitted_profiles < 1
       || !Number.isInteger(verifier.unsupported_profiles)
       || verifier.unsupported_profiles < 0
+      || !Array.isArray(verifier.profile_ids)
+      || verifier.profile_ids.length !== verifier.admitted_profiles
+      || verifier.profile_ids.some((item) => typeof item !== 'string' || !PROFILE_ID_RE.test(item))
+      || new Set(verifier.profile_ids).size !== verifier.profile_ids.length
       || !Array.isArray(verifier.source_evidence_refs)
-      || verifier.source_evidence_refs.length === 0
+      || verifier.source_evidence_refs.length !== verifier.admitted_profiles
       || verifier.source_evidence_refs.some((item) => typeof item !== 'string' || !SHA256_REF.test(item))
     ) {
       push(errors, 'EVIDENCE_SUPPORT_MATRIX_VERIFIER_MISMATCH', { ref });
@@ -456,11 +477,52 @@ export function loadEvidenceStore(manifestPath, authority = null) {
     if (errors.length === errorCount) entries.set(ref, { artifact, path: resolved });
   }
 
+  // First resolve each signed profile-admission artifact to concrete, non-profile PASS evidence.
+  for (const [ref, entry] of [...entries]) {
+    const artifact = entry.artifact;
+    if (artifact?.check_id !== PROFILE_ADMISSION_CHECK) continue;
+
+    let sourceFailure = false;
+    for (const sourceRef of artifact?.verifier?.source_evidence_refs ?? []) {
+      if (sourceRef === ref) {
+        push(errors, 'EVIDENCE_PROFILE_ADMISSION_SOURCE_SELF_REFERENCE', { ref, source_ref: sourceRef });
+        sourceFailure = true;
+        continue;
+      }
+      const source = entries.get(sourceRef);
+      if (!source) {
+        push(errors, 'EVIDENCE_PROFILE_ADMISSION_SOURCE_NOT_FOUND', { ref, source_ref: sourceRef });
+        sourceFailure = true;
+        continue;
+      }
+      if (source.artifact?.outcome !== 'PASS') {
+        push(errors, 'EVIDENCE_PROFILE_ADMISSION_SOURCE_NOT_PASS', { ref, source_ref: sourceRef });
+        sourceFailure = true;
+        continue;
+      }
+      if (
+        source.artifact?.check_id === PROFILE_ADMISSION_CHECK
+        || source.artifact?.check_id === 'support matrix generated only from admitted evidence-backed profiles'
+      ) {
+        push(errors, 'EVIDENCE_PROFILE_ADMISSION_SOURCE_RECURSIVE', { ref, source_ref: sourceRef });
+        sourceFailure = true;
+        continue;
+      }
+      if (!sameHeads(source.artifact?.release_heads, artifact.release_heads)) {
+        push(errors, 'EVIDENCE_PROFILE_ADMISSION_SOURCE_CONTEXT_MISMATCH', { ref, source_ref: sourceRef });
+        sourceFailure = true;
+      }
+    }
+    if (sourceFailure) entries.delete(ref);
+  }
+
+  // Then admit a support matrix only from one unique, resolved profile-admission artifact per profile ID.
   for (const [ref, entry] of [...entries]) {
     const artifact = entry.artifact;
     if (artifact?.check_id !== 'support matrix generated only from admitted evidence-backed profiles') continue;
 
     let sourceFailure = false;
+    const resolvedProfileIds = [];
     for (const sourceRef of artifact?.verifier?.source_evidence_refs ?? []) {
       if (sourceRef === ref) {
         push(errors, 'EVIDENCE_SUPPORT_MATRIX_SOURCE_SELF_REFERENCE', { ref, source_ref: sourceRef });
@@ -473,21 +535,39 @@ export function loadEvidenceStore(manifestPath, authority = null) {
         sourceFailure = true;
         continue;
       }
-      if (source.artifact?.outcome !== 'PASS') {
-        push(errors, 'EVIDENCE_SUPPORT_MATRIX_SOURCE_NOT_PASS', { ref, source_ref: sourceRef });
-        sourceFailure = true;
-        continue;
-      }
-      if (source.artifact?.check_id === 'support matrix generated only from admitted evidence-backed profiles') {
-        push(errors, 'EVIDENCE_SUPPORT_MATRIX_SOURCE_RECURSIVE', { ref, source_ref: sourceRef });
+      if (
+        source.artifact?.check_id !== PROFILE_ADMISSION_CHECK
+        || source.artifact?.verifier?.kind !== 't23-profile-admission'
+        || source.artifact?.verifier?.admitted !== true
+        || !PROFILE_ID_RE.test(source.artifact?.verifier?.profile_id ?? '')
+      ) {
+        push(errors, 'EVIDENCE_SUPPORT_MATRIX_SOURCE_NOT_PROFILE_ADMISSION', { ref, source_ref: sourceRef });
         sourceFailure = true;
         continue;
       }
       if (!sameHeads(source.artifact?.release_heads, artifact.release_heads)) {
         push(errors, 'EVIDENCE_SUPPORT_MATRIX_SOURCE_CONTEXT_MISMATCH', { ref, source_ref: sourceRef });
         sourceFailure = true;
+        continue;
       }
+      resolvedProfileIds.push(source.artifact.verifier.profile_id);
     }
+
+    const expectedProfileIds = [...(artifact?.verifier?.profile_ids ?? [])].sort();
+    const observedProfileIds = [...resolvedProfileIds].sort();
+    if (
+      resolvedProfileIds.length !== artifact?.verifier?.admitted_profiles
+      || new Set(resolvedProfileIds).size !== resolvedProfileIds.length
+      || JSON.stringify(observedProfileIds) !== JSON.stringify(expectedProfileIds)
+    ) {
+      push(errors, 'EVIDENCE_SUPPORT_MATRIX_PROFILE_SET_MISMATCH', {
+        ref,
+        expected_profile_ids: expectedProfileIds,
+        observed_profile_ids: observedProfileIds,
+      });
+      sourceFailure = true;
+    }
+
     if (sourceFailure) entries.delete(ref);
   }
 
