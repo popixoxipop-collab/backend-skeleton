@@ -295,9 +295,9 @@ function exportedMountableName(text, mountables) {
 // router merely because the default export is middleware. CommonJS module.exports is the default
 // value when consumed through ordinary interop, so it remains eligible here.
 function defaultExportedMountable(text, mountables) {
-	const commonJsMatch = text.match(/\\bmodule\\s*\\.\\s*exports\\s*=\\s*([\\w$]+)\\s*;?/);
+	const commonJsMatch = text.match(/\bmodule\s*\.\s*exports\s*=\s*([\w$]+)\s*;?/);
 	if (commonJsMatch && mountables.has(commonJsMatch[1])) return commonJsMatch[1];
-	const defaultMatch = text.match(/export\\s+default\\s+([\\w$]+)\\s*;?/);
+	const defaultMatch = text.match(/export\s+default\s+([\w$]+)\s*;?/);
 	return defaultMatch && mountables.has(defaultMatch[1]) ? defaultMatch[1] : null;
 }
 
@@ -309,7 +309,7 @@ function namedExportedMountable(text, mountables, name) {
 	const escaped = alternationOf([name]);
 	const decl = new RegExp(`\\bexport\\s+(?:const|let|var)\\s+${escaped}\\s*=`).test(text);
 	if (decl) return name;
-	for (const match of text.matchAll(/export\\s*\\{([^}]*)\\}(?!\\s*from\\b)/g)) {
+	for (const match of text.matchAll(/export\s*\{([^}]*)\}(?!\s*from\b)/g)) {
 		const specifiers = splitTopLevelArgs(match[1]);
 		if (specifiers.some((specifier) => specifier.trim() === name)) return name;
 	}
