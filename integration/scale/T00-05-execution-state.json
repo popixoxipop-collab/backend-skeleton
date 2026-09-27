@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T11:12:00+09:00",
+  "observed_at": "2026-09-27T11:19:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -275,18 +275,6 @@
       "expires_at": "2026-09-27T07:20:00Z",
       "state": "ACTIVE"
     },
-    "T00-T19-RELEASE-ACCEPTANCE-20260927-r1": {
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t00/t19-release-acceptance-r1",
-      "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
-      "path_scopes": [
-        "evidence/next/T19-RELEASE-ACCEPTANCE.json",
-        "test/t19-release-acceptance/**"
-      ],
-      "fencing_token": 1,
-      "expires_at": "2026-09-27T09:59:45Z",
-      "state": "ACTIVE"
-    },
     "T00-T19-CURRENT-MAIN-QA-20260927-r1": {
       "repo": "popixoxipop-collab/backend-skeleton",
       "branch": "t00/t19-current-main-qa-r1",
@@ -309,6 +297,18 @@
       ],
       "fencing_token": 2,
       "expires_at": "2026-09-27T10:12:00Z",
+      "state": "ACTIVE"
+    },
+    "T00-T19-RELEASE-ACCEPTANCE-20260927-r2": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t19-release-acceptance-r1",
+      "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "path_scopes": [
+        "evidence/next/T19-RELEASE-ACCEPTANCE.json",
+        "test/conformance-next/t19-release-acceptance.test.mjs"
+      ],
+      "fencing_token": 2,
+      "expires_at": "2026-09-27T10:19:00Z",
       "state": "ACTIVE"
     }
   },
@@ -689,10 +689,10 @@
     "branch": "t00/t20-03-linux-container-enforcement-r1"
   },
   "t19_03": {
-    "state": "CURRENT_MAIN_QA_RESUBMISSION_IN_PROGRESS",
-    "branch": "t00/t19-current-main-qa-r1",
-    "public_holdout_state": "ABSENT_BY_DESIGN",
-    "release_acceptance": false,
-    "blocker": "A non-public independent holdout must be injected at certification time; reference-only validation cannot be promoted to release certification."
+    "state": "RELEASE_ACCEPTANCE_RESTACK_IN_PROGRESS",
+    "branch": "t00/t19-release-acceptance-r1",
+    "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+    "fencing_token": 2,
+    "expected_verdict": "BLOCKED unless holdout #119, T20-03, and release-certificate blockers are actually cleared"
   }
 }
