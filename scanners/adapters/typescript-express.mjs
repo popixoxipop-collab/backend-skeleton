@@ -257,11 +257,12 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 	let square = 0;
 	let curly = 0;
 	let quote = null;
+	let lastSignificant = null;
 	for (let i = startIndex; i < limitIndex; i++) {
 		const ch = text[i];
 		if (quote) {
 			if (ch === '\\') { i++; continue; }
-			if (ch === quote) quote = null;
+			if (ch === quote) { quote = null; lastSignificant = ch; }
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
@@ -271,9 +272,15 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 		else if (ch === ']') square = Math.max(0, square - 1);
 		else if (ch === '{') curly++;
 		else if (ch === '}') curly = Math.max(0, curly - 1);
-		else if ((ch === ';' || ch === '\n') && round === 0 && square === 0 && curly === 0) {
+		else if (ch === ';' && round === 0 && square === 0 && curly === 0) {
 			return text.slice(startIndex, i);
 		}
+		else if (ch === '\n' && round === 0 && square === 0 && curly === 0) {
+			// ASI normally ends a declaration here, except when the declaration itself clearly
+			// continues (most importantly `const a = x,\n b = y`).
+			if (lastSignificant == null || !',=.?+-*/%&|^!:'.includes(lastSignificant)) return text.slice(startIndex, i);
+		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
 	return text.slice(startIndex, limitIndex);
 }
@@ -285,10 +292,38 @@ function variableClauseBindsName(clause, name) {
 	});
 }
 
+function isCodePosition(text, targetIndex) {
+	let quote = null;
+	let lastSignificant = null;
+	let i = 0;
+	while (i < targetIndex) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i += 2; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			i++;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > targetIndex) return false;
+			i = next;
+			lastSignificant = '/';
+			continue;
+		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
+		i++;
+	}
+	return quote === null;
+}
 function scopeBodyDeclaresName(text, name) {
 	const escaped = escapeRegex(name);
-	if (new RegExp('\\b(?:function|class)\\s+' + escaped + '\\b').test(text)) return true;
+	for (const match of text.matchAll(new RegExp('\\b(?:function|class)\\s+' + escaped + '\\b', 'g'))) {
+		if (isCodePosition(text, match.index)) return true;
+	}
 	for (const match of text.matchAll(/\b(?:const|let|var)\b/g)) {
+		if (!isCodePosition(text, match.index)) continue;
 		const clause = readVariableDeclarationClause(text, match.index + match[0].length);
 		if (variableClauseBindsName(clause, name)) return true;
 	}
@@ -378,19 +413,25 @@ function scopeHeaderShadowsName(text, openIndex, name) {
 function matchingBraceClose(text, openIndex) {
 	let depth = 0;
 	let quote = null;
+	let lastSignificant = null;
 	for (let i = openIndex; i < text.length; i++) {
 		const ch = text[i];
 		if (quote) {
 			if (ch === '\\') { i++; continue; }
-			if (ch === quote) quote = null;
+			if (ch === quote) { quote = null; lastSignificant = ch; }
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
 		if (ch === '{') depth++;
 		else if (ch === '}') {
 			depth--;
 			if (depth === 0) return i;
 		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
 	return -1;
 }
@@ -418,10 +459,11 @@ function scopeDirectlyDeclaresName(text, openIndex, name) {
 	};
 
 	for (const match of segment.matchAll(/\b(?:function|class)\s+([A-Za-z_$][\w$]*)\b/g)) {
+		if (!isCodePosition(segment, match.index)) continue;
 		if (match[1] === name && directlyInside(match.index)) return true;
 	}
 	for (const match of segment.matchAll(/\b(?:const|let|var)\b/g)) {
-		if (!directlyInside(match.index)) continue;
+		if (!isCodePosition(segment, match.index) || !directlyInside(match.index)) continue;
 		const absoluteEnd = readVariableDeclarationClause(text, segmentStart + match.index + match[0].length, scopeEnd);
 		if (variableClauseBindsName(absoluteEnd, name)) return true;
 	}
@@ -442,6 +484,7 @@ function functionScopeDeclaresVarName(text, functionOpenIndex, name) {
 	const segmentStart = functionOpenIndex + 1;
 	const segment = text.slice(segmentStart, scopeEnd);
 	for (const match of segment.matchAll(/\bvar\b/g)) {
+		if (!isCodePosition(segment, match.index)) continue;
 		const absoluteIndex = segmentStart + match.index;
 		if (nearestFunctionScopeOpenAt(text, absoluteIndex) !== functionOpenIndex) continue;
 		const clause = readVariableDeclarationClause(text, absoluteIndex + match[0].length, scopeEnd);

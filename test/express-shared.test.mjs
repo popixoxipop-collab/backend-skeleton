@@ -458,6 +458,20 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			"    app.get('/phantom-parameter-property', phantomHandler);",
 			'  }',
 			'}',
+			'function stringNoise() {',
+			"  const source = 'const app = fake;';",
+			"  app.get('/after-string', stringHandler);",
+			'}',
+			'function continuedDeclaration() {',
+			'  const other = fake,',
+			'    app = fakeApp;',
+			"  app.get('/phantom-continued', phantomHandler);",
+			'}',
+			'function regexBraceShadow() {',
+			'  /[}]/;',
+			'  const app = fakeApp;',
+			"  app.get('/phantom-regex-brace', phantomHandler);",
+			'}',
 			'export default app;',
 		].join('\n'),
 	});
@@ -468,6 +482,7 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /after-asi',
 		'GET /after-block',
+		'GET /after-string',
 		'GET /api/child',
 	]);
 });
