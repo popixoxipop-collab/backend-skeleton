@@ -26,7 +26,8 @@ export const SUITES = [
   {
     id: 'T19',
     sourcePaths: ['test/conformance-next', 'test/corpus-next', 'evidence/next'],
-    testDirs: ['test/conformance-next', 'test/t19-release-acceptance']
+    testDirs: ['test/conformance-next', 'test/t19-release-acceptance'],
+    requiredTestDirs: ['test/t19-release-acceptance']
   },
   { id: 'T20', sourcePaths: ['lib/trust-next'], testDir: 'test/trust-next' },
   { id: 'T21', sourcePaths: ['lib/artifact-store-next', 'lib/scan-scheduler-next'], testDir: 'test/perf-next' },
@@ -56,7 +57,18 @@ export function inspectSuite(suite, root = REPO_ROOT) {
   const sourcePresent = suite.sourcePaths.some((p) => exists(root, p));
   const testDirs = Array.isArray(suite.testDirs) ? suite.testDirs : [suite.testDir];
   const presentTestDirs = testDirs.filter((relativeDir) => exists(root, relativeDir));
+  const requiredTestDirs = Array.isArray(suite.requiredTestDirs) ? suite.requiredTestDirs : [];
+  const missingRequiredTestDirs = requiredTestDirs.filter((relativeDir) => !exists(root, relativeDir));
   const tests = presentTestDirs.flatMap((relativeDir) => collectTests(root, relativeDir)).sort();
+
+  if (sourcePresent && missingRequiredTestDirs.length > 0) {
+    return { id: suite.id, status: 'FAIL_MISSING_REQUIRED_TEST_DIR', tests, missingRequiredTestDirs };
+  }
+  for (const relativeDir of requiredTestDirs) {
+    if (collectTests(root, relativeDir).length === 0) {
+      return { id: suite.id, status: 'FAIL_MISSING_REQUIRED_TESTS', tests, missingRequiredTestDirs: [] };
+    }
+  }
 
   if (!sourcePresent && presentTestDirs.length === 0) {
     return { id: suite.id, status: 'NOT_PRESENT', tests: [] };
