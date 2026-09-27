@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const packet=JSON.parse(fs.readFileSync(path.resolve(HERE,'../../evidence/next/T19-RELEASE-ACCEPTANCE.json'),'utf8'));
 const SHA40=/^[a-f0-9]{40}$/;
+const EXPECTED_RELEASE_HEADS={
+  bskel:'bb18182c54a3a8f682ed2d1a6bac26749fcf267e',
+  becoder:'eb8164560ddd343306234a9140dc89c001519792',
+  beval:'f7189e4208f04867b493c7d874a77325ad84afa3',
+};
 const EXPECTED_QA={
   head:'1a4e4da3b62bf0113d240c32bfede06f7884966d',
   run_id:36218926731,
@@ -18,7 +23,9 @@ const EXPECTED_QA={
 function validate(value) {
   const errors=[];
   if (value?.schema!=='bskel.t19-release-acceptance/1') errors.push('SCHEMA');
-  for (const role of ['bskel','becoder','beval']) if (!SHA40.test(value?.release_heads?.[role]??'')) errors.push('HEAD_'+role);
+  for (const role of ['bskel','becoder','beval']) {
+    if (value?.release_heads?.[role]!==EXPECTED_RELEASE_HEADS[role]) errors.push('HEAD_'+role);
+  }
   if (value?.qa_authority?.head!==EXPECTED_QA.head) errors.push('QA_HEAD');
   const ci=value?.qa_authority?.exact_head_ci??{};
   if (ci.conclusion!=='success') errors.push('QA_CI');
@@ -89,4 +96,13 @@ test('blocked packet cannot claim full T20 closeout',()=>{
   const x=structuredClone(packet);
   x.runtime_security_dependency.full_closeout_claimed=true;
   assert.ok(validate(x).includes('T20_CLOSEOUT_OVERCLAIM'));
+});
+
+
+test('release candidate heads are immutable release-control anchors',()=>{
+  for (const role of ['bskel','becoder','beval']) {
+    const x=structuredClone(packet);
+    x.release_heads[role]='0'.repeat(40);
+    assert.ok(validate(x).includes('HEAD_'+role),role);
+  }
 });
