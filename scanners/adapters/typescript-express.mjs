@@ -179,140 +179,26 @@ function activeCodeScopeOpeningsAt(text, targetIndex) {
 }
 
 function scopeHeaderShadowsName(text, openIndex, name) {
-	const header = text.slice(Math.max(0, openIndex - 2048), openIndex);
+	const header = text.slice(Math.max(0, openIndex - 2048), openIndex).trimEnd();
 	const escaped = escapeRegex(name);
-	const singleArrow = new RegExp(`(?:^|[^\\w$])(?:async\\s+)?${escaped}\\s*(?::[^=]+)?=>\\s*// G5 (D-typescript-express-provider): the third scanner adapter, alongside java-spring.mjs (G1)
-// and python-fastapi.mjs (G2) -- same philosophy (ripgrep-for-discovery + regex-for-structure,
-// no real TS AST parser/tsc shell-out). Unlike G2, no framework-maintained reference oracle
-// exists for Express (deliberately unopinionated framework, confirmed via real research before
-// this file was written) -- verified instead against the best-validated real community boilerplate
-// found (`mkosir/typeorm-express-typescript`, 461 stars/149 forks, not a fork itself, freshly
-// cloned and read). See D-typescript-express-provider in DECISIONS.md for why this item's
-// verification confidence is honestly, permanently weaker than G2's own.
-import fs from 'node:fs';
-import path from 'node:path';
-import { lineNumberAt } from '../text-util.mjs';
-// G6: these were this file's own private helpers until `javascript-express.mjs` needed the exact
-// same ones -- moved verbatim to `_express-shared.mjs` (a `_`-prefixed shared helper, the same
-// convention `_java-spring-analyzer.mjs` uses) rather than copy-pasted. No behavior change; see
-// D-javascript-express-adapter in DECISIONS.md for why only these primitives are shared and the
-// mount-tree/endpoint logic deliberately is not.
-import {
-	VERBS,
-	STRING_LITERAL_RE,
-	listRgFiles,
-	rgFilesMatching,
-	listCandidatePackageFiles,
-	declaresExpress,
-	matchBalancedParens,
-	splitTopLevelArgs,
-	joinPath,
-	maskJsComments,
-	expressDiagnostics,
-} from './_express-shared.mjs';
 
-const ENTITY_CLASS_RE = /@Entity\s*\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)\s*\n?\s*export\s+class\s+(\w+)/g;
-
-// Only identifiers locally assigned to Express Router() are trusted as route receivers.
-// This removes the accidental literal-name dependency on `router` without accepting arbitrary
-// objects that merely expose get()/use()-shaped methods.
-function escapeRegex(value) {
-	const specials = '\\^$.*+?()[]{}|';
-	let out = '';
-	for (const ch of value) out += specials.includes(ch) ? '\\' + ch : ch;
-	return out;
-}
-
-function expressRouterFactoryPatterns(text) {
-	const patterns = new Set();
-	const importRe = /import\s+(?:([A-Za-z_$][\w$]*)\s*,\s*)?\{([^}]*)\}\s*from\s*['"]express['"]/g;
-	for (const match of text.matchAll(importRe)) {
-		let hasRouterBinding = false;
-		for (const raw of match[2].split(',')) {
-			const binding = raw.trim().match(/^Router(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
-			if (!binding) continue;
-			hasRouterBinding = true;
-			patterns.add('\\b' + escapeRegex(binding[1] ?? 'Router') + '\\b');
-		}
-		if (hasRouterBinding && match[1]) {
-			patterns.add('\\b' + escapeRegex(match[1]) + '\\s*\\.\\s*Router\\b');
-		}
-	}
-	return [...patterns];
-}
-
-function routerVariables(text) {
-	const out = new Set();
-	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
-		const declarationRe = new RegExp(
-			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
-			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
-			'g',
-		);
-		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
-	}
-	return [...out].sort();
-}
-
-// T19 real-holdout finding: an Express application created with the module's actual default
-// import is also a route receiver. Keep this separate from routerVariables(): detect() still
-// requires the stronger named-Router + Router() signal, while scan() may additionally follow the
-// already-detected project's application root (`const application = express()`). An arbitrary
-// callable, or an unrelated object's .Router(), never becomes authoritative through this path.
-function expressDefaultBindings(text) {
-	const out = new Set();
-	const importRe = /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]express['"]/g;
-	for (const match of text.matchAll(importRe)) out.add(match[1]);
-	return [...out].sort();
-}
-
-const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
-const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
-
-function scopeRegexStarts(lastSignificant, recentText) {
-	if (lastSignificant === null) return true;
-	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
-	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
-}
-
-function skipScopeRegexLiteral(text, start) {
-	let i = start + 1;
-	let inClass = false;
-	while (i < text.length) {
-		const ch = text[i];
-		if (ch === '\\') { i += 2; continue; }
-		if (ch === '\n') return i;
-		if (inClass) {
-			if (ch === ']') inClass = false;
-			i++;
-			continue;
-		}
-		if (ch === '[') { inClass = true; i++; continue; }
-		if (ch === '/') {
-			i++;
-			while (/[A-Za-z]/.test(text[i] ?? '')) i++;
-			return i;
-		}
-		i++;
-	}
-	return i;
-}
-
-// The Express default import is only authoritative in its module scope. A nested function/block
-// may shadow that identifier, so application factories are accepted only at top level. Comments
-// are already masked by the caller; this walk also skips strings/templates/regex literals so
-// braces inside them cannot fabricate lexical depth.
-);
+	// Single-parameter arrow: `app => {`, `async app => {`, `app: App => {`.
+	const singleArrow = new RegExp(`(?:^|[^\\w$])(?:async\\s+)?${escaped}\\s*(?::[^=]+)?=>\\s*$`);
 	if (singleArrow.test(header)) return true;
 
+	// Parenthesized function/method/arrow parameters immediately preceding this block.
 	const paramsMatch = header.match(/\(([^()]*)\)\s*(?::[^{}=]+)?(?:=>)?\s*$/);
 	if (!paramsMatch) return false;
 	const params = paramsMatch[1];
 	const before = header.slice(0, paramsMatch.index).trimEnd();
 	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
 	const isArrow = /=>\s*$/.test(header);
-	if (leader === 'for') return new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\b`).test(params);
+
+	// Control-statement parens are not lexical parameter bindings. A for-loop declaration is.
 	if (['if', 'while', 'switch', 'with'].includes(leader) && !isArrow) return false;
+	if (leader === 'for' && !isArrow) {
+		return new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\b`).test(params);
+	}
 	return splitTopLevelArgs(params).some((param) => {
 		const binding = param.trim().match(/^(?:\.\.\.\s*)?([A-Za-z_$][\w$]*)/);
 		return binding?.[1] === name;
