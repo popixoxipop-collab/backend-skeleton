@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:50:00+09:00",
+  "observed_at": "2026-09-27T15:54:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -637,34 +637,30 @@
     "next": "Release/default remains separately gated by T19-03, T20-03, direct final-main release CI, and final release rehearsal."
   },
   "release_control": {
-    "phase": "AUTH_HARDENING_INTEGRATED_BLOCKED",
-    "pr": 148,
-    "reviewed_head": "0c0d03e94f1b8a72db3510f2bf40a88a7db46ec0",
-    "merge_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
-    "ci_run": 36286918045,
+    "phase": "AUTH_HARDENING_INTEGRATED",
+    "pr": 151,
+    "reviewed_head": "09194807950f886341ffc3672fe57beb8861b151",
+    "merge_sha": "8015f7c78d62f3e5c8e0122cb0f1a891583a7665",
+    "ci_run": 36301534905,
+    "ci_run_number": 1368,
     "ci_conclusion": "success",
-    "policy_regressions": "29/29 PASS",
-    "evidence_resolution": "checked-in manifest + byte rehash + check-id + exact release-head binding",
+    "codex_review": "CLEAN",
+    "local_policy_regressions": "29/29 PASS",
+    "merge_relation": "ahead 1 / behind 0 / file delta 0",
     "release_allowed": false,
     "default_activation_allowed": false,
+    "product_release_heads": {
+      "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "becoder": "eb8164560ddd343306234a9140dc89c001519792",
+      "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
+    },
     "remaining_blockers": [
       "FINAL_MAIN_PUSH_CI_NOT_DIRECT",
       "INDEPENDENT_QA_NOT_READY",
       "TRUST_POLICY_NOT_READY",
       "FINAL_RELEASE_REHEARSAL_NOT_RUN",
       "RELEASE_CHECKS_NOT_COMPLETE"
-    ],
-    "merged_main_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
-    "hardening_branch": "t00/t23-release-auth-hardening-r2",
-    "default_activation": false,
-    "auth_hardening_branch": "t00/t23-release-auth-hardening-r2",
-    "auth_hardening_candidate_head": "f0a2fc8949a53888636908fbfb352ccc6949f415",
-    "auth_hardening_base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-    "hardening_pr": 151,
-    "hardening_reviewed_head": "09194807950f886341ffc3672fe57beb8861b151",
-    "hardening_merge_sha": "8015f7c78d62f3e5c8e0122cb0f1a891583a7665",
-    "hardening_ci_run": 36301534905,
-    "hardening_ci_conclusion": "success"
+    ]
   },
   "t20_03": {
     "state": "LINUX_CONTAINER_SLICE_REVIEW_IN_PROGRESS",
@@ -697,18 +693,37 @@
     "exact_head_blob_identity": "7/7 Git blob SHA matched GitHub"
   },
   "t19_03": {
-    "state": "BLOCKED_PACKET_INTEGRATED",
-    "packet_pr": 149,
-    "packet_merge_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-    "provenance_pr": 152,
-    "provenance_merge_sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
-    "qa_repo": "popixoxipop-collab/backend-skeleton",
-    "qa_pr": 118,
+    "state": "PACKET_INTEGRATED_BLOCKED",
     "verdict": "BLOCKED",
+    "packet_pr": 149,
+    "packet_reviewed_head": "2cf923ca9b698094e94eb278c61e357b9e4a7dcc",
+    "packet_merge_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+    "packet_ci_run": 36293357416,
+    "packet_ci_run_number": 1362,
+    "packet_ci_conclusion": "success",
+    "qa_authority_fix_pr": 152,
+    "qa_authority_fix_head": "26e7925a06087e59bc20c59cb9d80884fb00ea47",
+    "qa_authority_fix_merge_sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
+    "qa_authority_fix_ci_run": 36301988431,
+    "qa_authority_fix_ci_run_number": 1369,
+    "qa_authority_fix_ci_conclusion": "success",
+    "qa_authority_fix_codex_review": "CLEAN",
+    "owned_path_merge_note": "PR #152 merged after concurrent T23 control-plane changes; release/next differs from the PR head, while the T19 packet/test owned paths were integrated without semantic rewrite.",
+    "product_release_heads": {
+      "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "becoder": "eb8164560ddd343306234a9140dc89c001519792",
+      "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
+    },
     "blockers": [
       "HOLDOUT_ISSUE_119_OPEN",
-      "NO_T19_RELEASE_CERTIFICATE",
+      "T19_RELEASE_CERTIFICATE_NOT_ISSUED",
       "T20_03_NOT_ACCEPTED"
-    ]
+    ],
+    "full_closeout_claimed": false
+  },
+  "control_plane_main": {
+    "repo": "popixoxipop-collab/backend-skeleton",
+    "sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
+    "note": "Current backend-skeleton main includes T19 packet integration, T23 authenticated release-control hardening, and T19 QA authority pin follow-up."
   }
 }
