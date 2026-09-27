@@ -59,36 +59,82 @@ function expressRouterFactoryPatterns(text) {
 	return [...patterns];
 }
 
-function routerVariables(text) {
-	const out = new Set();
-	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
-		const declarationRe = new RegExp(
-			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
-			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
-			'g',
-		);
-		for (const match of text.matchAll(declarationRe)) {
-			if (isCodePosition(text, match.index)) out.add(match[1]);
+function splitBindingDeclaratorsWithOffsets(text) {
+	const parts = [];
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	let lastSignificant = null;
+	let start = 0;
+	const pushPart = (end) => {
+		const raw = text.slice(start, end);
+		const leading = raw.search(/\S/);
+		if (leading !== -1) parts.push({ text: raw.trim(), offset: start + leading });
+	};
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			continue;
 		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+		else if (ch === ',' && round === 0 && square === 0 && curly === 0) {
+			pushPart(i);
+			start = i + 1;
+			lastSignificant = ',';
+			continue;
+		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
-	return [...out].sort();
+	pushPart(text.length);
+	return parts;
 }
 
-function routerDeclarations(text, name) {
+function routerDeclarationsAll(text) {
 	const out = [];
-	const escapedName = escapeRegex(name);
-	for (const factoryPattern of expressRouterFactoryPatterns(text)) {
-		const declarationRe = new RegExp(
-			'\\b(?:export\\s+)?(const|let|var)\\s+' + escapedName +
-			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + factoryPattern + '\\s*\\(',
-			'g',
-		);
-		for (const match of text.matchAll(declarationRe)) {
-			if (!isCodePosition(text, match.index)) continue;
-			out.push({ index: match.index, declarationKind: match[1] });
+	const factoryPatterns = expressRouterFactoryPatterns(text);
+	for (const declaration of text.matchAll(/\b(const|let|var)\b/g)) {
+		if (!isCodePosition(text, declaration.index)) continue;
+		const clauseStart = declaration.index + declaration[0].length;
+		const clause = readVariableDeclarationClause(text, clauseStart);
+		for (const part of splitBindingDeclaratorsWithOffsets(clause)) {
+			const assignment = topLevelBindingSeparator(part.text, '=');
+			if (assignment === -1) continue;
+			const lhs = part.text.slice(0, assignment).trim();
+			const rhs = part.text.slice(assignment + 1).trim();
+			const nameMatch = lhs.match(/^([A-Za-z_$][\w$]*)\s*(?::[\s\S]*)?$/);
+			if (!nameMatch) continue;
+			const isRouterFactory = factoryPatterns.some((pattern) =>
+				new RegExp('^(?:' + pattern + ')\\s*\\(').test(rhs));
+			if (!isRouterFactory) continue;
+			out.push({
+				name: nameMatch[1],
+				index: clauseStart + part.offset,
+				declarationKind: declaration[1],
+			});
 		}
 	}
 	return out.sort((x, y) => x.index - y.index);
+}
+
+function routerVariables(text) {
+	return [...new Set(routerDeclarationsAll(text).map((declaration) => declaration.name))].sort();
+}
+
+function routerDeclarations(text, name) {
+	return routerDeclarationsAll(text).filter((declaration) => declaration.name === name);
 }
 
 function routerDeclarationPositions(text, name) {
@@ -562,13 +608,43 @@ function scopeIsFunctionLike(text, openIndex) {
 	return !['if', 'while', 'switch', 'with', 'for', 'catch'].includes(leader);
 }
 
+function skipStatementWhitespace(text, index) {
+	let i = index;
+	while (i < text.length && /\s/.test(text[i])) i++;
+	return i;
+}
+
 function singleStatementEnd(text, startIndex) {
+	const start = skipStatementWhitespace(text, startIndex);
+	if (text[start] === '{') {
+		const close = matchingBraceClose(text, start);
+		return close === -1 ? text.length : close + 1;
+	}
+
+	if (/^if\b/.test(text.slice(start))) {
+		let open = start + 2;
+		while (open < text.length && /\s/.test(text[open])) open++;
+		if (text[open] === '(') {
+			const close = matchingParenClose(text, open);
+			if (close !== -1) {
+				const consequentStart = skipStatementWhitespace(text, close + 1);
+				const consequentEnd = singleStatementEnd(text, consequentStart);
+				let next = skipStatementWhitespace(text, consequentEnd);
+				if (/^else\b/.test(text.slice(next))) {
+					next = skipStatementWhitespace(text, next + 4);
+					return singleStatementEnd(text, next);
+				}
+				return consequentEnd;
+			}
+		}
+	}
+
 	let round = 0;
 	let square = 0;
 	let curly = 0;
 	let quote = null;
 	let lastSignificant = null;
-	for (let i = startIndex; i < text.length; i++) {
+	for (let i = start; i < text.length; i++) {
 		const ch = text[i];
 		if (quote) {
 			if (ch === '\\') { i++; continue; }
@@ -576,7 +652,7 @@ function singleStatementEnd(text, startIndex) {
 			continue;
 		}
 		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
-		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(startIndex, i - 512), i))) {
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(start, i - 512), i))) {
 			const next = skipScopeRegexLiteral(text, i);
 			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
 		}
@@ -634,7 +710,7 @@ function isInsideForHeader(text, targetIndex) {
 		const closeIndex = matchingParenClose(text, openIndex);
 		if (closeIndex === -1 || closeIndex < targetIndex) continue;
 		const before = text.slice(Math.max(0, openIndex - 128), openIndex).trimEnd();
-		if (/\bfor\s*$/.test(before)) return true;
+		if (/\bfor(?:\s+await)?\s*$/.test(before)) return true;
 	}
 	return false;
 }
@@ -872,7 +948,8 @@ function routerBindingAt(text, name, targetIndex) {
 	if (expressionArrowShadowsName(text, name, targetIndex)) return null;
 	const forBinding = activeForHeaderBindingAt(text, name, targetIndex);
 	if (forBinding) {
-		const declaration = routerDeclarations(text, name).find((item) => item.index === forBinding.declarationIndex);
+		const declaration = routerDeclarations(text, name).find((item) =>
+			item.index >= forBinding.declarationIndex && item.index < forBinding.closeIndex);
 		if (!declaration) return null;
 		const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
 		let protectedDepth = callScopes.length;
