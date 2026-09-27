@@ -98,7 +98,7 @@ function expressDefaultBindings(text) {
 }
 
 const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
-const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
 
 function scopeRegexStarts(lastSignificant, recentText) {
 	if (lastSignificant === null) return true;
@@ -878,13 +878,18 @@ function buildMountEdges(files, fileTexts) {
 					const target = identMatch[1];
 
 					if (localReceivers.has(target)) {
-						if (applicationReceivers.has(target)) {
-							if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
-						} else if (!routerReferenceIsAuthorized(text, target, m.index)) continue;
-						edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
-						continue;
+						const localAuthorized = applicationReceivers.has(target)
+							? topLevelReferenceIsAuthorized(text, target, m.index)
+							: routerReferenceIsAuthorized(text, target, m.index);
+						if (localAuthorized) {
+							edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
+							continue;
+						}
 					}
 
+					// A same-named Router() elsewhere in the file must not suppress the binding that is
+					// actually active here; if the local receiver was out of scope, fall through to the
+					// top-level import resolver.
 					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
 					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
 					const importMatch = text.match(importRe);

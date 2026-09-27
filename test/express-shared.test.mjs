@@ -481,6 +481,11 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'  const app = fakeApp;',
 			"  app.get('/phantom-arrow-regex', phantomHandler);",
 			'}',
+			'function throwRegexThenShadow() {',
+			'  throw /[}]/;',
+			'  const app = fakeApp;',
+			"  app.get('/phantom-throw-regex', phantomHandler);",
+			'}',
 			'export default app;',
 		].join('\n'),
 	});
@@ -494,6 +499,37 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 		'GET /after-regex-initializer',
 		'GET /after-string',
 		'GET /api/child',
+	]);
+});
+test('typescript-express: an out-of-scope same-named local Router does not suppress the active imported mount target', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			"import router from './child';",
+			'const app = express();',
+			"app.use('/api', router);",
+			'function unrelated() {',
+			'  const router: Router = Router();',
+			"  router.get('/local-only', localHandler);",
+			'}',
+			'export default app;',
+		].join('\n'),
+		'child.ts': [
+			"import { Router } from 'express';",
+			'const child: Router = Router();',
+			"child.get('/child', childHandler);",
+			'export default child;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/child',
+		'GET /local-only',
 	]);
 });
 test('typescript-express: a Router() declared and mounted inside a function keeps its local mount prefix', () => {
