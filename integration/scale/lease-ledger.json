@@ -1439,7 +1439,7 @@
       "worker": "T00-T20-integration",
       "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-beval-t20-03-r1",
       "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
-      "observed_head_sha": "e272f2bdb69bc7f9a677ab03d0f6fe8c0fd8adfc",
+      "observed_head_sha": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
       "path_scopes": [
         "lib/next-runtime/linux-container-sandbox.mjs",
         "test/next-runtime/linux-container-sandbox.test.mjs",
@@ -1454,7 +1454,7 @@
       "issued_at": "2026-09-27T07:22:00Z",
       "expires_at": "2026-09-27T15:22:00Z",
       "state": "ACTIVE",
-      "reason": "Continue reviewed T20 Linux/container enforcement slice after r1 lease expiry. Partial slice only; no T20-03 closeout, cross-platform parity, or release readiness."
+      "reason": "Continue reviewed T20 Linux/container enforcement slice after r1 lease expiry. Exact candidate head 35b27af8c782a683ef29c0c5cedda3b540092ba1 has byte-matched EOE focused 21/21, next-runtime 75/75, pack PASS, diff PASS and real Docker 1/1 PASS. Partial slice only; no T20-03 closeout, cross-platform parity, or release readiness."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
