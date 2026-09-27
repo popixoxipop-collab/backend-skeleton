@@ -1278,8 +1278,10 @@
       "resource_class": "runtime-medium",
       "issued_at": "2026-09-26T19:20:00Z",
       "expires_at": "2026-09-27T07:20:00Z",
-      "state": "ACTIVE",
-      "reason": "First externally enforced Linux/Docker slice for T20-03. Default-deny network, read-only source/root, no-new-privileges, cap-drop, no device/socket mounts, bounded env/resources/output/time. Does not claim full T20-03 or release acceptance."
+      "state": "RELEASED",
+      "reason": "First externally enforced Linux/Docker slice for T20-03. Default-deny network, read-only source/root, no-new-privileges, cap-drop, no device/socket mounts, bounded env/resources/output/time. Does not claim full T20-03 or release acceptance.",
+      "released_at": "2026-09-27T07:50:00Z",
+      "release_reason": "Lease expired at 2026-09-27T07:20:00Z with no PR opened. Branch t00/t20-03-linux-docker-sandbox-r1 is preserved at c2c224676c1bde69e39f4c23c122ea670f7b256b for evidence/recovery, but no write authority remains."
     },
     {
       "claim_id": "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r1",
