@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:55:00+09:00",
+  "observed_at": "2026-09-27T17:14:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -260,10 +260,11 @@
       "expires_at": "2026-09-27T14:06:00Z",
       "state": "ACTIVE"
     },
-    "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r2": {
+    "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r3": {
       "repo": "popixoxipop-collab/Backend-evaluation",
       "branch": "t00/t20-03-linux-container-enforcement-r1",
       "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "observed_head_sha": "4bd223b8ce1d543d8dde24bed8d2942a6a17a042",
       "path_scopes": [
         "lib/next-runtime/linux-container-sandbox.mjs",
         "test/next-runtime/linux-container-sandbox.test.mjs",
@@ -273,10 +274,9 @@
         "lib/next-runtime/docker-resource-lease.mjs",
         "test/next-runtime/runtime-docker-lease.test.mjs"
       ],
-      "fencing_token": 2,
-      "expires_at": "2026-09-27T15:22:00Z",
-      "state": "ACTIVE",
-      "observed_head_sha": "4bd223b8ce1d543d8dde24bed8d2942a6a17a042"
+      "fencing_token": 3,
+      "expires_at": "2026-09-27T12:14:00Z",
+      "state": "ACTIVE"
     }
   },
   "review_candidates": {
@@ -650,7 +650,7 @@
     ]
   },
   "t20_03": {
-    "state": "LINUX_CONTAINER_SLICE_FINAL_CI_IN_PROGRESS",
+    "state": "SNAPSHOT_HARDENING_IN_PROGRESS",
     "scope": "one hardened Linux/container target-runtime profile",
     "no_claims": [
       "cross-platform parity",
@@ -673,7 +673,7 @@
       "TRUST_BUILD_01",
       "CROSS_PLATFORM_PARITY"
     ],
-    "fencing_token": 2,
+    "fencing_token": 3,
     "reviewed_head": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
     "release_ready": false,
     "diff_check": "PASS",
@@ -689,7 +689,12 @@
     "latest_ci_run": 36304950509,
     "latest_ci_status": "in_progress",
     "latest_ci_run_number": 1066,
-    "latest_ci_completed_jobs": "next-runtime 20/22/24 success; unit 20/22/24 success; integration in_progress"
+    "latest_ci_completed_jobs": "next-runtime 20/22/24 success; unit 20/22/24 success; integration in_progress",
+    "remaining_review_findings": [
+      "NOFOLLOW_DIRECTORY_TRAVERSAL",
+      "PRIVATE_STAGING_IDENTITY",
+      "BOUNDED_STREAMING_SOURCE_COPY"
+    ]
   },
   "t19_03": {
     "state": "PACKET_INTEGRATED_BLOCKED",
