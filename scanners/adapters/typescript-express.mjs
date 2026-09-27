@@ -315,9 +315,43 @@ function topLevelBindingSeparator(text, token) {
 	return -1;
 }
 
+function stripLeadingParameterDecorators(text) {
+	let value = text.trimStart();
+	while (value.startsWith('@')) {
+		let i = 1;
+		const name = value.slice(i).match(/^([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)/);
+		if (!name) break;
+		i += name[1].length;
+		while (/\s/.test(value[i] ?? '')) i++;
+		if (value[i] === '<') {
+			let depth = 0;
+			let quote = null;
+			for (; i < value.length; i++) {
+				const ch = value[i];
+				if (quote) {
+					if (ch === '\\') { i++; continue; }
+					if (ch === quote) quote = null;
+					continue;
+				}
+				if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+				if (ch === '<') depth++;
+				else if (ch === '>' && --depth === 0) { i++; break; }
+			}
+			while (/\s/.test(value[i] ?? '')) i++;
+		}
+		if (value[i] === '(') {
+			const close = matchingParenClose(value, i);
+			if (close === -1) break;
+			i = close + 1;
+		}
+		value = value.slice(i).trimStart();
+	}
+	return value;
+}
 function leadingBindingPattern(text) {
-	let value = text.trim().replace(/^\.\.\.\s*/, '');
+	let value = stripLeadingParameterDecorators(text);
 	value = value.replace(/^(?:(?:public|private|protected|readonly|override)\s+)+/, '');
+	value = value.replace(/^\.\.\.\s*/, '');
 	if (!value) return '';
 	const ident = value.match(/^([A-Za-z_$][\w$]*)/);
 	if (ident) return ident[1];
@@ -1015,6 +1049,16 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 	return routerBindingAt(text, name, targetIndex) !== null;
 }
 
+function isEmptyExpressFactoryExpression(expression, binding) {
+	const value = expression.trim();
+	const factoryRe = new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)');
+	const match = value.match(factoryRe);
+	if (!match) return false;
+	const rest = value.slice(match[0].length).trim();
+	if (!rest) return true;
+	const typeRef = '(?:readonly\\s+)?[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*(?:\\s*<[^;=()]+>)?(?:\\s*\\[\\])*';
+	return new RegExp('^(?:(?:as|satisfies)\\s+' + typeRef + '\\s*)+$').test(rest);
+}
 function applicationBindings(text) {
 	const out = [];
 	const expressBindings = expressDefaultBindings(text);
@@ -1029,13 +1073,14 @@ function applicationBindings(text) {
 			const rhs = part.text.slice(assignment + 1).trim();
 			const nameMatch = lhs.match(/^([A-Za-z_$][\w$]*)\s*(?::[\s\S]*)?$/);
 			if (!nameMatch) continue;
-			const isExpressFactory = expressBindings.some((binding) =>
-				new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)$').test(rhs));
+			const isExpressFactory = expressBindings.some((binding) => isEmptyExpressFactoryExpression(rhs, binding));
 			if (!isExpressFactory) continue;
 			out.push({
 				kind: 'application',
 				name: nameMatch[1],
 				declarationIndex: clauseStart + part.offset,
+				initializationEnd: clauseStart + part.offset + part.text.length,
+				declarationKind: declaration[0],
 			});
 		}
 	}
@@ -1065,11 +1110,22 @@ function routeReceiverVariables(text) {
 	return [...new Set(routeReceiverBindings(text).map((binding) => binding.name))].sort();
 }
 
+function applicationBindingStillTrusted(text, binding, targetIndex) {
+	if (binding.declarationKind === 'const') return true;
+	const assignmentRe = new RegExp('(?<![\\w$\\.])' + escapeRegex(binding.name) + '\\s*=(?!=|>)', 'g');
+	for (const match of text.matchAll(assignmentRe)) {
+		if (match.index < binding.initializationEnd || match.index >= targetIndex) continue;
+		if (!isCodePosition(text, match.index) || !isTopLevelCodePosition(text, match.index)) continue;
+		return false;
+	}
+	return true;
+}
 function receiverBindingAt(text, name, targetIndex) {
 	const router = routerBindingAt(text, name, targetIndex);
 	if (router) return router;
 	const application = applicationBindings(text).find((binding) => binding.name === name);
-	if (application && topLevelReferenceIsAuthorized(text, name, targetIndex)) return application;
+	if (application && applicationBindingStillTrusted(text, application, targetIndex) &&
+		topLevelReferenceIsAuthorized(text, name, targetIndex)) return application;
 	return null;
 }
 
