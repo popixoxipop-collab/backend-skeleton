@@ -1414,7 +1414,7 @@
       "worker": "T00-T19-integration",
       "worktree": "github-contents-api",
       "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-      "observed_head_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+      "observed_head_sha": "26e7925a06087e59bc20c59cb9d80884fb00ea47",
       "path_scopes": [
         "test/t19-release-acceptance/**"
       ],
@@ -1422,8 +1422,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-27T07:05:00Z",
       "expires_at": "2026-09-27T15:05:00Z",
-      "state": "ACTIVE",
-      "reason": "Post-merge T19 provenance hardening: pin QA repository and PR identity for the already BLOCKED release-acceptance packet. No release/default approval."
+      "state": "RELEASED",
+      "reason": "Post-merge T19 provenance hardening: pin QA repository and PR identity for the already BLOCKED release-acceptance packet. No release/default approval.",
+      "released_at": "2026-09-27T07:21:00Z",
+      "release_reason": "PR #152 exact-head CI #1369 SUCCESS, Codex clean, EOE T19 guard 9/9 PASS, merged as 0bbaa7352944918d1d03fd3c83bcc38a29a01bef. T19 verdict remains BLOCKED."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
