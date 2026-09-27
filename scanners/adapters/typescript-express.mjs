@@ -1167,7 +1167,7 @@ function isBoundedTypeExpression(text) {
 	// The suffix is already in a TypeScript assertion position. Require balanced delimiters and
 	// reject runtime short-circuit operators that would mean the assertion ended before the tail.
 	// Single `&`/`|` remain valid for intersection/union types.
-	if (/&&|\\|\\||\\?\\?/.test(value)) return false;
+	if (/&&|\|\||\?\?/.test(value)) return false;
 	let angle = 0;
 	let quote = null;
 	for (let i = 0; i < value.length; i++) {
