@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:50:00+09:00",
+  "observed_at": "2026-09-27T16:51:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -658,7 +658,7 @@
       "native engine certification"
     ],
     "branch": "t00/t20-03-linux-container-enforcement-r1",
-    "candidate_head": "c03caad53c06fa975a016d98b4b1051e948dd50f",
+    "candidate_head": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
     "focused_tests": "21/21 PASS",
     "next_runtime": "75/75 PASS",
     "pack_smoke": "PASS",
@@ -683,7 +683,11 @@
       "branch": "t00/t20-03-linux-docker-sandbox-r1",
       "preserved_head": "c2c224676c1bde69e39f4c23c122ea670f7b256b",
       "state": "RELEASED_EXPIRED_NO_PR"
-    }
+    },
+    "exact_head_local_overlay": "byte-identical PR-owned files",
+    "unit_tests": "353/353 PASS",
+    "latest_ci_run": 36303940196,
+    "latest_ci_status": "in_progress"
   },
   "t19_03": {
     "state": "PACKET_INTEGRATED_BLOCKED",
