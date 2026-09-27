@@ -648,7 +648,51 @@ function expressionArrowShadowsName(text, name, targetIndex) {
 	return false;
 }
 
+function activeParenOpeningsAt(text, targetIndex) {
+	const openings = [];
+	let quote = null;
+	let lastSignificant = null;
+	let i = 0;
+	while (i < targetIndex) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i += 2; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			i++;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 512), i))) {
+			i = skipScopeRegexLiteral(text, i);
+			lastSignificant = '/';
+			continue;
+		}
+		if (ch === '(') openings.push(i);
+		else if (ch === ')') openings.pop();
+		if (!/\s/.test(ch)) lastSignificant = ch;
+		i++;
+	}
+	return openings;
+}
+
+function parameterScopeShadowsNameAt(text, name, targetIndex) {
+	for (const openIndex of activeParenOpeningsAt(text, targetIndex).reverse()) {
+		const closeIndex = matchingParenClose(text, openIndex);
+		if (closeIndex === -1 || closeIndex < targetIndex) continue;
+		const before = text.slice(Math.max(0, openIndex - 512), openIndex).trimEnd();
+		const after = text.slice(closeIndex + 1, Math.min(text.length, closeIndex + 1024));
+		const isFunction = /\bfunction(?:\s+[A-Za-z_$][\w$]*)?\s*$/.test(before);
+		const isConstructor = /\bconstructor\s*$/.test(before);
+		const isArrow = /^\s*(?::[\s\S]*?)?=>/.test(after);
+		if (!isFunction && !isConstructor && !isArrow) continue;
+		const params = text.slice(openIndex + 1, closeIndex);
+		if (splitTopLevelArgs(params).some((param) => parameterBindsName(param, name))) return true;
+	}
+	return false;
+}
 function topLevelReferenceIsAuthorized(text, name, targetIndex) {
+	if (!isCodePosition(text, targetIndex)) return false;
+	if (parameterScopeShadowsNameAt(text, name, targetIndex)) return false;
 	if (expressionArrowShadowsName(text, name, targetIndex)) return false;
 	if (isTopLevelCodePosition(text, targetIndex)) return true;
 	const activeScopes = activeCodeScopeOpeningsAt(text, targetIndex);
@@ -662,6 +706,8 @@ function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	return true;
 }
 function routerBindingAt(text, name, targetIndex) {
+	if (!isCodePosition(text, targetIndex)) return null;
+	if (parameterScopeShadowsNameAt(text, name, targetIndex)) return null;
 	if (expressionArrowShadowsName(text, name, targetIndex)) return null;
 	const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
 	for (const openIndex of callScopes) {
@@ -895,9 +941,13 @@ function resolveRelativeImport(fromFile, specifier) {
 // './v1/'`). A file with no incoming edge is a root. Bounded, not general: a computed/dynamic mount
 // (`router.use(prefix, buildRouter())`) is skipped, never guessed at.
 function defaultExportedReceiverBinding(text) {
-	const match = text.match(/\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/);
-	if (!match) return null;
-	return receiverBindingAt(text, match[1], match.index);
+	const exportRe = /\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/g;
+	for (const match of text.matchAll(exportRe)) {
+		if (!isCodePosition(text, match.index)) continue;
+		const binding = receiverBindingAt(text, match[1], match.index);
+		if (binding) return binding;
+	}
+	return null;
 }
 
 function buildMountEdges(files, fileTexts) {
@@ -930,8 +980,11 @@ function buildMountEdges(files, fileTexts) {
 					}
 
 					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
-					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
-					const importMatch = text.match(importRe);
+					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
+					let importMatch = null;
+					for (const candidateMatch of text.matchAll(importRe)) {
+						if (isCodePosition(text, candidateMatch.index)) { importMatch = candidateMatch; break; }
+					}
 					if (!importMatch) continue;
 					const toFile = resolveRelativeImport(file, importMatch[1]);
 					if (!toFile || !fileSet.has(toFile)) continue;

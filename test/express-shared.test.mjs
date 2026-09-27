@@ -494,6 +494,7 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'  const app = fakeApp;',
 			"  app.get('/phantom-control-regex', phantomHandler);",
 			'}',
+			"function parameterDefault(app = fakeApp, x = app.get('/phantom-param-default', phantomHandler)) {}",
 			'export default app;',
 		].join('\n'),
 	});
@@ -569,6 +570,7 @@ test('typescript-express: an out-of-scope same-named local Router does not suppr
 		'tsconfig.json': '{}',
 		'src/server.ts': [
 			"import express, { Router } from 'express';",
+			"const importExample = \"import router from './wrong'\";",
 			"import router from './child';",
 			'const app = express();',
 			"app.use('/api', router);",
@@ -582,6 +584,7 @@ test('typescript-express: an out-of-scope same-named local Router does not suppr
 			"import { Router } from 'express';",
 			'const child: Router = Router();',
 			"child.get('/child', childHandler);",
+			"const exportExample = 'export default fake;';",
 			'export default child;',
 		].join('\n'),
 	});
