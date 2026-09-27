@@ -1470,7 +1470,7 @@
       "worker": "T00-T20-integration",
       "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-beval-t20-03-r1",
       "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
-      "observed_head_sha": "dc49fa27db1e6aceb3b8153873085337da85bc15",
+      "observed_head_sha": "27741d72d4d16fc9b43405de3ec31bbe3bd75899",
       "path_scopes": [
         "lib/next-runtime/linux-container-sandbox.mjs",
         "test/next-runtime/linux-container-sandbox.test.mjs",
@@ -1485,7 +1485,7 @@
       "issued_at": "2026-09-27T08:14:00Z",
       "expires_at": "2026-09-27T12:14:00Z",
       "state": "ACTIVE",
-      "reason": "Close reviewed T20 Linux/container enforcement slice on exact candidate dc49fa27db1e6aceb3b8153873085337da85bc15. Adds pre-abort rejection before synchronous source validation while preserving pinned openat staging, source budgets, daemon path challenge, owned lease labels, cancellation, input copy, cleanup recovery, and lease refresh. Partial slice only; no full T20-03/release claim."
+      "reason": "Close reviewed T20 Linux/container enforcement slice on candidate 27741d72d4d16fc9b43405de3ec31bbe3bd75899. Verification containers are create-only and file bytes are copied with docker cp -L then SHA-256 hashed by the evaluator, removing target-image sha256sum/tooling dependency. Also includes pre-abort validation, pinned openat staging, source budgets, daemon path challenge, leases and recovery. Partial slice only."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
