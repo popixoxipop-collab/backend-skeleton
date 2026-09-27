@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T04:32:00+09:00",
+  "observed_at": "2026-09-27T10:59:45+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -284,6 +284,18 @@
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T07:20:00Z",
+      "state": "ACTIVE"
+    },
+    "T00-T19-RELEASE-ACCEPTANCE-20260927-r1": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t19-release-acceptance-r1",
+      "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "path_scopes": [
+        "evidence/next/T19-RELEASE-ACCEPTANCE.json",
+        "test/conformance-next/t19-release-acceptance.test.mjs"
+      ],
+      "fencing_token": 1,
+      "expires_at": "2026-09-27T09:59:45Z",
       "state": "ACTIVE"
     }
   },
@@ -647,5 +659,10 @@
       "native engine certification"
     ],
     "branch": "t00/t20-03-linux-container-enforcement-r1"
+  },
+  "t19_03": {
+    "state": "RELEASE_ACCEPTANCE_PACKET_IN_PROGRESS",
+    "branch": "t00/t19-release-acceptance-r1",
+    "rule": "Independent QA may return BLOCKED; ACCEPTED requires exact evidence and must not be inferred from generic green CI."
   }
 }
