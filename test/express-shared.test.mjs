@@ -1277,7 +1277,7 @@ test('typescript-express: using declarations shadow an outer application receive
 		assert.ok(projectRoot);
 		const result = scanTypeScriptExpress(root, projectRoot);
 		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
-		assert.deepEqual(endpoints.map((e) => [e.method, e.path]), [['GET', '/real']]);
+		assert.deepEqual(endpoints.map((e) => [e.verb, e.path]), [['GET', '/real']]);
 	}
 });
 
@@ -1300,6 +1300,27 @@ test('typescript-express: for-of writes invalidate an existing mutable applicati
 	const result = scanTypeScriptExpress(root, projectRoot);
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: definite top-level update expressions invalidate mutable applications', () => {
+	for (const update of ['app++', '++app', 'app--', '--app']) {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				'let app: any = express();',
+				`${update};`,
+				"app.get('/phantom', phantomHandler);",
+			].join('\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+		assert.deepEqual(endpoints, []);
+	}
 });
 
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
