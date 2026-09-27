@@ -251,18 +251,49 @@ function parameterBindsName(parameter, name) {
 	return pattern ? bindingPatternBindsName(pattern, name) : false;
 }
 
+function readVariableDeclarationClause(text, startIndex, limitIndex = text.length) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	for (let i = startIndex; i < limitIndex; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+		else if ((ch === ';' || ch === '\n') && round === 0 && square === 0 && curly === 0) {
+			return text.slice(startIndex, i);
+		}
+	}
+	return text.slice(startIndex, limitIndex);
+}
+
+function variableClauseBindsName(clause, name) {
+	return splitTopLevelArgs(clause).some((declarator) => {
+		const pattern = leadingBindingPattern(declarator);
+		return pattern ? bindingPatternBindsName(pattern, name) : false;
+	});
+}
+
 function scopeBodyDeclaresName(text, name) {
 	const escaped = escapeRegex(name);
 	if (new RegExp('\\b(?:function|class)\\s+' + escaped + '\\b').test(text)) return true;
-	if (new RegExp('\\b(?:const|let|var)\\s+' + escaped + '\\b').test(text)) return true;
-	for (const match of text.matchAll(/\b(?:const|let|var)\s+([^;\n]+)/g)) {
-		for (const declarator of splitTopLevelArgs(match[1])) {
-			const pattern = leadingBindingPattern(declarator);
-			if ((pattern.startsWith('{') || pattern.startsWith('[')) && bindingPatternBindsName(pattern, name)) return true;
-		}
+	for (const match of text.matchAll(/\b(?:const|let|var)\b/g)) {
+		const clause = readVariableDeclarationClause(text, match.index + match[0].length);
+		if (variableClauseBindsName(clause, name)) return true;
 	}
 	return false;
 }
+
 function matchingParenClose(text, openIndex) {
 	let depth = 0;
 	let quote = null;
@@ -293,9 +324,7 @@ function parameterListBeforeBlock(text, blockOpenIndex) {
 	const searchStart = Math.max(0, close - 4096);
 	for (let open = close; open >= searchStart; open--) {
 		if (text[open] !== '(') continue;
-		if (matchingParenClose(text, open) === close) {
-			return { open, close, params: text.slice(open + 1, close) };
-		}
+		if (matchingParenClose(text, open) === close) return { open, close, params: text.slice(open + 1, close) };
 	}
 	return null;
 }
@@ -303,7 +332,6 @@ function parameterListBeforeBlock(text, blockOpenIndex) {
 function scopeHeaderShadowsName(text, openIndex, name) {
 	const header = text.slice(Math.max(0, openIndex - 4096), openIndex).trimEnd();
 	const escaped = escapeRegex(name);
-
 	const singleArrow = new RegExp('(?:^|[^\\w$])(?:async\\s+)?' + escaped + '\\s*(?::[^=]+)?=>\\s*$');
 	if (singleArrow.test(header)) return true;
 
@@ -313,18 +341,48 @@ function scopeHeaderShadowsName(text, openIndex, name) {
 	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
 	const tail = text.slice(list.close + 1, openIndex);
 	const isArrow = /=>\s*$/.test(tail);
-
 	if (['if', 'while', 'switch', 'with'].includes(leader) && !isArrow) return false;
 	if (leader === 'for' && !isArrow) return scopeBodyDeclaresName(list.params, name);
 	return splitTopLevelArgs(list.params).some((param) => parameterBindsName(param, name));
 }
 
-// A top-level Express application may legitimately be configured inside another function (the
-// T19 holdout does exactly this in Main()). Reject only active lexical scopes that introduce a
-// same-named binding, rather than rejecting every nested call wholesale.
-function scopeDirectlyDeclaresName(text, openIndex, targetIndex, name) {
+function matchingBraceClose(text, openIndex) {
+	let depth = 0;
+	let quote = null;
+	for (let i = openIndex; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '{') depth++;
+		else if (ch === '}') {
+			depth--;
+			if (depth === 0) return i;
+		}
+	}
+	return -1;
+}
+
+function scopeIsFunctionLike(text, openIndex) {
+	const header = text.slice(Math.max(0, openIndex - 4096), openIndex).trimEnd();
+	if (/(?:^|[^\\w$])(?:async\s+)?[A-Za-z_$][\w$]*\s*(?::[^=]+)?=>\s*$/.test(header)) return true;
+	const list = parameterListBeforeBlock(text, openIndex);
+	if (!list) return false;
+	const before = text.slice(Math.max(0, list.open - 256), list.open).trimEnd();
+	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
+	const tail = text.slice(list.close + 1, openIndex);
+	if (/=>\s*$/.test(tail)) return true;
+	return !['if', 'while', 'switch', 'with', 'for', 'catch'].includes(leader);
+}
+
+function scopeDirectlyDeclaresName(text, openIndex, name) {
+	const closeIndex = matchingBraceClose(text, openIndex);
+	const scopeEnd = closeIndex === -1 ? text.length : closeIndex;
 	const segmentStart = openIndex + 1;
-	const segment = text.slice(segmentStart, targetIndex);
+	const segment = text.slice(segmentStart, scopeEnd);
 	const directlyInside = (relativeIndex) => {
 		const scopes = activeCodeScopeOpeningsAt(text, segmentStart + relativeIndex);
 		return scopes[scopes.length - 1] === openIndex;
@@ -333,21 +391,126 @@ function scopeDirectlyDeclaresName(text, openIndex, targetIndex, name) {
 	for (const match of segment.matchAll(/\b(?:function|class)\s+([A-Za-z_$][\w$]*)\b/g)) {
 		if (match[1] === name && directlyInside(match.index)) return true;
 	}
-	for (const match of segment.matchAll(/\b(?:const|let|var)\s+([^;\n]+)/g)) {
+	for (const match of segment.matchAll(/\b(?:const|let|var)\b/g)) {
 		if (!directlyInside(match.index)) continue;
-		for (const declarator of splitTopLevelArgs(match[1])) {
-			const pattern = leadingBindingPattern(declarator);
-			if (pattern && bindingPatternBindsName(pattern, name)) return true;
+		const absoluteEnd = readVariableDeclarationClause(text, segmentStart + match.index + match[0].length, scopeEnd);
+		if (variableClauseBindsName(absoluteEnd, name)) return true;
+	}
+	return false;
+}
+
+function nearestFunctionScopeOpenAt(text, index) {
+	const openings = activeCodeScopeOpeningsAt(text, index);
+	for (let i = openings.length - 1; i >= 0; i--) {
+		if (scopeIsFunctionLike(text, openings[i])) return openings[i];
+	}
+	return null;
+}
+
+function functionScopeDeclaresVarName(text, functionOpenIndex, name) {
+	const closeIndex = matchingBraceClose(text, functionOpenIndex);
+	const scopeEnd = closeIndex === -1 ? text.length : closeIndex;
+	const segmentStart = functionOpenIndex + 1;
+	const segment = text.slice(segmentStart, scopeEnd);
+	for (const match of segment.matchAll(/\bvar\b/g)) {
+		const absoluteIndex = segmentStart + match.index;
+		if (nearestFunctionScopeOpenAt(text, absoluteIndex) !== functionOpenIndex) continue;
+		const clause = readVariableDeclarationClause(text, absoluteIndex + match[0].length, scopeEnd);
+		if (variableClauseBindsName(clause, name)) return true;
+	}
+	return false;
+}
+
+function delimiterDepthAt(text, targetIndex) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	for (let i = 0; i < targetIndex; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
 		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+	}
+	return { round, square, curly };
+}
+
+function arrowExpressionContainsTarget(text, arrowIndex, targetIndex) {
+	const initial = delimiterDepthAt(text, arrowIndex);
+	let round = initial.round;
+	let square = initial.square;
+	let curly = initial.curly;
+	let quote = null;
+	for (let i = arrowIndex + 2; i < targetIndex; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if ((ch === ',' || ch === ';') && round === initial.round && square === initial.square && curly === initial.curly) return false;
+		if (ch === '(') round++;
+		else if (ch === ')') { round--; if (round < initial.round) return false; }
+		else if (ch === '[') square++;
+		else if (ch === ']') { square--; if (square < initial.square) return false; }
+		else if (ch === '{') curly++;
+		else if (ch === '}') { curly--; if (curly < initial.curly) return false; }
+	}
+	return true;
+}
+
+function arrowParameterBindsName(text, arrowIndex, name) {
+	let end = arrowIndex - 1;
+	while (end >= 0 && /\s/.test(text[end])) end--;
+	if (end < 0) return false;
+	if (text[end] !== ')') {
+		const ident = text.slice(Math.max(0, end - 256), end + 1).match(/(?:^|[^\\w$])([A-Za-z_$][\w$]*)\s*$/);
+		return ident?.[1] === name;
+	}
+	const searchStart = Math.max(0, end - 4096);
+	for (let open = end; open >= searchStart; open--) {
+		if (text[open] !== '(') continue;
+		if (matchingParenClose(text, open) !== end) continue;
+		const params = text.slice(open + 1, end);
+		return splitTopLevelArgs(params).some((param) => parameterBindsName(param, name));
+	}
+	return false;
+}
+
+function expressionArrowShadowsName(text, name, targetIndex) {
+	const searchStart = Math.max(0, targetIndex - 8192);
+	const prefix = text.slice(searchStart, targetIndex);
+	for (const match of prefix.matchAll(/=>/g)) {
+		const arrowIndex = searchStart + match.index;
+		let bodyStart = arrowIndex + 2;
+		while (bodyStart < targetIndex && /\s/.test(text[bodyStart])) bodyStart++;
+		if (text[bodyStart] === '{') continue;
+		if (!arrowExpressionContainsTarget(text, arrowIndex, targetIndex)) continue;
+		if (arrowParameterBindsName(text, arrowIndex, name)) return true;
 	}
 	return false;
 }
 
 function topLevelReferenceIsAuthorized(text, name, targetIndex) {
+	if (expressionArrowShadowsName(text, name, targetIndex)) return false;
 	if (isTopLevelCodePosition(text, targetIndex)) return true;
-	for (const openIndex of activeCodeScopeOpeningsAt(text, targetIndex)) {
+	const activeScopes = activeCodeScopeOpeningsAt(text, targetIndex);
+	for (const openIndex of activeScopes) {
 		if (scopeHeaderShadowsName(text, openIndex, name)) return false;
-		if (scopeDirectlyDeclaresName(text, openIndex, targetIndex, name)) return false;
+		if (scopeDirectlyDeclaresName(text, openIndex, name)) return false;
+	}
+	for (const openIndex of activeScopes) {
+		if (scopeIsFunctionLike(text, openIndex) && functionScopeDeclaresVarName(text, openIndex, name)) return false;
 	}
 	return true;
 }
