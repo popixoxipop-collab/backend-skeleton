@@ -1164,7 +1164,7 @@ function isBoundedTypeExpression(text) {
 	// punctuation (union/intersection, tuples, object members, generics, function types) but not
 	// statement-level braces or arbitrary source text outside a type assertion.
 	if (!delimitersBalanced(value)) return false;
-	if (!/^[A-Za-z0-9_$\\s.<>{}\\[\\](),:;?'"`|&=!~+*/%-]+$/u.test(value)) return false;
+	if (!/^[A-Za-z0-9_$\\s.<>{}\\[\\](),:;?'"`|&=!~+*\\/%-]+$/u.test(value)) return false;
 	let angle = 0;
 	let quote = null;
 	for (let i = 0; i < value.length; i++) {
