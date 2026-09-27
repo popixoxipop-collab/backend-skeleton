@@ -561,7 +561,8 @@ function scopeHeaderShadowsName(text, openIndex, name) {
 	if (!list) return false;
 	const before = text.slice(Math.max(0, list.open - 256), list.open).trimEnd();
 	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
-	const namedFunction = before.match(/\bfunction\s+([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? null;
+	const functionHeader = stripTrailingTypeParameters(before);
+	const namedFunction = functionHeader.match(/\bfunction\s+([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? null;
 	if (namedFunction === name) return true;
 	const tail = text.slice(list.close + 1, openIndex);
 	const isArrow = /=>\s*$/.test(tail);
@@ -1007,16 +1008,26 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 
 function applicationBindings(text) {
 	const out = [];
-	for (const expressBinding of expressDefaultBindings(text)) {
-		const declarationRe = new RegExp(
-			'\\b(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)' +
-			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + escapeRegex(expressBinding) + '\\s*\\(\\s*\\)',
-			'g',
-		);
-		for (const match of text.matchAll(declarationRe)) {
-			if (isTopLevelCodePosition(text, match.index)) {
-				out.push({ kind: 'application', name: match[1], declarationIndex: match.index });
-			}
+	const expressBindings = expressDefaultBindings(text);
+	for (const declaration of text.matchAll(/\b(?:const|let|var)\b/g)) {
+		if (!isTopLevelCodePosition(text, declaration.index)) continue;
+		const clauseStart = declaration.index + declaration[0].length;
+		const clause = readVariableDeclarationClause(text, clauseStart);
+		for (const part of splitBindingDeclaratorsWithOffsets(clause)) {
+			const assignment = topLevelBindingSeparator(part.text, '=');
+			if (assignment === -1) continue;
+			const lhs = part.text.slice(0, assignment).trim();
+			const rhs = part.text.slice(assignment + 1).trim();
+			const nameMatch = lhs.match(/^([A-Za-z_$][\w$]*)\s*(?::[\s\S]*)?$/);
+			if (!nameMatch) continue;
+			const isExpressFactory = expressBindings.some((binding) =>
+				new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)$').test(rhs));
+			if (!isExpressFactory) continue;
+			out.push({
+				kind: 'application',
+				name: nameMatch[1],
+				declarationIndex: clauseStart + part.offset,
+			});
 		}
 	}
 	return out.sort((x, y) => x.declarationIndex - y.declarationIndex);

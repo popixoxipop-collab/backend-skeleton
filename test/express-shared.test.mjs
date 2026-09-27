@@ -506,6 +506,9 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'const namedFunction = function app() {',
 			"  app.get('/phantom-named-function', phantomHandler);",
 			'};',
+			'const namedGenericFunction = function app<T>() {',
+			"  app.get('/phantom-generic-named-function', phantomHandler);",
+			'};',
 			'function staleControlHeaderDivision() {',
 			'  if (enabled) run();',
 			'  const n = value() / 2; const app = fakeApp;',
@@ -669,6 +672,29 @@ test('typescript-express: an out-of-scope same-named local Router does not suppr
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
 		'GET /api/child',
 		'GET /local-only',
+	]);
+});
+test('typescript-express: express() in a later variable declarator keeps direct routes and mount prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const unused = 1, app = express();',
+			'const router: Router = Router();',
+			"app.get('/health', healthHandler);",
+			"router.get('/child', childHandler);",
+			"app.use('/api', router);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/child',
+		'GET /health',
 	]);
 });
 test('typescript-express: Router() in a later variable declarator is detected and mounted', () => {
