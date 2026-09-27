@@ -40,7 +40,7 @@
     "T00-T23-RELEASE-CONTROL": 2,
     "T00-T20-T16-SANDBOX": 1,
     "T00-BEVAL-T20-03-LINUX-SANDBOX": 1,
-    "T00-T19-RELEASE-ACCEPTANCE": 1,
+    "T00-T19-RELEASE-ACCEPTANCE": 2,
     "T00-T19-CURRENT-MAIN-QA": 1
   },
   "claims": [
@@ -1325,8 +1325,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-27T01:59:45Z",
       "expires_at": "2026-09-27T09:59:45Z",
-      "state": "ACTIVE",
-      "reason": "Create a fail-closed T19 release-acceptance packet without overlapping the separate T19 current-main QA lease. No release/default approval is authorized."
+      "state": "RELEASED",
+      "reason": "Create a fail-closed T19 release-acceptance packet without overlapping the separate T19 current-main QA lease. No release/default approval is authorized.",
+      "released_at": "2026-09-27T02:19:00Z",
+      "release_reason": "Superseded before restack because backend-skeleton main advanced to release-control merge 84a54e27114098d23cd0dafe1d9f6beb9baf090b."
     },
     {
       "claim_id": "T00-T19-CURRENT-MAIN-QA-20260927-r1",
@@ -1371,6 +1373,28 @@
       "expires_at": "2026-09-27T10:12:00Z",
       "state": "ACTIVE",
       "reason": "Post-merge hardening of release evidence authentication, explicit release status consistency, and separate default-activation lease gate. No release/default activation is authorized."
+    },
+    {
+      "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r2",
+      "task_id": "T19-03-release-acceptance-packet-restack",
+      "track": "T00-T19-RELEASE-ACCEPTANCE",
+      "canonical_track": "T19",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t19-release-acceptance-r1",
+      "worker": "T00-T19-integration",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-t19-release-packet-r1",
+      "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "observed_head_sha": "06a65d80d87d1aa7f2df783689bd6771b2678f38",
+      "path_scopes": [
+        "evidence/next/T19-RELEASE-ACCEPTANCE.json",
+        "test/conformance-next/t19-release-acceptance.test.mjs"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-27T02:19:00Z",
+      "expires_at": "2026-09-27T10:19:00Z",
+      "state": "ACTIVE",
+      "reason": "Restack the already reviewed BLOCKED T19 release-acceptance packet on current bskel main. No verdict weakening or release/default approval."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
