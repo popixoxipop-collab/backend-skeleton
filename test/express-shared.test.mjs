@@ -555,6 +555,65 @@ test('javascript-express: a named-imported middleware from a module that also ex
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'adminRouter is never mounted, so it must NOT inherit /api through the guard middleware');
 });
 
+test('javascript-express: a default-imported middleware never falls through to a named-exported router', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import guard from './guarded.js';",
+			"import things from './things.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'guarded.js': [
+			"import express from 'express';",
+			'const adminRouter = express.Router();',
+			"adminRouter.get('/secret', showSecret);",
+			'const guard = (req, res, next) => next();',
+			'export { adminRouter };',
+			'export default guard;',
+		].join('\n'),
+		'things.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'default middleware must not mount the unrelated named adminRouter under /api');
+});
+
+test('javascript-express: an aliased named export never binds an unrelated same-named local router', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { guard } from './guarded.js';",
+			"import things from './things.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'guarded.js': [
+			"import express from 'express';",
+			'const guard = express.Router();',
+			"guard.get('/secret', showSecret);",
+			'const middleware = (req, res, next) => next();',
+			'export { middleware as guard };',
+		].join('\n'),
+		'things.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'export { middleware as guard } must not make the local guard router inherit /api');
+});
+
 test('javascript-express: computed or call-expression handlers are still skipped, not guessed at', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),

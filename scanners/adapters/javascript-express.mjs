@@ -291,34 +291,47 @@ function exportedMountableName(text, mountables) {
 	return null;
 }
 
+// A default import can only bind the module's default hand-off. Do not fall through to a named
+// router merely because the default export is middleware. CommonJS module.exports is the default
+// value when consumed through ordinary interop, so it remains eligible here.
+function defaultExportedMountable(text, mountables) {
+	const commonJsMatch = text.match(/\\bmodule\\s*\\.\\s*exports\\s*=\\s*([\\w$]+)\\s*;?/);
+	if (commonJsMatch && mountables.has(commonJsMatch[1])) return commonJsMatch[1];
+	const defaultMatch = text.match(/export\\s+default\\s+([\\w$]+)\\s*;?/);
+	return defaultMatch && mountables.has(defaultMatch[1]) ? defaultMatch[1] : null;
+}
+
 // The mountable a named `import { name }` actually binds: `name` itself, and only if this file
-// exports it under that name (`export { name }` or `export const name = ...`). Same no-alias
-// restraint as exportedMountableName().
+// exports that SAME LOCAL binding under that name. Alias/re-export forms stay deliberately
+// unresolved (`export { middleware as guard }`, `export { guard } from './other.js'`).
 function namedExportedMountable(text, mountables, name) {
 	if (!mountables.has(name)) return null;
 	const escaped = alternationOf([name]);
-	const named = new RegExp(`export\\s*\\{(?:[^}]*[\\s,])?${escaped}\\s*[,}]`).test(text);
 	const decl = new RegExp(`\\bexport\\s+(?:const|let|var)\\s+${escaped}\\s*=`).test(text);
-	return named || decl ? name : null;
+	if (decl) return name;
+	for (const match of text.matchAll(/export\\s*\\{([^}]*)\\}(?!\\s*from\\b)/g)) {
+		const specifiers = splitTopLevelArgs(match[1]);
+		if (specifiers.some((specifier) => specifier.trim() === name)) return name;
+	}
+	return null;
 }
 
 // ESM default/named imports OR a CommonJS `const target = require('./relative')`. Alias forms stay
 // deliberately unresolved; this is only the source lookup for an already-observed mount target.
 //
-// Returns `{ source, named }`. `named` marks an ESM `import { target }`: that binding can only be
-// the target file's export OF THE SAME NAME, so the caller must not accept whatever other router
-// the file happens to export -- which matters once middleware positions are mount candidates
-// (`use('/x', LoginCheck, router)` with `import { LoginCheck } from './auth.js'`).
+// Returns `{ source, kind }` so resolution preserves binding semantics. A default import may only
+// use a default-exported mountable; a named import may only use the same local binding exported
+// under that name. This matters once middleware positions are mount candidates.
 function importSourceFor(text, target) {
 	const requireRe = new RegExp(`(?:\\b(?:const|let|var)\\s+|[,;]\\s*)${target}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']\\s*\\)`);
 	const requireMatch = text.match(requireRe);
-	if (requireMatch) return { source: requireMatch[1], named: false };
+	if (requireMatch) return { source: requireMatch[1], kind: 'require' };
 	const defaultImportRe = new RegExp(`import\\s+${target}\\s*(?:,\\s*\\{[^}]*\\})?\\s*from\\s*["']([^"']+)["']`);
 	const defaultMatch = text.match(defaultImportRe);
-	if (defaultMatch) return { source: defaultMatch[1], named: false };
+	if (defaultMatch) return { source: defaultMatch[1], kind: 'default' };
 	const namedImportRe = new RegExp(`import\\s*\\{\\s*${target}\\s*\\}\\s*from\\s*["']([^"']+)["']`);
 	const namedMatch = text.match(namedImportRe);
-	return namedMatch ? { source: namedMatch[1], named: true } : null;
+	return namedMatch ? { source: namedMatch[1], kind: 'named' } : null;
 }
 
 // Builds the mount graph over (file, variable) nodes. Two edge kinds, from either
@@ -382,14 +395,18 @@ function resolveMountTarget(file, info, expression, fileInfo, suffixes) {
 	if (target && info.mountables.has(target)) return nodeKey(file, target);
 	// Reaching here means it was not a local mountable; only a real import/require binding can
 	// turn it into a cross-file edge.
-	const imported = directRequireMatch ? { source: directRequireMatch[1], named: false } : (target ? importSourceFor(info.text, target) : null);
+	const imported = directRequireMatch
+		? { source: directRequireMatch[1], kind: 'require' }
+		: (target ? importSourceFor(info.text, target) : null);
 	if (!imported) return null;
 	const toFile = resolveRelativeModule(file, imported.source, suffixes);
 	if (!toFile || !fileInfo.has(toFile)) return null;
 	const toInfo = fileInfo.get(toFile);
-	const toVar = imported.named
+	const toVar = imported.kind === 'named'
 		? namedExportedMountable(toInfo.text, toInfo.mountables, target)
-		: exportedMountableName(toInfo.text, toInfo.mountables);
+		: imported.kind === 'default'
+			? defaultExportedMountable(toInfo.text, toInfo.mountables)
+			: exportedMountableName(toInfo.text, toInfo.mountables);
 	return toVar ? nodeKey(toFile, toVar) : null;
 }
 
