@@ -39,7 +39,7 @@ function validate(value) {
   if (value?.qa_authority?.negative_program?.all_catalog_cases_claimed_executable!==false) errors.push('CATALOG_OVERCLAIM');
   if (value?.qa_authority?.current_pr_release_certification_claimed!==false) errors.push('PR_RELEASE_OVERCLAIM');
   if (value?.holdout_findings?.some((x)=>x.issue===119&&x.state==='OPEN')!==true) errors.push('HOLDOUT_119');
-  if (value?.runtime_security_dependency?.gate!=='T20-03'||value?.runtime_security_dependency?.state==='ACCEPTED') errors.push('T20_STATE');
+  if (value?.runtime_security_dependency?.gate!=='T20-03'||value?.runtime_security_dependency?.state!=='NOT_ACCEPTED') errors.push('T20_STATE');
   if (value?.runtime_security_dependency?.full_closeout_claimed!==false) errors.push('T20_CLOSEOUT_OVERCLAIM');
 
   const blockers=Array.isArray(value?.blockers)?value.blockers:[];
@@ -104,5 +104,15 @@ test('release candidate heads are immutable release-control anchors',()=>{
     const x=structuredClone(packet);
     x.release_heads[role]='0'.repeat(40);
     assert.ok(validate(x).includes('HEAD_'+role),role);
+  }
+});
+
+
+test('missing or misspelled T20 state fails closed',()=>{
+  for (const bad of [undefined,null,'BLOCKED','NOT_ACCEPT']) {
+    const x=structuredClone(packet);
+    if (bad===undefined) delete x.runtime_security_dependency.state;
+    else x.runtime_security_dependency.state=bad;
+    assert.ok(validate(x).includes('T20_STATE'),String(bad));
   }
 });
