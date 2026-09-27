@@ -15767,3 +15767,41 @@ text into `::error`. It emits a SARIF path but deliberately does not upload it: 
 the caller to make a permissions and retention decision (the README shows `upload-sarif@v3`). The
 action does not select a runner and must not be used to run untrusted PR code on a self-hosted
 runner.
+
+## D-javascript-express-member-handlers-middleware-mounts: record `ctrl.fn` handlers and resolve `use(path, ...middleware, router)` mounts
+
+**WHY:** a real plain-JS production backend (Express 4 ESM, raw mysql2, serverless Lambda; 227
+route declarations) scanned as 6 endpoints, and `bskel scan --feature ... --terms reservation,...`
+returned verdict `greenfield` with the scan gate PASS although `/user/reservations`,
+`/designer/schedule` and `/…/reverse-auction` all exist. Two idioms caused it, both ordinary Express:
+1. `import * as reservationController from '...'` + `router.post('/', reservationController.createReservation)`
+   — 221 of the 227 routes. `extractEndpoints()` accepted only a bare identifier handler, so the
+   route itself was dropped, not just its name.
+2. `route.use('/reservations', LoginCheck, reservationRoute)` — auth middleware in front of the
+   sub-router. `buildMountEdges()` accepted only 1- or 2-argument `use()`, so the whole `/user`,
+   `/designer` and `/admin` prefix chains were lost.
+
+**Mechanism:** (1) a dotted member expression is recorded verbatim (whitespace-normalized) as
+`method`. This adapter has `codegen.handles: false`, so `method` is a label only; unlike
+typescript-express (D-typescript-express-inline-handlers COST) nothing correlates it to an import,
+so recording it guesses nothing. Computed access (`ctrl['x']`) and call expressions
+(`wrap(ctrl.x)`) remain skipped. (2) For `use('/literal', a, b, …)` every argument after the path
+is a mount candidate resolved independently by the existing rules; non-mountables (middleware)
+yield no edge. Because middleware identifiers now reach cross-file resolution, a NAMED import
+(`import { LoginCheck } from './auth.js'`) binds only a mountable exported under that same name —
+previously it bound whatever router the module exported, which would have mounted an unrelated
+router under the guard's prefix.
+
+**COST:** a multi-argument `use()` without a leading path literal (`app.use(mw, router)`) is still
+skipped. The typescript-express adapter keeps its member-expression skip.
+
+**EXIT:** revert `NAMED_HANDLER_RE`, the `candidates` loop / `resolveMountTarget()` and
+`namedExportedMountable()` in `scanners/adapters/javascript-express.mjs`.
+
+**Verified:** `test/express-shared.test.mjs` — 3 new tests (member handlers + middleware-guarded
+mounts with exact paths; named-import middleware not mistaken for a co-exported router, which fails
+when the named-import guard is disabled; computed/call handlers still skipped). Against the real
+backend: 6 → 227 endpoints in 25 modules, equal to a `git grep` count of route declarations, and
+the feature scan verdict moves from `greenfield` to `collision` (reservation:57, schedule:46).
+Full `npm test`: pass 1870 / fail 12 — the 12 failures are pre-existing and identical before the
+change (no JDK on the host: Java HandleCodec parity tests and one patch-propose test).
