@@ -1,0 +1,62 @@
+{
+  "schema": "bskel.t19-release-acceptance/1",
+  "observed_at": "2026-09-27T02:03:00Z",
+  "state": "BLOCKED",
+  "release_approved": false,
+  "default_activation_approved": false,
+  "release_heads": {
+    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+    "becoder": "eb8164560ddd343306234a9140dc89c001519792",
+    "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
+  },
+  "qa_authority": {
+    "repo": "popixoxipop-collab/backend-skeleton",
+    "pr": 118,
+    "head": "1a4e4da3b62bf0113d240c32bfede06f7884966d",
+    "exact_head_ci": {
+      "run_id": 36218926731,
+      "run_number": 1259,
+      "conclusion": "success",
+      "nested_node22_job": 108340401748,
+      "nested_node24_job": 108340401697
+    },
+    "direct_eoe": {
+      "request_id": "95631e68-a325-4b91-a4dc-46869c983b51",
+      "tests": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0
+    },
+    "negative_program": {
+      "catalog_total": 79,
+      "harness_mutants_executed": 7,
+      "product_mutants_executed": 13,
+      "all_catalog_cases_claimed_executable": false
+    },
+    "current_pr_release_certification_claimed": false
+  },
+  "holdout_findings": [
+    {
+      "issue": 119,
+      "state": "OPEN",
+      "title": "T19 holdout: TypeScript Express detector misses express.Router() with named Router import",
+      "expected_adapter": "typescript-express",
+      "observed_adapter": "generic-grep",
+      "fail_closed_behavior": "feature scan blocks low-confidence fallback"
+    }
+  ],
+  "runtime_security_dependency": {
+    "gate": "T20-03",
+    "state": "NOT_ACCEPTED",
+    "candidate_pr": 72,
+    "candidate_head": "a6199c22ff9ccdd824bf9242fa27ebc8962c3d00",
+    "candidate_scope": "partial hardened Linux/container slice",
+    "full_closeout_claimed": false
+  },
+  "blockers": [
+    "HOLDOUT_ISSUE_119_OPEN",
+    "NO_T19_RELEASE_CERTIFICATE",
+    "T20_03_NOT_ACCEPTED"
+  ],
+  "note": "T19 exact-head QA and mutation tests are green, but this packet deliberately does not convert strong internal QA evidence into release certification. The open holdout defect and unaccepted T20-03 boundary remain explicit."
+}
