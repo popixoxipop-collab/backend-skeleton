@@ -562,6 +562,73 @@ function scopeIsFunctionLike(text, openIndex) {
 	return !['if', 'while', 'switch', 'with', 'for', 'catch'].includes(leader);
 }
 
+function singleStatementEnd(text, startIndex) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	let lastSignificant = null;
+	for (let i = startIndex; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(startIndex, i - 512), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') { if (curly > 0) curly--; else return i; }
+		else if (ch === ';' && round === 0 && square === 0 && curly === 0) return i + 1;
+		if (!/\s/.test(ch)) lastSignificant = ch;
+	}
+	return text.length;
+}
+
+function activeForHeaderBindingAt(text, name, targetIndex) {
+	const forRe = /\bfor(?:\s+await)?\s*\(/g;
+	let best = null;
+	for (const match of text.matchAll(forRe)) {
+		if (match.index >= targetIndex || !isCodePosition(text, match.index)) continue;
+		const openIndex = text.indexOf('(', match.index);
+		const closeIndex = matchingParenClose(text, openIndex);
+		if (closeIndex === -1) continue;
+		const header = text.slice(openIndex + 1, closeIndex);
+		for (const declaration of header.matchAll(/\b(const|let|var)\b/g)) {
+			if (!isCodePosition(header, declaration.index)) continue;
+			const clause = readVariableDeclarationClause(header, declaration.index + declaration[0].length, header.length);
+			if (!variableClauseBindsName(clause, name)) continue;
+			const declarationIndex = openIndex + 1 + declaration.index;
+			let bodyStart = closeIndex + 1;
+			while (bodyStart < text.length && /\s/.test(text[bodyStart])) bodyStart++;
+			let bodyEnd;
+			let bodyOpen = null;
+			if (text[bodyStart] === '{') {
+				bodyOpen = bodyStart;
+				bodyEnd = matchingBraceClose(text, bodyStart);
+				if (bodyEnd === -1) bodyEnd = text.length;
+			} else {
+				bodyEnd = singleStatementEnd(text, bodyStart);
+			}
+			const inHeader = targetIndex > declarationIndex && targetIndex < closeIndex;
+			const inBody = targetIndex >= bodyStart && targetIndex < bodyEnd;
+			if (!inHeader && !inBody) continue;
+			const candidate = {
+				declarationKind: declaration[1], declarationIndex, openIndex, closeIndex,
+				bodyStart, bodyEnd, bodyOpen,
+			};
+			if (!best || candidate.openIndex > best.openIndex) best = candidate;
+		}
+	}
+	return best;
+}
 function isInsideForHeader(text, targetIndex) {
 	for (const openIndex of activeParenOpeningsAt(text, targetIndex).reverse()) {
 		const closeIndex = matchingParenClose(text, openIndex);
@@ -787,6 +854,7 @@ function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	if (!isCodePosition(text, targetIndex)) return false;
 	if (parameterScopeShadowsNameAt(text, name, targetIndex)) return false;
 	if (expressionArrowShadowsName(text, name, targetIndex)) return false;
+	if (activeForHeaderBindingAt(text, name, targetIndex)) return false;
 	if (isTopLevelCodePosition(text, targetIndex)) return true;
 	const activeScopes = activeCodeScopeOpeningsAt(text, targetIndex);
 	for (const openIndex of activeScopes) {
@@ -802,6 +870,22 @@ function routerBindingAt(text, name, targetIndex) {
 	if (!isCodePosition(text, targetIndex)) return null;
 	if (parameterScopeShadowsNameAt(text, name, targetIndex)) return null;
 	if (expressionArrowShadowsName(text, name, targetIndex)) return null;
+	const forBinding = activeForHeaderBindingAt(text, name, targetIndex);
+	if (forBinding) {
+		const declaration = routerDeclarations(text, name).find((item) => item.index === forBinding.declarationIndex);
+		if (!declaration) return null;
+		const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
+		let protectedDepth = callScopes.length;
+		if (forBinding.bodyOpen !== null) {
+			const bodyScopeIndex = callScopes.indexOf(forBinding.bodyOpen);
+			if (bodyScopeIndex !== -1) protectedDepth = bodyScopeIndex + 1;
+		}
+		for (let i = protectedDepth; i < callScopes.length; i++) {
+			if (scopeHeaderShadowsName(text, callScopes[i], name)) return null;
+			if (scopeDirectlyDeclaresName(text, callScopes[i], name)) return null;
+		}
+		return { kind: 'router', name, declarationIndex: declaration.index, declarationKind: declaration.declarationKind };
+	}
 	const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
 	for (const openIndex of callScopes) {
 		if (scopeHeaderShadowsName(text, openIndex, name)) return null;

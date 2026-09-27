@@ -441,6 +441,10 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			"  for (const app of fakeApps) { app.get('/phantom-for-loop', phantomHandler); }",
 			"  app.get('/after-for-loop', afterForHandler);",
 			'}',
+			'function unbracedForHeaderShadow() {',
+			"  for (const app of fakeApps) app.get('/phantom-unbraced-for', phantomHandler);",
+			"  app.get('/after-unbraced-for', afterUnbracedForHandler);",
+			'}',
 			'function varShadow() {',
 			'  { var app = fakeApp; }',
 			"  app.get('/phantom-var', phantomHandler);",
@@ -538,6 +542,7 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 		'GET /after-block',
 		'GET /after-for-loop',
 		'GET /after-regex-initializer',
+		'GET /after-unbraced-for',
 		'GET /after-string',
 		'GET /api/child',
 		'GET /block-regex/child',
@@ -655,6 +660,28 @@ test('typescript-express: an out-of-scope same-named local Router does not suppr
 		'GET /api/child',
 		'GET /local-only',
 	]);
+});
+test('typescript-express: Router() declared in a for header is the active receiver inside that loop body', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'function install() {',
+			'  for (const router: Router = Router(); cond; step()) {',
+			"    router.get('/child', childHandler);",
+			"    app.use('/for-api', router);",
+			'  }',
+			'}',
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /for-api/child']);
 });
 test('typescript-express: var Router() declared in a child block remains visible in its containing function', () => {
 	const root = writeTree({
