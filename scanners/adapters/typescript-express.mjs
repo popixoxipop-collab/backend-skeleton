@@ -315,6 +315,28 @@ function matchingParenClose(text, openIndex) {
 	return -1;
 }
 
+function delimitersBalanced(text) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '(') round++;
+		else if (ch === ')') { if (--round < 0) return false; }
+		else if (ch === '[') square++;
+		else if (ch === ']') { if (--square < 0) return false; }
+		else if (ch === '{') curly++;
+		else if (ch === '}') { if (--curly < 0) return false; }
+	}
+	return quote === null && round === 0 && square === 0 && curly === 0;
+}
 function parameterListBeforeBlock(text, blockOpenIndex) {
 	let close = blockOpenIndex - 1;
 	while (close >= 0 && /\s/.test(text[close])) close--;
@@ -325,7 +347,7 @@ function parameterListBeforeBlock(text, blockOpenIndex) {
 		// tails (`): Type {`) or parenthesized arrows (`) => {`). A bare child block must never
 		// reuse an older function/call `)` and become a fake function scope.
 		const tail = text.slice(candidateClose + 1, blockOpenIndex).trim();
-		if (!tail || tail.includes(';') || (!tail.startsWith(':') && !tail.includes('=>'))) return null;
+		if (!tail || tail.includes(';') || !delimitersBalanced(tail) || (!tail.startsWith(':') && !tail.includes('=>'))) return null;
 		close = candidateClose;
 	}
 	const searchStart = Math.max(0, close - 4096);
