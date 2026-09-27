@@ -446,6 +446,18 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 			'  } = source;',
 			"  app.get('/phantom-multiline', phantomHandler);",
 			'}',
+			'const inspect = app => app.name',
+			"app.get('/after-asi', asiHandler)",
+			'function objectReturnType(): { ok: boolean } {',
+			'  { var app = fakeApp; }',
+			"  app.get('/phantom-object-return', phantomHandler);",
+			'  return { ok: true };',
+			'}',
+			'class Holder {',
+			'  constructor(private readonly app: { get: Function }) {',
+			"    app.get('/phantom-parameter-property', phantomHandler);",
+			'  }',
+			'}',
 			'export default app;',
 		].join('\n'),
 	});
@@ -454,8 +466,35 @@ test('typescript-express: lexical scope resolution rejects shadowed mount target
 	const result = scanTypeScriptExpress(root, projectRoot);
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /after-asi',
 		'GET /after-block',
 		'GET /api/child',
+	]);
+});
+test('typescript-express: qualified receiver properties do not impersonate a trusted bare receiver', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			"app.get('/real', realHandler);",
+			"app.use('/api', router);",
+			"service.app.get('/phantom-service', phantomHandler);",
+			"service.app.use('/wrong-service', router);",
+			"this.app.get('/phantom-this', phantomHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/child',
+		'GET /real',
 	]);
 });
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {

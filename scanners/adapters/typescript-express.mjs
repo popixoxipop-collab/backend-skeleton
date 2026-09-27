@@ -203,7 +203,8 @@ function topLevelBindingSeparator(text, token) {
 }
 
 function leadingBindingPattern(text) {
-	const value = text.trim().replace(/^\.\.\.\s*/, '');
+	let value = text.trim().replace(/^\.\.\.\s*/, '');
+	value = value.replace(/^(?:(?:public|private|protected|readonly|override)\s+)+/, '');
 	if (!value) return '';
 	const ident = value.match(/^([A-Za-z_$][\w$]*)/);
 	if (ident) return ident[1];
@@ -324,7 +325,7 @@ function parameterListBeforeBlock(text, blockOpenIndex) {
 		// tails (`): Type {`) or parenthesized arrows (`) => {`). A bare child block must never
 		// reuse an older function/call `)` and become a fake function scope.
 		const tail = text.slice(candidateClose + 1, blockOpenIndex).trim();
-		if (!tail || /[{};]/.test(tail) || (!tail.startsWith(':') && !tail.includes('=>'))) return null;
+		if (!tail || tail.includes(';') || (!tail.startsWith(':') && !tail.includes('=>'))) return null;
 		close = candidateClose;
 	}
 	const searchStart = Math.max(0, close - 4096);
@@ -456,6 +457,8 @@ function arrowExpressionContainsTarget(text, arrowIndex, targetIndex) {
 	let square = initial.square;
 	let curly = initial.curly;
 	let quote = null;
+	let sawBodyToken = false;
+	let lastSignificant = null;
 	for (let i = arrowIndex + 2; i < targetIndex; i++) {
 		const ch = text[i];
 		if (quote) {
@@ -463,14 +466,24 @@ function arrowExpressionContainsTarget(text, arrowIndex, targetIndex) {
 			if (ch === quote) quote = null;
 			continue;
 		}
-		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
-		if ((ch === ',' || ch === ';') && round === initial.round && square === initial.square && curly === initial.curly) return false;
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; sawBodyToken = true; lastSignificant = ch; continue; }
+		const atBase = round === initial.round && square === initial.square && curly === initial.curly;
+		if ((ch === ',' || ch === ';') && atBase) return false;
+		if (ch === '\n' && atBase && sawBodyToken) {
+			let j = i + 1;
+			while (j < targetIndex && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r')) j++;
+			const next = text[j] ?? '';
+			const prevContinues = lastSignificant != null && '.?+-*/%&|^!=<>,:'.includes(lastSignificant);
+			const nextContinues = next !== '' && '.?+-*/%&|^!=<>,:([`'.includes(next);
+			if (!prevContinues && !nextContinues) return false;
+		}
 		if (ch === '(') round++;
 		else if (ch === ')') { round--; if (round < initial.round) return false; }
 		else if (ch === '[') square++;
 		else if (ch === ']') { square--; if (square < initial.square) return false; }
 		else if (ch === '{') curly++;
 		else if (ch === '}') { curly--; if (curly < initial.curly) return false; }
+		if (!/\s/.test(ch)) { sawBodyToken = true; lastSignificant = ch; }
 	}
 	return true;
 }
@@ -553,7 +566,7 @@ function staticPathLiteral(expression) {
 }
 
 function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
-	return new RegExp('\\b' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
+	return new RegExp('(?<![\\w$\\.])' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
 }
 
 // D-gate-precision (Continued, part 3): a pure PATH-CONVENTION heuristic, mirroring java-spring's
