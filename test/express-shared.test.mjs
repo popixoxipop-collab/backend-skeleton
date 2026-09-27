@@ -301,6 +301,56 @@ test('typescript-express: an express() application receiver contributes its own 
 	].sort());
 });
 
+test('typescript-express: same-file app -> router mounts keep receiver-specific prefixes and reject dynamic paths', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"const suffix = '/v1';",
+			"app.get('/health', rootHealth);",
+			"app.get('/computed' + suffix, computedHealth);",
+			"router.get('/users', listUsers);",
+			"app.use('/wrong' + suffix, router);",
+			"app.use('/api', router);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/users',
+		'GET /health',
+	]);
+});
+
+test('typescript-express: a shadowed default-import name inside a nested scope cannot authorize a phantom application', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/routes.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			"router.get('/real', realHandler);",
+			'function build(express: () => unknown) {',
+			'  const app = express();',
+			"  app.get('/phantom', phantomHandler);",
+			'  return app;',
+			'}',
+			'export default router;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),

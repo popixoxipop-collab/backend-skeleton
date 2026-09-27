@@ -83,6 +83,71 @@ function expressDefaultBindings(text) {
 	return [...out].sort();
 }
 
+const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+
+function scopeRegexStarts(lastSignificant, recentText) {
+	if (lastSignificant === null) return true;
+	if (SCOPE_REGEX_PRECEDING_CHARS.has(lastSignificant)) return true;
+	return SCOPE_REGEX_PRECEDING_KEYWORD_RE.test(recentText);
+}
+
+function skipScopeRegexLiteral(text, start) {
+	let i = start + 1;
+	let inClass = false;
+	while (i < text.length) {
+		const ch = text[i];
+		if (ch === '\\') { i += 2; continue; }
+		if (ch === '\n') return i;
+		if (inClass) {
+			if (ch === ']') inClass = false;
+			i++;
+			continue;
+		}
+		if (ch === '[') { inClass = true; i++; continue; }
+		if (ch === '/') {
+			i++;
+			while (/[A-Za-z]/.test(text[i] ?? '')) i++;
+			return i;
+		}
+		i++;
+	}
+	return i;
+}
+
+// The Express default import is only authoritative in its module scope. A nested function/block
+// may shadow that identifier, so application factories are accepted only at top level. Comments
+// are already masked by the caller; this walk also skips strings/templates/regex literals so
+// braces inside them cannot fabricate lexical depth.
+function isTopLevelCodePosition(text, targetIndex) {
+	let depth = 0;
+	let quote = null;
+	let lastSignificant = null;
+	let i = 0;
+	while (i < targetIndex) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i += 2; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			i++;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
+			const next = skipScopeRegexLiteral(text, i);
+			if (next > targetIndex) return false;
+			i = next;
+			lastSignificant = '/';
+			continue;
+		}
+		if (ch === '{') depth++;
+		else if (ch === '}') depth = Math.max(0, depth - 1);
+		if (!/\s/.test(ch)) lastSignificant = ch;
+		i++;
+	}
+	return quote === null && depth === 0;
+}
+
 function applicationVariables(text) {
 	const out = new Set();
 	for (const expressBinding of expressDefaultBindings(text)) {
@@ -91,13 +156,27 @@ function applicationVariables(text) {
 			'\\s*(?::\\s*[^=;\\n]+)?\\s*=\\s*' + escapeRegex(expressBinding) + '\\s*\\(\\s*\\)',
 			'g',
 		);
-		for (const match of text.matchAll(declarationRe)) out.add(match[1]);
+		for (const match of text.matchAll(declarationRe)) {
+			if (isTopLevelCodePosition(text, match.index)) out.add(match[1]);
+		}
 	}
 	return [...out].sort();
 }
 
 function routeReceiverVariables(text) {
 	return [...new Set([...routerVariables(text), ...applicationVariables(text)])].sort();
+}
+
+function nodeKey(file, receiverName) {
+	return `${file}\0${receiverName}`;
+}
+
+function staticPathLiteral(expression) {
+	const arg = expression?.trim() ?? '';
+	const match = arg.match(STRING_LITERAL_RE);
+	if (!match || match[0] !== arg) return null;
+	if (arg.startsWith('`') && match[1].includes('${')) return null;
+	return match[1];
 }
 
 function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
@@ -185,17 +264,17 @@ function extractEndpoints(text, receiverNames) {
 			const closeIdx = matchBalancedParens(text, openIdx);
 			if (closeIdx === -1) continue;
 			const argsText = text.slice(openIdx + 1, closeIdx);
-			const pathMatch = argsText.match(STRING_LITERAL_RE);
-			if (!pathMatch) continue;
-
 			const args = splitTopLevelArgs(argsText);
+			const routePath = staticPathLiteral(args[0]);
+			if (routePath === null) continue;
+
 			const lastArg = args[args.length - 1]?.trim();
 			const handlerMatch = lastArg?.match(/^(\w+)$/);
 			const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
 			if (!handlerMatch && !isInlineHandler) continue;
 
 			endpoints.push({
-				verb, path: pathMatch[1], operationId: null,
+				verb, path: routePath, operationId: null,
 				method: handlerMatch ? handlerMatch[1] : null,
 				line: lineNumberAt(text, m.index), _offset: m.index,
 			});
@@ -223,43 +302,60 @@ function resolveRelativeImport(fromFile, specifier) {
 // router-to-router mounts, which the real oracle confirms are always relative (`import v1 from
 // './v1/'`). A file with no incoming edge is a root. Bounded, not general: a computed/dynamic mount
 // (`router.use(prefix, buildRouter())`) is skipped, never guessed at.
+function defaultExportedReceiverName(text, receivers) {
+	const match = text.match(/\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/);
+	return match && receivers.has(match[1]) ? match[1] : null;
+}
+
 function buildMountEdges(files, fileTexts) {
-	const edges = []; // { fromFile, toFile, prefix }
+	const edges = []; // { from: nodeKey, to: nodeKey, prefix }
+	const fileSet = new Set(files);
 	for (const file of files) {
 		const text = fileTexts.get(file);
-		for (const routerName of routeReceiverVariables(text)) {
-			const useRe = routerMemberCallRe(routerName, 'use');
+		const localReceivers = new Set(routeReceiverVariables(text));
+		for (const receiver of localReceivers) {
+			const useRe = routerMemberCallRe(receiver, 'use');
 			for (const m of text.matchAll(useRe)) {
 				const openIdx = m.index + m[0].length - 1;
 				const closeIdx = matchBalancedParens(text, openIdx);
 				if (closeIdx === -1) continue;
 				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
 				if (args.length !== 2) continue;
-				const pathMatch = args[0].match(STRING_LITERAL_RE);
-				const identMatch = args[1].match(/^(\w+)$/);
-				if (!pathMatch || !identMatch) continue;
+				const prefix = staticPathLiteral(args[0]);
+				const identMatch = args[1].match(/^([A-Za-z_$][\w$]*)$/);
+				if (prefix === null || !identMatch) continue;
+				const target = identMatch[1];
 
-				const importRe = new RegExp('import\\s+' + identMatch[1] + '\\s+from\\s*["\x27]([^"\x27]+)["\x27]');
+				if (localReceivers.has(target)) {
+					edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });
+					continue;
+				}
+
+				const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]');
 				const importMatch = text.match(importRe);
 				if (!importMatch) continue;
 				const toFile = resolveRelativeImport(file, importMatch[1]);
-				if (!toFile || !files.includes(toFile)) continue;
+				if (!toFile || !fileSet.has(toFile)) continue;
+				const toText = fileTexts.get(toFile);
+				const toReceivers = new Set(routeReceiverVariables(toText));
+				const toReceiver = defaultExportedReceiverName(toText, toReceivers);
+				if (!toReceiver) continue;
 
-				edges.push({ fromFile: file, toFile, prefix: pathMatch[1] });
+				edges.push({ from: nodeKey(file, receiver), to: nodeKey(toFile, toReceiver), prefix });
 			}
 		}
 	}
 	return edges;
 }
 
-// Prefix chain from a mount-tree root down to `file`, or '' if `file` is itself a root (no
-// incoming edge) -- a file mounted through more than one path (unusual, not seen in the real
-// oracle) uses whichever edge is found first, a documented, narrow limitation rather than
-// resolving every possible path.
-function prefixChainFor(file, edges) {
-	const incoming = edges.find((e) => e.toFile === file);
+// Prefixes belong to receiver nodes, not whole files: one file may contain both an application
+// root and a Router mounted beneath it. Cycles are bounded rather than recursively guessed through.
+function prefixChainFor(node, edges, seen = new Set()) {
+	if (seen.has(node)) return '';
+	seen.add(node);
+	const incoming = edges.find((e) => e.to === node);
 	if (!incoming) return '';
-	return joinPath(prefixChainFor(incoming.fromFile, edges), incoming.prefix);
+	return joinPath(prefixChainFor(incoming.from, edges, seen), incoming.prefix);
 }
 
 // `@Entity('users') export class User { @PrimaryGeneratedColumn() id: number; ... }` -- table name
@@ -315,7 +411,7 @@ function extractTableEntities(text, file) {
 	return entities;
 }
 
-const API_SURFACE_SOURCE = 'route paths are resolved by walking the router mount-tree (router.use(\'/literal\', ' +
+const API_SURFACE_SOURCE = 'route paths are resolved by walking a receiver-aware Express mount-tree (.use(\'/literal\', ' +
 	'subRouter) edges through RELATIVE imports only -- a computed/dynamic mount is skipped, never guessed) -- ' +
 	'plain Express has no operationId concept at all (weaker than FastAPI, which at least generates one at ' +
 	'runtime), so they are never statically derivable here. Pass a real OpenAPI document via ' +
@@ -347,15 +443,18 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		// reason: a router declared as `Router({ mergeParams: true })` is ordinary Express, and
 		// this per-file gate previously skipped its whole file.
 		const receivers = routeReceiverVariables(text);
-		if (receivers.length > 0) {
-			const localEndpoints = extractEndpoints(text, receivers);
-			if (localEndpoints.length > 0) {
-				const prefix = prefixChainFor(file, edges);
-				const moduleName = path.basename(file, '.ts');
-				const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));
-				const className = `${moduleName.charAt(0).toUpperCase()}${moduleName.slice(1)}Router`;
-				moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
-			}
+		const moduleName = path.basename(file, '.ts');
+		const moduleClassBase = `${moduleName.charAt(0).toUpperCase()}${moduleName.slice(1)}`;
+		for (const receiver of receivers) {
+			const localEndpoints = extractEndpoints(text, [receiver]);
+			if (localEndpoints.length === 0) continue;
+			const prefix = prefixChainFor(nodeKey(file, receiver), edges);
+			const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));
+			const receiverSuffix = `${receiver.charAt(0).toUpperCase()}${receiver.slice(1)}`;
+			const className = receivers.length === 1
+				? `${moduleClassBase}Router`
+				: `${moduleClassBase}${receiverSuffix}Router`;
+			moduleEntry(moduleName).controllers.push({ className, basePath: prefix, operationIds: [], endpoints, file });
 		}
 		if (file.includes(DTO_DIR_SEGMENT) || DTO_NAME_SUFFIX_RE.test(path.basename(file, '.ts'))) {
 			allDtos.push({ className: path.basename(file, '.ts'), file }); // no `line` -- path/name-based, no content parsed
