@@ -40,7 +40,7 @@
     "T00-T23-RELEASE-CONTROL": 2,
     "T00-T20-T16-SANDBOX": 1,
     "T00-BEVAL-T20-03-LINUX-SANDBOX": 1,
-    "T00-T19-RELEASE-ACCEPTANCE": 2,
+    "T00-T19-RELEASE-ACCEPTANCE": 3,
     "T00-T19-CURRENT-MAIN-QA": 1
   },
   "claims": [
@@ -1401,6 +1401,27 @@
       "reason": "Restacked T19 release-acceptance packet on current control-plane main. Owns only the packet, its dedicated guard directory, and shared nested-suite registration. Verdict remains fail-closed/BLOCKED unless holdout #119, T20-03, and release certificate blockers are actually cleared.",
       "released_at": "2026-09-27T04:16:00Z",
       "release_reason": "PR #149 exact-head CI #1362 completed SUCCESS, exact-head Codex review returned no new findings, all review threads were resolved, and merge commit 60c4a6e121024eea0cec96b61038cd4dcec6bce8 is ahead 1 / behind 0 with zero file delta from reviewed head."
+    },
+    {
+      "claim_id": "T00-T19-RELEASE-ACCEPTANCE-20260927-r3",
+      "task_id": "T19-release-provenance-hardening",
+      "track": "T00-T19-RELEASE-ACCEPTANCE",
+      "canonical_track": "T19",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t19-release-provenance-hardening-r3",
+      "worker": "T00-T19-integration",
+      "worktree": "github-contents-api",
+      "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+      "observed_head_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+      "path_scopes": [
+        "test/t19-release-acceptance/**"
+      ],
+      "fencing_token": 3,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-27T07:05:00Z",
+      "expires_at": "2026-09-27T15:05:00Z",
+      "state": "ACTIVE",
+      "reason": "Post-merge T19 provenance hardening: pin QA repository and PR identity for the already BLOCKED release-acceptance packet. No release/default approval."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
