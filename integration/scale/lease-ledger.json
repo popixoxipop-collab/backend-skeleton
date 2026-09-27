@@ -37,7 +37,7 @@
     "T00-BEVAL-INTEGRATION": 1,
     "T00-BECODER-INTEGRATION": 1,
     "T00-BEVAL-T01-06-PACKED-REPLAY": 1,
-    "T00-T23-RELEASE-CONTROL": 1,
+    "T00-T23-RELEASE-CONTROL": 2,
     "T00-T20-T16-SANDBOX": 1,
     "T00-BEVAL-T20-03-LINUX-SANDBOX": 1,
     "T00-T19-RELEASE-ACCEPTANCE": 1,
@@ -1319,14 +1319,14 @@
       "observed_head_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
       "path_scopes": [
         "evidence/next/T19-RELEASE-ACCEPTANCE.json",
-        "test/conformance-next/t19-release-acceptance.test.mjs"
+        "test/t19-release-acceptance/**"
       ],
       "fencing_token": 1,
       "resource_class": "static-small",
       "issued_at": "2026-09-27T01:59:45Z",
       "expires_at": "2026-09-27T09:59:45Z",
       "state": "ACTIVE",
-      "reason": "Create an independent fail-closed T19 release-acceptance packet for the current integrated heads. The packet may remain BLOCKED; no release/default approval is authorized."
+      "reason": "Create a fail-closed T19 release-acceptance packet without overlapping the separate T19 current-main QA lease. No release/default approval is authorized."
     },
     {
       "claim_id": "T00-T19-CURRENT-MAIN-QA-20260927-r1",
@@ -1350,6 +1350,27 @@
       "expires_at": "2026-09-27T14:06:00Z",
       "state": "ACTIVE",
       "reason": "Clean current-main resubmission of T19 independent QA engine and public reference corpus. External/private holdout remains required for release certification; no release/default claim."
+    },
+    {
+      "claim_id": "T00-T23-RELEASE-CONTROL-20260927-r2",
+      "task_id": "T23-release-control-auth-hardening",
+      "track": "T00-T23-RELEASE-CONTROL",
+      "canonical_track": "T23",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t23-release-auth-hardening-r2",
+      "worker": "T00-release-integration",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-t23-release-auth-r2",
+      "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "observed_head_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "path_scopes": [
+        "release/next/**"
+      ],
+      "fencing_token": 2,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-27T02:12:00Z",
+      "expires_at": "2026-09-27T10:12:00Z",
+      "state": "ACTIVE",
+      "reason": "Post-merge hardening of release evidence authentication, explicit release status consistency, and separate default-activation lease gate. No release/default activation is authorized."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
