@@ -41,7 +41,8 @@
     "T00-T20-T16-SANDBOX": 1,
     "T00-BEVAL-T20-03-LINUX-SANDBOX": 3,
     "T00-T19-RELEASE-ACCEPTANCE": 3,
-    "T00-T19-CURRENT-MAIN-QA": 1
+    "T00-T19-CURRENT-MAIN-QA": 1,
+    "T00-BSKEL-JS-EXPRESS-FIX": 1
   },
   "claims": [
     {
@@ -1486,6 +1487,29 @@
       "expires_at": "2026-09-27T12:14:00Z",
       "state": "ACTIVE",
       "reason": "Close reviewed T20 Linux/container enforcement slice on candidate 27741d72d4d16fc9b43405de3ec31bbe3bd75899. Verification containers are create-only and file bytes are copied with docker cp -L then SHA-256 hashed by the evaluator, removing target-image sha256sum/tooling dependency. Also includes pre-abort validation, pinned openat staging, source budgets, daemon path challenge, leases and recovery. Partial slice only."
+    },
+    {
+      "claim_id": "T00-BSKEL-JS-EXPRESS-FIX-20260927-r1",
+      "task_id": "javascript-express-member-handlers-middleware-mounts-review",
+      "track": "T00-BSKEL-JS-EXPRESS-FIX",
+      "canonical_track": "T00",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "fix/javascript-express-member-handlers-middleware-mounts",
+      "worker": "T00-integration",
+      "worktree": "/Users/eoe/mcp-sandbox/tailnet-commander/t00-js-express-pr153-r1",
+      "base_sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
+      "observed_head_sha": "8a2eebc2bf1ef1751fcba398fc28fb00041a63bb",
+      "path_scopes": [
+        "DECISIONS.md",
+        "scanners/adapters/javascript-express.mjs",
+        "test/express-shared.test.mjs"
+      ],
+      "fencing_token": 1,
+      "resource_class": "static-small",
+      "issued_at": "2026-09-27T07:55:00Z",
+      "expires_at": "2026-09-27T12:55:00Z",
+      "state": "ACTIVE",
+      "reason": "Review and integrate PR #153 after-the-fact under explicit T00 ownership. Scope is exactly the three PR files; no other scanner/release/T19/T20 files are authorized."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
