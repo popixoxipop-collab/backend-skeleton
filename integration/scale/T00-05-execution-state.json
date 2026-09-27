@@ -277,6 +277,24 @@
       "fencing_token": 3,
       "expires_at": "2026-09-27T12:14:00Z",
       "state": "ACTIVE"
+    },
+    "T00-BEVAL-T20-03-LINUX-SANDBOX-20260927-r2": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "branch": "t00/t20-03-linux-container-enforcement-r1",
+      "base_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "observed_head_sha": "97f13d968e59172411782dc1e21b4b11a2865584",
+      "path_scopes": [
+        "lib/next-runtime/linux-container-sandbox.mjs",
+        "test/next-runtime/linux-container-sandbox.test.mjs",
+        "test/integration/t20-linux-container-sandbox.test.mjs",
+        "scripts/t20-linux-container-evidence.mjs",
+        "docs/next-runtime/T20_LINUX_CONTAINER_SANDBOX.md",
+        "lib/next-runtime/docker-resource-lease.mjs",
+        "test/next-runtime/runtime-docker-lease.test.mjs"
+      ],
+      "fencing_token": 4,
+      "expires_at": "2026-09-27T16:07:00Z",
+      "state": "ACTIVE"
     }
   },
   "review_candidates": {
@@ -650,7 +668,7 @@
     ]
   },
   "t20_03": {
-    "state": "IMAGE_INDEPENDENT_VERIFY_VALIDATED_REVIEW_PENDING",
+    "state": "LINUX_CONTAINER_ENFORCEMENT_INTEGRATION_REVIEW",
     "scope": "one hardened Linux/container target-runtime profile",
     "no_claims": [
       "cross-platform parity",
@@ -673,7 +691,7 @@
       "TRUST_BUILD_01",
       "CROSS_PLATFORM_PARITY"
     ],
-    "fencing_token": 3,
+    "fencing_token": 4,
     "reviewed_head": "35b27af8c782a683ef29c0c5cedda3b540092ba1",
     "release_ready": false,
     "diff_check": "PASS",
@@ -721,7 +739,11 @@
       "t20_03_complete": false,
       "release_ready": false
     },
-    "image_verification": "docker create + docker cp -L + evaluator-side SHA-256; no target-image sha256sum/shell utility dependency"
+    "image_verification": "docker create + docker cp -L + evaluator-side SHA-256; no target-image sha256sum/shell utility dependency",
+    "pr": 72,
+    "current_head": "97f13d968e59172411782dc1e21b4b11a2865584",
+    "full_closeout_claimed": false,
+    "note": "Prior token-1 lease expired before review completion; token-2 lease now governs review/merge. Current slice remains partial."
   },
   "t19_03": {
     "state": "PACKET_INTEGRATED_BLOCKED",
