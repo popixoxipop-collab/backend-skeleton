@@ -148,9 +148,19 @@ function routerDeclarationPositions(text, name) {
 // callable, or an unrelated object's .Router(), never becomes authoritative through this path.
 function expressDefaultBindings(text) {
 	const out = new Set();
-	const importRe = /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]express['"]/g;
-	for (const match of text.matchAll(importRe)) {
+	const directImportRe = /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]express['"]/g;
+	for (const match of text.matchAll(directImportRe)) {
 		if (isCodePosition(text, match.index)) out.add(match[1]);
+	}
+	// ESM also permits the default binding inside a named specifier list:
+	// `import { default as express, Router } from 'express'`.
+	const namedImportRe = /import\s*\{([^}]*)\}\s*from\s*['"]express['"]/g;
+	for (const match of text.matchAll(namedImportRe)) {
+		if (!isCodePosition(text, match.index)) continue;
+		for (const raw of match[1].split(',')) {
+			const binding = raw.trim().match(/^default\s+as\s+([A-Za-z_$][\w$]*)$/);
+			if (binding) out.add(binding[1]);
+		}
 	}
 	return [...out].sort();
 }
@@ -1189,7 +1199,12 @@ function staticPathLiteral(expression) {
 }
 
 function routerMemberCallRe(routerName, memberPattern, flags = 'g') {
-	return new RegExp('(?<![\\w$\\.#])' + routerName + '\\.(' + memberPattern + ')\\s*\\(', flags);
+	// `\\w` is ASCII-only, so it incorrectly treats the suffix in a valid Unicode identifier
+	// such as `éapp.get(...)` as a bare `app` receiver. Use ECMAScript identifier-continue
+	// semantics (plus $, ZWNJ/ZWJ) for the left boundary instead.
+	const unicodeFlags = flags.includes('u') ? flags : `${flags}u`;
+	return new RegExp('(?<![$\\p{ID_Continue}\\u200C\\u200D.#])' + escapeRegex(routerName) +
+		'\\.(' + memberPattern + ')\\s*\\(', unicodeFlags);
 }
 
 // D-gate-precision (Continued, part 3): a pure PATH-CONVENTION heuristic, mirroring java-spring's

@@ -224,6 +224,29 @@ test('typescript-express: a router declared as Router({ mergeParams: true }) is 
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /:id']);
 });
 
+test('typescript-express: `default as` named specifier still authorizes the Express application factory', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import { default as express, Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			"app.get('/health', healthHandler);",
+			"app.use('/api', router);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /api/child',
+		'GET /health',
+	]);
+});
 test('typescript-express: combined default+named import and typed arbitrary Router variables preserve mount prefixes', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
@@ -929,6 +952,7 @@ test('typescript-express: qualified receiver properties do not impersonate a tru
 			"service.app.get('/phantom-service', phantomHandler);",
 			"service.app.use('/wrong-service', router);",
 			"this.app.get('/phantom-this', phantomHandler);",
+			"éapp.get('/phantom-unicode-prefix', phantomHandler);",
 			"this.#app.get('/phantom-private', phantomHandler);",
 			'export default app;',
 		].join('\n'),
