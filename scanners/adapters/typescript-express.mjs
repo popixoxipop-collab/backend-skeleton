@@ -1037,7 +1037,10 @@ function parameterScopeShadowsNameAt(text, name, targetIndex) {
 		const computedMethod = /\]\s*$/.test(methodHeader);
 		const literalMethod = /(?:^|[^\w$])(?:async\s+)?(?:get\s+|set\s+)?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|0[xX][0-9A-Fa-f_]+n?|0[bB][01_]+n?|0[oO][0-7_]+n?|\d[\d_]*n|(?:\d[\d_]*(?:\.[\d_]*)?|\.[\d_]+)(?:[eE][+-]?[\d_]+)?)\s*$/.test(methodHeader);
 		const hasMethodBody = /^\s*(?::[\s\S]*?)?\{/.test(after);
-		const isMethod = (methodName || computedMethod || literalMethod) && hasMethodBody;
+		// A control header such as `for (app of xs) {` is not a method parameter list.
+		// Treating it as one hides assignment targets from the application write tracker.
+		const isControlHeader = /\b(?:if|for|while|switch|with)\s*$/.test(methodHeader);
+		const isMethod = !isControlHeader && (methodName || computedMethod || literalMethod) && hasMethodBody;
 		if (!isFunction && !isConstructor && !isArrow && !isMethod) continue;
 		const params = text.slice(openIndex + 1, closeIndex);
 		if (splitTopLevelArgs(params).some((param) => parameterBindsName(param, name))) return true;
@@ -1192,6 +1195,7 @@ function isBoundedTypeExpression(text) {
 		}
 		if (angle !== 0) continue;
 		if (/^extends\b/.test(value.slice(i))) { sawTopLevelExtends = true; i += 'extends'.length - 1; continue; }
+		if (/^(?:instanceof|in)\b/.test(value.slice(i))) return false;
 		if (value.startsWith('&&', i) || value.startsWith('||', i) || value.startsWith('??', i) ||
 			value.startsWith('===', i) || value.startsWith('!==', i) || value.startsWith('==', i) || value.startsWith('!=', i) ||
 			value.startsWith('<=', i) || value.startsWith('>=', i)) return false;
