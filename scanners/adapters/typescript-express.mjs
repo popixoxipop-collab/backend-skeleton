@@ -1164,7 +1164,10 @@ function isBoundedTypeExpression(text) {
 	// punctuation (union/intersection, tuples, object members, generics, function types) but not
 	// statement-level braces or arbitrary source text outside a type assertion.
 	if (!delimitersBalanced(value)) return false;
-	if (!new RegExp("^[A-Za-z0-9_$\\\\s.<>{}\\\\[\\\\](),:;?'\\\"`|&=!~+*/%-]+$", "u").test(value)) return false;
+	// The suffix is already in a TypeScript assertion position. Require balanced delimiters and
+	// reject runtime short-circuit operators that would mean the assertion ended before the tail.
+	// Single `&`/`|` remain valid for intersection/union types.
+	if (/&&|\\|\\||\\?\\?/.test(value)) return false;
 	let angle = 0;
 	let quote = null;
 	for (let i = 0; i < value.length; i++) {
