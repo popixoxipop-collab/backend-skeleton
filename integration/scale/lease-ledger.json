@@ -1508,8 +1508,10 @@
       "resource_class": "static-small",
       "issued_at": "2026-09-27T07:55:00Z",
       "expires_at": "2026-09-27T12:55:00Z",
-      "state": "ACTIVE",
-      "reason": "Review and integrate PR #153 after-the-fact under explicit T00 ownership. Scope is exactly the three PR files; no other scanner/release/T19/T20 files are authorized."
+      "state": "RELEASED",
+      "reason": "Review and integrate PR #153 after-the-fact under explicit T00 ownership. Scope is exactly the three PR files; no other scanner/release/T19/T20 files are authorized.",
+      "released_at": "2026-09-27T10:07:00Z",
+      "release_reason": "PR #153 exact-head CI #1379 SUCCESS, EOE express-shared 31/31 PASS, Codex rereview clean on 8a2eebc2bf1ef1751fcba398fc28fb00041a63bb, and merge commit 754756b6f1cc396a7c2e0be526f64936b1ef74e7 is ahead by one with zero file delta."
     }
   ],
   "note": "No live lease is fabricated from a GitHub branch. A worker must report an actual worktree identity before T00 can issue an ACTIVE claim. r2 adds only T23-BEVAL; all pre-existing claim objects and fencing counters are preserved."
