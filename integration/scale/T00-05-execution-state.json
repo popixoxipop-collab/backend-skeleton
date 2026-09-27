@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T11:06:00+09:00",
+  "observed_at": "2026-09-27T11:12:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -281,7 +281,7 @@
       "base_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
       "path_scopes": [
         "evidence/next/T19-RELEASE-ACCEPTANCE.json",
-        "test/conformance-next/t19-release-acceptance.test.mjs"
+        "test/t19-release-acceptance/**"
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T09:59:45Z",
@@ -298,6 +298,17 @@
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T14:06:00Z",
+      "state": "ACTIVE"
+    },
+    "T00-T23-RELEASE-CONTROL-20260927-r2": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "branch": "t00/t23-release-auth-hardening-r2",
+      "base_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+      "path_scopes": [
+        "release/next/**"
+      ],
+      "fencing_token": 2,
+      "expires_at": "2026-09-27T10:12:00Z",
       "state": "ACTIVE"
     }
   },
@@ -646,7 +657,7 @@
     "next": "Release/default remains separately gated by T19-03, T20-03, direct final-main release CI, and final release rehearsal."
   },
   "release_control": {
-    "phase": "MERGED_BLOCKED",
+    "phase": "POST_MERGE_AUTH_HARDENING",
     "pr": 148,
     "reviewed_head": "0c0d03e94f1b8a72db3510f2bf40a88a7db46ec0",
     "merge_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
@@ -662,7 +673,10 @@
       "TRUST_POLICY_NOT_READY",
       "FINAL_RELEASE_REHEARSAL_NOT_RUN",
       "RELEASE_CHECKS_NOT_COMPLETE"
-    ]
+    ],
+    "merged_main_sha": "84a54e27114098d23cd0dafe1d9f6beb9baf090b",
+    "hardening_branch": "t00/t23-release-auth-hardening-r2",
+    "default_activation": false
   },
   "t20_03": {
     "state": "LINUX_CONTAINER_ENFORCEMENT_IN_PROGRESS",
