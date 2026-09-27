@@ -1160,25 +1160,28 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 function isEmptyExpressFactoryExpression(expression, binding) {
 	let value = expression.trim();
 	const typeRef = '(?:readonly\\s+)?[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*(?:\\s*<[^;=()]+>)?(?:\\s*\\[\\])*';
-
-	// TypeScript also permits prefix-style assertions in .ts files:
-	// `const app = <express.Application>express();`. Peel only a bounded type-shaped prefix;
-	// arbitrary comparison/JSX-like text is never accepted as an application factory.
 	const leadingAssertionRe = new RegExp('^<\\s*' + typeRef + '\\s*>\\s*');
-	while (value.startsWith('<')) {
-		const assertion = value.match(leadingAssertionRe);
-		if (!assertion) break;
-		value = value.slice(assertion[0].length).trim();
+
+	// Prefix assertions and whole-expression parentheses can nest in either order, e.g.
+	// `(<express.Application>express())`. Peel only bounded wrappers and repeat until stable.
+	let changed = true;
+	while (changed) {
+		changed = false;
+		while (value.startsWith('(')) {
+			const close = matchingParenClose(value, 0);
+			if (close !== value.length - 1) break;
+			value = value.slice(1, -1).trim();
+			changed = true;
+		}
+		if (value.startsWith('<')) {
+			const assertion = value.match(leadingAssertionRe);
+			if (assertion) {
+				value = value.slice(assertion[0].length).trim();
+				changed = true;
+			}
+		}
 	}
 
-	// TypeScript assertions are commonly parenthesized as a whole:
-	// `const app = (express() as Application)`. Peel only parentheses that balance across
-	// the ENTIRE expression so inner calls/grouping keep their original meaning.
-	while (value.startsWith('(')) {
-		const close = matchingParenClose(value, 0);
-		if (close !== value.length - 1) break;
-		value = value.slice(1, -1).trim();
-	}
 	const factoryRe = new RegExp('^' + escapeRegex(binding) + '\\s*\\(\\s*\\)');
 	const match = value.match(factoryRe);
 	if (!match) return false;
@@ -1272,15 +1275,21 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 }
 function topLevelSequenceAssignmentTarget(lhs) {
 	let value = lhs.trim();
-	// An unbraced control statement owns the whole following comma expression, so an assignment
-	// in its final operand is still conditional. Keep that prefix intact rather than upgrading it
-	// to a definite top-level write.
 	if (/^(?:if|for|while|with|switch)\\b/.test(value)) return value;
 
 	while (value.startsWith('(')) {
 		const close = matchingParenClose(value, 0);
-		if (close !== value.length - 1) break;
-		value = value.slice(1, -1).trim();
+		if (close === value.length - 1) {
+			value = value.slice(1, -1).trim();
+			continue;
+		}
+		// While scanning only the LHS, a grouping paren around a sequence has no closing `)` yet:
+		// `(cleanup(), app = fake)` appears here as `(cleanup(), app`. Peel that unmatched wrapper.
+		if (close === -1) {
+			value = value.slice(1).trimStart();
+			continue;
+		}
+		break;
 	}
 	const parts = splitTopLevelArgs(value);
 	return parts.length > 1 ? parts[parts.length - 1].trim() : value;

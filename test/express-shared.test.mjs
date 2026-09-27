@@ -894,10 +894,12 @@ test('typescript-express: empty express() factories remain trusted through bound
 			'const secondary = express() satisfies Application;',
 			'const parenthesized = (express() as Application);',
 			'const prefixed = <express.Application>express();',
+			'const parenthesizedPrefixed = (<express.Application>express());',
 			"app.get('/health', healthHandler);",
 			"secondary.get('/secondary', secondaryHandler);",
 			"parenthesized.get('/parenthesized', parenthesizedHandler);",
 			"prefixed.get('/prefixed', prefixedHandler);",
+			"parenthesizedPrefixed.get('/parenthesized-prefixed', parenthesizedPrefixedHandler);",
 			"app.use('/api', router);",
 			'export default app;',
 		].join('\n'),
@@ -910,6 +912,7 @@ test('typescript-express: empty express() factories remain trusted through bound
 		'GET /api/child',
 		'GET /health',
 		'GET /parenthesized',
+		'GET /parenthesized-prefixed',
 		'GET /prefixed',
 		'GET /secondary',
 	]);
@@ -952,6 +955,26 @@ test('typescript-express: a definite app write in a top-level sequence invalidat
 			"app.get('/before', beforeHandler);",
 			'cleanup(), app = fakeApp;',
 			"app.get('/phantom-after-sequence', phantomHandler);",
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /before']);
+});
+test('typescript-express: a parenthesized top-level sequence write invalidates the mutable app binding', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app = express();',
+			"app.get('/before', beforeHandler);",
+			'(cleanup(), app = fakeApp);',
+			"app.get('/phantom-after-parenthesized-sequence', phantomHandler);",
 			'export default app;',
 		].join('\n'),
 	});
