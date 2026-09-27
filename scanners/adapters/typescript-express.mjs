@@ -842,7 +842,7 @@ function scopeDirectlyDeclaresName(text, openIndex, name) {
 		if (!isCodePosition(segment, match.index)) continue;
 		if (match[1] === name && directlyInside(match.index)) return true;
 	}
-	for (const match of segment.matchAll(/\b(const|let|var)\b/g)) {
+	for (const match of segment.matchAll(/\b((?:await\s+)?using|const|let|var)\b/g)) {
 		if (!isCodePosition(segment, match.index) || !directlyInside(match.index)) continue;
 		const absoluteIndex = segmentStart + match.index;
 		if (match[1] !== 'var' && isInsideForHeader(text, absoluteIndex)) continue;
