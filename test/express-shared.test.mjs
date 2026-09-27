@@ -461,3 +461,248 @@ test('javascript-express: a router declared separately then re-exported via a ba
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/:id'], 'the /api prefix from app.js must reach the bare-named-exported router');
 });
+
+// D-javascript-express-member-handlers-middleware-mounts: the two idioms a real production plain-JS
+// backend (serverless Lambda, raw mysql2) uses for nearly every route, which together hid 221 of
+// its 227 routes and made `bskel scan --feature` report a false `greenfield`:
+//   1. `import * as ctrl from '...'` + `router.post('/', ctrl.create)` -- member-expression handler
+//   2. `route.use('/reservations', LoginCheck, reservationRoute)` -- auth middleware before the router
+test('javascript-express: member-expression handlers are recorded verbatim and middleware-guarded mounts keep their prefix', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'src/app.js': [
+			"import express from 'express';",
+			"import routes from './routes/index.js';",
+			'const app = express();',
+			'app.use(express.json());',
+			'app.use(routes);',
+			'export default app;',
+		].join('\n'),
+		'src/routes/index.js': [
+			"import express from 'express';",
+			"import userRoute from './user/index.js';",
+			'const route = express.Router({ mergeParams: true });',
+			"route.use('/user', userRoute);",
+			'export default route;',
+		].join('\n'),
+		'src/routes/user/index.js': [
+			"import express from 'express';",
+			"import reservationRoute from './reservation.js';",
+			"import shopRoute from './shop.js';",
+			"import { LoginCheck, RoleCheck } from '../../middlewares/auth.js';",
+			'const route = express.Router({ mergeParams: true });',
+			"route.use('/reservations', LoginCheck, reservationRoute);",
+			"route.use('/shops', LoginCheck, RoleCheck('USER'), shopRoute);",
+			'export default route;',
+		].join('\n'),
+		'src/routes/user/reservation.js': [
+			"import { Router } from 'express';",
+			"import * as reservationController from '../../controllers/reservation.js';",
+			'const router = Router({ mergeParams: true });',
+			"router.post('/', reservationController.createReservation);",
+			"router.post('/:id/cancel', LoginCheck, reservationController . cancelReservation);",
+			'export default router;',
+		].join('\n'),
+		'src/routes/user/shop.js': [
+			"import { Router } from 'express';",
+			"import * as shopController from '../../controllers/shop.js';",
+			'const router = Router();',
+			"router.get('/likes', shopController.getLikes);",
+			'export default router;',
+		].join('\n'),
+		'src/middlewares/auth.js': 'export const LoginCheck = (req, res, next) => next();\nexport const RoleCheck = () => (req, res, next) => next();\n',
+	});
+	const detection = detectJavaScriptExpressRoot(root);
+	assert.ok(detection, 'fixture must be detected');
+	const result = scanJavaScriptExpress(root, detection);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path} ${e.method}`).sort(), [
+		'GET /user/shops/likes shopController.getLikes',
+		'POST /user/reservations reservationController.createReservation',
+		'POST /user/reservations/:id/cancel reservationController.cancelReservation',
+	].sort());
+});
+
+// Middleware positions are now mount CANDIDATES, so a named import must bind only the export of
+// that same name -- never "whatever router the module happens to export".
+test('javascript-express: a named-imported middleware from a module that also exports a router is not mistaken for that router', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { guard } from './guarded.js';",
+			"import things from './things.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'guarded.js': [
+			"import express from 'express';",
+			'const adminRouter = express.Router();',
+			"adminRouter.get('/secret', showSecret);",
+			'export const guard = (req, res, next) => next();',
+			'export default adminRouter;',
+		].join('\n'),
+		'things.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const detection = detectJavaScriptExpressRoot(root);
+	const result = scanJavaScriptExpress(root, detection);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'adminRouter is never mounted, so it must NOT inherit /api through the guard middleware');
+});
+
+test('javascript-express: a default-imported middleware never falls through to a named-exported router', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import guard from './guarded.js';",
+			"import things from './things.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'guarded.js': [
+			"import express from 'express';",
+			'const adminRouter = express.Router();',
+			"adminRouter.get('/secret', showSecret);",
+			'const guard = (req, res, next) => next();',
+			'export { adminRouter };',
+			'export default guard;',
+		].join('\n'),
+		'things.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'default middleware must not mount the unrelated named adminRouter under /api');
+});
+
+test('javascript-express: an aliased named export never binds an unrelated same-named local router', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { guard } from './guarded.js';",
+			"import things from './things.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'guarded.js': [
+			"import express from 'express';",
+			'const guard = express.Router();',
+			"guard.get('/secret', showSecret);",
+			'const middleware = (req, res, next) => next();',
+			'export { middleware as guard };',
+		].join('\n'),
+		'things.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/:id', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'export { middleware as guard } must not make the local guard router inherit /api');
+});
+
+test('javascript-express: member-expression handlers reject computed or interpolated endpoint paths', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'r.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"const suffix = '/v1';",
+			"router.get('/users' + suffix, ctrl.listUsers);",
+			"router.get(`/teams/${suffix}`, ctrl.listTeams);",
+			"router.get('/static', ctrl.listStatic);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path} ${e.method}`), [
+		'GET /static ctrl.listStatic',
+	]);
+});
+
+test('javascript-express: multi-handler mounts reject computed or interpolated path prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import concatRouter from './concat.js';",
+			"import templateRouter from './template.js';",
+			'const app = express();',
+			"const suffix = '/v1';",
+			'const guard = (req, res, next) => next();',
+			"app.use('/api' + suffix, guard, concatRouter);",
+			"app.use(`/api/${suffix}`, guard, templateRouter);",
+		].join('\n'),
+		'concat.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/concat', show);",
+			'export default router;',
+		].join('\n'),
+		'template.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/template', show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /concat',
+		'GET /template',
+	]);
+});
+
+test('javascript-express: grouped named imports preserve the mounted router prefix', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'app.js': [
+			"import express from 'express';",
+			"import { guard, things } from './routes.js';",
+			'const app = express();',
+			"app.use('/api', guard, things);",
+		].join('\n'),
+		'routes.js': [
+			"import express from 'express';",
+			'const things = express.Router();',
+			"things.get('/:id', show);",
+			'const guard = (req, res, next) => next();',
+			'export { guard, things };',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/:id']);
+});
+
+test('javascript-express: computed or call-expression handlers are still skipped, not guessed at', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'r.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"router.get('/a', ctrl['show']);",
+			"router.get('/b', wrap(ctrl.show));",
+			"router.get('/c', ctrl.show);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /c']);
+});

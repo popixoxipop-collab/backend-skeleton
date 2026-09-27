@@ -214,6 +214,27 @@ function nodeKey(file, varName) {
 // typescript-express contract.
 const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b/;
 
+// A bare identifier (`show`) OR a dotted member expression (`reservationController.createReservation`).
+// The member form is the dominant plain-JS idiom -- `import * as ctrl from '../controllers/x.js'`
+// or a CommonJS `const ctrl = require(...)` -- and a real production backend (the same serverless
+// Lambda app this adapter was built for) writes 221 of its 227 routes that way. typescript-express
+// still skips it (D-typescript-express-inline-handlers COST) because its handles codegen correlates
+// `method` to an import; this adapter has codegen.handles:false, so `method` is only a label and
+// the member expression is recorded verbatim (whitespace-normalized), never resolved or guessed at.
+// Computed access (`ctrl['x']`) and call expressions (`wrap(ctrl.x)`) remain unrecognized.
+const NAMED_HANDLER_RE = /^([\w$]+(?:\s*\.\s*[\w$]+)*)$/;
+
+// A route or mount path is trustworthy only when the entire argument is one static literal.
+// STRING_LITERAL_RE is a prefix matcher used elsewhere, so validate full consumption here and
+// reject interpolated templates. Returning null (not a falsy check) keeps an empty path valid.
+function staticPathLiteralValue(expression) {
+	const trimmed = expression.trim();
+	const match = trimmed.match(STRING_LITERAL_RE);
+	if (!match || match[0] !== trimmed) return null;
+	if (trimmed.startsWith('`') && match[1].includes('${')) return null;
+	return match[1];
+}
+
 function extractEndpoints(text, mountableNames) {
 	if (mountableNames.length === 0) return [];
 	const re = new RegExp(`\\b(${alternationOf(mountableNames)})\\.(${VERBS.join('|')})\\s*\\(`, 'gi');
@@ -225,16 +246,17 @@ function extractEndpoints(text, mountableNames) {
 		const closeIdx = matchBalancedParens(text, openIdx);
 		if (closeIdx === -1) continue;
 		const argsText = text.slice(openIdx + 1, closeIdx);
-		const pathMatch = argsText.match(STRING_LITERAL_RE);
-		if (!pathMatch) continue; // no path literal (built dynamically) -- skip rather than guess
-
 		const args = splitTopLevelArgs(argsText);
+		const routePath = staticPathLiteralValue(args[0] ?? '');
+		if (routePath === null) continue; // dynamic/computed path -- skip rather than guess
+
 		const lastArg = args[args.length - 1]?.trim();
-		const handlerMatch = lastArg?.match(/^([\w$]+)$/);
+		const handlerMatch = lastArg?.match(NAMED_HANDLER_RE);
 		const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
 		if (!handlerMatch && !isInlineHandler) continue;
 
-		endpoints.push({ varName, verb, path: pathMatch[1], operationId: null, method: handlerMatch ? handlerMatch[1] : null, line: lineNumberAt(text, m.index) });
+		const method = handlerMatch ? handlerMatch[1].replace(/\s+/g, '') : null;
+		endpoints.push({ varName, verb, path: routePath, operationId: null, method, line: lineNumberAt(text, m.index) });
 	}
 	return endpoints;
 }
@@ -280,18 +302,55 @@ function exportedMountableName(text, mountables) {
 	return null;
 }
 
+// A default import can only bind the module's default hand-off. Do not fall through to a named
+// router merely because the default export is middleware. CommonJS module.exports is the default
+// value when consumed through ordinary interop, so it remains eligible here.
+function defaultExportedMountable(text, mountables) {
+	const commonJsMatch = text.match(/\bmodule\s*\.\s*exports\s*=\s*([\w$]+)\s*;?/);
+	if (commonJsMatch && mountables.has(commonJsMatch[1])) return commonJsMatch[1];
+	const defaultMatch = text.match(/export\s+default\s+([\w$]+)\s*;?/);
+	return defaultMatch && mountables.has(defaultMatch[1]) ? defaultMatch[1] : null;
+}
+
+// The mountable a named `import { name }` actually binds: `name` itself, and only if this file
+// exports that SAME LOCAL binding under that name. Alias/re-export forms stay deliberately
+// unresolved (`export { middleware as guard }`, `export { guard } from './other.js'`).
+function namedExportedMountable(text, mountables, name) {
+	if (!mountables.has(name)) return null;
+	const escaped = alternationOf([name]);
+	const decl = new RegExp(`\\bexport\\s+(?:const|let|var)\\s+${escaped}\\s*=`).test(text);
+	if (decl) return name;
+	for (const match of text.matchAll(/export\s*\{([^}]*)\}(?!\s*from\b)/g)) {
+		const specifiers = splitTopLevelArgs(match[1]);
+		if (specifiers.some((specifier) => specifier.trim() === name)) return name;
+	}
+	return null;
+}
+
 // ESM default/named imports OR a CommonJS `const target = require('./relative')`. Alias forms stay
 // deliberately unresolved; this is only the source lookup for an already-observed mount target.
+//
+// Returns `{ source, kind }` so resolution preserves binding semantics. A default import may only
+// use a default-exported mountable; a named import may only use the same local binding exported
+// under that name. This matters once middleware positions are mount candidates.
 function importSourceFor(text, target) {
 	const requireRe = new RegExp(`(?:\\b(?:const|let|var)\\s+|[,;]\\s*)${target}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']\\s*\\)`);
 	const requireMatch = text.match(requireRe);
-	if (requireMatch) return requireMatch[1];
+	if (requireMatch) return { source: requireMatch[1], kind: 'require' };
 	const defaultImportRe = new RegExp(`import\\s+${target}\\s*(?:,\\s*\\{[^}]*\\})?\\s*from\\s*["']([^"']+)["']`);
 	const defaultMatch = text.match(defaultImportRe);
-	if (defaultMatch) return defaultMatch[1];
-	const namedImportRe = new RegExp(`import\\s*\\{\\s*${target}\\s*\\}\\s*from\\s*["']([^"']+)["']`);
-	const namedMatch = text.match(namedImportRe);
-	return namedMatch ? namedMatch[1] : null;
+	if (defaultMatch) return { source: defaultMatch[1], kind: 'default' };
+	// Named imports commonly share one brace list (`import { guard, router } from './routes.js'`).
+	// Parse that list and accept only the exact unaliased local binding; aliases stay deliberately
+	// unresolved, matching namedExportedMountable()'s same-binding rule.
+	const namedImportRe = /import\s+(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
+	for (const match of text.matchAll(namedImportRe)) {
+		const specifiers = splitTopLevelArgs(match[1]);
+		if (specifiers.some((specifier) => specifier.trim() === target)) {
+			return { source: match[2], kind: 'named' };
+		}
+	}
+	return null;
 }
 
 // Builds the mount graph over (file, variable) nodes. Two edge kinds, from either
@@ -315,42 +374,59 @@ function buildMountEdges(files, fileInfo, suffixes) {
 			if (closeIdx === -1) continue;
 			const args = splitTopLevelArgs(info.text.slice(openIdx + 1, closeIdx));
 			let prefix;
-			let targetExpression;
-			if (args.length === 2) {
-				const pathMatch = args[0].match(STRING_LITERAL_RE);
-				if (!pathMatch) continue;
-				prefix = pathMatch[1];
-				targetExpression = args[1].trim();
+			let candidates;
+			if (args.length >= 2) {
+				// `use('/p', ...handlers)`: Express treats EVERY argument after the path as a handler,
+				// so auth middleware in front of the router (`use('/reservations', LoginCheck, router)`)
+				// is ordinary and the router need not be last. Each candidate is resolved on its own
+				// below and only a genuine mountable becomes an edge; middleware falls out naturally.
+				// A multi-argument use() WITHOUT a leading path literal stays skipped, as before.
+				const mountPath = staticPathLiteralValue(args[0]);
+				if (mountPath === null) continue;
+				prefix = mountPath;
+				candidates = args.slice(1);
 			} else if (args.length === 1) {
 				prefix = '';
-				targetExpression = args[0].trim();
+				candidates = args;
 			} else {
 				continue;
 			}
 
-			const identMatch = targetExpression.match(/^([\w$]+)$/);
-			const directRequireMatch = targetExpression.match(/^require\s*\(\s*["']([^"']+)["']\s*\)$/);
-			if (!identMatch && !directRequireMatch) continue;
-			const target = identMatch?.[1] ?? null;
-
-			if (target && info.mountables.has(target)) {
-				edges.push({ from: nodeKey(file, fromVar), to: nodeKey(file, target), prefix });
-				continue;
+			for (const candidate of candidates) {
+				const to = resolveMountTarget(file, info, candidate.trim(), fileInfo, suffixes);
+				if (to) edges.push({ from: nodeKey(file, fromVar), to, prefix });
 			}
-			// A one-argument identifier is ordinary middleware, not a router mount. Reaching this
-			// branch means it was not a local mountable; only a real import/require binding can turn
-			// it into a cross-file edge.
-			const importSource = directRequireMatch?.[1] ?? (target ? importSourceFor(info.text, target) : null);
-			if (!importSource) continue;
-			const toFile = resolveRelativeModule(file, importSource, suffixes);
-			if (!toFile || !fileInfo.has(toFile)) continue;
-			const toInfo = fileInfo.get(toFile);
-			const toVar = exportedMountableName(toInfo.text, toInfo.mountables);
-			if (!toVar) continue;
-			edges.push({ from: nodeKey(file, fromVar), to: nodeKey(toFile, toVar), prefix });
 		}
 	}
 	return edges;
+}
+
+// One use() argument -> the mount-graph node it names, or null. An identifier that is neither a
+// local mountable nor bound to a relative module exporting one is middleware (`cors()`,
+// `LoginCheck`) and is skipped; so is anything that is not an identifier or a direct relative
+// require() (arrays, calls, inline functions).
+function resolveMountTarget(file, info, expression, fileInfo, suffixes) {
+	const identMatch = expression.match(/^([\w$]+)$/);
+	const directRequireMatch = expression.match(/^require\s*\(\s*["']([^"']+)["']\s*\)$/);
+	if (!identMatch && !directRequireMatch) return null;
+	const target = identMatch?.[1] ?? null;
+
+	if (target && info.mountables.has(target)) return nodeKey(file, target);
+	// Reaching here means it was not a local mountable; only a real import/require binding can
+	// turn it into a cross-file edge.
+	const imported = directRequireMatch
+		? { source: directRequireMatch[1], kind: 'require' }
+		: (target ? importSourceFor(info.text, target) : null);
+	if (!imported) return null;
+	const toFile = resolveRelativeModule(file, imported.source, suffixes);
+	if (!toFile || !fileInfo.has(toFile)) return null;
+	const toInfo = fileInfo.get(toFile);
+	const toVar = imported.kind === 'named'
+		? namedExportedMountable(toInfo.text, toInfo.mountables, target)
+		: imported.kind === 'default'
+			? defaultExportedMountable(toInfo.text, toInfo.mountables)
+			: exportedMountableName(toInfo.text, toInfo.mountables);
+	return toVar ? nodeKey(toFile, toVar) : null;
 }
 
 // Prefix chain from a mount-graph root down to `node`, or '' if `node` is itself a root. A node
