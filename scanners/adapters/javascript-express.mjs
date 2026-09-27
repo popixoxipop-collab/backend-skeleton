@@ -224,6 +224,17 @@ const INLINE_HANDLER_RE = /^(?:async\s+)?(?:\([^)]*\)|[$\w]+)\s*(?::[^=]*)?=>|^(
 // Computed access (`ctrl['x']`) and call expressions (`wrap(ctrl.x)`) remain unrecognized.
 const NAMED_HANDLER_RE = /^([\w$]+(?:\s*\.\s*[\w$]+)*)$/;
 
+// A route or mount path is trustworthy only when the entire argument is one static literal.
+// STRING_LITERAL_RE is a prefix matcher used elsewhere, so validate full consumption here and
+// reject interpolated templates. Returning null (not a falsy check) keeps an empty path valid.
+function staticPathLiteralValue(expression) {
+	const trimmed = expression.trim();
+	const match = trimmed.match(STRING_LITERAL_RE);
+	if (!match || match[0] !== trimmed) return null;
+	if (trimmed.startsWith('`') && match[1].includes('${')) return null;
+	return match[1];
+}
+
 function extractEndpoints(text, mountableNames) {
 	if (mountableNames.length === 0) return [];
 	const re = new RegExp(`\\b(${alternationOf(mountableNames)})\\.(${VERBS.join('|')})\\s*\\(`, 'gi');
@@ -235,17 +246,17 @@ function extractEndpoints(text, mountableNames) {
 		const closeIdx = matchBalancedParens(text, openIdx);
 		if (closeIdx === -1) continue;
 		const argsText = text.slice(openIdx + 1, closeIdx);
-		const pathMatch = argsText.match(STRING_LITERAL_RE);
-		if (!pathMatch) continue; // no path literal (built dynamically) -- skip rather than guess
-
 		const args = splitTopLevelArgs(argsText);
+		const routePath = staticPathLiteralValue(args[0] ?? '');
+		if (routePath === null) continue; // dynamic/computed path -- skip rather than guess
+
 		const lastArg = args[args.length - 1]?.trim();
 		const handlerMatch = lastArg?.match(NAMED_HANDLER_RE);
 		const isInlineHandler = !handlerMatch && lastArg && INLINE_HANDLER_RE.test(lastArg);
 		if (!handlerMatch && !isInlineHandler) continue;
 
 		const method = handlerMatch ? handlerMatch[1].replace(/\s+/g, '') : null;
-		endpoints.push({ varName, verb, path: pathMatch[1], operationId: null, method, line: lineNumberAt(text, m.index) });
+		endpoints.push({ varName, verb, path: routePath, operationId: null, method, line: lineNumberAt(text, m.index) });
 	}
 	return endpoints;
 }
@@ -370,13 +381,9 @@ function buildMountEdges(files, fileInfo, suffixes) {
 				// is ordinary and the router need not be last. Each candidate is resolved on its own
 				// below and only a genuine mountable becomes an edge; middleware falls out naturally.
 				// A multi-argument use() WITHOUT a leading path literal stays skipped, as before.
-				const pathArg = args[0].trim();
-				const pathMatch = pathArg.match(STRING_LITERAL_RE);
-				// STRING_LITERAL_RE is intentionally a prefix matcher elsewhere. A mount prefix must
-				// be the ENTIRE argument, otherwise `'/api' + suffix` would be misreported as
-				// `/api`. Template literals with interpolation are dynamic for the same reason.
-				if (!pathMatch || pathMatch[0] !== pathArg || (pathArg.startsWith('`') && pathMatch[1].includes('${'))) continue;
-				prefix = pathMatch[1];
+				const mountPath = staticPathLiteralValue(args[0]);
+				if (mountPath === null) continue;
+				prefix = mountPath;
 				candidates = args.slice(1);
 			} else if (args.length === 1) {
 				prefix = '';

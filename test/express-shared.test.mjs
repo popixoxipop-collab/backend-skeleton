@@ -614,6 +614,26 @@ test('javascript-express: an aliased named export never binds an unrelated same-
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /api/:id', 'GET /secret'], 'export { middleware as guard } must not make the local guard router inherit /api');
 });
 
+test('javascript-express: member-expression handlers reject computed or interpolated endpoint paths', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
+		'r.js': [
+			"import express from 'express';",
+			'const router = express.Router();',
+			"const suffix = '/v1';",
+			"router.get('/users' + suffix, ctrl.listUsers);",
+			"router.get(`/teams/${suffix}`, ctrl.listTeams);",
+			"router.get('/static', ctrl.listStatic);",
+			'export default router;',
+		].join('\n'),
+	});
+	const result = scanJavaScriptExpress(root, detectJavaScriptExpressRoot(root));
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path} ${e.method}`), [
+		'GET /static ctrl.listStatic',
+	]);
+});
+
 test('javascript-express: multi-handler mounts reject computed or interpolated path prefixes', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', type: 'module', dependencies: { express: '^4.18.2' } }),
