@@ -332,7 +332,7 @@ function importSourceFor(text, target) {
 	// Named imports commonly share one brace list (`import { guard, router } from './routes.js'`).
 	// Parse that list and accept only the exact unaliased local binding; aliases stay deliberately
 	// unresolved, matching namedExportedMountable()'s same-binding rule.
-	const namedImportRe = /import\\s+(?:[\\w$]+\\s*,\\s*)?\\{([^}]*)\\}\\s*from\\s*["']([^"']+)["']/g;
+	const namedImportRe = /import\s+(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
 	for (const match of text.matchAll(namedImportRe)) {
 		const specifiers = splitTopLevelArgs(match[1]);
 		if (specifiers.some((specifier) => specifier.trim() === target)) {
