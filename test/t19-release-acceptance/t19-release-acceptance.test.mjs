@@ -12,6 +12,7 @@ const EXPECTED_RELEASE_HEADS={
   becoder:'eb8164560ddd343306234a9140dc89c001519792',
   beval:'f7189e4208f04867b493c7d874a77325ad84afa3',
 };
+const EXPECTED_DIRECT_EOE_REQUEST='95631e68-a325-4b91-a4dc-46869c983b51';
 const EXPECTED_QA={
   head:'1a4e4da3b62bf0113d240c32bfede06f7884966d',
   run_id:36218926731,
@@ -34,6 +35,7 @@ function validate(value) {
   if (ci.nested_node22_job!==EXPECTED_QA.nested_node22_job) errors.push('QA_NODE22_JOB');
   if (ci.nested_node24_job!==EXPECTED_QA.nested_node24_job) errors.push('QA_NODE24_JOB');
   const direct=value?.qa_authority?.direct_eoe??{};
+  if (direct.request_id!==EXPECTED_DIRECT_EOE_REQUEST) errors.push('DIRECT_QA_REQUEST');
   if (direct.tests!==40 || direct.passed!==40 || direct.failed!==0 || direct.skipped!==0) errors.push('DIRECT_QA');
   if (value?.qa_authority?.negative_program?.catalog_total!==79) errors.push('CATALOG');
   if (value?.qa_authority?.negative_program?.all_catalog_cases_claimed_executable!==false) errors.push('CATALOG_OVERCLAIM');
@@ -115,4 +117,14 @@ test('missing or misspelled T20 state fails closed',()=>{
     else x.runtime_security_dependency.state=bad;
     assert.ok(validate(x).includes('T20_STATE'),String(bad));
   }
+});
+
+
+test('direct EOE request identifier is immutable',()=>{
+  const x=structuredClone(packet);
+  x.qa_authority.direct_eoe.request_id='00000000-0000-4000-8000-000000000000';
+  assert.ok(validate(x).includes('DIRECT_QA_REQUEST'));
+  const y=structuredClone(packet);
+  delete y.qa_authority.direct_eoe.request_id;
+  assert.ok(validate(y).includes('DIRECT_QA_REQUEST'));
 });
