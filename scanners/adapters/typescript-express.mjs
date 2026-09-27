@@ -1159,6 +1159,18 @@ function routerReferenceIsAuthorized(text, name, targetIndex) {
 
 function isEmptyExpressFactoryExpression(expression, binding) {
 	let value = expression.trim();
+	const typeRef = '(?:readonly\\s+)?[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*(?:\\s*<[^;=()]+>)?(?:\\s*\\[\\])*';
+
+	// TypeScript also permits prefix-style assertions in .ts files:
+	// `const app = <express.Application>express();`. Peel only a bounded type-shaped prefix;
+	// arbitrary comparison/JSX-like text is never accepted as an application factory.
+	const leadingAssertionRe = new RegExp('^<\\s*' + typeRef + '\\s*>\\s*');
+	while (value.startsWith('<')) {
+		const assertion = value.match(leadingAssertionRe);
+		if (!assertion) break;
+		value = value.slice(assertion[0].length).trim();
+	}
+
 	// TypeScript assertions are commonly parenthesized as a whole:
 	// `const app = (express() as Application)`. Peel only parentheses that balance across
 	// the ENTIRE expression so inner calls/grouping keep their original meaning.
@@ -1172,7 +1184,6 @@ function isEmptyExpressFactoryExpression(expression, binding) {
 	if (!match) return false;
 	const rest = value.slice(match[0].length).trim();
 	if (!rest) return true;
-	const typeRef = '(?:readonly\\s+)?[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*(?:\\s*<[^;=()]+>)?(?:\\s*\\[\\])*';
 	return new RegExp('^(?:(?:as|satisfies)\\s+' + typeRef + '\\s*)+$').test(rest);
 }
 function applicationBindings(text) {
@@ -1259,10 +1270,27 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 	}
 	return statementStart;
 }
+function topLevelSequenceAssignmentTarget(lhs) {
+	let value = lhs.trim();
+	// An unbraced control statement owns the whole following comma expression, so an assignment
+	// in its final operand is still conditional. Keep that prefix intact rather than upgrading it
+	// to a definite top-level write.
+	if (/^(?:if|for|while|with|switch)\\b/.test(value)) return value;
+
+	while (value.startsWith('(')) {
+		const close = matchingParenClose(value, 0);
+		if (close !== value.length - 1) break;
+		value = value.slice(1, -1).trim();
+	}
+	const parts = splitTopLevelArgs(value);
+	return parts.length > 1 ? parts[parts.length - 1].trim() : value;
+}
+
 function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	const statementStart = assignmentStatementStart(text, binding.initializationEnd, equalsIndex);
 	let lhs = text.slice(statementStart, equalsIndex).trim();
 	if (!lhs) return false;
+	lhs = topLevelSequenceAssignmentTarget(lhs);
 
 	// Only a standalone assignment target is definite. Conditional prefixes such as `if (flag)`,
 	// `flag &&`, and ternaries intentionally fail this check rather than invalidating the binding.
@@ -1275,12 +1303,14 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 		}
 	}
 	while (direct.startsWith('(') && direct.endsWith(')')) {
+		const close = matchingParenClose(direct, 0);
+		if (close !== direct.length - 1) break;
 		direct = direct.slice(1, -1).trim();
 	}
 	if (direct === binding.name) return true;
 
-	// Object/array destructuring writes are definite when the assignment statement itself
-	// consists only of that pattern (object assignments may have a leading parenthesis).
+	// Object/array destructuring writes are definite when the selected sequence operand consists
+	// only of that pattern (object assignments may have a leading parenthesis).
 	while (lhs.startsWith('(')) lhs = lhs.slice(1).trimStart();
 	while (lhs.endsWith(')')) lhs = lhs.slice(0, -1).trimEnd();
 	if ((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) {
