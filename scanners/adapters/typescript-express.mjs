@@ -1415,13 +1415,19 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	// Only a standalone assignment target is definite. Conditional prefixes such as `if (flag)`,
 	// `flag &&`, and ternaries intentionally fail this check rather than invalidating the binding.
 	let direct = lhs;
-	const compoundOperators = ['&&', '+', '-', '*', '/', '%', '&', '|', '^'];
+	const compoundOperators = ['&&', '**', '+', '-', '*', '/', '%', '&', '|', '^'];
 	for (const operator of compoundOperators) {
 		if (direct.endsWith(operator)) {
 			direct = direct.slice(0, -operator.length).trimEnd();
 			break;
 		}
 	}
+	// A same-scope `var` redeclaration is a real write to the existing binding, not a new
+	// lexical shadow. Preserve the full binding-pattern parser so typed/destructured forms are
+	// handled consistently with ordinary declarations.
+	const varRedeclaration = direct.match(/^var\b([\s\S]*)$/);
+	if (varRedeclaration && variableClauseBindsName(varRedeclaration[1], binding.name)) return true;
+
 	while (direct.startsWith('(') && direct.endsWith(')')) {
 		const close = matchingParenClose(direct, 0);
 		if (close !== direct.length - 1) break;
@@ -1485,6 +1491,11 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 	for (const match of text.matchAll(updateRe)) {
 		if (match.index < binding.initializationEnd || match.index >= targetIndex) continue;
 		if (!isCodePosition(text, match.index) || !definiteApplicationWritePosition(text, match.index)) continue;
+		// `if (flag) app++` and similar control-prefixed updates are conditional writes. Reuse
+		// the statement-boundary walker used by assignments: only an empty prefix means the update
+		// itself is the definitely executed statement (including inside a standalone block).
+		const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
+		if (text.slice(statementStart, match.index).trim() !== '') continue;
 		return true;
 	}
 	return false;
