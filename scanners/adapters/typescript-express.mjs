@@ -263,36 +263,91 @@ function scopeBodyDeclaresName(text, name) {
 	}
 	return false;
 }
+function matchingParenClose(text, openIndex) {
+	let depth = 0;
+	let quote = null;
+	for (let i = openIndex; i < text.length; i++) {
+		const ch = text[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '(') depth++;
+		else if (ch === ')') {
+			depth--;
+			if (depth === 0) return i;
+		}
+	}
+	return -1;
+}
+
+function parameterListBeforeBlock(text, blockOpenIndex) {
+	let close = blockOpenIndex - 1;
+	while (close >= 0 && /\s/.test(text[close])) close--;
+	if (text[close] !== ')') {
+		close = text.lastIndexOf(')', blockOpenIndex - 1);
+		if (close === -1) return null;
+	}
+	const searchStart = Math.max(0, close - 4096);
+	for (let open = close; open >= searchStart; open--) {
+		if (text[open] !== '(') continue;
+		if (matchingParenClose(text, open) === close) {
+			return { open, close, params: text.slice(open + 1, close) };
+		}
+	}
+	return null;
+}
+
 function scopeHeaderShadowsName(text, openIndex, name) {
-	const header = text.slice(Math.max(0, openIndex - 2048), openIndex).trimEnd();
+	const header = text.slice(Math.max(0, openIndex - 4096), openIndex).trimEnd();
 	const escaped = escapeRegex(name);
 
-	// Single-parameter arrow: `app => {`, `async app => {`, `app: App => {`.
-	const singleArrow = new RegExp(`(?:^|[^\\w$])(?:async\\s+)?${escaped}\\s*(?::[^=]+)?=>\\s*$`);
+	const singleArrow = new RegExp('(?:^|[^\\w$])(?:async\\s+)?' + escaped + '\\s*(?::[^=]+)?=>\\s*$');
 	if (singleArrow.test(header)) return true;
 
-	// Parenthesized function/method/arrow parameters immediately preceding this block.
-	const paramsMatch = header.match(/\(([^()]*)\)\s*(?::[^{}=]+)?(?:=>)?\s*$/);
-	if (!paramsMatch) return false;
-	const params = paramsMatch[1];
-	const before = header.slice(0, paramsMatch.index).trimEnd();
+	const list = parameterListBeforeBlock(text, openIndex);
+	if (!list) return false;
+	const before = text.slice(Math.max(0, list.open - 256), list.open).trimEnd();
 	const leader = before.match(/([A-Za-z_$][\w$]*)\s*$/)?.[1] ?? '';
-	const isArrow = /=>\s*$/.test(header);
+	const tail = text.slice(list.close + 1, openIndex);
+	const isArrow = /=>\s*$/.test(tail);
 
-	// Control-statement parens are not lexical parameter bindings. A for-loop declaration is.
 	if (['if', 'while', 'switch', 'with'].includes(leader) && !isArrow) return false;
-	if (leader === 'for' && !isArrow) return scopeBodyDeclaresName(params, name);
-	return splitTopLevelArgs(params).some((param) => parameterBindsName(param, name));
+	if (leader === 'for' && !isArrow) return scopeBodyDeclaresName(list.params, name);
+	return splitTopLevelArgs(list.params).some((param) => parameterBindsName(param, name));
 }
 
 // A top-level Express application may legitimately be configured inside another function (the
 // T19 holdout does exactly this in Main()). Reject only active lexical scopes that introduce a
 // same-named binding, rather than rejecting every nested call wholesale.
-function applicationReferenceIsAuthorized(text, name, targetIndex) {
+function scopeDirectlyDeclaresName(text, openIndex, targetIndex, name) {
+	const segmentStart = openIndex + 1;
+	const segment = text.slice(segmentStart, targetIndex);
+	const directlyInside = (relativeIndex) => {
+		const scopes = activeCodeScopeOpeningsAt(text, segmentStart + relativeIndex);
+		return scopes[scopes.length - 1] === openIndex;
+	};
+
+	for (const match of segment.matchAll(/\b(?:function|class)\s+([A-Za-z_$][\w$]*)\b/g)) {
+		if (match[1] === name && directlyInside(match.index)) return true;
+	}
+	for (const match of segment.matchAll(/\b(?:const|let|var)\s+([^;\n]+)/g)) {
+		if (!directlyInside(match.index)) continue;
+		for (const declarator of splitTopLevelArgs(match[1])) {
+			const pattern = leadingBindingPattern(declarator);
+			if (pattern && bindingPatternBindsName(pattern, name)) return true;
+		}
+	}
+	return false;
+}
+
+function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	if (isTopLevelCodePosition(text, targetIndex)) return true;
 	for (const openIndex of activeCodeScopeOpeningsAt(text, targetIndex)) {
 		if (scopeHeaderShadowsName(text, openIndex, name)) return false;
-		if (scopeBodyDeclaresName(text.slice(openIndex + 1, targetIndex), name)) return false;
+		if (scopeDirectlyDeclaresName(text, openIndex, targetIndex, name)) return false;
 	}
 	return true;
 }
@@ -411,7 +466,7 @@ function extractEndpoints(text, receiverNames, topLevelOnlyNames = new Set()) {
 			// Application receivers are authorized from a top-level import binding. A nested scope
 			// may redeclare the same identifier (for example configure(app: FakeApp)), so do not
 			// let same-spelled nested calls inherit that authority. Router() behavior is unchanged.
-			if (topLevelOnlyNames.has(routerName) && !applicationReferenceIsAuthorized(text, routerName, m.index)) continue;
+			if (topLevelOnlyNames.has(routerName) && !topLevelReferenceIsAuthorized(text, routerName, m.index)) continue;
 			const verb = m[1].toUpperCase();
 			const openIdx = m.index + m[0].length - 1;
 			const closeIdx = matchBalancedParens(text, openIdx);
@@ -472,7 +527,7 @@ function buildMountEdges(files, fileTexts) {
 			for (const m of text.matchAll(useRe)) {
 				// Same authority rule as endpoint extraction: a top-level Express application name
 				// does not authorize a same-spelled parameter/local inside a nested scope.
-				if (applicationReceivers.has(receiver) && !applicationReferenceIsAuthorized(text, receiver, m.index)) continue;
+				if (applicationReceivers.has(receiver) && !topLevelReferenceIsAuthorized(text, receiver, m.index)) continue;
 				const openIdx = m.index + m[0].length - 1;
 				const closeIdx = matchBalancedParens(text, openIdx);
 				if (closeIdx === -1) continue;
@@ -489,6 +544,7 @@ function buildMountEdges(files, fileTexts) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
 					if (!identMatch) continue;
 					const target = identMatch[1];
+					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
 
 					if (localReceivers.has(target)) {
 						edges.push({ from: nodeKey(file, receiver), to: nodeKey(file, target), prefix });

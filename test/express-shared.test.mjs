@@ -415,6 +415,38 @@ test('typescript-express: destructuring cannot shadow an authorized app receiver
 	]);
 });
 
+test('typescript-express: lexical scope resolution rejects shadowed mount targets and ignores exited child bindings', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const app = express();',
+			'const router: Router = Router();',
+			"router.get('/child', childHandler);",
+			"app.use('/api', router);",
+			'function configure(router: { get: Function }) {',
+			"  app.use('/wrong', router);",
+			'}',
+			'function configureDefault({ app } = makeSource()) {',
+			"  app.get('/phantom-default', phantomHandler);",
+			'}',
+			'function afterClosedBlock() {',
+			'  { const app = fakeApp; app.get(\'/phantom-inner\', phantomHandler); }',
+			"  app.get('/after-block', realHandler);",
+			'}',
+			'export default app;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), [
+		'GET /after-block',
+		'GET /api/child',
+	]);
+});
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
