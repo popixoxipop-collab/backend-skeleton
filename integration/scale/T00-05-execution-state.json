@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-execution-state/1",
-  "observed_at": "2026-09-27T16:14:00+09:00",
+  "observed_at": "2026-09-27T16:21:00+09:00",
   "coordinator": "T00",
   "coordination_branch": "scale/T00/bootstrap-baseline",
   "coordination_head_after_t00_docs": "be76e28bc415b6bd5fbbc87faa409d634f395107",
@@ -288,17 +288,6 @@
       ],
       "fencing_token": 1,
       "expires_at": "2026-09-27T14:06:00Z",
-      "state": "ACTIVE"
-    },
-    "T00-T19-RELEASE-ACCEPTANCE-20260927-r3": {
-      "repo": "popixoxipop-collab/backend-skeleton",
-      "branch": "t00/t19-release-provenance-hardening-r3",
-      "base_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-      "path_scopes": [
-        "test/t19-release-acceptance/**"
-      ],
-      "fencing_token": 3,
-      "expires_at": "2026-09-27T15:05:00Z",
       "state": "ACTIVE"
     }
   },
@@ -702,24 +691,18 @@
     ]
   },
   "t19_03": {
-    "state": "BLOCKED_PROVENANCE_HARDENING",
-    "pr": 149,
-    "reviewed_head": "2cf923ca9b698094e94eb278c61e357b9e4a7dcc",
-    "merge_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-    "ci_run": 36293357416,
-    "ci_conclusion": "success",
-    "merge_relation": "ahead 1 / behind 0 / zero file delta",
-    "packet_guard": "8/8 PASS",
-    "release_approved": false,
-    "default_activation_approved": false,
+    "state": "BLOCKED_PACKET_INTEGRATED",
+    "packet_pr": 149,
+    "packet_merge_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
+    "provenance_pr": 152,
+    "provenance_merge_sha": "0bbaa7352944918d1d03fd3c83bcc38a29a01bef",
+    "qa_repo": "popixoxipop-collab/backend-skeleton",
+    "qa_pr": 118,
+    "verdict": "BLOCKED",
     "blockers": [
       "HOLDOUT_ISSUE_119_OPEN",
       "NO_T19_RELEASE_CERTIFICATE",
       "T20_03_NOT_ACCEPTED"
-    ],
-    "merged_packet_pr": 149,
-    "merged_main_sha": "60c4a6e121024eea0cec96b61038cd4dcec6bce8",
-    "followup_branch": "t00/t19-release-provenance-hardening-r3",
-    "verdict": "BLOCKED"
+    ]
   }
 }
