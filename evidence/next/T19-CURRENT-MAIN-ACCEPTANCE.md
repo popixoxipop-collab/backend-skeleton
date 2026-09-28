@@ -1,14 +1,14 @@
 # T19 post-A exact-source QA acceptance slice
 
 Observed: 2026-09-29 KST  
-Branch: `t00/t19-current-main-qa-r1`  
+Branch: `t00/t19-final-integration-20260929`  
 Restack base: `backend-skeleton@80002a1e6536c007d9daaf8e2180fe82f14971e4`  
-Exact source head tested: `1ae4a506fe1bf7376a0213c52550ef5d1a5906ce`
+Exact source head tested: `6acc4bfcb06e53bac511763c9892df4372ecebe9`
 
 ## Scope
 
-This packet records the post-A T19 QA implementation after restacking the T19-owned
-surfaces onto the latest bskel main. The branch is zero commits behind the restack
+This packet records the final post-A T19 QA integration candidate in PR #159 after
+restacking the T19-owned surfaces onto the latest bskel main. The branch is zero commits behind the restack
 base and changes only the T19 QA/evidence surfaces.
 
 The mutation runners are fail-closed on source provenance:
@@ -26,14 +26,14 @@ The mutation runners are fail-closed on source provenance:
 
 Workflow run:
 
-- run id: **36463531776**
-- run number: **1511**
-- source head: `1ae4a506fe1bf7376a0213c52550ef5d1a5906ce`
+- run id: **36474509090**
+- run number: **1551**
+- source head: `6acc4bfcb06e53bac511763c9892df4372ecebe9`
 
 T19 nested lane:
 
-- Node 22 job **109068277052** — **74/74 PASS**, 0 fail, 0 skip
-- Node 24 job **109068276911** — **74/74 PASS**, 0 fail, 0 skip
+- Node 22 job **109105145471** — **74/74 PASS**, 0 fail, 0 skip
+- Node 24 job **109105145086** — **74/74 PASS**, 0 fail, 0 skip
 
 The T19 nested suite executes six test files across `test/conformance-next` and
 `test/t19-release-acceptance`. The exact-source run includes the current
