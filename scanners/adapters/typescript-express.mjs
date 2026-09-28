@@ -1452,25 +1452,39 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	return false;
 }
 
+function objectMemberGuaranteesEnumerableStringKey(member) {
+	const item = member.trim();
+	if (!item || item.startsWith('...') || item.startsWith('[')) return false;
+	// Shorthand properties always create an own enumerable string key.
+	if (/^[A-Za-z_$][\w$]*$/.test(item)) return true;
+	// Colon properties with __proto__ are the object-literal prototype setter, not an own key.
+	const colon = item.match(/^([A-Za-z_$][\w$]*|["'][^"']+["']|\d+(?:\.\d+)?)\s*:/);
+	if (colon) {
+		const raw = colon[1];
+		const key = /^["']/.test(raw) ? raw.slice(1, -1) : raw;
+		return key !== '__proto__';
+	}
+	// Methods/accessors with a noncomputed literal/identifier name create enumerable own keys,
+	// including a method literally named __proto__ (only the colon form is special).
+	return /^(?:(?:async|get|set)\s+|\*\s*)*([A-Za-z_$][\w$]*|["'][^"']+["']|\d+(?:\.\d+)?)\s*(?:<[^>]*>\s*)?\(/.test(item);
+}
+
 function staticallyGuaranteedNonEmptyLoop(operator, expression) {
 	const value = expression.trim();
 	// Stay deliberately conservative: only syntax whose iteration count is knowable without
 	// evaluation can make a post-loop write definite.
 	if (value.startsWith('[') && value.endsWith(']') && delimitersBalanced(value)) {
-		const inner = value.slice(1, -1).trim();
-		if (!inner) return false;
-		// A fixed array element guarantees at least one for-of iteration; pure spreads do not.
-		if (operator === 'of') {
-			return splitTopLevelArgs(inner).some((item) => item.trim() && !item.trim().startsWith('...'));
-		}
-		// A fixed array element also creates an enumerable index for for-in.
-		if (operator === 'in') {
-			return splitTopLevelArgs(inner).some((item) => item.trim() && !item.trim().startsWith('...'));
-		}
+		const inner = value.slice(1, -1);
+		if (!inner.trim()) return false;
+		const elements = splitTopLevelArgs(inner);
+		// splitTopLevelArgs preserves interior elisions as empty entries, so [,] and [,,] are
+		// guaranteed nonempty even though they have no ordinary expression element.
+		const hasFixedSlot = elements.some((item) => item.trim() === '' || !item.trim().startsWith('...'));
+		if (operator === 'of' || operator === 'in') return hasFixedSlot;
 	}
 	if (operator === 'in' && value.startsWith('{') && value.endsWith('}') && delimitersBalanced(value)) {
 		const inner = value.slice(1, -1).trim();
-		return splitTopLevelArgs(inner).some((item) => item.trim() && !item.trim().startsWith('...'));
+		return splitTopLevelArgs(inner).some(objectMemberGuaranteesEnumerableStringKey);
 	}
 	return false;
 }
@@ -1535,18 +1549,21 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		}
 		// Existing-binding assignments in classic for initializers execute before the first test,
 		// but only when this header resolves to the same application binding in a definitely-run scope.
-		for (const operand of splitTopLevelArgs(initializer)) {
+		for (const operandPart of splitBindingDeclaratorsWithOffsets(initializer)) {
+			const operand = operandPart.text;
 			const assignment = topLevelBindingSeparator(operand, '=');
 			if (assignment === -1) continue;
-			let lhs = peelAssignmentGrouping(operand.slice(0, assignment).trim());
+			const rawLhs = operand.slice(0, assignment);
+			let lhs = peelAssignmentGrouping(rawLhs.trim());
 			for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
 				if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
 			}
 			const writes = lhs === binding.name ||
 				(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
 			if (!writes) continue;
-			const nameOffset = header.indexOf(binding.name);
-			const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
+			const localNameOffset = rawLhs.lastIndexOf(binding.name);
+			if (localNameOffset === -1) continue;
+			const referenceIndex = openIndex + 1 + operandPart.offset + localNameOffset;
 			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
 		}
 	}
@@ -1818,7 +1835,7 @@ function defaultExportedReceiverBinding(text) {
 }
 
 function defaultImportSourceForBinding(text, name) {
-	const directRe = new RegExp('\\bimport\\s+' + escapeRegex(name) + '\\s*(?:,\\s*\\{[^}]*\\})?\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
+	const directRe = new RegExp('\\bimport\\s+' + escapeRegex(name) + '\\s*(?:,\\s*(?:\\{[^}]*\\}|\\*\\s+as\\s+[A-Za-z_$][\\w$]*))?\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
 	for (const match of text.matchAll(directRe)) {
 		if (isCodePosition(text, match.index)) return match[1];
 	}
