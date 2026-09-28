@@ -1462,11 +1462,17 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const header = text.slice(openIndex + 1, closeIndex);
 		const split = header.match(/^\s*([\s\S]*?)\s+(?:of|in)\s+[\s\S]*$/);
 		if (split) {
+			// for-in/of header assignments are guaranteed only for calls that occur INSIDE an
+			// iteration. A route after the loop must keep the original application because the
+			// iterable may be empty.
+			const bodyStart = skipStatementWhitespace(text, closeIndex + 1);
+			const bodyEnd = singleStatementEnd(text, bodyStart);
+			if (!(targetIndex >= bodyStart && targetIndex < bodyEnd)) continue;
 			let lhs = peelAssignmentGrouping(split[1].trim());
 			const declaration = lhs.match(/^(const|let|var)\b([\s\S]*)$/);
 			if (declaration) {
 				// let/const create a loop-local shadow. var reuses the containing function/module
-				// binding, so each iteration overwrites an existing mutable var application.
+				// binding for an executing iteration.
 				if (declaration[1] === 'var' && binding.declarationKind === 'var' &&
 					variableClauseBindsName(declaration[2], binding.name)) return true;
 				continue;
@@ -1506,7 +1512,7 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		// but only when this header resolves to the same application binding in a definitely-run scope.
 		const assignment = topLevelBindingSeparator(initializer, '=');
 		if (assignment !== -1) {
-			let lhs = peelAssignmentGrouping(initializer.slice(0, assignment).trim());
+			let lhs = topLevelSequenceAssignmentTarget(initializer.slice(0, assignment).trim());
 			for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
 				if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
 			}
@@ -1785,6 +1791,22 @@ function defaultExportedReceiverBinding(text) {
 	return null;
 }
 
+function defaultImportSourceForBinding(text, name) {
+	const directRe = new RegExp('\\bimport\\s+' + escapeRegex(name) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
+	for (const match of text.matchAll(directRe)) {
+		if (isCodePosition(text, match.index)) return match[1];
+	}
+	const namedRe = /\bimport\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
+	for (const match of text.matchAll(namedRe)) {
+		if (!isCodePosition(text, match.index)) continue;
+		for (const specifier of splitTopLevelArgs(match[1])) {
+			const alias = specifier.trim().match(/^default\s+as\s+([A-Za-z_$][\w$]*)$/);
+			if (alias && alias[1] === name) return match[2];
+		}
+	}
+	return null;
+}
+
 function buildMountEdges(files, fileTexts) {
 	const edges = [];
 	const fileSet = new Set(files);
@@ -1815,13 +1837,9 @@ function buildMountEdges(files, fileTexts) {
 					}
 
 					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
-					const importRe = new RegExp('import\\s+' + escapeRegex(target) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
-					let importMatch = null;
-					for (const candidateMatch of text.matchAll(importRe)) {
-						if (isCodePosition(text, candidateMatch.index)) { importMatch = candidateMatch; break; }
-					}
-					if (!importMatch) continue;
-					const toFile = resolveRelativeImport(file, importMatch[1]);
+					const importSource = defaultImportSourceForBinding(text, target);
+					if (!importSource) continue;
+					const toFile = resolveRelativeImport(file, importSource);
 					if (!toFile || !fileSet.has(toFile)) continue;
 					const toBinding = defaultExportedReceiverBinding(fileTexts.get(toFile));
 					if (!toBinding) continue;
