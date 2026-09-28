@@ -191,7 +191,7 @@ function normalizeObservedInventory(items) {
     if (!item || !nonEmptyString(item.id) || !['verified', 'unknown'].includes(item.status)) return null;
     normalized.push({ id: item.id, status: item.status });
   }
-  normalized.sort((a, b) => a.id.localeCompare(b.id) || a.status.localeCompare(b.status));
+  normalized.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : a.status < b.status ? -1 : a.status > b.status ? 1 : 0);
   return normalized;
 }
 
