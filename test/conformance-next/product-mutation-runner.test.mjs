@@ -12,6 +12,16 @@ const HERE=path.dirname(fileURLToPath(import.meta.url));
 const ROOT=path.resolve(HERE,'..','..');
 const CATALOG=JSON.parse(fs.readFileSync(path.join(HERE,'product-mutations.json'),'utf8'));
 
+function initFixtureRepo(root) {
+ fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({name:'t19-fixture',version:'1.0.0',private:true})+'\n');
+ fs.writeFileSync(path.join(root,'package-lock.json'),JSON.stringify({name:'t19-fixture',version:'1.0.0',lockfileVersion:3,requires:true,packages:{'':{name:'t19-fixture',version:'1.0.0'}}},null,2)+'\n');
+ spawnSync('git',['init','-q'],{cwd:root});
+ spawnSync('git',['add','-A'],{cwd:root});
+ const commit=spawnSync('git',['-c','user.name=T19','-c','user.email=t19@example.invalid','commit','-q','-m','baseline'],{cwd:root,encoding:'utf8'});
+ assert.equal(commit.status,0,commit.stderr);
+ return spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).stdout.trim();
+}
+
 test('product mutation catalog is safe and links every mutant to a planned negative vector',()=>{
  const result=validateProductMutationCatalog(CATALOG);
  assert.equal(result.ok,true,result.errors.join('\n'));
@@ -34,12 +44,32 @@ test('product mutation campaign never counts a failure as killed when the unmodi
   fs.mkdirSync(path.join(root,'test'),{recursive:true});
   fs.writeFileSync(path.join(root,'subject.mjs'),'export const value = 1;\n');
   fs.writeFileSync(path.join(root,'test','subject.test.mjs'),"import test from 'node:test'; import assert from 'node:assert/strict'; import { value } from '../subject.mjs'; test('fails before mutation',()=>assert.equal(value,2));\n");
+  const sourceCommit=initFixtureRepo(root);
   const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'baseline-bad',vector_id:'NEG-TEST-01',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 3',test_files:['test/subject.test.mjs'],invariant:'baseline must be green'}]};
-  const result=runProductMutationCampaign({repoRoot:root,catalog});
+  const result=runProductMutationCampaign({repoRoot:root,catalog,sourceCommit});
   assert.equal(result.pass,false);
   assert.equal(result.mutants[0].status,'survived');
   assert.equal(result.mutants[0].classification,'baseline-failed');
   assert.notEqual(result.mutants[0].baseline.exit_code,0);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('product mutation campaign ignores live ignored bytes and executes only the claimed commit tree',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-ignored-bytes-'));
+ try{
+  fs.mkdirSync(path.join(root,'test'),{recursive:true});
+  fs.writeFileSync(path.join(root,'.gitignore'),'ignored.txt\nnode_modules/\n');
+  fs.writeFileSync(path.join(root,'subject.mjs'),'export const value = 1;\n');
+  fs.writeFileSync(path.join(root,'test','subject.test.mjs'),"import test from 'node:test'; import assert from 'node:assert/strict'; import fs from 'node:fs'; import { value } from '../subject.mjs'; test('commit-only source',()=>{ assert.equal(value,1); assert.equal(fs.existsSync(new URL('../ignored.txt', import.meta.url)),false); });\n");
+  const sourceCommit=initFixtureRepo(root);
+  fs.writeFileSync(path.join(root,'ignored.txt'),'live ignored poison\n');
+  const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'commit-only',vector_id:'NEG-TEST-02',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 2',test_files:['test/subject.test.mjs'],invariant:'ignored live bytes never enter claimed commit execution'}]};
+  const result=runProductMutationCampaign({repoRoot:root,catalog,sourceCommit});
+  assert.equal(result.pass,true,JSON.stringify(result,null,2));
+  assert.equal(result.source_materialization,'git-archive');
+  assert.equal(result.source_commit,sourceCommit);
+  assert.equal(result.dependency_install.mode,'npm-ci-ignore-scripts');
+  assert.equal(result.mutants[0].status,'killed');
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
@@ -81,6 +111,9 @@ test('product mutation runner CLI writes a machine-readable report',()=>{
   assert.equal(report.contract,'sbf.qa-product-mutation-report/1');
   const head=spawnSync('git',['-C',ROOT,'rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim();
   assert.equal(report.source_commit,head);
+  assert.equal(report.source_materialization,'git-archive');
+  assert.equal(report.dependency_install.mode,'npm-ci-ignore-scripts');
+  assert.match(report.dependency_install.package_lock_sha256,/^[a-f0-9]{64}$/);
   assert.equal(report.catalog_sha256,createHash('sha256').update(JSON.stringify(CATALOG)).digest('hex'));
   assert.equal(report.pass,true,JSON.stringify(report,null,2));
   assert.equal(report.mutants.length,13);
