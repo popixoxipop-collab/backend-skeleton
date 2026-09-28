@@ -2061,6 +2061,43 @@ test('typescript-express: ASI-separated reassignment after a semicolonless call 
 	assert.deepEqual(conditionalEndpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
 });
 
+test('typescript-express: compound unbraced control headers keep app reassignment conditional', () => {
+	const variants = [
+		[
+			'if (a) cleanup()',
+			'else if (b)',
+			'  app = fakeApp',
+		],
+		[
+			'if (a)',
+			'  if (b)',
+			'    app = fakeApp',
+		],
+		[
+			'for await (const item of items)',
+			'  app = fakeApp',
+		],
+	];
+	for (const body of variants) {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				'let app: any = express();',
+				...body,
+				"app.get('/real', realHandler);",
+			].join('\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+		assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+	}
+});
+
 test('typescript-express: initializer-free classic-for var redeclaration preserves the existing app binding', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
