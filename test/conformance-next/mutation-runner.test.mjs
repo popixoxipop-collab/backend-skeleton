@@ -12,6 +12,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 const CATALOG = JSON.parse(fs.readFileSync(path.join(HERE, 'mutations.json'), 'utf8'));
 
+function initFixtureRepo(root) {
+  spawnSync('git',['init','-q'],{cwd:root});
+  spawnSync('git',['add','-A'],{cwd:root});
+  const commit=spawnSync('git',['-c','user.name=T19','-c','user.email=t19@example.invalid','commit','-q','-m','baseline'],{cwd:root,encoding:'utf8'});
+  assert.equal(commit.status,0,commit.stderr);
+  return spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).stdout.trim();
+}
+
 test('mutation catalog is structurally safe and limited to T19-owned test paths', () => {
   const result = validateMutationCatalog(CATALOG);
   assert.equal(result.ok, true, result.errors.join('\n'));
@@ -35,8 +43,9 @@ test('mutation campaign never counts a failure as killed when the unmodified scr
     fs.mkdirSync(path.join(root,'test','corpus-next'),{recursive:true});
     fs.writeFileSync(path.join(dir,'subject.mjs'),'export const value = 1;\n');
     fs.writeFileSync(path.join(dir,'subject.test.mjs'),"import test from 'node:test'; import assert from 'node:assert/strict'; import { value } from './subject.mjs'; test('fails before mutation',()=>assert.equal(value,2));\n");
+    const sourceCommit=initFixtureRepo(root);
     const catalog={contract:'sbf.qa-mutation-catalog/1',mutants:[{id:'baseline-bad',critical:true,file:'test/conformance-next/subject.mjs',find:'value = 1',replace:'value = 3',test_files:['test/conformance-next/subject.test.mjs'],invariant:'baseline must be green'}]};
-    const result=runMutationCampaign({repoRoot:root,catalog});
+    const result=runMutationCampaign({repoRoot:root,catalog,sourceCommit});
     assert.equal(result.pass,false);
     assert.equal(result.mutants[0].status,'survived');
     assert.equal(result.mutants[0].classification,'baseline-failed');
@@ -84,6 +93,7 @@ test('mutation runner CLI writes a machine-readable killed-mutant report', () =>
     assert.equal(report.contract,'sbf.qa-mutation-report/1');
     const head=spawnSync('git',['-C',ROOT,'rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim();
     assert.equal(report.source_commit,head);
+    assert.equal(report.source_materialization,'git-archive');
     assert.equal(report.catalog_sha256,createHash('sha256').update(JSON.stringify(CATALOG)).digest('hex'));
     assert.equal(report.pass,true,JSON.stringify(report,null,2));
     assert.equal(report.mutants.length,7);
