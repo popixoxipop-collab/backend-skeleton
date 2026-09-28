@@ -1560,7 +1560,19 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		// Existing-binding assignments in classic for initializers execute before the first test,
 		// but only when this header resolves to the same application binding in a definitely-run scope.
 		for (const operandPart of splitBindingDeclaratorsWithOffsets(initializer)) {
-			const operand = operandPart.text;
+			let operand = operandPart.text;
+			let operandOffset = operandPart.offset;
+			// Whole-expression grouping must not hide the assignment token from the top-level
+			// separator: `for ((app = fake); ...)` is still an unconditional initializer write.
+			while (operand.startsWith('(')) {
+				const close = matchingParenClose(operand, 0);
+				if (close !== operand.length - 1) break;
+				const inner = operand.slice(1, -1);
+				const leading = inner.search(/\S/);
+				if (leading === -1) break;
+				operandOffset += 1 + leading;
+				operand = inner.slice(leading).trimEnd();
+			}
 			const assignment = topLevelBindingSeparator(operand, '=');
 			if (assignment === -1) continue;
 			const rawLhs = operand.slice(0, assignment);
@@ -1573,7 +1585,7 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 			if (!writes) continue;
 			const localNameOffset = rawLhs.lastIndexOf(binding.name);
 			if (localNameOffset === -1) continue;
-			const referenceIndex = openIndex + 1 + operandPart.offset + localNameOffset;
+			const referenceIndex = openIndex + 1 + operandOffset + localNameOffset;
 			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
 		}
 	}
