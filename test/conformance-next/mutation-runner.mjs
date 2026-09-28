@@ -89,6 +89,8 @@ function initializeScratchGit(scratch) {
 function runTestFiles(scratch, testFiles, timeoutMs) {
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
+  delete env.NODE_OPTIONS;
+  delete env.NODE_PATH;
   const args = ['--test', ...testFiles.map((p) => path.join(scratch, p))];
   const run = spawnSync(process.execPath, args, { cwd: scratch, encoding: 'utf8', timeout: timeoutMs, env });
   return {
