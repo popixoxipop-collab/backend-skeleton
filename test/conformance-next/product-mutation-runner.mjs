@@ -61,19 +61,48 @@ export function validateProductMutationCatalog(catalog) {
   return { ok:errors.length===0, errors, stats:{mutants:catalog.mutants.length} };
 }
 
-function copyProject(repoRoot,scratch) {
-  fs.cpSync(repoRoot,scratch,{
-    recursive:true,
-    dereference:false,
-    filter:(src)=>{
-      const rel=path.relative(repoRoot,src);
-      if (!rel) return true;
-      const first=rel.split(path.sep)[0];
-      return first !== '.git' && first !== 'node_modules';
-    },
+function materializeTrackedCommit(repoRoot, target, sourceCommit) {
+  fs.mkdirSync(target,{recursive:true});
+  const archive=spawnSync('git',['-C',repoRoot,'archive','--format=tar',sourceCommit],{
+    encoding:null,timeout:30_000,maxBuffer:128*1024*1024,
   });
-  const sourceNodeModules=path.join(repoRoot,'node_modules');
-  if (fs.existsSync(sourceNodeModules)) fs.symlinkSync(sourceNodeModules,path.join(scratch,'node_modules'),'dir');
+  if(archive.status!==0) throw new Error(`git archive ${sourceCommit} failed: ${Buffer.from(archive.stderr??'').toString('utf8').trim()}`);
+  const extract=spawnSync('tar',['-xf','-','-C',target],{
+    input:archive.stdout,encoding:'utf8',timeout:30_000,maxBuffer:16*1024*1024,
+  });
+  if(extract.status!==0) throw new Error(`tar extract of ${sourceCommit} failed: ${(extract.stderr??'').trim()}`);
+}
+
+function sha256File(file) {
+  return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+function installControlledDependencies(sourceRoot) {
+  const packageJson=path.join(sourceRoot,'package.json');
+  const lockfile=path.join(sourceRoot,'package-lock.json');
+  if(!fs.existsSync(packageJson)||!fs.existsSync(lockfile)) {
+    throw new Error('controlled product mutation execution requires tracked package.json and package-lock.json');
+  }
+  const npm=process.platform==='win32'?'npm.cmd':'npm';
+  const run=spawnSync(npm,['ci','--ignore-scripts','--no-audit','--no-fund'],{
+    cwd:sourceRoot,encoding:'utf8',timeout:180_000,
+    env:{...process.env,npm_config_update_notifier:'false'},
+  });
+  if(run.status!==0) throw new Error(`controlled npm ci failed: ${(run.stderr??run.stdout??'').slice(-2400)}`);
+  return {
+    mode:'npm-ci-ignore-scripts',
+    package_lock_sha256:sha256File(lockfile),
+    node_modules:path.join(sourceRoot,'node_modules'),
+  };
+}
+
+function attachControlledDependencies(scratch, dependencyInfo) {
+  const target=path.join(scratch,'node_modules');
+  if(fs.existsSync(target)) fs.rmSync(target,{recursive:true,force:true});
+  if(!fs.existsSync(dependencyInfo.node_modules)) throw new Error('controlled dependency installation did not produce node_modules');
+  fs.symlinkSync(dependencyInfo.node_modules,target,process.platform==='win32'?'junction':'dir');
+  const exclude=path.join(scratch,'.git','info','exclude');
+  fs.appendFileSync(exclude,'\nnode_modules/\n');
 }
 
 function runGit(scratch, args) {
@@ -129,17 +158,25 @@ function applyMutation(scratch,mutant) {
   return {ok:true};
 }
 
-export function runProductMutationCampaign({repoRoot,catalog}) {
+export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null}) {
   const validation=validateProductMutationCatalog(catalog);
   if(!validation.ok) return {pass:false,catalog_errors:validation.errors,mutants:[],gate:null};
+  const resolvedSourceCommit=sourceCommit??resolveSourceCommit(repoRoot);
+  if(!/^[a-f0-9]{40}$/i.test(resolvedSourceCommit)) throw new Error('product mutation campaign requires an exact source commit');
+  const controlledParent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-controlled-source-'));
+  const controlledSource=path.join(controlledParent,'source');
+  materializeTrackedCommit(repoRoot,controlledSource,resolvedSourceCommit);
+  const dependencyInfo=installControlledDependencies(controlledSource);
   const results=[];
-  for(const mutant of catalog.mutants){
-    const parent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-mutant-'));
-    const scratch=path.join(parent,'repo');
-    try{
-      copyProject(repoRoot,scratch);
-      initializeScratchGit(scratch);
-      const baseline=runTestFiles(scratch,mutant.test_files,PRODUCT_TEST_TIMEOUT_MS);
+  try{
+    for(const mutant of catalog.mutants){
+      const parent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-mutant-'));
+      const scratch=path.join(parent,'repo');
+      try{
+        materializeTrackedCommit(repoRoot,scratch,resolvedSourceCommit);
+        initializeScratchGit(scratch);
+        attachControlledDependencies(scratch,dependencyInfo);
+        const baseline=runTestFiles(scratch,mutant.test_files,PRODUCT_TEST_TIMEOUT_MS);
       if(baseline.exit_code!==0){
         results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,status:'survived',classification:'baseline-failed',reason:'unmodified scratch test suite did not pass; mutant cannot be counted as killed',baseline});
         continue;
@@ -157,10 +194,21 @@ export function runProductMutationCampaign({repoRoot,catalog}) {
         status:killed?'killed':'survived',classification:killed?'mutant-detected':'mutant-survived',baseline,
         exit_code:run.exit_code,signal:run.signal,stdout_tail:run.stdout_tail,stderr_tail:run.stderr_tail,
       });
-    }finally{cleanupScratch(parent);}
+      }finally{cleanupScratch(parent);}
+    }
+    const gate=evaluateMutationGate({mutants:results.map(({id,critical,status})=>({id,critical,status}))});
+    return {
+      pass:gate.pass,catalog_errors:[],mutants:results,gate,
+      source_materialization:'git-archive',
+      source_commit:resolvedSourceCommit,
+      dependency_install:{
+        mode:dependencyInfo.mode,
+        package_lock_sha256:dependencyInfo.package_lock_sha256,
+      },
+    };
+  } finally {
+    cleanupScratch(controlledParent);
   }
-  const gate=evaluateMutationGate({mutants:results.map(({id,critical,status})=>({id,critical,status}))});
-  return {pass:gate.pass,catalog_errors:[],mutants:results,gate};
 }
 
 
@@ -183,8 +231,8 @@ export function main(argv=process.argv.slice(2),stdout=process.stdout,stderr=pro
     const catalog=JSON.parse(fs.readFileSync(options.catalog,'utf8'));
     const source_commit=resolveSourceCommit(options.repo_root,options.source_commit);
     const catalog_sha256=createHash('sha256').update(JSON.stringify(catalog)).digest('hex');
-    const report=runProductMutationCampaign({repoRoot:options.repo_root,catalog});
-    const encoded=JSON.stringify({contract:'sbf.qa-product-mutation-report/1',source_commit,catalog_sha256,...report},null,2)+'\n';
+    const report=runProductMutationCampaign({repoRoot:options.repo_root,catalog,sourceCommit:source_commit});
+    const encoded=JSON.stringify({contract:'sbf.qa-product-mutation-report/1',catalog_sha256,...report},null,2)+'\n';
     if(options.out) fs.writeFileSync(options.out,encoded);
     else stdout.write(encoded);
     stderr.write(`qa-product-mutation: ${report.pass?'PASS':'FAIL'} -- ${report.mutants.filter((m)=>m.status==='killed').length}/${report.mutants.length} mutants killed\n`);
