@@ -1405,14 +1405,15 @@ function lineBreakStartsNewStatement(text, statementStart, newlineIndex, limitIn
 
 	const statement = text.slice(statementStart, newlineIndex).trim();
 	if (!statement) return false;
-	// A line break after an unbraced control header starts its body, not a new sibling statement.
-	// Keep the header attached so a newline before app = fakeApp remains a conditional write.
-	const control = /^(?:if|for|while|with)\s*\(/.exec(statement);
-	if (control) {
+	// A trailing unbraced control header starts a conditional/iterative body, not a new sibling
+	// statement. Look at the LAST control header rather than only the first token so compound
+	// forms such as "else if", nested "if ... if", and "for await" stay attached.
+	const controlRe = /(?<![$\\p{ID_Continue}\\u200C\\u200D.#])(?:(?:if|while|with)\\s*\\(|for\\s*(?:await\\s*)?\\()/gu;
+	for (const control of statement.matchAll(controlRe)) {
 		const openIndex = statement.indexOf('(', control.index);
 		if (openIndex !== -1 && matchingParenClose(statement, openIndex) === statement.length - 1) return false;
 	}
-	if (/^(?:else|do)$/.test(statement)) return false;
+	if (/(?:^|\\s)(?:else|do)\\s*$/.test(statement)) return false;
 	return true;
 }
 
