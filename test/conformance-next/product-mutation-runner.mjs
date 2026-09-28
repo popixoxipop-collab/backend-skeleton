@@ -173,10 +173,10 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
   if(!/^[a-f0-9]{40}$/i.test(resolvedSourceCommit)) throw new Error('product mutation campaign requires an exact source commit');
   const controlledParent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-controlled-source-'));
   const controlledSource=path.join(controlledParent,'source');
-  materializeTrackedCommit(repoRoot,controlledSource,resolvedSourceCommit);
-  const dependencyInfo=installControlledDependencies(controlledSource);
   const results=[];
   try{
+    materializeTrackedCommit(repoRoot,controlledSource,resolvedSourceCommit);
+    const dependencyInfo=installControlledDependencies(controlledSource);
     for(const mutant of catalog.mutants){
       const parent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-mutant-'));
       const scratch=path.join(parent,'repo');
