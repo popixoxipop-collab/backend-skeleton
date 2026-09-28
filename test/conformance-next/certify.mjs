@@ -20,8 +20,16 @@ const COMMITTED_NEGATIVE_VECTORS = JSON.parse(fs.readFileSync(path.join(HERE, '.
 const COMMITTED_HOLDOUT_ATTESTORS = JSON.parse(fs.readFileSync(path.join(HERE, 'holdout-attestors.json'), 'utf8'));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
 
+function gitObjectType(sourceCommit) {
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '')) return null;
+  const run = spawnSync('git', ['-C', REPO_ROOT, 'cat-file', '-t', sourceCommit], {
+    encoding: 'utf8', timeout: 10_000,
+  });
+  return run.status === 0 ? (run.stdout ?? '').trim() : null;
+}
+
 function trackedFileDigestAtCommit(sourceCommit, relPath) {
-  if (!/^[a-f0-9]{40}$/i.test(sourceCommit ?? '')) return null;
+  if (gitObjectType(sourceCommit) !== 'commit') return null;
   const run = spawnSync('git', ['-C', REPO_ROOT, 'show', `${sourceCommit}:${relPath}`], {
     encoding: null, timeout: 10_000, maxBuffer: 32 * 1024 * 1024,
   });
@@ -455,6 +463,7 @@ export function verifyEvidencePackFromDisk(pack, { artifact_root }) {
 export function assembleCertification(input, { artifact_root = null, require_holdout = true, source_commit = null } = {}) {
   const reasons = [];
   if (!/^[a-f0-9]{40}$/.test(source_commit ?? '')) reasons.push('release: --source-commit must supply the canonical lowercase 40-hex commit being certified');
+  else if (gitObjectType(source_commit) !== 'commit') reasons.push('release: --source-commit must resolve to a Git commit object');
   else if (input?.evidence?.source_commit !== source_commit) reasons.push(`evidence: source_commit ${String(input?.evidence?.source_commit)} does not match certified release commit ${source_commit}`);
   const corpus = validateCorpusManifest(input?.corpus);
   const vectors = validateNegativeVectorCatalog(input?.negative_vectors);
