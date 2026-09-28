@@ -17,6 +17,9 @@
       "run_id": 36463531776,
       "run_number": 1511,
       "conclusion": "success",
+      "conclusion_scope": "nested_jobs",
+      "workflow_conclusion": "cancelled",
+      "workflow_cancellation_reason": "superseded_by_evidence_only_update",
       "nested_node22_job": 109068277052,
       "nested_node24_job": 109068276911,
       "node22": {
@@ -66,5 +69,5 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "FINAL_RELEASE_HEADS_NOT_FROZEN"
   ],
-  "note": "Post-A T19 QA is exact-source green on Node 22 and Node 24 with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads."
+  "note": "Post-A T19 QA source head completed both Node 22 and Node 24 nested T19 jobs at 74/74. The parent workflow was later cancelled only because an evidence-only commit superseded it; this packet does not treat that workflow as terminal-green release CI. Final PR-head CI, independently trusted private holdout evidence, trusted attestor approval, and frozen release heads remain required before release."
 }
