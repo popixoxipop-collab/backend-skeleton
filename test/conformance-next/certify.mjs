@@ -454,7 +454,7 @@ export function verifyEvidencePackFromDisk(pack, { artifact_root }) {
 
 export function assembleCertification(input, { artifact_root = null, require_holdout = true, source_commit = null } = {}) {
   const reasons = [];
-  if (!/^[a-f0-9]{40}$/i.test(source_commit ?? '')) reasons.push('release: --source-commit must supply the exact 40-hex commit being certified');
+  if (!/^[a-f0-9]{40}$/.test(source_commit ?? '')) reasons.push('release: --source-commit must supply the canonical lowercase 40-hex commit being certified');
   else if (input?.evidence?.source_commit !== source_commit) reasons.push(`evidence: source_commit ${String(input?.evidence?.source_commit)} does not match certified release commit ${source_commit}`);
   const corpus = validateCorpusManifest(input?.corpus);
   const vectors = validateNegativeVectorCatalog(input?.negative_vectors);
