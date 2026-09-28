@@ -1644,6 +1644,88 @@ test('typescript-express: combined default-and-named imports preserve mounted ro
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/child']);
 });
+test('typescript-express: array elisions still guarantee for-of writes before post-loop calls', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'for (app of [,]) {}',
+			"app.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: __proto__ object literal does not falsely guarantee a for-in iteration', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'for (app in { __proto__: null }) {}',
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+
+test('typescript-express: classic-for authorization uses the selected assignment occurrence', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'for (noop((app) => app), app = fakeApp; false;) {}',
+			"app.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: combined default-and-namespace imports preserve mounted router prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			"import child, * as helpers from './child';",
+			'const app = express();',
+			'const rootRouter: Router = Router();',
+			"app.use('/api', child);",
+		].join('\n'),
+		'src/child.ts': [
+			"import { Router } from 'express';",
+			'const childRouter: Router = Router();',
+			"childRouter.get('/child', childHandler);",
+			'export default childRouter;',
+			'export const helper = 1;',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/child']);
+});
 test('typescript-express: unbraced do-body update invalidates a mutable application because it executes once', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
