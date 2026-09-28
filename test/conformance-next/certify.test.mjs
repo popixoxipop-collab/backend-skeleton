@@ -198,6 +198,10 @@ test('certification requires an external release commit and rejects stale eviden
     const uppercase=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT.toUpperCase()});
     assert.equal(uppercase.verdict,'fail');
     assert.ok(uppercase.reasons.some((x)=>x.includes('canonical lowercase 40-hex')));
+    const tree=spawnSync('git',['-C',ROOT,'rev-parse','HEAD^{tree}'],{encoding:'utf8'}).stdout.trim();
+    const treeObject=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:tree});
+    assert.equal(treeObject.verdict,'fail');
+    assert.ok(treeObject.reasons.some((x)=>x.includes('Git commit object')));
     const exact=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT});
     assert.equal(exact.verdict,'pass',exact.reasons.join('\n'));
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
