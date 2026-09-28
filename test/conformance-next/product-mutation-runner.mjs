@@ -84,9 +84,11 @@ function installControlledDependencies(sourceRoot) {
     throw new Error('controlled product mutation execution requires tracked package.json and package-lock.json');
   }
   const npm=process.platform==='win32'?'npm.cmd':'npm';
+  const env={...process.env,npm_config_update_notifier:'false'};
+  delete env.NODE_OPTIONS;
+  delete env.NODE_PATH;
   const run=spawnSync(npm,['ci','--ignore-scripts','--no-audit','--no-fund'],{
-    cwd:sourceRoot,encoding:'utf8',timeout:180_000,
-    env:{...process.env,npm_config_update_notifier:'false'},
+    cwd:sourceRoot,encoding:'utf8',timeout:180_000,env,
   });
   if(run.status!==0) throw new Error(`controlled npm ci failed: ${(run.stderr??run.stdout??'').slice(-2400)}`);
   const nodeModules=path.join(sourceRoot,'node_modules');
@@ -128,7 +130,10 @@ function initializeScratchGit(scratch) {
 }
 
 function runTestFiles(scratch, testFiles, timeoutMs) {
-  const env={...process.env}; delete env.NODE_TEST_CONTEXT;
+  const env={...process.env};
+  delete env.NODE_TEST_CONTEXT;
+  delete env.NODE_OPTIONS;
+  delete env.NODE_PATH;
   const args=['--test',...testFiles.map((p)=>path.join(scratch,p))];
   const run=spawnSync(process.execPath,args,{cwd:scratch,encoding:'utf8',timeout:timeoutMs,env});
   return {
