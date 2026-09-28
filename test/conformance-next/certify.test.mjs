@@ -281,6 +281,11 @@ test('holdout absence never downgrades a real conformance failure into blocked',
 test('certification requires the exact committed reference corpus entries', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
   try {
+    const reordered=passingInput(root);
+    reordered.corpus.entries[0]=Object.fromEntries(Object.entries(reordered.corpus.entries[0]).reverse());
+    const reorderedReport=assembleCertification(reordered,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT});
+    assert.equal(reorderedReport.verdict,'pass',reorderedReport.reasons.join('\n'));
+
     const input=passingInput(root);
     input.corpus.entries=input.corpus.entries.slice(1);
     const report=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT});
@@ -292,6 +297,11 @@ test('certification requires the exact committed reference corpus entries', () =
 test('certification requires the exact committed 79-vector catalog', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-cert-'));
   try {
+    const reordered=passingInput(root);
+    reordered.negative_vectors.vectors[0]=Object.fromEntries(Object.entries(reordered.negative_vectors.vectors[0]).reverse());
+    const reorderedReport=assembleCertification(reordered,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT});
+    assert.equal(reorderedReport.verdict,'pass',reorderedReport.reasons.join('\n'));
+
     const input=passingInput(root);
     input.negative_vectors.vectors=input.negative_vectors.vectors.slice(1);
     input.negative_run.results=input.negative_run.results.slice(1);
@@ -445,6 +455,21 @@ test('a valid holdout signature for an older release commit cannot certify a new
     const report=assembleCertification(input,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT});
     assert.equal(report.verdict,'fail');
     assert.ok(report.reasons.some((x)=>x.includes('signed holdout release_source_commit')));
+
+    const fresh=passingInput(root);
+    const reorderedEntry=Object.fromEntries(Object.entries(entry).reverse());
+    const freshInjected=injectHoldoutManifest(fresh.corpus,{contract:'sbf.qa-holdout/1',entries:[reorderedEntry]});
+    assert.equal(freshInjected.ok,true,freshInjected.errors.join('\n'));
+    fresh.corpus=freshInjected.corpus;
+    const freshResult=addCorpusEntryEvidence(root,entry,fresh.differential,fresh.evidence.artifacts,{signingKey:privateKey,keyId:'unit-independent',releaseSourceCommit:HEAD_COMMIT});
+    freshResult.source=Object.fromEntries(Object.entries(freshResult.source).reverse());
+    freshResult.observed=freshResult.observed.map(({id,status})=>({status,id}));
+    const registry={contract:'sbf.qa-holdout-attestors/1',keys:[{
+      id:'unit-independent',alg:'ed25519',purpose:'t19-private-holdout',status:'active',
+      public_key_pem:publicKey.export({type:'spki',format:'pem'}).toString(),
+    }]};
+    const freshReport=assembleCertification(fresh,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT,holdout_attestors:registry});
+    assert.equal(freshReport.verdict,'pass',freshReport.reasons.join('\n'));
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
