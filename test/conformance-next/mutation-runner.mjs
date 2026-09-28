@@ -57,13 +57,14 @@ export function validateMutationCatalog(catalog) {
   return { ok: errors.length === 0, errors, stats: { mutants: catalog.mutants.length } };
 }
 
-function copyT19Tree(repoRoot, scratch) {
-  for (const rel of ['test/conformance-next', 'test/corpus-next']) {
-    const src = path.join(repoRoot, rel);
-    const dst = path.join(scratch, rel);
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.cpSync(src, dst, { recursive: true, dereference: false, errorOnExist: false });
-  }
+function materializeT19Tree(repoRoot, scratch, sourceCommit) {
+  fs.mkdirSync(scratch,{recursive:true});
+  const archive=spawnSync('git',['-C',repoRoot,'archive','--format=tar',sourceCommit,'test/conformance-next','test/corpus-next'],{
+    encoding:null,timeout:20_000,maxBuffer:64*1024*1024,
+  });
+  if(archive.status!==0) throw new Error(`git archive T19 tree failed: ${Buffer.from(archive.stderr??'').toString('utf8').trim()}`);
+  const extract=spawnSync('tar',['-xf','-','-C',scratch],{input:archive.stdout,encoding:'utf8',timeout:20_000,maxBuffer:8*1024*1024});
+  if(extract.status!==0) throw new Error(`tar extract T19 tree failed: ${(extract.stderr??'').trim()}`);
 }
 
 function runTestFiles(scratch, testFiles, timeoutMs) {
@@ -90,15 +91,16 @@ function applyOneMutation(scratch, mutant) {
   return { ok: true };
 }
 
-export function runMutationCampaign({ repoRoot, catalog }) {
+export function runMutationCampaign({ repoRoot, catalog, sourceCommit = null }) {
   const validation = validateMutationCatalog(catalog);
   if (!validation.ok) return { pass: false, catalog_errors: validation.errors, mutants: [], gate: null };
+  const resolvedSourceCommit = sourceCommit ?? resolveSourceCommit(repoRoot);
 
   const results = [];
   for (const mutant of catalog.mutants) {
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t19-mutant-'));
     try {
-      copyT19Tree(repoRoot, scratch);
+      materializeT19Tree(repoRoot, scratch, resolvedSourceCommit);
       const baseline = runTestFiles(scratch, mutant.test_files, 10_000);
       if (baseline.exit_code !== 0) {
         results.push({ id: mutant.id, critical: mutant.critical, status: 'survived', classification: 'baseline-failed', reason: 'unmodified scratch test suite did not pass; mutant cannot be counted as killed', baseline });
@@ -128,7 +130,7 @@ export function runMutationCampaign({ repoRoot, catalog }) {
   }
 
   const gate = evaluateMutationGate({ mutants: results.map(({ id, critical, status }) => ({ id, critical, status })) });
-  return { pass: gate.pass, catalog_errors: [], mutants: results, gate };
+  return { pass: gate.pass, catalog_errors: [], mutants: results, gate, source_materialization: 'git-archive', source_commit: resolvedSourceCommit };
 }
 
 
@@ -151,8 +153,8 @@ export function main(argv = process.argv.slice(2), stdout = process.stdout, stde
     const catalog = JSON.parse(fs.readFileSync(options.catalog, 'utf8'));
     const source_commit = resolveSourceCommit(options.repo_root, options.source_commit);
     const catalog_sha256 = createHash('sha256').update(JSON.stringify(catalog)).digest('hex');
-    const report = runMutationCampaign({ repoRoot: options.repo_root, catalog });
-    const encoded = JSON.stringify({ contract: 'sbf.qa-mutation-report/1', source_commit, catalog_sha256, ...report }, null, 2) + '\n';
+    const report = runMutationCampaign({ repoRoot: options.repo_root, catalog, sourceCommit: source_commit });
+    const encoded = JSON.stringify({ contract: 'sbf.qa-mutation-report/1', catalog_sha256, ...report }, null, 2) + '\n';
     if (options.out) fs.writeFileSync(options.out, encoded);
     else stdout.write(encoded);
     stderr.write(`qa-mutation: ${report.pass ? 'PASS' : 'FAIL'} -- ${report.mutants.filter((m) => m.status === 'killed').length}/${report.mutants.length} mutants killed\n`);
