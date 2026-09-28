@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t19-release-acceptance/1",
-  "observed_at": "2026-09-28T18:20:04Z",
+  "observed_at": "2026-09-28T19:56:00Z",
   "state": "BLOCKED",
   "release_approved": false,
   "default_activation_approved": false,
@@ -11,16 +11,26 @@
   },
   "qa_authority": {
     "repo": "popixoxipop-collab/backend-skeleton",
-    "pr": 150,
-    "source_head": "1ae4a506fe1bf7376a0213c52550ef5d1a5906ce",
+    "pr": 159,
+    "source_head": "6acc4bfcb06e53bac511763c9892df4372ecebe9",
     "exact_source_ci": {
-      "run_id": 36463531776,
-      "run_number": 1511,
+      "run_id": 36474509090,
+      "run_number": 1551,
       "conclusion": "success",
-      "nested_node22_job": 109068277052,
-      "nested_node24_job": 109068276911,
-      "node22": {"tests": 74, "passed": 74, "failed": 0, "skipped": 0},
-      "node24": {"tests": 74, "passed": 74, "failed": 0, "skipped": 0}
+      "nested_node22_job": 109105145471,
+      "nested_node24_job": 109105145086,
+      "node22": {
+        "tests": 74,
+        "passed": 74,
+        "failed": 0,
+        "skipped": 0
+      },
+      "node24": {
+        "tests": 74,
+        "passed": 74,
+        "failed": 0,
+        "skipped": 0
+      }
     },
     "negative_program": {
       "catalog_total": 79,
@@ -32,7 +42,11 @@
     "current_pr_release_certification_claimed": false
   },
   "resolved_dependencies": {
-    "typescript_express_holdout": {"issue": 119, "state": "CLOSED", "replacement_pr": 155},
+    "typescript_express_holdout": {
+      "issue": 119,
+      "state": "CLOSED",
+      "replacement_pr": 155
+    },
     "runtime_security": {
       "gate": "T20-03",
       "state": "IMPLEMENTATION_MERGED",
@@ -52,5 +66,5 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "FINAL_RELEASE_HEADS_NOT_FROZEN"
   ],
-  "note": "Post-A T19 QA is exact-source green on Node 22 and Node 24 with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads."
+  "note": "PR #159 T19 QA code is exact-source green on Node 22 and Node 24 with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads."
 }
