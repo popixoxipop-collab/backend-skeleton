@@ -1,56 +1,65 @@
 {
   "schema": "bskel.t19-release-acceptance/1",
-  "observed_at": "2026-09-28T18:20:04Z",
+  "observed_at": "2026-09-27T02:21:00Z",
   "state": "BLOCKED",
   "release_approved": false,
   "default_activation_approved": false,
   "release_heads": {
-    "bskel": "80002a1e6536c007d9daaf8e2180fe82f14971e4",
+    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
     "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-    "beval": "73595d4f1fb51fa0e7eb99034d9f534965c068a8"
+    "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
   },
   "qa_authority": {
     "repo": "popixoxipop-collab/backend-skeleton",
-    "pr": 150,
-    "source_head": "1ae4a506fe1bf7376a0213c52550ef5d1a5906ce",
-    "exact_source_ci": {
-      "run_id": 36463531776,
-      "run_number": 1511,
+    "pr": 118,
+    "head": "1a4e4da3b62bf0113d240c32bfede06f7884966d",
+    "exact_head_ci": {
+      "run_id": 36218926731,
+      "run_number": 1259,
       "conclusion": "success",
-      "nested_node22_job": 109068277052,
-      "nested_node24_job": 109068276911,
-      "node22": {"tests": 74, "passed": 74, "failed": 0, "skipped": 0},
-      "node24": {"tests": 74, "passed": 74, "failed": 0, "skipped": 0}
+      "nested_node22_job": 108340401748,
+      "nested_node24_job": 108340401697
+    },
+    "direct_eoe": {
+      "request_id": "95631e68-a325-4b91-a4dc-46869c983b51",
+      "tests": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "note": "Exact T19 head direct EOE rerun of five conformance/mutation/security suites."
     },
     "negative_program": {
       "catalog_total": 79,
       "harness_mutants_executed": 7,
       "product_mutants_executed": 13,
+      "all_catalog_cases_claimed_executable": false,
       "total_mutants_executed": 20,
-      "all_catalog_cases_claimed_executable": false
+      "note": "79 negative vectors are catalogued; 20 executable mutation fixtures are represented (7 harness + 13 product). This packet does not equate mutation-fixture count with full release certification."
     },
     "current_pr_release_certification_claimed": false
   },
-  "resolved_dependencies": {
-    "typescript_express_holdout": {"issue": 119, "state": "CLOSED", "replacement_pr": 155},
-    "runtime_security": {
-      "gate": "T20-03",
-      "state": "IMPLEMENTATION_MERGED",
-      "pr": 72,
-      "head": "315a2f1ecf4838a9fa1689f8c6c47fe56d75c5cd",
-      "main": "73595d4f1fb51fa0e7eb99034d9f534965c068a8"
+  "holdout_findings": [
+    {
+      "issue": 119,
+      "state": "OPEN",
+      "title": "T19 holdout: TypeScript Express detector misses express.Router() with named Router import",
+      "expected_adapter": "typescript-express",
+      "observed_adapter": "generic-grep",
+      "fail_closed_behavior": "feature scan blocks low-confidence fallback"
     }
-  },
-  "release_certificate_requirements": {
-    "private_holdout": "MISSING",
-    "trusted_holdout_attestor": "MISSING",
-    "final_release_heads_frozen": false
+  ],
+  "runtime_security_dependency": {
+    "gate": "T20-03",
+    "state": "NOT_ACCEPTED",
+    "candidate_pr": 72,
+    "candidate_head": "ff82daefd2657e52dd707ee243b6434d43f30dde",
+    "candidate_scope": "partial hardened Linux/container slice",
+    "full_closeout_claimed": false
   },
   "blockers": [
-    "PRIVATE_HOLDOUT_REQUIRED",
-    "TRUSTED_HOLDOUT_ATTESTOR_REQUIRED",
+    "HOLDOUT_ISSUE_119_OPEN",
     "NO_T19_RELEASE_CERTIFICATE",
-    "FINAL_RELEASE_HEADS_NOT_FROZEN"
+    "T20_03_NOT_ACCEPTED"
   ],
-  "note": "Post-A T19 QA is exact-source green on Node 22 and Node 24 with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads."
+  "note": "T19 exact-head QA is green, including direct EOE/CI evidence, but the release candidate remains the release-control anchor bb18182/eb816/f7189 rather than the later control-plane-only bskel merge commit. Release acceptance remains BLOCKED because issue #119 is open, T19 has not issued a release certificate, and T20-03 is not accepted."
 }
