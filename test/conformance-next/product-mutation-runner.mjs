@@ -89,10 +89,12 @@ function installControlledDependencies(sourceRoot) {
     env:{...process.env,npm_config_update_notifier:'false'},
   });
   if(run.status!==0) throw new Error(`controlled npm ci failed: ${(run.stderr??run.stdout??'').slice(-2400)}`);
+  const nodeModules=path.join(sourceRoot,'node_modules');
+  fs.mkdirSync(nodeModules,{recursive:true});
   return {
     mode:'npm-ci-ignore-scripts',
     package_lock_sha256:sha256File(lockfile),
-    node_modules:path.join(sourceRoot,'node_modules'),
+    node_modules:nodeModules,
   };
 }
 
