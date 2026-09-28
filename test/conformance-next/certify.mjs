@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { createHash, verify as verifySignature } from 'node:crypto';
 import {
@@ -170,6 +171,10 @@ function corpusEntryIdentity(entry) {
   };
 }
 
+export function corpusEntryIdentityMatches(actual, entry) {
+  return isDeepStrictEqual(actual, corpusEntryIdentity(entry));
+}
+
 export function holdoutAttestationPayload(doc) {
   return Buffer.from(JSON.stringify({
     contract: doc?.contract ?? null,
@@ -278,7 +283,7 @@ export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, ar
       reasons.push(`corpus entry ${entry.id} evidence artifact is not bound to the pinned repository/ref`);
       continue;
     }
-    if (JSON.stringify(doc.corpus_entry) !== JSON.stringify(corpusEntryIdentity(entry))) {
+    if (!corpusEntryIdentityMatches(doc.corpus_entry, entry)) {
       reasons.push(`corpus entry ${entry.id} evidence artifact is not bound to the complete corpus entry identity`);
       continue;
     }
