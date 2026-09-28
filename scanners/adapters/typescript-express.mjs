@@ -1107,6 +1107,20 @@ function topLevelReferenceIsAuthorized(text, name, targetIndex) {
 	}
 	return true;
 }
+function laterDeclarationVisibleFromDeferredFunction(text, declarationIndex, targetIndex) {
+	if (declarationIndex < targetIndex) return true;
+	const targetFunction = nearestFunctionScopeOpenAt(text, targetIndex);
+	if (targetFunction === null) return false;
+	const declarationFunction = nearestFunctionScopeOpenAt(text, declarationIndex);
+	// A declaration later in the SAME executing function is still in TDZ / not initialized yet.
+	if (declarationFunction === targetFunction) return false;
+	// Module-scoped declarations are capturable by a nested function that may execute later.
+	if (declarationFunction === null) return true;
+	// For nested functions, the declaration must belong to an actual enclosing function scope.
+	const callScopes = activeCodeScopeOpeningsAt(text, targetIndex);
+	return callScopes.includes(declarationFunction);
+}
+
 function routerBindingAt(text, name, targetIndex) {
 	if (!isCodePosition(text, targetIndex)) return null;
 	if (classHeritageShadowsNameAt(text, name, targetIndex)) return null;
@@ -1137,8 +1151,10 @@ function routerBindingAt(text, name, targetIndex) {
 	let best = null;
 	for (const declaration of routerDeclarations(text, name)) {
 		const declarationIndex = declaration.index;
-		if (declarationIndex >= targetIndex || !isCodePosition(text, declarationIndex)) continue;
+		if (!isCodePosition(text, declarationIndex) ||
+			!laterDeclarationVisibleFromDeferredFunction(text, declarationIndex, targetIndex)) continue;
 		let declarationScopes = activeCodeScopeOpeningsAt(text, declarationIndex);
+		const sourceScopes = [...declarationScopes];
 		if (declaration.declarationKind === 'var') {
 			const functionOpen = nearestFunctionScopeOpenAt(text, declarationIndex);
 			if (functionOpen === null) declarationScopes = [];
@@ -1154,15 +1170,27 @@ function routerBindingAt(text, name, targetIndex) {
 		}
 		if (!sameChain) continue;
 		if (!best || declarationScopes.length > best.depth ||
-			(declarationScopes.length === best.depth && declarationIndex > best.index)) {
-			best = { index: declarationIndex, depth: declarationScopes.length, declarationKind: declaration.declarationKind };
+			(declarationScopes.length === best.depth &&
+				((declarationIndex < targetIndex && (best.index >= targetIndex || declarationIndex > best.index)) ||
+				 (declarationIndex >= targetIndex && best.index >= targetIndex && declarationIndex < best.index)))) {
+			best = {
+				index: declarationIndex,
+				depth: declarationScopes.length,
+				declarationKind: declaration.declarationKind,
+				sourceScopes,
+			};
 		}
 	}
 	if (!best) return null;
 
 	for (let i = best.depth; i < callScopes.length; i++) {
 		if (scopeHeaderShadowsName(text, callScopes[i], name)) return null;
-		if (scopeDirectlyDeclaresName(text, callScopes[i], name)) return null;
+		if (scopeDirectlyDeclaresName(text, callScopes[i], name)) {
+			// A var initializer is function/module scoped even when textually inside this block.
+			// Its own source block must not be mistaken for a lexical shadow of the selected var.
+			if (best.declarationKind === 'var' && best.sourceScopes?.includes(callScopes[i])) continue;
+			return null;
+		}
 	}
 	return { kind: 'router', name, declarationIndex: best.index, declarationKind: best.declarationKind };
 }
@@ -1854,7 +1882,13 @@ function receiverBindingAt(text, name, targetIndex) {
 	if (router) return router;
 	let application = null;
 	for (const binding of applicationBindings(text)) {
-		if (binding.name === name && binding.declarationIndex < targetIndex) application = binding;
+		if (binding.name !== name ||
+			!laterDeclarationVisibleFromDeferredFunction(text, binding.declarationIndex, targetIndex)) continue;
+		if (!application ||
+			(binding.declarationIndex < targetIndex && (application.declarationIndex >= targetIndex || binding.declarationIndex > application.declarationIndex)) ||
+			(binding.declarationIndex >= targetIndex && application.declarationIndex >= targetIndex && binding.declarationIndex < application.declarationIndex)) {
+			application = binding;
+		}
 	}
 	if (application && applicationBindingStillTrusted(text, application, targetIndex) &&
 		topLevelReferenceIsAuthorized(text, name, targetIndex)) return application;
