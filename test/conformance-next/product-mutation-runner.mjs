@@ -77,6 +77,12 @@ function sha256File(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+export function runBoundedCommand(command,args,{cwd,timeoutMs,env=process.env}={}) {
+  return spawnSync(command,args,{
+    cwd,encoding:'utf8',timeout:timeoutMs,killSignal:'SIGKILL',env,
+  });
+}
+
 function installControlledDependencies(sourceRoot) {
   const packageJson=path.join(sourceRoot,'package.json');
   const lockfile=path.join(sourceRoot,'package-lock.json');
@@ -84,8 +90,8 @@ function installControlledDependencies(sourceRoot) {
     throw new Error('controlled product mutation execution requires tracked package.json and package-lock.json');
   }
   const npm=process.platform==='win32'?'npm.cmd':'npm';
-  const run=spawnSync(npm,['ci','--ignore-scripts','--no-audit','--no-fund'],{
-    cwd:sourceRoot,encoding:'utf8',timeout:180_000,killSignal:'SIGKILL',
+  const run=runBoundedCommand(npm,['ci','--ignore-scripts','--no-audit','--no-fund'],{
+    cwd:sourceRoot,timeoutMs:180_000,
     env:{...process.env,npm_config_update_notifier:'false'},
   });
   if(run.status!==0) throw new Error(`controlled npm ci failed: ${(run.stderr??run.stdout??'').slice(-2400)}`);
