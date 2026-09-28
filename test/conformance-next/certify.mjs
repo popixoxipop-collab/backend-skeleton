@@ -154,10 +154,27 @@ function corpusEntrySource(entry) {
   return { owner: entry.owner, repo: entry.repo, ref: entry.ref, path: entry.path ?? null };
 }
 
+function corpusEntryIdentity(entry) {
+  return {
+    id: entry.id,
+    adapter: entry.adapter,
+    owner: entry.owner,
+    repo: entry.repo,
+    ref: entry.ref,
+    path: entry.path ?? null,
+    terms: Array.isArray(entry.terms) ? [...entry.terms] : [],
+    license_spdx: entry.license_spdx,
+    source_family: entry.source_family,
+    golden_basis: entry.golden_basis,
+    expected_limitations: Array.isArray(entry.expected_limitations) ? [...entry.expected_limitations] : [],
+  };
+}
+
 export function holdoutAttestationPayload(doc) {
   return Buffer.from(JSON.stringify({
     contract: doc?.contract ?? null,
     entry_id: doc?.entry_id ?? null,
+    corpus_entry: doc?.corpus_entry ?? null,
     source: doc?.source ?? null,
     run: doc?.run ?? null,
     release_source_commit: doc?.release_source_commit ?? null,
@@ -259,6 +276,10 @@ export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, ar
     }
     if (JSON.stringify(doc.source) !== JSON.stringify(corpusEntrySource(entry))) {
       reasons.push(`corpus entry ${entry.id} evidence artifact is not bound to the pinned repository/ref`);
+      continue;
+    }
+    if (JSON.stringify(doc.corpus_entry) !== JSON.stringify(corpusEntryIdentity(entry))) {
+      reasons.push(`corpus entry ${entry.id} evidence artifact is not bound to the complete corpus entry identity`);
       continue;
     }
     const run = doc.run;
