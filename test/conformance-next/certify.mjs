@@ -138,14 +138,14 @@ export function injectHoldoutManifest(corpus, holdout) {
 
 export function validateReferenceCorpusBinding(corpus) {
   if (!corpus || corpus.contract !== REFERENCE_CORPUS.contract) return { pass: false, reasons: ['reference corpus contract does not match the committed manifest'] };
-  if (JSON.stringify(corpus.entries) !== JSON.stringify(REFERENCE_CORPUS.entries)) {
+  if (!isDeepStrictEqual(corpus.entries, REFERENCE_CORPUS.entries)) {
     return { pass: false, reasons: ['reference corpus entries do not exactly match the committed manifest'] };
   }
   return { pass: true, reasons: [] };
 }
 
 export function validateNegativeVectorCatalogBinding(catalog) {
-  if (JSON.stringify(catalog) !== JSON.stringify(COMMITTED_NEGATIVE_VECTORS)) {
+  if (!isDeepStrictEqual(catalog, COMMITTED_NEGATIVE_VECTORS)) {
     return { pass: false, reasons: ['negative-vector catalog does not exactly match the committed 79-vector manifest'] };
   }
   return { pass: true, reasons: [] };
@@ -177,6 +177,31 @@ function corpusEntryIdentity(entry) {
 
 export function corpusEntryIdentityMatches(actual, entry) {
   return isDeepStrictEqual(actual, corpusEntryIdentity(entry));
+}
+
+function normalizeGoldInventory(items) {
+  if (!Array.isArray(items) || items.some((item) => !nonEmptyString(item))) return null;
+  return [...items].sort();
+}
+
+function normalizeObservedInventory(items) {
+  if (!Array.isArray(items)) return null;
+  const normalized = [];
+  for (const item of items) {
+    if (!item || !nonEmptyString(item.id) || !['verified', 'unknown'].includes(item.status)) return null;
+    normalized.push({ id: item.id, status: item.status });
+  }
+  normalized.sort((a, b) => a.id.localeCompare(b.id) || a.status.localeCompare(b.status));
+  return normalized;
+}
+
+function inventoryStructuresMatch(leftGold, leftObserved, rightGold, rightObserved) {
+  const lg = normalizeGoldInventory(leftGold);
+  const rg = normalizeGoldInventory(rightGold);
+  const lo = normalizeObservedInventory(leftObserved);
+  const ro = normalizeObservedInventory(rightObserved);
+  return lg !== null && rg !== null && lo !== null && ro !== null &&
+    isDeepStrictEqual(lg, rg) && isDeepStrictEqual(lo, ro);
 }
 
 export function holdoutAttestationPayload(doc) {
@@ -309,9 +334,7 @@ export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, ar
         continue;
       }
     }
-    if (!Array.isArray(doc.gold) || !Array.isArray(doc.observed) ||
-        JSON.stringify(doc.gold) !== JSON.stringify(result.gold) ||
-        JSON.stringify(doc.observed) !== JSON.stringify(result.observed)) {
+    if (!inventoryStructuresMatch(doc.gold, doc.observed, result.gold, result.observed)) {
       reasons.push(`corpus entry ${entry.id} differential inventory does not match the independently recorded run artifact`);
       continue;
     }
