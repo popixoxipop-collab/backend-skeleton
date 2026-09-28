@@ -2023,6 +2023,84 @@ test('typescript-express: updates in unconditional try bodies invalidate the app
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints, []);
 });
+test('typescript-express: ASI terminates an intervening call before a definite app reassignment', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express()',
+			'cleanup()',
+			'app = fakeApp',
+			"app.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: ASI handling preserves a newline-delimited conditional reassignment', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express()',
+			'if (flag)',
+			'  app = fakeApp',
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+
+test('typescript-express: initializer-free var redeclaration in a classic for preserves the trusted app', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'var app: any = express();',
+			'for (var app; false;) {}',
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+
+test('typescript-express: initialized var redeclaration in a classic for still invalidates the trusted app', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'var app: any = express();',
+			'for (var app = fakeApp; false;) {}',
+			"app.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
 test('typescript-express: operator-led next lines remain part of a semicolonless initializer', () => {
 	for (const continuation of ['&& fakeApp', '|| fakeApp', '?? fakeApp']) {
 		const root = writeTree({
