@@ -195,6 +195,9 @@ test('certification requires an external release commit and rejects stale eviden
     const stale=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:'e'.repeat(40)});
     assert.equal(stale.verdict,'fail');
     assert.ok(stale.reasons.some((x)=>x.includes('does not match certified release commit')));
+    const uppercase=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT.toUpperCase()});
+    assert.equal(uppercase.verdict,'fail');
+    assert.ok(uppercase.reasons.some((x)=>x.includes('canonical lowercase 40-hex')));
     const exact=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT});
     assert.equal(exact.verdict,'pass',exact.reasons.join('\n'));
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
