@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { resolveSourceCommit, runProductMutationCampaign, validateProductMutationCatalog } from './product-mutation-runner.mjs';
+import { resolveSourceCommit, runBoundedCommand, runProductMutationCampaign, validateProductMutationCatalog } from './product-mutation-runner.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const ROOT=path.resolve(HERE,'..','..');
@@ -73,6 +73,18 @@ test('product mutation campaign ignores live ignored bytes and executes only the
   assert.equal(result.source_commit,sourceCommit);
   assert.equal(result.dependency_install.mode,'npm-ci-ignore-scripts');
   assert.equal(result.mutants[0].status,'killed');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('bounded dependency command hard-kills a stalled child at timeout',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-hard-timeout-'));
+ try{
+  const started=Date.now();
+  const run=runBoundedCommand(process.execPath,['-e',"process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"],{cwd:root,timeoutMs:100,env:{...process.env}});
+  const elapsed=Date.now()-started;
+  assert.equal(run.error?.code,'ETIMEDOUT');
+  assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
+  if(process.platform!=='win32') assert.equal(run.signal,'SIGKILL');
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
