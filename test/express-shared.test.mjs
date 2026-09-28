@@ -1763,6 +1763,26 @@ test('typescript-express: a nonempty string literal guarantees a for-of write be
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints, []);
 });
+test('typescript-express: grouped classic-for assignments still invalidate mutable applications', () => {
+	for (const initializer of ['(app = fakeApp)', '((app = fakeApp))', 'noop(), (app = fakeApp)']) {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				'let app: any = express();',
+				`for (${initializer}; false;) {}`,
+				"app.get('/phantom', phantomHandler);",
+			].join('\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+		assert.deepEqual(endpoints, [], initializer);
+	}
+});
 test('typescript-express: unbraced do-body update invalidates a mutable application because it executes once', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
