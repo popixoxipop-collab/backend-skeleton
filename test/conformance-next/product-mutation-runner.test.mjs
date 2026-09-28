@@ -80,11 +80,15 @@ test('product mutation campaign removes controlled source when dependency instal
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-install-fail-repo-'));
  try{
   fs.mkdirSync(path.join(root,'test'),{recursive:true});
-  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({name:'broken-lock-fixture',version:'1.0.0',private:true,dependencies:{ajv:'8.20.0'}})+'\n');
-  fs.writeFileSync(path.join(root,'package-lock.json'),JSON.stringify({name:'broken-lock-fixture',version:'1.0.0',lockfileVersion:3,requires:true,packages:{'':{name:'broken-lock-fixture',version:'1.0.0',dependencies:{ajv:'8.20.0'}}}},null,2)+'\n');
+  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({name:'broken-lock-fixture',version:'1.0.0',private:true})+'\n');
+  fs.writeFileSync(path.join(root,'package-lock.json'),'{ definitely-not-valid-json\n');
   fs.writeFileSync(path.join(root,'subject.mjs'),'export const value = 1;\n');
   fs.writeFileSync(path.join(root,'test','subject.test.mjs'),"import test from 'node:test'; test('x',()=>{});\n");
-  const sourceCommit=initFixtureRepo(root);
+  spawnSync('git',['init','-q'],{cwd:root});
+  spawnSync('git',['add','-A'],{cwd:root});
+  const commit=spawnSync('git',['-c','user.name=T19','-c','user.email=t19@example.invalid','commit','-q','-m','broken-lock'],{cwd:root,encoding:'utf8'});
+  assert.equal(commit.status,0,commit.stderr);
+  const sourceCommit=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).stdout.trim();
   const before=new Set(fs.readdirSync(os.tmpdir()).filter((x)=>x.startsWith('bskel-t19-controlled-source-')));
   const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'install-fail',vector_id:'NEG-TEST-03',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 2',test_files:['test/subject.test.mjs'],invariant:'dependency setup failures clean controlled source'}]};
   assert.throws(()=>runProductMutationCampaign({repoRoot:root,catalog,sourceCommit}),/controlled npm ci failed/);
