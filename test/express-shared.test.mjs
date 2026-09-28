@@ -1479,6 +1479,26 @@ test('typescript-express: classic for initializer assignment invalidates an exis
 	assert.deepEqual(endpoints, []);
 });
 
+test('typescript-express: classic for assignment in a shadowed function does not invalidate the outer application', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'function configure(app: any) {',
+			'  for (app = fakeApp; false;) {}',
+			'}',
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
 test('typescript-express: unbraced do-body update invalidates a mutable application because it executes once', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
