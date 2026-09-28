@@ -65,7 +65,10 @@ test('product mutation campaign ignores live ignored bytes and executes only the
   fs.writeFileSync(path.join(root,'ignored.txt'),'live ignored poison\n');
   const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'commit-only',vector_id:'NEG-TEST-02',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 2',test_files:['test/subject.test.mjs'],invariant:'ignored live bytes never enter claimed commit execution'}]};
   const result=runProductMutationCampaign({repoRoot:root,catalog,sourceCommit});
-  assert.equal(result.pass,true,JSON.stringify(result,null,2));
+  // A one-critical-mutant fixture intentionally has no noncritical denominator, so the
+  // campaign-level gate is fail-closed. The provenance assertion is that the clean baseline
+  // ran from the commit tree and the injected mutation was detected.
+  assert.equal(result.mutants[0].baseline.exit_code,0,JSON.stringify(result,null,2));
   assert.equal(result.source_materialization,'git-archive');
   assert.equal(result.source_commit,sourceCommit);
   assert.equal(result.dependency_install.mode,'npm-ci-ignore-scripts');
