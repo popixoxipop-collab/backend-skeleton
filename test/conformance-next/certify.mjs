@@ -457,6 +457,7 @@ export function assembleCertification(input, { artifact_root = null, require_hol
 
   return {
     contract: 'sbf.qa-certification-report/1',
+    source_commit,
     verdict,
     reasons,
     gates: { corpus, corpus_binding: corpusBinding, vectors, vector_binding: vectorBinding, differential, negative, mutation, evidence, corpus_entry_coverage: holdoutCoverage },
