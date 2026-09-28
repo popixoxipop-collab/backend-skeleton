@@ -1452,6 +1452,29 @@ function assignmentLhsDefinitelyWritesName(text, binding, equalsIndex) {
 	return false;
 }
 
+function staticallyGuaranteedNonEmptyLoop(operator, expression) {
+	const value = expression.trim();
+	// Stay deliberately conservative: only syntax whose iteration count is knowable without
+	// evaluation can make a post-loop write definite.
+	if (value.startsWith('[') && value.endsWith(']') && delimitersBalanced(value)) {
+		const inner = value.slice(1, -1).trim();
+		if (!inner) return false;
+		// A fixed array element guarantees at least one for-of iteration; pure spreads do not.
+		if (operator === 'of') {
+			return splitTopLevelArgs(inner).some((item) => item.trim() && !item.trim().startsWith('...'));
+		}
+		// A fixed array element also creates an enumerable index for for-in.
+		if (operator === 'in') {
+			return splitTopLevelArgs(inner).some((item) => item.trim() && !item.trim().startsWith('...'));
+		}
+	}
+	if (operator === 'in' && value.startsWith('{') && value.endsWith('}') && delimitersBalanced(value)) {
+		const inner = value.slice(1, -1).trim();
+		return splitTopLevelArgs(inner).some((item) => item.trim() && !item.trim().startsWith('...'));
+	}
+	return false;
+}
+
 function forHeaderWritesApplicationName(text, binding, targetIndex) {
 	const re = /\bfor\s*(?:await\s*)?\(/g;
 	for (const match of text.matchAll(re)) {
@@ -1460,14 +1483,16 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const closeIndex = matchingParenClose(text, openIndex);
 		if (closeIndex === -1 || openIndex >= targetIndex) continue;
 		const header = text.slice(openIndex + 1, closeIndex);
-		const split = header.match(/^\s*([\s\S]*?)\s+(?:of|in)\s+[\s\S]*$/);
+		const split = header.match(/^\s*([\s\S]*?)\s+(of|in)\s+([\s\S]*)$/);
 		if (split) {
-			// for-in/of header assignments are guaranteed only for calls that occur INSIDE an
-			// iteration. A route after the loop must keep the original application because the
-			// iterable may be empty.
+			// Header writes are definite for a call inside an iteration. For post-loop calls they
+			// are definite only when the iterable is syntactically guaranteed nonempty.
 			const bodyStart = skipStatementWhitespace(text, closeIndex + 1);
 			const bodyEnd = singleStatementEnd(text, bodyStart);
-			if (!(targetIndex >= bodyStart && targetIndex < bodyEnd)) continue;
+			const insideIteration = targetIndex >= bodyStart && targetIndex < bodyEnd;
+			const postLoopGuaranteed = targetIndex >= bodyEnd &&
+				staticallyGuaranteedNonEmptyLoop(split[2], split[3]);
+			if (!insideIteration && !postLoopGuaranteed) continue;
 			let lhs = peelAssignmentGrouping(split[1].trim());
 			const declaration = lhs.match(/^(const|let|var)\b([\s\S]*)$/);
 			if (declaration) {
@@ -1510,16 +1535,17 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		}
 		// Existing-binding assignments in classic for initializers execute before the first test,
 		// but only when this header resolves to the same application binding in a definitely-run scope.
-		const assignment = topLevelBindingSeparator(initializer, '=');
-		if (assignment !== -1) {
-			let lhs = topLevelSequenceAssignmentTarget(initializer.slice(0, assignment).trim());
+		for (const operand of splitTopLevelArgs(initializer)) {
+			const assignment = topLevelBindingSeparator(operand, '=');
+			if (assignment === -1) continue;
+			let lhs = peelAssignmentGrouping(operand.slice(0, assignment).trim());
 			for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
 				if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
 			}
 			const writes = lhs === binding.name ||
 				(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
 			if (!writes) continue;
-			const nameOffset = initializer.indexOf(binding.name);
+			const nameOffset = header.indexOf(binding.name);
 			const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
 			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
 		}
@@ -1792,7 +1818,7 @@ function defaultExportedReceiverBinding(text) {
 }
 
 function defaultImportSourceForBinding(text, name) {
-	const directRe = new RegExp('\\bimport\\s+' + escapeRegex(name) + '\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
+	const directRe = new RegExp('\\bimport\\s+' + escapeRegex(name) + '\\s*(?:,\\s*\\{[^}]*\\})?\\s+from\\s*["\\x27]([^"\\x27]+)["\\x27]', 'g');
 	for (const match of text.matchAll(directRe)) {
 		if (isCodePosition(text, match.index)) return match[1];
 	}
