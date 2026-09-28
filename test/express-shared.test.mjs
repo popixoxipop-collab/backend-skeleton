@@ -1281,7 +1281,7 @@ test('typescript-express: using declarations shadow an outer application receive
 	}
 });
 
-test('typescript-express: for-of writes invalidate an existing mutable application receiver', () => {
+test('typescript-express: for-of writes affect loop-body calls but do not invalidate a post-loop application', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
 		'tsconfig.json': '{}',
@@ -1292,14 +1292,14 @@ test('typescript-express: for-of writes invalidate an existing mutable applicati
 			'for (app of fakeApps) {',
 			"  app.get('/phantom', phantomHandler);",
 			'}',
-			"app.get('/also-unknown-after-loop', phantomHandler);",
+			"app.get('/real-after-loop', realHandler);",
 		].join('\n'),
 	});
 	const projectRoot = detectTypeScriptExpressRoot(root);
 	assert.ok(projectRoot);
 	const result = scanTypeScriptExpress(root, projectRoot);
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
-	assert.deepEqual(endpoints, []);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real-after-loop']);
 });
 
 test('typescript-express: definite top-level update expressions invalidate mutable applications', () => {
@@ -1518,6 +1518,68 @@ test('typescript-express: classic for var initializer inside an unconditional do
 	const result = scanTypeScriptExpress(root, projectRoot);
 	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
 	assert.deepEqual(endpoints, []);
+});
+test('typescript-express: an empty for-of loop preserves the application for post-loop routes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'for (app of []) {}',
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /real']);
+});
+
+test('typescript-express: classic for sequence initializer resolves the final assignment target', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			'for (noop(), app = fakeApp; false;) {}',
+			"app.get('/phantom', phantomHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: named-specifier default imports preserve mounted router prefixes', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			"import { default as child } from './child';",
+			'const app = express();',
+			'const rootRouter: Router = Router();',
+			"app.use('/api', child);",
+		].join('\n'),
+		'src/child.ts': [
+			"import { Router } from 'express';",
+			'const childRouter: Router = Router();',
+			"childRouter.get('/child', childHandler);",
+			'export { childRouter as default };',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /api/child']);
 });
 test('typescript-express: unbraced do-body update invalidates a mutable application because it executes once', () => {
 	const root = writeTree({
