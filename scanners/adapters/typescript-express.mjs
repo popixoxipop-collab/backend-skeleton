@@ -1374,7 +1374,7 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 		else if (ch === '[') square++;
 		else if (ch === ']') square = Math.max(0, square - 1);
 		else if (ch === '{') {
-			if (round === 0 && square === 0 && isStandaloneBlockOpen(text, i)) statementStart = i + 1;
+			if (round === 0 && square === 0 && (isStandaloneBlockOpen(text, i) || isFinallyBlockOpen(text, i))) statementStart = i + 1;
 			curly++;
 		}
 		else if (ch === '}') {
