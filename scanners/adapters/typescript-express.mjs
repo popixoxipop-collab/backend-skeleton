@@ -435,7 +435,14 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 		else if (ch === '}') curly = Math.max(0, curly - 1);
 		else if (ch === ';' && round === 0 && square === 0 && curly === 0) return text.slice(startIndex, i);
 		else if (ch === '\n' && round === 0 && square === 0 && curly === 0) {
-			if (lastSignificant == null || !',=.?+-*/%&|^!:'.includes(lastSignificant)) return text.slice(startIndex, i);
+			let nextIndex = i + 1;
+			while (nextIndex < limitIndex && /[\t\r ]/.test(text[nextIndex])) nextIndex++;
+			const nextSignificant = text[nextIndex] ?? '';
+			const continuesFromPrevious = lastSignificant != null && ',=.?+-*/%&|^!:'.includes(lastSignificant);
+			// Semicolonless declarations may continue from the NEXT line too, especially member,
+			// call and index chains after an initializer.
+			const continuesFromNext = ['.', '[', '(', '?'].includes(nextSignificant);
+			if (!continuesFromPrevious && !continuesFromNext) return text.slice(startIndex, i);
 		}
 		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
@@ -1481,6 +1488,17 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const initializer = header.slice(0, firstSemi).trim();
 		const varInit = initializer.match(/^var\b([\s\S]*)$/);
 		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) return true;
+		// Existing-binding assignments in classic for initializers execute before the first test.
+		const assignment = topLevelBindingSeparator(initializer, '=');
+		if (assignment !== -1) {
+			let lhs = peelAssignmentGrouping(initializer.slice(0, assignment).trim());
+			for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
+				if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
+			}
+			if (lhs === binding.name) return true;
+			if (((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) &&
+				bindingPatternBindsName(lhs, binding.name)) return true;
+		}
 	}
 	return false;
 }
@@ -1492,10 +1510,15 @@ function isStandaloneBlockOpen(text, openIndex) {
 	return text[i] === ';' || text[i] === '}' || text[i] === '{';
 }
 
+function isFinallyBlockOpen(text, openIndex) {
+	const prefix = text.slice(Math.max(0, openIndex - 64), openIndex);
+	return /\bfinally\s*$/.test(prefix);
+}
+
 function definiteApplicationWritePosition(text, equalsIndex) {
 	if (isTopLevelCodePosition(text, equalsIndex)) return true;
 	const scopes = activeCodeScopeOpeningsAt(text, equalsIndex);
-	return scopes.length > 0 && scopes.every((openIndex) => isStandaloneBlockOpen(text, openIndex));
+	return scopes.length > 0 && scopes.every((openIndex) => isStandaloneBlockOpen(text, openIndex) || isFinallyBlockOpen(text, openIndex));
 }
 
 function isDirectlyInUnconditionalDoBody(text, binding, targetIndex) {
@@ -1531,10 +1554,12 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 		if (!isCodePosition(text, match.index)) continue;
 		const ordinaryDefinite = definiteApplicationWritePosition(text, match.index);
 		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, match.index);
-		if (!ordinaryDefinite && !doBodyDefinite) continue;
+		const statementStartForDo = assignmentStatementStart(text, binding.initializationEnd, match.index);
+		const unbracedDoDefinite = /^do\s*$/.test(text.slice(statementStartForDo, match.index).trim());
+		if (!ordinaryDefinite && !doBodyDefinite && !unbracedDoDefinite) continue;
 		// `if (flag) app++` and similar control-prefixed updates are conditional writes.
 		// A plain do-body is handled separately above because its body executes at least once.
-		if (!doBodyDefinite) {
+		if (!doBodyDefinite && !unbracedDoDefinite) {
 			const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
 			if (text.slice(statementStart, match.index).trim() !== '') continue;
 		}
