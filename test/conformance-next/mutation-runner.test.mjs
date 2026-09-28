@@ -79,9 +79,13 @@ test('mutation runner rejects a claimed source commit that differs from the test
   const r=spawnSync(process.execPath,[path.join(HERE,'mutation-runner.mjs'),'--repo-root',ROOT,'--catalog',path.join(HERE,'mutations.json'),'--source-commit','0'.repeat(40)],{encoding:'utf8',env});
   assert.equal(r.status,1);
   assert.match(r.stderr,/does not match tested checkout/);
-  const upper=spawnSync(process.execPath,[path.join(HERE,'mutation-runner.mjs'),'--repo-root',ROOT,'--catalog',path.join(HERE,'mutations.json'),'--source-commit',spawnSync('git',['-C',ROOT,'rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim().toUpperCase()],{encoding:'utf8',env});
+  const head=spawnSync('git',['-C',ROOT,'rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim();
+  const upper=spawnSync(process.execPath,[path.join(HERE,'mutation-runner.mjs'),'--repo-root',ROOT,'--catalog',path.join(HERE,'mutations.json'),'--source-commit',head.toUpperCase()],{encoding:'utf8',env});
   assert.equal(upper.status,1);
   assert.match(upper.stderr,/canonical lowercase 40-hex/);
+  assert.throws(()=>runMutationCampaign({repoRoot:ROOT,catalog:CATALOG,sourceCommit:head.toUpperCase()}),/canonical lowercase 40-hex/);
+  const tree=spawnSync('git',['-C',ROOT,'rev-parse','HEAD^{tree}'],{encoding:'utf8'}).stdout.trim();
+  assert.throws(()=>runMutationCampaign({repoRoot:ROOT,catalog:CATALOG,sourceCommit:tree}),/Git commit object/);
 });
 
 test('mutation runner CLI writes a machine-readable killed-mutant report', () => {
