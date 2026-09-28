@@ -430,28 +430,6 @@ test('private holdout self-attestation is rejected without an independently supp
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
-test('signed holdout evidence cannot be replayed under a different adapter or source family', () => {
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-holdout-entry-identity-'));
-  try {
-    const {publicKey,privateKey}=generateKeyPairSync('ed25519');
-    const input=passingInput(root);
-    const entry={id:'signed-entry',adapter:'java-spring',owner:'example-owner',repo:'holdout-fixture',ref:'8'.repeat(40),path:null,terms:['widget'],license_spdx:'MIT',source_family:'signed-family',golden_basis:'test',expected_limitations:[]};
-    const injected=injectHoldoutManifest(input.corpus,{contract:'sbf.qa-holdout/1',entries:[entry]});
-    assert.equal(injected.ok,true,injected.errors.join('\n'));
-    input.corpus=injected.corpus;
-    addCorpusEntryEvidence(root,entry,input.differential,input.evidence.artifacts,{signingKey:privateKey,keyId:'unit-independent'});
-    input.corpus.holdout_entries[0].adapter='typescript-express';
-    input.corpus.holdout_entries[0].source_family='replayed-family';
-    const registry={contract:'sbf.qa-holdout-attestors/1',keys:[{
-      id:'unit-independent',alg:'ed25519',purpose:'t19-private-holdout',status:'active',
-      public_key_pem:publicKey.export({type:'spki',format:'pem'}).toString(),
-    }]};
-    const report=assembleCertification(input,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT,holdout_attestors:registry});
-    assert.equal(report.verdict,'fail');
-    assert.ok(report.reasons.some((x)=>x.includes('complete corpus entry identity')));
-  } finally { fs.rmSync(root,{recursive:true,force:true}); }
-});
-
 test('a valid holdout signature for an older release commit cannot certify a newer release', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-holdout-release-'));
   try {
@@ -487,6 +465,15 @@ test('holdout signature verification succeeds only against an explicitly trusted
   }]};
   assert.equal(verifyHoldoutAttestationWithRegistry(doc,registry).ok,true);
   assert.equal(verifyHoldoutAttestationWithRegistry(doc,{contract:'sbf.qa-holdout-attestors/1',keys:[]}).ok,false);
+
+  // The complete corpus-entry identity is signed. Reusing the same signature after changing
+  // adapter or source-family attribution must fail even when repo/ref coordinates are unchanged.
+  const replayedAdapter=clone(doc);
+  replayedAdapter.corpus_entry.adapter='typescript-express';
+  assert.equal(verifyHoldoutAttestationWithRegistry(replayedAdapter,registry).ok,false);
+  const replayedFamily=clone(doc);
+  replayedFamily.corpus_entry.source_family='replayed-family';
+  assert.equal(verifyHoldoutAttestationWithRegistry(replayedFamily,registry).ok,false);
 });
 
 test('release certification rejects caller-generated signed holdout keys not present in the committed trust registry', () => {
