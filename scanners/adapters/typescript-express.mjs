@@ -1420,6 +1420,8 @@ function assignmentTargetDefinitelyWritesName(lhsValue, binding) {
 	if (!/^(?:if|for|while|with|switch)\b/.test(lhs)) {
 		let earlierAssignment = topLevelBindingSeparator(lhs, '=');
 		while (earlierAssignment !== -1) {
+			const operatorPrefix = lhs.slice(Math.max(0, earlierAssignment - 2), earlierAssignment);
+			if (operatorPrefix === '||' || operatorPrefix === '&&' || operatorPrefix === '??') break;
 			lhs = topLevelSequenceAssignmentTarget(lhs.slice(earlierAssignment + 1).trim());
 			earlierAssignment = topLevelBindingSeparator(lhs, '=');
 		}
@@ -1665,22 +1667,42 @@ function isDirectlyInUnconditionalDoBody(text, binding, targetIndex) {
 	return false;
 }
 
-function isDirectlyInUnconditionalTryBody(text, binding, targetIndex) {
-	const scopes = activeCodeScopeOpeningsAt(text, targetIndex);
+function isDirectlyInUnconditionalTryBody(text, binding, writeIndex, routeIndex) {
+	const scopes = activeCodeScopeOpeningsAt(text, writeIndex);
 	if (scopes.length === 0) return false;
 	for (let scopeIndex = scopes.length - 1; scopeIndex >= 0; scopeIndex--) {
 		const openIndex = scopes[scopeIndex];
 		if (!isTryBlockOpen(text, openIndex)) continue;
-		const prefix = text.slice(Math.max(0, openIndex - 64), openIndex);
+		const prefixStart = Math.max(0, openIndex - 64);
+		const prefix = text.slice(prefixStart, openIndex);
 		const local = /\btry\s*$/.exec(prefix);
 		if (!local) continue;
-		const tryIndex = Math.max(0, openIndex - 64) + local.index;
+		const tryIndex = prefixStart + local.index;
 		const statementStart = assignmentStatementStart(text, binding.initializationEnd, tryIndex);
 		if (text.slice(statementStart, tryIndex).trim() !== '') return false;
 		for (let j = scopeIndex + 1; j < scopes.length; j++) {
 			if (!isStandaloneBlockOpen(text, scopes[j]) && !isFinallyBlockOpen(text, scopes[j])) return false;
 		}
-		return true;
+
+		const tryClose = matchingBraceClose(text, openIndex);
+		if (tryClose === -1) return false;
+		if (routeIndex <= tryClose) return true;
+
+		let cursor = skipStatementWhitespace(text, tryClose + 1);
+		if (/^catch\b/.test(text.slice(cursor))) {
+			// A catch can swallow an exception raised before the assignment completes, allowing the
+			// later route to observe the original Express receiver.
+			return false;
+		}
+		if (/^finally\b/.test(text.slice(cursor))) {
+			cursor = skipStatementWhitespace(text, cursor + 7);
+			if (text[cursor] !== '{') return false;
+			const finallyClose = matchingBraceClose(text, cursor);
+			if (finallyClose === -1) return false;
+			if (routeIndex <= finallyClose) return false;
+			return true;
+		}
+		return false;
 	}
 	return false;
 }
@@ -1711,9 +1733,10 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 		if (!isCodePosition(text, match.index)) continue;
 		const ordinaryDefinite = definiteApplicationWritePosition(text, match.index);
 		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, match.index);
+		const tryBodyDefinite = isDirectlyInUnconditionalTryBody(text, binding, match.index, targetIndex);
 		const statementStartForDo = assignmentStatementStart(text, binding.initializationEnd, match.index);
 		const unbracedDoDefinite = /^do\s*$/.test(text.slice(statementStartForDo, match.index).trim());
-		if (!ordinaryDefinite && !doBodyDefinite && !unbracedDoDefinite) continue;
+		if (!ordinaryDefinite && !doBodyDefinite && !tryBodyDefinite && !unbracedDoDefinite) continue;
 		// `if (flag) app++` and similar control-prefixed updates are conditional writes.
 		// A plain do-body is handled separately above because its body executes at least once.
 		if (!doBodyDefinite && !unbracedDoDefinite) {
@@ -1746,7 +1769,7 @@ function applicationBindingStillTrusted(text, binding, targetIndex) {
 		if (!isCodePosition(text, equalsIndex)) continue;
 		const ordinaryDefinite = definiteApplicationWritePosition(text, equalsIndex);
 		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, equalsIndex);
-		const tryBodyDefinite = isDirectlyInUnconditionalTryBody(text, binding, equalsIndex);
+		const tryBodyDefinite = isDirectlyInUnconditionalTryBody(text, binding, equalsIndex, targetIndex);
 		const unbracedDoDefinite = unbracedDoAssignmentDefinitelyWritesName(text, binding, equalsIndex);
 		if (!ordinaryDefinite && !doBodyDefinite && !tryBodyDefinite && !unbracedDoDefinite) continue;
 		const previous = text[equalsIndex - 1] ?? '';
