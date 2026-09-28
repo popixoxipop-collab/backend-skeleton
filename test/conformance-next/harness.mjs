@@ -236,8 +236,9 @@ export function verifyEvidencePack(pack, { artifactBytes = new Map() } = {}) {
   if (pack.verdict === 'fail' && nonzero.length === 0 && failedAssertions.length === 0) {
     errors.push('fail verdict needs a non-zero command or failed assertion signal');
   }
-  if (pack.verdict === 'blocked' && blockedRequired.length === 0) {
-    errors.push('blocked verdict needs a skipped/blocked required command or assertion signal');
+  if (pack.verdict === 'blocked') {
+    if (blockedRequired.length === 0) errors.push('blocked verdict needs a skipped/blocked required command or assertion signal');
+    if (nonzero.length || failedAssertions.length) errors.push('blocked verdict cannot hide a known failure signal');
   }
 
   return { ok: errors.length === 0, errors };
