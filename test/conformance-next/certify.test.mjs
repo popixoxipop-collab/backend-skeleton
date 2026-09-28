@@ -318,6 +318,7 @@ test('certification rejects product mutation reports without controlled commit m
       (product)=>{ delete product.source_materialization; },
       (product)=>{ product.dependency_install.mode='live-node-modules'; },
       (product)=>{ product.dependency_install.package_lock_sha256='not-a-digest'; },
+      (product)=>{ product.dependency_install.package_lock_sha256='0'.repeat(64); },
     ]) {
       const input=passingInput(root);
       mutate(input.mutation.product);
