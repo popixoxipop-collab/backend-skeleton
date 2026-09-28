@@ -165,6 +165,33 @@ test('blocked verdict is rejected when nothing required was actually blocked or 
   assert.ok(result.errors.some((x) => x.includes('blocked verdict needs')));
 });
 
+test('blocked evidence cannot mask a known command or assertion failure', () => {
+  for (const pack of [
+    {
+      contract: 'sbf.qa-evidence/1', scope: 'fixture:mixed-command', source_commit: '2'.repeat(40), adapter_id: 'fixture', target_profile: 'node-test', verdict: 'blocked',
+      commands: [
+        { argv: 'node failing-test.mjs', status: 'executed', exit_code: 1 },
+        { argv: 'external runtime', status: 'blocked', reason: 'runtime unavailable' },
+      ],
+      assertions: [{ id: 'runtime', required: true, status: 'blocked' }],
+      artifacts: [],
+    },
+    {
+      contract: 'sbf.qa-evidence/1', scope: 'fixture:mixed-assertion', source_commit: '3'.repeat(40), adapter_id: 'fixture', target_profile: 'node-test', verdict: 'blocked',
+      commands: [{ argv: 'node --test', status: 'executed', exit_code: 0 }],
+      assertions: [
+        { id: 'known-failure', required: true, status: 'failed' },
+        { id: 'external-runtime', required: true, status: 'blocked' },
+      ],
+      artifacts: [],
+    },
+  ]) {
+    const result = verifyEvidencePack(pack);
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((x) => x.includes('blocked verdict cannot hide a known failure signal')));
+  }
+});
+
 test('blocked evidence may record skipped infrastructure without masquerading as pass', () => {
   const pack = {
     contract: 'sbf.qa-evidence/1', scope: 'unreal:runtime', source_commit: 'c'.repeat(40), adapter_id: 'unreal', target_profile: 'engine-not-installed', verdict: 'blocked',
