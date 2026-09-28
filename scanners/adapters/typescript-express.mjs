@@ -1374,7 +1374,7 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 		else if (ch === '[') square++;
 		else if (ch === ']') square = Math.max(0, square - 1);
 		else if (ch === '{') {
-			if (round === 0 && square === 0 && (isStandaloneBlockOpen(text, i) || isFinallyBlockOpen(text, i) || isDoBlockOpen(text, i))) statementStart = i + 1;
+			if (round === 0 && square === 0 && (isStandaloneBlockOpen(text, i) || isFinallyBlockOpen(text, i) || isDoBlockOpen(text, i) || isTryBlockOpen(text, i))) statementStart = i + 1;
 			curly++;
 		}
 		else if (ch === '}') {
@@ -1417,6 +1417,13 @@ function assignmentTargetDefinitelyWritesName(lhsValue, binding) {
 	let lhs = lhsValue.trim();
 	if (!lhs) return false;
 	lhs = topLevelSequenceAssignmentTarget(lhs);
+	if (!/^(?:if|for|while|with|switch)\b/.test(lhs)) {
+		let earlierAssignment = topLevelBindingSeparator(lhs, '=');
+		while (earlierAssignment !== -1) {
+			lhs = topLevelSequenceAssignmentTarget(lhs.slice(earlierAssignment + 1).trim());
+			earlierAssignment = topLevelBindingSeparator(lhs, '=');
+		}
+	}
 
 	// Only a standalone assignment target is definite. Conditional prefixes such as `if (flag)`,
 	// `flag &&`, and ternaries intentionally fail this check rather than invalidating the binding.
@@ -1627,6 +1634,11 @@ function isDoBlockOpen(text, openIndex) {
 	return /\bdo\s*$/.test(prefix);
 }
 
+function isTryBlockOpen(text, openIndex) {
+	const prefix = text.slice(Math.max(0, openIndex - 64), openIndex);
+	return /\btry\s*$/.test(prefix);
+}
+
 function definiteApplicationWritePosition(text, equalsIndex) {
 	if (isTopLevelCodePosition(text, equalsIndex)) return true;
 	const scopes = activeCodeScopeOpeningsAt(text, equalsIndex);
@@ -1653,15 +1665,48 @@ function isDirectlyInUnconditionalDoBody(text, binding, targetIndex) {
 	return false;
 }
 
+function isDirectlyInUnconditionalTryBody(text, binding, targetIndex) {
+	const scopes = activeCodeScopeOpeningsAt(text, targetIndex);
+	if (scopes.length === 0) return false;
+	for (let scopeIndex = scopes.length - 1; scopeIndex >= 0; scopeIndex--) {
+		const openIndex = scopes[scopeIndex];
+		if (!isTryBlockOpen(text, openIndex)) continue;
+		const prefix = text.slice(Math.max(0, openIndex - 64), openIndex);
+		const local = /\btry\s*$/.exec(prefix);
+		if (!local) continue;
+		const tryIndex = Math.max(0, openIndex - 64) + local.index;
+		const statementStart = assignmentStatementStart(text, binding.initializationEnd, tryIndex);
+		if (text.slice(statementStart, tryIndex).trim() !== '') return false;
+		for (let j = scopeIndex + 1; j < scopes.length; j++) {
+			if (!isStandaloneBlockOpen(text, scopes[j]) && !isFinallyBlockOpen(text, scopes[j])) return false;
+		}
+		return true;
+	}
+	return false;
+}
+
+function groupedUpdateTargetIsName(rawTarget, name) {
+	let value = rawTarget.trim();
+	while (value.startsWith('(') && value.endsWith(')')) {
+		const close = matchingParenClose(value, 0);
+		if (close !== value.length - 1) break;
+		value = value.slice(1, -1).trim();
+	}
+	return value === name;
+}
+
 function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 	const escaped = escapeRegex(binding.name);
-	const boundary = '[$\\p{ID_Continue}\\u200C\\u200D.#]';
+	const boundary = '[$\\p{ID_Continue}\\u200C\\u200D.#\\[\\]]';
+	const grouped = '(?:\\(\\s*)*' + escaped + '(?:\\s*\\))*';
 	const updateRe = new RegExp(
-		'(?:(?<!' + boundary + ')(?:\\+\\+|--)\\s*' + escaped + '(?!' + boundary + ')' +
-		'|(?<!' + boundary + ')' + escaped + '\\s*(?:\\+\\+|--)(?!' + boundary + '))',
+		'(?:(?<!' + boundary + ')(?:\\+\\+|--)\\s*(' + grouped + ')(?!' + boundary + ')' +
+		'|(?<!' + boundary + ')(' + grouped + ')\\s*(?:\\+\\+|--)(?!' + boundary + '))',
 		'gu',
 	);
 	for (const match of text.matchAll(updateRe)) {
+		const rawTarget = match[1] ?? match[2] ?? '';
+		if (!groupedUpdateTargetIsName(rawTarget, binding.name)) continue;
 		if (match.index < binding.initializationEnd || match.index >= targetIndex) continue;
 		if (!isCodePosition(text, match.index)) continue;
 		const ordinaryDefinite = definiteApplicationWritePosition(text, match.index);
@@ -1701,8 +1746,9 @@ function applicationBindingStillTrusted(text, binding, targetIndex) {
 		if (!isCodePosition(text, equalsIndex)) continue;
 		const ordinaryDefinite = definiteApplicationWritePosition(text, equalsIndex);
 		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, equalsIndex);
+		const tryBodyDefinite = isDirectlyInUnconditionalTryBody(text, binding, equalsIndex);
 		const unbracedDoDefinite = unbracedDoAssignmentDefinitelyWritesName(text, binding, equalsIndex);
-		if (!ordinaryDefinite && !doBodyDefinite && !unbracedDoDefinite) continue;
+		if (!ordinaryDefinite && !doBodyDefinite && !tryBodyDefinite && !unbracedDoDefinite) continue;
 		const previous = text[equalsIndex - 1] ?? '';
 		const next = text[equalsIndex + 1] ?? '';
 		if (next === '=' || next === '>' || previous === '=' || previous === '!') continue;
