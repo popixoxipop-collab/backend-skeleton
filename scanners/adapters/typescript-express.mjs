@@ -1680,6 +1680,17 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 	return false;
 }
 
+function unbracedDoAssignmentDefinitelyWritesName(text, binding, equalsIndex) {
+	const searchStart = Math.max(binding.initializationEnd, equalsIndex - 512);
+	const recent = text.slice(searchStart, equalsIndex);
+	const match = /\bdo\s+([\s\S]*)$/.exec(recent);
+	if (!match) return false;
+	const doIndex = searchStart + match.index;
+	const statementStart = assignmentStatementStart(text, binding.initializationEnd, doIndex);
+	if (text.slice(statementStart, doIndex).trim() !== '') return false;
+	return assignmentTargetDefinitelyWritesName(match[1], binding);
+}
+
 function applicationBindingStillTrusted(text, binding, targetIndex) {
 	if (binding.declarationKind === 'const') return true;
 	if (forHeaderWritesApplicationName(text, binding, targetIndex)) return false;
@@ -1690,20 +1701,13 @@ function applicationBindingStillTrusted(text, binding, targetIndex) {
 		if (!isCodePosition(text, equalsIndex)) continue;
 		const ordinaryDefinite = definiteApplicationWritePosition(text, equalsIndex);
 		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, equalsIndex);
-		const statementStartForDo = assignmentStatementStart(text, binding.initializationEnd, equalsIndex);
-		const statementPrefix = text.slice(statementStartForDo, equalsIndex).trim();
-		const unbracedDoDefinite = /^do\b/.test(statementPrefix) &&
-			/^do\s+/.test(text.slice(statementStartForDo, equalsIndex));
+		const unbracedDoDefinite = unbracedDoAssignmentDefinitelyWritesName(text, binding, equalsIndex);
 		if (!ordinaryDefinite && !doBodyDefinite && !unbracedDoDefinite) continue;
 		const previous = text[equalsIndex - 1] ?? '';
 		const next = text[equalsIndex + 1] ?? '';
 		if (next === '=' || next === '>' || previous === '=' || previous === '!') continue;
 		if ((previous === '<' || previous === '>') && text[equalsIndex - 2] !== previous) continue;
-		if (unbracedDoDefinite) {
-			const lhs = statementPrefix.replace(/^do\b/, '').trimStart();
-			if (assignmentTargetDefinitelyWritesName(lhs, binding)) return false;
-			continue;
-		}
+		if (unbracedDoDefinite) return false;
 		if (assignmentLhsDefinitelyWritesName(text, binding, equalsIndex)) return false;
 	}
 	return true;
