@@ -36,6 +36,11 @@ function validateMutationReportAgainstCatalog(report, { contract, catalog, label
   if (report.source_commit !== source_commit) errors.push(`${label}: source_commit ${String(report.source_commit)} does not match certified release commit ${source_commit}`);
   const expectedCatalogDigest = catalogDigest(catalog);
   if (report.catalog_sha256 !== expectedCatalogDigest) errors.push(`${label}: catalog_sha256 ${String(report.catalog_sha256)} does not match committed catalog ${expectedCatalogDigest}`);
+  if (label === 'product') {
+    if (report.source_materialization !== 'git-archive') errors.push('product: source_materialization must be git-archive');
+    if (report.dependency_install?.mode !== 'npm-ci-ignore-scripts') errors.push('product: dependency_install.mode must be npm-ci-ignore-scripts');
+    if (!/^[a-f0-9]{64}$/i.test(report.dependency_install?.package_lock_sha256 ?? '')) errors.push('product: dependency_install.package_lock_sha256 must be a sha256 digest');
+  }
   if (!Array.isArray(report.mutants)) return { errors: [...errors, `${label}: mutants must be an array`], mutants: [] };
   const expected = new Map(catalog.mutants.map((m) => [m.id, m]));
   const seen = new Set();
