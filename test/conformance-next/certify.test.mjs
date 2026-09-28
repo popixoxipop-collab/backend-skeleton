@@ -73,7 +73,7 @@ function passingInput(root) {
       contract: 'sbf.qa-mutation-bundle/1',
       source_commit: releaseCommit,
       harness: { contract: 'sbf.qa-mutation-report/1', source_commit: releaseCommit, catalog_sha256: sha256(Buffer.from(JSON.stringify(MUTATIONS))), mutants: MUTATIONS.mutants.map((m) => ({ id: m.id, critical: m.critical, status: 'killed' })) },
-      product: { contract: 'sbf.qa-product-mutation-report/1', source_commit: releaseCommit, catalog_sha256: sha256(Buffer.from(JSON.stringify(PRODUCT_MUTATIONS))), mutants: PRODUCT_MUTATIONS.mutants.map((m) => ({ id: m.id, critical: m.critical, status: 'killed' })) },
+      product: { contract: 'sbf.qa-product-mutation-report/1', source_commit: releaseCommit, catalog_sha256: sha256(Buffer.from(JSON.stringify(PRODUCT_MUTATIONS))), source_materialization: 'git-archive', dependency_install: { mode: 'npm-ci-ignore-scripts', package_lock_sha256: 'a'.repeat(64) }, mutants: PRODUCT_MUTATIONS.mutants.map((m) => ({ id: m.id, critical: m.critical, status: 'killed' })) },
     },
     evidence: {
       contract: 'sbf.qa-evidence/1', scope: 'fixture:all', source_commit: 'd'.repeat(40), adapter_id: 'fixture', target_profile: 'node-test', verdict: 'pass',
@@ -294,6 +294,23 @@ test('certification requires the exact committed 79-vector catalog', () => {
     const report=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:'d'.repeat(40)});
     assert.equal(report.verdict,'fail');
     assert.ok(report.reasons.some((x)=>x.includes('committed 79-vector manifest')));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('certification rejects product mutation reports without controlled commit materialization metadata', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-provenance-'));
+  try {
+    for (const mutate of [
+      (product)=>{ delete product.source_materialization; },
+      (product)=>{ product.dependency_install.mode='live-node-modules'; },
+      (product)=>{ product.dependency_install.package_lock_sha256='not-a-digest'; },
+    ]) {
+      const input=passingInput(root);
+      mutate(input.mutation.product);
+      const report=assembleCertification(input,{artifact_root:root,require_holdout:false,source_commit:'d'.repeat(40)});
+      assert.equal(report.verdict,'fail');
+      assert.ok(report.reasons.some((x)=>x.includes('product:')));
+    }
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
