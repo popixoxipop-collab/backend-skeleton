@@ -82,6 +82,26 @@ test('product mutation campaign ignores live ignored bytes and executes only the
   assert.equal(hung.error?.code,'ETIMEDOUT');
   assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
   if(process.platform!=='win32') assert.equal(hung.signal,'SIGKILL');
+
+  // Setup failures before mutation execution must still remove the controlled source tree.
+  const broken=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-broken-deps-'));
+  try{
+   fs.mkdirSync(path.join(broken,'test'),{recursive:true});
+   fs.writeFileSync(path.join(broken,'package.json'),JSON.stringify({name:'broken',version:'1.0.0',private:true})+'\n');
+   fs.writeFileSync(path.join(broken,'subject.mjs'),'export const value = 1;\n');
+   fs.writeFileSync(path.join(broken,'test','subject.test.mjs'),"import test from 'node:test'; test('noop',()=>{});\n");
+   spawnSync('git',['init','-q'],{cwd:broken});
+   spawnSync('git',['add','-A'],{cwd:broken});
+   const commit=spawnSync('git',['-c','user.name=T19','-c','user.email=t19@example.invalid','commit','-q','-m','no-lock'],{cwd:broken,encoding:'utf8'});
+   assert.equal(commit.status,0,commit.stderr);
+   const badCommit=spawnSync('git',['rev-parse','HEAD'],{cwd:broken,encoding:'utf8'}).stdout.trim();
+   const badCatalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'setup-fail',vector_id:'NEG-TEST-03',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 2',test_files:['test/subject.test.mjs'],invariant:'setup failure cleans controlled source'}]};
+   const prefix='bskel-t19-controlled-source-';
+   const before=fs.readdirSync(os.tmpdir()).filter((name)=>name.startsWith(prefix)).sort();
+   assert.throws(()=>runProductMutationCampaign({repoRoot:broken,catalog:badCatalog,sourceCommit:badCommit}),/requires tracked package\.json and package-lock\.json/);
+   const after=fs.readdirSync(os.tmpdir()).filter((name)=>name.startsWith(prefix)).sort();
+   assert.deepEqual(after,before);
+  }finally{fs.rmSync(broken,{recursive:true,force:true});}
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
