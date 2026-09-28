@@ -1487,8 +1487,11 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		if (firstSemi === -1) continue;
 		const initializer = header.slice(0, firstSemi).trim();
 		const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
-		const headerDefinitelyExecutes = definiteApplicationWritePosition(text, match.index) &&
+		const ordinaryDefinite = definiteApplicationWritePosition(text, match.index) &&
 			text.slice(statementStart, match.index).trim() === '';
+		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, match.index);
+		const unbracedDoDefinite = /^do\s*$/.test(text.slice(statementStart, match.index).trim());
+		const headerDefinitelyExecutes = ordinaryDefinite || doBodyDefinite || unbracedDoDefinite;
 		if (!headerDefinitelyExecutes) continue;
 		const varInit = initializer.match(/^var\b([\s\S]*)$/);
 		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) {
