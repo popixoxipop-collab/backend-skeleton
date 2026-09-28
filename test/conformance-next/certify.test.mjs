@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { assembleCertification, corpusEntryIdentityMatches, corpusEntrySourceMatches, evaluateDifferentialGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
+import { assembleCertification, corpusEntryIdentityMatches, corpusEntrySourceMatches, evaluateDifferentialGate, evaluateHoldoutCoverageGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
 import { sha256 } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -468,8 +468,15 @@ test('a valid holdout signature for an older release commit cannot certify a new
       id:'unit-independent',alg:'ed25519',purpose:'t19-private-holdout',status:'active',
       public_key_pem:publicKey.export({type:'spki',format:'pem'}).toString(),
     }]};
-    const freshReport=assembleCertification(fresh,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT,holdout_attestors:registry});
-    assert.equal(freshReport.verdict,'pass',freshReport.reasons.join('\n'));
+    const coverage=evaluateHoldoutCoverageGate({
+      corpus:fresh.corpus,
+      differential:fresh.differential,
+      evidence:fresh.evidence,
+      artifact_root:root,
+      source_commit:HEAD_COMMIT,
+      holdout_attestors:registry,
+    });
+    assert.equal(coverage.pass,true,coverage.reasons.join('\n'));
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
