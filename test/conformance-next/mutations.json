@@ -1,0 +1,82 @@
+{
+  "contract": "sbf.qa-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "MUT-RECALL-DROPS-ABSTENTION",
+      "critical": true,
+      "file": "test/conformance-next/harness.mjs",
+      "find": "const fn = abstentions + missing;",
+      "replace": "const fn = missing;",
+      "test_files": [
+        "test/conformance-next/harness.test.mjs"
+      ],
+      "invariant": "Unknown/abstention on a gold item remains a false negative in full-surface recall."
+    },
+    {
+      "id": "MUT-CRITICAL-SURVIVOR-IGNORED",
+      "critical": true,
+      "file": "test/conformance-next/harness.mjs",
+      "find": "const critical_failures = critical.filter((m) => m.status !== 'killed').map((m) => m.id);",
+      "replace": "const critical_failures = critical.filter((m) => m.status === 'equivalent').map((m) => m.id);",
+      "test_files": [
+        "test/conformance-next/harness.test.mjs"
+      ],
+      "invariant": "Every critical mutant must be killed."
+    },
+    {
+      "id": "MUT-EQUIVALENT-COUNTED",
+      "critical": false,
+      "file": "test/conformance-next/harness.mjs",
+      "find": "const noncritical = mutants.filter((m) => !m.critical && m.status !== 'equivalent');",
+      "replace": "const noncritical = mutants.filter((m) => !m.critical);",
+      "test_files": [
+        "test/conformance-next/harness.test.mjs"
+      ],
+      "invariant": "Reviewed equivalent noncritical mutants stay outside the executable denominator."
+    },
+    {
+      "id": "MUT-PASS-HIDES-SKIPPED-COMMAND",
+      "critical": true,
+      "file": "test/conformance-next/harness.mjs",
+      "find": "if (requiredCommandsNotExecuted.length) errors.push('pass verdict cannot hide a skipped/blocked required command');",
+      "replace": "if (false && requiredCommandsNotExecuted.length) errors.push('pass verdict cannot hide a skipped/blocked required command');",
+      "test_files": [
+        "test/conformance-next/harness.test.mjs"
+      ],
+      "invariant": "PASS cannot hide a required skipped or blocked command."
+    },
+    {
+      "id": "MUT-FAIL-EVIDENCE-REJECTED",
+      "critical": true,
+      "file": "test/conformance-next/harness.mjs",
+      "find": "if (pack.verdict === 'fail' && nonzero.length === 0 && failedAssertions.length === 0) {",
+      "replace": "if (pack.verdict === 'fail') {",
+      "test_files": [
+        "test/conformance-next/harness.test.mjs"
+      ],
+      "invariant": "A well-formed failed run remains valid evidence."
+    },
+    {
+      "id": "MUT-HOLDOUT-MASKS-FAILURE",
+      "critical": true,
+      "file": "test/conformance-next/certify.mjs",
+      "find": "if (verdict === 'pass') verdict = 'blocked';",
+      "replace": "verdict = 'blocked';",
+      "test_files": [
+        "test/conformance-next/certify.test.mjs"
+      ],
+      "invariant": "Missing holdout cannot downgrade a real conformance failure to BLOCKED."
+    },
+    {
+      "id": "MUT-PATH-TRAVERSAL-NOT-CLASSIFIED",
+      "critical": true,
+      "file": "test/conformance-next/certify.mjs",
+      "find": "if (!nonEmptyString(rel) || path.isAbsolute(rel) || rel.includes('\\\\') || rel.split('/').includes('..')) {",
+      "replace": "if (!nonEmptyString(rel) || path.isAbsolute(rel) || rel.includes('\\\\')) {",
+      "test_files": [
+        "test/conformance-next/certify.test.mjs"
+      ],
+      "invariant": "Evidence artifact paths must reject parent traversal before filesystem access."
+    }
+  ]
+}

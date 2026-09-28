@@ -1,0 +1,161 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT-ADAPTER-SPECIFICITY-REVERSED",
+      "vector_id": "NEG-PROJ-01",
+      "critical": true,
+      "file": "scanners/index.mjs",
+      "find": ".sort((x, y) => y.a.specificity - x.a.specificity || x.a.id.localeCompare(y.a.id));",
+      "replace": ".sort((x, y) => x.a.specificity - y.a.specificity || x.a.id.localeCompare(y.a.id));",
+      "test_files": [
+        "test/adapter-registry.test.mjs"
+      ],
+      "invariant": "Higher-specificity adapter wins deterministic arbitration."
+    },
+    {
+      "id": "PMUT-ADAPTER-AMBIGUITY-SILENCED",
+      "vector_id": "NEG-PROJ-02",
+      "critical": true,
+      "file": "scanners/index.mjs",
+      "find": "if (tiedAtTop.length > 1) {",
+      "replace": "if (tiedAtTop.length > 2) {",
+      "test_files": [
+        "test/adapter-registry.test.mjs"
+      ],
+      "invariant": "Two equal-top-specificity detections must be rejected as ambiguous."
+    },
+    {
+      "id": "PMUT-ADAPTER-CONTRACT-INVERTED",
+      "vector_id": "NEG-RELEASE-02",
+      "critical": true,
+      "file": "scanners/registry.mjs",
+      "find": "if (descriptor.contract !== SUPPORTED_CONTRACT) {",
+      "replace": "if (descriptor.contract === SUPPORTED_CONTRACT) {",
+      "test_files": [
+        "test/adapter-registry.test.mjs"
+      ],
+      "invariant": "Only the supported adapter contract is loadable."
+    },
+    {
+      "id": "PMUT-CAPABILITY-SIGNATURE-BYPASS",
+      "vector_id": "NEG-RUN-08",
+      "critical": true,
+      "file": "handles/capability-codec.mjs",
+      "find": "if (!verifyPayload(payload, sig, publicKeyPem)) return { ok: false, reason: 'invalid signature' };",
+      "replace": "if (false && !verifyPayload(payload, sig, publicKeyPem)) return { ok: false, reason: 'invalid signature' };",
+      "test_files": [
+        "test/capability-codec.test.mjs"
+      ],
+      "invariant": "A token signed by an untrusted key cannot be accepted."
+    },
+    {
+      "id": "PMUT-CAPABILITY-EXPIRY-OFF-BY-ONE",
+      "vector_id": "NEG-AUTH-06",
+      "critical": true,
+      "file": "handles/capability-codec.mjs",
+      "find": "if (exp <= now) return { ok: false, reason: 'expired' };",
+      "replace": "if (exp < now) return { ok: false, reason: 'expired' };",
+      "test_files": [
+        "test/capability-codec.test.mjs"
+      ],
+      "invariant": "A token at its exact expiry second is expired."
+    },
+    {
+      "id": "PMUT-CAPABILITY-LENGTH-GUARD-REMOVED",
+      "vector_id": "NEG-TRUST-06",
+      "critical": false,
+      "file": "handles/capability-codec.mjs",
+      "find": "if (token.length > MAX_CAPABILITY_TOKEN_LENGTH) return { ok: false, reason: `token exceeds the maximum length of ${MAX_CAPABILITY_TOKEN_LENGTH} characters` };",
+      "replace": "if (false && token.length > MAX_CAPABILITY_TOKEN_LENGTH) return { ok: false, reason: `token exceeds the maximum length of ${MAX_CAPABILITY_TOKEN_LENGTH} characters` };",
+      "test_files": [
+        "test/capability-codec.test.mjs"
+      ],
+      "invariant": "Oversized capability tokens are refused before decode."
+    },
+    {
+      "id": "PMUT-SCAN-GATE-BECOMES-OPTIONAL",
+      "vector_id": "NEG-CACHE-01",
+      "critical": true,
+      "file": "lib/gate-definitions.mjs",
+      "find": "\tscan: {\n\t\tname: 'scan',\n\t\tscope: SCOPE.FEATURE,\n\t\tverifyPolicy: VERIFY_POLICY.REQUIRED,",
+      "replace": "\tscan: {\n\t\tname: 'scan',\n\t\tscope: SCOPE.FEATURE,\n\t\tverifyPolicy: VERIFY_POLICY.REQUIRED_WHEN_PRESENT,",
+      "test_files": [
+        "test/gate-definitions.test.mjs"
+      ],
+      "invariant": "The scan gate remains required and cannot become silently optional."
+    },
+    {
+      "id": "PMUT-HAND-EDITED-FILE-OVERWRITE",
+      "vector_id": "NEG-GEN-01",
+      "critical": true,
+      "file": "lib/handles-manifest.mjs",
+      "find": "if (!matchesPristineRender) return 'conflict';",
+      "replace": "if (!matchesPristineRender) return 'update';",
+      "test_files": [
+        "test/handles-manifest.test.mjs"
+      ],
+      "invariant": "A file with no trusted manifest provenance and no pristine-render match remains a conflict; a human-edited generated file is never silently overwritten."
+    },
+    {
+      "id": "PMUT-ROOT-TRAVERSAL-ALLOWED",
+      "vector_id": "NEG-TRUST-02",
+      "critical": true,
+      "file": "lib/fsutil.mjs",
+      "find": "if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;",
+      "replace": "if (rel === '..' || path.isAbsolute(rel)) return null;",
+      "test_files": [
+        "test/conformance-next/product-security-invariants.test.mjs"
+      ],
+      "invariant": "Repo-relative parent traversal is rejected by resolveWithinRoot; this fixture covers lexical ../ escape and does not claim symlink containment."
+    },
+    {
+      "id": "PMUT-EXACT-BYTE-HASH-SEMANTICIZED",
+      "vector_id": "NEG-ID-01",
+      "critical": true,
+      "file": "lib/fsutil.mjs",
+      "find": "return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');",
+      "replace": "return createHash('sha256').update(JSON.stringify(JSON.parse(fs.readFileSync(filePath, 'utf8')))).digest('hex');",
+      "test_files": [
+        "test/conformance-next/product-security-invariants.test.mjs"
+      ],
+      "invariant": "Artifact identity hashes exact file bytes; semantically equal JSON with different bytes must not collapse."
+    },
+    {
+      "id": "PMUT-ATTEST-EXPECT-HEAD-BYPASS",
+      "vector_id": "NEG-RUN-01",
+      "critical": true,
+      "file": "bin/bskel.mjs",
+      "find": "const ok = actual === flags['expect-head'];",
+      "replace": "const ok = true;",
+      "test_files": [
+        "test/attest-cli.test.mjs"
+      ],
+      "invariant": "An attestation asserted against the wrong exact git head must fail the replay/snapshot assertion."
+    },
+    {
+      "id": "PMUT-PRIVATE-KEY-MODE-RELAXED",
+      "vector_id": "NEG-TRUST-04",
+      "critical": true,
+      "file": "bin/bskel.mjs",
+      "find": "writeFileAtomic(privatePath, privateKeyPem, 0o600);",
+      "replace": "writeFileAtomic(privatePath, privateKeyPem);",
+      "test_files": [
+        "test/attest-cli.test.mjs"
+      ],
+      "invariant": "Generated private attestation keys are owner-read/write only from first write."
+    },
+    {
+      "id": "PMUT-TS-ACCESS-STUB-ALLOWS",
+      "vector_id": "NEG-GEN-02",
+      "critical": true,
+      "file": "handles/providers/typescript-express/templates/resolver.ts.tmpl",
+      "find": "throw new HandleAccessDeniedError('access check not yet implemented for {{RESOURCE_TYPE}}');",
+      "replace": "return;",
+      "test_files": [
+        "test/conformance-next/product-security-invariants.test.mjs"
+      ],
+      "invariant": "Generated authorization stubs remain fail-closed until explicit application authorization is implemented."
+    }
+  ]
+}
