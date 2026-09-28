@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { createHash, verify as verifySignature } from 'node:crypto';
 import {
   compareObservedInventory,
@@ -16,6 +17,16 @@ const PRODUCT_MUTATION_CATALOG = JSON.parse(fs.readFileSync(path.join(HERE, 'pro
 const REFERENCE_CORPUS = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'corpus-next', 'corpus-manifest.json'), 'utf8'));
 const COMMITTED_NEGATIVE_VECTORS = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'corpus-next', 'negative-vectors.json'), 'utf8'));
 const COMMITTED_HOLDOUT_ATTESTORS = JSON.parse(fs.readFileSync(path.join(HERE, 'holdout-attestors.json'), 'utf8'));
+const REPO_ROOT = path.resolve(HERE, '..', '..');
+
+function trackedFileDigestAtCommit(sourceCommit, relPath) {
+  if (!/^[a-f0-9]{40}$/i.test(sourceCommit ?? '')) return null;
+  const run = spawnSync('git', ['-C', REPO_ROOT, 'show', `${sourceCommit}:${relPath}`], {
+    encoding: null, timeout: 10_000, maxBuffer: 32 * 1024 * 1024,
+  });
+  if (run.status !== 0) return null;
+  return createHash('sha256').update(run.stdout).digest('hex');
+}
 
 function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -43,7 +54,14 @@ function validateMutationReportAgainstCatalog(report, { contract, catalog, label
   }
   if (label === 'product') {
     if (report.dependency_install?.mode !== 'npm-ci-ignore-scripts') errors.push('product: dependency_install.mode must be npm-ci-ignore-scripts');
-    if (!/^[a-f0-9]{64}$/i.test(report.dependency_install?.package_lock_sha256 ?? '')) errors.push('product: dependency_install.package_lock_sha256 must be a sha256 digest');
+    const reportedLockDigest = report.dependency_install?.package_lock_sha256 ?? null;
+    if (!/^[a-f0-9]{64}$/i.test(reportedLockDigest ?? '')) {
+      errors.push('product: dependency_install.package_lock_sha256 must be a sha256 digest');
+    } else {
+      const trackedLockDigest = trackedFileDigestAtCommit(source_commit, 'package-lock.json');
+      if (!trackedLockDigest) errors.push(`product: cannot read package-lock.json from certified commit ${source_commit}`);
+      else if (reportedLockDigest !== trackedLockDigest) errors.push(`product: dependency package-lock digest ${reportedLockDigest} does not match certified commit ${trackedLockDigest}`);
+    }
   }
   if (!Array.isArray(report.mutants)) return { errors: [...errors, `${label}: mutants must be an array`], mutants: [] };
   const expected = new Map(catalog.mutants.map((m) => [m.id, m]));
