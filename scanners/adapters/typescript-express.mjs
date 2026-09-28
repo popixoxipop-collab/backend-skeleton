@@ -1408,12 +1408,12 @@ function lineBreakStartsNewStatement(text, statementStart, newlineIndex, limitIn
 	// A trailing unbraced control header starts a conditional/iterative body, not a new sibling
 	// statement. Look at the LAST control header rather than only the first token so compound
 	// forms such as "else if", nested "if ... if", and "for await" stay attached.
-	const controlRe = /(?<![$\\p{ID_Continue}\\u200C\\u200D.#])(?:(?:if|while|with)\\s*\\(|for\\s*(?:await\\s*)?\\()/gu;
+	const controlRe = /(?<![$\p{ID_Continue}\u200C\u200D.#])(?:(?:if|while|with)\s*\(|for\s*(?:await\s*)?\()/gu;
 	for (const control of statement.matchAll(controlRe)) {
 		const openIndex = statement.indexOf('(', control.index);
 		if (openIndex !== -1 && matchingParenClose(statement, openIndex) === statement.length - 1) return false;
 	}
-	if (/(?:^|\\s)(?:else|do)\\s*$/.test(statement)) return false;
+	if (/(?:^|\s)(?:else|do)\s*$/.test(statement)) return false;
 	return true;
 }
 
