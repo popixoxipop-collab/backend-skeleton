@@ -1492,9 +1492,11 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		if (!headerDefinitelyExecutes) continue;
 		const varInit = initializer.match(/^var\b([\s\S]*)$/);
 		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) {
-			const nameOffset = initializer.indexOf(binding.name);
-			const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
-			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
+			// var redeclarations target the same function/module binding. Do not run lexical-shadow
+			// authorization on the redeclaration itself; compare its function scope to the original.
+			const bindingFunction = nearestFunctionScopeOpenAt(text, binding.declarationIndex);
+			const headerFunction = nearestFunctionScopeOpenAt(text, match.index);
+			if (bindingFunction === headerFunction) return true;
 			continue;
 		}
 		// Existing-binding assignments in classic for initializers execute before the first test,
