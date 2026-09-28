@@ -155,6 +155,10 @@ function corpusEntrySource(entry) {
   return { owner: entry.owner, repo: entry.repo, ref: entry.ref, path: entry.path ?? null };
 }
 
+export function corpusEntrySourceMatches(actual, entry) {
+  return isDeepStrictEqual(actual, corpusEntrySource(entry));
+}
+
 function corpusEntryIdentity(entry) {
   return {
     id: entry.id,
@@ -246,7 +250,7 @@ export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, ar
       continue;
     }
     const result = matches[0];
-    if (JSON.stringify(result.source) !== JSON.stringify(corpusEntrySource(entry))) {
+    if (!corpusEntrySourceMatches(result.source, entry)) {
       reasons.push(`corpus entry ${entry.id} differential source identity does not match its pinned repository`);
       continue;
     }
@@ -279,7 +283,7 @@ export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, ar
       reasons.push(`corpus entry ${entry.id} evidence artifact has the wrong contract/entry id`);
       continue;
     }
-    if (JSON.stringify(doc.source) !== JSON.stringify(corpusEntrySource(entry))) {
+    if (!corpusEntrySourceMatches(doc.source, entry)) {
       reasons.push(`corpus entry ${entry.id} evidence artifact is not bound to the pinned repository/ref`);
       continue;
     }
