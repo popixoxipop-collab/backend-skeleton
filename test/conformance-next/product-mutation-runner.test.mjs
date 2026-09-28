@@ -73,18 +73,15 @@ test('product mutation campaign ignores live ignored bytes and executes only the
   assert.equal(result.source_commit,sourceCommit);
   assert.equal(result.dependency_install.mode,'npm-ci-ignore-scripts');
   assert.equal(result.mutants[0].status,'killed');
- }finally{fs.rmSync(root,{recursive:true,force:true});}
-});
 
-test('bounded dependency command hard-kills a stalled child at timeout',()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-hard-timeout-'));
- try{
+  // Dependency installation uses the same bounded runner. A child that ignores SIGTERM must
+  // still be forcibly terminated by SIGKILL so an unavailable registry cannot wedge required CI.
   const started=Date.now();
-  const run=runBoundedCommand(process.execPath,['-e',"process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"],{cwd:root,timeoutMs:100,env:{...process.env}});
+  const hung=runBoundedCommand(process.execPath,['-e',"process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"],{cwd:root,timeoutMs:100,env:{...process.env}});
   const elapsed=Date.now()-started;
-  assert.equal(run.error?.code,'ETIMEDOUT');
+  assert.equal(hung.error?.code,'ETIMEDOUT');
   assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
-  if(process.platform!=='win32') assert.equal(run.signal,'SIGKILL');
+  if(process.platform!=='win32') assert.equal(hung.signal,'SIGKILL');
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
