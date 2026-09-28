@@ -35,6 +35,7 @@ function addCorpusEntryEvidence(root, entry, differential, artifacts, { signingK
   const doc = {
     contract: 'sbf.qa-corpus-entry-result/1',
     entry_id: result.entry_id,
+    corpus_entry: clone(entry),
     source: result.source,
     run: {
       kind: 'controlled-checkout',
@@ -429,6 +430,28 @@ test('private holdout self-attestation is rejected without an independently supp
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
+test('signed holdout evidence cannot be replayed under a different adapter or source family', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-holdout-entry-identity-'));
+  try {
+    const {publicKey,privateKey}=generateKeyPairSync('ed25519');
+    const input=passingInput(root);
+    const entry={id:'signed-entry',adapter:'java-spring',owner:'example-owner',repo:'holdout-fixture',ref:'8'.repeat(40),path:null,terms:['widget'],license_spdx:'MIT',source_family:'signed-family',golden_basis:'test',expected_limitations:[]};
+    const injected=injectHoldoutManifest(input.corpus,{contract:'sbf.qa-holdout/1',entries:[entry]});
+    assert.equal(injected.ok,true,injected.errors.join('\n'));
+    input.corpus=injected.corpus;
+    addCorpusEntryEvidence(root,entry,input.differential,input.evidence.artifacts,{signingKey:privateKey,keyId:'unit-independent'});
+    input.corpus.holdout_entries[0].adapter='typescript-express';
+    input.corpus.holdout_entries[0].source_family='replayed-family';
+    const registry={contract:'sbf.qa-holdout-attestors/1',keys:[{
+      id:'unit-independent',alg:'ed25519',purpose:'t19-private-holdout',status:'active',
+      public_key_pem:publicKey.export({type:'spki',format:'pem'}).toString(),
+    }]};
+    const report=assembleCertification(input,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT,holdout_attestors:registry});
+    assert.equal(report.verdict,'fail');
+    assert.ok(report.reasons.some((x)=>x.includes('complete corpus entry identity')));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
 test('a valid holdout signature for an older release commit cannot certify a newer release', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-holdout-release-'));
   try {
@@ -451,6 +474,7 @@ test('holdout signature verification succeeds only against an explicitly trusted
   const {publicKey,privateKey}=generateKeyPairSync('ed25519');
   const doc={
     contract:'sbf.qa-corpus-entry-result/1',entry_id:'signed-unit',
+    corpus_entry:{id:'signed-unit',adapter:'java-spring',owner:'example-owner',repo:'holdout-fixture',ref:'8'.repeat(40),path:null,terms:['widget'],license_spdx:'MIT',source_family:'signed-unit-family',golden_basis:'test',expected_limitations:[]},
     source:{owner:'example-owner',repo:'holdout-fixture',ref:'8'.repeat(40),path:null},
     run:{kind:'controlled-checkout',runner_id:'independent-runner',run_id:'run-1',checkout_commit:'8'.repeat(40),command:'bskel scan --json',exit_code:0},
     release_source_commit:HEAD_COMMIT,gold:['x'],observed:[{id:'x',status:'verified'}],
