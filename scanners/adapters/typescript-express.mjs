@@ -444,6 +444,7 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 			// continuation line (e.g. `express()\n  && fakeApp`).
 			const nextTail = text.slice(nextIndex, Math.min(limitIndex, nextIndex + 32));
 			const continuesFromNext = '.[(?,+-*/%&|^<>'.includes(nextSignificant) ||
+				/^(?:===?|!==?)/.test(nextTail) ||
 				/^(?:in|instanceof|as|satisfies)\b/.test(nextTail);
 			if (!continuesFromPrevious && !continuesFromNext) return text.slice(startIndex, i);
 		}
@@ -1510,6 +1511,26 @@ function staticallyGuaranteedNonEmptyLoop(operator, expression) {
 	return false;
 }
 
+function classicForAssignmentTargetsWithOffsets(operand, baseOffset) {
+	const out = [];
+	let text = operand;
+	let offset = baseOffset;
+	while (text) {
+		const equals = topLevelBindingSeparator(text, '=');
+		if (equals === -1) break;
+		const prefix = text.slice(Math.max(0, equals - 2), equals);
+		if (prefix === '||' || prefix === '&&' || prefix === '??') break;
+		const rawLhs = text.slice(0, equals);
+		out.push({ rawLhs, offset });
+		const rhsRaw = text.slice(equals + 1);
+		const leading = rhsRaw.search(/\S/);
+		if (leading === -1) break;
+		offset += equals + 1 + leading;
+		text = rhsRaw.slice(leading);
+	}
+	return out;
+}
+
 function classicForInitializerOperandsWithOffsets(initializer) {
 	const pending = splitBindingDeclaratorsWithOffsets(initializer).map((part) => ({ ...part }));
 	const out = [];
@@ -1647,22 +1668,20 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		// Existing-binding assignments in classic for initializers execute before the first test,
 		// but only when this header resolves to the same application binding in a definitely-run scope.
 		for (const operandPart of classicForInitializerOperandsWithOffsets(initializer)) {
-			const operand = operandPart.text;
-			const operandOffset = operandPart.offset;
-			const assignment = topLevelBindingSeparator(operand, '=');
-			if (assignment === -1) continue;
-			const rawLhs = operand.slice(0, assignment);
-			let lhs = peelAssignmentGrouping(rawLhs.trim());
-			for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
-				if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
+			for (const target of classicForAssignmentTargetsWithOffsets(operandPart.text, operandPart.offset)) {
+				const rawLhs = target.rawLhs;
+				let lhs = peelAssignmentGrouping(rawLhs.trim());
+				for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
+					if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
+				}
+				const writes = lhs === binding.name ||
+					(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
+				if (!writes) continue;
+				const localNameOffset = rawLhs.lastIndexOf(binding.name);
+				if (localNameOffset === -1) continue;
+				const referenceIndex = openIndex + 1 + target.offset + localNameOffset;
+				if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
 			}
-			const writes = lhs === binding.name ||
-				(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
-			if (!writes) continue;
-			const localNameOffset = rawLhs.lastIndexOf(binding.name);
-			if (localNameOffset === -1) continue;
-			const referenceIndex = openIndex + 1 + operandOffset + localNameOffset;
-			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
 		}
 	}
 	return false;
