@@ -499,6 +499,15 @@ function variableClauseBindsName(clause, name) {
 	});
 }
 
+function variableClauseAssignsName(clause, name) {
+	return splitBindingDeclarators(clause).some((declarator) => {
+		const assignment = topLevelBindingSeparator(declarator, '=');
+		if (assignment === -1) return false;
+		const pattern = leadingBindingPattern(declarator.slice(0, assignment));
+		return pattern ? bindingPatternBindsName(pattern, name) : false;
+	});
+}
+
 function isCodePosition(text, targetIndex) {
 	let quote = null;
 	let lastSignificant = null;
@@ -1382,6 +1391,31 @@ function routeReceiverVariables(text) {
 	return [...new Set(routeReceiverBindings(text).map((binding) => binding.name))].sort();
 }
 
+function lineBreakStartsNewStatement(text, statementStart, newlineIndex, limitIndex, lastSignificant) {
+	let nextIndex = newlineIndex + 1;
+	while (nextIndex < limitIndex && /[\t\r ]/.test(text[nextIndex])) nextIndex++;
+	if (nextIndex >= limitIndex) return false;
+	const nextSignificant = text[nextIndex] ?? '';
+	const nextTail = text.slice(nextIndex, Math.min(limitIndex, nextIndex + 32));
+	const continuesFromPrevious = lastSignificant != null && ',=.?+-*/%&|^!:<>'.includes(lastSignificant);
+	const continuesFromNext = '.[(?,+-*/%&|^<>'.includes(nextSignificant) ||
+		/^(?:===?|!==?)/.test(nextTail) ||
+		/^(?:in|instanceof|as|satisfies)\b/.test(nextTail);
+	if (continuesFromPrevious || continuesFromNext) return false;
+
+	const statement = text.slice(statementStart, newlineIndex).trim();
+	if (!statement) return false;
+	// A line break after an unbraced control header starts its body, not a new sibling statement.
+	// Keep the header attached so a newline before app = fakeApp remains a conditional write.
+	const control = /^(?:if|for|while|with)\s*\(/.exec(statement);
+	if (control) {
+		const openIndex = statement.indexOf('(', control.index);
+		if (openIndex !== -1 && matchingParenClose(statement, openIndex) === statement.length - 1) return false;
+	}
+	if (/^(?:else|do)$/.test(statement)) return false;
+	return true;
+}
+
 function assignmentStatementStart(text, startIndex, equalsIndex) {
 	let statementStart = startIndex;
 	let round = 0;
@@ -1414,6 +1448,8 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 			if (round === 0 && square === 0 && curly === 0) statementStart = i + 1;
 		}
 		else if (ch === ';' && round === 0 && square === 0 && curly === 0) statementStart = i + 1;
+		else if (ch === '\n' && round === 0 && square === 0 && curly === 0 &&
+			lineBreakStartsNewStatement(text, statementStart, i, equalsIndex, lastSignificant)) statementStart = i + 1;
 		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
 	return statementStart;
@@ -1685,7 +1721,7 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const headerDefinitelyExecutes = ordinaryDefinite || doBodyDefinite || unbracedDoDefinite;
 		if (!headerDefinitelyExecutes) continue;
 		const varInit = initializer.match(/^var\b([\s\S]*)$/);
-		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) {
+		if (varInit && binding.declarationKind === 'var' && variableClauseAssignsName(varInit[1], binding.name)) {
 			// var redeclarations target the same function/module binding. Do not run lexical-shadow
 			// authorization on the redeclaration itself; compare its function scope to the original.
 			const bindingFunction = nearestFunctionScopeOpenAt(text, binding.declarationIndex);
