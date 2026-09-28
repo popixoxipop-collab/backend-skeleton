@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { assembleCertification, evaluateDifferentialGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
+import { assembleCertification, corpusEntryIdentityMatches, evaluateDifferentialGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
 import { sha256 } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -465,6 +465,11 @@ test('holdout signature verification succeeds only against an explicitly trusted
   }]};
   assert.equal(verifyHoldoutAttestationWithRegistry(doc,registry).ok,true);
   assert.equal(verifyHoldoutAttestationWithRegistry(doc,{contract:'sbf.qa-holdout-attestors/1',keys:[]}).ok,false);
+
+  // JSON object key order is not semantic identity. A separately produced attestation may
+  // serialize the same complete entry in another key order and must still match the manifest.
+  const reorderedEntry=Object.fromEntries(Object.entries(doc.corpus_entry).reverse());
+  assert.equal(corpusEntryIdentityMatches(reorderedEntry,doc.corpus_entry),true);
 
   // The complete corpus-entry identity is signed. Reusing the same signature after changing
   // adapter or source-family attribution must fail even when repo/ref coordinates are unchanged.
