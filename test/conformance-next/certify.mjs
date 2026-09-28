@@ -11,6 +11,8 @@ import {
   validateNegativeVectorCatalog,
   verifyEvidencePack,
 } from './harness.mjs';
+import { runMutationCampaign } from './mutation-runner.mjs';
+import { runProductMutationCampaign } from './product-mutation-runner.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS_MUTATION_CATALOG = JSON.parse(fs.readFileSync(path.join(HERE, 'mutations.json'), 'utf8'));
@@ -460,6 +462,55 @@ export function verifyEvidencePackFromDisk(pack, { artifact_root }) {
   return { ok: errors.length === 0 && base.ok, errors: [...errors, ...base.errors] };
 }
 
+function normalizedMutationStatuses(report) {
+  return (report?.mutants ?? [])
+    .map(({ id, critical, status }) => ({ id, critical, status }))
+    .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+function compareSubmittedMutationBundleToExecution(bundle, execution) {
+  const reasons = [];
+  if (!bundle?.harness || !bundle?.product) return ['submitted mutation bundle is missing harness/product reports'];
+  if (!isDeepStrictEqual(normalizedMutationStatuses(bundle.harness), execution.harness.results)) {
+    reasons.push('submitted harness mutation results do not match direct release execution');
+  }
+  if (!isDeepStrictEqual(normalizedMutationStatuses(bundle.product), execution.product.results)) {
+    reasons.push('submitted product mutation results do not match direct release execution');
+  }
+  return reasons;
+}
+
+export function executeReleaseMutationCampaigns({ source_commit }) {
+  if (!/^[a-f0-9]{40}$/.test(source_commit ?? '') || gitObjectType(source_commit) !== 'commit') {
+    return { required: true, executed: false, pass: false, reasons: ['release mutation execution requires a canonical Git commit object'] };
+  }
+  try {
+    const harness = runMutationCampaign({ repoRoot: REPO_ROOT, catalog: HARNESS_MUTATION_CATALOG, sourceCommit: source_commit });
+    const product = runProductMutationCampaign({ repoRoot: REPO_ROOT, catalog: PRODUCT_MUTATION_CATALOG, sourceCommit: source_commit });
+    const result = {
+      required: true,
+      executed: true,
+      pass: harness.pass === true && product.pass === true,
+      source_commit,
+      harness: {
+        pass: harness.pass === true,
+        results: normalizedMutationStatuses(harness),
+      },
+      product: {
+        pass: product.pass === true,
+        results: normalizedMutationStatuses(product),
+        dependency_install: product.dependency_install ?? null,
+      },
+      reasons: [],
+    };
+    if (!result.harness.pass) result.reasons.push('direct harness mutation campaign did not pass');
+    if (!result.product.pass) result.reasons.push('direct product mutation campaign did not pass');
+    return result;
+  } catch (err) {
+    return { required: true, executed: true, pass: false, source_commit, reasons: [`direct mutation execution failed: ${err.message}`] };
+  }
+}
+
 export function assembleCertification(input, { artifact_root = null, require_holdout = true, source_commit = null } = {}) {
   const reasons = [];
   if (!/^[a-f0-9]{40}$/.test(source_commit ?? '')) reasons.push('release: --source-commit must supply the canonical lowercase 40-hex commit being certified');
@@ -510,6 +561,26 @@ export function assembleCertification(input, { artifact_root = null, require_hol
   for (const name of ['differential', 'negative_run', 'mutation', 'evidence']) if (!input?.[name]) requiredMissing.push(name);
   if (requiredMissing.length) reasons.push(`missing required certification sections: ${requiredMissing.join(', ')}`);
 
+  const releaseExecutionRequired = require_holdout && corpus.ok && corpus.stats.holdout_ready;
+  let releaseMutationExecution = {
+    required: releaseExecutionRequired,
+    executed: false,
+    pass: releaseExecutionRequired ? false : null,
+    reasons: releaseExecutionRequired ? ['direct release mutation execution deferred until all preceding release gates pass'] : [],
+  };
+  if (releaseExecutionRequired && holdoutCoverage?.pass && requiredMissing.length === 0 && reasons.length === 0) {
+    releaseMutationExecution = executeReleaseMutationCampaigns({ source_commit });
+    if (!releaseMutationExecution.pass) {
+      reasons.push(...releaseMutationExecution.reasons.map((x) => `release-mutation-execution: ${x}`));
+    } else {
+      const mismatches = compareSubmittedMutationBundleToExecution(input.mutation, releaseMutationExecution);
+      if (mismatches.length) {
+        releaseMutationExecution = { ...releaseMutationExecution, pass: false, reasons: mismatches };
+        reasons.push(...mismatches.map((x) => `release-mutation-execution: ${x}`));
+      }
+    }
+  }
+
   let verdict = reasons.length ? 'fail' : 'pass';
   if (require_holdout && corpus.ok && !corpus.stats.holdout_ready) {
     reasons.push('holdout corpus is empty; certification cannot be promoted beyond reference-corpus validation');
@@ -521,7 +592,7 @@ export function assembleCertification(input, { artifact_root = null, require_hol
     contract: 'sbf.qa-certification-report/1',
     verdict,
     reasons,
-    gates: { corpus, corpus_binding: corpusBinding, vectors, vector_binding: vectorBinding, differential, negative, mutation, evidence, corpus_entry_coverage: holdoutCoverage },
+    gates: { corpus, corpus_binding: corpusBinding, vectors, vector_binding: vectorBinding, differential, negative, mutation, evidence, corpus_entry_coverage: holdoutCoverage, release_mutation_execution: releaseMutationExecution },
   };
 }
 
