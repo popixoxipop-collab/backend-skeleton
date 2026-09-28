@@ -438,10 +438,13 @@ function readVariableDeclarationClause(text, startIndex, limitIndex = text.lengt
 			let nextIndex = i + 1;
 			while (nextIndex < limitIndex && /[\t\r ]/.test(text[nextIndex])) nextIndex++;
 			const nextSignificant = text[nextIndex] ?? '';
-			const continuesFromPrevious = lastSignificant != null && ',=.?+-*/%&|^!:'.includes(lastSignificant);
-			// Semicolonless declarations may continue from the NEXT line too, especially member,
-			// call and index chains after an initializer.
-			const continuesFromNext = ['.', '[', '(', '?'].includes(nextSignificant);
+			const continuesFromPrevious = lastSignificant != null && ',=.?+-*/%&|^!:<>'.includes(lastSignificant);
+			// Semicolonless declarations may continue from the NEXT line too. Besides member/call/
+			// index chains, JavaScript/TypeScript binary and logical operators may legally begin the
+			// continuation line (e.g. `express()\n  && fakeApp`).
+			const nextTail = text.slice(nextIndex, Math.min(limitIndex, nextIndex + 32));
+			const continuesFromNext = '.[(?,+-*/%&|^<>'.includes(nextSignificant) ||
+				/^(?:in|instanceof|as|satisfies)\b/.test(nextTail);
 			if (!continuesFromPrevious && !continuesFromNext) return text.slice(startIndex, i);
 		}
 		if (!/\s/.test(ch)) lastSignificant = ch;
@@ -1531,6 +1534,50 @@ function classicForInitializerOperandsWithOffsets(initializer) {
 	return out;
 }
 
+function topLevelForInOfClause(header) {
+	let round = 0;
+	let square = 0;
+	let curly = 0;
+	let quote = null;
+	let lastSignificant = null;
+	for (let i = 0; i < header.length; i++) {
+		const ch = header[i];
+		if (quote) {
+			if (ch === '\\') { i++; continue; }
+			if (ch === quote) { quote = null; lastSignificant = ch; }
+			continue;
+		}
+		if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+		if (ch === '/' && scopeRegexStarts(lastSignificant, header.slice(Math.max(0, i - 512), i))) {
+			const next = skipScopeRegexLiteral(header, i);
+			if (next > i) { i = next - 1; lastSignificant = '/'; continue; }
+		}
+		if (ch === '(') round++;
+		else if (ch === ')') round = Math.max(0, round - 1);
+		else if (ch === '[') square++;
+		else if (ch === ']') square = Math.max(0, square - 1);
+		else if (ch === '{') curly++;
+		else if (ch === '}') curly = Math.max(0, curly - 1);
+		else if (round === 0 && square === 0 && curly === 0 && /[A-Za-z_$]/.test(ch)) {
+			const word = header.slice(i).match(/^([A-Za-z_$][\w$]*)/);
+			if (word && (word[1] === 'of' || word[1] === 'in')) {
+				const before = header[i - 1] ?? '';
+				const after = header[i + word[1].length] ?? '';
+				if (!/[\w$]/.test(before) && !/[\w$]/.test(after)) {
+					return {
+						lhs: header.slice(0, i).trim(),
+						operator: word[1],
+						rhs: header.slice(i + word[1].length).trim(),
+					};
+				}
+			}
+			i += (word?.[1]?.length ?? 1) - 1;
+		}
+		if (!/\s/.test(ch)) lastSignificant = ch;
+	}
+	return null;
+}
+
 function forHeaderWritesApplicationName(text, binding, targetIndex) {
 	const re = /\bfor\s*(?:await\s*)?\(/g;
 	for (const match of text.matchAll(re)) {
@@ -1539,7 +1586,10 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const closeIndex = matchingParenClose(text, openIndex);
 		if (closeIndex === -1 || openIndex >= targetIndex) continue;
 		const header = text.slice(openIndex + 1, closeIndex);
-		const split = header.match(/^\s*([\s\S]*?)\s+(of|in)\s+([\s\S]*)$/);
+		// Any top-level semicolon makes this a classic-for. Only otherwise may a top-level
+		// `in`/`of` token classify the header as for-in/for-of.
+		const firstSemi = topLevelBindingSeparator(header, ';');
+		const split = firstSemi === -1 ? topLevelForInOfClause(header) : null;
 		if (split) {
 			// Header writes are definite for a call inside an iteration. For post-loop calls they
 			// are definite only when the iterable is syntactically guaranteed nonempty.
@@ -1553,9 +1603,9 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 			const unbracedDoLoopDefinite = /^do\s*$/.test(text.slice(loopStatementStart, match.index).trim());
 			const loopDefinitelyExecutes = ordinaryLoopDefinite || doLoopDefinite || unbracedDoLoopDefinite;
 			const postLoopGuaranteed = targetIndex >= bodyEnd && loopDefinitelyExecutes &&
-				staticallyGuaranteedNonEmptyLoop(split[2], split[3]);
+				staticallyGuaranteedNonEmptyLoop(split.operator, split.rhs);
 			if (!insideIteration && !postLoopGuaranteed) continue;
-			let lhs = peelAssignmentGrouping(split[1].trim());
+			let lhs = peelAssignmentGrouping(split.lhs.trim());
 			const declaration = lhs.match(/^(const|let|var)\b([\s\S]*)$/);
 			if (declaration) {
 				// let/const create a loop-local shadow. var reuses the containing function/module
@@ -1576,7 +1626,6 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 
 		// Classic for initializers execute exactly once before the first condition check.
 		// A var redeclaration therefore overwrites an existing function/module-scoped var binding.
-		const firstSemi = topLevelBindingSeparator(header, ';');
 		if (firstSemi === -1) continue;
 		const initializer = header.slice(0, firstSemi).trim();
 		const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
