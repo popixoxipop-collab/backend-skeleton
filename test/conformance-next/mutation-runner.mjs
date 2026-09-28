@@ -59,10 +59,13 @@ export function validateMutationCatalog(catalog) {
 
 function materializeT19Tree(repoRoot, scratch, sourceCommit) {
   fs.mkdirSync(scratch,{recursive:true});
-  const archive=spawnSync('git',['-C',repoRoot,'archive','--format=tar',sourceCommit,'test/conformance-next','test/corpus-next'],{
-    encoding:null,timeout:20_000,maxBuffer:64*1024*1024,
+  // Archive the exact commit rather than pathspecs. Git does not track empty directories,
+  // so an otherwise valid fixture can legitimately have no test/corpus-next tree. Mutations
+  // are still restricted to T19-owned paths by validateMutationCatalog.
+  const archive=spawnSync('git',['-C',repoRoot,'archive','--format=tar',sourceCommit],{
+    encoding:null,timeout:20_000,maxBuffer:128*1024*1024,
   });
-  if(archive.status!==0) throw new Error(`git archive T19 tree failed: ${Buffer.from(archive.stderr??'').toString('utf8').trim()}`);
+  if(archive.status!==0) throw new Error(`git archive source commit failed: ${Buffer.from(archive.stderr??'').toString('utf8').trim()}`);
   const extract=spawnSync('tar',['-xf','-','-C',scratch],{input:archive.stdout,encoding:'utf8',timeout:20_000,maxBuffer:8*1024*1024});
   if(extract.status!==0) throw new Error(`tar extract T19 tree failed: ${(extract.stderr??'').trim()}`);
 }
