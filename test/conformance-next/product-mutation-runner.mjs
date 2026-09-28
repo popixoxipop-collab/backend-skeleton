@@ -16,10 +16,10 @@ export function resolveSourceCommit(repoRoot, requested = null) {
   const run = spawnSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000 });
   if (run.status !== 0) throw new Error(`cannot resolve source commit for ${repoRoot}: ${(run.stderr ?? '').trim()}`);
   const actual = (run.stdout ?? '').trim();
-  if (!/^[a-f0-9]{40}$/i.test(actual)) throw new Error(`git rev-parse returned an invalid commit: ${actual}`);
+  if (!/^[a-f0-9]{40}$/.test(actual)) throw new Error(`git rev-parse returned an invalid commit: ${actual}`);
   if (requested !== null) {
-    if (!/^[a-f0-9]{40}$/i.test(requested)) throw new Error('--source-commit must be an exact 40-hex commit');
-    if (requested.toLowerCase() !== actual.toLowerCase()) throw new Error(`--source-commit ${requested} does not match tested checkout ${actual}`);
+    if (!/^[a-f0-9]{40}$/.test(requested)) throw new Error('--source-commit must be a canonical lowercase 40-hex commit');
+    if (requested !== actual) throw new Error(`--source-commit ${requested} does not match tested checkout ${actual}`);
   }
   const status = spawnSync('git', ['-C', repoRoot, 'status', '--porcelain=v1', '--untracked-files=all'], { encoding: 'utf8', timeout: 10_000 });
   if (status.status !== 0) throw new Error(`cannot inspect checkout cleanliness for ${repoRoot}: ${(status.stderr ?? '').trim()}`);
