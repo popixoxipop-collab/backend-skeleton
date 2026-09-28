@@ -70,6 +70,22 @@ function materializeT19Tree(repoRoot, scratch, sourceCommit) {
   if(extract.status!==0) throw new Error(`tar extract T19 tree failed: ${(extract.stderr??'').trim()}`);
 }
 
+function runScratchGit(scratch,args) {
+  const run=spawnSync('git',args,{
+    cwd:scratch,encoding:'utf8',timeout:20_000,
+    env:{...process.env,GIT_AUTHOR_NAME:'T19 mutation runner',GIT_AUTHOR_EMAIL:'t19@example.invalid',GIT_COMMITTER_NAME:'T19 mutation runner',GIT_COMMITTER_EMAIL:'t19@example.invalid'},
+  });
+  if(run.status!==0) throw new Error(`scratch git ${args.join(' ')} failed: ${(run.stderr??'').trim()}`);
+}
+
+function initializeScratchGit(scratch) {
+  runScratchGit(scratch,['init','-q']);
+  runScratchGit(scratch,['config','gc.auto','0']);
+  runScratchGit(scratch,['config','maintenance.auto','false']);
+  runScratchGit(scratch,['add','-A']);
+  runScratchGit(scratch,['commit','--quiet','-m','exact-source baseline']);
+}
+
 function runTestFiles(scratch, testFiles, timeoutMs) {
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
@@ -104,6 +120,7 @@ export function runMutationCampaign({ repoRoot, catalog, sourceCommit = null }) 
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t19-mutant-'));
     try {
       materializeT19Tree(repoRoot, scratch, resolvedSourceCommit);
+      initializeScratchGit(scratch);
       const baseline = runTestFiles(scratch, mutant.test_files, 10_000);
       if (baseline.exit_code !== 0) {
         results.push({ id: mutant.id, critical: mutant.critical, status: 'survived', classification: 'baseline-failed', reason: 'unmodified scratch test suite did not pass; mutant cannot be counted as killed', baseline });
