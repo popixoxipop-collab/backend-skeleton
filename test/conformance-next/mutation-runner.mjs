@@ -25,6 +25,17 @@ export function resolveSourceCommit(repoRoot, requested = null) {
   return actual;
 }
 
+function validateCampaignSourceCommit(repoRoot, sourceCommit) {
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '')) {
+    throw new Error('mutation campaign sourceCommit must be a canonical lowercase 40-hex commit');
+  }
+  const type = spawnSync('git', ['-C', repoRoot, 'cat-file', '-t', sourceCommit], { encoding: 'utf8', timeout: 10_000 });
+  if (type.status !== 0 || (type.stdout ?? '').trim() !== 'commit') {
+    throw new Error('mutation campaign sourceCommit must resolve to a Git commit object');
+  }
+  return sourceCommit;
+}
+
 function safeRepoPath(rel) {
   return nonEmptyString(rel) &&
     !path.isAbsolute(rel) &&
@@ -113,7 +124,7 @@ function applyOneMutation(scratch, mutant) {
 export function runMutationCampaign({ repoRoot, catalog, sourceCommit = null }) {
   const validation = validateMutationCatalog(catalog);
   if (!validation.ok) return { pass: false, catalog_errors: validation.errors, mutants: [], gate: null };
-  const resolvedSourceCommit = sourceCommit ?? resolveSourceCommit(repoRoot);
+  const resolvedSourceCommit = validateCampaignSourceCommit(repoRoot, sourceCommit ?? resolveSourceCommit(repoRoot));
 
   const results = [];
   for (const mutant of catalog.mutants) {
