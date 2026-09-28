@@ -23,12 +23,12 @@ T19 nested lane contains these test inventories:
 
 - harness: **14 tests**
 - certification / holdout semantics: **32 tests**
-- harness mutation-runner regressions: **8 tests**
-- product mutation-runner regressions: **10 tests**
+- harness mutation-runner regressions: **7 tests**
+- product mutation-runner regressions: **8 tests**
 - product security invariants: **4 tests**
 - existing release-acceptance guard suite: **9 tests**
 
-Total exact-head T19 nested inventory: **77 tests**.
+Total exact-head T19 nested inventory: **74 tests**.
 
 The authoritative execution evidence is the terminal GitHub required CI run attached to the
 **exact current PR #150 head**, specifically both `nested-next (22.x)` and
@@ -76,7 +76,7 @@ but do **not** manufacture the missing independent holdout/attestor evidence.
 ## Current disposition
 
 - T19 QA engine on post-A main: **INTEGRATION CANDIDATE**
-- exact-head test inventory: **77 tests**
+- exact-head test inventory: **74 tests**
 - executable mutation inventory: **20 (7 harness + 13 product)**
 - negative-vector catalog: **79**
 - independent/private holdout: **MISSING**
