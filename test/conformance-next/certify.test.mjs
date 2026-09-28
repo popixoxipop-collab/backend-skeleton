@@ -235,6 +235,7 @@ test('certification stays blocked with an empty holdout even when every executab
     const report=assembleCertification(passingInput(root),{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT});
     assert.equal(report.verdict,'blocked');
     assert.match(report.reasons.at(-1),/holdout corpus is empty/);
+    assert.deepEqual(report.gates.release_mutation_execution,{required:false,executed:false,pass:null,reasons:[]});
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
@@ -243,6 +244,8 @@ test('reference-only internal validation can pass only when explicitly allowing 
   try {
     const report=assembleCertification(passingInput(root),{artifact_root:root,require_holdout:false,source_commit:HEAD_COMMIT});
     assert.equal(report.verdict,'pass',report.reasons.join('\n'));
+    assert.equal(report.gates.release_mutation_execution.required,false);
+    assert.equal(report.gates.release_mutation_execution.executed,false);
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
@@ -539,6 +542,9 @@ test('release certification rejects caller-generated signed holdout keys not pre
     const report=assembleCertification(input,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT});
     assert.equal(report.verdict,'fail');
     assert.ok(report.reasons.some((x)=>x.includes('caller-generated') && x.includes('not trusted by committed registry')));
+    assert.equal(report.gates.release_mutation_execution.required,true);
+    assert.equal(report.gates.release_mutation_execution.executed,false);
+    assert.equal(report.gates.release_mutation_execution.pass,false);
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
