@@ -1,89 +1,85 @@
-# T19 current-main independent QA acceptance slice
+# T19 post-A exact-source QA acceptance slice
 
 Observed: 2026-09-29 KST  
 Branch: `t00/t19-current-main-qa-r1`  
-Post-A restack base: `backend-skeleton@80002a1e6536c007d9daaf8e2180fe82f14971e4`
+Restack base: `backend-skeleton@80002a1e6536c007d9daaf8e2180fe82f14971e4`  
+Exact source head tested: `1ae4a506fe1bf7376a0213c52550ef5d1a5906ce`
 
 ## Scope
 
-This branch is a post-A restack of T19-owned QA surfaces only:
+This packet records the post-A T19 QA implementation after restacking the T19-owned
+surfaces onto the latest bskel main. The branch is zero commits behind the restack
+base and changes only the T19 QA/evidence surfaces.
 
-- `test/conformance-next/**`
-- `test/corpus-next/**`
-- this status document
+The mutation runners are fail-closed on source provenance:
 
-The branch was rebuilt on the post-#155 main baseline instead of carrying the historical
-coordination ancestry. PR #150 must remain mergeable with **0 commits behind main** before
-this packet is used.
+- harness and product reports bind `source_commit`
+- mutation catalogs bind by SHA-256
+- source bytes are materialized with `git archive <source_commit>`
+- product dependencies come from the archived commit's `package-lock.json`
+- dependencies are installed with `npm ci --ignore-scripts`
+- the reported lockfile digest must equal the tracked lockfile at the certified commit
+- live ignored files and live `node_modules` are not accepted as certified source bytes
+- unapproved `equivalent` mutation/negative results are rejected
 
-## Exact-head validation contract
+## Exact-source GitHub validation
 
-Historical per-request counts are deliberately not reused as current evidence. The current
-T19 nested lane contains these test inventories:
+Workflow run:
 
-- harness: **14 tests**
-- certification / holdout semantics: **32 tests**
-- harness mutation-runner regressions: **7 tests**
-- product mutation-runner regressions: **8 tests**
-- product security invariants: **4 tests**
-- existing release-acceptance guard suite: **9 tests**
+- run id: **36463531776**
+- run number: **1511**
+- source head: `1ae4a506fe1bf7376a0213c52550ef5d1a5906ce`
 
-Total exact-head T19 nested inventory: **74 tests**.
+T19 nested lane:
 
-The authoritative execution evidence is the terminal GitHub required CI run attached to the
-**exact current PR #150 head**, specifically both `nested-next (22.x)` and
-`nested-next (24.x)` jobs. This document intentionally does not hardcode an older run/request
-identifier: doing so made the previous record stale as the suite grew. A nonterminal, cancelled,
-or older-head run is not acceptance evidence.
+- Node 22 job **109068277052** — **74/74 PASS**, 0 fail, 0 skip
+- Node 24 job **109068276911** — **74/74 PASS**, 0 fail, 0 skip
 
-## Mutation provenance
+The T19 nested suite executes six test files across `test/conformance-next` and
+`test/t19-release-acceptance`. The exact-source run includes the current
+certification/attestor regressions rather than the historical 14-test certification
+slice.
 
-The executable mutation catalogs remain:
+Mutation evidence exercised by the nested suite:
 
-- T19 harness mutants: **7**
-- product-core mutants: **13**
-- total executable mutation fixtures: **20**
+- T19 harness mutation campaign: **7/7 killed**
+- product mutation campaign: **13/13 killed**
+- total executable mutation fixtures: **20/20**
 - planned negative-vector catalog: **79**
+- the 79-vector catalog is not misrepresented as 79 directly executed mutation fixtures
 
-Both mutation runners now bind their reports to the tested Git commit. Mutation inputs are
-materialized from that commit with `git archive`, not copied from live ignored/untracked
-worktree bytes. Product dependencies are installed from the archived commit's tracked
-`package-lock.json` using `npm ci --ignore-scripts`; the report records the lock digest,
-and certification re-reads `package-lock.json` from the certified commit and requires an
-exact digest match.
+The product campaign also executes the regression proving that a live ignored file
+does not enter the claimed-commit scratch tree.
 
-A baseline failure is never counted as a killed mutant, and `equivalent` results are excluded
-only when the committed catalog explicitly authorizes equivalence.
+## Resolved upstream dependencies
+
+- TypeScript Express holdout blocker (#119/#154/#155 family): **resolved upstream**
+- T20 trust implementation PR #72: **merged**
+- beval main carrying that merge: `73595d4f1fb51fa0e7eb99034d9f534965c068a8`
+
+These resolved dependencies are no longer valid reasons to keep an old
+`HOLDOUT_ISSUE_119_OPEN` or `T20_03_NOT_ACCEPTED` blocker in the T19 release
+packet.
 
 ## Release-certification boundary
 
-The checked-in public reference corpus deliberately has **no holdout entries**.
+This packet certifies the T19 QA implementation and exact-source execution above.
+It does **not** fabricate the independent private-holdout authority needed for the
+final release certificate.
 
-The certifier therefore remains fail-closed:
+The committed public reference corpus deliberately contains no private holdout
+entries, and `test/conformance-next/holdout-attestors.json` still contains no
+approved independent attestor key. A caller-generated key is intentionally rejected.
 
-- fully passing reference-corpus validation with default release behavior => **BLOCKED**
-- `--allow-no-holdout` => internal/reference validation only
-- a non-public independent `sbf.qa-holdout/1` must be injected at certification time
-- private holdout evidence must be signed by a separately trusted Ed25519 attestor whose public
-  key is present in the committed `holdout-attestors.json` registry
-- caller-generated/self-attested keys cannot authorize release certification
-- holdout evidence is bound to the exact release source commit
+Current disposition:
 
-Issue #119 / the TypeScript Express implementation blocker has been closed by the post-A main
-line, and T20 implementation has landed separately. Those facts remove the historical blockers
-but do **not** manufacture the missing independent holdout/attestor evidence.
-
-## Current disposition
-
-- T19 QA engine on post-A main: **INTEGRATION CANDIDATE**
-- exact-head test inventory: **74 tests**
-- executable mutation inventory: **20 (7 harness + 13 product)**
-- negative-vector catalog: **79**
+- post-A T19 QA implementation: **PASS**
+- exact-source Node 22/24 nested QA: **PASS**
+- executable mutation fixtures: **20/20**
 - independent/private holdout: **MISSING**
-- trusted independent holdout attestor: **MISSING** (`holdout-attestors.json` has no active keys)
-- T19-03 release certification: **BLOCKED(PRIVATE_HOLDOUT_AND_TRUSTED_ATTESTOR_REQUIRED)**
+- trusted independent holdout attestor: **MISSING**
+- T19 release certificate: **BLOCKED(PRIVATE_HOLDOUT_AND_TRUSTED_ATTESTOR_REQUIRED)**
 - product release/default activation: **NOT AUTHORIZED**
 
-PR #150 may be merged as the fail-closed QA/certification engine only after exact-head CI is
-terminal green and latest-head review has no blocking finding. T19-03 itself must remain blocked
-until a genuinely independent holdout and attestor packet exists.
+T00-E must freeze the final three repository heads and supply independently trusted
+holdout evidence before converting this QA acceptance slice into a release certificate.
