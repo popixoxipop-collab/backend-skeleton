@@ -14,12 +14,12 @@ const EXPECTED_RELEASE_HEADS={
 };
 const EXPECTED_QA={
   repo:'popixoxipop-collab/backend-skeleton',
-  pr:150,
-  source_head:'1ae4a506fe1bf7376a0213c52550ef5d1a5906ce',
-  run_id:36463531776,
-  run_number:1511,
-  nested_node22_job:109068277052,
-  nested_node24_job:109068276911,
+  pr:159,
+  source_head:'6acc4bfcb06e53bac511763c9892df4372ecebe9',
+  run_id:36474509090,
+  run_number:1551,
+  nested_node22_job:109105145471,
+  nested_node24_job:109105145086,
 };
 const REQUIRED_BLOCKERS=[
   'PRIVATE_HOLDOUT_REQUIRED',
