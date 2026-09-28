@@ -499,6 +499,15 @@ function variableClauseBindsName(clause, name) {
 	});
 }
 
+function variableClauseInitializesName(clause, name) {
+	return splitBindingDeclarators(clause).some((declarator) => {
+		const assignment = topLevelBindingSeparator(declarator, '=');
+		if (assignment === -1) return false;
+		const pattern = leadingBindingPattern(declarator.slice(0, assignment));
+		return pattern ? bindingPatternBindsName(pattern, name) : false;
+	});
+}
+
 function isCodePosition(text, targetIndex) {
 	let quote = null;
 	let lastSignificant = null;
@@ -1414,6 +1423,22 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 			if (round === 0 && square === 0 && curly === 0) statementStart = i + 1;
 		}
 		else if (ch === ';' && round === 0 && square === 0 && curly === 0) statementStart = i + 1;
+		else if (ch === '\n' && round === 0 && square === 0 && curly === 0) {
+			let nextIndex = i + 1;
+			while (nextIndex < equalsIndex && /[\t\r ]/.test(text[nextIndex])) nextIndex++;
+			const nextSignificant = text[nextIndex] ?? '';
+			const nextTail = text.slice(nextIndex, Math.min(equalsIndex + 1, nextIndex + 32));
+			const recentStatement = text.slice(statementStart, i).trimEnd();
+			const continuesFromPrevious = lastSignificant != null && ',=.?+-*/%&|^!:<>'.includes(lastSignificant);
+			const continuesFromNext = '=.[(?,+-*/%&|^<>'.includes(nextSignificant) ||
+				/^(?:===?|!==?)/.test(nextTail) ||
+				/^(?:in|instanceof|as|satisfies)\b/.test(nextTail);
+			const expectsFollowingStatement = controlHeaderEndsAtRecentText(recentStatement) ||
+				/\b(?:else|do)\s*$/.test(recentStatement);
+			if (!expectsFollowingStatement && !continuesFromPrevious && !continuesFromNext) {
+				statementStart = nextIndex;
+			}
+		}
 		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
 	return statementStart;
@@ -1685,7 +1710,7 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const headerDefinitelyExecutes = ordinaryDefinite || doBodyDefinite || unbracedDoDefinite;
 		if (!headerDefinitelyExecutes) continue;
 		const varInit = initializer.match(/^var\b([\s\S]*)$/);
-		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) {
+		if (varInit && binding.declarationKind === 'var' && variableClauseInitializesName(varInit[1], binding.name)) {
 			// var redeclarations target the same function/module binding. Do not run lexical-shadow
 			// authorization on the redeclaration itself; compare its function scope to the original.
 			const bindingFunction = nearestFunctionScopeOpenAt(text, binding.declarationIndex);
