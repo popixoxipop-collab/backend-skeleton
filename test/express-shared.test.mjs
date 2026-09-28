@@ -2105,6 +2105,69 @@ test('typescript-express: classic-for assignment chains inspect every guaranteed
 		assert.deepEqual(endpoints, [], initializer);
 	}
 });
+test('typescript-express: deferred function bodies may capture receivers declared later in an outer scope', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'function registerRouter() {',
+			"  router.get('/router-real', routerHandler);",
+			'}',
+			'function registerApp() {',
+			"  app.get('/app-real', appHandler);",
+			'}',
+			'const router: Router = Router();',
+			'const app = express();',
+			'registerRouter();',
+			'registerApp();',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`).sort(), ['GET /app-real', 'GET /router-real']);
+});
+
+test('typescript-express: a later receiver in the same executing function remains unauthorized before initialization', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'function register() {',
+			"  router.get('/phantom', phantomHandler);",
+			'  const router: Router = Router();',
+			'}',
+			'const rootRouter: Router = Router();',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints, []);
+});
+
+test('typescript-express: var Router declarations remain authorized inside their textual nested block', () => {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import { Router } from 'express';",
+			'{',
+			'  var router: Router = Router();',
+			"  router.get('/inside', insideHandler);",
+			'}',
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	const endpoints = result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints);
+	assert.deepEqual(endpoints.map((e) => `${e.verb} ${e.path}`), ['GET /inside']);
+});
 test('typescript-express: an unrelated callable is not treated as an Express application receiver', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
