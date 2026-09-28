@@ -27,6 +27,17 @@ export function resolveSourceCommit(repoRoot, requested = null) {
   return actual;
 }
 
+function validateCampaignSourceCommit(repoRoot, sourceCommit) {
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '')) {
+    throw new Error('mutation campaign sourceCommit must be a canonical lowercase 40-hex commit');
+  }
+  const type = spawnSync('git', ['-C', repoRoot, 'cat-file', '-t', sourceCommit], { encoding: 'utf8', timeout: 10_000 });
+  if (type.status !== 0 || (type.stdout ?? '').trim() !== 'commit') {
+    throw new Error('mutation campaign sourceCommit must resolve to a Git commit object');
+  }
+  return sourceCommit;
+}
+
 function safeRepoPath(rel) {
   return nonEmptyString(rel) &&
     !path.isAbsolute(rel) &&
@@ -169,8 +180,7 @@ function applyMutation(scratch,mutant) {
 export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null}) {
   const validation=validateProductMutationCatalog(catalog);
   if(!validation.ok) return {pass:false,catalog_errors:validation.errors,mutants:[],gate:null};
-  const resolvedSourceCommit=sourceCommit??resolveSourceCommit(repoRoot);
-  if(!/^[a-f0-9]{40}$/i.test(resolvedSourceCommit)) throw new Error('product mutation campaign requires an exact source commit');
+  const resolvedSourceCommit=validateCampaignSourceCommit(repoRoot,sourceCommit??resolveSourceCommit(repoRoot));
   const controlledParent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-controlled-source-'));
   const controlledSource=path.join(controlledParent,'source');
   const results=[];
