@@ -1486,18 +1486,31 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 		const firstSemi = topLevelBindingSeparator(header, ';');
 		if (firstSemi === -1) continue;
 		const initializer = header.slice(0, firstSemi).trim();
+		const statementStart = assignmentStatementStart(text, binding.initializationEnd, match.index);
+		const headerDefinitelyExecutes = definiteApplicationWritePosition(text, match.index) &&
+			text.slice(statementStart, match.index).trim() === '';
+		if (!headerDefinitelyExecutes) continue;
 		const varInit = initializer.match(/^var\b([\s\S]*)$/);
-		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) return true;
-		// Existing-binding assignments in classic for initializers execute before the first test.
+		if (varInit && binding.declarationKind === 'var' && variableClauseBindsName(varInit[1], binding.name)) {
+			const nameOffset = initializer.indexOf(binding.name);
+			const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
+			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
+			continue;
+		}
+		// Existing-binding assignments in classic for initializers execute before the first test,
+		// but only when this header resolves to the same application binding in a definitely-run scope.
 		const assignment = topLevelBindingSeparator(initializer, '=');
 		if (assignment !== -1) {
 			let lhs = peelAssignmentGrouping(initializer.slice(0, assignment).trim());
 			for (const operator of ['&&', '**', '>>>', '<<', '>>', '+', '-', '*', '/', '%', '&', '|', '^']) {
 				if (lhs.endsWith(operator)) { lhs = lhs.slice(0, -operator.length).trimEnd(); break; }
 			}
-			if (lhs === binding.name) return true;
-			if (((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) &&
-				bindingPatternBindsName(lhs, binding.name)) return true;
+			const writes = lhs === binding.name ||
+				(((lhs.startsWith('{') && lhs.endsWith('}')) || (lhs.startsWith('[') && lhs.endsWith(']'))) && bindingPatternBindsName(lhs, binding.name));
+			if (!writes) continue;
+			const nameOffset = initializer.indexOf(binding.name);
+			const referenceIndex = openIndex + 1 + Math.max(0, nameOffset);
+			if (topLevelReferenceIsAuthorized(text, binding.name, referenceIndex)) return true;
 		}
 	}
 	return false;
