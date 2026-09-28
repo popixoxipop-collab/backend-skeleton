@@ -1477,10 +1477,20 @@ function staticallyGuaranteedNonEmptyLoop(operator, expression) {
 		const inner = value.slice(1, -1);
 		if (!inner.trim()) return false;
 		const elements = splitTopLevelArgs(inner);
-		// splitTopLevelArgs preserves interior elisions as empty entries, so [,] and [,,] are
-		// guaranteed nonempty even though they have no ordinary expression element.
-		const hasFixedSlot = elements.some((item) => item.trim() === '' || !item.trim().startsWith('...'));
-		if (operator === 'of' || operator === 'in') return hasFixedSlot;
+		if (operator === 'of') {
+			// Array iterators visit elisions as undefined, so [,] is one guaranteed iteration.
+			return elements.some((item) => item.trim() === '' || !item.trim().startsWith('...'));
+		}
+		if (operator === 'in') {
+			// for-in visits enumerable indexes only; an elision creates length but no own index.
+			return elements.some((item) => item.trim() !== '' && !item.trim().startsWith('...'));
+		}
+	}
+	if (operator === 'of') {
+		const literal = value.match(STRING_LITERAL_RE);
+		if (literal && literal[0].trim() === value && !(value.startsWith('`') && literal[1].includes('${'))) {
+			return literal[1].length > 0;
+		}
 	}
 	if (operator === 'in' && value.startsWith('{') && value.endsWith('}') && delimitersBalanced(value)) {
 		const inner = value.slice(1, -1).trim();
