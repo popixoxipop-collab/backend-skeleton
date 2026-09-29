@@ -52,6 +52,11 @@ test('actual T19 mutation campaign kills every critical mutant and meets the non
       try { process.kill(workerPid,0); } catch (err) { if(err?.code==='ESRCH') alive=false; else throw err; }
       assert.equal(alive,false,`timed-out node --test worker ${workerPid} survived process-group kill`);
     }
+
+    const noisy=runBoundedTestCommand(process.execPath,['-e',"process.stdout.write('x'.repeat(512*1024)); process.stdout.write('TAIL-MARKER')"],{cwd:root,timeoutMs:5000,env:{...process.env}});
+    assert.equal(noisy.status,0,noisy.stderr);
+    assert.ok(noisy.stdout.length <= 256*1024,'supervisor retained more than the bounded stdout tail');
+    assert.ok(noisy.stdout.endsWith('TAIL-MARKER'),'bounded stdout tail did not preserve the latest bytes');
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
