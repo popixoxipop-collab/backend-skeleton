@@ -97,11 +97,15 @@ function initializeScratchGit(scratch) {
   runScratchGit(scratch,['commit','--quiet','-m','exact-source baseline']);
 }
 
+export function runBoundedTestCommand(command, args, { cwd, timeoutMs, env = process.env } = {}) {
+  return spawnSync(command, args, { cwd, encoding: 'utf8', timeout: timeoutMs, killSignal: 'SIGKILL', env });
+}
+
 function runTestFiles(scratch, testFiles, timeoutMs) {
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
   const args = ['--test', ...testFiles.map((p) => path.join(scratch, p))];
-  const run = spawnSync(process.execPath, args, { cwd: scratch, encoding: 'utf8', timeout: timeoutMs, env });
+  const run = runBoundedTestCommand(process.execPath, args, { cwd: scratch, timeoutMs, env });
   return {
     exit_code: Number.isInteger(run.status) ? run.status : null,
     signal: run.signal ?? null,
