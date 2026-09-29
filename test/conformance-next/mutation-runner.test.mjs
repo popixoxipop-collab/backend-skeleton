@@ -12,6 +12,25 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 const CATALOG = JSON.parse(fs.readFileSync(path.join(HERE, 'mutations.json'), 'utf8'));
 
+function processIsRunningNonZombie(pid) {
+  try { process.kill(pid,0); } catch (err) {
+    if (err?.code === 'ESRCH') return false;
+    throw err;
+  }
+  if (process.platform === 'linux') {
+    try {
+      const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');
+      const close=stat.lastIndexOf(')');
+      const state=close >= 0 ? stat.slice(close + 2).split(' ')[0] : null;
+      if (state === 'Z') return false;
+    } catch (err) {
+      if (err?.code === 'ENOENT') return false;
+      throw err;
+    }
+  }
+  return true;
+}
+
 function initFixtureRepo(root) {
   spawnSync('git',['init','-q'],{cwd:root});
   spawnSync('git',['add','-A'],{cwd:root});
@@ -48,9 +67,8 @@ test('actual T19 mutation campaign kills every critical mutant and meets the non
       assert.equal(hung.signal,'SIGKILL');
       const workerPid=Number(fs.readFileSync(pidFile,'utf8'));
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,100);
-      let alive=true;
-      try { process.kill(workerPid,0); } catch (err) { if(err?.code==='ESRCH') alive=false; else throw err; }
-      assert.equal(alive,false,`timed-out descendant worker ${workerPid} survived process-group kill`);
+      const alive=processIsRunningNonZombie(workerPid);
+      assert.equal(alive,false,`timed-out descendant worker ${workerPid} remained runnable after process-group kill`);
     }
 
     const noisy=runBoundedTestCommand(process.execPath,['-e',"process.stdout.write('x'.repeat(512*1024)); process.stdout.write('TAIL-MARKER')"],{cwd:root,timeoutMs:5000,env:{...process.env}});
