@@ -46,9 +46,9 @@ function trackedFileDigestAtCommit(sourceCommit, relPath) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export function loadMutationCatalogsAtCommit(sourceCommit, { repoRoot = REPO_ROOT } = {}) {
+export function loadReleaseAuthoritiesAtCommit(sourceCommit, { repoRoot = REPO_ROOT } = {}) {
   if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '') || gitObjectTypeAt(repoRoot, sourceCommit) !== 'commit') {
-    throw new Error('mutation catalogs require a canonical Git commit object');
+    throw new Error('release authorities require a canonical Git commit object');
   }
   const readJson = (relPath) => {
     const bytes = trackedFileAtCommit(repoRoot, sourceCommit, relPath);
@@ -57,9 +57,17 @@ export function loadMutationCatalogsAtCommit(sourceCommit, { repoRoot = REPO_ROO
     catch { throw new Error(`invalid JSON in ${relPath} at certified commit ${sourceCommit}`); }
   };
   return {
-    harness: readJson('test/conformance-next/mutations.json'),
-    product: readJson('test/conformance-next/product-mutations.json'),
+    reference_corpus: readJson('test/corpus-next/corpus-manifest.json'),
+    negative_vectors: readJson('test/corpus-next/negative-vectors.json'),
+    holdout_attestors: readJson('test/conformance-next/holdout-attestors.json'),
+    mutation_harness: readJson('test/conformance-next/mutations.json'),
+    mutation_product: readJson('test/conformance-next/product-mutations.json'),
   };
+}
+
+export function loadMutationCatalogsAtCommit(sourceCommit, { repoRoot = REPO_ROOT } = {}) {
+  const authorities = loadReleaseAuthoritiesAtCommit(sourceCommit, { repoRoot });
+  return { harness: authorities.mutation_harness, product: authorities.mutation_product };
 }
 
 function nonEmptyString(value) {
@@ -172,16 +180,16 @@ export function injectHoldoutManifest(corpus, holdout) {
   return { ok: validation.ok, errors: validation.errors, corpus: validation.ok ? merged : null };
 }
 
-export function validateReferenceCorpusBinding(corpus) {
-  if (!corpus || corpus.contract !== REFERENCE_CORPUS.contract) return { pass: false, reasons: ['reference corpus contract does not match the committed manifest'] };
-  if (!isDeepStrictEqual(corpus.entries, REFERENCE_CORPUS.entries)) {
+export function validateReferenceCorpusBinding(corpus, referenceCorpus = REFERENCE_CORPUS) {
+  if (!corpus || !referenceCorpus || corpus.contract !== referenceCorpus.contract) return { pass: false, reasons: ['reference corpus contract does not match the committed manifest'] };
+  if (!isDeepStrictEqual(corpus.entries, referenceCorpus.entries)) {
     return { pass: false, reasons: ['reference corpus entries do not exactly match the committed manifest'] };
   }
   return { pass: true, reasons: [] };
 }
 
-export function validateNegativeVectorCatalogBinding(catalog) {
-  if (!isDeepStrictEqual(catalog, COMMITTED_NEGATIVE_VECTORS)) {
+export function validateNegativeVectorCatalogBinding(catalog, committedNegativeVectors = COMMITTED_NEGATIVE_VECTORS) {
+  if (!isDeepStrictEqual(catalog, committedNegativeVectors)) {
     return { pass: false, reasons: ['negative-vector catalog does not exactly match the committed 79-vector manifest'] };
   }
   return { pass: true, reasons: [] };
@@ -540,13 +548,22 @@ export function executeReleaseMutationCampaigns({ source_commit }) {
 
 export function assembleCertification(input, { artifact_root = null, require_holdout = true, source_commit = null } = {}) {
   const reasons = [];
+  let releaseAuthorities = null;
   if (!/^[a-f0-9]{40}$/.test(source_commit ?? '')) reasons.push('release: --source-commit must supply the canonical lowercase 40-hex commit being certified');
   else if (gitObjectType(source_commit) !== 'commit') reasons.push('release: --source-commit must resolve to a Git commit object');
-  else if (input?.evidence?.source_commit !== source_commit) reasons.push(`evidence: source_commit ${String(input?.evidence?.source_commit)} does not match certified release commit ${source_commit}`);
+  else {
+    try { releaseAuthorities = loadReleaseAuthoritiesAtCommit(source_commit); }
+    catch (err) { reasons.push(`release-authorities: ${err.message}`); }
+    if (input?.evidence?.source_commit !== source_commit) reasons.push(`evidence: source_commit ${String(input?.evidence?.source_commit)} does not match certified release commit ${source_commit}`);
+  }
   const corpus = validateCorpusManifest(input?.corpus);
   const vectors = validateNegativeVectorCatalog(input?.negative_vectors);
-  const corpusBinding = validateReferenceCorpusBinding(input?.corpus);
-  const vectorBinding = validateNegativeVectorCatalogBinding(input?.negative_vectors);
+  const corpusBinding = releaseAuthorities
+    ? validateReferenceCorpusBinding(input?.corpus, releaseAuthorities.reference_corpus)
+    : { pass: false, reasons: ['release reference corpus authority is unavailable'] };
+  const vectorBinding = releaseAuthorities
+    ? validateNegativeVectorCatalogBinding(input?.negative_vectors, releaseAuthorities.negative_vectors)
+    : { pass: false, reasons: ['release negative-vector authority is unavailable'] };
   if (!corpus.ok) reasons.push(...corpus.errors.map((x) => `corpus: ${x}`));
   if (corpus.ok && !corpusBinding.pass) reasons.push(...corpusBinding.reasons.map((x) => `corpus: ${x}`));
   if (!vectors.ok) reasons.push(...vectors.errors.map((x) => `vectors: ${x}`));
@@ -580,7 +597,14 @@ export function assembleCertification(input, { artifact_root = null, require_hol
 
   let holdoutCoverage = null;
   if (corpus.ok) {
-    holdoutCoverage = evaluateHoldoutCoverageGate({ corpus: input.corpus, differential: input.differential, evidence: input.evidence, artifact_root, source_commit });
+    holdoutCoverage = evaluateHoldoutCoverageGate({
+      corpus: input.corpus,
+      differential: input.differential,
+      evidence: input.evidence,
+      artifact_root,
+      source_commit,
+      holdout_attestors: releaseAuthorities?.holdout_attestors ?? { contract: 'sbf.qa-holdout-attestors/1', keys: [] },
+    });
     if (!holdoutCoverage.pass) reasons.push(...holdoutCoverage.reasons.map((x) => `corpus-evidence: ${x}`));
   }
 
