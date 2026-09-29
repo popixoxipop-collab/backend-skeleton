@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { evaluateMutationGate } from './harness.mjs';
+import { runProcessGroupBounded } from './bounded-process.mjs';
 
 const PRODUCT_TEST_TIMEOUT_MS = 60_000;
 
@@ -89,9 +90,7 @@ function sha256File(file) {
 }
 
 export function runBoundedCommand(command,args,{cwd,timeoutMs,env=process.env}={}) {
-  return spawnSync(command,args,{
-    cwd,encoding:'utf8',timeout:timeoutMs,killSignal:'SIGKILL',env,
-  });
+  return runProcessGroupBounded(command,args,{cwd,timeoutMs,env});
 }
 
 function installControlledDependencies(sourceRoot) {
