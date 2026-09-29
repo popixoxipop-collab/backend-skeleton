@@ -12,21 +12,27 @@ const child = spawn(command, args, {
   detached: process.platform !== 'win32',
   stdio: ['ignore', 'pipe', 'pipe'],
 });
-const stdout = [];
-const stderr = [];
+const OUTPUT_TAIL_LIMIT = 256 * 1024;
+let stdout = Buffer.alloc(0);
+let stderr = Buffer.alloc(0);
 let finished = false;
 let timedOut = false;
 
-child.stdout?.on('data', (chunk) => stdout.push(Buffer.from(chunk)));
-child.stderr?.on('data', (chunk) => stderr.push(Buffer.from(chunk)));
+function appendTail(current, chunk) {
+  const next = Buffer.concat([current, Buffer.from(chunk)]);
+  return next.length > OUTPUT_TAIL_LIMIT ? next.subarray(next.length - OUTPUT_TAIL_LIMIT) : next;
+}
+
+child.stdout?.on('data', (chunk) => { stdout = appendTail(stdout, chunk); });
+child.stderr?.on('data', (chunk) => { stderr = appendTail(stderr, chunk); });
 
 function emit(result) {
   if (finished) return;
   finished = true;
   process.stdout.write(JSON.stringify({
     ...result,
-    stdout_b64: Buffer.concat(stdout).toString('base64'),
-    stderr_b64: Buffer.concat(stderr).toString('base64'),
+    stdout_b64: stdout.toString('base64'),
+    stderr_b64: stderr.toString('base64'),
   }));
 }
 
