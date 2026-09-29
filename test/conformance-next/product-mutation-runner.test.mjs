@@ -74,14 +74,24 @@ test('product mutation campaign ignores live ignored bytes and executes only the
   assert.equal(result.dependency_install.mode,'npm-ci-ignore-scripts');
   assert.equal(result.mutants[0].status,'killed');
 
-  // Dependency installation uses the same bounded runner. A child that ignores SIGTERM must
-  // still be forcibly terminated by SIGKILL so an unavailable registry cannot wedge required CI.
+  // The shared bounded runner must kill an actual node --test worker process group, not
+  // merely the test-runner parent PID.
+  const pidFile=path.join(root,'bounded-worker.pid');
+  const hangFile=path.join(root,'bounded-hang.test.mjs');
+  fs.writeFileSync(hangFile,"import test from 'node:test'; import fs from 'node:fs'; test('hang', async()=>{ fs.writeFileSync(process.env.PID_FILE,String(process.pid)); await new Promise(()=>{}); });\n");
   const started=Date.now();
-  const hung=runBoundedCommand(process.execPath,['-e',"process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"],{cwd:root,timeoutMs:100,env:{...process.env}});
+  const hung=runBoundedCommand(process.execPath,['--test',hangFile],{cwd:root,timeoutMs:300,env:{...process.env,PID_FILE:pidFile}});
   const elapsed=Date.now()-started;
   assert.equal(hung.error?.code,'ETIMEDOUT');
   assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
-  if(process.platform!=='win32') assert.equal(hung.signal,'SIGKILL');
+  if(process.platform!=='win32') {
+    assert.equal(hung.signal,'SIGKILL');
+    const workerPid=Number(fs.readFileSync(pidFile,'utf8'));
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,100);
+    let alive=true;
+    try { process.kill(workerPid,0); } catch (err) { if(err?.code==='ESRCH') alive=false; else throw err; }
+    assert.equal(alive,false,`timed-out product node --test worker ${workerPid} survived process-group kill`);
+  }
 
   // Setup failures before mutation execution must still remove the controlled source tree.
   const broken=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-broken-deps-'));
