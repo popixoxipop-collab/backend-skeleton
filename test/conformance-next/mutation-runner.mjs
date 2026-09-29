@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { evaluateMutationGate } from './harness.mjs';
+import { runProcessGroupBounded } from './bounded-process.mjs';
 
 function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -98,7 +99,7 @@ function initializeScratchGit(scratch) {
 }
 
 export function runBoundedTestCommand(command, args, { cwd, timeoutMs, env = process.env } = {}) {
-  return spawnSync(command, args, { cwd, encoding: 'utf8', timeout: timeoutMs, killSignal: 'SIGKILL', env });
+  return runProcessGroupBounded(command, args, { cwd, timeoutMs, env });
 }
 
 function runTestFiles(scratch, testFiles, timeoutMs) {
