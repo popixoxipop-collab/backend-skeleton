@@ -1,9 +1,9 @@
 # T19 post-A exact-source QA acceptance slice
 
-Observed: 2026-09-29 KST (re-run of every lane at the tested head, 12:10 KST)  
+Observed: 2026-09-29 KST (re-run of every lane at the tested head, 15:40 KST)  
 Branch: `t00/t19-final-integration-20260929`  
 Restack base: `backend-skeleton@80002a1e6536c007d9daaf8e2180fe82f14971e4`  
-Exact source head tested: `a84530b51eb33341173adb0278cc8c5cb6c9eeea`
+Exact source head tested: `3ba5afd8025a04c918e45fd0ca0b137683da9355`
 
 ## Scope
 
@@ -24,41 +24,44 @@ The mutation runners are fail-closed on source provenance:
 
 ## Evidence-head convention
 
-`a84530b51eb33341173adb0278cc8c5cb6c9eeea` is the **tested source head**. The commit that
+`3ba5afd8025a04c918e45fd0ca0b137683da9355` is the **tested source head**. The commit that
 records this packet is a descendant of it and is **evidence-only**: it changes just
 `evidence/next/T19-CURRENT-MAIN-ACCEPTANCE.md`, `evidence/next/T19-RELEASE-ACCEPTANCE.json`
 and the constants in `test/t19-release-acceptance/t19-release-acceptance.test.mjs`
-(no test added or removed, so the T19 count stays 74). Verify with
-`git diff --name-only a84530b51eb33341173adb0278cc8c5cb6c9eeea..<packet head>`.
+(the T19 count of 75 is the count at the tested head and is unchanged by the packet commit). Verify with
+`git diff --name-only 3ba5afd8025a04c918e45fd0ca0b137683da9355..<packet head>`.
 A packet cannot name its own commit or its own CI run; the CI run on the packet commit is
 a separate, later observation. The earlier `6acc4bfcb06e53bac511763c9892df4372ecebe9`
 run (#1551) predates changes to the certifier, bounded-process supervisor, mutation
-runners and their regressions and is **not** evidence for the current head.
+runners and their regressions and is **not** evidence for the current head. Likewise
+`a84530b51eb33341173adb0278cc8c5cb6c9eeea` (run #1574, 74 tests) predates the
+bounded-process supervisor cancellation fix (SIGINT/SIGTERM/parent-death now kill the
+detached group; regression `bounded-process.test.mjs`) and is superseded.
 
 ## Exact-source GitHub validation
 
 Workflow run (pull_request, attempt 1, conclusion success):
 
-- run id: **36510129327**
-- run number: **1574**
-- head_sha: `a84530b51eb33341173adb0278cc8c5cb6c9eeea`
+- run id: **36530790434**
+- run number: **1576**
+- head_sha: `3ba5afd8025a04c918e45fd0ca0b137683da9355`
 
 T19 nested lane (`node scripts/run-next-nested-tests.mjs T19`, job `nested-next`):
 
-- Node 22 job **109220249650** — **74/74 PASS**, 0 fail, 0 skip
-- Node 24 job **109220249641** — **74/74 PASS**, 0 fail, 0 skip
+- Node 22 job **109283796238** — **75/75 PASS**, 0 fail, 0 skip
+- Node 24 job **109283796309** — **75/75 PASS**, 0 fail, 0 skip
 
-The T19 nested suite executes six test files across `test/conformance-next` and
-`test/t19-release-acceptance`: certify 32, harness 14, mutation-runner 7,
-product-mutation-runner 8, product-security-invariants 4, release-acceptance 9 (= 74).
+The T19 nested suite executes seven test files across `test/conformance-next` and
+`test/t19-release-acceptance`: bounded-process 1, certify 32, harness 14, mutation-runner 7,
+product-mutation-runner 8, product-security-invariants 4, release-acceptance 9 (= 75).
 
 ## Local clean-checkout reproduction at the same head
 
-A detached clean worktree at `a84530b51eb33341173adb0278cc8c5cb6c9eeea` (`git status` empty
+A detached clean worktree at `3ba5afd8025a04c918e45fd0ca0b137683da9355` (`git status` empty
 before and after each lane; `npm ci`):
 
-- T19 nested suite, Node v22.23.3 — **74/74 PASS**
-- T19 nested suite, Node v24.19.0 — **74/74 PASS**
+- T19 nested suite, Node v22.23.3 — **75/75 PASS**
+- T19 nested suite, Node v24.19.0 — **75/75 PASS**
 - direct harness mutation campaign (`--source-commit` pinned) — **7/7 killed**,
   report `source_commit` == tested head, catalog digest `16ebc6d2344e...`
 - direct product mutation campaign (`--source-commit` pinned) — **13/13 killed**,
@@ -100,7 +103,7 @@ approved independent attestor key. A caller-generated key is intentionally rejec
 Current disposition:
 
 - post-A T19 QA implementation: **PASS**
-- exact-source Node 22/24 nested QA (74/74 each, head a84530b): **PASS**
+- exact-source Node 22/24 nested QA (75/75 each, head 3ba5afd): **PASS**
 - executable mutation fixtures: **20/20**
 - independent/private holdout: **MISSING**
 - trusted independent holdout attestor: **MISSING**

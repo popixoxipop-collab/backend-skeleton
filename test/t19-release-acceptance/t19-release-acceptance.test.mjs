@@ -15,11 +15,11 @@ const EXPECTED_RELEASE_HEADS={
 const EXPECTED_QA={
   repo:'popixoxipop-collab/backend-skeleton',
   pr:159,
-  source_head:'a84530b51eb33341173adb0278cc8c5cb6c9eeea',
-  run_id:36510129327,
-  run_number:1574,
-  nested_node22_job:109220249650,
-  nested_node24_job:109220249641,
+  source_head:'3ba5afd8025a04c918e45fd0ca0b137683da9355',
+  run_id:36530790434,
+  run_number:1576,
+  nested_node22_job:109283796238,
+  nested_node24_job:109283796309,
 };
 const REQUIRED_BLOCKERS=[
   'PRIVATE_HOLDOUT_REQUIRED',
@@ -50,7 +50,7 @@ function validate(value) {
   if (ci.nested_node24_job!==EXPECTED_QA.nested_node24_job) errors.push('QA_NODE24_JOB');
   for (const version of ['node22','node24']) {
     const x=ci[version]??{};
-    if (x.tests!==74||x.passed!==74||x.failed!==0||x.skipped!==0) errors.push('QA_'+version.toUpperCase());
+    if (x.tests!==75||x.passed!==75||x.failed!==0||x.skipped!==0) errors.push('QA_'+version.toUpperCase());
   }
 
   const negative=qa.negative_program??{};
@@ -88,9 +88,9 @@ test('T19 post-A release packet is current, exact-source, and fail-closed',()=>{
   assert.deepEqual(validate(packet),[]);
 });
 
-test('post-A Node 22 and Node 24 T19 lanes are both 74/74 green',()=>{
-  assert.deepEqual(packet.qa_authority.exact_source_ci.node22,{tests:74,passed:74,failed:0,skipped:0});
-  assert.deepEqual(packet.qa_authority.exact_source_ci.node24,{tests:74,passed:74,failed:0,skipped:0});
+test('post-A Node 22 and Node 24 T19 lanes are both 75/75 green',()=>{
+  assert.deepEqual(packet.qa_authority.exact_source_ci.node22,{tests:75,passed:75,failed:0,skipped:0});
+  assert.deepEqual(packet.qa_authority.exact_source_ci.node24,{tests:75,passed:75,failed:0,skipped:0});
 });
 
 test('79-case catalog is not misrepresented as 79 directly executed mutation fixtures',()=>{
@@ -138,7 +138,7 @@ test('exact-source CI provenance identifiers are immutable',()=>{
   y.qa_authority.source_head='0'.repeat(40);
   assert.ok(validate(y).includes('QA_HEAD'));
   const stale=structuredClone(packet);
-  stale.qa_authority.source_head='6acc4bfcb06e53bac511763c9892df4372ecebe9';
+  stale.qa_authority.source_head='a84530b51eb33341173adb0278cc8c5cb6c9eeea';
   assert.ok(validate(stale).includes('QA_HEAD'));
   assert.equal(packet.evidence_head_policy.tested_source_head,packet.qa_authority.source_head);
   assert.equal(packet.qa_authority.local_exact_head_reproduction.source_head,packet.qa_authority.source_head);
