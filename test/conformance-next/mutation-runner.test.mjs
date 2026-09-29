@@ -38,9 +38,9 @@ test('actual T19 mutation campaign kills every critical mutant and meets the non
   try {
     const pidFile=path.join(root,'worker.pid');
     const hangFile=path.join(root,'hang.test.mjs');
-    fs.writeFileSync(hangFile,"import test from 'node:test'; import fs from 'node:fs'; test('hang', async()=>{ fs.writeFileSync(process.env.PID_FILE,String(process.pid)); await new Promise(()=>{}); });\n");
+    fs.writeFileSync(hangFile,"import test from 'node:test'; import fs from 'node:fs'; test('hang', async()=>{ fs.writeFileSync(process.env.PID_FILE,String(process.pid)); setInterval(()=>{},1000); await new Promise(()=>{}); });\n");
     const started=Date.now();
-    const hung=runBoundedTestCommand(process.execPath,['--test',hangFile],{cwd:root,timeoutMs:300,env:{...process.env,PID_FILE:pidFile}});
+    const hung=runBoundedTestCommand(process.execPath,['--test',hangFile],{cwd:root,timeoutMs:1000,env:{...process.env,PID_FILE:pidFile}});
     const elapsed=Date.now()-started;
     assert.equal(hung.error?.code,'ETIMEDOUT');
     assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
