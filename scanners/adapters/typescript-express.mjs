@@ -184,7 +184,7 @@ function controlHeaderEndsAtRecentText(recentText) {
 	const open = matchingOpenParenForClose(recentText, close);
 	if (open === -1) return false;
 	const before = recentText.slice(Math.max(0, open - 128), open).trimEnd();
-	return /\b(?:if|while|for|with|switch|catch)\s*$/.test(before);
+	return /\b(?:if|while|for(?:\s+await)?|with|switch|catch)\s*$/.test(before);
 }
 
 function statementBlockEndsAtRecentText(recentText) {

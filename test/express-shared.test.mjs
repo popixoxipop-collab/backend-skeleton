@@ -2100,6 +2100,36 @@ test('typescript-express: compound unbraced control headers keep app reassignmen
 	}
 });
 
+test('typescript-express: other unbraced control headers keep app reassignment conditional, do-while stays definite', () => {
+	const scanEndpoints = (body) => {
+		const root = writeTree({
+			'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+			'tsconfig.json': '{}',
+			'src/server.ts': [
+				"import express, { Router } from 'express';",
+				'const router: Router = Router();',
+				'let app: any = express();',
+				...body,
+				"app.get('/real', realHandler);",
+			].join('\n'),
+		});
+		const projectRoot = detectTypeScriptExpressRoot(root);
+		assert.ok(projectRoot);
+		const result = scanTypeScriptExpress(root, projectRoot);
+		return result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints).map((e) => `${e.verb} ${e.path}`);
+	};
+	const conditional = [
+		['while (x)', '  app = fakeApp'],
+		['with (o)', '  app = fakeApp'],
+		['if (a) cleanup()', 'else', '  app = fakeApp'],
+		['if (a) cleanup()', 'else if (b) cleanup2()', 'else', '  app = fakeApp'],
+		['outer:', '  if (a)', '    app = fakeApp'],
+	];
+	for (const body of conditional) assert.deepEqual(scanEndpoints(body), ['GET /real'], body.join(' / '));
+	// A do-while body always runs at least once, so the reassignment is definite.
+	assert.deepEqual(scanEndpoints(['do', '  app = fakeApp', 'while (x)']), []);
+});
+
 test('typescript-express: initializer-free var redeclaration in a classic for preserves the trusted app', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
