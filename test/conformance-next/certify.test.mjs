@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { assembleCertification, corpusEntryIdentityMatches, corpusEntrySourceMatches, evaluateDifferentialGate, evaluateHoldoutCoverageGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, loadMutationCatalogsAtCommit, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
+import { assembleCertification, corpusEntryIdentityMatches, corpusEntrySourceMatches, evaluateDifferentialGate, evaluateHoldoutCoverageGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, loadMutationCatalogsAtCommit, loadReleaseAuthoritiesAtCommit, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
 import { sha256 } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -322,21 +322,38 @@ test('certification requires the exact committed 79-vector catalog', () => {
     const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-catalog-commit-'));
     try {
       const dir=path.join(fixture,'test','conformance-next');
+      const corpusDir=path.join(fixture,'test','corpus-next');
       fs.mkdirSync(dir,{recursive:true});
+      fs.mkdirSync(corpusDir,{recursive:true});
       const harness={contract:'sbf.qa-mutation-catalog/1',mutants:[{id:'H',critical:true,file:'test/conformance-next/a.mjs',find:'a',replace:'b',test_files:['test/conformance-next/a.test.mjs'],invariant:'x'}]};
       const product={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'P',vector_id:'NEG-X',critical:true,file:'a.mjs',find:'a',replace:'b',test_files:['a.test.mjs'],invariant:'x'}]};
+      const corpus={contract:'sbf.qa-corpus/1',entries:[{id:'R'}],holdout_entries:[]};
+      const vectors={contract:'sbf.qa-negative-vectors/1',vectors:[{id:'NEG-X'}]};
+      const attestors={contract:'sbf.qa-holdout-attestors/1',keys:[]};
       fs.writeFileSync(path.join(dir,'mutations.json'),JSON.stringify(harness));
       fs.writeFileSync(path.join(dir,'product-mutations.json'),JSON.stringify(product));
+      fs.writeFileSync(path.join(dir,'holdout-attestors.json'),JSON.stringify(attestors));
+      fs.writeFileSync(path.join(corpusDir,'corpus-manifest.json'),JSON.stringify(corpus));
+      fs.writeFileSync(path.join(corpusDir,'negative-vectors.json'),JSON.stringify(vectors));
       spawnSync('git',['init','-q'],{cwd:fixture});
       spawnSync('git',['add','-A'],{cwd:fixture});
-      const commit=spawnSync('git',['-c','user.name=T19','-c','user.email=t19@example.invalid','commit','-q','-m','catalogs'],{cwd:fixture,encoding:'utf8'});
+      const commit=spawnSync('git',['-c','user.name=T19','-c','user.email=t19@example.invalid','commit','-q','-m','authorities'],{cwd:fixture,encoding:'utf8'});
       assert.equal(commit.status,0,commit.stderr);
       const sha=spawnSync('git',['rev-parse','HEAD'],{cwd:fixture,encoding:'utf8'}).stdout.trim();
       fs.writeFileSync(path.join(dir,'mutations.json'),JSON.stringify({...harness,mutants:[]}));
       fs.writeFileSync(path.join(dir,'product-mutations.json'),JSON.stringify({...product,mutants:[]}));
+      fs.writeFileSync(path.join(dir,'holdout-attestors.json'),JSON.stringify({contract:attestors.contract,keys:[{id:'dirty'}]}));
+      fs.writeFileSync(path.join(corpusDir,'corpus-manifest.json'),JSON.stringify({...corpus,entries:[]}));
+      fs.writeFileSync(path.join(corpusDir,'negative-vectors.json'),JSON.stringify({...vectors,vectors:[]}));
       const loaded=loadMutationCatalogsAtCommit(sha,{repoRoot:fixture});
       assert.deepEqual(loaded.harness,harness);
       assert.deepEqual(loaded.product,product);
+      const authorities=loadReleaseAuthoritiesAtCommit(sha,{repoRoot:fixture});
+      assert.deepEqual(authorities.reference_corpus,corpus);
+      assert.deepEqual(authorities.negative_vectors,vectors);
+      assert.deepEqual(authorities.holdout_attestors,attestors);
+      assert.deepEqual(authorities.mutation_harness,harness);
+      assert.deepEqual(authorities.mutation_product,product);
     } finally { fs.rmSync(fixture,{recursive:true,force:true}); }
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
