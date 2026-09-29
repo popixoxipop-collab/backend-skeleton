@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto';
 import { evaluateMutationGate } from './harness.mjs';
 import { runProcessGroupBounded } from './bounded-process.mjs';
 
+const HARNESS_TEST_TIMEOUT_MS = 60_000;
+
 function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -137,7 +139,7 @@ export function runMutationCampaign({ repoRoot, catalog, sourceCommit = null }) 
     try {
       materializeT19Tree(repoRoot, scratch, resolvedSourceCommit);
       initializeScratchGit(scratch);
-      const baseline = runTestFiles(scratch, mutant.test_files, 10_000);
+      const baseline = runTestFiles(scratch, mutant.test_files, HARNESS_TEST_TIMEOUT_MS);
       if (baseline.exit_code !== 0) {
         results.push({ id: mutant.id, critical: mutant.critical, status: 'survived', classification: 'baseline-failed', reason: 'unmodified scratch test suite did not pass; mutant cannot be counted as killed', baseline });
         continue;
@@ -147,7 +149,7 @@ export function runMutationCampaign({ repoRoot, catalog, sourceCommit = null }) 
         results.push({ id: mutant.id, critical: mutant.critical, status: 'survived', classification: 'mutation-not-applied', reason: applied.reason, baseline });
         continue;
       }
-      const run = runTestFiles(scratch, mutant.test_files, 10_000);
+      const run = runTestFiles(scratch, mutant.test_files, HARNESS_TEST_TIMEOUT_MS);
       const killed = Number.isInteger(run.exit_code) && run.exit_code !== 0;
       results.push({
         id: mutant.id,
