@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t19-release-acceptance/1",
-  "observed_at": "2026-09-28T19:56:00Z",
+  "observed_at": "2026-09-29T03:10:00Z",
   "state": "BLOCKED",
   "release_approved": false,
   "default_activation_approved": false,
@@ -12,13 +12,13 @@
   "qa_authority": {
     "repo": "popixoxipop-collab/backend-skeleton",
     "pr": 159,
-    "source_head": "6acc4bfcb06e53bac511763c9892df4372ecebe9",
+    "source_head": "a84530b51eb33341173adb0278cc8c5cb6c9eeea",
     "exact_source_ci": {
-      "run_id": 36474509090,
-      "run_number": 1551,
+      "run_id": 36510129327,
+      "run_number": 1574,
       "conclusion": "success",
-      "nested_node22_job": 109105145471,
-      "nested_node24_job": 109105145086,
+      "nested_node22_job": 109220249650,
+      "nested_node24_job": 109220249641,
       "node22": {
         "tests": 74,
         "passed": 74,
@@ -28,6 +28,56 @@
       "node24": {
         "tests": 74,
         "passed": 74,
+        "failed": 0,
+        "skipped": 0
+      }
+    },
+    "local_exact_head_reproduction": {
+      "source_head": "a84530b51eb33341173adb0278cc8c5cb6c9eeea",
+      "checkout": "clean detached worktree at source_head; git status empty before and after every lane",
+      "node22": {
+        "version": "v22.23.3",
+        "t19_nested_tests": 74,
+        "passed": 74,
+        "failed": 0,
+        "skipped": 0
+      },
+      "node24": {
+        "version": "v24.19.0",
+        "t19_nested_tests": 74,
+        "passed": 74,
+        "failed": 0,
+        "skipped": 0
+      },
+      "t19_command": "node scripts/run-next-nested-tests.mjs T19",
+      "t19_files": {
+        "test/conformance-next/certify.test.mjs": 32,
+        "test/conformance-next/harness.test.mjs": 14,
+        "test/conformance-next/mutation-runner.test.mjs": 7,
+        "test/conformance-next/product-mutation-runner.test.mjs": 8,
+        "test/conformance-next/product-security-invariants.test.mjs": 4,
+        "test/t19-release-acceptance/t19-release-acceptance.test.mjs": 9
+      },
+      "direct_mutation_campaigns": {
+        "harness": {
+          "killed": 7,
+          "total": 7,
+          "source_commit": "a84530b51eb33341173adb0278cc8c5cb6c9eeea",
+          "catalog_sha256": "16ebc6d2344e9ae107f70204f2871dd6971617c02c82b38440f41fab74fcccb7"
+        },
+        "product": {
+          "killed": 13,
+          "total": 13,
+          "source_commit": "a84530b51eb33341173adb0278cc8c5cb6c9eeea",
+          "catalog_sha256": "7a89c0472d3840d5a15148692f34f140318d43fafcf778aa8b91fd8368b21eaa"
+        }
+      },
+      "other_nested_suites_node22_and_node24": {
+        "suites_run": 18,
+        "suites_not_present": [
+          "T11"
+        ],
+        "tests": 1097,
         "failed": 0,
         "skipped": 0
       }
@@ -66,5 +116,10 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "FINAL_RELEASE_HEADS_NOT_FROZEN"
   ],
-  "note": "PR #159 T19 QA code is exact-source green on Node 22 and Node 24 with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads."
+  "note": "PR #159 T19 QA code is exact-source green on Node 22 and Node 24 (CI run 1574 on a84530b plus a local clean-checkout reproduction) with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads.",
+  "evidence_head_policy": {
+    "tested_source_head": "a84530b51eb33341173adb0278cc8c5cb6c9eeea",
+    "convention": "qa_authority.source_head names the commit whose bytes were tested. The commit that records this packet is a descendant of source_head and is evidence-only: it may modify only evidence/next/T19-CURRENT-MAIN-ACCEPTANCE.md, evidence/next/T19-RELEASE-ACCEPTANCE.json and the constants in test/t19-release-acceptance/t19-release-acceptance.test.mjs (no test added or removed, so the T19 count stays 74).",
+    "verification": "git diff --name-only <source_head>..<packet_head> must list only those three files; the packet cannot name its own commit or its own CI run."
+  }
 }

@@ -15,11 +15,11 @@ const EXPECTED_RELEASE_HEADS={
 const EXPECTED_QA={
   repo:'popixoxipop-collab/backend-skeleton',
   pr:159,
-  source_head:'6acc4bfcb06e53bac511763c9892df4372ecebe9',
-  run_id:36474509090,
-  run_number:1551,
-  nested_node22_job:109105145471,
-  nested_node24_job:109105145086,
+  source_head:'a84530b51eb33341173adb0278cc8c5cb6c9eeea',
+  run_id:36510129327,
+  run_number:1574,
+  nested_node22_job:109220249650,
+  nested_node24_job:109220249641,
 };
 const REQUIRED_BLOCKERS=[
   'PRIVATE_HOLDOUT_REQUIRED',
@@ -137,6 +137,11 @@ test('exact-source CI provenance identifiers are immutable',()=>{
   const y=structuredClone(packet);
   y.qa_authority.source_head='0'.repeat(40);
   assert.ok(validate(y).includes('QA_HEAD'));
+  const stale=structuredClone(packet);
+  stale.qa_authority.source_head='6acc4bfcb06e53bac511763c9892df4372ecebe9';
+  assert.ok(validate(stale).includes('QA_HEAD'));
+  assert.equal(packet.evidence_head_policy.tested_source_head,packet.qa_authority.source_head);
+  assert.equal(packet.qa_authority.local_exact_head_reproduction.source_head,packet.qa_authority.source_head);
 });
 
 test('release-control anchor SHAs are immutable within this blocked packet',()=>{
