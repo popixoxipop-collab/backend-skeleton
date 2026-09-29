@@ -6,6 +6,7 @@ Independent QA primitives for the T19 track. These files do not replace existing
 
 ```bash
 node --test \
+  test/conformance-next/bounded-process.test.mjs \
   test/conformance-next/harness.test.mjs \
   test/conformance-next/certify.test.mjs \
   test/conformance-next/mutation-runner.test.mjs \

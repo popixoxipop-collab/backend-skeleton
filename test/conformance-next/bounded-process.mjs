@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 
 const SUPERVISOR = String.raw`
 import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 
 const [command, cwd, timeoutRaw, envB64, ...args] = process.argv.slice(1);
 const timeoutMs = Number(timeoutRaw);
@@ -17,6 +18,9 @@ let stdout = Buffer.alloc(0);
 let stderr = Buffer.alloc(0);
 let finished = false;
 let timedOut = false;
+let killIssued = false;
+let exiting = false;
+const parentPid = process.ppid;
 
 function appendTail(current, chunk) {
   const next = Buffer.concat([current, Buffer.from(chunk)]);
@@ -29,6 +33,7 @@ child.stderr?.on('data', (chunk) => { stderr = appendTail(stderr, chunk); });
 function emit(result) {
   if (finished) return;
   finished = true;
+  clearInterval(parentWatch);
   process.stdout.write(JSON.stringify({
     ...result,
     stdout_b64: stdout.toString('base64'),
@@ -36,8 +41,11 @@ function emit(result) {
   }));
 }
 
-function killTree() {
-  timedOut = true;
+// Idempotent hard kill of the whole detached group: safe to call from the timeout timer, a
+// signal handler and the exit handler without racing itself into a second kill.
+function killGroup() {
+  if (killIssued) return;
+  killIssued = true;
   try {
     if (process.platform === 'win32') {
       spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
@@ -48,6 +56,44 @@ function killTree() {
     try { child.kill('SIGKILL'); } catch {}
   }
 }
+
+function killTree() {
+  timedOut = true;
+  killGroup();
+}
+
+// Cancellation of the supervisor itself (SIGINT/SIGTERM/SIGHUP, or its parent disappearing):
+// kill the detached group first, report best-effort, then exit exactly once.
+function cancelSupervisor(reason, exitCode) {
+  if (exiting) return;
+  exiting = true;
+  killGroup();
+  if (!finished) {
+    finished = true;
+    try {
+      fs.writeSync(1, JSON.stringify({
+        status: null,
+        signal: null,
+        error: { code: 'SUPERVISOR_INTERRUPTED', message: 'bounded process supervisor cancelled: ' + reason },
+        stdout_b64: stdout.toString('base64'),
+        stderr_b64: stderr.toString('base64'),
+      }));
+    } catch {}
+  }
+  process.exit(exitCode);
+}
+
+const SIGNALS = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
+if (process.platform !== 'win32') {
+  for (const [name, code] of Object.entries(SIGNALS)) process.on(name, () => cancelSupervisor(name, code));
+}
+// Last-resort safety net (uncaught error, explicit exit): never leave the group running once
+// the supervisor is gone unless the child already completed normally.
+process.on('exit', () => { if (!finished) killGroup(); });
+// spawnSync callers cannot run signal handlers while blocked, so a killed parent is detected by re-parenting.
+const parentWatch = setInterval(() => {
+  if (process.ppid !== parentPid) cancelSupervisor('parent exited', 143);
+}, 200);
 
 const timer = setTimeout(killTree, timeoutMs);
 child.once('error', (err) => {
