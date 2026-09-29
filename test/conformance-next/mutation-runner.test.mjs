@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { resolveSourceCommit, runMutationCampaign, validateMutationCatalog } from './mutation-runner.mjs';
+import { resolveSourceCommit, runBoundedTestCommand, runMutationCampaign, validateMutationCatalog } from './mutation-runner.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -33,6 +33,16 @@ test('actual T19 mutation campaign kills every critical mutant and meets the non
   assert.equal(result.gate.critical_failures.length, 0);
   assert.equal(result.gate.noncritical_score, 1);
   assert.deepEqual(result.mutants.map((m) => m.status), Array(result.mutants.length).fill('killed'));
+
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-hard-timeout-'));
+  try {
+    const started=Date.now();
+    const hung=runBoundedTestCommand(process.execPath,['-e',"process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"],{cwd:root,timeoutMs:100,env:{...process.env}});
+    const elapsed=Date.now()-started;
+    assert.equal(hung.error?.code,'ETIMEDOUT');
+    assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
+    if(process.platform!=='win32') assert.equal(hung.signal,'SIGKILL');
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
 test('mutation campaign never counts a failure as killed when the unmodified scratch baseline already fails', () => {
