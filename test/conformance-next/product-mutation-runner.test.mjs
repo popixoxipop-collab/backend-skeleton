@@ -12,6 +12,25 @@ const HERE=path.dirname(fileURLToPath(import.meta.url));
 const ROOT=path.resolve(HERE,'..','..');
 const CATALOG=JSON.parse(fs.readFileSync(path.join(HERE,'product-mutations.json'),'utf8'));
 
+function processIsRunningNonZombie(pid) {
+  try { process.kill(pid,0); } catch (err) {
+    if (err?.code === 'ESRCH') return false;
+    throw err;
+  }
+  if (process.platform === 'linux') {
+    try {
+      const stat=fs.readFileSync(`/proc/${pid}/stat`,'utf8');
+      const close=stat.lastIndexOf(')');
+      const state=close >= 0 ? stat.slice(close + 2).split(' ')[0] : null;
+      if (state === 'Z') return false;
+    } catch (err) {
+      if (err?.code === 'ENOENT') return false;
+      throw err;
+    }
+  }
+  return true;
+}
+
 function initFixtureRepo(root) {
  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({name:'t19-fixture',version:'1.0.0',private:true})+'\n');
  fs.writeFileSync(path.join(root,'package-lock.json'),JSON.stringify({name:'t19-fixture',version:'1.0.0',lockfileVersion:3,requires:true,packages:{'':{name:'t19-fixture',version:'1.0.0'}}},null,2)+'\n');
@@ -88,9 +107,8 @@ test('product mutation campaign ignores live ignored bytes and executes only the
     assert.equal(hung.signal,'SIGKILL');
     const workerPid=Number(fs.readFileSync(pidFile,'utf8'));
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,100);
-    let alive=true;
-    try { process.kill(workerPid,0); } catch (err) { if(err?.code==='ESRCH') alive=false; else throw err; }
-    assert.equal(alive,false,`timed-out product descendant worker ${workerPid} survived process-group kill`);
+    const alive=processIsRunningNonZombie(workerPid);
+    assert.equal(alive,false,`timed-out product descendant worker ${workerPid} remained runnable after process-group kill`);
   }
 
   // Setup failures before mutation execution must still remove the controlled source tree.
