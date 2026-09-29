@@ -37,10 +37,10 @@ test('actual T19 mutation campaign kills every critical mutant and meets the non
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-hard-timeout-'));
   try {
     const pidFile=path.join(root,'worker.pid');
-    const hangFile=path.join(root,'hang.test.mjs');
-    fs.writeFileSync(hangFile,"import test from 'node:test'; import fs from 'node:fs'; test('hang', async()=>{ fs.writeFileSync(process.env.PID_FILE,String(process.pid)); setInterval(()=>{},1000); await new Promise(()=>{}); });\n");
+    const hangFile=path.join(root,'hang-tree.mjs');
+    fs.writeFileSync(hangFile,"import { spawn } from 'node:child_process'; import fs from 'node:fs'; const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'}); fs.writeFileSync(process.env.PID_FILE,String(child.pid)); setInterval(()=>{},1000);\n");
     const started=Date.now();
-    const hung=runBoundedTestCommand(process.execPath,['--test',hangFile],{cwd:root,timeoutMs:1000,env:{...process.env,PID_FILE:pidFile}});
+    const hung=runBoundedTestCommand(process.execPath,[hangFile],{cwd:root,timeoutMs:1000,env:{...process.env,PID_FILE:pidFile}});
     const elapsed=Date.now()-started;
     assert.equal(hung.error?.code,'ETIMEDOUT');
     assert.ok(elapsed < 5000,`hard timeout returned too slowly: ${elapsed}ms`);
@@ -50,7 +50,7 @@ test('actual T19 mutation campaign kills every critical mutant and meets the non
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,100);
       let alive=true;
       try { process.kill(workerPid,0); } catch (err) { if(err?.code==='ESRCH') alive=false; else throw err; }
-      assert.equal(alive,false,`timed-out node --test worker ${workerPid} survived process-group kill`);
+      assert.equal(alive,false,`timed-out descendant worker ${workerPid} survived process-group kill`);
     }
 
     const noisy=runBoundedTestCommand(process.execPath,['-e',"process.stdout.write('x'.repeat(512*1024)); process.stdout.write('TAIL-MARKER')"],{cwd:root,timeoutMs:5000,env:{...process.env}});
