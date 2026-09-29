@@ -15,10 +15,23 @@ import { runMutationCampaign } from './mutation-runner.mjs';
 import { runProductMutationCampaign } from './product-mutation-runner.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REFERENCE_CORPUS = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'corpus-next', 'corpus-manifest.json'), 'utf8'));
-const COMMITTED_NEGATIVE_VECTORS = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'corpus-next', 'negative-vectors.json'), 'utf8'));
-const COMMITTED_HOLDOUT_ATTESTORS = JSON.parse(fs.readFileSync(path.join(HERE, 'holdout-attestors.json'), 'utf8'));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
+
+function readLiveJson(relPath) {
+  return JSON.parse(fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8'));
+}
+
+function liveReferenceCorpus() {
+  return readLiveJson('test/corpus-next/corpus-manifest.json');
+}
+
+function liveNegativeVectors() {
+  return readLiveJson('test/corpus-next/negative-vectors.json');
+}
+
+function liveHoldoutAttestors() {
+  return readLiveJson('test/conformance-next/holdout-attestors.json');
+}
 
 function gitObjectTypeAt(repoRoot, sourceCommit) {
   if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '')) return null;
@@ -180,7 +193,8 @@ export function injectHoldoutManifest(corpus, holdout) {
   return { ok: validation.ok, errors: validation.errors, corpus: validation.ok ? merged : null };
 }
 
-export function validateReferenceCorpusBinding(corpus, referenceCorpus = REFERENCE_CORPUS) {
+export function validateReferenceCorpusBinding(corpus, referenceCorpus = null) {
+  referenceCorpus ??= liveReferenceCorpus();
   if (!corpus || !referenceCorpus || corpus.contract !== referenceCorpus.contract) return { pass: false, reasons: ['reference corpus contract does not match the committed manifest'] };
   if (!isDeepStrictEqual(corpus.entries, referenceCorpus.entries)) {
     return { pass: false, reasons: ['reference corpus entries do not exactly match the committed manifest'] };
@@ -188,7 +202,8 @@ export function validateReferenceCorpusBinding(corpus, referenceCorpus = REFEREN
   return { pass: true, reasons: [] };
 }
 
-export function validateNegativeVectorCatalogBinding(catalog, committedNegativeVectors = COMMITTED_NEGATIVE_VECTORS) {
+export function validateNegativeVectorCatalogBinding(catalog, committedNegativeVectors = null) {
+  committedNegativeVectors ??= liveNegativeVectors();
   if (!isDeepStrictEqual(catalog, committedNegativeVectors)) {
     return { pass: false, reasons: ['negative-vector catalog does not exactly match the committed 79-vector manifest'] };
   }
@@ -278,18 +293,22 @@ export function validateHoldoutAttestorRegistry(registry) {
     if (key?.purpose !== 't19-private-holdout') errors.push(`${at}.purpose must be t19-private-holdout`);
     if (key?.status !== 'active') errors.push(`${at}.status must be active`);
     if (!nonEmptyString(key?.public_key_pem)) errors.push(`${at}.public_key_pem must be non-empty`);
+    if (key?.scopes !== undefined && (!Array.isArray(key.scopes) || key.scopes.some((scope) => !['t19-private-holdout','t19-negative-vectors'].includes(scope)))) {
+      errors.push(`${at}.scopes may contain only t19-private-holdout|t19-negative-vectors`);
+    }
   }
   return { ok: errors.length === 0, errors };
 }
 
-export function verifyHoldoutAttestationWithRegistry(doc, registry = COMMITTED_HOLDOUT_ATTESTORS) {
+export function verifyHoldoutAttestationWithRegistry(doc, registry = null) {
+  registry ??= liveHoldoutAttestors();
   const validation = validateHoldoutAttestorRegistry(registry);
   if (!validation.ok) return { ok: false, reason: validation.errors.join('; ') };
   const attestation = doc?.attestation;
   if (!attestation || attestation.alg !== 'ed25519' || !nonEmptyString(attestation.key_id) || !nonEmptyString(attestation.signature_b64)) {
     return { ok: false, reason: 'attestation requires {alg:ed25519,key_id,signature_b64}' };
   }
-  const trusted = registry.keys.find((key) => key.id === attestation.key_id);
+  const trusted = registry.keys.find((key) => key.id === attestation.key_id && (key.scopes ?? ['t19-private-holdout']).includes('t19-private-holdout'));
   if (!trusted) return { ok: false, reason: `attestor key ${attestation.key_id} is not trusted by committed registry` };
   try {
     const signature = Buffer.from(attestation.signature_b64, 'base64');
@@ -300,7 +319,8 @@ export function verifyHoldoutAttestationWithRegistry(doc, registry = COMMITTED_H
   }
 }
 
-export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, artifact_root, source_commit = null, holdout_attestors = COMMITTED_HOLDOUT_ATTESTORS }) {
+export function evaluateHoldoutCoverageGate({ corpus, differential, evidence, artifact_root, source_commit = null, holdout_attestors = null }) {
+  holdout_attestors ??= liveHoldoutAttestors();
   const entries = [...(corpus?.entries ?? []), ...(corpus?.holdout_entries ?? [])];
   const results = Array.isArray(differential?.entry_results) ? differential.entry_results : [];
   const reasons = [];
@@ -411,6 +431,83 @@ export function evaluateDifferentialGate({ gold, observed, min_precision = 0.995
   if (metrics.recall === null) reasons.push('recall is undefined because the gold denominator is empty');
   else if (metrics.recall < min_recall) reasons.push(`recall ${metrics.recall.toFixed(4)} is below ${min_recall.toFixed(4)}`);
   return { pass: reasons.length === 0, min_precision, min_recall, metrics, reasons };
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return '[' + value.map((item) => canonicalJson(item)).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort().map((key) => JSON.stringify(key) + ':' + canonicalJson(value[key])).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
+function normalizeNegativeResultsForAttestation(results) {
+  if (!Array.isArray(results)) return null;
+  const normalized = [];
+  for (const result of results) {
+    if (!result || !nonEmptyString(result.id) || !['caught','missed','blocked','equivalent'].includes(result.status)) return null;
+    normalized.push({ id: result.id, status: result.status });
+  }
+  normalized.sort((a,b)=>a.id < b.id ? -1 : a.id > b.id ? 1 : a.status < b.status ? -1 : a.status > b.status ? 1 : 0);
+  return normalized;
+}
+
+export function negativeVectorAttestationPayload(run) {
+  const results = normalizeNegativeResultsForAttestation(run?.results);
+  return Buffer.from(canonicalJson({
+    contract: run?.contract ?? null,
+    source_commit: run?.source_commit ?? null,
+    catalog_sha256: run?.catalog_sha256 ?? null,
+    runner: run?.run ?? null,
+    results,
+    attestor_key_id: run?.attestation?.key_id ?? null,
+  }), 'utf8');
+}
+
+export function verifyNegativeVectorRunAttestation(negativeRun, {
+  catalog,
+  registry = null,
+  source_commit = null,
+} = {}) {
+  registry ??= liveHoldoutAttestors();
+  const reasons = [];
+  if (!negativeRun || negativeRun.contract !== 'sbf.qa-negative-run/1') reasons.push('negative run contract must be sbf.qa-negative-run/1');
+  if (negativeRun?.source_commit !== source_commit) reasons.push('negative run source_commit does not match certified release commit');
+  const expectedDigest = catalogDigest(catalog);
+  if (negativeRun?.catalog_sha256 !== expectedDigest) reasons.push('negative run catalog_sha256 does not match certified catalog');
+  const run = negativeRun?.run;
+  if (!run || run.kind !== 'controlled-checkout' || run.checkout_commit !== source_commit ||
+      !nonEmptyString(run.runner_id) || !nonEmptyString(run.run_id) ||
+      !nonEmptyString(run.command) || run.exit_code !== 0) {
+    reasons.push('negative run lacks successful controlled-checkout provenance');
+  }
+  const registryValidation = validateHoldoutAttestorRegistry(registry);
+  if (!registryValidation.ok) reasons.push(...registryValidation.errors.map((x)=>`negative attestor registry: ${x}`));
+  const attestation = negativeRun?.attestation;
+  if (!attestation || attestation.alg !== 'ed25519' || !nonEmptyString(attestation.key_id) || !nonEmptyString(attestation.signature_b64)) {
+    reasons.push('negative run attestation requires {alg:ed25519,key_id,signature_b64}');
+  } else if (registryValidation.ok) {
+    const trusted = registry.keys.find((key) =>
+      key.id === attestation.key_id &&
+      (key.scopes ?? ['t19-private-holdout']).includes('t19-negative-vectors'));
+    if (!trusted) reasons.push(`negative attestor key ${attestation.key_id} is not trusted for t19-negative-vectors`);
+    else {
+      try {
+        const signature = Buffer.from(attestation.signature_b64,'base64');
+        if (!(signature.length > 0 && verifySignature(null, negativeVectorAttestationPayload(negativeRun), trusted.public_key_pem, signature))) {
+          reasons.push('negative run attestation signature verification failed');
+        }
+      } catch {
+        reasons.push('negative run attestation signature verification failed');
+      }
+    }
+  }
+  let gate = null;
+  if (reasons.length === 0) {
+    gate = evaluateNegativeVectorRun({ catalog, results: negativeRun.results });
+    if (!gate.pass) reasons.push(...gate.reasons, ...gate.critical_failures.map((x)=>`critical negative vector failed: ${x}`));
+  }
+  return { pass: reasons.length === 0 && gate?.pass === true, reasons, gate };
 }
 
 export function evaluateNegativeVectorRun({ catalog, results }) {
@@ -613,13 +710,32 @@ export function assembleCertification(input, { artifact_root = null, require_hol
   if (requiredMissing.length) reasons.push(`missing required certification sections: ${requiredMissing.join(', ')}`);
 
   const releaseExecutionRequired = require_holdout && corpus.ok && corpus.stats.holdout_ready;
+  let releaseNegativeAttestation = {
+    required: releaseExecutionRequired,
+    pass: releaseExecutionRequired ? false : null,
+    reasons: releaseExecutionRequired ? ['authenticated negative-vector evidence is required for release certification'] : [],
+  };
+  if (releaseExecutionRequired && releaseAuthorities && input?.negative_run) {
+    releaseNegativeAttestation = {
+      required: true,
+      ...verifyNegativeVectorRunAttestation(input.negative_run, {
+        catalog: releaseAuthorities.negative_vectors,
+        registry: releaseAuthorities.holdout_attestors,
+        source_commit,
+      }),
+    };
+    if (!releaseNegativeAttestation.pass) {
+      reasons.push(...releaseNegativeAttestation.reasons.map((x)=>`negative-attestation: ${x}`));
+    }
+  }
+
   let releaseMutationExecution = {
     required: releaseExecutionRequired,
     executed: false,
     pass: releaseExecutionRequired ? false : null,
     reasons: releaseExecutionRequired ? ['direct release mutation execution deferred until all preceding release gates pass'] : [],
   };
-  if (releaseExecutionRequired && holdoutCoverage?.pass && requiredMissing.length === 0 && reasons.length === 0) {
+  if (releaseExecutionRequired && releaseNegativeAttestation.pass && holdoutCoverage?.pass && requiredMissing.length === 0 && reasons.length === 0) {
     releaseMutationExecution = executeReleaseMutationCampaigns({ source_commit });
     if (!releaseMutationExecution.pass) {
       reasons.push(...releaseMutationExecution.reasons.map((x) => `release-mutation-execution: ${x}`));
@@ -643,7 +759,7 @@ export function assembleCertification(input, { artifact_root = null, require_hol
     contract: 'sbf.qa-certification-report/1',
     verdict,
     reasons,
-    gates: { corpus, corpus_binding: corpusBinding, vectors, vector_binding: vectorBinding, differential, negative, mutation, evidence, corpus_entry_coverage: holdoutCoverage, release_mutation_execution: releaseMutationExecution },
+    gates: { corpus, corpus_binding: corpusBinding, vectors, vector_binding: vectorBinding, differential, negative, negative_attestation: releaseNegativeAttestation, mutation, evidence, corpus_entry_coverage: holdoutCoverage, release_mutation_execution: releaseMutationExecution },
   };
 }
 
