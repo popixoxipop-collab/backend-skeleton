@@ -1,0 +1,28 @@
+{
+  "schema": "sbf.gate-attestation/1",
+  "report": {
+    "schema": "sbf.gate-export/1",
+    "feature_id": "001-widget-management",
+    "generated_at": "2026-01-01T00:00:00.000Z",
+    "git": {
+      "branch": "develop",
+      "head_sha": "0000000000000000000000000000000000000000",
+      "dirty": false
+    },
+    "gates": {
+      "preflight": {
+        "scope": "_repo",
+        "current": {
+          "status": "pass",
+          "token": "abc",
+          "at": "2026-01-01T00:00:00.000Z"
+        },
+        "history": []
+      }
+    }
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "VU1M90n47nDiAqMdiQDEGgkQSsqeJJs401P77/n33RHZ4Twwgpe2ToxscFrHZfbz5+ORTlw7uo+yrDMdq/JPBw=="
+  }
+}

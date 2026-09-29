@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
-import { buildProtocolOracleRequest } from '../../adapters/protocol-next/contracts/protocol-oracle-request.mjs';
+import { buildProtocolOracleRequest, protocolOracleRequestDigest } from '../../adapters/protocol-next/contracts/protocol-oracle-request.mjs';
 import { bindProtocolItemRef } from '../../adapters/protocol-next/contracts/protocol-item-ref.mjs';
 import { loadProtocolArtifact } from '../../adapters/protocol-next/scanners/protocol-loaders.mjs';
 import { artifactRefForBytes, protocolContext } from './_helpers.mjs';
@@ -161,4 +161,70 @@ test('ordering and correlation stay declaration semantics and never become runti
   assert.equal(handoff.semantics.correlation_does_not_imply_causation, true);
   assert.equal(request.semantics.ordering_does_not_imply_causation, true);
   assert.equal(request.semantics.correlation_does_not_imply_causation, true);
+});
+
+// T00-E3: the same scenario id and the same protocol item id re-used against a DIFFERENT contract
+// content (extra unrelated service => different bytes/ArtifactRef, identical `Orders.Get` item id)
+// must not be accepted by an oracle request that pins the original contract.
+test('same scenario id and item id with different contract content is rejected, never aliased', () => {
+  const contextFor = (extraText) => {
+    const scan = loadProtocolArtifact({
+      family: handoff.source_fixture.family,
+      file: handoff.source_fixture.file,
+      text: handoff.source_fixture.text + extraText,
+    });
+    return protocolContext(scan, {
+      featureId: 'grpc-unary-profile',
+      featureUid: '11111111-1111-4111-8111-111111111111',
+    });
+  };
+  const a = contextFor('');
+  const b = contextFor('service Audit { rpc Log (Req) returns (Res); }\n');
+  const methodA = a.contract.planes.grpc.methods.find((item) => item.name === handoff.profile.static_selector.method);
+  const methodB = b.contract.planes.grpc.methods.find((item) => item.name === handoff.profile.static_selector.method);
+  assert.equal(methodA.id, methodB.id, 'precondition: identical item id');
+  assert.notEqual(a.contract_ref.byte_sha256, b.contract_ref.byte_sha256, 'precondition: different contract content');
+
+  const bind = (context) => bindProtocolItemRef({
+    contractRef: context.contract_ref,
+    contract: context.contract,
+    contractBytes: context.contract_bytes,
+    family: 'grpc',
+    plane: 'methods',
+    itemId: methodA.id,
+  });
+  const originalRef = artifactRefForBytes(Buffer.from('o\n'), { family: 'runtime-original', mediaType: 'application/octet-stream' });
+  const candidateRef = artifactRefForBytes(Buffer.from('c\n'), { family: 'runtime-candidate', mediaType: 'application/octet-stream' });
+  const runtimeProfileRef = artifactRefForBytes(Buffer.from('p\n'), { family: 'runtime-profile' });
+  const ctxOf = (context) => ({ contract_ref: context.contract_ref, contract: context.contract, contract_bytes: context.contract_bytes });
+  const request = (refContext, contexts, actionContext) => buildProtocolOracleRequest({
+    featureId: 'grpc-unary-profile',
+    featureUid: '11111111-1111-4111-8111-111111111111',
+    scenarioId: 'orders-get',
+    protocolContractRefs: [refContext.contract_ref],
+    protocolContexts: contexts,
+    originalRef,
+    candidateRef,
+    runtimeProfileRef,
+    seed: '7',
+    assertions: [{ id: 'grpc-orders-get-status', kind: 'grpc-status', action_ref: bind(actionContext), expect: { status: 'OK' } }],
+  });
+
+  // Each content is individually valid, but the two requests never share a digest.
+  const requestA = request(a, [ctxOf(a)], a);
+  const requestB = request(b, [ctxOf(b)], b);
+  assert.notEqual(protocolOracleRequestDigest(requestA), protocolOracleRequestDigest(requestB));
+  assert.equal(requestA.scenario_id, requestB.scenario_id);
+
+  const typeError = (pattern) => (error) => error instanceof TypeError && pattern.test(error.message);
+  const plainError = (pattern) => (error) => error instanceof Error && pattern.test(error.message);
+  // Pinning contract A but supplying B's (same-ID) context: exact context for A is missing.
+  assert.throws(() => request(a, [ctxOf(b)], a), plainError(/missing exact contract context for bound protocol contract ref/));
+  // Claiming ref A with B's bytes and view: bytes do not match the pinned ArtifactRef.
+  assert.throws(
+    () => request(a, [{ contract_ref: a.contract_ref, contract: b.contract, contract_bytes: b.contract_bytes }], a),
+    typeError(/contract bytes do not match ArtifactRef/),
+  );
+  // Assertion action_ref bound to B's content while the request pins only contract A.
+  assert.throws(() => request(a, [ctxOf(a)], b), plainError(/references a protocol contract not bound by this oracle request/));
 });

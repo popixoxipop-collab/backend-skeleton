@@ -1,0 +1,56 @@
+{
+  "identity_next_golden": "sbf.identity-next-golden/1",
+  "legacy_identity_schema": "urn:sbf:contract-identity:1",
+  "artifact_ref_schema": "urn:sbf:artifact-ref:1",
+  "identity_envelope_schema": "urn:sbf:identity-envelope:1",
+  "binding_json": "beval.binding-json/1",
+  "envelope_vectors": [
+    {
+      "name": "action-ref-envelope",
+      "kind": "sbf.identity-envelope/1",
+      "value": {
+        "identity_envelope": "sbf.identity-envelope/1",
+        "family": "http",
+        "reference_kind": "action",
+        "reference": {
+          "action_ref": "sbf.action-ref/1",
+          "contract": {
+            "contract_ref": "sbf.contract-ref/1",
+            "contract_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "sbf_contract": "9",
+            "feature_id": "001-hello",
+            "feature_uid": "5b66d55b-8c64-4d26-b7b9-f4d5c9f17a01"
+          },
+          "operation_id": "getHello"
+        }
+      },
+      "digest": "66fd657f6c95c5d023b269e1270de583d859c1d5496b11346b32a0675e773763"
+    }
+  ],
+  "artifact_vectors": [
+    {
+      "name": "minimal-http-contract-compact",
+      "utf8": "{\"sbf_contract\":\"9\"}\n",
+      "ref": {
+        "artifact_ref": "sbf.artifact-ref/1",
+        "family": "http-contract",
+        "version": "9",
+        "media_type": "application/json",
+        "byte_sha256": "b8a87c628dc71313a66dd692e6dd946727de86b71c418ba57360a7e659bc5408",
+        "size_bytes": 21
+      }
+    },
+    {
+      "name": "minimal-http-contract-pretty",
+      "utf8": "{\n  \"sbf_contract\": \"9\"\n}\n",
+      "ref": {
+        "artifact_ref": "sbf.artifact-ref/1",
+        "family": "http-contract",
+        "version": "9",
+        "media_type": "application/json",
+        "byte_sha256": "33e557633267c7840b1dc6b3413ddde111314c7519186afbcc9635bf13970683",
+        "size_bytes": 26
+      }
+    }
+  ]
+}

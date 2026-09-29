@@ -1,0 +1,181 @@
+{
+  "schema": "bskel.historical-replay-manifest/1",
+  "note": "Pinned historical records. Every file is listed with its sha256; scripts/historical-replay.mjs pins this manifest's own sha256. Regenerate only with scripts/historical-replay-generate.mjs.",
+  "records": [
+    {
+      "id": "contract.complete",
+      "kind": "old-code-generated",
+      "file": "contract/001-widget-management.complete.v1.7.1.schema.json",
+      "sha256": "30f3f97cf55b5f630879b35b8446235a2ae4e1661798d9533cc7dc5459b7b8b1",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "978cdcdcfe8529b580b9f535a06a62ce363a96a2",
+        "tag": "v1.7.1",
+        "generator": "bskel 1.7.1 CLI (contract emit/export/export-csv) via that revision's test/_contract-fixture.mjs"
+      },
+      "interpretation": {
+        "emit_exit_code": 0,
+        "sbf_contract": "9",
+        "contract_sha256": "30f3f97cf55b5f630879b35b8446235a2ae4e1661798d9533cc7dc5459b7b8b1",
+        "classification": "complete",
+        "operation_ids": [
+          "createWidget",
+          "findWidget",
+          "findWidgets"
+        ]
+      }
+    },
+    {
+      "id": "contract.complete.csv-export",
+      "kind": "old-code-generated",
+      "file": "contract/001-widget-management.complete.v1.7.1.export.csv",
+      "sha256": "4a464a0b21ce31c71094d1f0ae34b13484d966e28964dabc65418554d78dd192",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "978cdcdcfe8529b580b9f535a06a62ce363a96a2",
+        "tag": "v1.7.1",
+        "generator": "bskel 1.7.1 CLI (contract emit/export/export-csv) via that revision's test/_contract-fixture.mjs"
+      },
+      "derived_from": "contract.complete"
+    },
+    {
+      "id": "contract.complete.openapi-export",
+      "kind": "old-code-generated",
+      "file": "contract/001-widget-management.complete.v1.7.1.export.openapi.json",
+      "sha256": "2f11580b6c74308f3031199c47bb708c6fdada3c5426b0e781e4e8198139048b",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "978cdcdcfe8529b580b9f535a06a62ce363a96a2",
+        "tag": "v1.7.1",
+        "generator": "bskel 1.7.1 CLI (contract emit/export/export-csv) via that revision's test/_contract-fixture.mjs"
+      },
+      "derived_from": "contract.complete",
+      "replay_options": {
+        "statusCodes": "range",
+        "exportedBy": "bskel 1.7.1"
+      }
+    },
+    {
+      "id": "contract.partial",
+      "kind": "old-code-generated",
+      "file": "contract/001-widget-management.partial.v1.7.1.schema.json",
+      "sha256": "fd7f9485cb22aa8c42a666426bfa1e0c86775fa87dec800f403938f5a56c94f6",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "978cdcdcfe8529b580b9f535a06a62ce363a96a2",
+        "tag": "v1.7.1",
+        "generator": "bskel 1.7.1 CLI (contract emit/export/export-csv) via that revision's test/_contract-fixture.mjs"
+      },
+      "interpretation": {
+        "emit_exit_code": 3,
+        "sbf_contract": "9",
+        "contract_sha256": "fd7f9485cb22aa8c42a666426bfa1e0c86775fa87dec800f403938f5a56c94f6",
+        "classification": "partial",
+        "operation_ids": [
+          "createWidget",
+          "findWidget",
+          "findWidgets"
+        ]
+      }
+    },
+    {
+      "id": "evidence.gate-attestation-v1",
+      "kind": "git-historical-bytes",
+      "file": "evidence/gate-attestation-v1.ebf7c7e.json",
+      "sha256": "ca6d17a03f3d06985489f2349883a88ed5e451093a85ef3b5c09711bafbfde0e",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "ebf7c7e72338eb1ffb9eedc5767ec2fb5349aac4",
+        "git_path": "test/fixtures/gate-attestation-v1.json"
+      }
+    },
+    {
+      "id": "evidence.gate-attestation-v1-pubkey",
+      "kind": "git-historical-bytes",
+      "file": "evidence/gate-attestation-v1.ebf7c7e.pub.pem",
+      "sha256": "fca924efc438932634d237b4073c1d596db425000cca04f3ed744b624950b80b",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "ebf7c7e72338eb1ffb9eedc5767ec2fb5349aac4",
+        "git_path": "test/fixtures/gate-attestation-v1.pub.pem"
+      }
+    },
+    {
+      "id": "identity.legacy-golden",
+      "kind": "git-historical-bytes",
+      "file": "identity/contract-identity.golden.c3422c4.json",
+      "sha256": "a8cc038183c9e1d3ba8a8c7c67251d7ba3b794f17fe72befb6a9b3f665042364",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "c3422c45b14620a8bbda5062d1f4487902d9d5cc",
+        "git_path": "schemas/contract-identity.golden.json"
+      }
+    },
+    {
+      "id": "identity.next-conformance",
+      "kind": "git-historical-bytes",
+      "file": "identity/identity-conformance.152a3fc.json",
+      "sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+        "git_path": "schemas/next/identity-conformance.json"
+      }
+    },
+    {
+      "id": "identity.next-golden",
+      "kind": "git-historical-bytes",
+      "file": "identity/identity.golden.152a3fc.json",
+      "sha256": "0150dc30774d1ec9cf143d7bc11845fad494308fad34a75806c7281ba1d1993b",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+        "git_path": "schemas/next/identity.golden.json"
+      }
+    },
+    {
+      "id": "protocol.contract-bytes",
+      "kind": "old-code-generated",
+      "file": "protocol/protocol-contract.152a3fc.json",
+      "sha256": "cd47975cc511f81c0e764a2636a17ffcb1c3fccc5d1079af4fe67a0542d161ec",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+        "generator": "T18 protocol-next code at 152a3fc6eac518c3f16a7e330ee849075b09b69d over the byte-exact handoff fixture protocol/t16-grpc-unary-evidence-handoff.152a3fc.json"
+      }
+    },
+    {
+      "id": "protocol.item-and-oracle-request",
+      "kind": "old-code-generated",
+      "file": "protocol/protocol-item-ref-and-oracle-request.152a3fc.json",
+      "sha256": "d8b4e71ac5e29ac459a29d7d7d56c1d2b537a81a5a5858d24719dbf46b2deb20",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+        "generator": "T18 protocol-next code at 152a3fc6eac518c3f16a7e330ee849075b09b69d over the byte-exact handoff fixture protocol/t16-grpc-unary-evidence-handoff.152a3fc.json"
+      }
+    },
+    {
+      "id": "protocol.t18-handoff-fixture",
+      "kind": "git-historical-bytes",
+      "file": "protocol/t16-grpc-unary-evidence-handoff.152a3fc.json",
+      "sha256": "d11b1eb58d6588817140172344f8d774829d17c7d292b17f02c6fc04bfa29488",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+        "git_path": "test/protocol-next/fixtures/t16-grpc-unary-evidence-handoff.json"
+      }
+    },
+    {
+      "id": "run.t16-runtime-run",
+      "kind": "old-code-generated",
+      "file": "run/t16-runtime-run.152a3fc.json",
+      "sha256": "ef35c1457b9185850c59749166167864957469be413a5b70c3be1233f8607af3",
+      "provenance": {
+        "repo": "popixoxipop-collab/backend-skeleton",
+        "commit": "152a3fc6eac518c3f16a7e330ee849075b09b69d",
+        "generator": "T09/T16 evidence-binding code at 152a3fc6eac518c3f16a7e330ee849075b09b69d, inputs from that revision's test/reconciliation-next/approved-evidence-fixture.mjs"
+      }
+    }
+  ]
+}

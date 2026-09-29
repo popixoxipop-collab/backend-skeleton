@@ -7,6 +7,7 @@ import {
   importProtoSource,
   importWebSocketManifest,
 } from '../../adapters/protocol-next/scanners/protocol.mjs';
+import { bindProtocolItemRef } from '../../adapters/protocol-next/contracts/protocol-item-ref.mjs';
 import { protocolContext, protocolItem } from './_helpers.mjs';
 
 const feature = { featureId: 'orders', featureUid: 'uid-orders' };
@@ -128,4 +129,43 @@ test('same logical scenario has a deterministic digest independent of step input
     { id: 'a', family: 'grpc', action_ref: grpcAction },
   ]);
   assert.equal(protocolFlowDigest(a), protocolFlowDigest(b));
+});
+
+// T00-E3: the SAME flow id ('order-flow') and step ids re-used with a DIFFERENT contract behind the
+// same protocol item id must not resolve, and must never share a flow digest with the original.
+test('same flow id and step ids with different-content contract behind the same item id fails closed', () => {
+  const contextA = protocolContext(importProtoSource(
+    'syntax = "proto3"; service Orders { rpc Create (CreateRequest) returns (Order); } message CreateRequest {} message Order {}',
+  ));
+  const contextB = protocolContext(importProtoSource(
+    'syntax = "proto3"; service Orders { rpc Create (CreateRequest) returns (Order); } message CreateRequest {} message Order {} service Audit { rpc Log (Order) returns (Order); }',
+  ));
+  const idA = contextA.contract.planes.grpc.methods.find((method) => method.name === 'Create').id;
+  assert.equal(idA, contextB.contract.planes.grpc.methods.find((method) => method.name === 'Create').id);
+  assert.notEqual(contextA.contract_ref.byte_sha256, contextB.contract_ref.byte_sha256);
+  const bindCreate = (context) => bindProtocolItemRef({
+    contractRef: context.contract_ref,
+    contract: context.contract,
+    contractBytes: context.contract_bytes,
+    family: 'grpc',
+    plane: 'methods',
+    itemId: idA,
+  });
+  const refA = bindCreate(contextA);
+  const refB = bindCreate(contextB);
+  const steps = (ref) => [{ id: 'create', family: 'grpc', action_ref: ref }];
+
+  const flowA = build(steps(refA), [contextA]);
+  const flowB = build(steps(refB), [contextB]);
+  // Same flow id, different bound content => different digest (no aliasing of the flow identity).
+  assert.notEqual(protocolFlowDigest(flowA), protocolFlowDigest(flowB));
+
+  // Flow A's action ref cannot be satisfied by contract B's content (same item id), and vice versa.
+  assert.throws(() => build(steps(refA), [contextB]), (error) => error instanceof TypeError && /context is not available/.test(error.message));
+  assert.throws(() => build(steps(refB), [contextA]), (error) => error instanceof TypeError && /context is not available/.test(error.message));
+  // A context that claims ref A but carries B's bytes is rejected outright.
+  assert.throws(
+    () => build(steps(refA), [{ contract_ref: contextA.contract_ref, contract: contextB.contract, contract_bytes: contextB.contract_bytes }]),
+    (error) => error instanceof TypeError && /bytes do not match ArtifactRef/.test(error.message),
+  );
 });
