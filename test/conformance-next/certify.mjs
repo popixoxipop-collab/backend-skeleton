@@ -15,8 +15,6 @@ import { runMutationCampaign } from './mutation-runner.mjs';
 import { runProductMutationCampaign } from './product-mutation-runner.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HARNESS_MUTATION_CATALOG = JSON.parse(fs.readFileSync(path.join(HERE, 'mutations.json'), 'utf8'));
-const PRODUCT_MUTATION_CATALOG = JSON.parse(fs.readFileSync(path.join(HERE, 'product-mutations.json'), 'utf8'));
 const REFERENCE_CORPUS = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'corpus-next', 'corpus-manifest.json'), 'utf8'));
 const COMMITTED_NEGATIVE_VECTORS = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'corpus-next', 'negative-vectors.json'), 'utf8'));
 const COMMITTED_HOLDOUT_ATTESTORS = JSON.parse(fs.readFileSync(path.join(HERE, 'holdout-attestors.json'), 'utf8'));
