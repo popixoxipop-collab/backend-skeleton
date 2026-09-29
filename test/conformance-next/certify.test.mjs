@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { assembleCertification, corpusEntryIdentityMatches, corpusEntrySourceMatches, evaluateDifferentialGate, evaluateHoldoutCoverageGate, evaluateNegativeVectorRun, holdoutAttestationPayload, injectHoldoutManifest, loadMutationCatalogsAtCommit, loadReleaseAuthoritiesAtCommit, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry } from './certify.mjs';
+import { assembleCertification, corpusEntryIdentityMatches, corpusEntrySourceMatches, evaluateDifferentialGate, evaluateHoldoutCoverageGate, evaluateNegativeVectorRun, holdoutAttestationPayload, negativeVectorAttestationPayload, injectHoldoutManifest, loadMutationCatalogsAtCommit, loadReleaseAuthoritiesAtCommit, verifyEvidencePackFromDisk, verifyHoldoutAttestationWithRegistry, verifyNegativeVectorRunAttestation } from './certify.mjs';
 import { sha256 } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -135,6 +135,30 @@ test('negative vector equivalence requires explicit approval in the committed ca
   const out = evaluateNegativeVectorRun({ catalog: VECTORS, results });
   assert.equal(out.pass, false);
   assert.ok(out.reasons.some((x) => x.includes('not approved by the committed catalog')));
+
+  const {publicKey,privateKey}=generateKeyPairSync('ed25519');
+  const signedResults=VECTORS.vectors.map((v)=>({id:v.id,status:'caught'}));
+  const signedRun={
+    contract:'sbf.qa-negative-run/1',
+    source_commit:HEAD_COMMIT,
+    catalog_sha256:sha256(Buffer.from(JSON.stringify(VECTORS))),
+    run:{kind:'controlled-checkout',runner_id:'independent-negative-runner',run_id:'neg-run-1',checkout_commit:HEAD_COMMIT,command:'t19 negative-vector campaign',exit_code:0},
+    results:signedResults,
+    attestation:{alg:'ed25519',key_id:'unit-release-qa',signature_b64:''},
+  };
+  signedRun.attestation.signature_b64=sign(null,negativeVectorAttestationPayload(signedRun),privateKey).toString('base64');
+  const registry={contract:'sbf.qa-holdout-attestors/1',keys:[{
+    id:'unit-release-qa',alg:'ed25519',purpose:'t19-private-holdout',status:'active',
+    scopes:['t19-private-holdout','t19-negative-vectors'],
+    public_key_pem:publicKey.export({type:'spki',format:'pem'}).toString(),
+  }]};
+  const verified=verifyNegativeVectorRunAttestation(signedRun,{catalog:VECTORS,registry,source_commit:HEAD_COMMIT});
+  assert.equal(verified.pass,true,verified.reasons.join('\n'));
+  const tampered=clone(signedRun);
+  tampered.results[0].status='missed';
+  const rejected=verifyNegativeVectorRunAttestation(tampered,{catalog:VECTORS,registry,source_commit:HEAD_COMMIT});
+  assert.equal(rejected.pass,false);
+  assert.ok(rejected.reasons.some((x)=>x.includes('signature')));
 });
 
 test('disk evidence verifier rejects path traversal and missing artifact bytes', () => {
@@ -579,6 +603,9 @@ test('release certification rejects caller-generated signed holdout keys not pre
     const report=assembleCertification(input,{artifact_root:root,require_holdout:true,source_commit:HEAD_COMMIT});
     assert.equal(report.verdict,'fail');
     assert.ok(report.reasons.some((x)=>x.includes('caller-generated') && x.includes('not trusted by committed registry')));
+    assert.equal(report.gates.negative_attestation.required,true);
+    assert.equal(report.gates.negative_attestation.pass,false);
+    assert.ok(report.reasons.some((x)=>x.includes('negative-attestation') && x.includes('attestation')));
     assert.equal(report.gates.release_mutation_execution.required,true);
     assert.equal(report.gates.release_mutation_execution.executed,false);
     assert.equal(report.gates.release_mutation_execution.pass,false);
