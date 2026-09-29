@@ -22,21 +22,46 @@ const COMMITTED_NEGATIVE_VECTORS = JSON.parse(fs.readFileSync(path.join(HERE, '.
 const COMMITTED_HOLDOUT_ATTESTORS = JSON.parse(fs.readFileSync(path.join(HERE, 'holdout-attestors.json'), 'utf8'));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
 
-function gitObjectType(sourceCommit) {
+function gitObjectTypeAt(repoRoot, sourceCommit) {
   if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '')) return null;
-  const run = spawnSync('git', ['-C', REPO_ROOT, 'cat-file', '-t', sourceCommit], {
+  const run = spawnSync('git', ['-C', repoRoot, 'cat-file', '-t', sourceCommit], {
     encoding: 'utf8', timeout: 10_000,
   });
   return run.status === 0 ? (run.stdout ?? '').trim() : null;
 }
 
-function trackedFileDigestAtCommit(sourceCommit, relPath) {
-  if (gitObjectType(sourceCommit) !== 'commit') return null;
-  const run = spawnSync('git', ['-C', REPO_ROOT, 'show', `${sourceCommit}:${relPath}`], {
+function gitObjectType(sourceCommit) {
+  return gitObjectTypeAt(REPO_ROOT, sourceCommit);
+}
+
+function trackedFileAtCommit(repoRoot, sourceCommit, relPath) {
+  if (gitObjectTypeAt(repoRoot, sourceCommit) !== 'commit') return null;
+  const run = spawnSync('git', ['-C', repoRoot, 'show', `${sourceCommit}:${relPath}`], {
     encoding: null, timeout: 10_000, maxBuffer: 32 * 1024 * 1024,
   });
-  if (run.status !== 0) return null;
-  return createHash('sha256').update(run.stdout).digest('hex');
+  return run.status === 0 ? run.stdout : null;
+}
+
+function trackedFileDigestAtCommit(sourceCommit, relPath) {
+  const bytes = trackedFileAtCommit(REPO_ROOT, sourceCommit, relPath);
+  if (bytes === null) return null;
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+export function loadMutationCatalogsAtCommit(sourceCommit, { repoRoot = REPO_ROOT } = {}) {
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit ?? '') || gitObjectTypeAt(repoRoot, sourceCommit) !== 'commit') {
+    throw new Error('mutation catalogs require a canonical Git commit object');
+  }
+  const readJson = (relPath) => {
+    const bytes = trackedFileAtCommit(repoRoot, sourceCommit, relPath);
+    if (bytes === null) throw new Error(`cannot read ${relPath} from certified commit ${sourceCommit}`);
+    try { return JSON.parse(bytes.toString('utf8')); }
+    catch { throw new Error(`invalid JSON in ${relPath} at certified commit ${sourceCommit}`); }
+  };
+  return {
+    harness: readJson('test/conformance-next/mutations.json'),
+    product: readJson('test/conformance-next/product-mutations.json'),
+  };
 }
 
 function nonEmptyString(value) {
@@ -102,12 +127,15 @@ export function evaluateBoundMutationBundle(bundle, { source_commit = null } = {
   if (!bundle || typeof bundle !== 'object' || Array.isArray(bundle) || bundle.contract !== 'sbf.qa-mutation-bundle/1') {
     return { pass: false, reasons: ['mutation bundle contract must be sbf.qa-mutation-bundle/1'], gate: null };
   }
+  let catalogs;
+  try { catalogs = loadMutationCatalogsAtCommit(source_commit); }
+  catch (err) { return { pass: false, reasons: [`mutation catalogs: ${err.message}`], gate: null }; }
   if (bundle.source_commit !== source_commit) reasons.push(`mutation bundle: source_commit ${String(bundle.source_commit)} does not match certified release commit ${source_commit}`);
   const harness = validateMutationReportAgainstCatalog(bundle.harness, {
-    contract: 'sbf.qa-mutation-report/1', catalog: HARNESS_MUTATION_CATALOG, label: 'harness', source_commit,
+    contract: 'sbf.qa-mutation-report/1', catalog: catalogs.harness, label: 'harness', source_commit,
   });
   const product = validateMutationReportAgainstCatalog(bundle.product, {
-    contract: 'sbf.qa-product-mutation-report/1', catalog: PRODUCT_MUTATION_CATALOG, label: 'product', source_commit,
+    contract: 'sbf.qa-product-mutation-report/1', catalog: catalogs.product, label: 'product', source_commit,
   });
   reasons.push(...harness.errors, ...product.errors);
   let gate = null;
@@ -119,7 +147,7 @@ export function evaluateBoundMutationBundle(bundle, { source_commit = null } = {
     pass: reasons.length === 0 && gate?.pass === true,
     reasons,
     gate,
-    expected: { harness: HARNESS_MUTATION_CATALOG.mutants.length, product: PRODUCT_MUTATION_CATALOG.mutants.length },
+    expected: { harness: catalogs.harness.mutants.length, product: catalogs.product.mutants.length },
     observed: { harness: harness.mutants.length, product: product.mutants.length },
   };
 }
@@ -485,8 +513,9 @@ export function executeReleaseMutationCampaigns({ source_commit }) {
     return { required: true, executed: false, pass: false, reasons: ['release mutation execution requires a canonical Git commit object'] };
   }
   try {
-    const harness = runMutationCampaign({ repoRoot: REPO_ROOT, catalog: HARNESS_MUTATION_CATALOG, sourceCommit: source_commit });
-    const product = runProductMutationCampaign({ repoRoot: REPO_ROOT, catalog: PRODUCT_MUTATION_CATALOG, sourceCommit: source_commit });
+    const catalogs = loadMutationCatalogsAtCommit(source_commit);
+    const harness = runMutationCampaign({ repoRoot: REPO_ROOT, catalog: catalogs.harness, sourceCommit: source_commit });
+    const product = runProductMutationCampaign({ repoRoot: REPO_ROOT, catalog: catalogs.product, sourceCommit: source_commit });
     const result = {
       required: true,
       executed: true,
