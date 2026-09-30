@@ -194,6 +194,30 @@ test('duplicate explicit identities fail closed rather than first-wins', () => {
   assert.throws(() => parseMjcfSource(raw, { path: 'models/main.xml' }), /duplicate body name: base/);
 });
 
+test('XML 1.0 invalid direct and numeric-reference characters fail closed', () => {
+  for (const raw of [
+    '<mujoco model="&#0;"/>',
+    '<mujoco model="&#1;"/>',
+    '<mujoco model="&#xD800;"/>',
+    '<mujoco model="&#xFFFE;"/>',
+    '<mujoco model="\u0000"/>',
+  ]) {
+    assert.throws(
+      () => parseMjcfSource(raw, { path: 'models/invalid-char.xml' }),
+      /XML|character|codepoint|invalid/i,
+    );
+  }
+
+  for (const raw of [
+    '<mujoco model="&#9;"/>',
+    '<mujoco model="&#10;"/>',
+    '<mujoco model="&#13;"/>',
+    '<mujoco model="&#x20;"/>',
+  ]) {
+    assert.doesNotThrow(() => parseMjcfSource(raw, { path: 'models/valid-char.xml' }));
+  }
+});
+
 test('malformed XML and unsupported declarations fail closed', () => {
   assert.throws(() => parseMjcfSource('<mujoco><worldbody></mujoco>', { path: 'models/main.xml' }), /mismatched closing/);
   assert.throws(() => parseMjcfSource('<!DOCTYPE mujoco><mujoco/>', { path: 'models/main.xml' }), /DOCTYPE or ENTITY/);
