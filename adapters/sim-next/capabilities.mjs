@@ -45,6 +45,16 @@ export function evaluateSupportLevel({
     throw new TypeError('capabilityNames must be a non-empty array of simulation.* capability names');
   }
 
+  for (const name of capabilityNames) {
+    const record = capabilities?.[name];
+    if (record?.status === 'supported' &&
+        (!Array.isArray(record.evidenceRefs) || record.evidenceRefs.length === 0)) {
+      throw new TypeError(
+        `supported simulation capability ${name} requires verifier-issued evidence; legacy boolean bridges do not authorize simulation.*`,
+      );
+    }
+  }
+
   const evaluation = evaluateCapabilityPolicy({
     capabilities,
     requirements: capabilityNames.map((capability) => ({
