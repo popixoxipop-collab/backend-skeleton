@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   DEFAULT_MAX_SOURCE_BYTES,
   assertRepoRelativeXmlPath,
+  assertXmlDeclaration,
   decodeMujocoUtf8,
   discoverMujocoSource,
   mujocoSourceBytes,
@@ -156,9 +157,7 @@ function xmlTree(text, { maxDepth, maxElements }) {
         if (!legalLeadingDeclaration) {
           throw new Error('XML declaration is only allowed at the beginning of the document');
         }
-        if (!/^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])[A-Za-z][A-Za-z0-9._-]*\2)?(?:\s+standalone\s*=\s*(["'])(?:yes|no)\3)?\s*$/i.test(instruction)) {
-          throw new Error('invalid XML declaration syntax');
-        }
+        assertXmlDeclaration(instruction);
       }
       index = end + 2;
       continue;
