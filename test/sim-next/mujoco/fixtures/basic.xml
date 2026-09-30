@@ -1,0 +1,43 @@
+<mujoco model="fixture-arm">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+  <default class="main">
+    <joint damping="0.1"/>
+  </default>
+  <asset>
+    <mesh name="finger_mesh" file="meshes/finger.stl"/>
+  </asset>
+  <include file="parts/gripper.xml"/>
+  <worldbody>
+    <geom name="floor" type="plane" size="1 1 0.1"/>
+    <site name="world_marker" pos="0 0 0"/>
+    <body name="base" pos="0 0 0">
+      <body name="link1" pos="0 0 0.1">
+        <joint name="shoulder" type="hinge" axis="0 0 1" range="-1.57 1.57"/>
+        <geom name="link1_geom" type="capsule" size="0.02 0.1"/>
+        <site name="tip" pos="0 0 0.2"/>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="motor_b" joint="shoulder" ctrlrange="-1 1" gear="2"/>
+    <position name="motor_a" joint="shoulder" ctrlrange="-1.57 1.57"/>
+  </actuator>
+  <sensor>
+    <jointpos name="shoulder_pos" joint="shoulder"/>
+  </sensor>
+  <contact>
+    <exclude name="base_link_exclude" body1="base" body2="link1"/>
+  </contact>
+  <equality>
+    <weld name="fixture_weld" body1="base" body2="link1"/>
+  </equality>
+  <tendon>
+    <fixed name="coupling">
+      <joint joint="shoulder" coef="1"/>
+    </fixed>
+  </tendon>
+  <keyframe>
+    <key name="home" time="0" qpos="0" qvel="0" ctrl="0"/>
+  </keyframe>
+</mujoco>
