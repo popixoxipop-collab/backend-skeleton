@@ -74,7 +74,7 @@ test('authoritative SimulationItemRef resolves exact membership and kind in the 
       },
     }],
     model: {
-      entities: [{ id: 'body:base', kind: 'body' }],
+      entities: [{ id: 'body:base', kind: 'body', source_locator: 'model/body:base' }],
       joints: [{ id: 'joint:shoulder' }],
       actuators: [{ id: 'actuator:shoulder' }],
       sensors: [{ id: 'sensor:shoulder' }],
@@ -152,6 +152,63 @@ test('authoritative SimulationItemRef resolves exact membership and kind in the 
       item_id: 'joint:shoulder',
     }, { contractBytes }),
     /item kind mismatch/,
+  );
+});
+
+test('authoritative SimulationItemRef requires entity source locators from the frozen draft schema', () => {
+  const contract = {
+    simulation_contract: 'sbf.simulation-contract/draft-1',
+    identity: {
+      target: 'SIM-mujoco',
+      repository: 'fixture://simulation',
+      revision: 'fixture-r1',
+      contract_id: 'sim-contract:fixture:r1',
+    },
+    source_inputs: [{
+      path: 'models/main.xml',
+      role: 'active',
+      artifact: {
+        artifact_ref: 'sbf.artifact-ref/1',
+        family: 'simulation-source',
+        version: 'draft-1',
+        media_type: 'application/xml',
+        byte_sha256: '1'.repeat(64),
+        size_bytes: 1,
+      },
+    }],
+    model: {
+      entities: [{ id: 'body:base', kind: 'body' }],
+      joints: [{ id: 'joint:shoulder' }],
+      actuators: [],
+      sensors: [],
+      colliders: [],
+    },
+    mapping: { state_channels: [], action_channels: [] },
+    coordinates: { world_frame: 'world', up_axis: 'Z', handedness: 'right', quaternion_order: 'wxyz' },
+    units: { length: 'm', angle: 'rad', force: 'N', torque: 'N*m', time: 's' },
+    timing: { physics_dt: 0.002, control_dt: 0.02, decimation: 10, render_dt: null },
+    physics: { backend: 'mujoco' },
+    support: {
+      capabilities: {},
+      certification: { discovery: 'not-certified', contract: 'not-certified', runtime_tested: 'not-certified' },
+      release_approved: false,
+    },
+    provenance: { producer: 'fixture' },
+  };
+  const contractBytes = Buffer.from(JSON.stringify(contract) + '\n');
+  const contract_artifact = artifactRefForBytes(contractBytes, {
+    family: 'simulation-contract',
+    version: 'draft-1',
+    mediaType: 'application/json',
+  });
+  assert.throws(
+    () => assertSimulationItemRef({
+      simulation_item_ref: 'sbf.simulation-item-ref/draft-1',
+      contract_artifact,
+      item_kind: 'joint',
+      item_id: 'joint:shoulder',
+    }, { contractBytes }),
+    /source_locator/,
   );
 });
 
