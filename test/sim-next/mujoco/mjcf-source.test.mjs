@@ -111,6 +111,46 @@ test('worldbody direct geom/site remain explicit world-scoped declarations', () 
   ]);
 });
 
+test('freejoint shorthand remains a distinct free joint declaration', () => {
+  const raw = '<mujoco><worldbody><body name="floating"><freejoint name="root_free"/></body></worldbody></mujoco>';
+  const parsed = parseMjcfSource(raw, { path: 'models/free.xml' });
+  assert.equal(parsed.declarations.joints.length, 1);
+  assert.equal(parsed.declarations.joints[0].name, 'root_free');
+  assert.equal(parsed.declarations.joints[0].joint_type, 'free');
+  assert.equal(parsed.declarations.joints[0].source_syntax, 'freejoint');
+  assert.equal(parsed.declarations.joints[0].axis, null);
+  assert.equal(parsed.declarations.joints[0].range, null);
+});
+
+test('default classes preserve direct template declarations without resolving effective values', () => {
+  const parsed = parseMjcfSource(fixture(), { path: 'models/main.xml' });
+  assert.equal(parsed.declarations.defaults.length, 1);
+  const defaults = parsed.declarations.defaults[0];
+  assert.equal(defaults.class_name, 'base');
+  assert.equal(defaults.templates.length, 1);
+  assert.equal(defaults.templates[0].tag, 'geom');
+  assert.equal(defaults.templates[0].attributes.friction, '1 0.1 0.1');
+});
+
+test('procedural and plugin meta-elements stay explicit diagnostics and never become runtime claims', () => {
+  const raw = `<mujoco>
+    <extension><plugin plugin="vendor.test"/></extension>
+    <worldbody>
+      <frame name="shifted"><body name="b"/></frame>
+      <replicate count="2"><body name="copy"/></replicate>
+    </worldbody>
+  </mujoco>`;
+  const parsed = parseMjcfSource(raw, { path: 'models/meta.xml' });
+  const highRisk = parsed.diagnostics
+    .filter((d) => d.code === 'MUJOCO_UNMODELED_HIGH_RISK_ELEMENT')
+    .map((d) => d.element);
+  for (const required of ['extension', 'plugin', 'frame', 'replicate']) {
+    assert.ok(highRisk.includes(required), `missing high-risk diagnostic for ${required}`);
+  }
+  assert.equal(parsed.claims.effective_model_verified, false);
+  assert.equal(parsed.claims.runtime_behavior_verified, false);
+});
+
 test('NEG-SIM-14 actuator source order is retained and never alphabetically redefined', () => {
   const parsed = parseMjcfSource(fixture(), { path: 'models/main.xml' });
   assert.deepEqual(parsed.declarations.actuators.map((a) => [a.source_order, a.name]), [
