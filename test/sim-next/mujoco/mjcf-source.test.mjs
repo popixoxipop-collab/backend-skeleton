@@ -222,6 +222,14 @@ test('malformed XML and unsupported declarations fail closed', () => {
   assert.throws(() => parseMjcfSource('<mujoco><worldbody></mujoco>', { path: 'models/main.xml' }), /mismatched closing/);
   assert.throws(() => parseMjcfSource('<!DOCTYPE mujoco><mujoco/>', { path: 'models/main.xml' }), /DOCTYPE or ENTITY/);
   assert.throws(() => parseMjcfSource('<mujoco><![CDATA[x]]></mujoco>', { path: 'models/main.xml' }), /unsupported XML declaration/);
+  assert.throws(
+    () => parseMjcfSource('<mujoco><!-- bad -- comment --></mujoco>', { path: 'models/bad-comment.xml' }),
+    /invalid XML comment syntax/,
+  );
+  assert.throws(
+    () => parseMjcfSource('<mujoco><?xml version="1.0"?></mujoco>', { path: 'models/misplaced.xml' }),
+    /XML declaration is only allowed at the beginning/,
+  );
 });
 
 test('dependency paths reject traversal, absolute, backslash and URI schemes', () => {
