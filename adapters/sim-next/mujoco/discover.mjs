@@ -105,7 +105,8 @@ export function discoverMujocoSource(sourceBytes, {
       size_bytes: raw.byteLength,
     },
     claims: {
-      declared_structure_only: true,
+      discovery_only: true,
+      declared_structure_only: false,
       effective_model_verified: false,
       runtime_behavior_verified: false,
     },
