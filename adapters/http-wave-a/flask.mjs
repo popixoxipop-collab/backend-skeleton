@@ -1,4 +1,4 @@
-import { defineProfile, makeRoute, projection } from './_shared.mjs';
+import { defineProfile, projection, routeOrUnknown } from './_shared.mjs';
 
 export const FLASK_PROFILE = defineProfile({
   id: 'python-flask',
@@ -14,6 +14,8 @@ export const FLASK_PROFILE = defineProfile({
   unknownConditions: [
     '@route with framework-default method semantics',
     'dynamic path/method/prefix expressions',
+    'methods outside the seven explicit HTTP methods (ROUTE_METHOD_UNSUPPORTED)',
+    'non-absolute paths (ROUTE_PATH_UNKNOWN)',
     'imported or factory-provided route receivers',
     'register_blueprint mount-prefix override composition',
   ],
@@ -45,13 +47,15 @@ export function projectFlaskShadow(shadow) {
       continue;
     }
     for (const method of registration.methods) {
-      routes.push(makeRoute({
+      const outcome = routeOrUnknown({
         method,
         path: registration.path,
         handler: registration.function,
         source: { file: registration.source, line: registration.line ?? null },
         provenance: 'T06:buildFlaskRouteShadow',
-      }));
+      }, { module: registration.module ?? null, methodsStatus: registration.methodsStatus ?? null });
+      if (outcome.route) routes.push(outcome.route);
+      else unknowns.push(outcome.unknown);
     }
   }
 
