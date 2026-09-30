@@ -211,19 +211,29 @@ test('the db-introspect job provides a disposable postgres container with no har
 });
 
 // Nested next-plane suites gate CI only through steps of the `nested-next` job, each running
-// `node scripts/run-next-nested-tests.mjs <id>`. Two drifts would leave a suite ungated while every
-// test stays green: a suite that exists in the runner but has no step, and a track that has neither a
-// suite nor a named owner elsewhere. Tracks T15 (backend-decoder) and T16 (Backend-evaluation) run
-// their tests in their own repositories, so they are listed here instead of in SUITES.
+// `node scripts/run-next-nested-tests.mjs <id>`. These drifts would leave a suite ungated while every
+// test stays green: a suite that exists in the runner but has no step, a suite id listed twice (the
+// CLI keeps the last entry, so the other suite never runs), a `needs` on a job that pull requests skip,
+// and a track that has neither a suite nor a named owner elsewhere. Tracks T15 (backend-decoder) and
+// T16 (Backend-evaluation) run their tests in their own repositories, so they are listed here instead
+// of in SUITES. The rule reads ci.yml statically: it does not model step shells, NODE_OPTIONS, matrix
+// reductions or workflow path filters.
 const NESTED_TRACKS = Array.from({ length: 22 }, (_, i) => `T${String(i + 1).padStart(2, '0')}`);
 const NESTED_TRACKS_IN_OTHER_REPOS = ['T15', 'T16'];
 const NESTED_STEP_COMMAND = /^node scripts\/run-next-nested-tests\.mjs (T\d\d)$/;
+
+function countIds(ids) {
+	const counts = new Map();
+	for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+	return counts;
+}
 
 function nestedCoverageProblems(doc, suiteIds) {
 	const job = doc.jobs?.['nested-next'];
 	if (!job) return ['ci.yml has no "nested-next" job'];
 	const problems = [];
 	if (job['continue-on-error'] || job.if !== undefined) problems.push('the nested-next job must run unconditionally (no "if", no "continue-on-error")');
+	if (job.needs !== undefined) problems.push('the nested-next job must not declare "needs": a skipped dependency (macos is skipped on pull requests) skips every nested suite');
 	const stepIds = [];
 	for (const step of job.steps ?? []) {
 		if (typeof step.run !== 'string' || !step.run.includes('run-next-nested-tests')) continue;
@@ -235,11 +245,15 @@ function nestedCoverageProblems(doc, suiteIds) {
 		if (step['continue-on-error'] || step.if !== undefined) problems.push(`nested-next step "${step.name ?? step.run}" must run unconditionally (no "if", no "continue-on-error")`);
 		stepIds.push(match[1]);
 	}
-	for (const id of suiteIds) {
-		if (!stepIds.includes(id)) problems.push(`${id} is in the runner's SUITES but the nested-next job has no step for it`);
+	const suiteCounts = countIds(suiteIds);
+	const stepCounts = countIds(stepIds);
+	for (const [id, count] of suiteCounts) {
+		if (count > 1) problems.push(`${id} appears ${count} times in the runner's SUITES; ids must be unique because the CLI keeps only the last entry`);
+		if (!stepCounts.has(id)) problems.push(`${id} is in the runner's SUITES but the nested-next job has no step for it`);
 	}
-	for (const id of stepIds) {
-		if (!suiteIds.includes(id)) problems.push(`the nested-next job runs ${id}, which is not in the runner's SUITES`);
+	for (const [id, count] of stepCounts) {
+		if (count > 1) problems.push(`the nested-next job has ${count} steps for ${id}; it needs exactly one`);
+		if (!suiteCounts.has(id)) problems.push(`the nested-next job runs ${id}, which is not in the runner's SUITES`);
 	}
 	for (const id of NESTED_TRACKS_IN_OTHER_REPOS) {
 		if (suiteIds.includes(id)) problems.push(`${id} is listed as running in another repository but the runner also has a suite for it`);
