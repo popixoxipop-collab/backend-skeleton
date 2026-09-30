@@ -52,7 +52,16 @@ function repoRelativePath(value, label) {
 
 function validateMappingChannel(channel, label) {
   plain(channel, label);
-  exactKeys(channel, ['index','semantic','item_ref','dtype','shape','unit','scale','offset'], label);
+  const allowed = ['index','semantic','item_ref','dtype','shape','unit','scale','offset'];
+  const required = ['index','semantic','item_ref','dtype','shape','unit'];
+  const unexpected = Object.keys(channel).filter((key) => !allowed.includes(key)).sort();
+  const missing = required.filter((key) => !Object.hasOwn(channel, key));
+  if (unexpected.length) {
+    throw new TypeError(`${label} contains unsupported fields: ${unexpected.join(', ')}`);
+  }
+  if (missing.length) {
+    throw new TypeError(`${label} is missing required fields: ${missing.join(', ')}`);
+  }
   if (!Number.isSafeInteger(channel.index) || channel.index < 0) {
     throw new TypeError(`${label}.index is invalid`);
   }
