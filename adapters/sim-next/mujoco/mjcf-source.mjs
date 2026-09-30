@@ -201,8 +201,8 @@ function localDependency(value, label) {
     throw new TypeError(`${label} must be repo-relative POSIX`);
   }
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) throw new TypeError(`${label} must not use URI scheme`);
-  if (value.split('/').some((part) => !part || part === '.' || part === '..')) {
-    throw new TypeError(`${label} must not contain parent/dot/empty segments`);
+  if (value.split('/').some((part) => !part || part === '..')) {
+    throw new TypeError(`${label} must not contain parent or empty segments`);
   }
   return value;
 }
