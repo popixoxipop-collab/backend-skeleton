@@ -232,6 +232,25 @@ test('malformed XML and unsupported declarations fail closed', () => {
   );
 });
 
+test('bare ampersand, malformed leading declaration, and dependency control characters fail closed', () => {
+  assert.throws(
+    () => parseMjcfSource('<mujoco model="a&b"/>', { path: 'models/bare-amp.xml' }),
+    /XML|entity|ampersand|malformed|invalid/i,
+  );
+  assert.throws(
+    () => parseMjcfSource('<?xml crap?><mujoco/>', { path: 'models/bad-decl.xml' }),
+    /XML|declaration|processing|invalid|version/i,
+  );
+  assert.throws(
+    () => parseMjcfSource('<mujoco><include file="parts/&#10;arm.xml"/></mujoco>', { path: 'models/main.xml' }),
+    /path|control|dependency|repo-relative|invalid/i,
+  );
+  assert.throws(
+    () => parseMjcfSource('<mujoco><asset><mesh file="meshes/&#9;part.stl"/></asset></mujoco>', { path: 'models/main.xml' }),
+    /path|control|dependency|repo-relative|invalid/i,
+  );
+});
+
 test('dependency paths reject traversal, absolute, backslash and URI schemes', () => {
   for (const ref of ['../secret.xml', '/tmp/x.xml', 'C:/x.xml', 'foo\\bar.xml', 'https://example.com/x.xml']) {
     const raw = `<mujoco><include file="${ref}"/></mujoco>`;
