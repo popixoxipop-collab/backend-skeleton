@@ -55,3 +55,20 @@ Each actuator therefore carries:
 
 The validator rejects contracts which silently assume nactuator == nu == nout.
 This preserves compatibility with multi-input / multi-output actuator infrastructure while still supporting the common SISO case.
+
+
+## Transmission support boundary
+
+The first M2 draft intentionally supports only the reviewed transmission subset:
+
+- joint
+- jointinparent
+- slidercrank
+- tendon
+- site
+- body
+
+Any compiled transmission enum outside this set must fail closed in the future helper/exporter instead of being serialized as an arbitrary integer or silently coerced.
+
+This is a capability subset boundary, not a statement that MuJoCo itself supports only these transmission types.
+A later contract revision may add newly reviewed transmission semantics with version-specific tests.
