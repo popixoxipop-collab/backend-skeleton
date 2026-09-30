@@ -309,7 +309,7 @@ export function parseMjcfSource(sourceBytes, {
         ...base('joint', declarations.joints.length),
         name: node.attrs.name ?? null,
         parent_body_id: bodyId,
-        joint_type: node.tag === 'freejoint' ? 'free' : (node.attrs.type ?? 'hinge'),
+        joint_type: node.tag === 'freejoint' ? 'free' : (node.attrs.type ?? null),
         axis: node.tag === 'freejoint' ? null : vector(node.attrs.axis, 'joint.axis', 3, 3),
         range: node.tag === 'freejoint' ? null : vector(node.attrs.range, 'joint.range', 2, 2),
         source_syntax: node.tag,
@@ -324,7 +324,7 @@ export function parseMjcfSource(sourceBytes, {
         name: node.attrs.name ?? null,
         parent_body_id: bodyId,
         parent_scope: bodyId ? 'body' : 'world',
-        geom_type: node.attrs.type ?? 'sphere',
+        geom_type: node.attrs.type ?? null,
         size: vector(node.attrs.size, 'geom.size', 1, 3),
         declared_attributes: copyAttributes(node.attrs, ['name', 'type', 'size']),
       });
