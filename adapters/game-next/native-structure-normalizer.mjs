@@ -299,7 +299,7 @@ export function verifyNativeStructureInvariants(value) {
         artifact.family !== 'game-native-source' ||
         artifact.version !== 'draft-1' ||
         typeof artifact.media_type !== 'string' ||
-        !/^[^\\s/]+\/[^\\s]+$/.test(artifact.media_type) ||
+        !/^[^\s/]+\/[^\s]+$/.test(artifact.media_type) ||
         !/^[a-f0-9]{64}$/.test(artifact.byte_sha256 ?? '') ||
         !Number.isSafeInteger(artifact.size_bytes) ||
         artifact.size_bytes < 0
