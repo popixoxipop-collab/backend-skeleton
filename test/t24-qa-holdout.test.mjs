@@ -73,7 +73,7 @@ test('Q02 capability evidence cannot mint supported/runtime-tested from wrong sc
   );
   assert.throws(
     () => assertNoRuntimeCertificationFromStatic({ runtimeTested: true, evidenceKind: 'source-parser' }),
-    /T16 runtime execution evidence plus independent T19 acceptance/,
+    /T16 runtime[- ]execution evidence plus independent T19 acceptance/,
   );
 });
 
