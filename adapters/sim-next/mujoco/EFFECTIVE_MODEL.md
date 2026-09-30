@@ -8,7 +8,7 @@ The source parser can describe declared MJCF syntax, but it cannot truthfully kn
 `mjModel` facts such as:
 
 - `nq` / `nv` and each joint's `qpos` / `qvel` address;
-- actuator transmission and activation addresses;
+- actuator count, control/output/activation addresses and widths, and transmission targets;
 - sensor `sensordata` address and dimension;
 - compiler-resolved timestep/integrator and model counts.
 
@@ -33,9 +33,25 @@ Source closure identity is path + ArtifactRef. Two different logical files may l
 - the contract intentionally carries no producer-authored self-hash; the complete export is content-addressed externally by the caller;\n- joint type determines qpos/dof widths;
 - joint address ranges exactly cover `nq` and `nv`;
 - sensor ranges exactly cover `nsensordata`;
-- activation ranges exactly cover `na`;
+- actuator rows are sized by `nactuator`, which is distinct from total controls `nu` and total force outputs `nout`;\n- actuator control ranges exactly cover `nu`;\n- actuator force-output ranges exactly cover `nout`;\n- activation ranges exactly cover `na`;
 - compiled object IDs are dense and ordered;
 - exact source/helper ArtifactRefs are retained together with unique logical source paths;
 - runtime/dynamic claims must remain false.
 
 The initial helper permission plan is read-only and stdout-only: no writable repository/scratch roots, network deny, empty inherited environment, no devices, and a one-process launcher allowlist. Any future scratch/cache requirement is a separate permission expansion that must be reviewed explicitly.\n\nThe actual MuJoCo helper implementation and T20/T16 authorization are later slices.
+
+
+## MuJoCo actuator cardinality
+
+The contract intentionally separates:
+- nactuator: number of actuator objects;
+- nu: total scalar control inputs;
+- nout: total force outputs.
+
+Each actuator therefore carries:
+- control_adr / control_count plus per-control limit metadata;
+- output_adr / output_count;
+- activation_adr / activation_count.
+
+The validator rejects contracts which silently assume nactuator == nu == nout.
+This preserves compatibility with multi-input / multi-output actuator infrastructure while still supporting the common SISO case.
