@@ -10,7 +10,7 @@ Status: draft leaf implementation. This directory performs source-only, data-onl
 
 - model name;
 - body hierarchy;
-- joint / geom / site declarations;
+- joint / `freejoint` / geom / site declarations;
 - actuator and sensor declarations;
 - contact pair/exclude;
 - equality/tendon declarations;
@@ -52,3 +52,13 @@ node --test test/sim-next/mujoco/*.test.mjs
 ```
 
 This nested suite is not automatically proven by a generic root `npm test` unless CI explicitly includes the T24 path.
+
+## Unsupported high-risk source semantics
+
+The source slice does not execute or resolve procedural/plugin meta-elements such as
+`extension`, `plugin`, `frame`, `replicate`, `composite`, `flexcomp` and `attach`.
+Their presence is preserved as explicit `MUJOCO_UNMODELED_HIGH_RISK_ELEMENT` diagnostics.
+A later effective-model/runtime profile must resolve them under a separately approved execution boundary.
+
+Direct child templates under `default` are preserved as declarations only; this source slice does not
+apply inheritance or claim the compiler-resolved effective values.
