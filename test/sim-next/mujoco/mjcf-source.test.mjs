@@ -223,6 +223,30 @@ test('NEG-SIM-05 direct self include and dependency graph cycles fail closed', (
   );
 });
 
+test('dependency graph rejects duplicate includes and disconnected subgraphs', () => {
+  assert.throws(
+    () => validateMujocoDependencyGraph({
+      rootPath: 'models/main.xml',
+      edges: [
+        { from: 'models/main.xml', to: 'shared.xml' },
+        { from: 'models/main.xml', to: 'shared.xml' },
+      ],
+    }),
+    /same XML more than once/,
+  );
+
+  assert.throws(
+    () => validateMujocoDependencyGraph({
+      rootPath: 'models/main.xml',
+      edges: [
+        { from: 'models/main.xml', to: 'a.xml' },
+        { from: 'models/orphan.xml', to: 'orphan-child.xml' },
+      ],
+    }),
+    /not reachable from root/,
+  );
+});
+
 test('NEG-SIM-07 byte, depth, element and dependency budgets fail closed', () => {
   assert.throws(() => parseMjcfSource(fixture(), { path: 'models/main.xml', maxBytes: 10 }), /byte budget/);
   assert.throws(() => parseMjcfSource('<mujoco><worldbody><body><body/></body></worldbody></mujoco>', {
