@@ -1,4 +1,4 @@
-import { defineProfile, makeRoute, projection } from './_shared.mjs';
+import { defineProfile, projection, routeOrUnknown } from './_shared.mjs';
 
 export const GIN_PROFILE = defineProfile({
   id: 'go-gin',
@@ -13,6 +13,7 @@ export const GIN_PROFILE = defineProfile({
   ],
   unknownConditions: [
     'computed paths',
+    'ANY wildcard routes (ROUTE_METHOD_WILDCARD_UNRESOLVED; never expanded into methods)',
     'wrapper/generated registration',
     'build-tag effects and cross-file helper factories',
     'middleware/auth semantics',
@@ -48,13 +49,15 @@ export function projectGinFacts(message) {
       unknowns.push({ code: 'GIN_FOREIGN_ROUTE_FACT', reason: 'T08 route fact is not a Gin route', framework: route.framework });
       continue;
     }
-    routes.push(makeRoute({
+    const outcome = routeOrUnknown({
       method: route.method,
       path: route.path,
       handler: route.handler,
       source: route.source,
       provenance: 'T08:bskel.native-language/1:' + route.confidence,
-    }));
+    });
+    if (outcome.route) routes.push(outcome.route);
+    else unknowns.push(outcome.unknown);
   }
 
   return projection(GIN_PROFILE, {

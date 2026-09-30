@@ -56,3 +56,9 @@ The pilot result is a language fact object, not an HTTP contract and not a suppo
 Rust comments, normal strings, raw strings and character literals are masked before structural matching; lifetime syntax remains code. Mixed Axum/Actix files are isolated so a route from one framework does not create unknown diagnostics in the other.
 
 Proc macros, attribute expansion, build scripts, `configure` factories, tower layers, Actix resources and arbitrary generated registration are not executed or inferred. A future compiler-backed backend must beat the frozen static fixtures before replacing this pilot.
+
+### Consumer rule for `ANY` and `TRACE`
+
+`go.mjs` reports Gin `Any(...)` as method `ANY`. `rust.mjs` reports Axum `any(...)` as `ANY` and `trace(...)` as `TRACE`. Neither is one of the seven explicit methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS) that a route in an HTTP adapter projection can carry, and `ANY` is not a method list a consumer may guess.
+
+A consumer must not throw on these facts, must not expand `ANY` into a method list and must not project them as supported routes. It keeps the fact as an unknown and continues with the remaining routes. The Gin, Laravel and Flask Wave A leaves do this through `routeOrUnknown` in `adapters/http-wave-a/_shared.mjs`: `ROUTE_METHOD_WILDCARD_UNRESOLVED` for `ANY`, `ROUTE_METHOD_UNSUPPORTED` for other methods such as `TRACE`, and `ROUTE_PATH_UNKNOWN` for a missing or non-absolute path. Future Axum and Actix consumers must apply the same rule.

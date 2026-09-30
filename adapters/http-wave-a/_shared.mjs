@@ -57,6 +57,35 @@ export function makeRoute({ method, path, handler = null, source = null, provena
   return { method: upper, path, handler, source, provenance };
 }
 
+const ROUTE_UNKNOWNS = {
+  wildcard: ['ROUTE_METHOD_WILDCARD_UNRESOLVED', 'route method is the ANY wildcard; it is kept as an unknown and never expanded into a method list'],
+  method: ['ROUTE_METHOD_UNSUPPORTED', 'route method is not one of the explicit HTTP methods a supported route can carry'],
+  path: ['ROUTE_PATH_UNKNOWN', 'route path is missing, not a string or not an absolute path'],
+};
+
+// Malformed handler/provenance still throw in makeRoute: they are contract violations, not unknown routes.
+export function routeOrUnknown(fact, context = {}) {
+  const method = String(fact.method ?? '').toUpperCase();
+  let problem = null;
+  if (method === 'ANY') problem = ROUTE_UNKNOWNS.wildcard;
+  else if (!HTTP_METHODS.has(method)) problem = ROUTE_UNKNOWNS.method;
+  else if (typeof fact.path !== 'string' || !fact.path.startsWith('/')) problem = ROUTE_UNKNOWNS.path;
+  if (!problem) return { route: makeRoute(fact) };
+  const [code, reason] = problem;
+  return {
+    unknown: {
+      ...context,
+      code,
+      reason,
+      method: fact.method ?? null,
+      path: fact.path ?? null,
+      handler: fact.handler ?? null,
+      source: fact.source ?? null,
+      provenance: fact.provenance ?? null,
+    },
+  };
+}
+
 export function projection(profile, {
   sourceContracts = [],
   routes = [],
