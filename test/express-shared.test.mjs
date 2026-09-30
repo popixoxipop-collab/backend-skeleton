@@ -2317,6 +2317,50 @@ test('typescript-express: keyword-prefixed identifiers at the start of a chained
 	], ['GET /real']);
 });
 
+// A keyword-named member or identifier is not a keyword: in `obj.do / 2` and `$in / 2` the slash is a
+// division, so it does not open a regex literal that would hide the reassignment written after it.
+test('typescript-express: a slash after a keyword-named member or identifier is a division, not a regex start', () => {
+	assertBodiesBeforeRoute([
+		['const v = obj.do / 2; app = fakeApp; const w = 4 / 2'],
+		['const v = obj.else / 2; app = fakeApp; const w = 4 / 2'],
+		['const kw = { of: 4 }', 'const v = kw.of / 2; app = fakeApp; const w = 4 / 2'],
+		['const kw = { return: 4 }', 'const v = kw.return / 2; app = fakeApp; const w = 4 / 2'],
+		['const kw = { typeof: 4 }', 'const v = kw.typeof / 2; app = fakeApp; const w = 4 / 2'],
+		['const kw = { new: 4 }', 'const v = kw?.new / 2; app = fakeApp; const w = 4 / 2'],
+		['const kw = { delete: 4 }', 'const v = kw. delete / 2; app = fakeApp; const w = 4 / 2'],
+		['const $in = 4', 'const v = $in / 2; app = fakeApp; const w = 4 / 2'],
+		['const \u00e9of = 4', 'const v = \u00e9of / 2; app = fakeApp; const w = 4 / 2'],
+		['const stats = { in: 4 }, total = 2', 'const v = stats.in / total', 'app = fakeApp', 'const w = total / 2'],
+	], []);
+	assertBodiesBeforeRoute([
+		['const v = obj.do / 2; if (a) app = fakeApp; const w = 4 / 2'],
+		['const kw = { in: 4 }', 'const v = kw.in / 2; if (a) app = fakeApp; const w = 4 / 2'],
+		['const $in = 4', 'const v = $in / 2; if (a) app = fakeApp; const w = 4 / 2'],
+		['const \u00e9of = 4', 'const v = \u00e9of / 2; if (a) app = fakeApp; const w = 4 / 2'],
+	], ['GET /real']);
+});
+
+// Control for the test above: after a real keyword a slash still opens a regex literal. The `/` inside
+// its character class is then not a division or a second literal, so the write after it is still seen.
+test('typescript-express: a slash after a real keyword still starts a regex literal', () => {
+	assertBodiesBeforeRoute([
+		['const t = typeof /[/]/; app = fakeApp; const w = 4 / 2'],
+		['const t = void /[/]/; app = fakeApp; const w = 4 / 2'],
+		['const t = "a" in /[/]/; app = fakeApp; const w = 4 / 2'],
+		['const t = await /[/]/; app = fakeApp; const w = 4 / 2'],
+		['const t = delete /[/]/; app = fakeApp; const w = 4 / 2'],
+		['const t = new /[/]/.constructor("a"); app = fakeApp; const w = 4 / 2'],
+		['const t = o instanceof /[/]/.constructor; app = fakeApp; const w = 4 / 2'],
+		['if (a) cleanup(); else /[/]/; app = fakeApp; const w = 4 / 2'],
+		['do /[/]/; while (a); app = fakeApp; const w = 4 / 2'],
+		['const f = () => { return /[/]/ }; app = fakeApp; const w = 4 / 2'],
+		['const f = () => { throw /[/]/ }; app = fakeApp; const w = 4 / 2'],
+		['function* g() { yield /[/]/ }; app = fakeApp; const w = 4 / 2'],
+		['switch (a) { case /[/]/: break }; app = fakeApp; const w = 4 / 2'],
+		["for (const c of /[/]/g.exec('/')) { cleanup() }; app = fakeApp; const w = 4 / 2"],
+	], []);
+});
+
 // Pins current behaviour, not the ideal one: a newline right after `for` ends the statement, so the
 // later `await (...)` header is not recognised and the loop body reads as a definite statement.
 // The route is dropped (fail-closed) although the write is conditional.
