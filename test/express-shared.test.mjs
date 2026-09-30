@@ -2286,6 +2286,37 @@ test('typescript-express: real control keywords keep their classification next t
 	], []);
 });
 
+// A control keyword is a whole token: `if$x` and `while\u00e9` are plain identifiers, so a chained write that
+// starts with one of them still definitely replaces the app. A leading label must not change that.
+test('typescript-express: keyword-prefixed identifiers at the start of a chained write do not hide the app reassignment', () => {
+	assertBodiesBeforeRoute([
+		['let x', 'x = app = fakeApp'],
+		['let if$x', 'if$x = app = fakeApp'],
+		['let for$x', 'for$x = app = fakeApp'],
+		['let while$x', 'while$x = app = fakeApp'],
+		['let with$x', 'with$x = app = fakeApp'],
+		['let switch$x', 'switch$x = app = fakeApp'],
+		['let if\u00e9', 'if\u00e9 = app = fakeApp'],
+		['let while\u00e9', 'while\u00e9 = app = fakeApp'],
+		['let if\u200Dx', 'if\u200Dx = app = fakeApp'],
+		['let if$x', '(if$x = app = fakeApp)'],
+		['let if$x, y', 'if$x = y = app = fakeApp'],
+		['let if$x', 'cleanup();', 'if$x = app = fakeApp'],
+		['let if$x; if$x = app = fakeApp;'],
+		['let if$x', 'lbl: if$x = app = fakeApp'],
+		['let if$x', '{', 'if$x = app = fakeApp', '}'],
+	], []);
+	assertBodiesBeforeRoute([
+		['let x', 'if (a) x = app = fakeApp'],
+		['let x', 'if(a) x = app = fakeApp'],
+		['let x', 'while (a) x = app = fakeApp'],
+		['let x', 'for (const i of items) x = app = fakeApp'],
+		['let x', 'for await (const i of items) x = app = fakeApp'],
+		['let if$x', 'if (a) if$x = app = fakeApp'],
+		['let if$x', 'if (a)', '  if$x = app = fakeApp'],
+	], ['GET /real']);
+});
+
 // Pins current behaviour, not the ideal one: a newline right after `for` ends the statement, so the
 // later `await (...)` header is not recognised and the loop body reads as a definite statement.
 // The route is dropped (fail-closed) although the write is conditional.
