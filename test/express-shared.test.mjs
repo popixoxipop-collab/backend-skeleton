@@ -2130,6 +2130,207 @@ test('typescript-express: other unbraced control headers keep app reassignment c
 	assert.deepEqual(scanEndpoints(['do', '  app = fakeApp', 'while (x)']), []);
 });
 
+// Scans `let app: any = express(); <body> app.get('/real', ...)`. [] means the app binding was
+// definitely replaced before the route; ['GET /real'] means the Express app may still be the receiver.
+function scanBodyBeforeRoute(body) {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			...body,
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	return result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints).map((e) => `${e.verb} ${e.path}`);
+}
+
+// Compares every body in one assertion so a failure lists all wrong cases, not just the first.
+function assertBodiesBeforeRoute(bodies, expected) {
+	const actual = {};
+	const wanted = {};
+	for (const body of bodies) {
+		const key = body.join(' / ');
+		actual[key] = scanBodyBeforeRoute(body);
+		wanted[key] = expected;
+	}
+	assert.deepEqual(actual, wanted);
+}
+
+test('typescript-express: a statement label before a definite app reassignment does not keep the old app trusted', () => {
+	assertBodiesBeforeRoute([
+		['lbl:', '  app = fakeApp'],
+		['lbl: app = fakeApp'],
+		['a1:', 'b1:', '  app = fakeApp'],
+		['cleanup();', 'lbl:', '  app = fakeApp'],
+		['cleanup()', 'lbl:', '  app = fakeApp'],
+		['cleanup(); lbl: app = fakeApp'],
+		['lbl:', '  cleanup(), app = fakeApp'],
+		['lbl:', '  (app = fakeApp)'],
+		['lbl:', '  ({ app } = { app: fakeApp })'],
+		['lbl:', '  app++'],
+		['lbl:', '  do { app = fakeApp } while (a)'],
+		['lbl:', '  try { app = fakeApp } finally {}'],
+		['lbl:', '  for (app of [fakeApp]) {}'],
+		['{', '  lbl:', '    app = fakeApp', '}'],
+		['lbl:', '  { app = fakeApp }'],
+		['lbl: { app = fakeApp }'],
+		['\u00e9t\u00e9: { app = fakeApp }'],
+		['a\u200Db: { app = fakeApp }'],
+		['lbl: {', '  app = fakeApp', '  other: { break other }', '}'],
+		['lbl: // note', '  app = fakeApp'],
+		['lbl: /* note */ app = fakeApp'],
+		['$lbl:', '  app = fakeApp'],
+		['_lbl:', '  app = fakeApp'],
+		['\u00e9t\u00e9:', '  app = fakeApp'],
+		['lbl: app += 1'],
+		['lbl: [app] = [fakeApp]'],
+		['if (a) cleanup();', 'lbl: { app = fakeApp }'],
+		['{ cleanup() }', 'lbl: { app = fakeApp }'],
+		['do lbl: app = fakeApp;', 'while (a);'],
+		['do', '  lbl:', '  other:', '  app = fakeApp', 'while (a);'],
+		['do lbl: app++;', 'while (a);'],
+		['lbl: do app = fakeApp;', 'while (a);'],
+		['lbl: do {', '  app = fakeApp', '} while (a);'],
+		['do {', '  lbl: app = fakeApp', '} while (a);'],
+	], []);
+});
+
+test('typescript-express: a statement label does not make a conditional app reassignment definite', () => {
+	assertBodiesBeforeRoute([
+		['lbl:', '  if (a)', '    app = fakeApp'],
+		['lbl:', '  if (a) {', '    app = fakeApp', '  }'],
+		['lbl:', '  while (a)', '    app = fakeApp'],
+		['lbl:', '  app ||= fakeApp'],
+		['if (a)', '  lbl:', '    app = fakeApp'],
+		['if (a) lbl: app = fakeApp'],
+		// A ternary colon is not a label.
+		['a ?', '  b :', '  app = fakeApp'],
+		['a', '  ? b', '  : app = fakeApp'],
+		['a ? cleanup() :', '  app = fakeApp'],
+		// `break <label>` can leave a labelled block before the write.
+		['lbl: {', '  if (a) break lbl', '  app = fakeApp', '}'],
+		['a1: b1: {', '  if (a) break a1', '  app = fakeApp', '}'],
+		['\u00e9t\u00e9: {', '  if (a) break \u00e9t\u00e9', '  app = fakeApp', '}'],
+		// The write must be the first statement of an inner block to be read as definite at all, so the
+		// same `break <label>` guard is also checked with the write nested behind it.
+		['lbl: {', '  if (a) break lbl;', '  { app = fakeApp }', '}'],
+		['lbl: {', '  if (a) break lbl;', '  try { cleanup() } finally { app = fakeApp }', '}'],
+		['lbl: {', '  if (a) break lbl;', '  do { app = fakeApp } while (b);', '}'],
+		['a1: b1: {', '  if (a) break a1;', '  { app = fakeApp }', '}'],
+		['a1: b1: {', '  if (a) break b1;', '  { app = fakeApp }', '}'],
+		['\u00e9t\u00e9: {', '  if (a) break \u00e9t\u00e9;', '  { app = fakeApp }', '}'],
+		// A labelled block only counts as a plain block when the label starts a statement.
+		['if (a) lbl: { app = fakeApp }'],
+		['while (a) lbl: { app = fakeApp }'],
+		['if (a) cleanup()', 'else lbl: { app = fakeApp }'],
+		['if (a) cleanup()', 'else lbl: app = fakeApp'],
+		['lbl: for (const item of items)', '  app = fakeApp'],
+		['lbl: while (a)', '  app = fakeApp'],
+		['lbl: if (a)', '  app = fakeApp'],
+		['switch (a) {', '  case 1: {', '    app = fakeApp', '  }', '}'],
+		['switch (a) {', '  case 1:', '    lbl: app = fakeApp', '}'],
+		['const run = () => {', '  lbl: {', '    app = fakeApp', '  }', '}'],
+		['do lbl: if (a) app = fakeApp;', 'while (b);'],
+	], ['GET /real']);
+});
+
+test('typescript-express: keyword-named members and identifiers are not control headers before a definite app reassignment', () => {
+	assertBodiesBeforeRoute([
+		['promise.catch(handle)', 'app = fakeApp'],
+		['promise?.catch(handle)', 'app = fakeApp'],
+		['promise. catch(handle)', 'app = fakeApp'],
+		['promise', '  .catch(handle)', 'app = fakeApp'],
+		['promise.', '  catch(handle)', 'app = fakeApp'],
+		["const k = Symbol.for('k')", 'app = fakeApp'],
+		['const arr2 = arr.with(0, 1)', 'app = fakeApp'],
+		['$if(cond)', 'app = fakeApp'],
+		['xo.while(a)', 'app = fakeApp'],
+		['xo.switch(a)', 'app = fakeApp'],
+		['xo.if(a)', 'app = fakeApp'],
+		['const run = obj.do', 'app = fakeApp'],
+		['const run2 = obj.else', 'app = fakeApp'],
+		['promise.catch(handle)', 'app++'],
+		['xo?.while(a)', 'app = fakeApp'],
+		['xo. /* note */ if(cond)', 'app = fakeApp'],
+		['obj?.do', 'app = fakeApp'],
+		['obj. else', 'app = fakeApp'],
+		['obj.', '  else', 'app = fakeApp'],
+		['function \u00e9if(c) { return c }', '\u00e9if(cond)', 'app = fakeApp'],
+		['function a\u200Dif(c) { return c }', 'a\u200Dif(cond)', 'app = fakeApp'],
+		['obj.do', 'do app = fakeApp;', 'while (a);'],
+		['obj?.do', 'do', '  app = fakeApp', 'while (a);'],
+	], []);
+});
+
+test('typescript-express: real control keywords keep their classification next to keyword-named members', () => {
+	assertBodiesBeforeRoute([
+		['if (a)', '  app = fakeApp'],
+		['while (a)', '  app = fakeApp'],
+		['for (const item of items)', '  app = fakeApp'],
+		['cleanup();', 'if (a)', '  app = fakeApp'],
+		['{ cleanup() }', 'if (a)', '  app = fakeApp'],
+		['if (a) cleanup()', 'else', '  app = fakeApp'],
+		['if (a) cleanup();', 'else if (b)', '  app = fakeApp'],
+	], ['GET /real']);
+	assertBodiesBeforeRoute([
+		['const notif = 1', 'app = fakeApp'],
+		['promise.then(handle)', 'app = fakeApp'],
+		['if (a) cleanup()', 'else if (b) cleanup()', 'app = fakeApp'],
+		['try { cleanup() } finally {}', 'app = fakeApp'],
+	], []);
+});
+
+// Pins current behaviour, not the ideal one: a newline right after `for` ends the statement, so the
+// later `await (...)` header is not recognised and the loop body reads as a definite statement.
+// The route is dropped (fail-closed) although the write is conditional.
+test('typescript-express: for + newline + await header currently drops the route while the other for-await layouts stay conditional', () => {
+	assertBodiesBeforeRoute([
+		['for', 'await (const item of items)', '  app = fakeApp'],
+		['for', '  await', '  (const item of items)', '  app = fakeApp'],
+	], []);
+	assertBodiesBeforeRoute([
+		['for await (const item of items)', '  app = fakeApp'],
+		['for await', '(const item of items)', '  app = fakeApp'],
+		['for await(const item of items) app = fakeApp'],
+		['for await (const item of items) app = fakeApp'],
+		['for (const item of items)', '  app = fakeApp'],
+	], ['GET /real']);
+	// A write after the loop is definite whichever way the header is broken across lines.
+	assertBodiesBeforeRoute([
+		['for await (const item of items) cleanup()', 'app = fakeApp'],
+		['for', 'await (const item of items) cleanup()', 'app = fakeApp'],
+	], []);
+});
+
+// Pins current behaviour, not the ideal one: the `\\b` in topLevelSequenceAssignmentTarget is a
+// literal backslash + b and never matches, so `if (a) cleanup(), app = x` is read as the definite
+// sequence `cleanup(), app = x`. The route is dropped (fail-closed) although the write is conditional.
+test('typescript-express: a comma-sequence write under an if/while header currently drops the route', () => {
+	assertBodiesBeforeRoute([
+		['if (a) cleanup(), app = fakeApp'],
+		['while (a) cleanup(), app = fakeApp'],
+		['lbl:', '  if (a) cleanup(), app = fakeApp'],
+	], []);
+});
+
+// Pins current behaviour, not the ideal one: a `finally` block is read as a definite scope even when
+// the `try` is the unbraced body of an if/while/else, so the route is dropped (fail-closed) although
+// the write is conditional. A leading label reads exactly like no label.
+test('typescript-express: a finally write under an unbraced control header currently drops the route, labelled or not', () => {
+	assertBodiesBeforeRoute([
+		['if (a)', '  try { cleanup() } finally { app = fakeApp }'],
+		['if (a)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+		['while (a)', '  try { cleanup() } finally { app = fakeApp }'],
+		['if (a) cleanup()', 'else', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+	], []);
+});
+
 test('typescript-express: initializer-free var redeclaration in a classic for preserves the trusted app', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
