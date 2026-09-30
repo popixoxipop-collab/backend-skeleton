@@ -7,6 +7,13 @@ const REQUIRED_RUNTIME_ASSET_IDS = Object.freeze([
   'mujoco-runtime-closure',
   'mujoco-native-library',
 ]);
+const ALLOWED_HELPER_PLAN_INPUT_FIELDS = new Set([
+  'launcher',
+  'assets',
+  'artifactTrustPolicy',
+  'readRoots',
+  'limits',
+]);
 
 
 function nonEmptyArray(value, label) {
@@ -23,13 +30,23 @@ function plain(value, label) {
   return value;
 }
 
-export function buildMujocoEffectiveModelHelperPlan({
-  launcher,
-  assets,
-  artifactTrustPolicy,
-  readRoots,
-  limits,
-}) {
+export function buildMujocoEffectiveModelHelperPlan(input) {
+  plain(input, 'MuJoCo helper plan input');
+  const unsupportedFields = Object.keys(input)
+    .filter((field) => !ALLOWED_HELPER_PLAN_INPUT_FIELDS.has(field))
+    .sort();
+  if (unsupportedFields.length > 0) {
+    throw new TypeError(`MuJoCo helper plan input has unsupported fields: ${unsupportedFields.join(', ')}`);
+  }
+
+  const {
+    launcher,
+    assets,
+    artifactTrustPolicy,
+    readRoots,
+    limits,
+  } = input;
+
   plain(launcher, 'launcher');
   if (!Array.isArray(assets) || assets.length === 0) throw new TypeError('assets must contain trusted helper/runtime bytes');
   const reads = nonEmptyArray(readRoots, 'readRoots');
