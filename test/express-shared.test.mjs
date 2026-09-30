@@ -2299,12 +2299,12 @@ test('typescript-express: keyword-prefixed identifiers at the start of a chained
 		['let if\u00e9', 'if\u00e9 = app = fakeApp'],
 		['let while\u00e9', 'while\u00e9 = app = fakeApp'],
 		['let if\u200Dx', 'if\u200Dx = app = fakeApp'],
-		['let if$x', '(if$x = app = fakeApp)'],
+		['let if$x;', '(if$x = app = fakeApp)'],
 		['let if$x, y', 'if$x = y = app = fakeApp'],
 		['let if$x', 'cleanup();', 'if$x = app = fakeApp'],
 		['let if$x; if$x = app = fakeApp;'],
 		['let if$x', 'lbl: if$x = app = fakeApp'],
-		['let if$x', '{', 'if$x = app = fakeApp', '}'],
+		['let if$x;', '{', 'if$x = app = fakeApp', '}'],
 	], []);
 	assertBodiesBeforeRoute([
 		['let x', 'if (a) x = app = fakeApp'],
