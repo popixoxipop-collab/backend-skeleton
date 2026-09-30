@@ -7,7 +7,9 @@ import { createHash } from 'node:crypto';
 import { evaluateMutationGate } from './harness.mjs';
 import { runProcessGroupBounded } from './bounded-process.mjs';
 
-const PRODUCT_TEST_TIMEOUT_MS = 60_000;
+const DEFAULT_PRODUCT_TEST_TIMEOUT_MS = 60_000;
+const MIN_PRODUCT_TEST_TIMEOUT_MS = 1_000;
+const MAX_PRODUCT_TEST_TIMEOUT_MS = 120_000;
 
 function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -67,6 +69,11 @@ export function validateProductMutationCatalog(catalog) {
     if (!safeRepoPath(m.file)) errors.push(`${at}.file is unsafe`);
     if (!nonEmptyString(m.find) || !nonEmptyString(m.replace) || m.find === m.replace) errors.push(`${at} needs distinct find/replace strings`);
     if (!Array.isArray(m.test_files) || m.test_files.length === 0 || m.test_files.some((p)=>!safeRepoPath(p) || !p.endsWith('.test.mjs'))) errors.push(`${at}.test_files are invalid`);
+    if (m.timeout_ms !== undefined && (
+      !Number.isSafeInteger(m.timeout_ms) ||
+      m.timeout_ms < MIN_PRODUCT_TEST_TIMEOUT_MS ||
+      m.timeout_ms > MAX_PRODUCT_TEST_TIMEOUT_MS
+    )) errors.push(`${at}.timeout_ms must be an integer between ${MIN_PRODUCT_TEST_TIMEOUT_MS} and ${MAX_PRODUCT_TEST_TIMEOUT_MS}`);
     if (!nonEmptyString(m.invariant)) errors.push(`${at}.invariant must be non-empty`);
     if (!nonEmptyString(m.vector_id)) errors.push(`${at}.vector_id must link to a negative-vector id`);
   }
@@ -187,27 +194,28 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
     materializeTrackedCommit(repoRoot,controlledSource,resolvedSourceCommit);
     const dependencyInfo=installControlledDependencies(controlledSource);
     for(const mutant of catalog.mutants){
+      const timeoutMs=mutant.timeout_ms??DEFAULT_PRODUCT_TEST_TIMEOUT_MS;
       const parent=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-mutant-'));
       const scratch=path.join(parent,'repo');
       try{
         materializeTrackedCommit(repoRoot,scratch,resolvedSourceCommit);
         initializeScratchGit(scratch);
         attachControlledDependencies(scratch,dependencyInfo);
-        const baseline=runTestFiles(scratch,mutant.test_files,PRODUCT_TEST_TIMEOUT_MS);
+        const baseline=runTestFiles(scratch,mutant.test_files,timeoutMs);
       if(baseline.exit_code!==0){
-        results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,status:'survived',classification:'baseline-failed',reason:'unmodified scratch test suite did not pass; mutant cannot be counted as killed',baseline});
+        results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'baseline-failed',reason:'unmodified scratch test suite did not pass; mutant cannot be counted as killed',baseline});
         continue;
       }
       const applied=applyMutation(scratch,mutant);
       if(!applied.ok){
-        results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,status:'survived',classification:'mutation-not-applied',reason:applied.reason,baseline});
+        results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'mutation-not-applied',reason:applied.reason,baseline});
         continue;
       }
       commitScratchSnapshot(scratch,`mutant ${mutant.id}`);
-      const run=runTestFiles(scratch,mutant.test_files,PRODUCT_TEST_TIMEOUT_MS);
+      const run=runTestFiles(scratch,mutant.test_files,timeoutMs);
       const killed=Number.isInteger(run.exit_code)&&run.exit_code!==0;
       results.push({
-        id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,
+        id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,
         status:killed?'killed':'survived',classification:killed?'mutant-detected':'mutant-survived',baseline,
         exit_code:run.exit_code,signal:run.signal,stdout_tail:run.stdout_tail,stderr_tail:run.stderr_tail,
       });
