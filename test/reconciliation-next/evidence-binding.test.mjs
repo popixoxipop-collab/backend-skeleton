@@ -280,3 +280,62 @@ test('attaching evidence rejects graph provenance that differs from exact Artifa
     /source binding ref does not match/,
   );
 });
+
+// T00-E3: same-ID / different-content reuse. "ID" here is the exact identity already recorded in a
+// T16 runtime binding (bindingHash / attempt nonce / artifact digests) or in an ArtifactRef
+// (family+version+digest). Content that changes under an unchanged ID must be rejected, not bound.
+test('same repository/revision/ref id with different OpenAPI bytes cannot ride the original ArtifactRef', () => {
+  const source = sourceInput();
+  const original = openapiInput();
+  // Positive control.
+  assert.equal(buildEvidenceBinding({ source, openapi: original }).sourceSpec.state, 'bound');
+  // Same repo/revision, same ArtifactRef and same caller ref (the old digest), different bytes.
+  const reused = openapiInput({
+    artifactRef: original.artifactRef,
+    ref: original.artifactRef.byte_sha256,
+    bytes: '{"openapi":"3.1.0","paths":{"/other":{}}}\n',
+  });
+  assert.equal(reused.repository, original.repository);
+  assert.equal(reused.revision, original.revision);
+  assert.notEqual(reused.bytes, original.bytes);
+  const binding = buildEvidenceBinding({ source, openapi: reused });
+  assert.equal(binding.sourceSpec.state, 'unknown');
+  assert.match(binding.sourceSpec.reason, /^openapi-artifact-invalid:/);
+});
+
+test('same runtime binding id/attempt with different source content is a conflict, not bound', () => {
+  const source = sourceInput();
+  const openapi = openapiInput();
+  const { runtime } = runtimeInput({ source, openapi });
+  // Positive control: the recorded binding (bindingHash + attempt nonce) binds the original bytes.
+  assert.equal(buildEvidenceBinding({ source, openapi, runtime }).runtimeBinding.state, 'bound');
+  // New source content, itself a fully valid ArtifactRef+bytes pair, presented under the SAME runtime
+  // binding hash / attempt nonce / artifact names.
+  const changed = sourceInput({ bytes: 'source-controller-bytes-CHANGED\n' });
+  assert.equal(changed.repository, source.repository);
+  assert.equal(changed.revision, source.revision);
+  assert.notEqual(changed.artifactRef.byte_sha256, source.artifactRef.byte_sha256);
+  const binding = buildEvidenceBinding({ source: changed, openapi, runtime });
+  assert.equal(binding.sourceSpec.state, 'bound');
+  assert.equal(binding.runtimeBinding.state, 'conflict');
+  assert.equal(binding.runtimeBinding.reason, 'runtime-source-artifact-mismatch');
+});
+
+test('same runtime binding id and attempt nonce with different evidence content cannot bind', () => {
+  const source = sourceInput();
+  const openapi = openapiInput();
+  const { runtime } = runtimeInput({ source, openapi });
+  // Same bindingHash / attemptNonce / pair hashes, but the candidate evidence body was swapped for
+  // different content (evidence ID unchanged, content changed).
+  const swapped = structuredClone(runtime);
+  swapped.candidateEvidence = {
+    ...swapped.candidateEvidence,
+    route_observation: { ...swapped.candidateEvidence.route_observation, routes: [] },
+  };
+  assert.equal(swapped.bindingHash, runtime.bindingHash);
+  assert.equal(swapped.attemptNonce, runtime.attemptNonce);
+  const binding = buildEvidenceBinding({ source, openapi, runtime: swapped });
+  assert.notEqual(binding.runtimeBinding.state, 'bound');
+  assert.equal(binding.runtimeBinding.state, 'conflict');
+  assert.match(binding.runtimeBinding.reason, /candidate evidence hash mismatch/);
+});

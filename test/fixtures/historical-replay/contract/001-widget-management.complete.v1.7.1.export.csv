@@ -1,0 +1,4 @@
+operation_id,verb,path,path_params,path_params_unverified,body,request_body_required,request_body_fields,response_fields,error_fields,provenance,summary,tags,security
+createWidget,POST,/widgets,,,true,,,,,scan,,,
+findWidget,GET,/widgets/{widgetId},widgetId,widgetId,false,,,,,scan,,,
+findWidgets,GET,/widgets,,,false,,,,,scan,,,

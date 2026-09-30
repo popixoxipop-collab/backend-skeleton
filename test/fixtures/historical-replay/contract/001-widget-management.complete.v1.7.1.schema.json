@@ -1,0 +1,64 @@
+{
+  "sbf_contract": "9",
+  "feature_id": "001-widget-management",
+  "feature_uid": "d4ebfa6b-8e5e-47d9-a588-985e67e2f8b9",
+  "source": {
+    "adapter": "java-spring",
+    "module": "widget",
+    "provenance": "scan"
+  },
+  "operations": {
+    "findWidgets": {
+      "verb": "GET",
+      "path": "/widgets",
+      "pathParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "body": false,
+      "provenance": "scan"
+    },
+    "createWidget": {
+      "verb": "POST",
+      "path": "/widgets",
+      "pathParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "body": true,
+      "provenance": "scan"
+    },
+    "findWidget": {
+      "verb": "GET",
+      "path": "/widgets/{widgetId}",
+      "pathParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "widgetId": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "widgetId"
+        ]
+      },
+      "body": false,
+      "provenance": "scan",
+      "pathParamsHeuristic": [
+        "widgetId"
+      ]
+    }
+  },
+  "warnings": [],
+  "completeness": {
+    "status": "complete",
+    "operation_count": 3,
+    "endpoint_count": 3
+  }
+}

@@ -38,6 +38,7 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:pack": "node test/package-install.test.mjs",
+    "test:historical-replay": "node scripts/historical-replay.mjs && node --test test/historical-replay.test.mjs",
     "test:java-compile": "node scripts/java-compile-smoke.mjs",
     "test:python-import": "node scripts/python-import-smoke.mjs",
     "test:db-introspect": "node scripts/db-introspect-smoke.mjs",

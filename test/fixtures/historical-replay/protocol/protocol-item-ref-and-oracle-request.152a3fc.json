@@ -1,0 +1,127 @@
+{
+  "feature_id": "grpc-unary-profile",
+  "feature_uid": "11111111-1111-4111-8111-111111111111",
+  "contract_ref": {
+    "artifact_ref": "sbf.artifact-ref/1",
+    "family": "protocol-contract",
+    "version": "1",
+    "media_type": "application/json",
+    "byte_sha256": "cd47975cc511f81c0e764a2636a17ffcb1c3fccc5d1079af4fe67a0542d161ec",
+    "size_bytes": 2492
+  },
+  "item_ref": {
+    "protocol_item_ref": "sbf.protocol-item-ref/draft-1",
+    "contract": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "protocol-contract",
+      "version": "1",
+      "media_type": "application/json",
+      "byte_sha256": "cd47975cc511f81c0e764a2636a17ffcb1c3fccc5d1079af4fe67a0542d161ec",
+      "size_bytes": 2492
+    },
+    "family": "grpc",
+    "plane": "methods",
+    "item_id": "grpc-method:5ba7e68e08dc35bf2794"
+  },
+  "oracle_request": {
+    "sbf_protocol_oracle_request": "1",
+    "feature_id": "grpc-unary-profile",
+    "feature_uid": "11111111-1111-4111-8111-111111111111",
+    "scenario_id": "orders-get",
+    "protocol_contract_refs": [
+      {
+        "artifact_ref": "sbf.artifact-ref/1",
+        "byte_sha256": "cd47975cc511f81c0e764a2636a17ffcb1c3fccc5d1079af4fe67a0542d161ec",
+        "family": "protocol-contract",
+        "media_type": "application/json",
+        "size_bytes": 2492,
+        "version": "1"
+      }
+    ],
+    "flow_contract_ref": null,
+    "original_ref": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "byte_sha256": "f6443a3d8d502e581b85c37017d48d1d90cd868bd20fc35ef4a727bb392e9392",
+      "family": "runtime-original",
+      "media_type": "application/octet-stream",
+      "size_bytes": 31,
+      "version": "1"
+    },
+    "candidate_ref": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "byte_sha256": "2b8ff49326fc6d1216dea8e1bb5e746112ac4cb123c90a34390b38dcd63bbd68",
+      "family": "runtime-candidate",
+      "media_type": "application/octet-stream",
+      "size_bytes": 32,
+      "version": "1"
+    },
+    "runtime_profile_ref": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "byte_sha256": "823ebaf9edd80c8c7a6eaa4536be131c1f0b3819686e5fb9ade039b59220ecf0",
+      "family": "runtime-profile",
+      "media_type": "application/json",
+      "size_bytes": 83,
+      "version": "1"
+    },
+    "seed": "7",
+    "assertions": [
+      {
+        "id": "grpc-orders-get-status",
+        "kind": "grpc-status",
+        "action_ref": {
+          "contract": {
+            "artifact_ref": "sbf.artifact-ref/1",
+            "byte_sha256": "cd47975cc511f81c0e764a2636a17ffcb1c3fccc5d1079af4fe67a0542d161ec",
+            "family": "protocol-contract",
+            "media_type": "application/json",
+            "size_bytes": 2492,
+            "version": "1"
+          },
+          "family": "grpc",
+          "item_id": "grpc-method:5ba7e68e08dc35bf2794",
+          "plane": "methods",
+          "protocol_item_ref": "sbf.protocol-item-ref/draft-1"
+        },
+        "expect": {
+          "status": "OK"
+        }
+      }
+    ],
+    "semantics": {
+      "request_is_not_runtime_evidence": true,
+      "ordering_does_not_imply_causation": true,
+      "correlation_does_not_imply_causation": true,
+      "executor_must_rehash_referenced_bytes": true,
+      "executor_must_verify_protocol_item_existence": true
+    }
+  },
+  "oracle_request_digest": "597639aadfb17be80d2720c3d872db37e06d6fe93755d71dfeac96fe9bfcbe78",
+  "oracle_inputs": {
+    "scenarioId": "orders-get",
+    "seed": "7",
+    "originalRef": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "runtime-original",
+      "version": "1",
+      "media_type": "application/octet-stream",
+      "byte_sha256": "f6443a3d8d502e581b85c37017d48d1d90cd868bd20fc35ef4a727bb392e9392",
+      "size_bytes": 31
+    },
+    "candidateRef": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "runtime-candidate",
+      "version": "1",
+      "media_type": "application/octet-stream",
+      "byte_sha256": "2b8ff49326fc6d1216dea8e1bb5e746112ac4cb123c90a34390b38dcd63bbd68",
+      "size_bytes": 32
+    },
+    "runtimeProfileRef": {
+      "artifact_ref": "sbf.artifact-ref/1",
+      "family": "runtime-profile",
+      "version": "1",
+      "media_type": "application/json",
+      "byte_sha256": "823ebaf9edd80c8c7a6eaa4536be131c1f0b3819686e5fb9ade039b59220ecf0",
+      "size_bytes": 83
+    }
+  }
+}

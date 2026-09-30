@@ -1,0 +1,66 @@
+{
+  "identity_golden": "sbf.contract-identity-golden/1",
+  "binding_json": "beval.binding-json/1",
+  "vectors": [
+    {
+      "name": "contract-ref",
+      "kind": "sbf.contract-ref/1",
+      "value": {
+        "contract_ref": "sbf.contract-ref/1",
+        "contract_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "sbf_contract": "9",
+        "feature_id": "001-hello",
+        "feature_uid": "5b66d55b-8c64-4d26-b7b9-f4d5c9f17a01"
+      },
+      "digest": "677973fad0959730cd17b20d60c4ee674b14c1abb8021286390d5c210d05ec12"
+    },
+    {
+      "name": "action-ref",
+      "kind": "sbf.action-ref/1",
+      "value": {
+        "action_ref": "sbf.action-ref/1",
+        "contract": {
+          "contract_ref": "sbf.contract-ref/1",
+          "contract_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          "sbf_contract": "9",
+          "feature_id": "001-hello",
+          "feature_uid": "5b66d55b-8c64-4d26-b7b9-f4d5c9f17a01"
+        },
+        "operation_id": "getHello"
+      },
+      "digest": "ab760e612bf096faa0d649dd223d1be354da6890b98bdf72ebddd597b28140bd"
+    },
+    {
+      "name": "field-ref",
+      "kind": "sbf.field-ref/1",
+      "value": {
+        "field_ref": "sbf.field-ref/1",
+        "action": {
+          "action_ref": "sbf.action-ref/1",
+          "contract": {
+            "contract_ref": "sbf.contract-ref/1",
+            "contract_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "sbf_contract": "9",
+            "feature_id": "001-hello",
+            "feature_uid": "5b66d55b-8c64-4d26-b7b9-f4d5c9f17a01"
+          },
+          "operation_id": "getHello"
+        },
+        "location": "query",
+        "pointer": "/name"
+      },
+      "digest": "12a5e654a66718b447fd6961133e0e826edf6624c2053e5064d6f41e51321752"
+    }
+  ],
+  "unicode_non_normalization": {
+    "kind": "test.unicode/1",
+    "precomposed": {
+      "value": { "label": "é" },
+      "digest": "0006d6c37b863547f658c586278d9a46f3a8dde885cc50d3a0fd7e543ec35b07"
+    },
+    "decomposed": {
+      "value": { "label": "é" },
+      "digest": "2deada8e8774b20a662111a04825de922dad1f2f10c6e3517469f5fec66d7e70"
+    }
+  }
+}

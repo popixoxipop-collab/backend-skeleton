@@ -1,0 +1,87 @@
+{
+  "sbf_contract": "9",
+  "feature_id": "001-widget-management",
+  "feature_uid": "11bbe855-7a45-4cf6-8c80-429669a7905d",
+  "source": {
+    "adapter": "java-spring",
+    "module": "widget",
+    "provenance": "scan"
+  },
+  "operations": {
+    "findWidgets": {
+      "verb": "GET",
+      "path": "/widgets",
+      "pathParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "body": false,
+      "provenance": "scan"
+    },
+    "createWidget": {
+      "verb": "POST",
+      "path": "/widgets",
+      "pathParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "body": true,
+      "provenance": "scan"
+    },
+    "findWidget": {
+      "verb": "GET",
+      "path": "/widgets/{widgetId}",
+      "pathParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "widgetId": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "widgetId"
+        ]
+      },
+      "body": false,
+      "provenance": "scan",
+      "pathParamsHeuristic": [
+        "widgetId"
+      ]
+    }
+  },
+  "warnings": [
+    {
+      "code": "CONTRACT_UNMATCHED_ENDPOINT",
+      "severity": "error",
+      "subject": "DELETE /widgets/{widgetId}",
+      "message": "DELETE /widgets/{widgetId} (method deleteWidget) has no correlated operationId in the scan -- skipped, it cannot be addressed by operation_id in the envelope",
+      "detail": {
+        "verb": "DELETE",
+        "path": "/widgets/{widgetId}",
+        "method": "deleteWidget"
+      }
+    },
+    {
+      "code": "CONTRACT_UNMATCHED_ENDPOINT",
+      "severity": "error",
+      "subject": "PATCH /widgets/{widgetId}",
+      "message": "PATCH /widgets/{widgetId} (method patchWidget) has no correlated operationId in the scan -- skipped, it cannot be addressed by operation_id in the envelope",
+      "detail": {
+        "verb": "PATCH",
+        "path": "/widgets/{widgetId}",
+        "method": "patchWidget"
+      }
+    }
+  ],
+  "completeness": {
+    "status": "partial",
+    "operation_count": 3,
+    "endpoint_count": 5
+  }
+}

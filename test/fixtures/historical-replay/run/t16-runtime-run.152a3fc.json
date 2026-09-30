@@ -1,0 +1,202 @@
+{
+  "inputs": {
+    "source": {
+      "repository": "repo/example",
+      "revision": "abc123",
+      "artifactRef": {
+        "artifact_ref": "sbf.artifact-ref/1",
+        "family": "source.snapshot",
+        "version": "1",
+        "media_type": "text/plain",
+        "byte_sha256": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+        "size_bytes": 24
+      },
+      "bytes": "source-controller-bytes\n"
+    },
+    "openapi": {
+      "repository": "repo/example",
+      "revision": "abc123",
+      "artifactRef": {
+        "artifact_ref": "sbf.artifact-ref/1",
+        "family": "openapi",
+        "version": "3.1.0",
+        "media_type": "application/json",
+        "byte_sha256": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af",
+        "size_bytes": 31
+      },
+      "bytes": "{\"openapi\":\"3.1.0\",\"paths\":{}}\n"
+    },
+    "runtime": {
+      "repository": "repo/example",
+      "revision": "abc123",
+      "binding": {
+        "runtime_binding": "beval.runtime-binding/1",
+        "run_id": "run-t09-fixture",
+        "case_revision_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "oracle_profile_approval_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "contract_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "flow_hash": null,
+        "config_hash": null,
+        "candidate_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "original_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "runner_implementation_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "runtime_execution_policy_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "artifacts": {
+          "source-input": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+          "openapi-input": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af"
+        },
+        "attempt_nonce": "123e4567-e89b-42d3-a456-426614174000"
+      },
+      "bindingHash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+      "evidencePair": {
+        "runtime_evidence_pair": "beval.runtime-evidence-pair/1",
+        "family": "http",
+        "runtime_binding_hash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+        "attempt_nonce": "123e4567-e89b-42d3-a456-426614174000",
+        "oracle_evidence_hash": "c6c7a94e734d60493e2e3118106bf7e1f21c459fb7c9a9eae344a1567721be7d",
+        "candidate_evidence_hash": "0f1717da223967123f741b44222ae6ebdc660aa90b38b9293cdad75162eaa0af"
+      },
+      "oracleEvidence": {
+        "target": "oracle",
+        "contract_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "result": {
+          "ok": true
+        }
+      },
+      "candidateEvidence": {
+        "target": "candidate",
+        "contract_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "route_observation": {
+          "version": "bskel.runtime-route-observation/0-draft",
+          "runtimeBindingHash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+          "profileApprovalHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "attemptNonce": "123e4567-e89b-42d3-a456-426614174000",
+          "completeness": "complete",
+          "routes": [
+            {
+              "method": "GET",
+              "path": "/widgets/{id}",
+              "operationId": "findWidget"
+            }
+          ]
+        }
+      },
+      "contractHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "caseRevisionHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "profileApprovalHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "attemptNonce": "123e4567-e89b-42d3-a456-426614174000",
+      "artifactNames": {
+        "source": "source-input",
+        "openapi": "openapi-input"
+      }
+    }
+  },
+  "recorded": {
+    "evidence_binding": {
+      "version": "bskel.reconciliation-evidence-binding/0-draft",
+      "source": {
+        "ref": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+        "artifactRef": {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "source.snapshot",
+          "version": "1",
+          "media_type": "text/plain",
+          "byte_sha256": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+          "size_bytes": 24
+        },
+        "repository": "repo/example",
+        "revision": "abc123"
+      },
+      "openapi": {
+        "ref": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af",
+        "artifactRef": {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "openapi",
+          "version": "3.1.0",
+          "media_type": "application/json",
+          "byte_sha256": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af",
+          "size_bytes": 31
+        },
+        "repository": "repo/example",
+        "revision": "abc123"
+      },
+      "runtime": {
+        "ref": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+        "repository": "repo/example",
+        "revision": "abc123",
+        "bindingHash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+        "contractHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "caseRevisionHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "profileApprovalHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "attemptNonce": "123e4567-e89b-42d3-a456-426614174000",
+        "sourceArtifactName": "source-input",
+        "openapiArtifactName": "openapi-input",
+        "sourceArtifactDigest": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+        "openapiArtifactDigest": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af",
+        "oracleEvidenceHash": "c6c7a94e734d60493e2e3118106bf7e1f21c459fb7c9a9eae344a1567721be7d",
+        "candidateEvidenceHash": "0f1717da223967123f741b44222ae6ebdc660aa90b38b9293cdad75162eaa0af",
+        "routeObservationHash": "f460cc11cf41bc35e4c76ab8b7a6ce8614cc0c672dea1dba414695e9800791ff"
+      },
+      "sourceSpec": {
+        "state": "bound",
+        "reason": "source-openapi-exact-artifacts-and-revision-bound",
+        "repository": "repo/example",
+        "revision": "abc123",
+        "sourceArtifactRef": {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "source.snapshot",
+          "version": "1",
+          "media_type": "text/plain",
+          "byte_sha256": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+          "size_bytes": 24
+        },
+        "openapiArtifactRef": {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "openapi",
+          "version": "3.1.0",
+          "media_type": "application/json",
+          "byte_sha256": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af",
+          "size_bytes": 31
+        }
+      },
+      "runtimeBinding": {
+        "state": "bound",
+        "reason": "t01-artifacts-and-t16-binding-evidence-bound",
+        "repository": "repo/example",
+        "revision": "abc123",
+        "bindingHash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+        "contractHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "caseRevisionHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "profileApprovalHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "attemptNonce": "123e4567-e89b-42d3-a456-426614174000",
+        "sourceArtifactRef": {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "source.snapshot",
+          "version": "1",
+          "media_type": "text/plain",
+          "byte_sha256": "0888c30f3a49cb51bc1dfc9d87570becb532e60f89e47b9f8cbc5829c5628ac0",
+          "size_bytes": 24
+        },
+        "openapiArtifactRef": {
+          "artifact_ref": "sbf.artifact-ref/1",
+          "family": "openapi",
+          "version": "3.1.0",
+          "media_type": "application/json",
+          "byte_sha256": "c8940625eaf4c8c78ca8dc9b10bd3037f641b734010026be2e1fa6bcaee1b2af",
+          "size_bytes": 31
+        },
+        "oracleEvidenceHash": "c6c7a94e734d60493e2e3118106bf7e1f21c459fb7c9a9eae344a1567721be7d",
+        "candidateEvidenceHash": "0f1717da223967123f741b44222ae6ebdc660aa90b38b9293cdad75162eaa0af"
+      }
+    },
+    "binding_hash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+    "evidence_pair": {
+      "runtime_evidence_pair": "beval.runtime-evidence-pair/1",
+      "family": "http",
+      "runtime_binding_hash": "fb20bd4df65d3b31b187dd94e6e856740fc9e784dd591d8352a165a2152148cc",
+      "attempt_nonce": "123e4567-e89b-42d3-a456-426614174000",
+      "oracle_evidence_hash": "c6c7a94e734d60493e2e3118106bf7e1f21c459fb7c9a9eae344a1567721be7d",
+      "candidate_evidence_hash": "0f1717da223967123f741b44222ae6ebdc660aa90b38b9293cdad75162eaa0af"
+    }
+  }
+}
