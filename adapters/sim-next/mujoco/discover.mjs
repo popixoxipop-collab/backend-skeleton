@@ -36,11 +36,18 @@ function bounded(raw, maxBytes) {
   if (raw.byteLength > maxBytes) throw new RangeError(`MuJoCo source exceeds byte budget: ${raw.byteLength} > ${maxBytes}`);
 }
 
-function assertXmlDeclaration(instruction) {
+export function assertXmlDeclaration(instruction) {
   const declaration = instruction.trim();
-  if (!/^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])[A-Za-z][A-Za-z0-9._-]*\2)?(?:\s+standalone\s*=\s*(["'])(?:yes|no)\3)?\s*$/i.test(declaration)) {
+  const match = declaration.match(
+    /^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])([A-Za-z][A-Za-z0-9._-]*)\2)?(?:\s+standalone\s*=\s*(["'])(yes|no)\4)?\s*$/i,
+  );
+  if (!match) {
     throw new Error('MuJoCo XML declaration is invalid');
   }
+  if (match[3] !== undefined && match[3].toUpperCase() !== 'UTF-8') {
+    throw new Error('MuJoCo XML declaration encoding must be UTF-8');
+  }
+  return declaration;
 }
 
 function stripLeadingXmlNoise(text) {
