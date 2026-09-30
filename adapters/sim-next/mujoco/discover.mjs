@@ -61,7 +61,7 @@ function rootMujocoOpenTag(text) {
   if (/^<!DOCTYPE\b/i.test(rest) || /^<!ENTITY\b/i.test(rest)) {
     throw new Error('MuJoCo source must not declare DOCTYPE or ENTITY');
   }
-  const match = rest.match(/^<mujoco(?:\s|>)/);
+  const match = rest.match(/^<mujoco(?:\s|\/?>)/);
   if (!match) return null;
   const end = rest.indexOf('>');
   if (end < 0) throw new Error('MuJoCo root start tag is unterminated');
