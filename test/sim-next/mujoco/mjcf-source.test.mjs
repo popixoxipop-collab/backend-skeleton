@@ -67,11 +67,37 @@ test('extracts declared MJCF structure without effective/runtime claims', () => 
 
 test('NEG-SIM-06 keeps include/asset refs unresolved and never fetches them', () => {
   const parsed = parseMjcfSource(fixture(), { path: 'models/main.xml' });
-  assert.deepEqual(parsed.dependencies.map((d) => [d.kind, d.path, d.resolved_path, d.status]), [
-    ['include', 'shared/gripper.xml', 'models/shared/gripper.xml', 'unresolved'],
-    ['asset', 'meshes/hand.stl', 'models/meshes/hand.stl', 'unresolved'],
+  assert.deepEqual(parsed.dependencies.map((d) => [d.kind, d.path, d.resolved_path ?? null, d.resolution_basis ?? null, d.status]), [
+    ['include', 'shared/gripper.xml', 'models/shared/gripper.xml', null, 'unresolved'],
+    ['asset', 'meshes/hand.stl', null, 'compiler-dependent', 'unresolved'],
   ]);
   assert.equal(parsed.diagnostics.filter((d) => d.code === 'MUJOCO_DEPENDENCY_UNRESOLVED').length, 2);
+});
+
+test('asset paths remain compiler-dependent when meshdir/assetdir can rewrite resolution', () => {
+  const raw = fixture().toString('utf8').replace(
+    '<compiler angle="radian"/>',
+    '<compiler angle="radian" meshdir="../meshes" assetdir="assets"/>',
+  );
+  const parsed = parseMjcfSource(raw, { path: 'models/main.xml' });
+  const asset = parsed.dependencies.find((d) => d.kind === 'asset');
+  assert.equal(asset.path, 'meshes/hand.stl');
+  assert.equal(asset.resolved_path, undefined);
+  assert.equal(asset.resolution_basis, 'compiler-dependent');
+  assert.equal(parsed.declarations.compiler[0].attributes.meshdir, '../meshes');
+  assert.equal(parsed.declarations.compiler[0].attributes.assetdir, 'assets');
+});
+
+test('nested include references are resolved relative to the main MJCF directory, not the including file', () => {
+  const result = validateMujocoDependencyGraph({
+    rootPath: 'models/main.xml',
+    edges: [
+      { from: 'models/main.xml', to: 'parts/arm.xml' },
+      { from: 'models/parts/arm.xml', to: 'shared.xml' },
+    ],
+  });
+  assert.ok(result.nodes.includes('models/shared.xml'));
+  assert.ok(!result.nodes.includes('models/parts/shared.xml'));
 });
 
 test('worldbody direct geom/site remain explicit world-scoped declarations', () => {
