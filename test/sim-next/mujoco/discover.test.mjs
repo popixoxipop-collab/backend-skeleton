@@ -11,7 +11,16 @@ test('discovers only an explicit mujoco root and preserves exact source identity
   assert.equal(result.model_name, 'arm');
   assert.match(result.source.byte_sha256, /^[a-f0-9]{64}$/);
   assert.equal(result.source.size_bytes, Buffer.byteLength(valid));
+  assert.equal(result.claims.discovery_only, true);
+  assert.equal(result.claims.declared_structure_only, false);
   assert.equal(result.claims.runtime_behavior_verified, false);
+});
+
+test('discovery of a MuJoCo root does not certify declared structure', () => {
+  const result = discoverMujocoSource('<mujoco model="truncated"><worldbody><body', { path: 'models/truncated.xml' });
+  assert.equal(result.detected, true);
+  assert.equal(result.claims.discovery_only, true);
+  assert.equal(result.claims.declared_structure_only, false);
 });
 
 test('does not classify arbitrary XML as MuJoCo', () => {
