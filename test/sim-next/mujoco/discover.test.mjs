@@ -51,6 +51,16 @@ test('discovery rejects malformed XML declaration and control characters in sour
   );
 });
 
+test('discovery XML declaration must agree with UTF-8 source decoding', () => {
+  assert.throws(
+    () => discoverMujocoSource('<?xml version="1.0" encoding="ISO-8859-1"?><mujoco/>', { path: 'models/latin.xml' }),
+    /encoding.*UTF-8|UTF-8.*encoding/i,
+  );
+  assert.doesNotThrow(
+    () => discoverMujocoSource('<?xml version="1.0" encoding="UTF-8"?><mujoco/>', { path: 'models/utf8.xml' }),
+  );
+});
+
 test('DOCTYPE and ENTITY declarations fail closed before discovery', () => {
   assert.throws(
     () => discoverMujocoSource('<!DOCTYPE mujoco [<!ENTITY x SYSTEM "file:///etc/passwd">]><mujoco/>', { path: 'models/a.xml' }),
