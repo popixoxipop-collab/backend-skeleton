@@ -26,7 +26,7 @@ function base() {
     launcher:{ basename:'python3', sha256:PYTHON },
     assets:[
       { id:'effective-model-helper', sha256:HELPER },
-      { id:'mujoco-python-package', sha256:MUJOCO },
+      { id:'mujoco-runtime-closure', sha256:MUJOCO },
       { id:'mujoco-native-library', sha256:NATIVE },
     ],
     artifactTrustPolicy:policy([PYTHON,HELPER,MUJOCO,NATIVE]),
@@ -51,6 +51,11 @@ test('MuJoCo compiler helper plan is exact-byte trusted, approved-files, network
   assert.equal(plan.target_code_execution,false);
   assert.equal(plan.runtime_network_allowed,false);
   assert.equal(plan.runtime_behavior_certified,false);
+  assert.deepEqual(plan.required_runtime_asset_ids,[
+    'effective-model-helper',
+    'mujoco-runtime-closure',
+    'mujoco-native-library',
+  ]);
 
   const req=plan.helper_requirements;
   assert.equal(req.helper_class,'compiler-helper');
@@ -72,6 +77,21 @@ test('MuJoCo helper plan has no acquisition/network escape hatch', () => {
   assert.equal(plan.helper_requirements.acquisition,null);
   assert.deepEqual(plan.helper_requirements.runtime.permission_manifest.secret_refs,[]);
   assert.deepEqual(plan.helper_requirements.runtime.permission_manifest.devices,{ mode:'deny', allow:[] });
+});
+
+test('MuJoCo helper plan requires explicit helper/runtime/native asset roles', () => {
+  for (const missingId of [
+    'effective-model-helper',
+    'mujoco-runtime-closure',
+    'mujoco-native-library',
+  ]) {
+    const args=base();
+    args.assets=args.assets.filter((asset)=>asset.id!==missingId);
+    assert.throws(
+      () => buildMujocoEffectiveModelHelperPlan(args),
+      new RegExp(missingId),
+    );
+  }
 });
 
 test('every launcher/helper/runtime asset must already be trusted as helper bytes', () => {
