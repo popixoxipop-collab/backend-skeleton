@@ -173,7 +173,8 @@ const KEYWORD_TOKEN_END = '(?![$\\p{ID_Continue}\\u200C\\u200D])';
 const CONTROL_STATEMENT_HEAD_RE = new RegExp('^(?:if|for|while|with|switch)' + KEYWORD_TOKEN_END, 'u');
 const CONTROL_HEADER_TAIL_RE = new RegExp(KEYWORD_TOKEN_START + '(?:if|while|for(?:\\s+await)?|with|switch|catch)\\s*$', 'u');
 const ELSE_OR_DO_TAIL_RE = new RegExp(KEYWORD_TOKEN_START + '(?:else|do)\\s*$', 'u');
-const SCOPE_REGEX_PRECEDING_KEYWORD_RE = new RegExp(KEYWORD_TOKEN_START + '(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\\s*$', 'u');
+// The last dot of a spread `...` does not make the keyword after it a member name (`[...typeof /re/]`).
+const SCOPE_REGEX_PRECEDING_KEYWORD_RE = new RegExp('(?:' + KEYWORD_TOKEN_START + '|\\.\\.\\.\\s*)(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\\s*$', 'u');
 
 function matchingOpenParenForClose(text, closeIndex) {
 	const searchStart = Math.max(0, closeIndex - 4096);
