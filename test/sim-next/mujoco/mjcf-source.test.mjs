@@ -111,6 +111,13 @@ test('worldbody direct geom/site remain explicit world-scoped declarations', () 
   ]);
 });
 
+test('missing ordinary joint/geom types remain undeclared instead of inheriting compiler defaults', () => {
+  const raw = '<mujoco><worldbody><body name="b"><joint name="j"/><geom name="g" size="0.1"/></body></worldbody></mujoco>';
+  const parsed = parseMjcfSource(raw, { path: 'models/default-type.xml' });
+  assert.equal(parsed.declarations.joints[0].joint_type, null);
+  assert.equal(parsed.declarations.geoms[0].geom_type, null);
+});
+
 test('freejoint shorthand remains a distinct free joint declaration', () => {
   const raw = '<mujoco><worldbody><body name="floating"><freejoint name="root_free"/></body></worldbody></mujoco>';
   const parsed = parseMjcfSource(raw, { path: 'models/free.xml' });
