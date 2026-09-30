@@ -13,6 +13,7 @@ import {
   assertSimulationTiming,
   assertSimulationUnit,
 } from '../../../adapters/sim-next/units.mjs';
+import { fromLegacyBoolean } from '../../../scanners/capability-next/records.mjs';
 import {
   CAPABILITY_STATUSES,
   SUPPORT_LEVELS,
@@ -166,7 +167,19 @@ test('support evaluation consumes opaque T03-produced records and never accepts 
         },
       },
     }),
-    /must be produced by capabilityRecord/,
+    /supported simulation capability|must be produced by capabilityRecord/,
+  );
+});
+
+test('T03 legacy boolean bridge cannot authorize simulation.* supported state', () => {
+  const legacy = fromLegacyBoolean('simulation.discovery', true);
+  assert.throws(
+    () => evaluateSupportLevel({
+      level: 'discovery',
+      capabilityNames: ['simulation.discovery'],
+      capabilities: { 'simulation.discovery': legacy },
+    }),
+    /legacy boolean bridges do not authorize simulation/,
   );
 });
 
