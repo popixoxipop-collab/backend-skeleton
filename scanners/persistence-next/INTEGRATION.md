@@ -26,6 +26,16 @@ Each emitted entity must carry:
 
 A name with `basis: unknown` is forbidden. Unknown means no physical name is emitted.
 
+## `persistence_id` admission
+
+`persistence_id` must exactly match a `catalog.mjs` target id (case- and whitespace-sensitive); an
+unregistered id is rejected at this boundary. A target in `blocked-upstream-facts` (EF Core, GORM,
+Drizzle, Sequelize, Diesel) is still accepted, because this boundary is how the facts requested by
+CR-T10-002/003 will arrive. Its IR carries a `persistence-target-blocked` warning diagnostic and
+`metadata.persistence_target_state`, and certification / generation handoff report
+`persistence-target-not-admitted` instead of `runtime-read-verified` / `ready` until the catalog
+state becomes `implemented-draft`.
+
 ## T08 request: EF Core and GORM
 
 The current T08 foundation emits HTTP route facts only. A persistence follow-up should emit this
