@@ -1,114 +1,111 @@
-# T19 post-A exact-source QA acceptance slice
+# T19 post-A exact-source QA acceptance slice (T00-E rebind)
 
-Observed: 2026-09-29 KST (re-run of every lane at the tested head, 15:40 KST)  
-Branch: `t00/t19-final-integration-20260929`  
-Restack base: `backend-skeleton@80002a1e6536c007d9daaf8e2180fe82f14971e4`  
-Exact source head tested: `3ba5afd8025a04c918e45fd0ca0b137683da9355`
+Observed: 2026-09-30 (every lane below re-run on the exact source head)  
+Branch: `docs/t00-e-rebind-release-heads`  
+Exact source head tested: `1cdd848a5aa97ff558c0574da70fedb899131ff7` (backend-skeleton main)
 
 ## Scope
 
-This packet records the final post-A T19 QA integration candidate in PR #159 after
-restacking the T19-owned surfaces onto the latest bskel main. The branch is zero commits behind the restack
-base and changes only the T19 QA/evidence surfaces.
+This packet rebinds the T19/T23 release-control evidence to the three observed main heads and
+re-observes the executable checks at the exact bskel source head. It changes evidence only.
 
-The mutation runners are fail-closed on source provenance:
+Release heads recorded (`release_heads`, and the `release/next` inventory and plan):
 
-- harness and product reports bind `source_commit`
-- mutation catalogs bind by SHA-256
-- source bytes are materialized with `git archive <source_commit>`
-- product dependencies come from the archived commit's `package-lock.json`
-- dependencies are installed with `npm ci --ignore-scripts`
-- the reported lockfile digest must equal the tracked lockfile at the certified commit
-- live ignored files and live `node_modules` are not accepted as certified source bytes
-- unapproved `equivalent` mutation/negative results are rejected
+| Repo | Head |
+|---|---|
+| backend-skeleton | `1cdd848a5aa97ff558c0574da70fedb899131ff7` |
+| backend-decoder | `0f0abcea1337335fc44b943932ad3c5f3fbaad6c` |
+| Backend-evaluation | `020668cdc2f5a836e78dfe05fd845ea58769a0e9` |
+
+The mutation runners remain fail-closed on source provenance (source commit bound in reports,
+catalog SHA-256, `git archive <source_commit>` materialization, `npm ci --ignore-scripts` from the
+archived lockfile, live ignored files not accepted).
 
 ## Evidence-head convention
 
-`3ba5afd8025a04c918e45fd0ca0b137683da9355` is the **tested source head**. The commit that
-records this packet is a descendant of it and is **evidence-only**: it changes just
-`evidence/next/T19-CURRENT-MAIN-ACCEPTANCE.md`, `evidence/next/T19-RELEASE-ACCEPTANCE.json`
-and the constants in `test/t19-release-acceptance/t19-release-acceptance.test.mjs`
-(the T19 count of 75 is the count at the tested head and is unchanged by the packet commit). Verify with
-`git diff --name-only 3ba5afd8025a04c918e45fd0ca0b137683da9355..<packet head>`.
-A packet cannot name its own commit or its own CI run; the CI run on the packet commit is
-a separate, later observation. The earlier `6acc4bfcb06e53bac511763c9892df4372ecebe9`
-run (#1551) predates changes to the certifier, bounded-process supervisor, mutation
-runners and their regressions and is **not** evidence for the current head. Likewise
-`a84530b51eb33341173adb0278cc8c5cb6c9eeea` (run #1574, 74 tests) predates the
-bounded-process supervisor cancellation fix (SIGINT/SIGTERM/parent-death now kill the
-detached group; regression `bounded-process.test.mjs`) and is superseded.
+`1cdd848a5aa97ff558c0574da70fedb899131ff7` is the **tested source head**. It is a commit on main and
+an **ancestor** of the commit that records this packet, so the packet commit is a real
+evidence-only descendant. It may modify only this file, `evidence/next/T19-RELEASE-ACCEPTANCE.json`,
+the constants in `test/t19-release-acceptance/t19-release-acceptance.test.mjs`, and the
+release-control evidence `release/next/compatibility-inventory.json`, `release/next/release-plan.json`
+`release/next/README.md` and the fixture helper in `release/next/test/release-policy.test.mjs` (no test added or removed; the T19 count stays 75, release-policy stays 29). Verify with
+`git merge-base --is-ancestor 1cdd848a5aa97ff558c0574da70fedb899131ff7 <packet head>` and
+`git diff --name-only 1cdd848a5aa97ff558c0574da70fedb899131ff7..<packet head>`.
+A packet cannot name its own commit or its own CI run.
+
+Superseded source heads:
+
+- `3ba5afd8025a04c918e45fd0ca0b137683da9355` (PR #159 head, CI run 1576): #159 was squash-merged as
+  the single-parent commit `d80a711c4e99ba63c94d3c813b402a5a77ec4f38`. That head is **not an
+  ancestor of main** and its tree differs from main (27 files differ from main at 1cdd848), so
+  an "evidence-only descendant" claim could not hold for it. It is no longer the exact-source authority.
+- `a84530b51eb33341173adb0278cc8c5cb6c9eeea` and `6acc4bfcb06e53bac511763c9892df4372ecebe9`
+  predate later certifier/supervisor/mutation-runner changes and are stale.
 
 ## Exact-source GitHub validation
 
-Workflow run (pull_request, attempt 1, conclusion success):
-
-- run id: **36530790434**
-- run number: **1576**
-- head_sha: `3ba5afd8025a04c918e45fd0ca0b137683da9355`
+Workflow run (push to main, conclusion success): id **36652996212**, run number **1583**,
+head_sha `1cdd848a5aa97ff558c0574da70fedb899131ff7`.
 
 T19 nested lane (`node scripts/run-next-nested-tests.mjs T19`, job `nested-next`):
 
-- Node 22 job **109283796238** — **75/75 PASS**, 0 fail, 0 skip
-- Node 24 job **109283796309** — **75/75 PASS**, 0 fail, 0 skip
+- Node 22 job **109691446081** - **75/75 PASS**, 0 fail, 0 skip
+- Node 24 job **109691446000** - **75/75 PASS**, 0 fail, 0 skip
 
-The T19 nested suite executes seven test files across `test/conformance-next` and
-`test/t19-release-acceptance`: bounded-process 1, certify 32, harness 14, mutation-runner 7,
-product-mutation-runner 8, product-security-invariants 4, release-acceptance 9 (= 75).
+Seven test files, 75 tests (bounded-process 1, certify 32, harness 14, mutation-runner 7,
+product-mutation-runner 8, product-security-invariants 4, release-acceptance 9).
 
 ## Local clean-checkout reproduction at the same head
 
-A detached clean worktree at `3ba5afd8025a04c918e45fd0ca0b137683da9355` (`git status` empty
-before and after each lane; `npm ci`):
+Fresh clone detached at `1cdd848a5aa97ff558c0574da70fedb899131ff7`, `git status` empty before
+and after each lane, `npm ci`:
 
-- T19 nested suite, Node v22.23.3 — **75/75 PASS**
-- T19 nested suite, Node v24.19.0 — **75/75 PASS**
-- direct harness mutation campaign (`--source-commit` pinned) — **7/7 killed**,
-  report `source_commit` == tested head, catalog digest `16ebc6d2344e...`
-- direct product mutation campaign (`--source-commit` pinned) — **13/13 killed**,
-  report `source_commit` == tested head, catalog digest `7a89c0472d38...`
-- all other present nested suites (18 run, T11 NOT_PRESENT) on Node 22 and Node 24 —
-  1097 tests each, 0 fail, 0 skip
+- T19 nested suite, Node v22.23.3 - **75/75 PASS**
+- T19 nested suite, Node v24.19.0 - **75/75 PASS**
+- harness mutation campaign (`--source-commit` pinned) - **7/7 killed** on both Node versions,
+  catalog digest `16ebc6d2344e...`
+- product mutation campaign (`--source-commit` pinned) - **13/13 killed** on both Node versions,
+  catalog digest `7a89c0472d38...`
+- the other nested suites were not re-run locally at this head; only the CI run above covers them
 
-Mutation evidence exercised by the nested suite:
+Total executable mutation fixtures: **20/20**; the planned negative-vector catalog is **79** and
+is not represented as 79 executed fixtures.
 
-- T19 harness mutation campaign: **7/7 killed**
-- product mutation campaign: **13/13 killed**
-- total executable mutation fixtures: **20/20**
-- planned negative-vector catalog: **79**
-- the 79-vector catalog is not misrepresented as 79 directly executed mutation fixtures
+## Newly observed executable checks (partial, unsigned)
 
-The product campaign also executes the regression proving that a live ignored file
-does not enter the claimed-commit scratch tree.
+- **Historical replay** (backend-skeleton PR #161): `npm run test:historical-replay` on
+  `1cdd848...` - `38/38 checks passed`, 10/10 node tests, on Node v22.23.3 and v24.19.0. Scope: pinned
+  historical contract/run/evidence records read through the current readers, inside backend-skeleton only.
+- **Same-ID / different-content rejection** (PR #161): regression tests in
+  `test/reconciliation-next/evidence-binding.test.mjs`, part of the plain `npm test` lane.
+- **Release rehearsal** (Backend-evaluation PR #75, main `020668cdc2f5a836e78dfe05fd845ea58769a0e9`):
+  `npm run test:release-rehearsal` against a throwaway `postgres:17` container - PASS, 6 steps,
+  59 checks, 12 migrations, 6/6 negative self-tests, 0 undetected. It covers only the case-revision /
+  Oracle-profile-approval pointer set (activate, activate candidate with an additive migration,
+  roll back on the migrated DB, historical runs readable, forward again). It does **not** cover npm
+  package version switching, backend-skeleton or backend-decoder release artifacts, or container images,
+  and it is not release-grade or signed evidence.
 
 ## Resolved upstream dependencies
 
-- TypeScript Express holdout blocker (#119/#154/#155 family): **resolved upstream**
-- T20 trust implementation PR #72: **merged**
-- beval main carrying that merge: `73595d4f1fb51fa0e7eb99034d9f534965c068a8`
-
-These resolved dependencies are no longer valid reasons to keep an old
-`HOLDOUT_ISSUE_119_OPEN` or `T20_03_NOT_ACCEPTED` blocker in the T19 release
-packet.
+- TypeScript Express holdout blocker (#119/#154/#155 family): resolved upstream
+- T20 trust implementation PR #72 merged; PR #73 (`ff392205c60c...`) and PR #75 also merged on beval main.
+  This packet does not evaluate T20-03 acceptance.
 
 ## Release-certification boundary
 
-This packet certifies the T19 QA implementation and exact-source execution above.
-It does **not** fabricate the independent private-holdout authority needed for the
-final release certificate.
-
-The committed public reference corpus deliberately contains no private holdout
-entries, and `test/conformance-next/holdout-attestors.json` still contains no
-approved independent attestor key. A caller-generated key is intentionally rejected.
+The committed public reference corpus contains no private holdout entries and
+`test/conformance-next/holdout-attestors.json` contains no approved independent attestor key.
 
 Current disposition:
 
-- post-A T19 QA implementation: **PASS**
-- exact-source Node 22/24 nested QA (75/75 each, head 3ba5afd): **PASS**
+- post-A T19 QA implementation, exact-source Node 22/24 nested QA (75/75 each, head 1cdd848): **PASS**
 - executable mutation fixtures: **20/20**
+- release heads re-pinned to observed mains: **DONE**; declared final-frozen: **NO**
+  (`FINAL_RELEASE_HEADS_NOT_FROZEN` stays: T19-03 and T20-03 are not accepted, this packet's own
+  merge moves bskel main, and no signed release-evidence artifact exists)
 - independent/private holdout: **MISSING**
 - trusted independent holdout attestor: **MISSING**
 - T19 release certificate: **BLOCKED(PRIVATE_HOLDOUT_AND_TRUSTED_ATTESTOR_REQUIRED)**
+- final release rehearsal: **NOT_RUN** (a partial DB pointer-set rehearsal exists, see above)
 - product release/default activation: **NOT AUTHORIZED**
-
-T00-E must freeze the final three repository heads and supply independently trusted
-holdout evidence before converting this QA acceptance slice into a release certificate.

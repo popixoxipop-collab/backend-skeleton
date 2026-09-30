@@ -5,14 +5,14 @@
   "release_allowed": false,
   "default_activation_allowed": false,
   "coordination_baseline": {
-    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
-    "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-    "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
+    "bskel": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+    "becoder": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+    "beval": "020668cdc2f5a836e78dfe05fd845ea58769a0e9"
   },
   "observed_current_main": {
-    "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
-    "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-    "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
+    "bskel": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+    "becoder": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+    "beval": "020668cdc2f5a836e78dfe05fd845ea58769a0e9"
   },
   "prerequisites": [
     {
@@ -97,18 +97,17 @@
     "support matrix generated only from admitted evidence-backed profiles"
   ],
   "blockers": [
-    "FINAL_MAIN_PUSH_CI_NOT_DIRECT",
     "INDEPENDENT_QA_NOT_READY",
     "TRUST_POLICY_NOT_READY",
     "FINAL_RELEASE_REHEARSAL_NOT_RUN",
     "RELEASE_CHECKS_NOT_COMPLETE"
   ],
-  "note": "T01-06 additive consumer compatibility is accepted. Release/default activation remains blocked on direct final-main release CI, T19-03, T20-03, and final release rehearsal; legacy HTTP identity remains authoritative.",
+  "note": "T01-06 additive consumer compatibility is accepted. Release/default activation remains blocked on T19-03, T20-03, signed release evidence for every required check, and a final release rehearsal; legacy HTTP identity remains authoritative. Heads were re-pinned on 2026-09-30 to the observed mains recorded in the inventory; direct push CI on those exact heads is recorded there, but no check result below is PASS because PASS requires T00-pinned authority-signed evidence that does not exist yet.",
   "release_rehearsal": {
     "required_state": "PASS",
     "observed_state": "NOT_RUN",
     "evidence_refs": [],
-    "note": "Must be an externally recorded rollback/replay rehearsal on the final candidate matrix before release can open."
+    "note": "Must be an externally recorded rollback/replay rehearsal on the final candidate matrix before release can open. A PARTIAL, repo-defined rehearsal now exists (backend-evaluation PR #75, `npm run test:release-rehearsal`; observed on 020668cdc2f5a836e78dfe05fd845ea58769a0e9 against a throwaway postgres:17: 6 steps, 59 checks, 6/6 negative self-tests, PASS). It covers only the case-revision / Oracle-profile-approval pointer set on a DB with an additive migration. It does NOT cover npm package version switching, backend-skeleton or backend-decoder release artifacts, or container/runtime images, and it is not signed evidence, so observed_state stays NOT_RUN and FINAL_RELEASE_REHEARSAL_NOT_RUN remains."
   },
   "release_check_results": [
     {
@@ -139,19 +138,22 @@
       "id": "direct exact-head CI for final main release SHAs",
       "required_state": "PASS",
       "observed_state": "NOT_RUN",
-      "evidence_refs": []
+      "evidence_refs": [],
+      "note": "Push CI on main is recorded per exact head in compatibility-inventory.json (bskel run 36652996212, becoder run 36506243134, beval run 36656225676), but the heads are not declared final-frozen and no signed evidence artifact is bound, so this check stays NOT_RUN."
     },
     {
       "id": "historical contract/run replay",
       "required_state": "PASS",
       "observed_state": "NOT_RUN",
-      "evidence_refs": []
+      "evidence_refs": [],
+      "note": "PARTIAL, unsigned: `npm run test:historical-replay` now exists (backend-skeleton PR #161) and was observed 38/38 checks (+10/10 node tests) on 1cdd848a5aa97ff558c0574da70fedb899131ff7 under Node 22.23.3 and 24.19.0. The beval side is only the partial rehearsal noted under release_rehearsal. No authority-signed evidence artifact is bound, so this check stays NOT_RUN."
     },
     {
       "id": "rollback rehearsal without destructive database downgrade",
       "required_state": "PASS",
       "observed_state": "NOT_RUN",
-      "evidence_refs": []
+      "evidence_refs": [],
+      "note": "PARTIAL, unsigned: see release_rehearsal.note. Stays NOT_RUN."
     },
     {
       "id": "T19-03 independent QA acceptance",

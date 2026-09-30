@@ -1,24 +1,29 @@
 {
   "schema": "bskel.t19-release-acceptance/1",
-  "observed_at": "2026-09-29T06:42:00Z",
+  "observed_at": "2026-09-30T02:39:35Z",
   "state": "BLOCKED",
   "release_approved": false,
   "default_activation_approved": false,
   "release_heads": {
-    "bskel": "80002a1e6536c007d9daaf8e2180fe82f14971e4",
-    "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-    "beval": "73595d4f1fb51fa0e7eb99034d9f534965c068a8"
+    "bskel": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+    "becoder": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+    "beval": "020668cdc2f5a836e78dfe05fd845ea58769a0e9"
   },
   "qa_authority": {
     "repo": "popixoxipop-collab/backend-skeleton",
     "pr": 159,
-    "source_head": "3ba5afd8025a04c918e45fd0ca0b137683da9355",
+    "carried_by": {
+      "note": "T19 QA code was reviewed in PR #159 and landed on main as the single-parent squash commit d80a711c4e99ba63c94d3c813b402a5a77ec4f38. The PR-head commit 3ba5afd8025a04c918e45fd0ca0b137683da9355 is NOT an ancestor of main and its tree differs from main, so it is no longer used as the exact-source authority."
+    },
+    "source_head": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
     "exact_source_ci": {
-      "run_id": 36530790434,
-      "run_number": 1576,
+      "run_id": 36652996212,
+      "run_number": 1583,
+      "event": "push",
+      "head_branch": "main",
       "conclusion": "success",
-      "nested_node22_job": 109283796238,
-      "nested_node24_job": 109283796309,
+      "nested_node22_job": 109691446081,
+      "nested_node24_job": 109691446000,
       "node22": {
         "tests": 75,
         "passed": 75,
@@ -33,8 +38,8 @@
       }
     },
     "local_exact_head_reproduction": {
-      "source_head": "3ba5afd8025a04c918e45fd0ca0b137683da9355",
-      "checkout": "clean detached worktree at source_head; git status empty before and after every lane",
+      "source_head": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+      "checkout": "fresh clone checked out detached at source_head; git status empty before and after every lane",
       "node22": {
         "version": "v22.23.3",
         "t19_nested_tests": 75,
@@ -50,38 +55,29 @@
         "skipped": 0
       },
       "t19_command": "node scripts/run-next-nested-tests.mjs T19",
-      "t19_files": {
-        "test/conformance-next/bounded-process.test.mjs": 1,
-        "test/conformance-next/certify.test.mjs": 32,
-        "test/conformance-next/harness.test.mjs": 14,
-        "test/conformance-next/mutation-runner.test.mjs": 7,
-        "test/conformance-next/product-mutation-runner.test.mjs": 8,
-        "test/conformance-next/product-security-invariants.test.mjs": 4,
-        "test/t19-release-acceptance/t19-release-acceptance.test.mjs": 9
-      },
       "direct_mutation_campaigns": {
         "harness": {
           "killed": 7,
           "total": 7,
-          "source_commit": "3ba5afd8025a04c918e45fd0ca0b137683da9355",
-          "catalog_sha256": "16ebc6d2344e9ae107f70204f2871dd6971617c02c82b38440f41fab74fcccb7"
+          "source_commit": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+          "catalog_sha256": "16ebc6d2344e9ae107f70204f2871dd6971617c02c82b38440f41fab74fcccb7",
+          "observed_on": [
+            "v22.23.3",
+            "v24.19.0"
+          ]
         },
         "product": {
           "killed": 13,
           "total": 13,
-          "source_commit": "3ba5afd8025a04c918e45fd0ca0b137683da9355",
-          "catalog_sha256": "7a89c0472d3840d5a15148692f34f140318d43fafcf778aa8b91fd8368b21eaa"
+          "source_commit": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+          "catalog_sha256": "7a89c0472d3840d5a15148692f34f140318d43fafcf778aa8b91fd8368b21eaa",
+          "observed_on": [
+            "v22.23.3",
+            "v24.19.0"
+          ]
         }
       },
-      "other_nested_suites_node22_and_node24": {
-        "suites_run": 18,
-        "suites_not_present": [
-          "T11"
-        ],
-        "tests": 1097,
-        "failed": 0,
-        "skipped": 0
-      }
+      "not_rerun_locally": "the other nested suites (T01-T22 except T19) were not re-run locally at source_head; only the CI run above is recorded for them"
     },
     "negative_program": {
       "catalog_total": 79,
@@ -91,6 +87,42 @@
       "all_catalog_cases_claimed_executable": false
     },
     "current_pr_release_certification_claimed": false
+  },
+  "observed_executable_checks": {
+    "note": "Observed by re-running each command on the exact source head; nothing here is signed evidence and none of it is a release certificate.",
+    "historical_replay": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "pr": 161,
+      "command": "npm run test:historical-replay",
+      "source_head": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+      "result": "38/38 checks passed; 10/10 node tests passed (0 fail, 0 skipped)",
+      "node": [
+        "v22.23.3",
+        "v24.19.0"
+      ],
+      "covers": "pinned historical contract/run/evidence records through the current readers (interpretation, digests, identity refs, run/evidence binding, protocol refs, snapshot refs) inside backend-skeleton only"
+    },
+    "same_id_different_content_rejection": {
+      "pr": 161,
+      "note": "regression tests added in test/reconciliation-next/evidence-binding.test.mjs; they run in the plain npm test lane"
+    },
+    "release_rehearsal_partial": {
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "pr": 75,
+      "command": "npm run test:release-rehearsal",
+      "source_head": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
+      "database": "throwaway postgres:17 container, loopback only",
+      "result": "PASS: 6 steps, 59 checks, 12 migrations, 6/6 negative self-tests, 0 undetected",
+      "covers": "case-revision pointer and Oracle-profile-approval pointer set: activate current, activate candidate with an additive migration, roll back code+profile set on the already-migrated DB, historical runs/evidence readable, forward again",
+      "does_not_cover": [
+        "npm package version switching",
+        "backend-skeleton release artifacts",
+        "backend-decoder release artifacts",
+        "container/runtime images",
+        "T20 attestation chain"
+      ],
+      "release_grade": false
+    }
   },
   "resolved_dependencies": {
     "typescript_express_holdout": {
@@ -103,13 +135,28 @@
       "state": "IMPLEMENTATION_MERGED",
       "pr": 72,
       "head": "315a2f1ecf4838a9fa1689f8c6c47fe56d75c5cd",
-      "main": "73595d4f1fb51fa0e7eb99034d9f534965c068a8"
+      "main": "73595d4f1fb51fa0e7eb99034d9f534965c068a8",
+      "later_merges_on_beval_main": [
+        {
+          "pr": 73,
+          "merge_commit": "ff392205c60c90fbe1e60ec950015b3942c270da",
+          "title": "feat(T20): bind trust requirements to runtime enforcement",
+          "t20_03_acceptance": "not evaluated by this packet"
+        },
+        {
+          "pr": 75,
+          "merge_commit": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
+          "title": "test: repo-defined release/rollback rehearsal (T00 E-5, E-4 beval side)"
+        }
+      ]
     }
   },
   "release_certificate_requirements": {
     "private_holdout": "MISSING",
     "trusted_holdout_attestor": "MISSING",
-    "final_release_heads_frozen": false
+    "final_release_heads_frozen": false,
+    "release_heads_observed_pinned": true,
+    "final_release_heads_frozen_reason": "The three heads above are pinned as the observed mains on 2026-09-30, but they are not declared final-frozen: T19-03 and T20-03 are not accepted, the packet commit itself will move bskel main, and no signed release-evidence artifact exists."
   },
   "blockers": [
     "PRIVATE_HOLDOUT_REQUIRED",
@@ -117,14 +164,15 @@
     "NO_T19_RELEASE_CERTIFICATE",
     "FINAL_RELEASE_HEADS_NOT_FROZEN"
   ],
-  "note": "PR #159 T19 QA code is exact-source green on Node 22 and Node 24 (CI run 1576 on 3ba5afd plus a local clean-checkout reproduction) with 20/20 executable mutation fixtures. Historical issue #119 and T20 implementation blockers are resolved. Release approval remains fail-closed until T00-E supplies an independently trusted private holdout and freezes final repository heads.",
+  "note": "T19 QA code is exact-source green on backend-skeleton main 1cdd848 (CI push run 1583 on Node 22 and 24, plus a fresh local clean-checkout reproduction) with 20/20 executable mutation fixtures. The release heads are re-pinned to the observed mains. Release approval remains fail-closed: no independently trusted private holdout, no trusted attestor, no T19 release certificate, and the heads are not declared final-frozen. A partial historical replay (skeleton) and a partial release rehearsal (beval DB pointer set) now exist as executable checks but neither is release-grade evidence.",
   "evidence_head_policy": {
-    "tested_source_head": "3ba5afd8025a04c918e45fd0ca0b137683da9355",
-    "convention": "qa_authority.source_head names the commit whose bytes were tested. The commit that records this packet is a descendant of source_head and is evidence-only: it may modify only evidence/next/T19-CURRENT-MAIN-ACCEPTANCE.md, evidence/next/T19-RELEASE-ACCEPTANCE.json and the constants in test/t19-release-acceptance/t19-release-acceptance.test.mjs (no test added or removed, so the T19 count stays 75).",
-    "verification": "git diff --name-only <source_head>..<packet_head> must list only those three files; the packet cannot name its own commit or its own CI run.",
+    "tested_source_head": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+    "convention": "qa_authority.source_head names the commit whose bytes were tested and it is an ancestor of the commit that records this packet (a commit reachable on main, verifiable with git merge-base --is-ancestor). The packet commit is evidence-only: it may modify only evidence/next/T19-CURRENT-MAIN-ACCEPTANCE.md, evidence/next/T19-RELEASE-ACCEPTANCE.json, the constants in test/t19-release-acceptance/t19-release-acceptance.test.mjs, and the release-control evidence files release/next/compatibility-inventory.json, release/next/release-plan.json, release/next/README.md and the fixture helper in release/next/test/release-policy.test.mjs (no test added or removed, so the T19 count stays 75 and the release-policy count stays 29).",
+    "verification": "git merge-base --is-ancestor <source_head> <packet_head> must succeed, and git diff --name-only <source_head>..<packet_head> must list only the seven files above; the packet cannot name its own commit or its own CI run.",
     "supersedes_tested_heads": {
       "a84530b51eb33341173adb0278cc8c5cb6c9eeea": "stale: predates the bounded-process supervisor cancellation fix (Codex P2 on 821bafe)",
-      "6acc4bfcb06e53bac511763c9892df4372ecebe9": "stale: predates certifier/supervisor/mutation-runner changes"
+      "6acc4bfcb06e53bac511763c9892df4372ecebe9": "stale: predates certifier/supervisor/mutation-runner changes",
+      "3ba5afd8025a04c918e45fd0ca0b137683da9355": "superseded: PR #159 head that was squash-merged as d80a711; not an ancestor of main and its tree differs from main (27 files differ from main at 1cdd848), so the evidence-only-descendant check could not hold for it"
     }
   }
 }

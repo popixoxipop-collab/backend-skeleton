@@ -8,18 +8,18 @@ const HERE=path.dirname(fileURLToPath(import.meta.url));
 const packet=JSON.parse(fs.readFileSync(path.resolve(HERE,'../../evidence/next/T19-RELEASE-ACCEPTANCE.json'),'utf8'));
 const SHA40=/^[a-f0-9]{40}$/;
 const EXPECTED_RELEASE_HEADS={
-  bskel:'80002a1e6536c007d9daaf8e2180fe82f14971e4',
-  becoder:'eb8164560ddd343306234a9140dc89c001519792',
-  beval:'73595d4f1fb51fa0e7eb99034d9f534965c068a8',
+  bskel:'1cdd848a5aa97ff558c0574da70fedb899131ff7',
+  becoder:'0f0abcea1337335fc44b943932ad3c5f3fbaad6c',
+  beval:'020668cdc2f5a836e78dfe05fd845ea58769a0e9',
 };
 const EXPECTED_QA={
   repo:'popixoxipop-collab/backend-skeleton',
   pr:159,
-  source_head:'3ba5afd8025a04c918e45fd0ca0b137683da9355',
-  run_id:36530790434,
-  run_number:1576,
-  nested_node22_job:109283796238,
-  nested_node24_job:109283796309,
+  source_head:'1cdd848a5aa97ff558c0574da70fedb899131ff7',
+  run_id:36652996212,
+  run_number:1583,
+  nested_node22_job:109691446081,
+  nested_node24_job:109691446000,
 };
 const REQUIRED_BLOCKERS=[
   'PRIVATE_HOLDOUT_REQUIRED',

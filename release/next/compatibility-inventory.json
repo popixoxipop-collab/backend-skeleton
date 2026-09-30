@@ -1,15 +1,15 @@
 {
   "schema": "bskel.scale-release-compatibility/2",
   "task_id": "T23-release-control-rebaseline",
-  "captured_on": "2026-09-27",
+  "captured_on": "2026-09-30",
   "coordination_baseline": {
-    "source": "T00 T-series main integration closeout",
+    "source": "T00-E re-pin (2026-09-30): the three observed main heads recorded as release-control anchors. This re-pins heads only; it is not a T19-03 or T20-03 acceptance (see promotion_evidence) and the anchors are not declared final-frozen.",
     "state": "ACCEPTED",
     "accepted": true,
     "repositories": {
-      "bskel": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
-      "becoder": "eb8164560ddd343306234a9140dc89c001519792",
-      "beval": "f7189e4208f04867b493c7d874a77325ad84afa3"
+      "bskel": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+      "becoder": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+      "beval": "020668cdc2f5a836e78dfe05fd845ea58769a0e9"
     }
   },
   "repositories": [
@@ -17,8 +17,8 @@
       "role": "bskel",
       "repo": "popixoxipop-collab/backend-skeleton",
       "default_branch": "main",
-      "head_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
-      "coordination_sha": "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+      "head_sha": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+      "coordination_sha": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
       "package": {
         "name": "backend-skeleton",
         "version": "1.9.0",
@@ -27,28 +27,25 @@
           "bskel"
         ],
         "pack_test": "npm run test:pack",
-        "package_json_blob": "735a10bf6c274acb22759a620d57b3c5f2f69068",
+        "package_json_blob": "6fb97db43b6a4a04069749be4f6fc960f26cd7b8",
         "workflow_blob": "f8cb7ea6d5ec563b348a1f9fdc3bc91558670eef"
       },
       "verification": {
-        "mode": "zero-delta-merge-tree-equivalence",
-        "reviewed_head_sha": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e",
-        "ci_run": 36248587163,
+        "mode": "direct-main-push-ci",
+        "reviewed_head_sha": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+        "ci_head_sha": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+        "ci_run": 36652996212,
         "status": "completed",
         "conclusion": "success",
-        "ahead_by": 1,
-        "behind_by": 0,
-        "file_delta_count": 0,
-        "direct_main_ci": false,
-        "ci_head_sha": "c429cb52bcc94c15c934b0cfa4a87f2b7053129e"
+        "direct_main_ci": true
       }
     },
     {
       "role": "becoder",
       "repo": "popixoxipop-collab/backend-decoder",
       "default_branch": "main",
-      "head_sha": "eb8164560ddd343306234a9140dc89c001519792",
-      "coordination_sha": "eb8164560ddd343306234a9140dc89c001519792",
+      "head_sha": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+      "coordination_sha": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
       "package": {
         "name": "backend-decoder",
         "version": "0.5.0",
@@ -57,28 +54,25 @@
           "becoder"
         ],
         "pack_test": "npm run test:pack",
-        "package_json_blob": "fd1e7dbe09cb089ae2ab55b44a1731e55654e40b",
-        "workflow_blob": "f8e0b6ccadbcd4b27972c1ba2ed42464cd8a79b4"
+        "package_json_blob": "cfeb43a0aaa71ead68d1a2c656a0de8921591636",
+        "workflow_blob": "0b8b708c698a46345275121f40e1a659e05cc14e"
       },
       "verification": {
-        "mode": "zero-delta-merge-tree-equivalence",
-        "reviewed_head_sha": "67b9429283a6736322b205ef4f941fc8436be14d",
-        "ci_run": 36249066547,
+        "mode": "direct-main-push-ci",
+        "reviewed_head_sha": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+        "ci_head_sha": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+        "ci_run": 36506243134,
         "status": "completed",
         "conclusion": "success",
-        "ahead_by": 1,
-        "behind_by": 0,
-        "file_delta_count": 0,
-        "direct_main_ci": false,
-        "ci_head_sha": "67b9429283a6736322b205ef4f941fc8436be14d"
+        "direct_main_ci": true
       }
     },
     {
       "role": "beval",
       "repo": "popixoxipop-collab/Backend-evaluation",
       "default_branch": "main",
-      "head_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
-      "coordination_sha": "f7189e4208f04867b493c7d874a77325ad84afa3",
+      "head_sha": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
+      "coordination_sha": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
       "package": {
         "name": "backend-evaluator",
         "version": "0.1.0",
@@ -88,20 +82,17 @@
           "beval-oracle-evaluator"
         ],
         "pack_test": "npm run test:pack",
-        "package_json_blob": "d1bc574b888f938287092ccbd578dd4bcb78ba53",
-        "workflow_blob": "fc8ee2d02a820fdeaee22f6a587b2648ac2d54c4"
+        "package_json_blob": "333361eef50c4a73fce96cd431c49a86a2c00256",
+        "workflow_blob": "c08ad559f699727ef1a664ee33eac4f86d751fb1"
       },
       "verification": {
-        "mode": "zero-delta-merge-tree-equivalence",
-        "reviewed_head_sha": "37f07ec374ff5ad7b93264fb8034b0148d043a05",
-        "ci_head_sha": "37f07ec374ff5ad7b93264fb8034b0148d043a05",
-        "ci_run": 36264131522,
+        "mode": "direct-main-push-ci",
+        "reviewed_head_sha": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
+        "ci_head_sha": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
+        "ci_run": 36656225676,
         "status": "completed",
         "conclusion": "success",
-        "ahead_by": 1,
-        "behind_by": 0,
-        "file_delta_count": 0,
-        "direct_main_ci": false
+        "direct_main_ci": true
       }
     }
   ],
@@ -118,17 +109,18 @@
       "note": "Accepted after PR #71 exact-head CI success, clean rereview, packed 12/12 replay without bskel/child_process, and zero-delta merge to main.",
       "beval_main": "f7189e4208f04867b493c7d874a77325ad84afa3",
       "beval_ci_run": 36264131522,
-      "merge_tree_relation": "main ahead 1, behind 0, file delta 0"
+      "merge_tree_relation": "main ahead 1, behind 0, file delta 0",
+      "rebind_note": "Values above were recorded at the earlier anchors named in each string and were NOT re-run at the T00-E re-pinned heads by the rebind change."
     },
     "t19_03": {
       "required_state": "ACCEPTED",
       "observed_state": "NOT_ACCEPTED",
-      "note": "Independent QA authority branch remains separate; no release-level acceptance packet is recorded."
+      "note": "Independent QA authority: evidence/next/T19-RELEASE-ACCEPTANCE.json now exists and is BLOCKED (no private holdout, no trusted attestor, no release certificate). T19-03 is not accepted."
     },
     "t20_03": {
       "required_state": "ACCEPTED",
       "observed_state": "NOT_ACCEPTED",
-      "note": "Policy data exists, but externally observed runtime/sandbox enforcement is not accepted as a release gate."
+      "note": "Beval PR #73 is merged, but externally observed runtime/sandbox enforcement is not accepted as a release gate by this inventory."
     }
   },
   "invariants": {

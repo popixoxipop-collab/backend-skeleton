@@ -29,6 +29,28 @@ const plan = JSON.parse(fs.readFileSync(path.join(ROOT, 'release-plan.json'), 'u
 const emptyStore = loadEvidenceStore(path.join(ROOT, 'evidence-manifest.json'));
 const clone = (x) => structuredClone(x);
 const heads = () => Object.fromEntries(inventory.repositories.map((repo) => [repo.role, repo.head_sha]));
+// The committed inventory records direct push CI on each exact head. The negative tests below need the
+// older shape (a reviewed head that is only tree-equivalent to main, not directly CI'd), so they build it
+// explicitly instead of relying on the committed inventory staying in that shape.
+const OLDER_REVIEWED_HEAD = 'c429cb52bcc94c15c934b0cfa4a87f2b7053129e';
+function treeEquivalentInventory() {
+  const x = clone(inventory);
+  for (const repo of x.repositories) {
+    repo.verification = {
+      mode: 'zero-delta-merge-tree-equivalence',
+      reviewed_head_sha: OLDER_REVIEWED_HEAD,
+      ci_head_sha: OLDER_REVIEWED_HEAD,
+      ci_run: repo.verification.ci_run,
+      status: 'completed',
+      conclusion: 'success',
+      ahead_by: 1,
+      behind_by: 0,
+      file_delta_count: 0,
+      direct_main_ci: false,
+    };
+  }
+  return x;
+}
 const shaRef = (bytes) => 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex');
 
 function makeAuthority(temp) {
@@ -123,7 +145,6 @@ test('current integrated-main inventory is structurally valid but release remain
   assert.deepEqual(result.inventory.errors, []);
   assert.deepEqual(result.release_plan.errors, []);
   assert.deepEqual(result.inventory.observed_blockers, [
-    'FINAL_MAIN_PUSH_CI_NOT_DIRECT',
     'INDEPENDENT_QA_NOT_READY',
     'TRUST_POLICY_NOT_READY',
   ]);
@@ -146,17 +167,23 @@ test('role identity is pinned to exact repository and package names', () => {
 });
 
 test('zero-delta equivalence is exact and does not count as direct main CI', () => {
-  const x = clone(inventory);
+  const x = treeEquivalentInventory();
+  assert.equal(verifyCompatibilityInventory(x).ok, true);
   x.repositories[0].verification.file_delta_count = 1;
   assert.ok(verifyCompatibilityInventory(x).errors.some((e) => e.code === 'TREE_EQUIVALENCE'));
-  assert.ok(observedBlockers(inventory).includes('FINAL_MAIN_PUSH_CI_NOT_DIRECT'));
+  assert.ok(observedBlockers(treeEquivalentInventory()).includes('FINAL_MAIN_PUSH_CI_NOT_DIRECT'));
 });
 
 test('direct main CI cannot reuse an older or merely tree-equivalent CI head', () => {
-  const x = clone(inventory);
+  const x = treeEquivalentInventory();
   x.repositories[0].verification.direct_main_ci = true;
   assert.ok(verifyCompatibilityInventory(x).errors.some((e) => e.code === 'DIRECT_CI_HEAD_MISMATCH'));
   assert.ok(observedBlockers(x).includes('FINAL_MAIN_PUSH_CI_NOT_DIRECT'));
+  // and a direct claim whose CI head differs from the pinned head is never accepted for the committed inventory
+  const y = clone(inventory);
+  y.repositories[0].verification.ci_head_sha = OLDER_REVIEWED_HEAD;
+  assert.ok(verifyCompatibilityInventory(y).errors.some((e) => e.code === 'DIRECT_CI_HEAD_MISMATCH'));
+  assert.ok(observedBlockers(y).includes('FINAL_MAIN_PUSH_CI_NOT_DIRECT'));
 });
 
 test('promotion evidence is mandatory and required state is fixed to ACCEPTED', () => {
