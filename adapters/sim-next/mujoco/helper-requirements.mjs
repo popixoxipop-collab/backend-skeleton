@@ -2,6 +2,12 @@ import { buildFirstPartyHelperRequirements } from '../../../lib/trust-next/first
 import { MUJOCO_EFFECTIVE_MODEL_SCHEMA } from './effective-model.mjs';
 
 export const MUJOCO_EFFECTIVE_HELPER_PLAN = 'sbf.sim-mujoco-effective-helper-plan/draft-1';
+const REQUIRED_RUNTIME_ASSET_IDS = Object.freeze([
+  'effective-model-helper',
+  'mujoco-runtime-closure',
+  'mujoco-native-library',
+]);
+
 
 function nonEmptyArray(value, label) {
   if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== 'string' || !item)) {
@@ -29,6 +35,13 @@ export function buildMujocoEffectiveModelHelperPlan({
   const reads = nonEmptyArray(readRoots, 'readRoots');
   plain(limits, 'limits');
 
+  const assetIds = new Set(assets.map((asset) => asset?.id));
+  for (const requiredId of REQUIRED_RUNTIME_ASSET_IDS) {
+    if (!assetIds.has(requiredId)) {
+      throw new TypeError(`assets must include required MuJoCo runtime role: ${requiredId}`);
+    }
+  }
+
   const helperRequirements = buildFirstPartyHelperRequirements({
     helperId: 't24-mujoco-effective-model',
     helperClass: 'compiler-helper',
@@ -55,6 +68,7 @@ export function buildMujocoEffectiveModelHelperPlan({
     runtime_network_allowed: false,
     target_code_execution: false,
     effective_model_only: true,
+    required_runtime_asset_ids: REQUIRED_RUNTIME_ASSET_IDS,
     runtime_behavior_certified: false,
     note: 'This plan describes trust/runtime prerequisites only. T16/T00 must still bind the actual execution and evidence before helper output is accepted for promotion.',
   });
