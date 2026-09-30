@@ -16,9 +16,10 @@ Status: draft leaf implementation. This directory performs source-only, data-onl
 - equality/tendon declarations;
 - compiler/option/default declarations;
 - keyframes with qpos/qvel/act/ctrl kept as distinct channels;
-- local include/asset dependency references.
+- include dependency references resolved relative to the main MJCF directory;
+- asset file references retained as compiler-dependent source facts because `meshdir` / `texturedir` / `assetdir` can rewrite effective resolution.
 
-Dependencies are not fetched. They remain unresolved facts until a later approved dependency/effective-model stage supplies exact bytes. Direct self-includes and caller-supplied dependency graph cycles fail closed.
+Dependencies are not fetched. `include` paths are interpreted relative to the main MJCF directory. Asset paths are deliberately not given a fabricated resolved path at source stage because compiler directory settings can change effective resolution. All remain unresolved facts until a later approved dependency/effective-model stage supplies exact bytes. Direct self-includes and caller-supplied dependency graph cycles fail closed.
 
 ## Security and trust boundary
 
