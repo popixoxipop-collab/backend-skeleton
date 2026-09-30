@@ -64,11 +64,19 @@ const REJECTED = [
   ['leading space', ' text/plain'],
   ['tab', 'text/plain\tx'],
   ['trailing newline', 'text/plain\n'],
+  ['carriage return', 'text/pl\rain'],
+  ['vertical tab', 'text/pl\vain'],
+  ['form feed', 'text/pl\fain'],
   ['non-breaking space', 'text/pl\u00a0ain'],
+  ['line separator', 'text/pl\u2028ain'],
+  ['paragraph separator', 'text/pl\u2029ain'],
+  ['zero width no-break space', 'text/pl\ufeffain'],
   ['parameter after a space', 'text/plain; charset=utf-8'],
   ['no slash', 'textplain'],
   ['empty subtype', 'text/'],
   ['empty type', '/plain'],
+  ['empty type, double slash', '//plain'],
+  ['empty type, path-like subtype', '/text/plain'],
   ['empty string', ''],
 ];
 
@@ -134,6 +142,7 @@ test('the invariant check accepts exactly the media types the envelope construct
     'text//plain',
     'text/pl\\ain',
     'text/pl\u0000ain',
+    'Application/JSON',
   ];
   for (const mediaType of probes) {
     assert.equal(
