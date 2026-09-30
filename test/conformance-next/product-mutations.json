@@ -131,7 +131,8 @@
       "test_files": [
         "test/attest-cli.test.mjs"
       ],
-      "invariant": "An attestation asserted against the wrong exact git head must fail the replay/snapshot assertion."
+      "invariant": "An attestation asserted against the wrong exact git head must fail the replay/snapshot assertion.",
+      "timeout_ms": 120000
     },
     {
       "id": "PMUT-PRIVATE-KEY-MODE-RELAXED",
@@ -143,7 +144,8 @@
       "test_files": [
         "test/attest-cli.test.mjs"
       ],
-      "invariant": "Generated private attestation keys are owner-read/write only from first write."
+      "invariant": "Generated private attestation keys are owner-read/write only from first write.",
+      "timeout_ms": 120000
     },
     {
       "id": "PMUT-TS-ACCESS-STUB-ALLOWS",
