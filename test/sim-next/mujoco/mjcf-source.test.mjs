@@ -200,6 +200,12 @@ test('dependency paths reject traversal, absolute, backslash and URI schemes', (
   }
 });
 
+test('safe dot-segment include refs are accepted without permitting parent traversal', () => {
+  const parsed = parseMjcfSource('<mujoco><include file="./shared.xml"/></mujoco>', { path: 'models/main.xml' });
+  assert.equal(parsed.dependencies[0].path, './shared.xml');
+  assert.equal(parsed.dependencies[0].resolved_path, 'models/shared.xml');
+});
+
 test('NEG-SIM-05 direct self include and dependency graph cycles fail closed', () => {
   assert.throws(
     () => parseMjcfSource('<mujoco><include file="main.xml"/></mujoco>', { path: 'models/main.xml' }),
