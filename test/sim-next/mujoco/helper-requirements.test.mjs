@@ -140,3 +140,19 @@ test('helper runtime process allowlist contains only the approved launcher basen
     max_children:1,
   });
 });
+
+
+test('MuJoCo helper plan rejects caller-controlled permission and execution widening fields', () => {
+  for (const [field, value] of [
+    ['acquisition',{ networkAllow:['example.com'] }],
+    ['networkAllow',['example.com']],
+    ['writeRoots',['scratch']],
+    ['environment',['HOME']],
+    ['targetCodeExecution',true],
+  ]) {
+    assert.throws(
+      () => buildMujocoEffectiveModelHelperPlan({ ...base(), [field]:value }),
+      new RegExp(`unsupported fields: ${field}`),
+    );
+  }
+});
