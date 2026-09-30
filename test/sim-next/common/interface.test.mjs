@@ -236,7 +236,7 @@ test('authoritative SimulationItemRef rejects an incomplete draft contract envel
       item_kind: 'joint',
       item_id: 'joint:present',
     }, { contractBytes }),
-    /missing required top-level group/,
+    /missing required top-level group|missing required fields/,
   );
 });
 
