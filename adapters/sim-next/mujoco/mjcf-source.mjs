@@ -54,6 +54,9 @@ function assertXml10Text(value, label = 'MuJoCo XML') {
 }
 
 function decodeEntities(value) {
+  if (/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-f]+;)/i.test(value)) {
+    throw new Error('invalid XML entity or bare ampersand');
+  }
   return value.replace(/&([^;]+);/g, (_match, entity) => {
     const fixed = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[entity];
     if (fixed) return fixed;
@@ -153,6 +156,9 @@ function xmlTree(text, { maxDepth, maxElements }) {
         if (!legalLeadingDeclaration) {
           throw new Error('XML declaration is only allowed at the beginning of the document');
         }
+        if (!/^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])[A-Za-z][A-Za-z0-9._-]*\2)?(?:\s+standalone\s*=\s*(["'])(?:yes|no)\3)?\s*$/i.test(instruction)) {
+          throw new Error('invalid XML declaration syntax');
+        }
       }
       index = end + 2;
       continue;
@@ -236,7 +242,7 @@ function section(ancestors) {
 
 function localDependency(value, label) {
   if (typeof value !== 'string' || !value) throw new TypeError(`${label} must be a non-empty path`);
-  if (value.includes('\0') || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
+  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
     throw new TypeError(`${label} must be repo-relative POSIX`);
   }
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) throw new TypeError(`${label} must not use URI scheme`);
