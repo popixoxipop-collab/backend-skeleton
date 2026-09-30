@@ -43,6 +43,8 @@ function golden() {
         nv:1,
         na:0,
         nu:1,
+        nactuator:1,
+        nout:1,
         nsensor:1,
         nsensordata:1,
       },
@@ -81,10 +83,13 @@ function golden() {
           name:'m',
           transmission_type:'joint',
           target_ids:[0,-1],
+          control_adr:0,
+          control_count:1,
+          controls:[{ limited:true, range:[-1,1] }],
+          output_adr:0,
+          output_count:1,
           activation_adr:-1,
           activation_count:0,
-          ctrl_limited:true,
-          ctrl_range:[-1,1],
         },
       ],
       sensors:[
@@ -151,7 +156,7 @@ test('stateful actuator activation ranges are checked against na and stateless u
 
   const bad=golden();
   bad.model.actuators[0].activation_adr=0;
-  assert.throws(() => validateMujocoEffectiveModelExport(bad), /stateless actuator must use activation_adr=-1/);
+  assert.throws(() => validateMujocoEffectiveModelExport(bad), /zero activation_count must use activation_adr=-1/);
 });
 
 test('effective-model count and source-closure limits fail before oversized allocations', () => {
@@ -195,6 +200,43 @@ test('compiled body parent graph must reach world without cycles', () => {
   value.model.geoms[0].body_id=1;
   value.model.sites[0].body_id=1;
   assert.throws(() => validateMujocoEffectiveModelExport(value), /parent graph contains a cycle/);
+});
+
+test('nactuator, nu and nout are distinct compiled counts', () => {
+  const value=golden();
+  value.model.counts.nu=2;
+  value.model.counts.nactuator=1;
+  value.model.counts.nout=1;
+  value.model.actuators[0].control_count=2;
+  value.model.actuators[0].controls=[
+    { limited:true, range:[-1,1] },
+    { limited:false, range:null },
+  ];
+  const result=validateMujocoEffectiveModelExport(value);
+  assert.equal(result.model.actuators.length,1);
+  assert.equal(result.model.counts.nu,2);
+  assert.equal(result.model.counts.nactuator,1);
+  assert.equal(result.model.counts.nout,1);
+});
+
+test('actuator control/output address ranges exactly cover nu/nout', () => {
+  const controlGap=golden();
+  controlGap.model.counts.nu=2;
+  assert.throws(() => validateMujocoEffectiveModelExport(controlGap), /control coverage is incomplete/);
+
+  const outputGap=golden();
+  outputGap.model.counts.nout=2;
+  assert.throws(() => validateMujocoEffectiveModelExport(outputGap), /output coverage is incomplete/);
+
+  const mismatch=golden();
+  mismatch.model.actuators[0].controls=[];
+  assert.throws(() => validateMujocoEffectiveModelExport(mismatch), /controls length must equal control_count/);
+});
+
+test('actuator array length is nactuator, not nu', () => {
+  const value=golden();
+  value.model.counts.nactuator=2;
+  assert.throws(() => validateMujocoEffectiveModelExport(value), /model.actuators length must equal 2/);
 });
 
 test('actuator transmission target ids are range-checked by compiled transmission type', () => {
@@ -283,6 +325,16 @@ test('effective-model contract cannot self-certify runtime or dynamic observatio
   const dynamic=golden();
   dynamic.claims.dynamic_state_observed=true;
   assert.throws(() => validateMujocoEffectiveModelExport(dynamic), /cannot claim dynamic state observation/);
+});
+
+test('limited controls require explicit finite ranges', () => {
+  const missing=golden();
+  missing.model.actuators[0].controls[0].range=null;
+  assert.throws(() => validateMujocoEffectiveModelExport(missing), /limited control requires range/);
+
+  const nonfinite=golden();
+  nonfinite.model.actuators[0].controls[0].range=[-1,Infinity];
+  assert.throws(() => validateMujocoEffectiveModelExport(nonfinite), /must be finite/);
 });
 
 test('non-finite options and limited ranges fail closed', () => {
