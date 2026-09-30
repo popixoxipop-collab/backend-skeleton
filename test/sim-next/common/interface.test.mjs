@@ -5,6 +5,7 @@ import {
   assertArtifactRef,
   assertArtifactRefMatchesBytes,
   assertSimulationItemRef,
+  assertSimulationItemRefShape,
 } from '../../../adapters/sim-next/identity.mjs';
 import {
   assertCoordinateSystem,
@@ -29,12 +30,71 @@ test('T01-compatible ArtifactRef binds exact bytes and rejects extras or stale c
   assert.throws(() => assertArtifactRef({ ...ref, extra: true }), /unsupported fields/);
 });
 
-test('SimulationItemRef is typed and exact-contract-bound, never display-name-bound', () => {
+test('SimulationItemRef shape validation is explicitly non-authoritative', () => {
   const contractBytes = Buffer.from('{"simulation_contract":"sbf.simulation-contract/draft-1"}\n');
-  const contract_artifact = artifactRefForBytes(contractBytes, { family: 'simulation-contract', version: 'draft-1', mediaType: 'application/json' });
-  const ref = assertSimulationItemRef({ simulation_item_ref: 'sbf.simulation-item-ref/draft-1', contract_artifact, item_kind: 'joint', item_id: 'joint:shoulder' }, { contractBytes });
-  assert.equal(ref.item_id, 'joint:shoulder');
-  assert.throws(() => assertSimulationItemRef({ ...ref, item_kind: 'display-name' }, { contractBytes }), /unsupported simulation item kind/);
+  const contract_artifact = artifactRefForBytes(contractBytes, {
+    family: 'simulation-contract',
+    version: 'draft-1',
+    mediaType: 'application/json',
+  });
+  const shaped = assertSimulationItemRefShape({
+    simulation_item_ref: 'sbf.simulation-item-ref/draft-1',
+    contract_artifact,
+    item_kind: 'joint',
+    item_id: 'joint:shoulder',
+  });
+  assert.equal(shaped.item_id, 'joint:shoulder');
+  assert.equal(Object.hasOwn(shaped, 'authoritative'), false);
+  assert.throws(
+    () => assertSimulationItemRef(shaped),
+    /authoritative SimulationItemRef requires exact contractBytes/,
+  );
+});
+
+test('authoritative SimulationItemRef resolves exact membership and kind in the bound contract', () => {
+  const contractBytes = Buffer.from(JSON.stringify({
+    simulation_contract: 'sbf.simulation-contract/draft-1',
+    model: {
+      entities: [{ id: 'body:base', kind: 'body' }],
+      joints: [{ id: 'joint:shoulder' }],
+      actuators: [{ id: 'actuator:shoulder' }],
+      sensors: [{ id: 'sensor:shoulder' }],
+      colliders: [{ id: 'geom:arm', kind: 'geom' }],
+    },
+  }) + '\n');
+  const contract_artifact = artifactRefForBytes(contractBytes, {
+    family: 'simulation-contract',
+    version: 'draft-1',
+    mediaType: 'application/json',
+  });
+
+  const resolved = assertSimulationItemRef({
+    simulation_item_ref: 'sbf.simulation-item-ref/draft-1',
+    contract_artifact,
+    item_kind: 'joint',
+    item_id: 'joint:shoulder',
+  }, { contractBytes });
+  assert.equal(resolved.authoritative, true);
+
+  assert.throws(
+    () => assertSimulationItemRef({
+      simulation_item_ref: 'sbf.simulation-item-ref/draft-1',
+      contract_artifact,
+      item_kind: 'joint',
+      item_id: 'joint:not-there',
+    }, { contractBytes }),
+    /item identity not found/,
+  );
+
+  assert.throws(
+    () => assertSimulationItemRef({
+      simulation_item_ref: 'sbf.simulation-item-ref/draft-1',
+      contract_artifact,
+      item_kind: 'sensor',
+      item_id: 'joint:shoulder',
+    }, { contractBytes }),
+    /item kind mismatch/,
+  );
 });
 
 test('units keep length, angle, force, torque and time dimensions distinct', () => {
@@ -51,27 +111,72 @@ test('coordinate and timing contracts distinguish physics/control/render clocks'
   assert.throws(() => assertSimulationTiming({ physics_dt: 0, control_dt: 0.02, decimation: 10 }), /positive finite/);
 });
 
-test('T03-compatible status vocabulary stays frozen and supported cannot be caller-minted', () => {
+test('T03 status vocabulary is reused and caller-crafted evidence cannot mint supported', () => {
   assert.deepEqual(CAPABILITY_STATUSES, ['supported','partial','unsupported','unknown','not-applicable']);
   assert.deepEqual(SUPPORT_LEVELS, ['discovery','contract','runtime-tested']);
-  assert.throws(() => simulationCapabilityRecord({ name: 'simulation.discovery', status: 'supported' }), /semantically scoped verified evidence/);
-  const supported = simulationCapabilityRecord({ name: 'simulation.discovery', status: 'supported', evidence: [{ verified: true, capability: 'simulation.discovery', evidence_id: 'fixture:e1' }] });
-  assert.equal(supported.status, 'supported');
-  const partial = simulationCapabilityRecord({ name: 'simulation.runtime', status: 'partial', reason: 'runtime profile not accepted' });
+
+  assert.throws(
+    () => simulationCapabilityRecord({
+      name: 'simulation.discovery',
+      status: 'supported',
+      evidence: [{ verified: true, capability: 'simulation.discovery', evidence_id: 'caller-forged' }],
+    }),
+    /T03 evidence verifier|verified capability evidence receipts|evidence\[0\]/,
+  );
+
+  const partial = simulationCapabilityRecord({
+    name: 'simulation.runtime',
+    status: 'partial',
+    reason: 'runtime profile not accepted',
+  });
   assert.equal(partial.status, 'partial');
 });
 
-test('support evaluation never accepts partial/unknown as supported', () => {
+test('support evaluation consumes opaque T03-produced records and never accepts partial/unknown', () => {
   const capabilities = {
-    'simulation.discovery': { name: 'simulation.discovery', status: 'supported', evidence: [{ verified: true, capability: 'simulation.discovery', evidence_id: 'fixture:e1' }] },
-    'simulation.runtime': { name: 'simulation.runtime', status: 'unknown', reason: 'no runtime evidence' },
+    'simulation.discovery': simulationCapabilityRecord({
+      name: 'simulation.discovery',
+      status: 'unknown',
+      reason: 'no reviewed semantic verifier has granted supported',
+    }),
+    'simulation.runtime': simulationCapabilityRecord({
+      name: 'simulation.runtime',
+      status: 'partial',
+      reason: 'runtime profile not accepted',
+    }),
   };
-  assert.equal(evaluateSupportLevel({ level: 'discovery', capabilityNames: ['simulation.discovery'], capabilities }).ok, true);
-  assert.equal(evaluateSupportLevel({ level: 'runtime-tested', capabilityNames: ['simulation.discovery','simulation.runtime'], capabilities }).ok, false);
+  assert.equal(
+    evaluateSupportLevel({
+      level: 'runtime-tested',
+      capabilityNames: ['simulation.discovery','simulation.runtime'],
+      capabilities,
+    }).ok,
+    false,
+  );
+
+  assert.throws(
+    () => evaluateSupportLevel({
+      level: 'discovery',
+      capabilityNames: ['simulation.discovery'],
+      capabilities: {
+        'simulation.discovery': {
+          name: 'simulation.discovery',
+          status: 'supported',
+          evidenceRefs: [],
+        },
+      },
+    }),
+    /must be produced by capabilityRecord/,
+  );
 });
 
-test('static or generic evidence cannot mint runtime-tested certification', () => {
+test('runtime-tested stays blocked even when caller supplies the old magic authority string', () => {
   assert.equal(assertNoRuntimeCertificationFromStatic({ runtimeTested: false, evidenceKind: 'static' }), true);
-  assert.throws(() => assertNoRuntimeCertificationFromStatic({ runtimeTested: true, evidenceKind: 'static' }), /T16 runtime execution evidence plus independent T19 acceptance/);
-  assert.equal(assertNoRuntimeCertificationFromStatic({ runtimeTested: true, evidenceKind: 't16-runtime-plus-t19-acceptance' }), true);
+  assert.throws(
+    () => assertNoRuntimeCertificationFromStatic({
+      runtimeTested: true,
+      evidenceKind: 't16-runtime-plus-t19-acceptance',
+    }),
+    /runtime-tested requires exact T16 runtime-execution evidence plus independent T19 acceptance/,
+  );
 });
