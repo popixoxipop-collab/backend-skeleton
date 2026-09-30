@@ -67,11 +67,22 @@ test('extracts declared MJCF structure without effective/runtime claims', () => 
 
 test('NEG-SIM-06 keeps include/asset refs unresolved and never fetches them', () => {
   const parsed = parseMjcfSource(fixture(), { path: 'models/main.xml' });
-  assert.deepEqual(parsed.dependencies.map((d) => [d.kind, d.path, d.status]), [
-    ['include', 'shared/gripper.xml', 'unresolved'],
-    ['asset', 'meshes/hand.stl', 'unresolved'],
+  assert.deepEqual(parsed.dependencies.map((d) => [d.kind, d.path, d.resolved_path, d.status]), [
+    ['include', 'shared/gripper.xml', 'models/shared/gripper.xml', 'unresolved'],
+    ['asset', 'meshes/hand.stl', 'models/meshes/hand.stl', 'unresolved'],
   ]);
   assert.equal(parsed.diagnostics.filter((d) => d.code === 'MUJOCO_DEPENDENCY_UNRESOLVED').length, 2);
+});
+
+test('worldbody direct geom/site remain explicit world-scoped declarations', () => {
+  const raw = '<mujoco><worldbody><geom name="floor" type="plane" size="1 1 0.1"/><site name="origin" pos="0 0 0"/></worldbody></mujoco>';
+  const parsed = parseMjcfSource(raw, { path: 'models/world.xml' });
+  assert.deepEqual(parsed.declarations.geoms.map((g) => [g.name, g.parent_scope, g.parent_body_id]), [
+    ['floor', 'world', null],
+  ]);
+  assert.deepEqual(parsed.declarations.sites.map((s) => [s.name, s.parent_scope, s.parent_body_id]), [
+    ['origin', 'world', null],
+  ]);
 });
 
 test('NEG-SIM-14 actuator source order is retained and never alphabetically redefined', () => {
@@ -125,15 +136,15 @@ test('dependency paths reject traversal, absolute, backslash and URI schemes', (
 
 test('NEG-SIM-05 direct self include and dependency graph cycles fail closed', () => {
   assert.throws(
-    () => parseMjcfSource('<mujoco><include file="models/main.xml"/></mujoco>', { path: 'models/main.xml' }),
+    () => parseMjcfSource('<mujoco><include file="main.xml"/></mujoco>', { path: 'models/main.xml' }),
     /directly includes itself/,
   );
   assert.throws(
     () => validateMujocoDependencyGraph({
       rootPath: 'models/a.xml',
       edges: [
-        { from: 'models/a.xml', to: 'models/b.xml' },
-        { from: 'models/b.xml', to: 'models/a.xml' },
+        { from: 'models/a.xml', to: 'b.xml' },
+        { from: 'models/b.xml', to: 'a.xml' },
       ],
     }),
     /dependency cycle detected/,
