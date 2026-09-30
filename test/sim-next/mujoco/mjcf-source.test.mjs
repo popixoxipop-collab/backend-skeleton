@@ -194,10 +194,71 @@ test('duplicate explicit identities fail closed rather than first-wins', () => {
   assert.throws(() => parseMjcfSource(raw, { path: 'models/main.xml' }), /duplicate body name: base/);
 });
 
+test('XML 1.0 invalid direct and numeric-reference characters fail closed', () => {
+  for (const raw of [
+    '<mujoco model="&#0;"/>',
+    '<mujoco model="&#1;"/>',
+    '<mujoco model="&#xD800;"/>',
+    '<mujoco model="&#xFFFE;"/>',
+    '<mujoco model="\u0000"/>',
+  ]) {
+    assert.throws(
+      () => parseMjcfSource(raw, { path: 'models/invalid-char.xml' }),
+      /XML|character|codepoint|invalid/i,
+    );
+  }
+
+  for (const raw of [
+    '<mujoco model="&#9;"/>',
+    '<mujoco model="&#10;"/>',
+    '<mujoco model="&#13;"/>',
+    '<mujoco model="&#x20;"/>',
+  ]) {
+    assert.doesNotThrow(() => parseMjcfSource(raw, { path: 'models/valid-char.xml' }));
+  }
+});
+
 test('malformed XML and unsupported declarations fail closed', () => {
   assert.throws(() => parseMjcfSource('<mujoco><worldbody></mujoco>', { path: 'models/main.xml' }), /mismatched closing/);
   assert.throws(() => parseMjcfSource('<!DOCTYPE mujoco><mujoco/>', { path: 'models/main.xml' }), /DOCTYPE or ENTITY/);
   assert.throws(() => parseMjcfSource('<mujoco><![CDATA[x]]></mujoco>', { path: 'models/main.xml' }), /unsupported XML declaration/);
+  assert.throws(
+    () => parseMjcfSource('<mujoco><!-- bad -- comment --></mujoco>', { path: 'models/bad-comment.xml' }),
+    /invalid XML comment syntax/,
+  );
+  assert.throws(
+    () => parseMjcfSource('<mujoco><?xml version="1.0"?></mujoco>', { path: 'models/misplaced.xml' }),
+    /XML declaration is only allowed at the beginning/,
+  );
+});
+
+test('bare ampersand, malformed leading declaration, and dependency control characters fail closed', () => {
+  assert.throws(
+    () => parseMjcfSource('<mujoco model="a&b"/>', { path: 'models/bare-amp.xml' }),
+    /XML|entity|ampersand|malformed|invalid/i,
+  );
+  assert.throws(
+    () => parseMjcfSource('<?xml crap?><mujoco/>', { path: 'models/bad-decl.xml' }),
+    /XML|declaration|processing|invalid|version/i,
+  );
+  assert.throws(
+    () => parseMjcfSource('<mujoco><include file="parts/&#10;arm.xml"/></mujoco>', { path: 'models/main.xml' }),
+    /path|control|dependency|repo-relative|invalid/i,
+  );
+  assert.throws(
+    () => parseMjcfSource('<mujoco><asset><mesh file="meshes/&#9;part.stl"/></asset></mujoco>', { path: 'models/main.xml' }),
+    /path|control|dependency|repo-relative|invalid/i,
+  );
+});
+
+test('XML declaration encoding must match the UTF-8 source contract', () => {
+  assert.throws(
+    () => parseMjcfSource('<?xml version="1.0" encoding="ISO-8859-1"?><mujoco/>', { path: 'models/latin.xml' }),
+    /encoding.*UTF-8|UTF-8.*encoding/i,
+  );
+  assert.doesNotThrow(
+    () => parseMjcfSource('<?xml version="1.0" encoding="UTF-8"?><mujoco/>', { path: 'models/utf8.xml' }),
+  );
 });
 
 test('dependency paths reject traversal, absolute, backslash and URI schemes', () => {

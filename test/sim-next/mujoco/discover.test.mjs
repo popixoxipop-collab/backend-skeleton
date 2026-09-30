@@ -11,7 +11,16 @@ test('discovers only an explicit mujoco root and preserves exact source identity
   assert.equal(result.model_name, 'arm');
   assert.match(result.source.byte_sha256, /^[a-f0-9]{64}$/);
   assert.equal(result.source.size_bytes, Buffer.byteLength(valid));
+  assert.equal(result.claims.discovery_only, true);
+  assert.equal(result.claims.declared_structure_only, false);
   assert.equal(result.claims.runtime_behavior_verified, false);
+});
+
+test('discovery of a MuJoCo root does not certify declared structure', () => {
+  const result = discoverMujocoSource('<mujoco model="truncated"><worldbody><body', { path: 'models/truncated.xml' });
+  assert.equal(result.detected, true);
+  assert.equal(result.claims.discovery_only, true);
+  assert.equal(result.claims.declared_structure_only, false);
 });
 
 test('does not classify arbitrary XML as MuJoCo', () => {
@@ -29,6 +38,27 @@ test('NEG-SIM-01 rejects path escape, absolute paths and Windows separators', ()
 test('rejects invalid UTF-8 and bounded byte overflow', () => {
   assert.throws(() => discoverMujocoSource(Buffer.from([0xff]), { path: 'models/arm.xml' }), /valid UTF-8/);
   assert.throws(() => discoverMujocoSource(valid, { path: 'models/arm.xml', maxBytes: 4 }), /byte budget/);
+});
+
+test('discovery rejects malformed XML declaration and control characters in source path', () => {
+  assert.throws(
+    () => discoverMujocoSource('<?xml crap?><mujoco/>', { path: 'models/bad.xml' }),
+    /declaration.*invalid|invalid.*declaration/i,
+  );
+  assert.throws(
+    () => discoverMujocoSource('<mujoco/>', { path: 'models/line\nbreak.xml' }),
+    /repo-relative|path|control|invalid/i,
+  );
+});
+
+test('discovery XML declaration must agree with UTF-8 source decoding', () => {
+  assert.throws(
+    () => discoverMujocoSource('<?xml version="1.0" encoding="ISO-8859-1"?><mujoco/>', { path: 'models/latin.xml' }),
+    /encoding.*UTF-8|UTF-8.*encoding/i,
+  );
+  assert.doesNotThrow(
+    () => discoverMujocoSource('<?xml version="1.0" encoding="UTF-8"?><mujoco/>', { path: 'models/utf8.xml' }),
+  );
 });
 
 test('DOCTYPE and ENTITY declarations fail closed before discovery', () => {

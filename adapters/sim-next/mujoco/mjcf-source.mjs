@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   DEFAULT_MAX_SOURCE_BYTES,
   assertRepoRelativeXmlPath,
+  assertXmlDeclaration,
   decodeMujocoUtf8,
   discoverMujocoSource,
   mujocoSourceBytes,
@@ -34,14 +35,39 @@ function vector(value, label, min = 1, max = Infinity) {
   return parts.map((part, index) => finite(part, `${label}[${index}]`));
 }
 
+function isXml10Codepoint(codepoint) {
+  return codepoint === 0x09 ||
+    codepoint === 0x0a ||
+    codepoint === 0x0d ||
+    (codepoint >= 0x20 && codepoint <= 0xd7ff) ||
+    (codepoint >= 0xe000 && codepoint <= 0xfffd) ||
+    (codepoint >= 0x10000 && codepoint <= 0x10ffff);
+}
+
+function assertXml10Text(value, label = 'MuJoCo XML') {
+  for (const character of value) {
+    const codepoint = character.codePointAt(0);
+    if (!isXml10Codepoint(codepoint)) {
+      throw new Error(`${label} contains invalid XML 1.0 character U+${codepoint.toString(16).toUpperCase().padStart(4, '0')}`);
+    }
+  }
+  return value;
+}
+
 function decodeEntities(value) {
+  if (/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-f]+;)/i.test(value)) {
+    throw new Error('invalid XML entity or bare ampersand');
+  }
   return value.replace(/&([^;]+);/g, (_match, entity) => {
     const fixed = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[entity];
     if (fixed) return fixed;
     let codepoint = null;
     if (/^#\d+$/.test(entity)) codepoint = Number(entity.slice(1));
     if (/^#x[0-9a-f]+$/i.test(entity)) codepoint = Number.parseInt(entity.slice(2), 16);
-    if (codepoint !== null && Number.isInteger(codepoint) && codepoint >= 0 && codepoint <= 0x10ffff) {
+    if (codepoint !== null && Number.isInteger(codepoint)) {
+      if (!isXml10Codepoint(codepoint)) {
+        throw new Error(`invalid XML character reference &${entity}; (codepoint U+${codepoint.toString(16).toUpperCase()})`);
+      }
       return String.fromCodePoint(codepoint);
     }
     throw new Error(`unsupported XML entity &${entity};`);
@@ -109,12 +135,30 @@ function xmlTree(text, { maxDepth, maxElements }) {
     if (text.startsWith('<!--', left)) {
       const end = text.indexOf('-->', left + 4);
       if (end < 0) throw new Error('unterminated XML comment');
+      const comment = text.slice(left + 4, end);
+      if (comment.includes('--') || comment.endsWith('-')) {
+        throw new Error('invalid XML comment syntax');
+      }
       index = end + 3;
       continue;
     }
     if (text.startsWith('<?', left)) {
       const end = text.indexOf('?>', left + 2);
       if (end < 0) throw new Error('unterminated XML processing instruction');
+      const instruction = text.slice(left + 2, end).trim();
+      const target = instruction.match(/^([A-Za-z_:][A-Za-z0-9_.:-]*)/)?.[1] ?? null;
+      if (!target) throw new Error('invalid XML processing instruction target');
+      if (target.toLowerCase() === 'xml') {
+        const prefix = text.slice(0, left);
+        const legalLeadingDeclaration =
+          stack.length === 1 &&
+          doc.children.length === 0 &&
+          (prefix === '' || prefix === '\uFEFF');
+        if (!legalLeadingDeclaration) {
+          throw new Error('XML declaration is only allowed at the beginning of the document');
+        }
+        assertXmlDeclaration(instruction);
+      }
       index = end + 2;
       continue;
     }
@@ -197,7 +241,7 @@ function section(ancestors) {
 
 function localDependency(value, label) {
   if (typeof value !== 'string' || !value) throw new TypeError(`${label} must be a non-empty path`);
-  if (value.includes('\0') || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
+  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
     throw new TypeError(`${label} must be repo-relative POSIX`);
   }
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) throw new TypeError(`${label} must not use URI scheme`);
@@ -242,7 +286,7 @@ export function parseMjcfSource(sourceBytes, {
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new TypeError('maxBytes must be positive');
   if (raw.byteLength > maxBytes) throw new RangeError('MuJoCo source exceeds byte budget');
   const sourcePath = assertRepoRelativeXmlPath(sourceFile);
-  const text = decodeMujocoUtf8(raw);
+  const text = assertXml10Text(decodeMujocoUtf8(raw));
 
   if (!discoverMujocoSource(raw, { path: sourcePath, maxBytes }).detected) {
     throw new Error('MuJoCo source root must be <mujoco>');
