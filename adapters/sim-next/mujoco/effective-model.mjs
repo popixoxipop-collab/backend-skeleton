@@ -94,7 +94,7 @@ function validateCoverage(ranges, total, label) {
 }
 
 function validateCounts(value) {
-  const keys = ['nbody','njnt','ngeom','nsite','ntendon','nq','nv','na','nu','nsensor','nsensordata'];
+  const keys = ['nbody','njnt','ngeom','nsite','ntendon','nq','nv','na','nu','nactuator','nout','nsensor','nsensordata'];
   exactKeys(value, keys, 'model.counts');
   const out = {};
   for (const key of keys) out[key] = int(value[key], `model.counts.${key}`, { max:MAX_MODEL_COUNT });
@@ -187,21 +187,51 @@ function validateSites(items, counts) {
   return validateBodyOwned(items, counts.nsite, 'model.sites', counts, [], (item) => ({ ...item }));
 }
 
+function validateActuatorControl(value, label) {
+  exactKeys(value, ['limited','range'], label);
+  if (typeof value.limited !== 'boolean') throw new TypeError(`${label}.limited must be boolean`);
+  let range = null;
+  if (value.range !== null) range = finiteArray(value.range, `${label}.range`, 2);
+  if (value.limited && range === null) throw new TypeError(`${label} limited control requires range`);
+  return Object.freeze({ limited:value.limited, range });
+}
+
+function addressRange({ adr, count, total, owner, label, ranges }) {
+  if (!Number.isSafeInteger(count) || count < 0) throw new TypeError(`${owner} ${label}_count must be >= 0`);
+  if (!Number.isSafeInteger(adr) || adr < -1) throw new TypeError(`${owner} ${label}_adr must be >= -1`);
+  if (count === 0) {
+    if (adr !== -1) throw new TypeError(`${owner} with zero ${label}_count must use ${label}_adr=-1`);
+    return;
+  }
+  if (adr < 0) throw new TypeError(`${owner} with nonzero ${label}_count requires ${label}_adr`);
+  if (adr + count > total) throw new TypeError(`${owner} ${label} range exceeds total ${total}`);
+  ranges.push({ start:adr, width:count, owner });
+}
+
 function validateActuators(items, counts) {
-  denseIds(items, counts.nu, 'model.actuators');
+  denseIds(items, counts.nactuator, 'model.actuators');
+  const controlRanges = [];
+  const outputRanges = [];
   const activationRanges = [];
+
   const normalized = items.map((item, index) => {
     exactKeys(item, [
-      'id','name','transmission_type','target_ids','activation_adr','activation_count','ctrl_limited','ctrl_range'
+      'id','name','transmission_type','target_ids',
+      'control_adr','control_count','controls',
+      'output_adr','output_count',
+      'activation_adr','activation_count'
     ], `model.actuators[${index}]`);
+
     nullableName(item.name, `model.actuators[${index}].name`);
     if (!TRANSMISSIONS.has(item.transmission_type)) {
       throw new TypeError(`model.actuators[${index}].transmission_type is unsupported`);
     }
+
     if (!Array.isArray(item.target_ids) || item.target_ids.length !== 2 ||
         item.target_ids.some((value) => !Number.isSafeInteger(value) || value < -1)) {
       throw new TypeError(`model.actuators[${index}].target_ids must be two integers >= -1`);
     }
+
     const [primaryTarget, secondaryTarget] = item.target_ids;
     if (item.transmission_type === 'joint' || item.transmission_type === 'jointinparent') {
       if (primaryTarget < 0 || primaryTarget >= counts.njnt || secondaryTarget !== -1) {
@@ -225,23 +255,48 @@ function validateActuators(items, counts) {
         throw new TypeError(`model.actuators[${index}] site transmission target_ids are invalid`);
       }
     }
-    int(item.activation_count, `model.actuators[${index}].activation_count`);
-    if (!Number.isSafeInteger(item.activation_adr) || item.activation_adr < -1) {
-      throw new TypeError(`model.actuators[${index}].activation_adr must be >= -1`);
+
+    int(item.control_count, `model.actuators[${index}].control_count`);
+    if (!Array.isArray(item.controls) || item.controls.length !== item.control_count) {
+      throw new TypeError(`model.actuators[${index}].controls length must equal control_count`);
     }
-    if (item.activation_count === 0 && item.activation_adr !== -1) {
-      throw new TypeError(`model.actuators[${index}] stateless actuator must use activation_adr=-1`);
-    }
-    if (item.activation_count > 0) {
-      if (item.activation_adr < 0) throw new TypeError(`model.actuators[${index}] stateful actuator requires activation_adr`);
-      activationRanges.push({ start:item.activation_adr, width:item.activation_count, owner:`actuator ${index}` });
-    }
-    if (typeof item.ctrl_limited !== 'boolean') throw new TypeError(`model.actuators[${index}].ctrl_limited must be boolean`);
-    let ctrlRange = null;
-    if (item.ctrl_range !== null) ctrlRange = finiteArray(item.ctrl_range, `model.actuators[${index}].ctrl_range`, 2);
-    if (item.ctrl_limited && ctrlRange === null) throw new TypeError(`model.actuators[${index}] limited control requires ctrl_range`);
-    return Object.freeze({ ...item, ctrl_range:ctrlRange });
+    const controls = item.controls.map((control, controlIndex) =>
+      validateActuatorControl(control, `model.actuators[${index}].controls[${controlIndex}]`)
+    );
+
+    addressRange({
+      adr:item.control_adr,
+      count:item.control_count,
+      total:counts.nu,
+      owner:`actuator ${index}`,
+      label:'control',
+      ranges:controlRanges,
+    });
+    addressRange({
+      adr:item.output_adr,
+      count:item.output_count,
+      total:counts.nout,
+      owner:`actuator ${index}`,
+      label:'output',
+      ranges:outputRanges,
+    });
+    addressRange({
+      adr:item.activation_adr,
+      count:item.activation_count,
+      total:counts.na,
+      owner:`actuator ${index}`,
+      label:'activation',
+      ranges:activationRanges,
+    });
+
+    return Object.freeze({
+      ...item,
+      controls:Object.freeze(controls),
+    });
   });
+
+  validateCoverage(controlRanges, counts.nu, 'control');
+  validateCoverage(outputRanges, counts.nout, 'output');
   validateCoverage(activationRanges, counts.na, 'activation');
   return Object.freeze(normalized);
 }
