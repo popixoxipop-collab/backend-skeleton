@@ -35,11 +35,22 @@ export function buildMujocoEffectiveModelHelperPlan({
   const reads = nonEmptyArray(readRoots, 'readRoots');
   plain(limits, 'limits');
 
-  const assetIds = new Set(assets.map((asset) => asset?.id));
+  const assetById = new Map(assets.map((asset) => [asset?.id, asset]));
   for (const requiredId of REQUIRED_RUNTIME_ASSET_IDS) {
-    if (!assetIds.has(requiredId)) {
+    if (!assetById.has(requiredId)) {
       throw new TypeError(`assets must include required MuJoCo runtime role: ${requiredId}`);
     }
+  }
+
+  const requiredRoleShas = REQUIRED_RUNTIME_ASSET_IDS.map((id) => assetById.get(id)?.sha256);
+  if (requiredRoleShas.some((sha256) => typeof sha256 !== 'string')) {
+    throw new TypeError('required MuJoCo runtime roles must carry explicit SHA-256 values');
+  }
+  if (new Set(requiredRoleShas).size !== requiredRoleShas.length) {
+    throw new TypeError('required MuJoCo runtime roles must reference distinct exact-byte artifacts');
+  }
+  if (requiredRoleShas.includes(launcher.sha256)) {
+    throw new TypeError('launcher bytes must be distinct from required MuJoCo helper/runtime assets');
   }
 
   const helperRequirements = buildFirstPartyHelperRequirements({
