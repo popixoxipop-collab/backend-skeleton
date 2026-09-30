@@ -20,7 +20,7 @@ function decodeUtf8(raw, label = 'MuJoCo source') {
 
 export function assertRepoRelativeXmlPath(value, label = 'MuJoCo source path') {
   if (typeof value !== 'string' || value.length === 0) throw new TypeError(`${label} must be a non-empty path`);
-  if (value.includes('\0') || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
+  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
     throw new TypeError(`${label} must be a repo-relative POSIX path`);
   }
   const parts = value.split('/');
@@ -36,6 +36,13 @@ function bounded(raw, maxBytes) {
   if (raw.byteLength > maxBytes) throw new RangeError(`MuJoCo source exceeds byte budget: ${raw.byteLength} > ${maxBytes}`);
 }
 
+function assertXmlDeclaration(instruction) {
+  const declaration = instruction.trim();
+  if (!/^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])[A-Za-z][A-Za-z0-9._-]*\2)?(?:\s+standalone\s*=\s*(["'])(?:yes|no)\3)?\s*$/i.test(declaration)) {
+    throw new Error('MuJoCo XML declaration is invalid');
+  }
+}
+
 function stripLeadingXmlNoise(text) {
   let rest = text.replace(/^\uFEFF/, '');
   for (;;) {
@@ -43,6 +50,7 @@ function stripLeadingXmlNoise(text) {
     if (rest.startsWith('<?xml')) {
       const end = rest.indexOf('?>');
       if (end < 0) throw new Error('MuJoCo XML declaration is unterminated');
+      assertXmlDeclaration(rest.slice(2, end));
       rest = rest.slice(end + 2);
       continue;
     }
