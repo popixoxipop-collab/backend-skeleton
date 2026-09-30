@@ -115,11 +115,8 @@ function parseContract(contractBytes) {
   }
 
   plain(contract, 'simulation contract');
-  if (contract.simulation_contract !== 'sbf.simulation-contract/draft-1') {
-    throw new TypeError('simulation contract version is invalid');
-  }
-
-  const requiredGroups = [
+  exactKeys(contract, [
+    'simulation_contract',
     'identity',
     'source_inputs',
     'model',
@@ -130,25 +127,37 @@ function parseContract(contractBytes) {
     'physics',
     'support',
     'provenance',
-  ];
-  for (const key of requiredGroups) {
-    if (!Object.hasOwn(contract, key)) {
-      throw new TypeError(`simulation contract missing required top-level group: ${key}`);
-    }
+  ], 'simulation contract');
+
+  if (contract.simulation_contract !== 'sbf.simulation-contract/draft-1') {
+    throw new TypeError('simulation contract version is invalid');
   }
 
   const identity = plain(contract.identity, 'simulation contract identity');
-  for (const key of ['target','repository','revision','contract_id']) {
-    if (typeof identity[key] !== 'string' || identity[key].length === 0) {
-      throw new TypeError(`simulation contract identity.${key} is required`);
-    }
+  exactKeys(identity, ['target','repository','revision','contract_id'], 'simulation contract identity');
+  if (!['SIM-mujoco','SIM-isaacsim'].includes(identity.target)) {
+    throw new TypeError('simulation contract identity.target is invalid');
+  }
+  for (const key of ['repository','revision','contract_id']) {
+    boundedId(identity[key], `simulation contract identity.${key}`);
   }
 
   if (!Array.isArray(contract.source_inputs) || contract.source_inputs.length === 0) {
     throw new TypeError('simulation contract source_inputs must be a non-empty array');
   }
+  const sourceRoles = new Set(['active','reference','generated','vendor','template']);
+  for (const [index, input] of contract.source_inputs.entries()) {
+    plain(input, `simulation contract source_inputs[${index}]`);
+    exactKeys(input, ['path','role','artifact'], `simulation contract source_inputs[${index}]`);
+    boundedId(input.path, `simulation contract source_inputs[${index}].path`);
+    if (!sourceRoles.has(input.role)) {
+      throw new TypeError(`simulation contract source_inputs[${index}].role is invalid`);
+    }
+    assertArtifactRef(input.artifact);
+  }
 
   const model = plain(contract.model, 'simulation contract model');
+  exactKeys(model, ['entities','joints','actuators','sensors','colliders'], 'simulation contract model');
   for (const key of ['entities','joints','actuators','sensors','colliders']) {
     if (!Array.isArray(model[key])) {
       throw new TypeError(`simulation contract model.${key} must be an array`);
@@ -156,6 +165,7 @@ function parseContract(contractBytes) {
   }
 
   const mapping = plain(contract.mapping, 'simulation contract mapping');
+  exactKeys(mapping, ['state_channels','action_channels'], 'simulation contract mapping');
   for (const key of ['state_channels','action_channels']) {
     if (!Array.isArray(mapping[key])) {
       throw new TypeError(`simulation contract mapping.${key} must be an array`);
@@ -163,20 +173,29 @@ function parseContract(contractBytes) {
   }
 
   const coordinates = plain(contract.coordinates, 'simulation contract coordinates');
-  for (const key of ['world_frame','up_axis','handedness','quaternion_order']) {
-    if (typeof coordinates[key] !== 'string' || coordinates[key].length === 0) {
-      throw new TypeError(`simulation contract coordinates.${key} is required`);
-    }
+  exactKeys(coordinates, ['world_frame','up_axis','handedness','quaternion_order'], 'simulation contract coordinates');
+  boundedId(coordinates.world_frame, 'simulation contract coordinates.world_frame');
+  if (!['X','Y','Z'].includes(coordinates.up_axis)) {
+    throw new TypeError('simulation contract coordinates.up_axis is invalid');
+  }
+  if (!['left','right'].includes(coordinates.handedness)) {
+    throw new TypeError('simulation contract coordinates.handedness is invalid');
+  }
+  if (!['wxyz','xyzw'].includes(coordinates.quaternion_order)) {
+    throw new TypeError('simulation contract coordinates.quaternion_order is invalid');
   }
 
   const units = plain(contract.units, 'simulation contract units');
-  for (const key of ['length','angle','force','torque','time']) {
-    if (typeof units[key] !== 'string' || units[key].length === 0) {
-      throw new TypeError(`simulation contract units.${key} is required`);
+  exactKeys(units, ['length','angle','force','torque','time'], 'simulation contract units');
+  const requiredUnits = { length:'m', angle:'rad', force:'N', torque:'N*m', time:'s' };
+  for (const [key, expected] of Object.entries(requiredUnits)) {
+    if (units[key] !== expected) {
+      throw new TypeError(`simulation contract units.${key} is invalid; expected ${expected}`);
     }
   }
 
   const timing = plain(contract.timing, 'simulation contract timing');
+  exactKeys(timing, ['physics_dt','control_dt','decimation','render_dt'], 'simulation contract timing');
   for (const key of ['physics_dt','control_dt']) {
     if (typeof timing[key] !== 'number' || !Number.isFinite(timing[key]) || timing[key] <= 0) {
       throw new TypeError(`simulation contract timing.${key} must be a positive finite number`);
@@ -185,15 +204,31 @@ function parseContract(contractBytes) {
   if (!Number.isSafeInteger(timing.decimation) || timing.decimation <= 0) {
     throw new TypeError('simulation contract timing.decimation must be a positive safe integer');
   }
+  if (timing.render_dt !== null &&
+      (typeof timing.render_dt !== 'number' || !Number.isFinite(timing.render_dt) || timing.render_dt <= 0)) {
+    throw new TypeError('simulation contract timing.render_dt must be null or a positive finite number');
+  }
 
   const physics = plain(contract.physics, 'simulation contract physics');
   if (typeof physics.backend !== 'string' || physics.backend.length === 0) {
     throw new TypeError('simulation contract physics.backend is required');
   }
 
-  plain(contract.support, 'simulation contract support');
-  plain(contract.provenance, 'simulation contract provenance');
+  const support = plain(contract.support, 'simulation contract support');
+  exactKeys(support, ['capabilities','certification','release_approved'], 'simulation contract support');
+  plain(support.capabilities, 'simulation contract support.capabilities');
+  const certification = plain(support.certification, 'simulation contract support.certification');
+  exactKeys(certification, ['discovery','contract','runtime_tested'], 'simulation contract support.certification');
+  for (const key of ['discovery','contract','runtime_tested']) {
+    if (!['not-certified','certified'].includes(certification[key])) {
+      throw new TypeError(`simulation contract support.certification.${key} is invalid`);
+    }
+  }
+  if (support.release_approved !== false) {
+    throw new TypeError('simulation contract support.release_approved must be false in draft-1');
+  }
 
+  plain(contract.provenance, 'simulation contract provenance');
   return contract;
 }
 
