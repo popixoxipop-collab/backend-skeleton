@@ -176,6 +176,17 @@ test('blocked marker coexists with upstream unknown and incomplete diagnostics',
 	assert.equal(ir.metadata.persistence_target_state, 'blocked-upstream-facts');
 });
 
+test('blocked marker is the first diagnostic, ahead of upstream unknown and incomplete diagnostics', () => {
+	const ir = fromPersistenceSourceFacts(facts('gorm', {
+		complete: false,
+		unknowns: [{ code: 'SEMANTIC_MODEL_UNAVAILABLE', entity: 'User', reason: 'go/types semantic model not available' }],
+	}));
+	assert.deepEqual(
+		ir.diagnostics.map((d) => d.code),
+		['persistence-target-blocked', 'upstream-persistence-unknown', 'upstream-persistence-facts-incomplete'],
+	);
+});
+
 for (const id of ADMITTED) {
 	test(`admitted target ${id} produces the unchanged IR with no blocked marker`, () => {
 		const ir = fromPersistenceSourceFacts(facts(id));

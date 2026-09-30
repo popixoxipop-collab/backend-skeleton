@@ -188,6 +188,19 @@ test('a blocked IR under an admitted profile id reports both provider-mismatch a
 	assert.deepEqual(report.failures.map((failure) => failure.code).sort(), ['persistence-target-not-admitted', 'provider-mismatch']);
 });
 
+test('a provider-less IR cannot pass conformance and its catalog failure carries a null persistence_id', () => {
+	const complete = directIr('prisma');
+	const ir = { ...complete };
+	delete ir.provider;
+	const report = evaluatePersistenceConformance({ ir, profile: profileFor(complete) });
+	assert.equal(report.status, 'fail');
+	assert.equal(report.certified_scope, null);
+	assert.deepEqual(
+		report.failures.find((failure) => failure.code === 'persistence-target-not-admitted'),
+		{ code: 'persistence-target-not-admitted', persistence_id: null },
+	);
+});
+
 test('the catalog failure is added to the shape failures instead of replacing them', () => {
 	const ir = fromPersistenceSourceFacts(facts('gorm'));
 	const profile = profileFor(ir);
