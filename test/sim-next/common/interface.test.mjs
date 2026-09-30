@@ -80,7 +80,26 @@ test('authoritative SimulationItemRef resolves exact membership and kind in the 
       sensors: [{ id: 'sensor:shoulder' }],
       colliders: [{ id: 'geom:arm', kind: 'geom' }],
     },
-    mapping: { state_channels: [], action_channels: [] },
+    mapping: {
+      state_channels: [{
+        index: 0,
+        semantic: 'joint_position',
+        item_ref: 'joint:shoulder',
+        dtype: 'float64',
+        shape: [1],
+        unit: 'rad',
+      }],
+      action_channels: [{
+        index: 0,
+        semantic: 'position_command',
+        item_ref: 'actuator:shoulder',
+        dtype: 'float64',
+        shape: [1],
+        unit: 'rad',
+        scale: 1,
+        offset: 0,
+      }],
+    },
     coordinates: {
       world_frame: 'world',
       up_axis: 'Z',
