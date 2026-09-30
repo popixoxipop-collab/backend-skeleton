@@ -55,6 +55,13 @@ test('SimulationItemRef shape validation is explicitly non-authoritative', () =>
 test('authoritative SimulationItemRef resolves exact membership and kind in the bound contract', () => {
   const contractBytes = Buffer.from(JSON.stringify({
     simulation_contract: 'sbf.simulation-contract/draft-1',
+    identity: {
+      target: 'SIM-mujoco',
+      repository: 'fixture://simulation',
+      revision: 'fixture-r1',
+      contract_id: 'sim-contract:fixture:r1',
+    },
+    source_inputs: [{ path: 'models/main.xml', role: 'active' }],
     model: {
       entities: [{ id: 'body:base', kind: 'body' }],
       joints: [{ id: 'joint:shoulder' }],
@@ -62,6 +69,18 @@ test('authoritative SimulationItemRef resolves exact membership and kind in the 
       sensors: [{ id: 'sensor:shoulder' }],
       colliders: [{ id: 'geom:arm', kind: 'geom' }],
     },
+    mapping: { state_channels: [], action_channels: [] },
+    coordinates: {
+      world_frame: 'world',
+      up_axis: 'Z',
+      handedness: 'right',
+      quaternion_order: 'wxyz',
+    },
+    units: { length: 'm', angle: 'rad', force: 'N', torque: 'N*m', time: 's' },
+    timing: { physics_dt: 0.002, control_dt: 0.02, decimation: 10, render_dt: null },
+    physics: { backend: 'mujoco' },
+    support: { capabilities: {}, certification: {}, release_approved: false },
+    provenance: { producer: 'fixture' },
   }) + '\n');
   const contract_artifact = artifactRefForBytes(contractBytes, {
     family: 'simulation-contract',
@@ -95,6 +114,34 @@ test('authoritative SimulationItemRef resolves exact membership and kind in the 
       item_id: 'joint:shoulder',
     }, { contractBytes }),
     /item kind mismatch/,
+  );
+});
+
+test('authoritative SimulationItemRef rejects an incomplete draft contract envelope', () => {
+  const contractBytes = Buffer.from(JSON.stringify({
+    simulation_contract: 'sbf.simulation-contract/draft-1',
+    model: {
+      entities: [],
+      joints: [{ id: 'joint:present' }],
+      actuators: [],
+      sensors: [],
+      colliders: [],
+    },
+  }) + '\n');
+  const contract_artifact = artifactRefForBytes(contractBytes, {
+    family: 'simulation-contract',
+    version: 'draft-1',
+    mediaType: 'application/json',
+  });
+
+  assert.throws(
+    () => assertSimulationItemRef({
+      simulation_item_ref: 'sbf.simulation-item-ref/draft-1',
+      contract_artifact,
+      item_kind: 'joint',
+      item_id: 'joint:present',
+    }, { contractBytes }),
+    /missing required top-level group/,
   );
 });
 
