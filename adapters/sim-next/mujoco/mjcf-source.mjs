@@ -206,13 +206,13 @@ function localDependency(value, label) {
   return value;
 }
 
-function resolveDependency(fromPath, ref) {
-  const from = assertRepoRelativeXmlPath(fromPath, 'dependency source');
-  const local = localDependency(ref, 'dependency reference');
-  const directory = path.posix.dirname(from);
+function resolveIncludeFromMain(rootPath, ref) {
+  const root = assertRepoRelativeXmlPath(rootPath, 'main MJCF source');
+  const local = localDependency(ref, 'include reference');
+  const directory = path.posix.dirname(root);
   const resolved = directory === '.' ? local : path.posix.join(directory, local);
   if (resolved.startsWith('../') || resolved === '..' || path.posix.isAbsolute(resolved)) {
-    throw new TypeError('dependency reference escapes repository root');
+    throw new TypeError('include reference escapes repository root');
   }
   return resolved;
 }
@@ -439,7 +439,7 @@ export function parseMjcfSource(sourceBytes, {
 
     if (node.tag === 'include') {
       const ref = localDependency(node.attrs.file, 'include file');
-      const resolvedPath = resolveDependency(sourcePath, ref);
+      const resolvedPath = resolveIncludeFromMain(sourcePath, ref);
       dependencies.push({
         kind: 'include',
         path: ref,
@@ -456,7 +456,7 @@ export function parseMjcfSource(sourceBytes, {
         kind: 'asset',
         asset_type: node.tag,
         path: ref,
-        resolved_path: resolveDependency(sourcePath, ref),
+        resolution_basis: 'compiler-dependent',
         source_locator: node.locator,
         status: 'unresolved',
       });
@@ -473,7 +473,8 @@ export function parseMjcfSource(sourceBytes, {
       code: 'MUJOCO_DEPENDENCY_UNRESOLVED',
       kind: dependency.kind,
       path: dependency.path,
-      resolved_path: dependency.resolved_path,
+      ...(dependency.resolved_path ? { resolved_path: dependency.resolved_path } : {}),
+      ...(dependency.resolution_basis ? { resolution_basis: dependency.resolution_basis } : {}),
       source_locator: dependency.source_locator,
     });
   }
@@ -542,7 +543,7 @@ export function validateMujocoDependencyGraph({ rootPath, edges, maxNodes = 1000
   for (const edge of edges) {
     if (!edge || typeof edge !== 'object') throw new TypeError('dependency edge must be object');
     const from = assertRepoRelativeXmlPath(edge.from, 'edge.from');
-    const to = resolveDependency(from, edge.to);
+    const to = resolveIncludeFromMain(root, edge.to);
     nodes.add(from);
     nodes.add(to);
     if (nodes.size > maxNodes) throw new RangeError('dependency graph exceeds node budget');
