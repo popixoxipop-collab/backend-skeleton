@@ -38,6 +38,44 @@ function boundedId(value, label) {
   return value;
 }
 
+function repoRelativePath(value, label) {
+  boundedId(value, label);
+  if (value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
+    throw new TypeError(`${label} must be a repo-relative POSIX path`);
+  }
+  const parts = value.split('/');
+  if (parts.some((part) => part === '' || part === '.' || part === '..')) {
+    throw new TypeError(`${label} must not contain empty, dot, or parent segments`);
+  }
+  return value;
+}
+
+function validateMappingChannel(channel, label) {
+  plain(channel, label);
+  exactKeys(channel, ['index','semantic','item_ref','dtype','shape','unit','scale','offset'], label);
+  if (!Number.isSafeInteger(channel.index) || channel.index < 0) {
+    throw new TypeError(`${label}.index is invalid`);
+  }
+  for (const key of ['semantic','item_ref','dtype']) {
+    boundedId(channel[key], `${label}.${key}`);
+  }
+  if (!Array.isArray(channel.shape) || channel.shape.length === 0 ||
+      channel.shape.some((dim) => !Number.isSafeInteger(dim) || dim <= 0)) {
+    throw new TypeError(`${label}.shape is invalid`);
+  }
+  if (!['m','rad','N','N*m','s','dimensionless'].includes(channel.unit)) {
+    throw new TypeError(`${label}.unit is invalid`);
+  }
+  for (const key of ['scale','offset']) {
+    if (channel[key] !== undefined &&
+        (typeof channel[key] !== 'number' || !Number.isFinite(channel[key]))) {
+      throw new TypeError(`${label}.${key} must be finite when present`);
+    }
+  }
+  return channel;
+}
+
+
 export function assertArtifactRef(ref, expected = {}) {
   exactKeys(ref, ['artifact_ref','family','version','media_type','byte_sha256','size_bytes'], 'ArtifactRef');
   if (ref.artifact_ref !== ARTIFACT_REF_VERSION) throw new TypeError('ArtifactRef.artifact_ref is invalid');
@@ -149,7 +187,7 @@ function parseContract(contractBytes) {
   for (const [index, input] of contract.source_inputs.entries()) {
     plain(input, `simulation contract source_inputs[${index}]`);
     exactKeys(input, ['path','role','artifact'], `simulation contract source_inputs[${index}]`);
-    boundedId(input.path, `simulation contract source_inputs[${index}].path`);
+    repoRelativePath(input.path, `simulation contract source_inputs[${index}].path`);
     if (!sourceRoles.has(input.role)) {
       throw new TypeError(`simulation contract source_inputs[${index}].role is invalid`);
     }
@@ -170,6 +208,9 @@ function parseContract(contractBytes) {
     if (!Array.isArray(mapping[key])) {
       throw new TypeError(`simulation contract mapping.${key} must be an array`);
     }
+    mapping[key].forEach((channel, index) => {
+      validateMappingChannel(channel, `simulation contract mapping.${key}[${index}]`);
+    });
   }
 
   const coordinates = plain(contract.coordinates, 'simulation contract coordinates');
