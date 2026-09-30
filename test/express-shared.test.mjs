@@ -2361,6 +2361,28 @@ test('typescript-express: a slash after a real keyword still starts a regex lite
 	], []);
 });
 
+// The dot that ends a spread `...` is not a member access: a keyword after it is still a keyword, so its slash
+// opens a regex literal. Read as a division, the brace inside the literal would wrap the write that follows it.
+// The last body is the member-access counterpart (`...obj.do / 2`), which stays a division.
+test('typescript-express: a slash after a keyword that follows a spread operator still starts a regex literal', () => {
+	assertBodiesBeforeRoute([
+		['const v = [...typeof /{/]; app = fakeApp'],
+		['const v = [... typeof /{/]; app = fakeApp'],
+		['const v = Math.max(...typeof /{/); app = fakeApp'],
+		['const v = { ...typeof /{/ }; app = fakeApp'],
+		['const v = [...await /{/.source]; app = fakeApp'],
+		['const v = { ...void /{/ }; app = fakeApp'],
+		['const v = { ...new /{/.constructor("a") }; app = fakeApp'],
+		['const v = { ...delete /{/.x }; app = fakeApp'],
+		['const v = [', '  ...typeof /{/,', '];', 'app = fakeApp'],
+		['const v = { ...obj.do / 2 }; app = fakeApp; const w = 4 / 2'],
+	], []);
+	assertBodiesBeforeRoute([
+		['const v = [...typeof /{/]; if (a) app = fakeApp'],
+		['const v = { ...void /{/ }; if (a) app = fakeApp'],
+	], ['GET /real']);
+});
+
 // Pins current behaviour, not the ideal one: a newline right after `for` ends the statement, so the
 // later `await (...)` header is not recognised and the loop body reads as a definite statement.
 // The route is dropped (fail-closed) although the write is conditional.
