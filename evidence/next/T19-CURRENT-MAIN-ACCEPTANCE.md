@@ -28,7 +28,7 @@ an **ancestor** of the commit that records this packet, so the packet commit is 
 evidence-only descendant. It may modify only this file, `evidence/next/T19-RELEASE-ACCEPTANCE.json`,
 the constants in `test/t19-release-acceptance/t19-release-acceptance.test.mjs`, and the
 release-control evidence `release/next/compatibility-inventory.json`, `release/next/release-plan.json`
-and `release/next/README.md` (no test added or removed; the T19 count stays 75). Verify with
+`release/next/README.md` and the fixture helper in `release/next/test/release-policy.test.mjs` (no test added or removed; the T19 count stays 75, release-policy stays 29). Verify with
 `git merge-base --is-ancestor 1cdd848a5aa97ff558c0574da70fedb899131ff7 <packet head>` and
 `git diff --name-only 1cdd848a5aa97ff558c0574da70fedb899131ff7..<packet head>`.
 A packet cannot name its own commit or its own CI run.
