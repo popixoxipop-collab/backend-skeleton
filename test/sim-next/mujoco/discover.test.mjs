@@ -40,6 +40,17 @@ test('rejects invalid UTF-8 and bounded byte overflow', () => {
   assert.throws(() => discoverMujocoSource(valid, { path: 'models/arm.xml', maxBytes: 4 }), /byte budget/);
 });
 
+test('discovery rejects malformed XML declaration and control characters in source path', () => {
+  assert.throws(
+    () => discoverMujocoSource('<?xml crap?><mujoco/>', { path: 'models/bad.xml' }),
+    /declaration.*invalid|invalid.*declaration/i,
+  );
+  assert.throws(
+    () => discoverMujocoSource('<mujoco/>', { path: 'models/line\nbreak.xml' }),
+    /repo-relative|path|control|invalid/i,
+  );
+});
+
 test('DOCTYPE and ENTITY declarations fail closed before discovery', () => {
   assert.throws(
     () => discoverMujocoSource('<!DOCTYPE mujoco [<!ENTITY x SYSTEM "file:///etc/passwd">]><mujoco/>', { path: 'models/a.xml' }),
