@@ -13,6 +13,7 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
 const NUM = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const ACTUATORS = new Set(['motor', 'position', 'velocity', 'general', 'cylinder', 'muscle', 'adhesion', 'intvelocity', 'damper']);
 const SECTIONS = new Set(['actuator', 'sensor', 'contact', 'equality', 'tendon', 'asset', 'keyframe']);
+const HIGH_RISK_UNMODELED = new Set(['extension', 'plugin', 'frame', 'replicate', 'composite', 'flexcomp', 'attach']);
 
 function posInt(value, label) {
   if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError(`${label} must be a positive safe integer`);
@@ -303,14 +304,15 @@ export function parseMjcfSource(sourceBytes, {
       source_order: order,
     });
 
-    if (node.tag === 'joint' && bodyId) {
+    if ((node.tag === 'joint' || node.tag === 'freejoint') && bodyId) {
       declarations.joints.push({
         ...base('joint', declarations.joints.length),
         name: node.attrs.name ?? null,
         parent_body_id: bodyId,
-        joint_type: node.attrs.type ?? 'hinge',
-        axis: vector(node.attrs.axis, 'joint.axis', 3, 3),
-        range: vector(node.attrs.range, 'joint.range', 2, 2),
+        joint_type: node.tag === 'freejoint' ? 'free' : (node.attrs.type ?? 'hinge'),
+        axis: node.tag === 'freejoint' ? null : vector(node.attrs.axis, 'joint.axis', 3, 3),
+        range: node.tag === 'freejoint' ? null : vector(node.attrs.range, 'joint.range', 2, 2),
+        source_syntax: node.tag,
         declared_attributes: copyAttributes(node.attrs, ['name', 'type', 'axis', 'range']),
       });
       continue;
@@ -420,6 +422,13 @@ export function parseMjcfSource(sourceBytes, {
         ...base('default', declarations.defaults.length),
         class_name: node.attrs.class ?? null,
         declared_attributes: copyAttributes(node.attrs, ['class']),
+        templates: node.children
+          .filter((child) => child.tag !== 'default')
+          .map((child) => ({
+            tag: child.tag,
+            source_locator: child.locator,
+            attributes: copyAttributes(child.attrs),
+          })),
       });
       continue;
     }
@@ -461,6 +470,16 @@ export function parseMjcfSource(sourceBytes, {
         status: 'unresolved',
       });
     }
+  }
+
+  for (const { node } of flat) {
+    if (!HIGH_RISK_UNMODELED.has(node.tag)) continue;
+    diagnostics.push({
+      code: 'MUJOCO_UNMODELED_HIGH_RISK_ELEMENT',
+      element: node.tag,
+      source_locator: node.locator,
+      reason: 'source slice does not execute or resolve procedural/plugin semantics',
+    });
   }
 
   if (dependencies.length > maxDependencies) throw new RangeError('MuJoCo source exceeds dependency budget');
