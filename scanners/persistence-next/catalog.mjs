@@ -78,6 +78,10 @@ export function persistenceTargetById(id) {
 	return found ? {...found,limitations:[...found.limitations]} : null;
 }
 
+export function isPersistenceTargetAdmitted(id) {
+	return persistenceTargetById(id)?.state==='implemented-draft';
+}
+
 export function persistenceTargetSummary() {
 	const counts={};
 	for(const target of PERSISTENCE_TARGET_CATALOG) counts[target.state]=(counts[target.state]??0)+1;

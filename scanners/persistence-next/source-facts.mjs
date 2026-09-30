@@ -1,4 +1,5 @@
 import { createPersistenceIr, makeSourceRef } from './ir.mjs';
+import { isPersistenceTargetAdmitted, persistenceTargetById } from './catalog.mjs';
 
 export const PERSISTENCE_SOURCE_FACTS_CONTRACT = 'bskel.internal.persistence-source-facts/0';
 
@@ -103,6 +104,9 @@ export function validatePersistenceSourceFacts(facts) {
 	if (facts.contract !== PERSISTENCE_SOURCE_FACTS_CONTRACT) throw new TypeError(`expected ${PERSISTENCE_SOURCE_FACTS_CONTRACT}`);
 	const producerId = nonEmpty(facts.producer_id, 'producer_id');
 	const persistenceId = nonEmpty(facts.persistence_id, 'persistence_id');
+	if (!persistenceTargetById(persistenceId)) {
+		throw new TypeError(`persistence_id is not a registered persistence target: ${JSON.stringify(persistenceId.slice(0, 80))}`);
+	}
 	const language = nonEmpty(facts.language, 'language');
 	if (typeof facts.complete !== 'boolean') throw new TypeError('complete must be boolean');
 	if (!Array.isArray(facts.entities) || !Array.isArray(facts.unknowns)) throw new TypeError('entities[] and unknowns[] are required');
@@ -139,6 +143,15 @@ export function fromPersistenceSourceFacts(input) {
 		level: 'warning',
 		producer: facts.producer_id,
 		message: 'upstream analysis reports complete=false; emitted facts are preserved but cannot imply full persistence coverage',
+	});
+	const blockedTarget = isPersistenceTargetAdmitted(facts.persistence_id) ? null : persistenceTargetById(facts.persistence_id);
+	if (blockedTarget) diagnostics.unshift({
+		code: 'persistence-target-blocked',
+		level: 'warning',
+		producer: facts.producer_id,
+		persistence_id: facts.persistence_id,
+		blocker: blockedTarget.blocker ?? null,
+		message: 'persistence target is not admitted by the T10 catalog; emitted facts are preserved but cannot be certified or handed off',
 	});
 
 	const entities = facts.entities.map((entity) => ({
@@ -193,6 +206,7 @@ export function fromPersistenceSourceFacts(input) {
 			producer_id: facts.producer_id,
 			language: facts.language,
 			upstream_complete: facts.complete,
+			...(blockedTarget ? { persistence_target_state: blockedTarget.state } : {}),
 		},
 	});
 }

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { normalizeKeyType } from './bindings.mjs';
+import { isPersistenceTargetAdmitted } from './catalog.mjs';
 
 export const GENERATION_HANDOFF_CONTRACT = 'sbf.persistence-generation-handoff/1';
 export const GENERATION_HANDOFF_PROVENANCE = 'sbf.persistence-generation-handoff-provenance/1';
@@ -52,6 +53,9 @@ export function buildHandleCompositionHandoff({
 	if (!binding || typeof binding !== 'object') throw new TypeError('binding is required');
 	const blockers = [];
 	if (!binding.persistence_id) blockers.push({ code:'persistence-id-missing', message:'binding has no persistence_id' });
+	else if (!isPersistenceTargetAdmitted(binding.persistence_id)) {
+		blockers.push({ code:'persistence-target-not-admitted', message:'binding persistence_id is not an admitted catalog target (unregistered or blocked upstream)' });
+	}
 	if (binding.capabilities?.verified_read_by_primary_key !== true) {
 		blockers.push({ code:'persistence-read-not-live-verified', message:'read-by-primary-key has not been verified against live persistence evidence' });
 	}

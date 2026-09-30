@@ -1,9 +1,13 @@
 import { buildHandleCompositionHandoff } from './generation-handoff.mjs';
+import { isPersistenceTargetAdmitted } from './catalog.mjs';
 
 export const PERSISTENCE_CERTIFICATION_CONTRACT = 'sbf.persistence-certification/1';
 
 function certifyOne(httpProviderId, binding, generationContext) {
 	const blockers = [];
+	if (!isPersistenceTargetAdmitted(binding?.persistence_id)) {
+		blockers.push({ code:'persistence-target-not-admitted', message:'persistence_id is not an admitted catalog target (unregistered, blocked upstream, or missing)' });
+	}
 	if (!binding?.entity_id) blockers.push({ code:'entity-binding-missing', message:'no bound persistence entity' });
 	if (!binding?.table?.name) blockers.push({ code:'physical-table-unknown', message:'physical table is unknown' });
 	const keyColumns = binding?.primary_key?.columns ?? [];
