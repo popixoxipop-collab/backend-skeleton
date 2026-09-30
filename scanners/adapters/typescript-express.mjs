@@ -168,8 +168,10 @@ function expressDefaultBindings(text) {
 const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', ';']);
 const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
 
-// A keyword is a whole token: not the tail of an identifier (`notif`, `$if`) and not a member name (`obj.catch`, `obj?. do`).
+// A keyword is a whole token: not the tail of an identifier (`notif`, `$if`), not its head (`if$x`) and not a member name (`obj.catch`, `obj?. do`).
 const KEYWORD_TOKEN_START = '(?<![$\\p{ID_Continue}\\u200C\\u200D])(?<!\\.\\s*)';
+const KEYWORD_TOKEN_END = '(?![$\\p{ID_Continue}\\u200C\\u200D])';
+const CONTROL_STATEMENT_HEAD_RE = new RegExp('^(?:if|for|while|with|switch)' + KEYWORD_TOKEN_END, 'u');
 const CONTROL_HEADER_TAIL_RE = new RegExp(KEYWORD_TOKEN_START + '(?:if|while|for(?:\\s+await)?|with|switch|catch)\\s*$', 'u');
 const ELSE_OR_DO_TAIL_RE = new RegExp(KEYWORD_TOKEN_START + '(?:else|do)\\s*$', 'u');
 
@@ -1496,7 +1498,7 @@ function assignmentTargetDefinitelyWritesName(lhsValue, binding) {
 	let lhs = lhsValue.trim();
 	if (!lhs) return false;
 	lhs = topLevelSequenceAssignmentTarget(lhs);
-	if (!/^(?:if|for|while|with|switch)\b/.test(lhs)) {
+	if (!CONTROL_STATEMENT_HEAD_RE.test(lhs)) {
 		let earlierAssignment = topLevelBindingSeparator(lhs, '=');
 		while (earlierAssignment !== -1) {
 			const operatorPrefix = lhs.slice(Math.max(0, earlierAssignment - 2), earlierAssignment);
