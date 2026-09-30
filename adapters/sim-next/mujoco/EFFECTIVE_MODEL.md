@@ -21,6 +21,10 @@ A future helper must be treated as a T20 `compiler-helper` with approved-files i
 Its launcher/package bytes, source closure, permissions and execution evidence must be bound
 through the existing T20/T16 trust/runtime path before any capability promotion.
 
+The M2 helper-plan constructor accepts exactly five top-level inputs: `launcher`, `assets`,
+`artifactTrustPolicy`, `readRoots`, and `limits`. Any additional top-level field is rejected.
+Permission or execution widening requests must fail closed rather than being silently ignored.
+
 Source closure identity is path + ArtifactRef. Two different logical files may legally have identical bytes; the contract rejects duplicate logical paths, not duplicate digests.\n\nA structurally valid effective-model export is therefore not sufficient to claim:
 
 - runtime behavior;
