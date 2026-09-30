@@ -218,7 +218,7 @@ test('the db-introspect job provides a disposable postgres container with no har
 // T16 (Backend-evaluation) run their tests in their own repositories, so they are listed here instead
 // of in SUITES. The rule reads ci.yml statically: it does not model step shells, NODE_OPTIONS, matrix
 // reductions or workflow path filters.
-const NESTED_TRACKS = Array.from({ length: 22 }, (_, i) => `T${String(i + 1).padStart(2, '0')}`);
+const NESTED_TRACKS = Array.from({ length: 23 }, (_, i) => `T${String(i + 1).padStart(2, '0')}`);
 const NESTED_TRACKS_IN_OTHER_REPOS = ['T15', 'T16'];
 const NESTED_STEP_COMMAND = /^node scripts\/run-next-nested-tests\.mjs (T\d\d)$/;
 
@@ -307,6 +307,53 @@ test('the nested-next coverage rule reports each listed way a suite can drop out
 		const doc = goodDoc();
 		edit(doc.jobs['nested-next']);
 		const problems = nestedCoverageProblems(doc, suiteIds);
+		if (!expected.test(problems.join('\n'))) unreported.push(`${label}: the rule reported ${JSON.stringify(problems)}`);
+	}
+	assert.deepEqual(unreported, [], 'the rule must report each of these edits');
+});
+
+// `verify` with fewer than the three release/next files is a usage error (exit 1), so the step must name all three.
+const RELEASE_POLICY_VERIFY_COMMAND = 'node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json';
+
+function releasePolicyVerifyProblems(doc) {
+	const job = doc.jobs?.['nested-next'];
+	if (!job) return ['ci.yml has no "nested-next" job'];
+	const verifySteps = (job.steps ?? []).filter((step) => typeof step.run === 'string' && step.run.trim() === RELEASE_POLICY_VERIFY_COMMAND);
+	if (verifySteps.length === 0) return [`the nested-next job has no step that runs exactly: ${RELEASE_POLICY_VERIFY_COMMAND}`];
+	if (verifySteps.every((step) => step['continue-on-error'] || step.if !== undefined)) return ['the nested-next release-policy verify step must run unconditionally (no "if", no "continue-on-error")'];
+	return [];
+}
+
+test('the nested-next job runs the offline release-policy verification over the release/next files', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	assert.deepEqual(releasePolicyVerifyProblems(doc), []);
+});
+
+test('the release-policy verify rule reports each listed way the step can drop out of CI', () => {
+	const goodDoc = () => ({
+		jobs: { 'nested-next': { steps: [{ run: 'npm ci' }, { name: 'T23 release-policy verify', run: RELEASE_POLICY_VERIFY_COMMAND }] } },
+	});
+	const verifyStep = (doc) => doc.jobs['nested-next'].steps.find((s) => s.run === RELEASE_POLICY_VERIFY_COMMAND);
+	assert.deepEqual(releasePolicyVerifyProblems(goodDoc()), [], 'the rule must accept a correct configuration, or none of the cases below prove anything');
+	const noStep = /the nested-next job has no step that runs exactly/;
+	const notUnconditional = /the nested-next release-policy verify step must run unconditionally/;
+	const cases = [
+		['no verify step', (doc) => { doc.jobs['nested-next'].steps = doc.jobs['nested-next'].steps.filter((s) => s !== verifyStep(doc)); }, noStep],
+		['a bare verify without the release/next files', (doc) => { verifyStep(doc).run = 'node release/next/release-policy.mjs verify'; }, noStep],
+		['a verify that names only two of the three files', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace(' release/next/evidence-manifest.json', ''); }, noStep],
+		['a verify over a different plan file', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace('release-plan.json', 'release-plan.copy.json'); }, noStep],
+		['a step masking the exit code', (doc) => { verifyStep(doc).run += ' || true'; }, noStep],
+		['a step with continue-on-error', (doc) => { verifyStep(doc)['continue-on-error'] = true; }, notUnconditional],
+		['a step behind an if condition', (doc) => { verifyStep(doc).if = "github.event_name == 'push'"; }, notUnconditional],
+		['a step behind if: false', (doc) => { verifyStep(doc).if = false; }, notUnconditional],
+		['the step moved to another job', (doc) => { const step = verifyStep(doc); doc.jobs['nested-next'].steps = doc.jobs['nested-next'].steps.filter((s) => s !== step); doc.jobs.other = { steps: [step] }; }, noStep],
+		['no nested-next job', (doc) => { delete doc.jobs['nested-next']; }, /ci\.yml has no "nested-next" job/],
+	];
+	const unreported = [];
+	for (const [label, edit, expected] of cases) {
+		const doc = goodDoc();
+		edit(doc);
+		const problems = releasePolicyVerifyProblems(doc);
 		if (!expected.test(problems.join('\n'))) unreported.push(`${label}: the rule reported ${JSON.stringify(problems)}`);
 	}
 	assert.deepEqual(unreported, [], 'the rule must report each of these edits');

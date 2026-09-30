@@ -238,3 +238,12 @@ test('every suite in the real SUITES is READY or a declared EXPECTED_ABSENT in t
 		assert.ok(status === 'READY' || status === 'EXPECTED_ABSENT', `${suite.id} is ${status}`);
 	}
 });
+
+test('T23 release control is a READY suite whose tests include release/next/test/release-policy.test.mjs', () => {
+	const suite = SUITES.find((s) => s.id === 'T23');
+	assert.ok(suite, 'SUITES has no T23 entry');
+	const inspected = inspectSuite(suite, REPO_ROOT);
+	assert.equal(inspected.status, 'READY');
+	const relativeTests = inspected.tests.map((p) => path.relative(REPO_ROOT, p).split(path.sep).join('/'));
+	assert.ok(relativeTests.includes('release/next/test/release-policy.test.mjs'), `T23 runs ${JSON.stringify(relativeTests)}`);
+});
