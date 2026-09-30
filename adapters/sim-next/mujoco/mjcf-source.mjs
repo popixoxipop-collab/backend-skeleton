@@ -558,11 +558,16 @@ export function validateMujocoDependencyGraph({ rootPath, edges, maxNodes = 1000
 
   const adjacency = new Map();
   const nodes = new Set([root]);
+  const includedTargets = new Set();
 
   for (const edge of edges) {
     if (!edge || typeof edge !== 'object') throw new TypeError('dependency edge must be object');
     const from = assertRepoRelativeXmlPath(edge.from, 'edge.from');
     const to = resolveIncludeFromMain(root, edge.to);
+    if (includedTargets.has(to)) {
+      throw new Error(`MuJoCo dependency graph includes the same XML more than once: ${to}`);
+    }
+    includedTargets.add(to);
     nodes.add(from);
     nodes.add(to);
     if (nodes.size > maxNodes) throw new RangeError('dependency graph exceeds node budget');
@@ -582,6 +587,10 @@ export function validateMujocoDependencyGraph({ rootPath, edges, maxNodes = 1000
   };
 
   dfs(root, []);
+  if (done.size !== nodes.size) {
+    const unreachable = [...nodes].filter((node) => !done.has(node)).sort();
+    throw new Error(`MuJoCo dependency graph contains nodes not reachable from root: ${unreachable.join(', ')}`);
+  }
   return {
     valid: true,
     root,
