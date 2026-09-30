@@ -48,6 +48,24 @@ test('product mutation catalog is safe and links every mutant to a planned negat
  assert.ok(CATALOG.mutants.every((m)=>m.vector_id.startsWith('NEG-')));
 });
 
+test('product mutation timeout overrides are explicit, bounded and catalog-validated',()=>{
+ const attest=CATALOG.mutants.filter((m)=>m.test_files.includes('test/attest-cli.test.mjs'));
+ assert.deepEqual(attest.map((m)=>[m.id,m.timeout_ms]),[
+  ['PMUT-ATTEST-EXPECT-HEAD-BYPASS',120000],
+  ['PMUT-PRIVATE-KEY-MODE-RELAXED',120000],
+ ]);
+ for(const timeout_ms of [0,999,120001,1.5,'120000']){
+  const bad=structuredClone(CATALOG);
+  bad.mutants[0].timeout_ms=timeout_ms;
+  const result=validateProductMutationCatalog(bad);
+  assert.equal(result.ok,false);
+  assert.ok(result.errors.some((x)=>x.includes('timeout_ms')));
+ }
+ const max=structuredClone(CATALOG);
+ max.mutants[0].timeout_ms=120000;
+ assert.equal(validateProductMutationCatalog(max).ok,true);
+});
+
 test('real product mutation pilot kills every critical mutant',()=>{
  const result=runProductMutationCampaign({repoRoot:ROOT,catalog:CATALOG});
  assert.equal(result.catalog_errors.length,0,result.catalog_errors.join('\n'));
@@ -64,11 +82,12 @@ test('product mutation campaign never counts a failure as killed when the unmodi
   fs.writeFileSync(path.join(root,'subject.mjs'),'export const value = 1;\n');
   fs.writeFileSync(path.join(root,'test','subject.test.mjs'),"import test from 'node:test'; import assert from 'node:assert/strict'; import { value } from '../subject.mjs'; test('fails before mutation',()=>assert.equal(value,2));\n");
   const sourceCommit=initFixtureRepo(root);
-  const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'baseline-bad',vector_id:'NEG-TEST-01',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 3',test_files:['test/subject.test.mjs'],invariant:'baseline must be green'}]};
+  const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'baseline-bad',vector_id:'NEG-TEST-01',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 3',test_files:['test/subject.test.mjs'],timeout_ms:5000,invariant:'baseline must be green'}]};
   const result=runProductMutationCampaign({repoRoot:root,catalog,sourceCommit});
   assert.equal(result.pass,false);
   assert.equal(result.mutants[0].status,'survived');
   assert.equal(result.mutants[0].classification,'baseline-failed');
+  assert.equal(result.mutants[0].timeout_ms,5000);
   assert.notEqual(result.mutants[0].baseline.exit_code,0);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
