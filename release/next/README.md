@@ -6,13 +6,13 @@ This directory is release-control evidence only. It does not change the stable C
 
 Current integrated main anchors:
 
-- backend-skeleton: `bb18182c54a3a8f682ed2d1a6bac26749fcf267e`
-- backend-decoder: `eb8164560ddd343306234a9140dc89c001519792`
-- Backend-evaluation: `f7189e4208f04867b493c7d874a77325ad84afa3`
+- backend-skeleton: `1cdd848a5aa97ff558c0574da70fedb899131ff7`
+- backend-decoder: `0f0abcea1337335fc44b943932ad3c5f3fbaad6c`
+- Backend-evaluation: `020668cdc2f5a836e78dfe05fd845ea58769a0e9`
 
 T00-04A remains authoritative: legacy HTTP identity is the default/authoritative identity and T01 is additive. T01-06 is accepted as a compatibility-shipping gate; it is not a global next-writer cutover.
 
-The three integrated main trees are byte-equivalent to their reviewed integration heads, but release policy deliberately distinguishes that from **direct exact-head main release CI**. Release therefore remains blocked until direct final-main evidence and the remaining T19/T20/rehearsal gates are present.
+These anchors were re-pinned on 2026-09-30 (T00-E) to the observed mains; they are pinned, not declared final-frozen. `compatibility-inventory.json` records the direct push CI run on each exact head. Release remains blocked: no check result is PASS because PASS requires T00-pinned, authority-signed evidence, T19-03 and T20-03 are not accepted, and the only rehearsal that exists (backend-evaluation `npm run test:release-rehearsal`) is a partial DB pointer-set rehearsal, not a full release/rollback rehearsal.
 
 Run:
 
