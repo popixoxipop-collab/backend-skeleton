@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.join(__dirname, '..');
 
+// expectedAbsent { reason, ref } excuses a suite that has no source and no tests; it fails once either exists.
 export const SUITES = [
   { id: 'T01', sourcePaths: ['contracts/next', 'schemas/next'], testDir: 'test/contract-next' },
   { id: 'T02', sourcePaths: ['scanners/project-graph'], testDir: 'test/project-graph' },
@@ -17,7 +18,12 @@ export const SUITES = [
   { id: 'T08', sourcePaths: ['scanners/language/native-server'], testDir: 'test/language-native-server' },
   { id: 'T09', sourcePaths: ['contracts/reconciliation-next'], testDir: 'test/reconciliation-next' },
   { id: 'T10', sourcePaths: ['scanners/persistence-next'], testDir: 'test/persistence-next' },
-  { id: 'T11', sourcePaths: ['adapters/http-legacy-next'], testDir: 'test/http-legacy-next' },
+  {
+    id: 'T11',
+    sourcePaths: ['adapters/http-legacy-next'],
+    testDir: 'test/http-legacy-next',
+    expectedAbsent: { reason: 'T11 legacy modernization not on main', ref: 'backend-skeleton#77' }
+  },
   { id: 'T12', sourcePaths: ['adapters/http-wave-a'], testDir: 'test/http-wave-a' },
   { id: 'T13', sourcePaths: ['adapters/http-wave-bc'], testDir: 'test/http-wave-bc' },
   { id: 'T14', sourcePaths: ['handles/composition-next'], testDir: 'test/provider-composition-next' },
@@ -34,8 +40,18 @@ export const SUITES = [
   { id: 'T22', sourcePaths: ['sdk/next'], testDir: 'test/sdk-next' }
 ];
 
+const FAILURE_HINTS = {
+  NOT_PRESENT: 'no source and no tests found; if that is intentional, declare expectedAbsent { reason, ref } on the suite',
+  FAIL_STALE_EXPECTED_ABSENT: 'source or tests now exist; remove expectedAbsent from the suite',
+  FAIL_INVALID_EXPECTED_ABSENT: 'expectedAbsent needs a non-empty string reason and ref'
+};
+
 function exists(root, relativePath) {
   return fs.existsSync(path.join(root, relativePath));
+}
+
+function isNonBlankString(value) {
+  return typeof value === 'string' && value.trim() !== '';
 }
 
 export function collectTests(root, relativeDir) {
@@ -61,6 +77,17 @@ export function inspectSuite(suite, root = REPO_ROOT) {
   const missingRequiredTestDirs = requiredTestDirs.filter((relativeDir) => !exists(root, relativeDir));
   const tests = presentTestDirs.flatMap((relativeDir) => collectTests(root, relativeDir)).sort();
 
+  if (suite.expectedAbsent !== undefined) {
+    const { reason, ref } = suite.expectedAbsent ?? {};
+    if (!isNonBlankString(reason) || !isNonBlankString(ref)) {
+      return { id: suite.id, status: 'FAIL_INVALID_EXPECTED_ABSENT', tests };
+    }
+    if (sourcePresent || presentTestDirs.length > 0) {
+      return { id: suite.id, status: 'FAIL_STALE_EXPECTED_ABSENT', tests, expectedAbsent: suite.expectedAbsent };
+    }
+    return { id: suite.id, status: 'EXPECTED_ABSENT', tests: [], expectedAbsent: suite.expectedAbsent };
+  }
+
   if (sourcePresent && missingRequiredTestDirs.length > 0) {
     return { id: suite.id, status: 'FAIL_MISSING_REQUIRED_TEST_DIR', tests, missingRequiredTestDirs };
   }
@@ -84,12 +111,13 @@ export function inspectSuite(suite, root = REPO_ROOT) {
 
 export function runSuite(suite, root = REPO_ROOT) {
   const inspected = inspectSuite(suite, root);
-  if (inspected.status === 'NOT_PRESENT') {
-    console.log(`NESTED_SUITE ${suite.id} NOT_PRESENT`);
+  if (inspected.status === 'EXPECTED_ABSENT') {
+    console.log(`NESTED_SUITE ${suite.id} EXPECTED_ABSENT ref=${inspected.expectedAbsent.ref}`);
     return 0;
   }
   if (inspected.status !== 'READY') {
     console.error(`NESTED_SUITE ${suite.id} ${inspected.status}`);
+    if (FAILURE_HINTS[inspected.status]) console.error(FAILURE_HINTS[inspected.status]);
     return 2;
   }
 

@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import { MIN_NODE } from '../lib/doctor.mjs';
+import { SUITES } from '../scripts/run-next-nested-tests.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
@@ -207,4 +208,83 @@ test('the db-introspect job provides a disposable postgres container with no har
 	assert.ok(commands.some((c) => c.includes('pg_isready')), 'expected a health-poll step waiting for the container to become ready before the test step runs');
 	const dbUrlStep = (job.steps ?? []).find((s) => s.env?.BSKEL_TEST_DATABASE_URL);
 	assert.ok(dbUrlStep, 'expected a step passing BSKEL_TEST_DATABASE_URL as an env var');
+});
+
+// Nested next-plane suites gate CI only through steps of the `nested-next` job, each running
+// `node scripts/run-next-nested-tests.mjs <id>`. Two drifts would leave a suite ungated while every
+// test stays green: a suite that exists in the runner but has no step, and a track that has neither a
+// suite nor a named owner elsewhere. Tracks T15 (backend-decoder) and T16 (Backend-evaluation) run
+// their tests in their own repositories, so they are listed here instead of in SUITES.
+const NESTED_TRACKS = Array.from({ length: 22 }, (_, i) => `T${String(i + 1).padStart(2, '0')}`);
+const NESTED_TRACKS_IN_OTHER_REPOS = ['T15', 'T16'];
+const NESTED_STEP_COMMAND = /^node scripts\/run-next-nested-tests\.mjs (T\d\d)$/;
+
+function nestedCoverageProblems(doc, suiteIds) {
+	const job = doc.jobs?.['nested-next'];
+	if (!job) return ['ci.yml has no "nested-next" job'];
+	const problems = [];
+	if (job['continue-on-error'] || job.if !== undefined) problems.push('the nested-next job must run unconditionally (no "if", no "continue-on-error")');
+	const stepIds = [];
+	for (const step of job.steps ?? []) {
+		if (typeof step.run !== 'string' || !step.run.includes('run-next-nested-tests')) continue;
+		const match = NESTED_STEP_COMMAND.exec(step.run.trim());
+		if (!match) {
+			problems.push(`nested-next step "${step.name ?? step.run}" must be exactly "node scripts/run-next-nested-tests.mjs T<nn>", not: ${step.run.trim()}`);
+			continue;
+		}
+		if (step['continue-on-error'] || step.if !== undefined) problems.push(`nested-next step "${step.name ?? step.run}" must run unconditionally (no "if", no "continue-on-error")`);
+		stepIds.push(match[1]);
+	}
+	for (const id of suiteIds) {
+		if (!stepIds.includes(id)) problems.push(`${id} is in the runner's SUITES but the nested-next job has no step for it`);
+	}
+	for (const id of stepIds) {
+		if (!suiteIds.includes(id)) problems.push(`the nested-next job runs ${id}, which is not in the runner's SUITES`);
+	}
+	for (const id of NESTED_TRACKS_IN_OTHER_REPOS) {
+		if (suiteIds.includes(id)) problems.push(`${id} is listed as running in another repository but the runner also has a suite for it`);
+	}
+	for (const id of NESTED_TRACKS) {
+		if (!suiteIds.includes(id) && !NESTED_TRACKS_IN_OTHER_REPOS.includes(id)) problems.push(`${id} has no runner suite and is not listed as running in another repository`);
+	}
+	for (const id of suiteIds) {
+		if (!NESTED_TRACKS.includes(id)) problems.push(`${id} is in the runner's SUITES but not in this test's track list`);
+	}
+	return problems;
+}
+
+test('the nested-next job runs exactly the suites of scripts/run-next-nested-tests.mjs, and every track is a suite or owned by another repository', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	assert.deepEqual(nestedCoverageProblems(doc, SUITES.map((s) => s.id)), []);
+});
+
+test('the nested-next coverage rule reports each way a suite can silently drop out of CI', () => {
+	// A synthetic, known-good configuration, so each case below fails because of its own edit and this
+	// test stays independent of the real ci.yml and SUITES.
+	const ids = NESTED_TRACKS.filter((id) => !NESTED_TRACKS_IN_OTHER_REPOS.includes(id));
+	const goodDoc = () => ({
+		jobs: { 'nested-next': { steps: [{ run: 'npm ci' }, ...ids.map((id) => ({ name: id, run: `node scripts/run-next-nested-tests.mjs ${id}` }))] } },
+	});
+	const stepFor = (job, id) => job.steps.find((s) => s.run === `node scripts/run-next-nested-tests.mjs ${id}`);
+	assert.deepEqual(nestedCoverageProblems(goodDoc(), ids), [], 'the rule must accept a correct configuration, or none of the cases below prove anything');
+	const cases = [
+		['a suite without a CI step', (job) => { job.steps = job.steps.filter((s) => s !== stepFor(job, 'T12')); }, ids, /T12 is in the runner's SUITES but the nested-next job has no step for it/],
+		['a CI step without a suite', (job) => { job.steps.push({ name: 'T99 nothing', run: 'node scripts/run-next-nested-tests.mjs T99' }); }, ids, /the nested-next job runs T99, which is not in the runner's SUITES/],
+		['a step naming two suites', (job) => { stepFor(job, 'T01').run += ' T02'; }, ids, /must be exactly "node scripts\/run-next-nested-tests\.mjs T<nn>"/],
+		['a step masking the exit code', (job) => { stepFor(job, 'T01').run += ' || true'; }, ids, /must be exactly "node scripts\/run-next-nested-tests\.mjs T<nn>"/],
+		['a step that names no suite', (job) => { stepFor(job, 'T01').run = 'node scripts/run-next-nested-tests.mjs'; }, ids, /must be exactly "node scripts\/run-next-nested-tests\.mjs T<nn>"/],
+		['a step with continue-on-error', (job) => { stepFor(job, 'T01')['continue-on-error'] = true; }, ids, /nested-next step ".*" must run unconditionally/],
+		['a step behind an if condition', (job) => { stepFor(job, 'T01').if = "github.event_name == 'push'"; }, ids, /nested-next step ".*" must run unconditionally/],
+		['a job with continue-on-error', (job) => { job['continue-on-error'] = true; }, ids, /the nested-next job must run unconditionally/],
+		['a suite dropped from SUITES while its step stays', () => {}, ids.filter((id) => id !== 'T12'), /the nested-next job runs T12, which is not in the runner's SUITES/],
+		['a track that is neither a suite nor owned elsewhere', () => {}, ids.filter((id) => id !== 'T12'), /T12 has no runner suite and is not listed as running in another repository/],
+		['a suite for a track owned by another repository', () => {}, [...ids, 'T15'], /T15 is listed as running in another repository but the runner also has a suite for it/],
+		['a suite outside the known track list', () => {}, [...ids, 'T24'], /T24 is in the runner's SUITES but not in this test's track list/],
+	];
+	for (const [label, edit, suiteIds, expected] of cases) {
+		const doc = goodDoc();
+		edit(doc.jobs['nested-next']);
+		const problems = nestedCoverageProblems(doc, suiteIds);
+		assert.match(problems.join('\n'), expected, `${label}: expected the rule to report it, got ${JSON.stringify(problems)}`);
+	}
 });

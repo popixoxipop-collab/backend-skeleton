@@ -101,7 +101,8 @@ jobs:
         run: node scripts/report-repo-gated-skips.mjs "${{ runner.temp }}/npm-test-output.log"
 
   # T23 post-04B shared integration: preserve legacy root npm test, while making approved
-  # nested next-plane suites visible in required CI. Absent tracks report NOT_PRESENT;
+  # nested next-plane suites visible in required CI. A suite with neither source nor tests
+  # fails unless scripts/run-next-nested-tests.mjs declares it expectedAbsent with a ref;
   # once a source namespace exists, missing/empty nested tests fail closed.
   nested-next:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
