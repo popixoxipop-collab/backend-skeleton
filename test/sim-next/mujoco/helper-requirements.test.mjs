@@ -94,6 +94,26 @@ test('MuJoCo helper plan requires explicit helper/runtime/native asset roles', (
   }
 });
 
+test('required MuJoCo runtime roles cannot alias the same trusted bytes', () => {
+  const sameRoleBytes=base();
+  sameRoleBytes.assets=sameRoleBytes.assets.map((asset) =>
+    asset.id==='mujoco-native-library' ? { ...asset, sha256:MUJOCO } : asset
+  );
+  assert.throws(
+    () => buildMujocoEffectiveModelHelperPlan(sameRoleBytes),
+    /distinct exact-byte artifacts/,
+  );
+
+  const launcherAlias=base();
+  launcherAlias.assets=launcherAlias.assets.map((asset) =>
+    asset.id==='effective-model-helper' ? { ...asset, sha256:PYTHON } : asset
+  );
+  assert.throws(
+    () => buildMujocoEffectiveModelHelperPlan(launcherAlias),
+    /launcher bytes must be distinct/,
+  );
+});
+
 test('every launcher/helper/runtime asset must already be trusted as helper bytes', () => {
   const args=base();
   args.artifactTrustPolicy=policy([PYTHON,HELPER,MUJOCO]);
