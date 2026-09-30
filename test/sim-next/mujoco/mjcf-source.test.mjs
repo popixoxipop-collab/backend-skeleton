@@ -251,6 +251,16 @@ test('bare ampersand, malformed leading declaration, and dependency control char
   );
 });
 
+test('XML declaration encoding must match the UTF-8 source contract', () => {
+  assert.throws(
+    () => parseMjcfSource('<?xml version="1.0" encoding="ISO-8859-1"?><mujoco/>', { path: 'models/latin.xml' }),
+    /encoding.*UTF-8|UTF-8.*encoding/i,
+  );
+  assert.doesNotThrow(
+    () => parseMjcfSource('<?xml version="1.0" encoding="UTF-8"?><mujoco/>', { path: 'models/utf8.xml' }),
+  );
+});
+
 test('dependency paths reject traversal, absolute, backslash and URI schemes', () => {
   for (const ref of ['../secret.xml', '/tmp/x.xml', 'C:/x.xml', 'foo\\bar.xml', 'https://example.com/x.xml']) {
     const raw = `<mujoco><include file="${ref}"/></mujoco>`;
