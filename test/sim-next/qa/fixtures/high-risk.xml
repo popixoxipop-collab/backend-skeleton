@@ -1,0 +1,10 @@
+<mujoco model="q-high-risk">
+  <extension>
+    <plugin plugin="vendor.example"/>
+  </extension>
+  <worldbody>
+    <body name="b">
+      <frame name="f"/>
+    </body>
+  </worldbody>
+</mujoco>

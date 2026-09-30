@@ -1,0 +1,10 @@
+<mujoco model="q-deps">
+  <compiler assetdir="assets" meshdir="../meshes" texturedir="textures"/>
+  <include file="parts/arm.xml"/>
+  <asset>
+    <mesh name="arm_mesh" file="arm.stl"/>
+  </asset>
+  <worldbody>
+    <body name="arm"/>
+  </worldbody>
+</mujoco>
