@@ -1,3 +1,5 @@
+import { isPersistenceTargetAdmitted } from './catalog.mjs';
+
 export const PERSISTENCE_CONFORMANCE_PROFILE = 'bskel.persistence-conformance-profile/1';
 export const PERSISTENCE_CONFORMANCE_REPORT = 'bskel.persistence-conformance-report/1';
 
@@ -133,6 +135,7 @@ export function evaluatePersistenceConformance({ir,profile}){
 		return {contract:PERSISTENCE_CONFORMANCE_REPORT,profile_id:p.id,status:'fail',evidence_class:p.evidence_class,requested_scope:p.requested_scope,certified_scope:null,failures:[{code:'invalid-persistence-ir'}]};
 	}
 	if(ir.provider!==p.persistence_id) failures.push({code:'provider-mismatch',expected:p.persistence_id,actual:ir.provider??null});
+	if(!isPersistenceTargetAdmitted(ir.provider)) failures.push({code:'persistence-target-not-admitted',persistence_id:ir.provider??null});
 	const byName=entityByName(ir);
 	for(const expected of p.entities){
 		const matches=byName.get(expected.name)??[];
