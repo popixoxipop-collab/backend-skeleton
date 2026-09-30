@@ -1,0 +1,53 @@
+# T24 MuJoCo source slice 1
+
+Status: draft leaf implementation. This directory performs source-only, data-only MuJoCo MJCF discovery and bounded structural extraction. It does not launch MuJoCo, Python, a compiler, a renderer, or any network client.
+
+## Scope
+
+`discover.mjs` accepts a caller-selected repo-relative `.xml` file only when its explicit root element is `<mujoco>`.
+
+`mjcf-source.mjs` extracts declared source structure for the first slice:
+
+- model name;
+- body hierarchy;
+- joint / geom / site declarations;
+- actuator and sensor declarations;
+- contact pair/exclude;
+- equality/tendon declarations;
+- compiler/option/default declarations;
+- keyframes with qpos/qvel/act/ctrl kept as distinct channels;
+- local include/asset dependency references.
+
+Dependencies are not fetched. They remain unresolved facts until a later approved dependency/effective-model stage supplies exact bytes. Direct self-includes and caller-supplied dependency graph cycles fail closed.
+
+## Security and trust boundary
+
+The parser:
+
+- accepts exact bytes, not a filesystem path to open on its own;
+- validates the logical path as repo-relative POSIX;
+- rejects invalid UTF-8, DOCTYPE/ENTITY, malformed XML, parent traversal, absolute/backslash paths and URI dependencies;
+- has explicit byte, depth, element and dependency budgets;
+- uses no `child_process`, dynamic target import, Python import, simulator execution or network access.
+
+## Claims
+
+The output sets only:
+
+- `declared_structure_only = true`
+
+and explicitly keeps:
+
+- `effective_model_verified = false`
+- `runtime_behavior_verified = false`
+- `causal_edges_verified = false`
+
+No source parser result is a runtime certification.
+
+## Focused tests
+
+```bash
+node --test test/sim-next/mujoco/*.test.mjs
+```
+
+This nested suite is not automatically proven by a generic root `npm test` unless CI explicitly includes the T24 path.
