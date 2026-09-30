@@ -289,6 +289,7 @@ function contractItemEntries(contract) {
   for (const [index, item] of model.entities.entries()) {
     plain(item, `model.entities[${index}]`);
     boundedId(item.id, `model.entities[${index}].id`);
+    boundedId(item.source_locator, `model.entities[${index}].source_locator`);
     if (item.kind !== 'body' && item.kind !== 'prim') {
       throw new TypeError(`model.entities[${index}].kind must be body or prim`);
     }
