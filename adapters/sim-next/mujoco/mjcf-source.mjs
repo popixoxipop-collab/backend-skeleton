@@ -131,12 +131,29 @@ function xmlTree(text, { maxDepth, maxElements }) {
     if (text.startsWith('<!--', left)) {
       const end = text.indexOf('-->', left + 4);
       if (end < 0) throw new Error('unterminated XML comment');
+      const comment = text.slice(left + 4, end);
+      if (comment.includes('--') || comment.endsWith('-')) {
+        throw new Error('invalid XML comment syntax');
+      }
       index = end + 3;
       continue;
     }
     if (text.startsWith('<?', left)) {
       const end = text.indexOf('?>', left + 2);
       if (end < 0) throw new Error('unterminated XML processing instruction');
+      const instruction = text.slice(left + 2, end).trim();
+      const target = instruction.match(/^([A-Za-z_:][A-Za-z0-9_.:-]*)/)?.[1] ?? null;
+      if (!target) throw new Error('invalid XML processing instruction target');
+      if (target.toLowerCase() === 'xml') {
+        const prefix = text.slice(0, left);
+        const legalLeadingDeclaration =
+          stack.length === 1 &&
+          doc.children.length === 0 &&
+          (prefix === '' || prefix === '\uFEFF');
+        if (!legalLeadingDeclaration) {
+          throw new Error('XML declaration is only allowed at the beginning of the document');
+        }
+      }
       index = end + 2;
       continue;
     }
