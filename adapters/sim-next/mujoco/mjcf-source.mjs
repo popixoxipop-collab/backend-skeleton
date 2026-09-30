@@ -34,6 +34,25 @@ function vector(value, label, min = 1, max = Infinity) {
   return parts.map((part, index) => finite(part, `${label}[${index}]`));
 }
 
+function isXml10Codepoint(codepoint) {
+  return codepoint === 0x09 ||
+    codepoint === 0x0a ||
+    codepoint === 0x0d ||
+    (codepoint >= 0x20 && codepoint <= 0xd7ff) ||
+    (codepoint >= 0xe000 && codepoint <= 0xfffd) ||
+    (codepoint >= 0x10000 && codepoint <= 0x10ffff);
+}
+
+function assertXml10Text(value, label = 'MuJoCo XML') {
+  for (const character of value) {
+    const codepoint = character.codePointAt(0);
+    if (!isXml10Codepoint(codepoint)) {
+      throw new Error(`${label} contains invalid XML 1.0 character U+${codepoint.toString(16).toUpperCase().padStart(4, '0')}`);
+    }
+  }
+  return value;
+}
+
 function decodeEntities(value) {
   return value.replace(/&([^;]+);/g, (_match, entity) => {
     const fixed = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[entity];
@@ -41,7 +60,10 @@ function decodeEntities(value) {
     let codepoint = null;
     if (/^#\d+$/.test(entity)) codepoint = Number(entity.slice(1));
     if (/^#x[0-9a-f]+$/i.test(entity)) codepoint = Number.parseInt(entity.slice(2), 16);
-    if (codepoint !== null && Number.isInteger(codepoint) && codepoint >= 0 && codepoint <= 0x10ffff) {
+    if (codepoint !== null && Number.isInteger(codepoint)) {
+      if (!isXml10Codepoint(codepoint)) {
+        throw new Error(`invalid XML character reference &${entity}; (codepoint U+${codepoint.toString(16).toUpperCase()})`);
+      }
       return String.fromCodePoint(codepoint);
     }
     throw new Error(`unsupported XML entity &${entity};`);
@@ -242,7 +264,7 @@ export function parseMjcfSource(sourceBytes, {
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new TypeError('maxBytes must be positive');
   if (raw.byteLength > maxBytes) throw new RangeError('MuJoCo source exceeds byte budget');
   const sourcePath = assertRepoRelativeXmlPath(sourceFile);
-  const text = decodeMujocoUtf8(raw);
+  const text = assertXml10Text(decodeMujocoUtf8(raw));
 
   if (!discoverMujocoSource(raw, { path: sourcePath, maxBytes }).detected) {
     throw new Error('MuJoCo source root must be <mujoco>');
