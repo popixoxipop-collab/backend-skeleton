@@ -46,6 +46,21 @@ test('product mutation catalog is safe and links every mutant to a planned negat
  assert.equal(result.ok,true,result.errors.join('\n'));
  assert.equal(result.stats.mutants,13);
  assert.ok(CATALOG.mutants.every((m)=>m.vector_id.startsWith('NEG-')));
+ const overrides=CATALOG.mutants.filter((m)=>m.test_timeout_ms!==undefined);
+ assert.deepEqual(overrides.map((m)=>[m.id,m.test_timeout_ms]),[
+  ['PMUT-ATTEST-EXPECT-HEAD-BYPASS',120000],
+  ['PMUT-PRIVATE-KEY-MODE-RELAXED',120000],
+ ]);
+});
+
+test('product mutation catalog bounds per-mutant timeout overrides',()=>{
+ for(const value of [59999,120001,1.5,'120000']){
+  const bad=structuredClone(CATALOG);
+  bad.mutants[0].test_timeout_ms=value;
+  const result=validateProductMutationCatalog(bad);
+  assert.equal(result.ok,false);
+  assert.ok(result.errors.some((x)=>x.includes('test_timeout_ms must be an integer between 60000 and 120000')));
+ }
 });
 
 test('real product mutation pilot kills every critical mutant',()=>{
@@ -55,6 +70,10 @@ test('real product mutation pilot kills every critical mutant',()=>{
  assert.equal(result.gate.critical_failures.length,0);
  assert.equal(result.gate.noncritical_score,1);
  assert.ok(result.mutants.every((m)=>m.status==='killed'),JSON.stringify(result.mutants,null,2));
+ const byId=Object.fromEntries(result.mutants.map((m)=>[m.id,m]));
+ assert.equal(byId['PMUT-ATTEST-EXPECT-HEAD-BYPASS'].test_timeout_ms,120000);
+ assert.equal(byId['PMUT-PRIVATE-KEY-MODE-RELAXED'].test_timeout_ms,120000);
+ assert.equal(byId['PMUT-ADAPTER-SPECIFICITY-REVERSED'].test_timeout_ms,60000);
 });
 
 test('product mutation campaign never counts a failure as killed when the unmodified scratch baseline already fails',()=>{
