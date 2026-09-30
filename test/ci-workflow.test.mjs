@@ -258,7 +258,7 @@ test('the nested-next job runs exactly the suites of scripts/run-next-nested-tes
 	assert.deepEqual(nestedCoverageProblems(doc, SUITES.map((s) => s.id)), []);
 });
 
-test('the nested-next coverage rule reports each way a suite can silently drop out of CI', () => {
+test('the nested-next coverage rule reports each listed way a suite can drop out of CI', () => {
 	// A synthetic, known-good configuration, so each case below fails because of its own edit and this
 	// test stays independent of the real ci.yml and SUITES.
 	const ids = NESTED_TRACKS.filter((id) => !NESTED_TRACKS_IN_OTHER_REPOS.includes(id));
@@ -276,15 +276,24 @@ test('the nested-next coverage rule reports each way a suite can silently drop o
 		['a step with continue-on-error', (job) => { stepFor(job, 'T01')['continue-on-error'] = true; }, ids, /nested-next step ".*" must run unconditionally/],
 		['a step behind an if condition', (job) => { stepFor(job, 'T01').if = "github.event_name == 'push'"; }, ids, /nested-next step ".*" must run unconditionally/],
 		['a job with continue-on-error', (job) => { job['continue-on-error'] = true; }, ids, /the nested-next job must run unconditionally/],
+		['a job behind an if condition', (job) => { job.if = "github.event_name == 'push'"; }, ids, /the nested-next job must run unconditionally/],
+		['a job behind if: false', (job) => { job.if = false; }, ids, /the nested-next job must run unconditionally/],
+		['a step behind if: false', (job) => { stepFor(job, 'T01').if = false; }, ids, /nested-next step ".*" must run unconditionally/],
+		['a job that needs another job', (job) => { job.needs = 'macos'; }, ids, /the nested-next job must not declare "needs"/],
+		['a job that needs several jobs', (job) => { job.needs = ['test', 'macos']; }, ids, /the nested-next job must not declare "needs"/],
+		['a suite id pasted twice in SUITES', () => {}, [...ids, 'T22'], /T22 appears 2 times in the runner's SUITES/],
+		['two CI steps for one suite', (job) => { job.steps.push({ name: 'T12 again', run: 'node scripts/run-next-nested-tests.mjs T12' }); }, ids, /the nested-next job has 2 steps for T12/],
 		['a suite dropped from SUITES while its step stays', () => {}, ids.filter((id) => id !== 'T12'), /the nested-next job runs T12, which is not in the runner's SUITES/],
 		['a track that is neither a suite nor owned elsewhere', () => {}, ids.filter((id) => id !== 'T12'), /T12 has no runner suite and is not listed as running in another repository/],
 		['a suite for a track owned by another repository', () => {}, [...ids, 'T15'], /T15 is listed as running in another repository but the runner also has a suite for it/],
 		['a suite outside the known track list', () => {}, [...ids, 'T24'], /T24 is in the runner's SUITES but not in this test's track list/],
 	];
+	const unreported = [];
 	for (const [label, edit, suiteIds, expected] of cases) {
 		const doc = goodDoc();
 		edit(doc.jobs['nested-next']);
 		const problems = nestedCoverageProblems(doc, suiteIds);
-		assert.match(problems.join('\n'), expected, `${label}: expected the rule to report it, got ${JSON.stringify(problems)}`);
+		if (!expected.test(problems.join('\n'))) unreported.push(`${label}: the rule reported ${JSON.stringify(problems)}`);
 	}
+	assert.deepEqual(unreported, [], 'the rule must report each of these edits');
 });
