@@ -159,6 +159,10 @@ jobs:
         run: node scripts/run-next-nested-tests.mjs T21
       - name: T22 sdk-next
         run: node scripts/run-next-nested-tests.mjs T22
+      - name: T23 release-next
+        run: node scripts/run-next-nested-tests.mjs T23
+      - name: T23 release-policy verify (offline)
+        run: node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json
   # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   package-install:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}

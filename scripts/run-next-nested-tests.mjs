@@ -37,7 +37,8 @@ export const SUITES = [
   },
   { id: 'T20', sourcePaths: ['lib/trust-next'], testDir: 'test/trust-next' },
   { id: 'T21', sourcePaths: ['lib/artifact-store-next', 'lib/scan-scheduler-next'], testDir: 'test/perf-next' },
-  { id: 'T22', sourcePaths: ['sdk/next'], testDir: 'test/sdk-next' }
+  { id: 'T22', sourcePaths: ['sdk/next'], testDir: 'test/sdk-next' },
+  { id: 'T23', sourcePaths: ['release/next'], testDir: 'release/next/test' }
 ];
 
 const FAILURE_HINTS = {
