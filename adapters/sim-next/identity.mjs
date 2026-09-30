@@ -118,12 +118,82 @@ function parseContract(contractBytes) {
   if (contract.simulation_contract !== 'sbf.simulation-contract/draft-1') {
     throw new TypeError('simulation contract version is invalid');
   }
+
+  const requiredGroups = [
+    'identity',
+    'source_inputs',
+    'model',
+    'mapping',
+    'coordinates',
+    'units',
+    'timing',
+    'physics',
+    'support',
+    'provenance',
+  ];
+  for (const key of requiredGroups) {
+    if (!Object.hasOwn(contract, key)) {
+      throw new TypeError(`simulation contract missing required top-level group: ${key}`);
+    }
+  }
+
+  const identity = plain(contract.identity, 'simulation contract identity');
+  for (const key of ['target','repository','revision','contract_id']) {
+    if (typeof identity[key] !== 'string' || identity[key].length === 0) {
+      throw new TypeError(`simulation contract identity.${key} is required`);
+    }
+  }
+
+  if (!Array.isArray(contract.source_inputs) || contract.source_inputs.length === 0) {
+    throw new TypeError('simulation contract source_inputs must be a non-empty array');
+  }
+
   const model = plain(contract.model, 'simulation contract model');
   for (const key of ['entities','joints','actuators','sensors','colliders']) {
     if (!Array.isArray(model[key])) {
       throw new TypeError(`simulation contract model.${key} must be an array`);
     }
   }
+
+  const mapping = plain(contract.mapping, 'simulation contract mapping');
+  for (const key of ['state_channels','action_channels']) {
+    if (!Array.isArray(mapping[key])) {
+      throw new TypeError(`simulation contract mapping.${key} must be an array`);
+    }
+  }
+
+  const coordinates = plain(contract.coordinates, 'simulation contract coordinates');
+  for (const key of ['world_frame','up_axis','handedness','quaternion_order']) {
+    if (typeof coordinates[key] !== 'string' || coordinates[key].length === 0) {
+      throw new TypeError(`simulation contract coordinates.${key} is required`);
+    }
+  }
+
+  const units = plain(contract.units, 'simulation contract units');
+  for (const key of ['length','angle','force','torque','time']) {
+    if (typeof units[key] !== 'string' || units[key].length === 0) {
+      throw new TypeError(`simulation contract units.${key} is required`);
+    }
+  }
+
+  const timing = plain(contract.timing, 'simulation contract timing');
+  for (const key of ['physics_dt','control_dt']) {
+    if (typeof timing[key] !== 'number' || !Number.isFinite(timing[key]) || timing[key] <= 0) {
+      throw new TypeError(`simulation contract timing.${key} must be a positive finite number`);
+    }
+  }
+  if (!Number.isSafeInteger(timing.decimation) || timing.decimation <= 0) {
+    throw new TypeError('simulation contract timing.decimation must be a positive safe integer');
+  }
+
+  const physics = plain(contract.physics, 'simulation contract physics');
+  if (typeof physics.backend !== 'string' || physics.backend.length === 0) {
+    throw new TypeError('simulation contract physics.backend is required');
+  }
+
+  plain(contract.support, 'simulation contract support');
+  plain(contract.provenance, 'simulation contract provenance');
+
   return contract;
 }
 
