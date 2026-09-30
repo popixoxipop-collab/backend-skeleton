@@ -678,7 +678,7 @@ test('Q32 untrusted launcher runtime closure native library and revoked assets f
     (error) => error?.code === 'FIRST_PARTY_HELPER_LAUNCHER_UNTRUSTED',
   );
 
-  for (const digest of [MUJOCO,NATIVE]) {
+  for (const digest of [HELPER,MUJOCO,NATIVE]) {
     const args=helperBase();
     args.artifactTrustPolicy=policy([PYTHON,HELPER,MUJOCO,NATIVE].filter((sha)=>sha!==digest));
     assert.throws(
