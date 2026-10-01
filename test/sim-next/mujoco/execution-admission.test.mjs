@@ -237,7 +237,7 @@ test('M4 inventory rejects unlisted files symlinks stale closure hashes and miss
         ...parsed,
         required_bindings:parsed.required_bindings.filter((x)=>x.path!==REQUIRED_BINDINGS[0]),
       }),
-      /required runtime binding is not closure-bound/,
+      /required_bindings must contain exactly the reviewed MuJoCo 3.12.0 binding set/,
     );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
@@ -265,7 +265,7 @@ test('M4 inventory pins Linux x86_64 Python 3.12 and the exact reviewed binding 
   try{
     const {child,parsed}=collect(fx);
     assert.equal(child.status,0,child.stderr);
-    assert.match(parsed.python_version,/^3\\.12\\.\\d+$/);
+    assert.match(parsed.python_version,/^3\.12\.\d+$/);
     assert.equal(parsed.platform,'Linux-x86_64');
 
     assert.throws(
@@ -342,13 +342,13 @@ test('M4 collector and wrapper reject helper symlink laundering before resolutio
     fs.symlinkSync(path.basename(real),fx.helper);
     const {child}=collect(fx);
     assert.notEqual(child.status,0);
-    assert.match(child.stderr,/must not be a symlink/);
+    assert.match(child.stderr,/symlink component/);
 
     const wrapper=spawnSync('python3',['-I','-S','-B',WRAPPER,fx.runtime,fx.helper,sha(fs.readFileSync(real))],{
       encoding:'utf8',env:{},timeout:10_000,
     });
     assert.notEqual(wrapper.status,0);
-    assert.match(wrapper.stderr,/helper must not be a symlink/);
+    assert.match(wrapper.stderr,/helper contains symlink component/);
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
