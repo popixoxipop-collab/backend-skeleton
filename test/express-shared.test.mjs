@@ -2363,18 +2363,64 @@ test('typescript-express: a finally write under an unbraced control header curre
 });
 
 // Over-conservative pins: main answered ['GET /real'] for these conditional writes; pinned as they are now, a follow-up may flip them.
-test('typescript-express: labelled or trailing-dot writes under a conditional header are currently read as definite', () => {
+test('typescript-express: labelled writes under a conditional header are currently read as definite', () => {
 	assertBodiesBeforeRoute([
 		['for', 'await (const item of items)', '  lbl: app = fakeApp'],
 		['while (a)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
 		['for (const item of items)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
 		['if (a) try { cleanup() } finally { lbl: app = fakeApp }'],
 		['if (a) cleanup(); else if (b)', '  try {} finally { lbl: app = fakeApp }'],
-		['let x = 1.', 'if (a)', '  app = fakeApp'],
-		['let x = 1.', 'while (a)', '  lbl: app = fakeApp'],
-		['let x', 'if (b) x = 1.', 'else', '  app = fakeApp'],
 		['if (a)', '  try { cleanup() } finally { lbl: app++ }'],
 		['if (a)', '  try { cleanup() } finally {', '    lbl:', '    app = fakeApp', '  }'],
+	], []);
+});
+
+// A numeric literal may end in its decimal point (`1.`, `0.`, `1_000.`). That dot is not member access, so the
+// keyword on the next line is still a keyword: the control header is recognised and a regex literal right after
+// it is not read as a division that swallows the later reassignment.
+test('typescript-express: a numeric literal ending in a decimal point does not hide the control header on the next line', () => {
+	assertBodiesBeforeRoute([
+		['let x = 1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 1.', "if (a) /'/.test(text)", 'app = fakeApp', "const t = /'/"],
+		['let x = 1.', 'if (a) /{/.test(text)', 'app = fakeApp'],
+		['let x = 1.', 'while (a) /\\(/.exec(text)', 'app = fakeApp'],
+		['let x = 1.', 'for (const i of items) /\\(/.exec(text)', 'app = fakeApp'],
+		['let x = 1.', 'with (o) /\\(/.exec(text)', 'app = fakeApp'],
+		['let x: number = 1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 0.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 1_000.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 5. // c', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+	], []);
+});
+
+// Likewise a write under that header, or after `else`, stays conditional.
+test('typescript-express: a numeric literal ending in a decimal point keeps a write under the control header on the next line conditional', () => {
+	assertBodiesBeforeRoute([
+		['let x = 1.', 'if (a)', '  app = fakeApp'],
+		['let x = 1.', 'while (a)', '  app = fakeApp'],
+		['let x = 1.', 'for (const item of items)', '  app = fakeApp'],
+		['let x = 1.', 'for await (const item of items)', '  app = fakeApp'],
+		['let x = 1.', 'while (a)', '  lbl: app = fakeApp'],
+		['let x = 1.', 'if (a) cleanup()', 'else', '  app = fakeApp'],
+		['let x', 'if (b) x = 1.', 'else', '  app = fakeApp'],
+	], ['GET /real']);
+});
+
+// Only the decimal point of a numeric literal stops being a member dot: after `1..`, `1.5.`, `0x1.`, `1e3.`,
+// `1n.`, `.5.`, `1 .` or `a1.` the next word is still a member name, not a keyword.
+test('typescript-express: a dot after a numeric literal that is not its decimal point still makes the next word a member name', () => {
+	assertBodiesBeforeRoute([
+		['let y = 1..else', 'app = fakeApp'],
+		['let y = 1.5.else', 'app = fakeApp'],
+		['let y = 0x1.else', 'app = fakeApp'],
+		['let y = 1e3.else', 'app = fakeApp'],
+		['let y = 1n.else', 'app = fakeApp'],
+		['let y = .5.else', 'app = fakeApp'],
+		['let y = 1 .else', 'app = fakeApp'],
+		['const a1 = {}', 'let y = a1.else', 'app = fakeApp'],
+		['Number.prototype.if = function () {}', 'let y = 1..if (a)', 'app = fakeApp'],
+		['Number.prototype.if = function () {}', 'let y = 1.5.if (a)', 'app = fakeApp'],
+		['Number.prototype.if = function () {}', 'let y = 1 .if (a)', 'app = fakeApp'],
 	], []);
 });
 
