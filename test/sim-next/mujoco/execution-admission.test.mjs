@@ -323,6 +323,46 @@ test('M4 collector rejects any unhashed RECORD row except RECORD itself and requ
   }
 });
 
+test('M4 collector bounds stdlib roots and native dependency list sizes before inventory',()=>{
+  const fx=fixture();
+  try{
+    const base={
+      protocol:'sbf.sim-mujoco-runtime-admission-collect/draft-1',
+      target:'SIM-mujoco',
+      runtime_import_root:fx.runtime,
+      helper_path:fx.helper,
+      wrapper_path:fx.wrapper,
+      stdlib_roots:[fx.stdlib],
+      native_dependency_files:[{
+        logical_path:'system-native/libsystem-fixture.so',
+        path:fx.nativeDep,
+      }],
+    };
+
+    const tooManyStdlib=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
+      input:JSON.stringify({...base,stdlib_roots:Array(9).fill(fx.stdlib)}),
+      encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024,
+    });
+    assert.notEqual(tooManyStdlib.status,0);
+    assert.match(tooManyStdlib.stderr,/stdlib_roots exceeds limit 8/);
+
+    const tooManyNative=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
+      input:JSON.stringify({
+        ...base,
+        native_dependency_files:Array.from({length:513},(_,index)=>({
+          logical_path:`system-native/dep-${index}.so`,
+          path:fx.nativeDep,
+        })),
+      }),
+      encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024,
+    });
+    assert.notEqual(tooManyNative.status,0);
+    assert.match(tooManyNative.stderr,/native_dependency_files exceeds limit 512/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 collector rejects duplicate-key/NaN wire input before filesystem inventory',()=>{
   const fx=fixture();
   try{
