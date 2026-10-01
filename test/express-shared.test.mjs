@@ -77,6 +77,86 @@ test('maskJsComments handles a `/` inside a regex character class without ending
 	assert.ok(masked.includes('const done = true;'));
 });
 
+// A regex literal can follow `=>` and the `)` that closes an if/while/for/with header, and neither is
+// division. Read as division, a quote inside the literal opened a phantom string that left every later
+// comment unmasked.
+test('maskJsComments reads a regex literal after an arrow as a regex, so a quote inside it does not hide the next comment', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		"const hasQuote = (c) => /'/.test(c);",
+		'const hasQuote = (c) => /"/.test(c);',
+		'const hasTick = (c) => /`/.test(c);',
+		"const hasQuote = (c) => /['\"]/.test(c);",
+		"const hasQuote = (c): boolean => /'/.test(c);",
+		"const hasQuote = async c => /'/.test(c);",
+		"const hasQuote = (c) =>\n\t/'/.test(c);",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
+test('maskJsComments reads a regex literal after an if/while/for/with header as a regex, so a quote inside it does not hide the next comment', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		"if (ok) /'/.test(c);",
+		'if (ok) /"/.test(c);',
+		"if(ok) /'/.test(c);",
+		"if (f(x)) /'/.test(c);",
+		"if (ok)\n\t/'/.test(c);",
+		"else if (ok) /'/.test(c);",
+		"while (ok) /'/.exec(c);",
+		"for (const c of cs) /'/.test(c);",
+		"for await (const c of cs) /'/.test(c);",
+		"for (let i = 0; i < n; i++) /'/.test(c);",
+		"with (o) /'/.test(c);",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
+// `\//` inside a regex is an escaped slash followed by the closing slash, not the start of a line comment:
+// the rest of the line is code and must not be blanked.
+test('maskJsComments does not read an escaped slash in a regex after an arrow or a control header as a line comment', () => {
+	for (const src of [
+		'if (a) /\\//.test(y); app = x;',
+		'if (a) /\\/\\//.test(y); app = x;',
+		'while (a) /a\\/b/.test(y); app = x;',
+		'for (const c of cs) /\\//.test(c); app = x;',
+		'const f = (c) => /\\//.test(c); app = x;',
+	]) {
+		assert.equal(maskJsComments(src), src);
+	}
+});
+
+// The narrow side of the rule: only the `)` that closes an if/while/for/with header makes a following `/` a
+// regex. After any other `)` it is still division, whether the `)` closes a call, a grouping, a member named
+// like a keyword, an identifier that ends in a keyword, or a header-like word that sits inside a comment.
+test('maskJsComments still reads `/` after a `)` that does not close a control header as division', () => {
+	for (const src of [
+		"const r = f(x) / 2; // it's here",
+		"const r = (a + b) / 2; // it's here",
+		"const r = a.if(x) / 2; // it's here",
+		"const r = a?.while(x) / 2; // it's here",
+		"const r = gif(x) / 2; // it's here",
+		"const r = awhile(x) / 2; // it's here",
+		"const r = for_(x) / 2; // it's here",
+		"const r = $with(x) / 2; // it's here",
+		"if (f(x) / 2 > 1) go(); // it's here",
+		"if (a) go(); const r = f(x) / 2; // it's here",
+		"// while\n(a + b) / 2; // it's here",
+		"/* if */ (a + b) / 2; // it's here",
+	]) {
+		const masked = maskJsComments(src);
+		assert.ok(!masked.includes("it's here"), `the trailing comment of ${JSON.stringify(src)} must be masked`);
+	}
+});
+
 // String literals must survive INTACT (unlike the Java masker, which blanks string interiors):
 // every path these adapters report is read straight out of a string literal.
 test('maskJsComments leaves route path literals readable after masking', () => {
@@ -2448,6 +2528,39 @@ test('typescript-express: a dot after a numeric literal that is not its decimal 
 		['Number.prototype.if = function () {}', 'let y = 1.5.if (a)', 'app = fakeApp'],
 		['Number.prototype.if = function () {}', 'let y = 1 .if (a)', 'app = fakeApp'],
 	], []);
+});
+
+// The comment masker used to read the `/` of a regex literal after `=>` or after a control header's `)` as division,
+// so a quote inside the literal opened a phantom string and the next `// ...` comment stayed unmasked. A comment
+// ending in `.` then read as a member access in front of the `if` / `while` on the following line, and the control
+// header was missed. Expected values are the result of running each body.
+test('typescript-express: a quote in a regex literal after an arrow or a control header does not hide a control header below a comment that ends in a dot', () => {
+	assertBodiesBeforeRoute([
+		["const f1 = (c) => /'/.test(c)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		['const f1 = (c) => /"/.test(c)', '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		["const f1 = (c) => /'/.test(c)", '// Use the stub.', 'while (b)', '  app = fakeApp'],
+		["const f1 = (c) => /'/.test(c)", '// Mirrors the old stub, e.g.', 'if (b)', '  app = fakeApp'],
+		["if (a) /'/.test(y)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		["while (a) /'/.test(y)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		["for (const c of arr) /'/.test(c)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+	], ['GET /real']);
+	assertBodiesBeforeRoute([
+		["const f1 = (c) => /'/.test(c)", '// Use the stub.', 'if (b) /\\(/.test(y)', 'app = fakeApp'],
+		["if (a) /'/.test(y)", '// Use the stub.', 'if (b) /\\(/.test(y)', 'app = fakeApp'],
+	], []);
+});
+
+// Same cause, other symptom: `/\//` after a control header's `)` or after `=>` was read as division followed by a
+// line comment, which blanked the rest of the line and left the reassignment looking conditional or absent.
+test('typescript-express: a regex with an escaped slash after a control header or an arrow does not hide the code after it', () => {
+	assertBodiesBeforeRoute([
+		['if (a) /\\//.test(y)', 'app = fakeApp'],
+		['if (a) /\\//.test(y); app = fakeApp'],
+		['const f = (c) => /\\//.test(c)', 'app = fakeApp'],
+	], []);
+	assertBodiesBeforeRoute([
+		['if (a) /\\//.test(y)', 'if (b)', '  app = fakeApp'],
+	], ['GET /real']);
 });
 
 test('typescript-express: initializer-free var redeclaration in a classic for preserves the trusted app', () => {
