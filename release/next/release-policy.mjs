@@ -2,12 +2,20 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { publicKeyIdFromPublic, verifyPayload } from '../../lib/attest.mjs';
+import { createGithubFetchRun, redactSecrets, secretsFromEnv } from './release-policy-github.mjs';
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256_REF = /^sha256:[a-f0-9]{64}$/;
+const SHA256_HEX = /^[a-f0-9]{64}$/;
 const ROLES = ['bskel', 'becoder', 'beval'];
+const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const IDENTITY_CONFORMANCE_PATH = 'schemas/next/identity-conformance.json';
+const LEGACY_IDENTITY_HASH_KEY = 'bskel_pack_sha256';
+const FILE_REF_KEYS = ['kind', 'path', 'sha256'];
+const WAIVER_REF_KEYS = ['kind', 'waiver'];
+const WAIVER_FIELDS = ['id', 'approved_by', 'approved_on', 'scope', 'reason'];
 const EXPECTED_ROLE_IDENTITIES = new Map([
   ['bskel', { repo: 'popixoxipop-collab/backend-skeleton', package: 'backend-skeleton' }],
   ['becoder', { repo: 'popixoxipop-collab/backend-decoder', package: 'backend-decoder' }],
@@ -706,7 +714,154 @@ export function loadActivationLease(
   return { ok: errors.length === 0, absent: false, errors, lease, path: file };
 }
 
-export function observedBlockers(inventory) {
+const nonBlank = (value) => typeof value === 'string' && value.trim() !== '';
+
+function sameKeys(value, keys) {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((key) => actual.includes(key));
+}
+
+function isIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+// Evidence paths are repo-relative, '/'-separated and canonical: no absolute form, no '.', '..' or empty segment.
+function unsafeRelativePath(candidate) {
+  if (candidate.includes('\0') || candidate.includes('\\')) return true;
+  if (path.posix.isAbsolute(candidate) || path.win32.isAbsolute(candidate) || /^[A-Za-z]:/.test(candidate)) return true;
+  return candidate.split('/').some((segment) => segment === '' || segment === '.' || segment === '..');
+}
+
+function sha256OfRegularFile(file) {
+  // O_NONBLOCK keeps open() from hanging on a FIFO; fstat then refuses anything that is not a regular file.
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+  try {
+    if (!fs.fstatSync(fd).isFile()) return { ok: false, reason: 'unreadable' };
+    const hash = crypto.createHash('sha256');
+    const chunk = Buffer.allocUnsafe(65536);
+    for (let read = fs.readSync(fd, chunk, 0, chunk.length, null); read > 0; read = fs.readSync(fd, chunk, 0, chunk.length, null)) {
+      hash.update(chunk.subarray(0, read));
+    }
+    return { ok: true, sha256: hash.digest('hex') };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function hashRepoFile(repoRoot, relativePath, cache) {
+  if (cache.has(relativePath)) return cache.get(relativePath);
+  let outcome;
+  try {
+    const rootReal = fs.realpathSync.native(repoRoot);
+    const real = fs.realpathSync.native(path.join(rootReal, ...relativePath.split('/')));
+    const relative = path.relative(rootReal, real);
+    outcome = relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
+      ? { ok: false, reason: 'outside_root' }
+      : sha256OfRegularFile(real);
+  } catch (error) {
+    outcome = { ok: false, reason: 'unreadable', detail: typeof error?.code === 'string' ? error.code : 'error' };
+  }
+  cache.set(relativePath, outcome);
+  return outcome;
+}
+
+function checkFileRef(key, ref, accepted, errors, repoRoot, cache) {
+  if (!sameKeys(ref, FILE_REF_KEYS) || typeof ref.path !== 'string' || ref.path === '' || typeof ref.sha256 !== 'string') {
+    push(errors, 'PROMOTION_EVIDENCE_REF_MALFORMED', { key, detail: 'a file ref is exactly {kind:"file", path, sha256}' });
+    return;
+  }
+  const formatOk = SHA256_HEX.test(ref.sha256);
+  if (!formatOk) push(errors, 'PROMOTION_EVIDENCE_REF_SHA256_FORMAT', { key });
+  const pathOk = !unsafeRelativePath(ref.path);
+  if (!pathOk) push(errors, 'PROMOTION_EVIDENCE_REF_PATH_UNSAFE', { key, path: ref.path });
+  if (!accepted || !formatOk || !pathOk) return;
+
+  const hashed = hashRepoFile(repoRoot, ref.path, cache);
+  if (!hashed.ok) {
+    push(errors, hashed.reason === 'outside_root' ? 'PROMOTION_EVIDENCE_REF_OUTSIDE_ROOT' : 'PROMOTION_EVIDENCE_REF_FILE_UNREADABLE', { key, path: ref.path });
+  } else if (hashed.sha256 !== ref.sha256) {
+    push(errors, 'PROMOTION_EVIDENCE_REF_SHA256_MISMATCH', { key, path: ref.path, expected: ref.sha256, actual: hashed.sha256 });
+  }
+}
+
+// Returns the waiver when the ref is a complete one, otherwise null (after recording why).
+function checkWaiverRef(key, ref, errors) {
+  if (!sameKeys(ref, WAIVER_REF_KEYS) || !plain(ref.waiver) || Object.keys(ref.waiver).some((field) => !WAIVER_FIELDS.includes(field))) {
+    push(errors, 'PROMOTION_EVIDENCE_REF_MALFORMED', { key, detail: 'a waiver ref is exactly {kind:"waiver", waiver:{id, approved_by, approved_on, scope, reason}}' });
+    return null;
+  }
+  let complete = true;
+  for (const field of WAIVER_FIELDS) {
+    const value = ref.waiver[field];
+    if (field === 'approved_on' ? !isIsoDate(value) : !nonBlank(value)) {
+      push(errors, 'PROMOTION_EVIDENCE_WAIVER_INVALID', { key, field });
+      complete = false;
+    }
+  }
+  return complete ? ref.waiver : null;
+}
+
+function checkIdentityPin(key, item, errors, repoRoot, cache) {
+  const pinned = item.identity_conformance_sha256;
+  if (typeof pinned !== 'string' || !SHA256_HEX.test(pinned)) {
+    push(errors, 'IDENTITY_CONFORMANCE_SHA256_FORMAT', { key });
+    return;
+  }
+  const hashed = hashRepoFile(repoRoot, IDENTITY_CONFORMANCE_PATH, cache);
+  if (!hashed.ok) {
+    push(errors, 'IDENTITY_CONFORMANCE_FILE_UNREADABLE', { key, path: IDENTITY_CONFORMANCE_PATH, reason: hashed.reason });
+  } else if (hashed.sha256 !== pinned) {
+    push(errors, 'IDENTITY_CONFORMANCE_SHA256_MISMATCH', { key, path: IDENTITY_CONFORMANCE_PATH, expected: pinned, actual: hashed.sha256 });
+  }
+}
+
+// An ACCEPTED promotion_evidence entry only counts when it carries a verified evidence_ref: a file whose bytes hash to the
+// pinned sha256, or a complete waiver. Every other entry keeps its blocker. A malformed ref is an error wherever it is.
+function evaluatePromotionEvidence(inventory, options) {
+  const repoRoot = typeof options?.repoRoot === 'string' && options.repoRoot !== '' ? options.repoRoot : DEFAULT_REPO_ROOT;
+  const errors = [];
+  const backed = new Set();
+  const waived = [];
+  const cache = new Map();
+
+  for (const key of REQUIRED_PROMOTION_EVIDENCE.keys()) {
+    const item = inventory?.promotion_evidence?.[key];
+    if (!plain(item)) continue;
+    const before = errors.length;
+    const accepted = item.required_state === 'ACCEPTED' && item.observed_state === 'ACCEPTED';
+    let waiver = null;
+
+    if (Object.hasOwn(item, LEGACY_IDENTITY_HASH_KEY)) push(errors, 'PROMOTION_EVIDENCE_LEGACY_KEY', { key, field: LEGACY_IDENTITY_HASH_KEY });
+    if (Object.hasOwn(item, 'identity_conformance_sha256')) checkIdentityPin(key, item, errors, repoRoot, cache);
+
+    if (!Object.hasOwn(item, 'evidence_ref')) {
+      if (accepted) push(errors, 'PROMOTION_EVIDENCE_REF_REQUIRED', { key });
+    } else if (!plain(item.evidence_ref)) {
+      push(errors, 'PROMOTION_EVIDENCE_REF_MALFORMED', { key, detail: 'evidence_ref must be an object' });
+    } else if (item.evidence_ref.kind === 'file') {
+      checkFileRef(key, item.evidence_ref, accepted, errors, repoRoot, cache);
+    } else if (item.evidence_ref.kind === 'waiver') {
+      waiver = checkWaiverRef(key, item.evidence_ref, errors);
+    } else {
+      push(errors, 'PROMOTION_EVIDENCE_REF_MALFORMED', { key, detail: 'evidence_ref.kind must be "file" or "waiver"' });
+    }
+
+    if (accepted && errors.length === before) {
+      backed.add(key);
+      if (waiver) waived.push({ key, ...Object.fromEntries(WAIVER_FIELDS.map((field) => [field, waiver[field]])) });
+    }
+  }
+  return { errors, backed, waived };
+}
+
+export function observedBlockers(inventory, options = {}) {
+  return blockersFor(inventory, evaluatePromotionEvidence(inventory, options).backed);
+}
+
+function blockersFor(inventory, backedEvidence) {
   const blockers = new Set();
   const baseline = inventory?.coordination_baseline ?? {};
   if (baseline.accepted !== true || baseline.state !== 'ACCEPTED') blockers.add('BASELINE_NOT_ACCEPTED');
@@ -727,7 +882,7 @@ export function observedBlockers(inventory) {
   const evidence = inventory?.promotion_evidence;
   for (const [key, blocker] of REQUIRED_PROMOTION_EVIDENCE) {
     const item = evidence?.[key];
-    if (!item || item.required_state !== 'ACCEPTED' || item.observed_state !== 'ACCEPTED') blockers.add(blocker);
+    if (!item || item.required_state !== 'ACCEPTED' || item.observed_state !== 'ACCEPTED' || !backedEvidence.has(key)) blockers.add(blocker);
   }
   return [...blockers].sort();
 }
@@ -770,9 +925,9 @@ export function releasePlanBlockers(plan, inventory = null, evidenceStore = null
   return [...blockers].sort();
 }
 
-export function verifyCompatibilityInventory(inventory) {
+export function verifyCompatibilityInventory(inventory, options = {}) {
   const errors = [];
-  if (inventory?.schema !== 'bskel.scale-release-compatibility/2') push(errors, 'INVENTORY_SCHEMA');
+  if (inventory?.schema !== 'bskel.scale-release-compatibility/3') push(errors, 'INVENTORY_SCHEMA');
   if (inventory?.coordination_baseline?.state !== 'ACCEPTED' || inventory?.coordination_baseline?.accepted !== true) push(errors, 'BASELINE_ACCEPTANCE');
   for (const role of ROLES) if (!SHA40.test(inventory?.coordination_baseline?.repositories?.[role] ?? '')) push(errors, 'BASELINE_SHA', { role });
 
@@ -796,7 +951,7 @@ export function verifyCompatibilityInventory(inventory) {
     if (!SHA40.test(repo.package?.workflow_blob ?? '')) push(errors, 'WORKFLOW_BLOB', { role: repo.role });
 
     const v = repo.verification ?? {};
-    if (!Number.isInteger(v.ci_run)) push(errors, 'CI_RUN_ID', { role: repo.role });
+    if (!Number.isSafeInteger(v.ci_run) || v.ci_run <= 0) push(errors, 'CI_RUN_ID', { role: repo.role });
     if (v.status !== 'completed') push(errors, 'CI_STATUS', { role: repo.role });
     if (v.conclusion !== 'success') push(errors, 'CI_CONCLUSION', { role: repo.role });
     if (!SHA40.test(v.reviewed_head_sha ?? '')) push(errors, 'REVIEWED_HEAD_SHA', { role: repo.role });
@@ -821,6 +976,8 @@ export function verifyCompatibilityInventory(inventory) {
     }
     if (item.required_state !== 'ACCEPTED') push(errors, 'PROMOTION_REQUIRED_STATE', { key, expected: 'ACCEPTED', actual: item.required_state ?? null });
   }
+  const evidence = evaluatePromotionEvidence(inventory, options);
+  errors.push(...evidence.errors);
 
   const inv = inventory?.invariants ?? {};
   if (inv.legacy_http_identity_authoritative !== true) push(errors, 'LEGACY_IDENTITY_AUTHORITY');
@@ -829,7 +986,7 @@ export function verifyCompatibilityInventory(inventory) {
   if (inv.production_registry_changed !== false) push(errors, 'PREMATURE_REGISTRY_CHANGE');
   if (inv.release_performed !== false) push(errors, 'PREMATURE_RELEASE_OBSERVATION');
 
-  return { ok: errors.length === 0, errors, observed_blockers: observedBlockers(inventory) };
+  return { ok: errors.length === 0, errors, observed_blockers: blockersFor(inventory, evidence.backed), waived_evidence: evidence.waived };
 }
 
 function verifyPrerequisites(plan, errors) {
@@ -897,7 +1054,7 @@ function verifyMigrationStages(plan, errors) {
   }
 }
 
-export function verifyReleasePlan(plan, inventory, evidenceStore = null, activationLease = null) {
+export function verifyReleasePlan(plan, inventory, evidenceStore = null, activationLease = null, options = {}) {
   const errors = [];
 
   if (plan?.schema !== 'bskel.scale-release-plan/2') push(errors, 'RELEASE_PLAN_SCHEMA');
@@ -929,7 +1086,7 @@ export function verifyReleasePlan(plan, inventory, evidenceStore = null, activat
   const allAccepted = verifyPrerequisites(plan, errors);
   if (evidenceStore && !evidenceStore.ok) push(errors, 'EVIDENCE_STORE_INVALID', { count: evidenceStore.errors.length });
 
-  const dynamic = [...observedBlockers(inventory), ...releasePlanBlockers(plan, inventory, evidenceStore, activationLease)];
+  const dynamic = [...observedBlockers(inventory, options), ...releasePlanBlockers(plan, inventory, evidenceStore, activationLease)];
   const declared = new Set(plan?.blockers ?? []);
   for (const code of dynamic) {
     if (!declared.has(code)) push(errors, 'OBSERVED_BLOCKER_NOT_DECLARED', { blocker: code });
@@ -1021,9 +1178,9 @@ export function verifyReleasePlan(plan, inventory, evidenceStore = null, activat
   return { ok: errors.length === 0, errors };
 }
 
-export function verifyAll(inventory, plan, evidenceStore = null, activationLease = null) {
-  const inventoryResult = verifyCompatibilityInventory(inventory);
-  const planResult = verifyReleasePlan(plan, inventory, evidenceStore, activationLease);
+export function verifyAll(inventory, plan, evidenceStore = null, activationLease = null, options = {}) {
+  const inventoryResult = verifyCompatibilityInventory(inventory, options);
+  const planResult = verifyReleasePlan(plan, inventory, evidenceStore, activationLease, options);
   return {
     ok: inventoryResult.ok && planResult.ok,
     inventory: inventoryResult,
@@ -1031,65 +1188,268 @@ export function verifyAll(inventory, plan, evidenceStore = null, activationLease
   };
 }
 
-function main() {
-  const [
-    command,
-    inventoryPath,
-    planPath,
-    evidenceManifestPath,
-    authorityPath,
-    expectedAuthorityRef,
-    activationLeasePath,
-    expectedActivationFencingTokenRaw,
-    expectedActivationClaimId,
-  ] = process.argv.slice(2);
+const ONLINE_NOT_FOUND_HINT = 'GitHub answers 404 both for a run that does not exist and for a repository the token cannot see; for a private repository, check with a token that can read its Actions runs.';
+const ONLINE_UNAUTHORIZED_HINT = 'The token, or the lack of one, is not allowed to read this repository\'s Actions runs; it needs read access to Actions.';
 
-  if (command !== 'verify' || !inventoryPath || !planPath || !evidenceManifestPath) {
-    console.error(
-      'usage: node release-policy.mjs verify <compatibility-inventory.json> <release-plan.json> <evidence-manifest.json> [authority.json expected-authority-ref [activation-lease.json expected-fencing-token expected-claim-id]]',
-    );
-    process.exit(1);
+// JSON-safe rendering of a value that came from the inventory or from GitHub.
+function show(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value.length > 200 ? `${value.slice(0, 200)}...` : value;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+  return `<${Array.isArray(value) ? 'array' : typeof value}>`;
+}
+
+function describeError(error) {
+  let text;
+  try {
+    text = error instanceof Error ? error.message : String(error);
+  } catch {
+    text = 'unprintable error';
+  }
+  return text.slice(0, 300);
+}
+
+function classifyRunReply(role, reply, expected) {
+  const found = [];
+  if (!plain(reply) || !Number.isInteger(reply.status)) {
+    push(found, 'ONLINE_RUN_RESPONSE_INVALID', { role, detail: 'fetchRun must return {status, body}' });
+    return found;
+  }
+  const { status, body } = reply;
+  if (status === 200) {
+    if (!plain(body)) {
+      push(found, 'ONLINE_RUN_RESPONSE_INVALID', { role, status, detail: 'a 200 reply must carry the run as a JSON object' });
+      return found;
+    }
+    const checks = [
+      ['id', expected.runId, body.id],
+      ['repository.full_name', expected.repo, plain(body.repository) ? body.repository.full_name : undefined],
+      ['event', 'push', body.event],
+      ['head_branch', 'main', body.head_branch],
+      ['head_sha', expected.headSha, body.head_sha],
+      ['status', 'completed', body.status],
+      ['conclusion', 'success', body.conclusion],
+    ];
+    for (const [field, want, got] of checks) {
+      if (got !== want) push(found, 'ONLINE_RUN_MISMATCH', { role, field, expected: want, actual: show(got) });
+    }
+  } else if (status === 404 || status === 410) {
+    push(found, 'ONLINE_RUN_NOT_FOUND', { role, status, hint: ONLINE_NOT_FOUND_HINT });
+  } else if (status === 401 || status === 403) {
+    push(found, 'ONLINE_RUN_UNAUTHORIZED', { role, status, hint: ONLINE_UNAUTHORIZED_HINT });
+  } else if (status === 429 || (status >= 500 && status <= 599)) {
+    push(found, 'ONLINE_RUN_UNREACHABLE', { role, status, detail: 'GitHub is rate limiting or unavailable' });
+  } else {
+    push(found, 'ONLINE_RUN_RESPONSE_INVALID', { role, status, detail: 'unexpected HTTP status' });
+  }
+  return found;
+}
+
+// Online counterpart of the offline checks: each selected role's pinned CI run must exist on GitHub as a completed,
+// successful push to main of exactly the pinned head, in exactly the pinned repository. `fetchRun({repo, runId})` must
+// resolve to {status, body}; everything that is not a matching 200 fails closed with a distinct code.
+export async function verifyOnline(inventory, options) {
+  if (!plain(options) || typeof options.fetchRun !== 'function') throw new TypeError('verifyOnline: options.fetchRun must be a function');
+  const requested = options.roles === undefined ? ROLES : options.roles;
+  if (!Array.isArray(requested)) throw new TypeError('verifyOnline: options.roles must be an array of role names');
+  const { fetchRun } = options;
+
+  const errors = [];
+  const runs = [];
+  const unknown = [...new Set(requested.filter((role) => !ROLES.includes(role)))];
+  for (const role of unknown) push(errors, 'ONLINE_ROLE_UNKNOWN', { role: show(role) });
+  const selected = unknown.length > 0 ? [] : ROLES.filter((role) => requested.includes(role));
+  if (unknown.length === 0 && selected.length === 0) push(errors, 'ONLINE_NO_ROLES');
+
+  const repositories = Array.isArray(inventory?.repositories) ? inventory.repositories : [];
+  for (const role of selected) {
+    const pinnedRepo = EXPECTED_ROLE_IDENTITIES.get(role).repo;
+    const entry = repositories.findLast((candidate) => candidate?.role === role);
+    if (!plain(entry)) {
+      push(errors, 'ONLINE_ROLE_MISSING', { role });
+      runs.push({ role, repo: null, ci_run: null, ci_head_sha: null, ok: false });
+      continue;
+    }
+
+    const verification = plain(entry.verification) ? entry.verification : {};
+    const summary = { role, repo: show(entry.repo), ci_run: show(verification.ci_run), ci_head_sha: show(verification.ci_head_sha) };
+    const problems = [];
+    if (entry.repo !== pinnedRepo) push(problems, 'ONLINE_REPOSITORY_NOT_PINNED', { role, expected: pinnedRepo, actual: show(entry.repo) });
+    if (!Number.isSafeInteger(verification.ci_run) || verification.ci_run <= 0) push(problems, 'ONLINE_CI_RUN_INVALID', { role, actual: show(verification.ci_run) });
+    if (typeof verification.ci_head_sha !== 'string' || !SHA40.test(verification.ci_head_sha)) push(problems, 'ONLINE_CI_HEAD_SHA_INVALID', { role, actual: show(verification.ci_head_sha) });
+    if (problems.length > 0) {
+      errors.push(...problems);
+      runs.push({ ...summary, ok: false });
+      continue;
+    }
+
+    const before = errors.length;
+    let reply;
+    try {
+      reply = await fetchRun({ repo: pinnedRepo, runId: verification.ci_run });
+    } catch (error) {
+      push(errors, 'ONLINE_RUN_UNREACHABLE', { role, detail: describeError(error) });
+      runs.push({ ...summary, ok: false });
+      continue;
+    }
+    errors.push(...classifyRunReply(role, reply, { repo: pinnedRepo, runId: verification.ci_run, headSha: verification.ci_head_sha }));
+    runs.push({ ...summary, ok: errors.length === before });
   }
 
-  const inventory = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
-  const plan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+  return {
+    ok: errors.length === 0,
+    errors,
+    checked_roles: selected,
+    not_checked_roles: ROLES.filter((role) => !selected.includes(role)),
+    runs,
+  };
+}
 
-  const authority = loadEvidenceAuthority(authorityPath, expectedAuthorityRef);
-  const evidenceStore = loadEvidenceStore(evidenceManifestPath, authority.ok ? authority : null);
-  const expectedActivationFencingToken = parseExpectedFencingToken(expectedActivationFencingTokenRaw);
-  const activationLease = activationLeasePath
-    ? loadActivationLease(
+const USAGE = [
+  'usage: node release-policy.mjs verify [--online [--online-roles bskel[,becoder,beval]]] <compatibility-inventory.json> <release-plan.json> <evidence-manifest.json> [authority.json expected-authority-ref [activation-lease.json expected-fencing-token expected-claim-id]]',
+  '  --online        also check, read-only against the GitHub API, that each selected role\'s pinned CI run is a green push to main of the pinned head',
+  '                  (token from GH_TOKEN or GITHUB_TOKEN when set; flags must come directly after "verify")',
+  `  --online-roles  comma-separated roles for --online (default: ${ROLES.join(',')}); roles that were not checked are listed in the output`,
+].join('\n');
+
+class UsageError extends Error {}
+
+function parseVerifyArguments(argv) {
+  const [command, ...rest] = argv;
+  if (command !== 'verify') throw new UsageError(command === undefined ? 'missing command' : `unknown command: ${command}`);
+
+  let online = false;
+  let rolesText = null;
+  let index = 0;
+  for (; index < rest.length && typeof rest[index] === 'string' && rest[index].startsWith('--'); index += 1) {
+    const flag = rest[index];
+    if (flag === '--online') {
+      online = true;
+    } else if (flag === '--online-roles' || flag.startsWith('--online-roles=')) {
+      if (rolesText !== null) throw new UsageError('--online-roles was given more than once');
+      if (flag === '--online-roles') {
+        index += 1;
+        if (index >= rest.length) throw new UsageError('--online-roles needs a value');
+        rolesText = rest[index];
+      } else {
+        rolesText = flag.slice('--online-roles='.length);
+      }
+    } else {
+      throw new UsageError(`unknown option: ${flag}`);
+    }
+  }
+
+  const positionals = rest.slice(index);
+  const stray = positionals.find((token) => typeof token === 'string' && token.startsWith('--'));
+  if (stray !== undefined) throw new UsageError(`options must come directly after "verify", before the files: ${stray}`);
+  if (!positionals[0] || !positionals[1] || !positionals[2]) throw new UsageError('verify needs an inventory, a release plan and an evidence manifest');
+
+  let roles = ROLES;
+  if (rolesText !== null) {
+    if (!online) throw new UsageError('--online-roles requires --online');
+    const listed = rolesText.split(',');
+    const bad = listed.find((role) => !ROLES.includes(role));
+    if (bad !== undefined) throw new UsageError(bad === '' ? '--online-roles has an empty entry' : `unknown role in --online-roles: ${bad}`);
+    roles = ROLES.filter((role) => listed.includes(role));
+  }
+  return { online, roles, positionals };
+}
+
+function readJson(file, label) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    throw new Error(`cannot read ${label} ${file}: ${describeError(error)}`);
+  }
+}
+
+function redactDeep(value, secrets) {
+  if (typeof value === 'string') return redactSecrets(value, secrets);
+  if (Array.isArray(value)) return value.map((item) => redactDeep(item, secrets));
+  if (plain(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactDeep(item, secrets)]));
+  return value;
+}
+
+// Exit codes: 0 verified, 2 verification failed, 1 usage or I/O error (nothing on stdout). Reports through its return
+// value and the given streams only, so it can be driven in-process with a fake `fetch`, environment and clock.
+export async function runCli(argv, { env = process.env, fetchImpl = globalThis.fetch, sleep, stdout = process.stdout, stderr = process.stderr } = {}) {
+  const secrets = secretsFromEnv(env);
+  try {
+    const { online, roles, positionals } = parseVerifyArguments(argv);
+    const [
+      inventoryPath,
+      planPath,
+      evidenceManifestPath,
+      authorityPath,
+      expectedAuthorityRef,
       activationLeasePath,
-      authority.ok ? authority : null,
-      inventory,
-      Date.now(),
-      expectedActivationFencingToken,
-      expectedActivationClaimId ?? null,
-    )
-    : { ok: false, absent: true, errors: [{ code: 'DEFAULT_ACTIVATION_LEASE_REQUIRED' }], lease: null };
+      expectedActivationFencingTokenRaw,
+      expectedActivationClaimId,
+    ] = positionals;
 
-  const result = verifyAll(inventory, plan, evidenceStore, activationLease);
-  process.stdout.write(JSON.stringify({
-    ...result,
-    evidence_authority: {
-      ok: authority.ok,
-      absent: authority.absent,
-      ref: authority.ref,
-      errors: authority.errors,
-    },
-    evidence_store: {
-      ok: evidenceStore.ok,
-      errors: evidenceStore.errors,
-      resolved_entries: evidenceStore.entries.size,
-    },
-    activation_lease: {
-      ok: activationLease.ok,
-      absent: activationLease.absent,
-      errors: activationLease.errors,
-    },
-  }, null, 2) + '\n');
+    const inventory = readJson(inventoryPath, 'inventory');
+    const plan = readJson(planPath, 'release plan');
 
-  process.exit(result.ok ? 0 : 2);
+    const authority = loadEvidenceAuthority(authorityPath, expectedAuthorityRef);
+    const evidenceStore = loadEvidenceStore(evidenceManifestPath, authority.ok ? authority : null);
+    const expectedActivationFencingToken = parseExpectedFencingToken(expectedActivationFencingTokenRaw);
+    const activationLease = activationLeasePath
+      ? loadActivationLease(
+        activationLeasePath,
+        authority.ok ? authority : null,
+        inventory,
+        Date.now(),
+        expectedActivationFencingToken,
+        expectedActivationClaimId ?? null,
+      )
+      : { ok: false, absent: true, errors: [{ code: 'DEFAULT_ACTIVATION_LEASE_REQUIRED' }], lease: null };
+
+    const result = verifyAll(inventory, plan, evidenceStore, activationLease);
+
+    let onlineSection = { enabled: false, checked_roles: [], not_checked_roles: [...ROLES], runs: [], errors: [] };
+    if (online) {
+      const fetchRun = createGithubFetchRun({ env, fetchImpl, sleep });
+      onlineSection = { enabled: true, ...redactDeep(await verifyOnline(inventory, { roles, fetchRun }), secrets) };
+    }
+
+    const ok = result.ok && (!online || onlineSection.ok);
+    stdout.write(redactSecrets(JSON.stringify({
+      ...result,
+      ok,
+      evidence_authority: {
+        ok: authority.ok,
+        absent: authority.absent,
+        ref: authority.ref,
+        errors: authority.errors,
+      },
+      evidence_store: {
+        ok: evidenceStore.ok,
+        errors: evidenceStore.errors,
+        resolved_entries: evidenceStore.entries.size,
+      },
+      activation_lease: {
+        ok: activationLease.ok,
+        absent: activationLease.absent,
+        errors: activationLease.errors,
+      },
+      online: onlineSection,
+    }, null, 2), secrets) + '\n');
+    return ok ? 0 : 2;
+  } catch (error) {
+    stderr.write(`${redactSecrets(describeError(error), secrets)}\n${error instanceof UsageError ? `${USAGE}\n` : ''}`);
+    return 1;
+  }
+}
+
+function main() {
+  runCli(process.argv.slice(2)).then(
+    (code) => { process.exitCode = code; },
+    (error) => {
+      process.stderr.write(`${describeError(error)}\n`);
+      process.exitCode = 1;
+    },
+  );
 }
 
 // import.meta.url is percent-encoded and symlink-resolved, so compare it with the resolved argv[1] as a file URL.
