@@ -151,7 +151,7 @@ export function runtimeClosureDigest(files){
 export function validateMujocoRuntimeInventory(value){
   exactKeys(value,[
     'schema','target','platform','python_version','mujoco_version',
-    'launcher','helper','wrapper','runtime_closure','native_library',
+    'launcher','collector','helper','wrapper','runtime_closure','native_library',
     'required_bindings','plugin_libraries','startup',
   ],'MuJoCo runtime inventory');
   if(value.schema!==MUJOCO_RUNTIME_INVENTORY_SCHEMA) throw new TypeError('runtime inventory schema is invalid');
@@ -171,8 +171,10 @@ export function validateMujocoRuntimeInventory(value){
     throw new TypeError('launcher.basename must be an executable basename');
   }
 
+  exactKeys(value.collector,['sha256'],'runtime inventory collector');
   exactKeys(value.helper,['sha256'],'runtime inventory helper');
   exactKeys(value.wrapper,['sha256'],'runtime inventory wrapper');
+  const collector={sha256:digest(value.collector.sha256,'collector.sha256')};
   const helper={sha256:digest(value.helper.sha256,'helper.sha256')};
   const wrapper={sha256:digest(value.wrapper.sha256,'wrapper.sha256')};
 
@@ -263,7 +265,9 @@ export function validateMujocoRuntimeInventory(value){
     if(value.startup[key]!==true) throw new TypeError(`runtime inventory startup.${key} must be true`);
   }
 
-  const roleShas=[launcher.sha256,helper.sha256,wrapper.sha256,closureSha,nativeLibrary.sha256];
+  const roleShas=[
+    launcher.sha256,collector.sha256,helper.sha256,wrapper.sha256,closureSha,nativeLibrary.sha256,
+  ];
   if(new Set(roleShas).size!==roleShas.length){
     throw new TypeError('launcher/helper/wrapper/runtime-closure/native roles must use distinct digests');
   }
@@ -275,6 +279,7 @@ export function validateMujocoRuntimeInventory(value){
     python_version:bounded(value.python_version,'python_version'),
     mujoco_version:VERSION,
     launcher:Object.freeze(launcher),
+    collector:Object.freeze(collector),
     helper:Object.freeze(helper),
     wrapper:Object.freeze(wrapper),
     runtime_closure:Object.freeze({
@@ -439,6 +444,7 @@ export function buildMujocoExecutionAdmissionCandidate(input){
     enforcement_evidence:enforcement,
     required_runtime_identities:Object.freeze({
       launcher_sha256:runtime.launcher.sha256,
+      collector_sha256:runtime.collector.sha256,
       helper_sha256:runtime.helper.sha256,
       wrapper_sha256:runtime.wrapper.sha256,
       runtime_closure_sha256:runtime.runtime_closure.closure_sha256,
