@@ -459,11 +459,41 @@ def seed_files(runtime_root: Path, launcher: Path) -> list[Path]:
     if plugin_dir.exists():
         if plugin_dir.is_symlink() or not plugin_dir.is_dir():
             fail("mujoco/plugin must be a regular directory")
-        for child in sorted(plugin_dir.iterdir(), key=lambda path: path.name):
-            if child.is_symlink():
-                fail(f"plugin entry must not be a symlink: {child.name}")
-            if child.is_file() and child.name.endswith(".so"):
-                seeds.append(child)
+        for directory, dirnames, filenames in os.walk(
+            plugin_dir,
+            topdown=True,
+            followlinks=False,
+        ):
+            current = Path(directory)
+            checked_dirs = []
+            for name in sorted(dirnames):
+                child = current / name
+                if child.is_symlink():
+                    fail(
+                        "plugin directory entry must not be a symlink: "
+                        + str(child.relative_to(plugin_dir))
+                    )
+                if not child.is_dir():
+                    fail(
+                        "plugin directory entry must be a directory: "
+                        + str(child.relative_to(plugin_dir))
+                    )
+                checked_dirs.append(name)
+            dirnames[:] = checked_dirs
+            for name in sorted(filenames):
+                child = current / name
+                if child.is_symlink():
+                    fail(
+                        "plugin file entry must not be a symlink: "
+                        + str(child.relative_to(plugin_dir))
+                    )
+                if not child.is_file():
+                    fail(
+                        "plugin file entry must be regular: "
+                        + str(child.relative_to(plugin_dir))
+                    )
+                if child.name.endswith(".so"):
+                    seeds.append(child)
     out = []
     seen = set()
     for index, seed in enumerate(seeds):
