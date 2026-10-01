@@ -203,10 +203,18 @@ The currently exposed Tailnet Commander Alienware workspace is Windows:
 
 `C:\Users\ALIENWARE-R13\mcp-sandbox\tailnet-commander`
 
-The workspace file API cannot read WSL `/home/...` paths, and the registered exec policy rejects
-ad-hoc filesystem/hash commands for those paths.
+The workspace file API cannot directly read WSL `/home/...` paths and ad-hoc filesystem/hash
+commands remain denied. However the existing exec policy does permit a narrow
+`wsl.exe -d Ubuntu -- <exact-python> -I -S -B ...` path. A candidate-only filesystem probe used
+that existing surface without shell/redirection, MuJoCo import, helper execution, or MJCF compile.
 
-This is treated as an admission blocker, not bypassed by widening remote execution.
+That probe discovered 105 unhashed wheel RECORD rows: the RECORD self-row plus 104 pinned
+CPython 3.12 `.pyc` rows under MuJoCo `__pycache__` directories. This is why the admission
+collector now records this narrow generated-bytecode exception while binding the actual bytes in
+the full runtime closure.
+
+The remaining admission blocker is a registered receipt-producing action with server-owned input,
+not basic WSL reachability. Generic shell/access widening remains forbidden.
 
 Before independent admission review, one of these must exist:
 
