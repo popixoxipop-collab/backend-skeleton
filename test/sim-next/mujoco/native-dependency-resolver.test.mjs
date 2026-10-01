@@ -150,13 +150,35 @@ function fixture({
   return {root,runtime,lib1,lib2};
 }
 
+function hostNativeRoots(){
+  const candidates=[
+    '/usr/lib/x86_64-linux-gnu',
+    '/usr/local/lib',
+  ];
+  const roots=[];
+  for(const candidate of candidates){
+    if(!fs.existsSync(candidate))continue;
+    const real=fs.realpathSync(candidate);
+    if(!roots.includes(real))roots.push(real);
+  }
+  assert.ok(
+    roots.some(root=>root.endsWith('/usr/lib/x86_64-linux-gnu')),
+    'CI host must expose the pinned Linux x86_64 native root',
+  );
+  return roots;
+}
+
 function run(fx,searchRoots=[fx.lib1],raw=null){
+  const allRoots=[...searchRoots];
+  for(const root of hostNativeRoots()){
+    if(!allRoots.includes(root))allRoots.push(root);
+  }
   const input=raw??JSON.stringify({
     protocol:'sbf.sim-mujoco-native-dependency-resolve/draft-1',
     target:'SIM-mujoco',
     admission_candidate_sha:'a42d944ad9033bc2305ce3ad9c72aaaee63a7a3f',
     runtime_import_root:fx.runtime,
-    search_roots:searchRoots,
+    search_roots:allRoots,
   });
   const child=spawnSync('python3',['-I','-S','-B',RESOLVER],{
     input,
@@ -186,6 +208,10 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
     assert.match(parsed.resolver.sha256,/^[a-f0-9]{64}$/);
     assert.ok(parsed.resolver.size_bytes>0);
     assert.equal(parsed.claims.elf_metadata_parsed,true);
+    assert.equal(parsed.claims.launcher_native_closure_included,true);
+    assert.match(parsed.launcher.path,/^\//);
+    assert.match(parsed.launcher.sha256,/^[a-f0-9]{64}$/);
+    assert.ok(parsed.launcher.size_bytes>0);
     assert.equal(parsed.claims.subprocess_executed,false);
     assert.equal(parsed.claims.mujoco_imported,false);
     assert.equal(parsed.claims.helper_executed,false);
@@ -194,9 +220,18 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
     assert.ok(parsed.stdlib_roots.length>=1);
     assert.match(parsed.closure_sha256,/^[a-f0-9]{64}$/);
 
-    const deps=parsed.native_dependency_files.map(x=>path.basename(x.path)).sort();
-    assert.deepEqual(deps,['libbar.so','libfoo.so']);
+    const deps=parsed.native_dependency_files.map(x=>path.basename(x.path));
+    assert.equal(deps.includes('libfoo.so'),true);
+    assert.equal(deps.includes('libbar.so'),true);
+    assert.equal(
+      parsed.native_dependency_files.some(x=>x.path===parsed.launcher.path),
+      false,
+    );
     assert.equal(parsed.native_dependency_files.every(x=>x.logical_path.startsWith('system-native/')),true);
+    assert.equal(
+      parsed.nodes.some(x=>x.path===parsed.launcher.path&&x.seed===true),
+      true,
+    );
 
     const source=fs.readFileSync(RESOLVER,'utf8');
     assert.doesNotMatch(source,/^\s*import\s+mujoco\b/m);
