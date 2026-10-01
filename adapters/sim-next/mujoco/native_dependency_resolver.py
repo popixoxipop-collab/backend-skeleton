@@ -28,6 +28,7 @@ REQUEST_PROTOCOL = "sbf.sim-mujoco-native-dependency-resolve/draft-1"
 OUTPUT_SCHEMA = "sbf.sim-mujoco-native-dependency-closure/draft-1"
 TARGET = "SIM-mujoco"
 MUJOCO_VERSION = "3.12.0"
+ADMISSION_CANDIDATE_SHA = "a42d944ad9033bc2305ce3ad9c72aaaee63a7a3f"
 
 MAX_REQUEST_BYTES = 1024 * 1024
 MAX_SEARCH_ROOTS = 32
@@ -119,11 +120,17 @@ def read_request() -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         fail("resolver request must be valid JSON")
         raise AssertionError from exc
-    value = exact_keys(value, {"protocol", "target", "runtime_import_root", "search_roots"}, "resolver request")
+    value = exact_keys(
+        value,
+        {"protocol", "target", "admission_candidate_sha", "runtime_import_root", "search_roots"},
+        "resolver request",
+    )
     if value["protocol"] != REQUEST_PROTOCOL:
         fail("resolver protocol is invalid")
     if value["target"] != TARGET:
         fail("resolver target must be SIM-mujoco")
+    if value["admission_candidate_sha"] != ADMISSION_CANDIDATE_SHA:
+        fail("resolver request is not bound to the canonical M4 admission candidate")
     return value
 
 
@@ -569,12 +576,24 @@ def main() -> int:
         closure = resolve_closure(runtime_root, roots)
         stdlib = [str(path) for path in stdlib_roots()]
 
+        resolver_path = path_without_symlink_components(
+            str(Path(__file__).absolute()),
+            "native dependency resolver",
+            directory=False,
+        )
+        resolver_sha256, resolver_size = file_hash(resolver_path)
+
         output = {
             "schema": OUTPUT_SCHEMA,
             "target": TARGET,
             "platform": "Linux-x86_64",
             "python_version": platform.python_version(),
             "mujoco_version": MUJOCO_VERSION,
+            "admission_candidate_sha": ADMISSION_CANDIDATE_SHA,
+            "resolver": {
+                "sha256": resolver_sha256,
+                "size_bytes": resolver_size,
+            },
             "runtime_import_root": str(runtime_root),
             "search_roots": [str(path) for path in roots],
             "stdlib_roots": stdlib,
