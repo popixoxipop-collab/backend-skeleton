@@ -116,9 +116,10 @@ def hash_file(path: Path) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
-def canonical_hash(value: Any) -> str:
+def canonical_hash(value: Any, domain: str = "") -> str:
     encoded = (
-        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        domain
+        + json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         + "\n"
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -395,7 +396,9 @@ def main() -> int:
             "helper": {"sha256": helper_sha},
             "wrapper": {"sha256": wrapper_sha},
             "runtime_closure": {
-                "closure_sha256": canonical_hash(files),
+                "closure_sha256": canonical_hash(
+                    files, "sbf.sim-mujoco-runtime-closure/draft-1\n"
+                ),
                 "record_sha256": record_sha,
                 "record_entries_expected": record_expected,
                 "record_entries_verified": record_verified,
