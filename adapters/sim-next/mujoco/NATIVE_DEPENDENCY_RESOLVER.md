@@ -44,7 +44,7 @@ The seed set is fixed by code to:
 
 - `mujoco/libmujoco.so.3.12.0`;
 - the eight reviewed CPython 3.12 native extension modules bound by #195;
-- every regular `.so` directly under `mujoco/plugin`.
+- every regular `.so` recursively under `mujoco/plugin`, with symlinked plugin files/directories rejected.
 
 The Python `mujoco/__init__.py` binding remains part of #195's runtime closure,
 but it is not an ELF seed.
