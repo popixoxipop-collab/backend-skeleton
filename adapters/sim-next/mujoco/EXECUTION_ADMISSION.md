@@ -167,6 +167,7 @@ The later target-host runner must independently demonstrate and bind:
 - runtime execution policy SHA-256;
 - exact permission-manifest SHA-256;
 - exact runtime-inventory SHA-256;
+- exact negative-probe receipt-bundle SHA-256;
 - source mount read-only;
 - runtime mount read-only;
 - source symlink denial;
@@ -186,8 +187,9 @@ The later target-host runner must independently demonstrate and bind:
 - decoder closure reverified;
 - resource-provider closure reverified.
 
-Caller-provided booleans are not themselves authority. They form an A1 evidence package that the
-independent T20/T16 reviewer must validate against target-host receipts and negative probes.
+Caller-provided booleans are not themselves authority. The enforcement object must also bind the
+canonical/raw target-host negative-probe receipt bundle by SHA-256. The independent T20/T16 reviewer
+must validate that exact receipt bundle and its relationship to the summarized probe booleans.
 
 ## Current Alienware blocker
 
