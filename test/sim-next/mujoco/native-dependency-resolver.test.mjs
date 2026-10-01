@@ -232,6 +232,14 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
       parsed.nodes.some(x=>x.path===parsed.launcher.path&&x.seed===true),
       true,
     );
+    const launcherNode=parsed.nodes.find(x=>x.path===parsed.launcher.path);
+    assert.ok(launcherNode);
+    if(launcherNode.interp!==null){
+      assert.equal(
+        parsed.nodes.some(x=>x.path===launcherNode.interp),
+        true,
+      );
+    }
 
     const source=fs.readFileSync(RESOLVER,'utf8');
     assert.doesNotMatch(source,/^\s*import\s+mujoco\b/m);
