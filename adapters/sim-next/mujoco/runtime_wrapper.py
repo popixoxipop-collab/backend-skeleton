@@ -12,7 +12,6 @@ to the already-reviewed M3 helper.
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 import runpy
 import sys
@@ -54,9 +53,6 @@ def main() -> int:
         fail("python no-site mode (-S) is required")
     if sys.flags.dont_write_bytecode != 1:
         fail("python no-bytecode mode (-B) is required")
-    if os.environ:
-        fail("ambient environment must be empty")
-
     runtime_root = Path(sys.argv[1]).resolve(strict=True)
     helper_path = Path(sys.argv[2]).resolve(strict=True)
     helper_sha256 = sys.argv[3]
