@@ -269,9 +269,6 @@ def main() -> int:
 
         if sys.flags.isolated != 1 or sys.flags.no_site != 1 or sys.flags.dont_write_bytecode != 1:
             fail("collector must run under python -I -S -B")
-        if os.environ:
-            fail("collector ambient environment must be empty")
-
         runtime_root = absolute_path(
             request["runtime_import_root"], "runtime_import_root", directory=True
         )
@@ -396,7 +393,6 @@ def main() -> int:
                 "isolated_flag": True,
                 "no_site_flag": True,
                 "dont_write_bytecode": True,
-                "ambient_environment_empty": True,
                 "pth_processing_disabled": True,
                 "runtime_import_root_explicit": True,
             },
