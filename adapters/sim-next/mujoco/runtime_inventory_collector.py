@@ -411,6 +411,10 @@ def main() -> int:
         launcher_sha, _ = hash_file(launcher_resolved)
         helper_sha, _ = hash_file(helper)
         wrapper_sha, _ = hash_file(wrapper)
+        collector_path = Path(__file__)
+        if collector_path.is_symlink():
+            fail("runtime inventory collector must not be a symlink")
+        collector_sha, _ = hash_file(collector_path.resolve(strict=True))
 
         output = {
             "schema": OUTPUT_SCHEMA,
@@ -422,6 +426,7 @@ def main() -> int:
                 "basename": launcher_resolved.name,
                 "sha256": launcher_sha,
             },
+            "collector": {"sha256": collector_sha},
             "helper": {"sha256": helper_sha},
             "wrapper": {"sha256": wrapper_sha},
             "runtime_closure": {
