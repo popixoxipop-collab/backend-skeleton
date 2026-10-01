@@ -184,6 +184,12 @@ test('M4 inventory identity changes if collector identity is changed and candida
       candidate.required_runtime_identities.collector_sha256,
       parsed.collector.sha256,
     );
+    assert.equal(
+      candidate.proposed_artifact_trust_policy.allow.some(
+        (entry)=>entry.usage==='helper'&&entry.sha256===parsed.collector.sha256,
+      ),
+      true,
+    );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
