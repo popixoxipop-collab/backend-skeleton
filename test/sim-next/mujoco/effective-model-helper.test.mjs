@@ -225,6 +225,30 @@ test('M3 success response is M2-validated and bound to exact request source/help
   assert.equal(result.effective_model.model.counts.nactuator,1);
   assert.equal(result.effective_model.model.counts.nu,2);
 
+  const reordered=request();
+  const helperRef=reordered.helper_artifact;
+  reordered.helper_artifact={
+    size_bytes:helperRef.size_bytes,
+    byte_sha256:helperRef.byte_sha256,
+    media_type:helperRef.media_type,
+    version:helperRef.version,
+    family:helperRef.family,
+    artifact_ref:helperRef.artifact_ref,
+  };
+  const sourceRef=reordered.source_bundle.root.artifact;
+  reordered.source_bundle.root.artifact={
+    size_bytes:sourceRef.size_bytes,
+    byte_sha256:sourceRef.byte_sha256,
+    media_type:sourceRef.media_type,
+    version:sourceRef.version,
+    family:sourceRef.family,
+    artifact_ref:sourceRef.artifact_ref,
+  };
+  assert.equal(
+    validateMujocoEffectiveHelperResponse(goldenResponse(request()),{request:reordered}).ok,
+    true,
+  );
+
   const wrongSource=goldenResponse(req);
   wrongSource.effective_model.source_bundle={
     ...wrongSource.effective_model.source_bundle,
