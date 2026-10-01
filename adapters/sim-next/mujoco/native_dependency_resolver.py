@@ -374,7 +374,12 @@ def inside(child: Path, parent: Path) -> bool:
         return False
 
 
-def expand_dynamic_dir(value: str, binary: Path, approved_roots: list[Path]) -> Path:
+def expand_dynamic_dir(
+    value: str,
+    binary: Path,
+    runtime_root: Path,
+    approved_roots: list[Path],
+) -> Path:
     expanded = value.replace("$" + "{ORIGIN}", str(binary.parent)).replace("$ORIGIN", str(binary.parent))
     if "$" in expanded:
         fail(f"unsupported dynamic-loader token in path: {value}")
@@ -382,17 +387,23 @@ def expand_dynamic_dir(value: str, binary: Path, approved_roots: list[Path]) -> 
     if not candidate.is_absolute():
         fail(f"relative RPATH/RUNPATH is unsupported: {value}")
     resolved = path_without_symlink_components(str(candidate), "dynamic search path", directory=True)
-    allowed = [binary.parent, *approved_roots]
+    allowed = [binary.parent, runtime_root, *approved_roots]
     if not any(inside(resolved, root) or resolved == root for root in allowed):
         fail(f"dynamic search path is outside approved roots: {resolved}")
     return resolved
 
 
-def resolve_needed(name: str, binary: Path, dynamic: dict[str, Any], approved_roots: list[Path]) -> Path:
+def resolve_needed(
+    name: str,
+    binary: Path,
+    dynamic: dict[str, Any],
+    runtime_root: Path,
+    approved_roots: list[Path],
+) -> Path:
     dynamic_dirs: list[Path] = []
     source = dynamic["runpath"] if dynamic["runpath"] else dynamic["rpath"]
     for value in source:
-        resolved = expand_dynamic_dir(value, binary, approved_roots)
+        resolved = expand_dynamic_dir(value, binary, runtime_root, approved_roots)
         if resolved not in dynamic_dirs:
             dynamic_dirs.append(resolved)
 
@@ -502,7 +513,7 @@ def resolve_closure(runtime_root: Path, approved_roots: list[Path]) -> dict[str,
 
         needed_rows = []
         for name in dynamic["needed"]:
-            target = resolve_needed(name, binary, dynamic, approved_roots)
+            target = resolve_needed(name, binary, dynamic, runtime_root, approved_roots)
             needed_rows.append({"name": name, "path": str(target)})
             edges.append({"from": str(binary), "needed": name, "to": str(target)})
             if target not in visited and target not in queue:
