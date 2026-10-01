@@ -217,6 +217,22 @@ test('M4 inventory rejects unlisted files symlinks stale closure hashes and miss
   }
 });
 
+test('M4 runtime inventory digest is canonical across required-binding input order',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const reordered=structuredClone(parsed);
+    reordered.required_bindings=[...reordered.required_bindings].reverse();
+    assert.equal(
+      mujocoRuntimeInventoryDigest(parsed),
+      mujocoRuntimeInventoryDigest(reordered),
+    );
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 inventory pins Linux x86_64 Python 3.12 and the exact reviewed binding set',()=>{
   const fx=fixture();
   try{
