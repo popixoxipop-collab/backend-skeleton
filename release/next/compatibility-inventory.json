@@ -1,5 +1,5 @@
 {
-  "schema": "bskel.scale-release-compatibility/2",
+  "schema": "bskel.scale-release-compatibility/3",
   "task_id": "T23-release-control-rebaseline",
   "captured_on": "2026-09-30",
   "coordination_baseline": {
@@ -100,7 +100,13 @@
     "t01_06": {
       "required_state": "ACCEPTED",
       "observed_state": "ACCEPTED",
-      "bskel_pack_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
+      "identity_conformance_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",
+      "evidence_ref": {
+        "kind": "file",
+        "path": "schemas/next/identity-conformance.json",
+        "sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42"
+      },
+      "evidence_ref_scope": "evidence_ref pins the artifact schemas/next/identity-conformance.json (status candidate-prefreeze) by sha256. It does NOT pin the bskel 23/23 verifier run or the becoder/beval 12/12 packed replays: those stay narrative claims recorded at the earlier anchors named in their own strings, and no waiver is involved.",
       "bskel_verifier": "23/23 PASS on main bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
       "becoder_packed_replay": "12/12 PASS on main eb8164560ddd343306234a9140dc89c001519792",
       "beval_candidate_head": "37f07ec374ff5ad7b93264fb8034b0148d043a05",

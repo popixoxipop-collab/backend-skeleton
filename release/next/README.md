@@ -2,7 +2,7 @@
 
 Status: **REBASELINED_BLOCKED**.
 
-This directory is release-control evidence only. It does not change the stable CLI, package allowlist, production registry, default writer, workflow privileges, or published package version.
+This directory is release-control evidence only. It does not change the stable CLI, package allowlist, production registry, default writer, or published package version, and it grants no write privilege to any workflow. The one workflow-privilege difference is read-only: the `nested-next` CI job also holds `actions: read` (see the `--online` section).
 
 Current integrated main anchors:
 
@@ -23,6 +23,39 @@ node release/next/release-policy.mjs verify release/next/compatibility-inventory
 
 Evidence references are resolved through `release/next/evidence-manifest.json`. A syntactically valid `sha256:...` string is never sufficient by itself: the verifier reads the referenced artifact bytes, recomputes SHA-256, and requires the artifact to bind the exact release check and all three current release-head SHAs.
 
+Exit codes: `0` verified; `2` verification failed (the JSON verdict is on stdout; an unreadable or malformed evidence manifest counts as a failure and is reported as `EVIDENCE_STORE_INVALID`, and an inventory or release plan that is valid JSON of the wrong shape is reported as `INVENTORY_SCHEMA` or `RELEASE_PLAN_SCHEMA`); `1` usage error, or an inventory or release plan that cannot be read or parsed as JSON (message on stderr, nothing on stdout). A bare `null` in either of those two files also exits `1`, with a raw `TypeError` message instead of a verdict.
+
+## Online check of the pinned CI runs (`--online`)
+
+The default `verify` is offline and deterministic, so it cannot tell whether a recorded `ci_run` exists. `--online` adds one read-only `GET repos/<repo>/actions/runs/<ci_run>` per selected role and requires that the run exists, that `repository.full_name` is the role's pinned repository, that `event` is `push`, `head_branch` is `main`, `head_sha` equals `verification.ci_head_sha`, `status` is `completed` and `conclusion` is `success`. Failures exit `2` with `ONLINE_RUN_NOT_FOUND`, `ONLINE_RUN_MISMATCH` (naming the field), `ONLINE_RUN_UNAUTHORIZED`, `ONLINE_RUN_UNREACHABLE` or `ONLINE_RUN_RESPONSE_INVALID` (any other HTTP status, such as a redirect, or a reply that is not a JSON object). A pin that cannot be used for a selected role is reported before any request is made for that role, as `ONLINE_ROLE_MISSING` (no entry for the role), `ONLINE_REPOSITORY_NOT_PINNED`, `ONLINE_CI_RUN_INVALID` or `ONLINE_CI_HEAD_SHA_INVALID`; the offline inventory check reports the same defect.
+
+Maintainer command, all three roles (needs a token that can read the private repositories' Actions runs):
+
+```bash
+GH_TOKEN="$(gh auth token)" node release/next/release-policy.mjs verify --online \
+  release/next/compatibility-inventory.json \
+  release/next/release-plan.json \
+  release/next/evidence-manifest.json
+```
+
+- Flags go directly after `verify`, before the files. `--online-roles bskel[,becoder,beval]` (needs `--online`) limits the roles; the default is all three.
+- The output has an `online` section that lists `checked_roles` and, explicitly, `not_checked_roles`.
+- The token comes from `GH_TOKEN`, else `GITHUB_TOKEN`; it is never read from argv and never printed. It is optional for public repositories (it only avoids shared rate limits); without one, an exhausted anonymous rate limit answers `403` and is reported as `ONLINE_RUN_UNAUTHORIZED`, whose hint names a different cause.
+- Network errors, `429` and `5xx` are retried (3 attempts, 15 s timeout each); every other failure is final.
+- CI runs `--online --online-roles bskel`: `backend-decoder` and `Backend-evaluation` are private, and the workflow token gets `404` for their runs, the same answer GitHub gives for a run that does not exist. Those two roles are reported as not checked. The `nested-next` job's own `permissions` block (`contents: read`, `actions: read`) replaces the workflow-level one, so it repeats `contents: read`; the token reaches the verifier through the step's `env`, never argv.
+- Not proved: that the run executed the intended workflow (its path and name are not checked), or that the recorded `package` and `workflow_blob` values match the repository.
+- Not proved either: that the pinned run is current. Nothing compares `ci_head_sha` with the live head of `main`, so a genuine green run from weeks ago passes as long as the pins agree with it. `PLAN_MAIN_STALE` compares the plan with the inventory, not with GitHub.
+
+## Promotion evidence needs an `evidence_ref`
+
+A `promotion_evidence` entry that is ACCEPTED (required and observed) only removes its blocker when it carries a verified `evidence_ref`; without one `PROMOTION_EVIDENCE_REF_REQUIRED` is reported and the blocker stays:
+
+- `{"kind": "file", "path": "<repo-relative path>", "sha256": "<64 hex>"}`: the file must be a regular file inside the repository (no absolute path, `.`, `..` or backslash; symlinks must resolve inside the repository) whose bytes hash to `sha256`; or
+- `{"kind": "waiver", "waiver": {"id", "approved_by", "approved_on" (YYYY-MM-DD), "scope", "reason"}}`: shape-checked only, not authenticated. Waivers are listed in the output's `waived_evidence`.
+
+Neither kind proves what the evidence says. A `file` ref proves that a file with that hash exists at that path; the verifier hashes its bytes but never interprets them, so any file in the repository (for instance `package.json` with its own hash) satisfies it. A `waiver` is checked for its five fields and for `approved_on` being a real calendar date, so a date in the future passes. A reviewer has to read the referenced file or the waiver.
+
+`t01_06` points at `schemas/next/identity-conformance.json`. That pins the artifact. It does not pin the bskel 23/23 verifier run or the becoder/beval 12/12 replays, which stay narrative claims. `identity_conformance_sha256` (formerly `bskel_pack_sha256`) is checked against the same file, so any later edit of that file requires updating both hashes in `compatibility-inventory.json`. The pin is checked only when the key is present: deleting it is not an error, and if `t01_06` then carries a `waiver` ref, nothing pins the file any more.
 
 ## Authenticated release evidence
 
