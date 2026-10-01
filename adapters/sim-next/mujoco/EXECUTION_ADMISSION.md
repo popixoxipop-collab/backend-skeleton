@@ -58,6 +58,13 @@ Its input identifies:
 - interpreter stdlib roots to bind;
 - explicit native dependency files to bind.
 
+It is currently pinned to the reviewed Alienware/WSL ABI:
+
+- platform: `Linux-x86_64`;
+- Python: `3.12.x`;
+- MuJoCo: `3.12.0`;
+- exact CPython 3.12 binding filenames reviewed by M3/M4.
+
 It verifies and records:
 
 1. MuJoCo 3.12.0 METADATA;
@@ -172,8 +179,12 @@ The later target-host runner must independently demonstrate and bind:
 - empty exec environment;
 - pre/post source hashes equal;
 - runtime closure reverified;
+- interpreter stdlib closure reverified;
 - native library reverified;
-- plugin closure reverified.
+- transitive native dependency closure reverified;
+- plugin closure reverified;
+- decoder closure reverified;
+- resource-provider closure reverified.
 
 Caller-provided booleans are not themselves authority. They form an A1 evidence package that the
 independent T20/T16 reviewer must validate against target-host receipts and negative probes.
@@ -209,6 +220,9 @@ exact package, including:
 - helper/wrapper identities;
 - launcher identity;
 - runtime/native/plugin closure;
+- interpreter stdlib closure;
+- transitive native dependencies;
+- decoder/resource-provider closure;
 - artifact-trust expansion;
 - permission manifest;
 - runner implementation;
