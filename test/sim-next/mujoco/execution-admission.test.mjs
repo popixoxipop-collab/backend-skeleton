@@ -33,6 +33,7 @@ const REQUIRED_BINDINGS=[
   'mujoco/_structs.cpython-312-x86_64-linux-gnu.so',
 ];
 const NATIVE='mujoco/libmujoco.so.3.12.0';
+const EXPECTED_RECORD_HASHED=REQUIRED_BINDINGS.length+3; // native + plugin + METADATA
 
 function sha(bytes){
   return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -154,8 +155,8 @@ test('M4 collector inventories exact runtime bytes without importing or compilin
     assert.equal(parsed.schema,MUJOCO_RUNTIME_INVENTORY_SCHEMA);
     assert.equal(parsed.mujoco_version,'3.12.0');
     assert.equal(parsed.collector.sha256,sha(fs.readFileSync(COLLECTOR)));
-    assert.equal(parsed.runtime_closure.record_entries_expected,8);
-    assert.equal(parsed.runtime_closure.record_entries_verified,8);
+    assert.equal(parsed.runtime_closure.record_entries_expected,EXPECTED_RECORD_HASHED);
+    assert.equal(parsed.runtime_closure.record_entries_verified,EXPECTED_RECORD_HASHED);
     assert.deepEqual(parsed.runtime_closure.unlisted_files,[]);
     assert.deepEqual(parsed.runtime_closure.symlinks,[]);
     assert.equal(parsed.required_bindings.length,REQUIRED_BINDINGS.length);
