@@ -1,13 +1,13 @@
 # T24 M4 pre-execution admission
 
-Status: **A1 evidence preparation only / NOT_ADMITTED**
+Status: **A1 evidence preparation / NOT_ADMITTED**
 
-This slice prepares the evidence required for the separate T20/T16 execution-admission review.
-It does **not** run MuJoCo, import MuJoCo, compile MJCF, or authorize M4 execution.
+This slice prepares the exact evidence package for a separate T20/T16 execution-admission review.
+It does **not** import MuJoCo, call the M3 helper, compile MJCF, create `MjData`, or authorize execution.
 
-## Prerequisite
+## Frozen prerequisite
 
-Independent M3 helper review is closed for exact candidate:
+Independent M3 review is closed for exact candidate:
 
 `78dcf2d720215e4c9cd54b0402eb83083b1a5ddd`
 
@@ -15,176 +15,227 @@ Issue #184 verdict:
 
 `PASS_FOR_M3_HELPER_REVIEW`
 
-This does not itself admit execution.
+That verdict does not admit M4 execution.
 
-## Filesystem-only runtime collector
+## Why a wrapper is required
 
-`runtime_inventory_collector.py` accepts only:
+The existing Alienware MuJoCo installation is a Python venv. Launching a normal venv interpreter
+would allow Python `site` startup to process site-packages and `.pth` files before the reviewed
+helper is in control.
 
-- exact protocol id;
-- absolute venv root;
-- absolute M3 helper path;
-- expected MuJoCo version, fixed to 3.12.0.
+M4 therefore introduces a runner-owned wrapper:
 
-It never imports MuJoCo or launches the Python interpreter.
+`runtime_wrapper.py`
 
-It verifies:
+Required invocation shape:
 
-1. a single `lib/pythonX.Y/site-packages` under the venv;
-2. `mujoco-3.12.0.dist-info/METADATA` reports exactly version 3.12.0;
-3. every hashed wheel RECORD entry has a safe relative path;
-4. every non-RECORD row has SHA-256 + size;
-5. every installed entry is a regular non-symlink file;
-6. every installed file's bytes match RECORD hash + size;
-7. the native library exists inside that verified closure;
-8. at least one Python extension binding exists inside the same closure;
-9. the requested helper bytes are hashed without executing them;
-10. the launcher path is resolved and the actual executable bytes are hashed.
+`python -I -S -B runtime_wrapper.py RUNTIME_IMPORT_ROOT HELPER_PATH HELPER_SHA256`
 
-It emits:
+The wrapper:
+
+- requires isolated mode (`-I`);
+- requires no-site mode (`-S`);
+- requires no-bytecode mode (`-B`);
+- verifies the exact M3 helper bytes before transfer;
+- preserves only interpreter-owned stdlib/dynload roots;
+- appends exactly one reviewed runtime import root;
+- keeps that runtime root after stdlib so it cannot shadow standard-library modules;
+- then transfers control to the already-reviewed M3 helper.
+
+The wrapper does not self-certify the exec environment. In particular, an empty execve environment,
+network denial, mount permissions and process restrictions remain external T20 enforcement facts.
+
+## Filesystem-only runtime inventory
+
+`runtime_inventory_collector.py` is standard-library-only and must itself run with `-I -S -B`.
+It never imports MuJoCo and never compiles a model.
+
+Its input identifies:
+
+- the exact runtime import root;
+- the exact M3 helper file;
+- the exact trusted wrapper file;
+- interpreter stdlib roots to bind;
+- explicit native dependency files to bind.
+
+It verifies and records:
+
+1. MuJoCo 3.12.0 METADATA;
+2. every hashed MuJoCo wheel RECORD entry against actual installed bytes;
+3. safe relative RECORD paths;
+4. the exact file inventory under the approved runtime import root;
+5. no symlink entries in the accepted closure;
+6. no MuJoCo-package files outside RECORD;
+7. exact launcher bytes;
+8. exact helper bytes;
+9. exact wrapper bytes;
+10. exact `libmujoco.so.3.12.0`;
+11. required Python extension bindings;
+12. every bundled plugin library under `mujoco/plugin`;
+13. configured interpreter stdlib roots;
+14. configured native dependency files.
+
+The output is:
 
 `sbf.sim-mujoco-runtime-inventory/draft-1`
 
-with status:
+The runtime-closure identity is a canonical SHA-256 over the full sorted file inventory, not merely
+the wheel RECORD digest.
 
-`INVENTORY_OBSERVED_NOT_ADMITTED`
+## MuJoCo import closure matters
 
-and explicit false claims for:
+MuJoCo 3.12.0 import is broader than `libmujoco.so` plus one extension.
 
-- `mujoco_imported`
-- `helper_executed`
-- `mjcf_compiled`
-- `execution_admitted`
+The upstream package imports Python dependencies and automatically loads every bundled native library
+under `mujoco/plugin` using `ctypes.CDLL`.
 
-## Runtime closure identity
+Therefore admission must bind:
 
-The runtime-closure role is not the RECORD file digest.
+- launcher;
+- wrapper;
+- M3 helper;
+- full runtime import-root closure;
+- native MuJoCo library;
+- required extension modules;
+- bundled plugin libraries;
+- interpreter stdlib/runtime roots;
+- explicit native dependencies required by those binaries.
 
-It is a canonical digest over every verified installed RECORD entry:
+The old pilot evidence remains useful as a pointer, but is not sufficient admission evidence by itself.
 
-`sbf.sim-mujoco-runtime-closure/draft-1\n<canonical entries>\n`
+## T20 plan remains narrow
 
-This means the later T20 `mujoco-runtime-closure` asset identity is bound to actual installed bytes, not merely to the wheel's self-described RECORD bytes.
+`execution-admission.mjs` consumes the inventory and builds only a proposed T20 plan.
 
-RECORD and METADATA hashes remain separately recorded as evidence.
+The resulting runtime permission manifest remains:
 
-## A1 admission candidate
+- input mode: `approved-files`;
+- read roots: explicit source staging only;
+- write roots: empty;
+- network: deny;
+- listen: deny;
+- environment allowlist: empty;
+- secret refs: empty;
+- devices: deny;
+- process argv allowlist: exact launcher basename only;
+- max children: 1;
+- target code execution: false;
+- acquisition: null;
+- `executable_now=false`;
+- `runtime_binding_required=true`.
 
-`execution-admission.mjs` validates the collector output independently:
+Runner-owned interpreter/helper/runtime assets remain outside target source roots and are exact-digest
+trust inputs.
 
-- recomputes runtime closure digest;
-- recomputes total size and entry count;
-- binds native library and extension modules to the closure;
-- rejects any inventory that claims import/execution/compilation/admission;
-- requires launcher/helper/runtime-closure/native-library digests to be distinct.
+## A1 cannot self-admit
 
-It then constructs a **proposed**, not approved:
+`buildMujocoExecutionAdmissionCandidate()` never returns an admitted state.
 
-- artifact trust policy;
-- M2/T20 MuJoCo helper plan;
-- runtime permission manifest;
-- trust-policy digest;
-- permission-manifest digest.
-
-The permission plan remains:
-
-- input mode: `approved-files`
-- network: deny
-- listen: deny
-- writes: none
-- environment: none
-- secrets: none
-- devices: deny
-- process: only the exact launcher basename
-- max children: 1
-- target code execution: false
-- acquisition phase: none
-- `executable_now=false`
-- `runtime_binding_required=true`
-
-## Why the result is always NOT_ADMITTED
-
-A1 must not self-authorize the execution gate.
-
-Therefore `buildMujocoExecutionAdmissionCandidate()` always returns:
+Its stable state is:
 
 `state: NOT_ADMITTED`
 
-`execution_authorized: false`
+and:
 
-and leaves explicit unresolved items such as:
+- `execution_authorized=false`;
+- `t16_runtime_binding_allowed=false`;
+- `independent-t20-t16-admission-verdict-required` remains unresolved.
 
-- artifact trust expansion requires independent approval;
-- runtime inventory requires independent review;
-- runner implementation hash is not bound;
-- runtime execution policy hash is not bound;
-- read-only immutable staging enforcement is not proven;
-- TOCTOU/hardlink denial is not proven;
-- runtime plugin/decoder/resource-provider closure is not independently admitted;
-- T16 RuntimeBinding is not created;
-- unique attempt nonce is not created;
-- independent T20/T16 admission verdict is required.
+Without external enforcement evidence, review readiness is:
 
-There is intentionally no `approved`, `force`, or `executable_now` caller knob.
+`BLOCKED`
 
-## Alienware evidence boundary
+Even when all structural enforcement fields are present and digest-bound, the strongest result A1 can
+produce is:
 
-Existing pilot evidence points at the WSL environment:
+`review_readiness: READY_FOR_INDEPENDENT_REVIEW`
+
+That is not an admission PASS.
+
+## External enforcement evidence
+
+The later target-host runner must independently demonstrate and bind:
+
+- runner implementation SHA-256;
+- runtime execution policy SHA-256;
+- exact permission-manifest SHA-256;
+- exact runtime-inventory SHA-256;
+- source mount read-only;
+- runtime mount read-only;
+- source symlink denial;
+- source hardlink denial;
+- source writes denied;
+- runtime writes denied;
+- outbound network denied;
+- listening denied;
+- unexpected process creation denied;
+- empty exec environment;
+- pre/post source hashes equal;
+- runtime closure reverified;
+- native library reverified;
+- plugin closure reverified.
+
+Caller-provided booleans are not themselves authority. They form an A1 evidence package that the
+independent T20/T16 reviewer must validate against target-host receipts and negative probes.
+
+## Current Alienware blocker
+
+The known pilot runtime is in WSL:
 
 `/home/alienware-r13/robotis_sh5_mjlab/.venv`
-
-with MuJoCo 3.12.0.
 
 The currently exposed Tailnet Commander Alienware workspace is Windows:
 
 `C:\Users\ALIENWARE-R13\mcp-sandbox\tailnet-commander`
 
-and its workspace file API cannot read the WSL `/home/...` paths.
+The workspace file API cannot read WSL `/home/...` paths, and the registered exec policy rejects
+ad-hoc filesystem/hash commands for those paths.
 
-The exec policy also currently denies arbitrary `sha256sum` / filesystem inventory commands.
+This is treated as an admission blocker, not bypassed by widening remote execution.
 
-This is treated as a real admission blocker, not bypassed by widening the remote exec policy ad hoc.
+Before independent admission review, one of these must exist:
 
-A later **narrow registered inventory job/profile** must run the collector against the exact WSL venv and M3 helper bytes, or that runtime must be exposed through an approved read-only workspace.
+1. a narrow registered read-only inventory job/profile on Alienware/WSL, or
+2. an approved read-only workspace exposing the exact runtime bundle.
 
-Until then the old pilot inventory remains candidate evidence only.
+The collector then runs there without MuJoCo import.
 
-## Required independent admission review
+## Independent T20/T16 review
 
-After a real filesystem inventory exists, a separate reviewer must verify:
+Once actual target-host inventory + enforcement evidence exists, a separate reviewer must verify the
+exact package, including:
 
 - M3 candidate identity;
-- helper bytes;
-- launcher resolved bytes;
-- full installed runtime closure;
-- native library;
-- extension bindings;
-- proposed artifact trust expansion;
+- helper/wrapper identities;
+- launcher identity;
+- runtime/native/plugin closure;
+- artifact-trust expansion;
 - permission manifest;
-- runner implementation identity;
-- runtime execution policy identity;
-- read-only/immutable staging enforcement;
-- TOCTOU/hardlink denial;
-- plugin/decoder/resource-provider closure assumptions;
-- negative denial tests.
+- runner implementation;
+- execution policy;
+- read-only immutable staging;
+- hardlink/TOCTOU denial;
+- network/write/process denial;
+- exact negative-probe receipts.
 
-Only that reviewer may issue the T20/T16 admission verdict.
+A1 does not issue that verdict.
 
 ## After admission PASS
 
-Only after independent admission PASS may M4 create a unique T16 execution attempt and run:
+Only after the separate admission PASS may M4 create a unique T16 attempt and execute the exact M3
+helper, causing the first admitted real:
 
 `mujoco.MjModel.from_xml_path(...)`
 
-The resulting helper response must still pass:
+The result must still pass:
 
-1. M3 exact request/response binding;
+1. exact M3 request/response binding;
 2. M2 effective-model validation;
-3. exact T16 binding/evidence checks.
+3. exact T16 binding/evidence verification.
 
-Even then:
+Compilation still does not imply dynamics evidence:
 
 - `runtime_behavior_verified=false`
 - `dynamic_state_observed=false`
 
-remain mandatory because compilation is not physics stepping.
+remain mandatory.
