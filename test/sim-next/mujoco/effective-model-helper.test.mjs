@@ -440,6 +440,10 @@ test('M3 pure extractor fails closed on an unreviewed transmission enum', () => 
 test('M3 helper source is compiler-only and contains no physics-step/render/network/process escape', () => {
   const source=fs.readFileSync(HELPER,'utf8');
   assert.match(source,/MjModel\.from_xml_path/);
+  assert.equal(
+    [...source.matchAll(/verify_staged_source_closure\(request\["source_bundle"\], staging_root\)/g)].length,
+    2,
+  );
   for (const forbidden of [
     /MjData\s*\(/,
     /mj_step\s*\(/,
