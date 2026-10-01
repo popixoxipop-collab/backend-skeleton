@@ -124,6 +124,7 @@ function write(root,relative,bytes){
 function fixture({
   seedNeeded=['libfoo.so'],
   pluginNeeded=['libbar.so'],
+  pluginRunpath=null,
   seedRunpath=null,
   duplicateRoot=false,
   fooNeeded=[],
@@ -139,7 +140,7 @@ function fixture({
   for(const rel of REQUIRED){
     write(runtime,rel,elf64({needed:seedNeeded,runpath:seedRunpath}));
   }
-  write(runtime,'mujoco/plugin/libplugin-fixture.so',elf64({needed:pluginNeeded}));
+  write(runtime,'mujoco/plugin/libplugin-fixture.so',elf64({needed:pluginNeeded,runpath:pluginRunpath}));
   write(lib1,'libfoo.so',elf64({needed:fooNeeded}));
   write(lib1,'libbar.so',elf64({needed:barNeeded}));
   if(duplicateRoot){
@@ -247,6 +248,27 @@ test('M4A rejects slash-bearing DT_NEEDED names',()=>{
     const {child}=run(fx);
     assert.notEqual(child.status,0);
     assert.match(child.stderr,/slash-bearing DT_NEEDED is unsupported/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4A allows canonical $ORIGIN/.. RUNPATH inside the MuJoCo runtime root',()=>{
+  const fx=fixture({
+    pluginNeeded:['libmujoco.so.3.12.0'],
+    pluginRunpath:'$ORIGIN/..',
+  });
+  try{
+    const {child,parsed}=run(fx);
+    assert.equal(child.status,0,child.stderr);
+    assert.equal(
+      parsed.edges.some(
+        e=>e.from.endsWith('/mujoco/plugin/libplugin-fixture.so')
+          && e.needed==='libmujoco.so.3.12.0'
+          && e.to.endsWith('/mujoco/libmujoco.so.3.12.0'),
+      ),
+      true,
+    );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
