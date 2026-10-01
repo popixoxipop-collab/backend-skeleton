@@ -417,6 +417,48 @@ print("OK")
   }
 });
 
+test('M3 compiler read-closure normalizes safe dot-segment asset refs', () => {
+  const xml='<mujoco><asset><mesh name="m" file="./mesh.obj"/></asset></mujoco>';
+  const req=request(xml);
+  const assetBytes='v 0 0 0\n';
+  req.source_bundle.dependencies=[{
+    path:'models/mesh.obj',
+    role:'asset',
+    artifact:artifact(assetBytes,'simulation-source','model/obj'),
+  }];
+
+  const script=String.raw`
+import importlib.util
+import json
+import pathlib
+import sys
+
+helper_path=sys.argv[1]
+request_path=sys.argv[2]
+spec=importlib.util.spec_from_file_location("m3_helper",helper_path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+req=json.loads(pathlib.Path(request_path).read_text())
+module.verify_staged_source_closure(req["source_bundle"],pathlib.Path.cwd())
+print("OK")
+`;
+
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m3-dot-ref-'));
+  try {
+    fs.mkdirSync(path.join(dir,'models'),{recursive:true});
+    fs.writeFileSync(path.join(dir,'models','main.xml'),xml);
+    fs.writeFileSync(path.join(dir,'models','mesh.obj'),assetBytes);
+    fs.writeFileSync(path.join(dir,'request.json'),JSON.stringify(req));
+    const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER,path.join(dir,'request.json')],{
+      cwd:dir,encoding:'utf8',timeout:10_000,maxBuffer:4*1024*1024,env:{},
+    });
+    assert.equal(child.status,0,child.stderr || child.stdout);
+    assert.equal(child.stdout.trim(),'OK');
+  } finally {
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
+});
+
 test('M3 Python helper rejects symlinks in approved staging closure', {
   skip:process.platform === 'win32',
 }, () => {
