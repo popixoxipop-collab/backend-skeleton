@@ -210,6 +210,8 @@ def parse_record(runtime_root: Path) -> tuple[str, int, int, set[str]]:
             fail("MuJoCo RECORD contains malformed row")
         rel, digest_spec, size_text = row
         rel = logical_path(rel, "RECORD path")
+        if rel in listed:
+            fail(f"MuJoCo RECORD contains duplicate path: {rel}")
         listed.add(rel)
         target = runtime_member(runtime_root, rel, "RECORD path")
         if digest_spec:
