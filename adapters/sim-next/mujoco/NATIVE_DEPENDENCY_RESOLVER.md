@@ -97,14 +97,22 @@ inventory.
 
 ## Claim boundary
 
-This M4A slice resolves the native dependency closure of the fixed MuJoCo runtime
-native seeds (libmujoco, reviewed CPython MuJoCo extensions, bundled plugins).
+This M4A slice resolves the native dependency closure of:
 
-It does **not yet claim** the transitive ELF dependency closure of the Python
-launcher itself or every possible stdlib extension module. #195 separately
-binds the launcher bytes and full stdlib filesystem roots. Independent T20/T16
-review must either accept a separately bound launcher/interpreter dependency
-receipt or require a follow-up closure slice before admission.
+- the exact running Python launcher resolved from `/proc/self/exe`;
+- libmujoco;
+- the reviewed CPython MuJoCo extension modules;
+- bundled MuJoCo plugins.
+
+The launcher itself is reported and SHA-bound, but is not duplicated in
+`native_dependency_files` because #195 already binds launcher bytes separately.
+Its external ELF dependencies and PT_INTERP target are included in the resolver
+graph/output.
+
+The resolver still does not claim that every possible stdlib extension module
+will be imported by future code. #195 separately binds the complete configured
+stdlib filesystem roots, while T20/T16 enforcement must preserve that exact
+runtime environment.
 
 ## Review boundary
 
