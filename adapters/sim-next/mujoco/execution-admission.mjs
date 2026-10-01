@@ -23,6 +23,7 @@ const REQUIRED_BINDINGS=Object.freeze([
   'mujoco/_structs.cpython-312-x86_64-linux-gnu.so',
 ]);
 const REQUIRED_NATIVE='mujoco/libmujoco.so.3.12.0';
+const RECORD_REL='mujoco-3.12.0.dist-info/RECORD';
 
 function plain(value,label){
   if(value===null||typeof value!=='object'||Array.isArray(value)) throw new TypeError(`${label} must be an object`);
@@ -105,6 +106,42 @@ function fileMap(files){
   return new Map(files.map((entry)=>[entry.path,entry]));
 }
 
+function validateUnhashedRecordEntries(value){
+  if(!Array.isArray(value)||value.length===0||value.length>20000){
+    throw new TypeError('runtime_closure.record_unhashed_entries must contain 1..20000 entries');
+  }
+  const entries=value.map((entry,index)=>{
+    exactKeys(entry,['path','reason'],`record_unhashed_entries[${index}]`);
+    const itemPath=relativePath(entry.path,`record_unhashed_entries[${index}].path`);
+    const reason=bounded(entry.reason,`record_unhashed_entries[${index}].reason`);
+    if(reason==='record-self'){
+      if(itemPath!==RECORD_REL){
+        throw new TypeError('record-self unhashed entry must be the exact MuJoCo RECORD path');
+      }
+    }else if(reason==='generated-cpython312-pyc'){
+      const parts=itemPath.split('/');
+      const filename=parts.at(-1)??'';
+      if(
+        !itemPath.startsWith('mujoco/') ||
+        !parts.includes('__pycache__') ||
+        !filename.endsWith('.cpython-312.pyc')
+      ){
+        throw new TypeError('generated-cpython312-pyc must be a MuJoCo __pycache__ CPython 3.12 bytecode path');
+      }
+    }else{
+      throw new TypeError('runtime closure contains an unsupported unhashed RECORD reason');
+    }
+    return Object.freeze({path:itemPath,reason});
+  }).sort((a,b)=>a.path.localeCompare(b.path));
+  if(new Set(entries.map((entry)=>entry.path)).size!==entries.length){
+    throw new TypeError('runtime_closure.record_unhashed_entries contains duplicate paths');
+  }
+  if(entries.filter((entry)=>entry.reason==='record-self').length!==1){
+    throw new TypeError('runtime_closure.record_unhashed_entries must contain exactly one RECORD self entry');
+  }
+  return Object.freeze(entries);
+}
+
 function validatedPolicy(value){
   const result=validateArtifactTrustPolicy(value);
   if(!result.ok){
@@ -180,7 +217,7 @@ export function validateMujocoRuntimeInventory(value){
 
   exactKeys(value.runtime_closure,[
     'closure_sha256','record_sha256','record_entries_expected','record_entries_verified',
-    'unlisted_files','symlinks','files',
+    'record_unhashed_entries','unlisted_files','symlinks','files',
   ],'runtime_closure');
   const files=validateFiles(value.runtime_closure.files);
   const closureSha=runtimeClosureDigest(files);
@@ -191,6 +228,7 @@ export function validateMujocoRuntimeInventory(value){
   const expected=integer(value.runtime_closure.record_entries_expected,'record_entries_expected',{min:1});
   const verified=integer(value.runtime_closure.record_entries_verified,'record_entries_verified',{min:0});
   if(expected!==verified) throw new TypeError('all hashed RECORD entries must be verified against installed bytes');
+  const recordUnhashed=validateUnhashedRecordEntries(value.runtime_closure.record_unhashed_entries);
   if(!Array.isArray(value.runtime_closure.unlisted_files)||value.runtime_closure.unlisted_files.length!==0){
     throw new TypeError('runtime closure must contain no unlisted MuJoCo package files');
   }
@@ -232,6 +270,12 @@ export function validateMujocoRuntimeInventory(value){
   }).sort((a,b)=>a.path.localeCompare(b.path));
 
   const byPath=fileMap(files);
+  for(const entry of recordUnhashed){
+    const actual=byPath.get(entry.path);
+    if(!actual){
+      throw new TypeError(`unhashed RECORD entry is not bound to the canonical runtime closure: ${entry.path}`);
+    }
+  }
   const nativeEntry=byPath.get(nativeLibrary.path);
   if(!nativeEntry||nativeEntry.sha256!==nativeLibrary.sha256||nativeEntry.kind!=='native'){
     throw new TypeError('native_library must match an exact native entry in runtime closure');
@@ -287,6 +331,7 @@ export function validateMujocoRuntimeInventory(value){
       record_sha256:recordSha,
       record_entries_expected:expected,
       record_entries_verified:verified,
+      record_unhashed_entries:recordUnhashed,
       unlisted_files:Object.freeze([]),
       symlinks:Object.freeze([]),
       files,
