@@ -2,7 +2,7 @@
 
 Status: **REBASELINED_BLOCKED**.
 
-This directory is release-control evidence only. It does not change the stable CLI, package allowlist, production registry, default writer, workflow privileges, or published package version.
+This directory is release-control evidence only. It does not change the stable CLI, package allowlist, production registry, default writer, or published package version, and it grants no write privilege to any workflow. The one workflow-privilege difference is read-only: the `nested-next` CI job also holds `actions: read` (see the `--online` section).
 
 Current integrated main anchors:
 
@@ -42,7 +42,7 @@ GH_TOKEN="$(gh auth token)" node release/next/release-policy.mjs verify --online
 - The output has an `online` section that lists `checked_roles` and, explicitly, `not_checked_roles`.
 - The token comes from `GH_TOKEN`, else `GITHUB_TOKEN`; it is never read from argv and never printed. It is optional for public repositories (it only avoids shared rate limits).
 - Network errors, `429` and `5xx` are retried (3 attempts, 15 s timeout each); every other failure is final.
-- CI runs `--online --online-roles bskel`: `backend-decoder` and `Backend-evaluation` are private, and the workflow token gets `404` for their runs, the same answer GitHub gives for a run that does not exist. Those two roles are reported as not checked.
+- CI runs `--online --online-roles bskel`: `backend-decoder` and `Backend-evaluation` are private, and the workflow token gets `404` for their runs, the same answer GitHub gives for a run that does not exist. Those two roles are reported as not checked. The `nested-next` job's own `permissions` block (`contents: read`, `actions: read`) replaces the workflow-level one, so it repeats `contents: read`; the token reaches the verifier through the step's `env`, never argv.
 - Not proved: that the run executed the intended workflow (its path and name are not checked), or that the recorded `package` and `workflow_blob` values match the repository.
 
 ## Promotion evidence needs an `evidence_ref`
