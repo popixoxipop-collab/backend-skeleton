@@ -354,6 +354,46 @@ test('M4 collector and wrapper reject helper symlink laundering before resolutio
   }
 });
 
+test('M4 collector and wrapper reject symlinked parent components in fixed absolute inputs',{
+  skip:process.platform==='win32',
+},()=>{
+  const fx=fixture();
+  try{
+    const aliasParent=path.join(fx.root,'alias-parent');
+    fs.symlinkSync(fx.root,aliasParent);
+
+    const collectorRequest={
+      protocol:'sbf.sim-mujoco-runtime-admission-collect/draft-1',
+      target:'SIM-mujoco',
+      runtime_import_root:fx.runtime,
+      helper_path:path.join(aliasParent,path.basename(fx.helper)),
+      wrapper_path:fx.wrapper,
+      stdlib_roots:[fx.stdlib],
+      native_dependency_files:[{
+        logical_path:'system-native/libsystem-fixture.so',
+        path:fx.nativeDep,
+      }],
+    };
+    const collected=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
+      input:JSON.stringify(collectorRequest),
+      encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024,
+    });
+    assert.notEqual(collected.status,0);
+    assert.match(collected.stderr,/helper_path contains symlink component/);
+
+    const helperSha=sha(fs.readFileSync(fx.helper));
+    const wrapped=spawnSync(
+      'python3',
+      ['-I','-S','-B',WRAPPER,fx.runtime,path.join(aliasParent,path.basename(fx.helper)),helperSha],
+      {encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024},
+    );
+    assert.notEqual(wrapped.status,0);
+    assert.match(wrapped.stderr,/helper contains symlink component/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 collector rejects symlinked parent components before reading RECORD targets',{
   skip:process.platform==='win32',
 },()=>{
