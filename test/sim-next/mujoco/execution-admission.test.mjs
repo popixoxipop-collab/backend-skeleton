@@ -9,83 +9,103 @@ import { fileURLToPath } from 'node:url';
 
 import {
   MUJOCO_EXECUTION_ADMISSION_CANDIDATE,
+  MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA,
   MUJOCO_RUNTIME_INVENTORY_SCHEMA,
   buildMujocoExecutionAdmissionCandidate,
   mujocoRuntimeInventoryDigest,
+  runtimeClosureDigest,
   validateMujocoRuntimeInventory,
 } from '../../../adapters/sim-next/mujoco/execution-admission.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
-const COLLECTOR=path.resolve(
-  HERE,
-  '../../../adapters/sim-next/mujoco/runtime_inventory_collector.py',
-);
+const COLLECTOR=path.resolve(HERE,'../../../adapters/sim-next/mujoco/runtime_inventory_collector.py');
+const WRAPPER=path.resolve(HERE,'../../../adapters/sim-next/mujoco/runtime_wrapper.py');
 
-function sha(bytes) {
+const REQUIRED_BINDINGS=[
+  'mujoco/__init__.py',
+  'mujoco/_enums.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_functions.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_specs.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_structs.cpython-312-x86_64-linux-gnu.so',
+];
+const NATIVE='mujoco/libmujoco.so.3.12.0';
+
+function sha(bytes){
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-function recordDigest(bytes) {
-  return 'sha256='+crypto.createHash('sha256').update(bytes).digest('base64url');
+function recordHash(bytes){
+  return crypto.createHash('sha256').update(bytes).digest('base64url');
 }
 
-function write(root, relative, bytes) {
-  const target=path.join(root,...relative.split('/'));
+function write(root,rel,bytes){
+  const target=path.join(root,...rel.split('/'));
   fs.mkdirSync(path.dirname(target),{recursive:true});
   fs.writeFileSync(target,bytes);
   return target;
 }
 
-function fixture() {
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4-runtime-'));
-  const venv=path.join(root,'venv');
-  const site=path.join(venv,'lib','python3.12','site-packages');
+function fixture(){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4-admission-'));
+  const runtime=path.join(root,'runtime');
+  const stdlib=path.join(root,'stdlib');
   const helper=path.join(root,'effective_model_helper.py');
-  const launcher=write(venv,'bin/python',Buffer.from('fake-python-launcher\n'));
-  fs.chmodSync(launcher,0o755);
-  fs.writeFileSync(helper,'# reviewed helper fixture\n');
+  const wrapper=path.join(root,'runtime_wrapper.py');
+  fs.mkdirSync(runtime,{recursive:true});
+  fs.mkdirSync(stdlib,{recursive:true});
+  fs.copyFileSync(WRAPPER,wrapper);
+  fs.writeFileSync(helper,'print("helper-fixture")\n');
+  fs.writeFileSync(path.join(stdlib,'os.py'),'# stdlib fixture\n');
 
-  const files=new Map([
-    ['mujoco/__init__.py',Buffer.from('__version__ = "3.12.0"\n')],
-    ['mujoco/_structs.cpython-312-x86_64-linux-gnu.so',Buffer.from('fake-structs-so')],
-    ['mujoco/_functions.cpython-312-x86_64-linux-gnu.so',Buffer.from('fake-functions-so')],
-    ['mujoco/libmujoco.so.3.12.0',Buffer.from('fake-native-lib')],
-    ['mujoco-3.12.0.dist-info/METADATA',Buffer.from(
-      'Metadata-Version: 2.1\nName: mujoco\nVersion: 3.12.0\n',
-    )],
+  const entries=new Map([
+    ['mujoco/__init__.py','VERSION="fixture"\n'],
+    ['mujoco/_enums.cpython-312-x86_64-linux-gnu.so','enum-bytes'],
+    ['mujoco/_functions.cpython-312-x86_64-linux-gnu.so','function-bytes'],
+    ['mujoco/_specs.cpython-312-x86_64-linux-gnu.so','specs-bytes'],
+    ['mujoco/_structs.cpython-312-x86_64-linux-gnu.so','structs-bytes'],
+    [NATIVE,'native-bytes'],
+    ['mujoco/plugin/libfixture.so','plugin-bytes'],
+    ['mujoco-3.12.0.dist-info/METADATA','Metadata-Version: 2.4\nName: mujoco\nVersion: 3.12.0\n'],
   ]);
-  for (const [relative,bytes] of files) write(site,relative,bytes);
+  for(const [rel,bytes] of entries) write(runtime,rel,bytes);
 
-  const lines=[];
-  for (const [relative,bytes] of files) {
-    lines.push([relative,recordDigest(bytes),String(bytes.length)].join(','));
+  const rows=[];
+  for(const [rel,bytes] of entries){
+    const raw=Buffer.from(bytes);
+    rows.push([rel,`sha256=${recordHash(raw)}`,String(raw.length)]);
   }
-  lines.push('mujoco-3.12.0.dist-info/RECORD,,');
-  write(site,'mujoco-3.12.0.dist-info/RECORD',Buffer.from(lines.join('\n')+'\n'));
+  rows.push(['mujoco-3.12.0.dist-info/RECORD','','']);
+  write(runtime,'mujoco-3.12.0.dist-info/RECORD',rows.map((row)=>row.join(',')).join('\n')+'\n');
 
-  return {root,venv,site,helper,files};
+  const nativeDep=write(root,'lib/libsystem-fixture.so','system-native');
+  return {root,runtime,stdlib,helper,wrapper,nativeDep};
 }
 
-function collect(fx) {
+function collect(fx){
+  const request={
+    protocol:'sbf.sim-mujoco-runtime-admission-collect/draft-1',
+    target:'SIM-mujoco',
+    runtime_import_root:fx.runtime,
+    helper_path:fx.helper,
+    wrapper_path:fx.wrapper,
+    stdlib_roots:[fx.stdlib],
+    native_dependency_files:[{
+      logical_path:'system-native/libsystem-fixture.so',
+      path:fx.nativeDep,
+    }],
+  };
   const child=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
-    input:JSON.stringify({
-      protocol:'sbf.sim-mujoco-runtime-inventory-request/draft-1',
-      venv_root:fx.venv,
-      helper_path:fx.helper,
-      expected_mujoco_version:'3.12.0',
-    }),
+    input:JSON.stringify(request),
     encoding:'utf8',
     env:{},
-    timeout:10_000,
-    maxBuffer:8*1024*1024,
+    timeout:20_000,
+    maxBuffer:16*1024*1024,
   });
-  assert.equal(child.signal,null);
-  assert.equal(child.stderr,'');
-  const parsed=JSON.parse(child.stdout);
+  const parsed=child.status===0?JSON.parse(child.stdout):null;
   return {child,parsed};
 }
 
-function emptyPolicy() {
+function emptyPolicy(){
   return {
     schema:'bskel.trust-artifact-policy/1',
     generation:1,
@@ -94,211 +114,322 @@ function emptyPolicy() {
   };
 }
 
-function limits() {
+function limits(){
   return {
     wall_ms:60_000,
     cpu_ms:60_000,
     memory_bytes:1_073_741_824,
-    pids:4,
+    pids:2,
     stdout_bytes:8_388_608,
     stderr_bytes:262_144,
-    scratch_bytes:67_108_864,
+    scratch_bytes:1,
   };
 }
 
-test('M4 filesystem-only collector re-verifies installed RECORD bytes without importing MuJoCo', () => {
+function baseCandidate(parsed,enforcementEvidence=null){
+  return buildMujocoExecutionAdmissionCandidate({
+    m3CandidateSha:'78dcf2d720215e4c9cd54b0402eb83083b1a5ddd',
+    runtimeInventory:parsed,
+    currentArtifactTrustPolicy:emptyPolicy(),
+    readRoots:['inputs/mujoco'],
+    limits:limits(),
+    enforcementEvidence,
+  });
+}
+
+test('M4 collector inventories exact runtime bytes without importing or compiling MuJoCo',()=>{
   const fx=fixture();
-  try {
+  try{
     const {child,parsed}=collect(fx);
-    assert.equal(child.status,0,child.stdout);
+    assert.equal(child.status,0,child.stderr);
+    assert.equal(child.stderr,'');
     assert.equal(parsed.schema,MUJOCO_RUNTIME_INVENTORY_SCHEMA);
-    assert.equal(parsed.status,'INVENTORY_OBSERVED_NOT_ADMITTED');
     assert.equal(parsed.mujoco_version,'3.12.0');
-    assert.equal(parsed.claims.filesystem_inventory_verified,true);
-    assert.equal(parsed.claims.wheel_record_reverified_against_installed_bytes,true);
-    assert.equal(parsed.claims.mujoco_imported,false);
-    assert.equal(parsed.claims.helper_executed,false);
-    assert.equal(parsed.claims.mjcf_compiled,false);
-    assert.equal(parsed.claims.execution_admitted,false);
+    assert.equal(parsed.runtime_closure.record_entries_expected,8);
+    assert.equal(parsed.runtime_closure.record_entries_verified,8);
+    assert.deepEqual(parsed.runtime_closure.unlisted_files,[]);
+    assert.deepEqual(parsed.runtime_closure.symlinks,[]);
+    assert.equal(parsed.required_bindings.length,REQUIRED_BINDINGS.length);
+    assert.equal(parsed.plugin_libraries.length,1);
+    assert.equal(parsed.native_library.path,NATIVE);
+    assert.equal(parsed.startup.isolated_flag,true);
+    assert.equal(parsed.startup.no_site_flag,true);
+    assert.equal(parsed.startup.pth_processing_disabled,true);
+    assert.equal(
+      validateMujocoRuntimeInventory(parsed).runtime_closure.closure_sha256,
+      parsed.runtime_closure.closure_sha256,
+    );
 
-    const validated=validateMujocoRuntimeInventory(parsed);
-    assert.equal(validated.runtime_closure.entry_count,fx.files.size);
-    assert.equal(validated.bindings.length,2);
-    assert.equal(validated.native_library.path,'mujoco/libmujoco.so.3.12.0');
-    assert.match(mujocoRuntimeInventoryDigest(parsed),/^[a-f0-9]{64}$/);
-
-    const collectorSource=fs.readFileSync(COLLECTOR,'utf8');
-    assert.doesNotMatch(collectorSource,/import\s+mujoco/);
-    assert.doesNotMatch(collectorSource,/subprocess/);
-    assert.doesNotMatch(collectorSource,/MjModel/);
-  } finally {
+    const source=fs.readFileSync(COLLECTOR,'utf8');
+    assert.doesNotMatch(source,/^\s*import\s+mujoco\b/m);
+    assert.doesNotMatch(source,/MjModel|from_xml_path|mj_step|mj_forward/);
+  }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
 });
 
-test('M4 collector fails closed when an installed file no longer matches wheel RECORD', () => {
+test('M4 runtime closure digest changes when any file identity changes',()=>{
+  const files=[
+    {path:'mujoco/a.py',sha256:'a'.repeat(64),size_bytes:1,kind:'python'},
+    {path:NATIVE,sha256:'b'.repeat(64),size_bytes:2,kind:'native'},
+  ];
+  const original=runtimeClosureDigest(files);
+  assert.notEqual(original,runtimeClosureDigest([{...files[0],sha256:'c'.repeat(64)},files[1]]));
+  assert.notEqual(original,runtimeClosureDigest([{...files[0],size_bytes:2},files[1]]));
+});
+
+test('M4 inventory rejects unlisted files symlinks stale closure hashes and missing bindings',()=>{
   const fx=fixture();
-  try {
-    fs.appendFileSync(
-      path.join(fx.site,'mujoco','_structs.cpython-312-x86_64-linux-gnu.so'),
-      'tamper',
-    );
+  try{
     const {child,parsed}=collect(fx);
-    assert.notEqual(child.status,0);
-    assert.equal(parsed.status,'INVENTORY_FAILED');
-    assert.equal(parsed.error.code,'RUNTIME_INVENTORY_INVALID');
-    assert.match(parsed.error.message,/installed bytes do not match RECORD/);
-  } finally {
+    assert.equal(child.status,0,child.stderr);
+
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({
+        ...parsed,
+        runtime_closure:{...parsed.runtime_closure,unlisted_files:['mujoco/rogue.py']},
+      }),
+      /no unlisted MuJoCo package files/,
+    );
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({
+        ...parsed,
+        runtime_closure:{...parsed.runtime_closure,symlinks:['mujoco/link.so']},
+      }),
+      /no symlink entries/,
+    );
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({
+        ...parsed,
+        runtime_closure:{...parsed.runtime_closure,closure_sha256:'f'.repeat(64)},
+      }),
+      /does not bind/,
+    );
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({
+        ...parsed,
+        required_bindings:parsed.required_bindings.filter((x)=>x.path!==REQUIRED_BINDINGS[0]),
+      }),
+      /required runtime binding is not closure-bound/,
+    );
+  }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
 });
 
-test('M4 collector rejects unsafe RECORD paths before they can escape site-packages', () => {
+test('M4 plugin list must enumerate the exact plugin closure',()=>{
   const fx=fixture();
-  try {
-    const record=path.join(fx.site,'mujoco-3.12.0.dist-info','RECORD');
-    fs.writeFileSync(record,'../outside,sha256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,1\n');
+  try{
     const {child,parsed}=collect(fx);
-    assert.notEqual(child.status,0);
-    assert.equal(parsed.status,'INVENTORY_FAILED');
-    assert.equal(parsed.error.code,'RUNTIME_INVENTORY_INVALID');
-    assert.match(parsed.error.message,/unsafe segments/);
-  } finally {
+    assert.equal(child.status,0,child.stderr);
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({...parsed,plugin_libraries:[]}),
+      /enumerate every plugin entry/,
+    );
+  }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
 });
 
-test('M4 runtime inventory validation recomputes closure identity and rejects self-certified execution claims', () => {
+test('M4 A1 evidence remains NOT_ADMITTED and BLOCKED without external enforcement',()=>{
   const fx=fixture();
-  try {
-    const {parsed}=collect(fx);
-    const changed=structuredClone(parsed);
-    changed.runtime_closure.entries[0].size_bytes+=1;
-    assert.throws(
-      () => validateMujocoRuntimeInventory(changed),
-      /total_size_bytes does not match entries|sha256 does not match/,
-    );
-
-    const claimed=structuredClone(parsed);
-    claimed.claims.execution_admitted=true;
-    assert.throws(
-      () => validateMujocoRuntimeInventory(claimed),
-      /cannot claim execution_admitted/,
-    );
-
-    const imported=structuredClone(parsed);
-    imported.claims.mujoco_imported=true;
-    assert.throws(
-      () => validateMujocoRuntimeInventory(imported),
-      /cannot claim mujoco_imported/,
-    );
-  } finally {
-    fs.rmSync(fx.root,{recursive:true,force:true});
-  }
-});
-
-test('M4 A1 admission candidate is structurally complete but always NOT_ADMITTED', () => {
-  const fx=fixture();
-  try {
-    const {parsed}=collect(fx);
-    const candidate=buildMujocoExecutionAdmissionCandidate({
-      m3CandidateSha:'78dcf2d720215e4c9cd54b0402eb83083b1a5ddd',
-      runtimeInventory:parsed,
-      currentArtifactTrustPolicy:emptyPolicy(),
-      readRoots:['inputs/mujoco'],
-      limits:limits(),
-    });
-
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const candidate=baseCandidate(parsed,null);
     assert.equal(candidate.schema,MUJOCO_EXECUTION_ADMISSION_CANDIDATE);
     assert.equal(candidate.state,'NOT_ADMITTED');
+    assert.equal(candidate.review_readiness,'BLOCKED');
     assert.equal(candidate.execution_authorized,false);
-    assert.equal(candidate.artifact_trust_delta.expanded,true);
-    assert.equal(
-      candidate.unresolved.includes('artifact-trust-expansion-requires-independent-approval'),
-      true,
-    );
-    assert.equal(
-      candidate.unresolved.includes('independent-t20-t16-admission-verdict-required'),
-      true,
-    );
-    assert.equal(
-      candidate.unresolved.includes('read-only-immutable-staging-enforcement-not-proven'),
-      true,
-    );
+    assert.equal(candidate.t16_runtime_binding_allowed,false);
+    assert.equal(candidate.unresolved.includes('enforcement-evidence-missing'),true);
+    assert.equal(candidate.unresolved.includes('independent-t20-t16-admission-verdict-required'),true);
 
     const permission=candidate.helper_plan.helper_requirements.runtime.permission_manifest;
     assert.deepEqual(permission.read_roots,['inputs/mujoco']);
     assert.deepEqual(permission.write_roots,[]);
     assert.deepEqual(permission.network,{mode:'deny',allow:[]});
+    assert.deepEqual(permission.listen,{mode:'deny',allow:[]});
     assert.deepEqual(permission.environment,{allow:[]});
     assert.deepEqual(permission.secret_refs,[]);
     assert.deepEqual(permission.devices,{mode:'deny',allow:[]});
-    assert.equal(permission.process.max_children,1);
-    assert.equal(permission.process.executables.length,1);
-    assert.equal(candidate.helper_plan.helper_requirements.executable_now,false);
-    assert.equal(candidate.helper_plan.helper_requirements.runtime_binding_required,true);
-    assert.match(candidate.permission_manifest_digest,/^[a-f0-9]{64}$/);
-    assert.match(candidate.proposed_artifact_trust_policy_digest,/^[a-f0-9]{64}$/);
-  } finally {
+    assert.deepEqual(permission.process,{
+      mode:'argv-allowlist',
+      executables:[parsed.launcher.basename],
+      max_children:1,
+    });
+  }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
 });
 
-test('M4 admission builder rejects identity aliasing and caller attempts to smuggle approval', () => {
+test('M4 complete structural evidence becomes review-ready only and still cannot self-admit',()=>{
   const fx=fixture();
-  try {
-    const {parsed}=collect(fx);
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const preliminary=baseCandidate(parsed,null);
+    const enforcement={
+      schema:MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA,
+      target:'SIM-mujoco',
+      runner_implementation_sha256:'1'.repeat(64),
+      runtime_execution_policy_sha256:'2'.repeat(64),
+      permission_manifest_sha256:preliminary.permission_manifest_digest,
+      runtime_inventory_sha256:mujocoRuntimeInventoryDigest(parsed),
+      probes:{
+        source_mount_read_only:true,
+        runtime_mount_read_only:true,
+        source_symlink_denied:true,
+        source_hardlink_denied:true,
+        source_write_denied:true,
+        runtime_write_denied:true,
+        network_connect_denied:true,
+        network_listen_denied:true,
+        unexpected_process_denied:true,
+        ambient_environment_empty:true,
+        pre_post_source_hash_equal:true,
+        runtime_closure_reverified:true,
+        native_library_reverified:true,
+        plugin_closure_reverified:true,
+      },
+    };
+    const candidate=baseCandidate(parsed,enforcement);
+    assert.equal(candidate.state,'NOT_ADMITTED');
+    assert.equal(candidate.review_readiness,'READY_FOR_INDEPENDENT_REVIEW');
+    assert.equal(candidate.execution_authorized,false);
+    assert.equal(candidate.t16_runtime_binding_allowed,false);
+    assert.equal(candidate.unresolved.includes('independent-t20-t16-admission-verdict-required'),true);
+    assert.equal(candidate.unresolved.includes('t16-runtime-binding-not-created'),true);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
 
-    const aliased=structuredClone(parsed);
-    aliased.helper.sha256=aliased.launcher.sha256;
-    assert.throws(
-      () => buildMujocoExecutionAdmissionCandidate({
-        m3CandidateSha:'78dcf2d720215e4c9cd54b0402eb83083b1a5ddd',
-        runtimeInventory:aliased,
-        currentArtifactTrustPolicy:emptyPolicy(),
-        readRoots:['inputs/mujoco'],
-        limits:limits(),
-      }),
-      /identities must be distinct/,
-    );
+test('M4 enforcement evidence must bind exact permission and runtime inventory digests',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const bad={
+      schema:MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA,
+      target:'SIM-mujoco',
+      runner_implementation_sha256:'1'.repeat(64),
+      runtime_execution_policy_sha256:'2'.repeat(64),
+      permission_manifest_sha256:'f'.repeat(64),
+      runtime_inventory_sha256:'e'.repeat(64),
+      probes:{
+        source_mount_read_only:true,
+        runtime_mount_read_only:true,
+        source_symlink_denied:true,
+        source_hardlink_denied:true,
+        source_write_denied:true,
+        runtime_write_denied:true,
+        network_connect_denied:true,
+        network_listen_denied:true,
+        unexpected_process_denied:true,
+        ambient_environment_empty:true,
+        pre_post_source_hash_equal:true,
+        runtime_closure_reverified:true,
+        native_library_reverified:true,
+        plugin_closure_reverified:true,
+      },
+    };
+    const candidate=baseCandidate(parsed,bad);
+    assert.equal(candidate.review_readiness,'BLOCKED');
+    assert.equal(candidate.unresolved.includes('permission-manifest-digest-mismatch'),true);
+    assert.equal(candidate.unresolved.includes('runtime-inventory-digest-mismatch'),true);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
 
+test('M4 wrapper requires -I -S -B and exact helper bytes before transfer',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4-wrapper-'));
+  try{
+    const runtime=path.join(root,'runtime');
+    fs.mkdirSync(runtime);
+    const helper=path.join(root,'probe.py');
+    fs.writeFileSync(helper,[
+      'import sys',
+      'assert sys.flags.isolated == 1',
+      'assert sys.flags.no_site == 1',
+      'assert sys.flags.dont_write_bytecode == 1',
+      'print("WRAPPER_PROBE_PASS")',
+      '',
+    ].join('\n'));
+    const helperSha=sha(fs.readFileSync(helper));
+
+    const ok=spawnSync('python3',['-I','-S','-B',WRAPPER,runtime,helper,helperSha],{
+      encoding:'utf8',env:{},timeout:10_000,
+    });
+    assert.equal(ok.status,0,ok.stderr);
+    assert.match(ok.stdout,/WRAPPER_PROBE_PASS/);
+
+    const wrong=spawnSync('python3',['-I','-S','-B',WRAPPER,runtime,helper,'f'.repeat(64)],{
+      encoding:'utf8',env:{},timeout:10_000,
+    });
+    assert.notEqual(wrong.status,0);
+    assert.match(wrong.stderr,/helper bytes do not match/);
+
+    const flags=spawnSync('python3',[WRAPPER,runtime,helper,helperSha],{
+      encoding:'utf8',env:{},timeout:10_000,
+    });
+    assert.notEqual(flags.status,0);
+    assert.match(flags.stderr,/isolated mode/);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});
+
+test('M4 collector exposes generated or unlisted MuJoCo files and verifier blocks them',()=>{
+  const fx=fixture();
+  try{
+    write(fx.runtime,'mujoco/__pycache__/rogue.pyc','generated');
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    assert.equal(parsed.runtime_closure.unlisted_files.includes('mujoco/__pycache__/rogue.pyc'),true);
+    assert.throws(()=>validateMujocoRuntimeInventory(parsed),/no unlisted MuJoCo package files/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4 admission input rejects approval knobs and revoked required runtime bytes',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
     assert.throws(
-      () => buildMujocoExecutionAdmissionCandidate({
+      ()=>buildMujocoExecutionAdmissionCandidate({
         m3CandidateSha:'78dcf2d720215e4c9cd54b0402eb83083b1a5ddd',
         runtimeInventory:parsed,
         currentArtifactTrustPolicy:emptyPolicy(),
         readRoots:['inputs/mujoco'],
         limits:limits(),
+        enforcementEvidence:null,
         approved:true,
       }),
       /must contain exactly/,
     );
-  } finally {
-    fs.rmSync(fx.root,{recursive:true,force:true});
-  }
-});
 
-test('M4 proposed trust policy never removes revocations and refuses a revoked required runtime digest', () => {
-  const fx=fixture();
-  try {
-    const {parsed}=collect(fx);
-    const policy=emptyPolicy();
-    policy.generation=4;
-    policy.revoked=[{
+    const revoked=emptyPolicy();
+    revoked.generation=4;
+    revoked.revoked=[{
       sha256:parsed.native_library.sha256,
       reason:'runtime native library revoked by independent security review',
     }];
     assert.throws(
-      () => buildMujocoExecutionAdmissionCandidate({
+      ()=>buildMujocoExecutionAdmissionCandidate({
         m3CandidateSha:'78dcf2d720215e4c9cd54b0402eb83083b1a5ddd',
         runtimeInventory:parsed,
-        currentArtifactTrustPolicy:policy,
+        currentArtifactTrustPolicy:revoked,
         readRoots:['inputs/mujoco'],
         limits:limits(),
+        enforcementEvidence:null,
       }),
       /required runtime digest is revoked/,
     );
-  } finally {
+  }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
 });
