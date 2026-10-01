@@ -32,6 +32,70 @@ function writeU64(buf,offset,value){
   buf.writeBigUInt64LE(BigInt(value),offset);
 }
 
+function elf64Interp(interpBytes){
+  const phoff=64;
+  const phentsize=56;
+  const phnum=2;
+  const interpOffset=256;
+  const total=Math.max(1024,interpOffset+interpBytes.length);
+  const base=0x400000;
+  const buf=Buffer.alloc(total);
+
+  buf.set([0x7f,0x45,0x4c,0x46,2,1,1,0,0,0,0,0,0,0,0,0],0);
+  buf.writeUInt16LE(3,16);
+  buf.writeUInt16LE(62,18);
+  buf.writeUInt32LE(1,20);
+  writeU64(buf,24,0);
+  writeU64(buf,32,phoff);
+  writeU64(buf,40,0);
+  buf.writeUInt32LE(0,48);
+  buf.writeUInt16LE(64,52);
+  buf.writeUInt16LE(phentsize,54);
+  buf.writeUInt16LE(phnum,56);
+
+  let p=phoff;
+  buf.writeUInt32LE(1,p);
+  buf.writeUInt32LE(5,p+4);
+  writeU64(buf,p+8,0);
+  writeU64(buf,p+16,base);
+  writeU64(buf,p+24,base);
+  writeU64(buf,p+32,total);
+  writeU64(buf,p+40,total);
+  writeU64(buf,p+48,4096);
+
+  p+=phentsize;
+  buf.writeUInt32LE(3,p);
+  buf.writeUInt32LE(4,p+4);
+  writeU64(buf,p+8,interpOffset);
+  writeU64(buf,p+16,base+interpOffset);
+  writeU64(buf,p+24,base+interpOffset);
+  writeU64(buf,p+32,interpBytes.length);
+  writeU64(buf,p+40,interpBytes.length);
+  writeU64(buf,p+48,1);
+
+  interpBytes.copy(buf,interpOffset);
+  return buf;
+}
+
+function parseElfDirect(target){
+  const script=String.raw`
+import importlib.util
+import sys
+spec=importlib.util.spec_from_file_location("m4a_resolver",sys.argv[1])
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+try:
+    module.parse_elf_dynamic(module.Path(sys.argv[2]))
+except module.ResolveError as exc:
+    print(str(exc))
+    raise SystemExit(2)
+print("PASS")
+`;
+  return spawnSync('python3',['-I','-S','-B','-c',script,RESOLVER,target],{
+    encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024,
+  });
+}
+
 function elf64({needed=[],runpath=null,rpath=null}={}){
   const base=0x400000;
   const phoff=64;
@@ -249,6 +313,28 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
     assert.doesNotMatch(source,/\bPopen\s*\(/);
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4A bounds and sanitizes PT_INTERP before reading loader metadata',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4a-interp-'));
+  try{
+    const oversized=path.join(root,'oversized.elf');
+    fs.writeFileSync(
+      oversized,
+      elf64Interp(Buffer.concat([Buffer.alloc(4097,0x61),Buffer.from([0])])),
+    );
+    let child=parseElfDirect(oversized);
+    assert.notEqual(child.status,0);
+    assert.match(child.stdout,/PT_INTERP size is invalid/);
+
+    const control=path.join(root,'control.elf');
+    fs.writeFileSync(control,elf64Interp(Buffer.from('/lib/loader\nname\0','utf8')));
+    child=parseElfDirect(control);
+    assert.notEqual(child.status,0);
+    assert.match(child.stdout,/PT_INTERP contains control characters/);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
   }
 });
 
