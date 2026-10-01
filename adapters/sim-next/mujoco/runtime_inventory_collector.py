@@ -247,10 +247,21 @@ def _verify_record(site_packages: Path, record_path: Path) -> list[dict[str, Any
             raise InventoryError("RUNTIME_INVENTORY_INVALID", f"RECORD row {index} size is negative")
         expected_sha = _record_digest(encoded_hash, f"RECORD row {index}")
 
-        candidate = (site_packages / relative).resolve(strict=True)
+        requested = site_packages / relative
+        try:
+            requested.lstat()
+        except FileNotFoundError as exc:
+            raise InventoryError(
+                "RUNTIME_INVENTORY_INVALID",
+                f"installed RECORD entry is missing: {relative}",
+            ) from exc
+        if requested.is_symlink():
+            raise InventoryError(
+                "RUNTIME_INVENTORY_INVALID",
+                f"installed RECORD entry is a symlink: {relative}",
+            )
+        candidate = requested.resolve(strict=True)
         _inside(site_packages.resolve(strict=True), candidate)
-        if candidate.is_symlink():
-            raise InventoryError("RUNTIME_INVENTORY_INVALID", f"installed RECORD entry is a symlink: {relative}")
         actual = _hash_regular(candidate, f"installed RECORD entry {relative}")
         if actual["size_bytes"] != expected_size or actual["sha256"] != expected_sha:
             raise InventoryError("RUNTIME_INVENTORY_INVALID", f"installed bytes do not match RECORD: {relative}")
@@ -304,7 +315,8 @@ def collect(request: dict[str, Any]) -> dict[str, Any]:
 
     record_hash = _hash_regular(record_path, "MuJoCo RECORD")
     metadata_hash = _hash_regular(metadata_path, "MuJoCo METADATA")
-    helper_hash = _hash_regular(request["helper_path"].resolve(strict=True), "M3 helper")
+    helper_path = request["helper_path"]
+    helper_hash = _hash_regular(helper_path, "M3 helper")
     launcher = _hash_launcher(venv_root / "bin" / "python")
 
     return {
@@ -316,7 +328,7 @@ def collect(request: dict[str, Any]) -> dict[str, Any]:
         "site_packages": str(site_packages.resolve(strict=True)),
         "launcher": launcher,
         "helper": {
-            "path": str(request["helper_path"].resolve(strict=True)),
+            "path": str(helper_path.absolute()),
             **helper_hash,
         },
         "record": {
