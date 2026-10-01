@@ -13,9 +13,11 @@ import hashlib
 import json
 import math
 import os
+import posixpath
 from pathlib import Path
 import re
 import sys
+import xml.etree.ElementTree as ET
 from typing import Any
 
 REQUEST_PROTOCOL = "sbf.sim-mujoco-effective-helper-request/draft-1"
@@ -29,6 +31,9 @@ MAX_SOURCE_FILES = 10_000
 MAX_STAGING_ENTRIES = 20_000
 MAX_SOURCE_BYTES = 1024 * 1024 * 1024
 MAX_TEXT_LENGTH = 4096
+MAX_PREFLIGHT_XML_BYTES = 8 * 1024 * 1024
+MAX_PREFLIGHT_XML_ELEMENTS = 20_000
+MAX_PREFLIGHT_XML_DEPTH = 64
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 MEDIA_TYPE_RE = re.compile(r"^[^\s/]+/[^\s]+$")
 URI_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
@@ -317,6 +322,258 @@ def verify_staged_source_closure(source_bundle: dict[str, Any], staging_root: Pa
                 "SOURCE_CLOSURE_INVALID",
                 f"source bundle exceeds aggregate byte limit {MAX_SOURCE_BYTES}",
             )
+
+    _verify_compiler_read_closure(source_bundle, root)
+
+
+def _safe_compiler_ref(value: Any, label: str) -> str:
+    value = _control_free_text(value, label)
+    if (
+        "\\" in value
+        or value.startswith("/")
+        or URI_RE.match(value)
+        or re.match(r"^[A-Za-z]:/", value)
+    ):
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            f"{label} must be a relative POSIX path inside the approved source bundle",
+        )
+    parts = value.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            f"{label} must not contain empty, dot, or parent segments",
+        )
+    normalized = posixpath.normpath(value)
+    if normalized in (".", "..") or normalized.startswith("../") or posixpath.isabs(normalized):
+        raise HelperError("SOURCE_CLOSURE_INVALID", f"{label} escapes the approved source bundle")
+    return normalized
+
+
+def _xml_tag(element: ET.Element) -> str:
+    tag = element.tag
+    if not isinstance(tag, str) or not tag or "}" in tag:
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            "MJCF compiler preflight does not allow XML namespaces or non-string tags",
+        )
+    return tag
+
+
+def _read_preflight_xml(staging_root: Path, entry: dict[str, Any]) -> ET.Element:
+    if entry["artifact"]["size_bytes"] > MAX_PREFLIGHT_XML_BYTES:
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            f"XML compiler input exceeds preflight byte limit {MAX_PREFLIGHT_XML_BYTES}: {entry['path']}",
+        )
+    source_path = staging_root.joinpath(*entry["path"].split("/"))
+    data = source_path.read_bytes()
+    try:
+        text = data.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            f"XML compiler input must be UTF-8: {entry['path']}",
+        ) from exc
+    if re.search(r"<!\s*(?:DOCTYPE|ENTITY)\b", text, flags=re.IGNORECASE):
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            f"XML compiler input must not declare DOCTYPE or ENTITY: {entry['path']}",
+        )
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError as exc:
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            f"XML compiler input is malformed: {entry['path']}",
+        ) from exc
+
+    stack: list[tuple[ET.Element, int]] = [(root, 1)]
+    count = 0
+    while stack:
+        element, depth = stack.pop()
+        count += 1
+        if count > MAX_PREFLIGHT_XML_ELEMENTS:
+            raise HelperError(
+                "SOURCE_CLOSURE_INVALID",
+                f"XML compiler input exceeds element limit {MAX_PREFLIGHT_XML_ELEMENTS}: {entry['path']}",
+            )
+        if depth > MAX_PREFLIGHT_XML_DEPTH:
+            raise HelperError(
+                "SOURCE_CLOSURE_INVALID",
+                f"XML compiler input exceeds depth limit {MAX_PREFLIGHT_XML_DEPTH}: {entry['path']}",
+            )
+        _xml_tag(element)
+        stack.extend((child, depth + 1) for child in list(element))
+    return root
+
+
+def _compiler_path_config(xml_roots: list[ET.Element]) -> dict[str, Any]:
+    compiler_elements = [
+        element
+        for root in xml_roots
+        for element in root.iter()
+        if _xml_tag(element) == "compiler"
+    ]
+    if len(compiler_elements) > 1:
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            "M3 compiler read-closure preflight supports at most one <compiler> element",
+        )
+    attrs = compiler_elements[0].attrib if compiler_elements else {}
+
+    def directory(name: str) -> str | None:
+        raw = attrs.get(name)
+        if raw is None:
+            return None
+        return _safe_compiler_ref(raw, f"compiler.{name}")
+
+    assetdir = directory("assetdir")
+    meshdir = directory("meshdir") or assetdir
+    texturedir = directory("texturedir") or assetdir
+
+    strip_raw = attrs.get("strippath", "false").lower()
+    if strip_raw not in ("true", "false"):
+        raise HelperError(
+            "SOURCE_CLOSURE_INVALID",
+            "compiler.strippath must be true or false for M3 compiler preflight",
+        )
+    return {
+        "meshdir": meshdir,
+        "texturedir": texturedir,
+        "strippath": strip_raw == "true",
+    }
+
+
+def _resolve_compiler_file(
+    *,
+    main_dir: str,
+    directory: str | None,
+    raw_ref: Any,
+    strip_path: bool,
+    label: str,
+) -> str:
+    ref = _safe_compiler_ref(raw_ref, label)
+    if strip_path:
+        ref = posixpath.basename(ref)
+    pieces = []
+    if main_dir != ".":
+        pieces.append(main_dir)
+    if directory is not None:
+        pieces.append(directory)
+    pieces.append(ref)
+    resolved = posixpath.normpath(posixpath.join(*pieces))
+    if resolved in (".", "..") or resolved.startswith("../") or posixpath.isabs(resolved):
+        raise HelperError("SOURCE_CLOSURE_INVALID", f"{label} escapes the approved source bundle")
+    return resolved
+
+
+def _verify_compiler_read_closure(source_bundle: dict[str, Any], staging_root: Path) -> None:
+    dependencies = {
+        entry["path"]: entry
+        for entry in source_bundle["dependencies"]
+    }
+    root_path = source_bundle["root"]["path"]
+    main_dir = posixpath.dirname(root_path)
+
+    xml_entries = [
+        source_bundle["root"],
+        *[
+            entry
+            for entry in source_bundle["dependencies"]
+            if entry["role"] == "include"
+        ],
+    ]
+    xml_roots = [_read_preflight_xml(staging_root, entry) for entry in xml_entries]
+    config = _compiler_path_config(xml_roots)
+
+    def require_dependency(path_value: str, role: str, label: str) -> None:
+        entry = dependencies.get(path_value)
+        if entry is None:
+            raise HelperError(
+                "SOURCE_CLOSURE_INVALID",
+                f"{label} resolves to undeclared compiler input: {path_value}",
+            )
+        if entry["role"] != role:
+            raise HelperError(
+                "SOURCE_CLOSURE_INVALID",
+                f"{label} resolves to {path_value}, declared as role {entry['role']} instead of {role}",
+            )
+
+    seen_includes: set[str] = set()
+    asset_elements = {
+        "mesh": ("meshdir", {"file"}),
+        "hfield": ("meshdir", {"file"}),
+        "skin": ("meshdir", {"file"}),
+        "texture": (
+            "texturedir",
+            {"file", "fileup", "filedown", "fileleft", "fileright", "filefront", "fileback"},
+        ),
+    }
+
+    for xml_root in xml_roots:
+        for element in xml_root.iter():
+            tag = _xml_tag(element)
+            if tag in ("extension", "plugin") or "plugin" in element.attrib:
+                raise HelperError(
+                    "SOURCE_CLOSURE_INVALID",
+                    f"M3 compiler read-closure preflight does not certify plugin/extension semantics: <{tag}>",
+                )
+
+            file_attrs = sorted(
+                key
+                for key in element.attrib
+                if key == "file" or key.startswith("file")
+            )
+            if not file_attrs:
+                continue
+
+            if tag == "include":
+                if file_attrs != ["file"]:
+                    raise HelperError(
+                        "SOURCE_CLOSURE_INVALID",
+                        "include contains an unreviewed file-bearing attribute",
+                    )
+                ref = _safe_compiler_ref(element.attrib["file"], "include.file")
+                resolved = _resolve_compiler_file(
+                    main_dir=main_dir,
+                    directory=None,
+                    raw_ref=ref,
+                    strip_path=False,
+                    label="include.file",
+                )
+                if resolved in seen_includes:
+                    raise HelperError(
+                        "SOURCE_CLOSURE_INVALID",
+                        f"MuJoCo include is referenced more than once: {resolved}",
+                    )
+                seen_includes.add(resolved)
+                require_dependency(resolved, "include", "include.file")
+                continue
+
+            asset_rule = asset_elements.get(tag)
+            if asset_rule is None:
+                raise HelperError(
+                    "SOURCE_CLOSURE_INVALID",
+                    f"M3 compiler read-closure preflight does not certify file-bearing element <{tag}>",
+                )
+
+            directory_key, allowed_attrs = asset_rule
+            unsupported = [key for key in file_attrs if key not in allowed_attrs]
+            if unsupported:
+                raise HelperError(
+                    "SOURCE_CLOSURE_INVALID",
+                    f"<{tag}> contains unreviewed file-bearing attribute(s): {', '.join(unsupported)}",
+                )
+            for attribute in file_attrs:
+                resolved = _resolve_compiler_file(
+                    main_dir=main_dir,
+                    directory=config[directory_key],
+                    raw_ref=element.attrib[attribute],
+                    strip_path=config["strippath"],
+                    label=f"{tag}.{attribute}",
+                )
+                require_dependency(resolved, "asset", f"{tag}.{attribute}")
 
 
 def _enum_suffix(mj: Any, class_name: str, prefix: str, raw: Any) -> str:
