@@ -53,13 +53,19 @@ def main() -> int:
         fail("python no-site mode (-S) is required")
     if sys.flags.dont_write_bytecode != 1:
         fail("python no-bytecode mode (-B) is required")
-    runtime_root = Path(sys.argv[1]).resolve(strict=True)
-    helper_path = Path(sys.argv[2]).resolve(strict=True)
+    runtime_requested = Path(sys.argv[1])
+    helper_requested = Path(sys.argv[2])
+    if runtime_requested.is_symlink():
+        fail("runtime import root must not be a symlink")
+    if helper_requested.is_symlink():
+        fail("helper must not be a symlink")
+    runtime_root = runtime_requested.resolve(strict=True)
+    helper_path = helper_requested.resolve(strict=True)
     helper_sha256 = sys.argv[3]
 
     if not runtime_root.is_dir():
         fail("runtime import root must be a directory")
-    if not helper_path.is_file() or helper_path.is_symlink():
+    if not helper_path.is_file():
         fail("helper must be a regular non-symlink file")
     if (
         len(helper_sha256) != SHA256_LEN
