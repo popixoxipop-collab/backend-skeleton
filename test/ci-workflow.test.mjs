@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import YAML from 'yaml';
 import { MIN_NODE } from '../lib/doctor.mjs';
 import { SUITES } from '../scripts/run-next-nested-tests.mjs';
@@ -313,30 +314,49 @@ test('the nested-next coverage rule reports each listed way a suite can drop out
 });
 
 // `verify` with fewer than the three release/next files is a usage error (exit 1), so the step must name all three.
-const RELEASE_POLICY_VERIFY_COMMAND = 'node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json';
+// CI checks only the bskel CI run online: the workflow token reads this repository's runs, but the private
+// backend-decoder and Backend-evaluation runs answer it with 404, so those two roles stay a maintainer check.
+const RELEASE_POLICY_VERIFY_COMMAND = 'node release/next/release-policy.mjs verify --online --online-roles bskel release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json';
+const RELEASE_POLICY_VERIFY_ENV = { GITHUB_TOKEN: '${{ github.token }}' };
+const RELEASE_POLICY_JOB_PERMISSIONS = { contents: 'read', actions: 'read' };
 
 function releasePolicyVerifyProblems(doc) {
 	const job = doc.jobs?.['nested-next'];
 	if (!job) return ['ci.yml has no "nested-next" job'];
 	const verifySteps = (job.steps ?? []).filter((step) => typeof step.run === 'string' && step.run.trim() === RELEASE_POLICY_VERIFY_COMMAND);
 	if (verifySteps.length === 0) return [`the nested-next job has no step that runs exactly: ${RELEASE_POLICY_VERIFY_COMMAND}`];
-	if (verifySteps.every((step) => step['continue-on-error'] || step.if !== undefined)) return ['the nested-next release-policy verify step must run unconditionally (no "if", no "continue-on-error")'];
-	return [];
+	const unconditional = verifySteps.filter((step) => !step['continue-on-error'] && step.if === undefined);
+	if (unconditional.length === 0) return ['the nested-next release-policy verify step must run unconditionally (no "if", no "continue-on-error")'];
+	const problems = [];
+	if (!unconditional.some((step) => isDeepStrictEqual(step.env, RELEASE_POLICY_VERIFY_ENV))) {
+		problems.push('the nested-next release-policy verify step must set env to exactly {GITHUB_TOKEN: "${{ github.token }}"}: the workflow token, no secret, nothing else');
+	}
+	if (!isDeepStrictEqual(job.permissions, RELEASE_POLICY_JOB_PERMISSIONS)) {
+		problems.push('the nested-next job must set permissions to exactly {contents: read, actions: read}: a job-level block replaces the workflow-level one, and the online check reads this repository\'s runs');
+	}
+	return problems;
 }
 
-test('the nested-next job runs the offline release-policy verification over the release/next files', () => {
+test('the nested-next job runs the release-policy verification over the release/next files and checks the bskel CI run online', () => {
 	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
 	assert.deepEqual(releasePolicyVerifyProblems(doc), []);
 });
 
 test('the release-policy verify rule reports each listed way the step can drop out of CI', () => {
 	const goodDoc = () => ({
-		jobs: { 'nested-next': { steps: [{ run: 'npm ci' }, { name: 'T23 release-policy verify', run: RELEASE_POLICY_VERIFY_COMMAND }] } },
+		jobs: {
+			'nested-next': {
+				permissions: { ...RELEASE_POLICY_JOB_PERMISSIONS },
+				steps: [{ run: 'npm ci' }, { name: 'T23 release-policy verify', run: RELEASE_POLICY_VERIFY_COMMAND, env: { ...RELEASE_POLICY_VERIFY_ENV } }],
+			},
+		},
 	});
 	const verifyStep = (doc) => doc.jobs['nested-next'].steps.find((s) => s.run === RELEASE_POLICY_VERIFY_COMMAND);
 	assert.deepEqual(releasePolicyVerifyProblems(goodDoc()), [], 'the rule must accept a correct configuration, or none of the cases below prove anything');
 	const noStep = /the nested-next job has no step that runs exactly/;
 	const notUnconditional = /the nested-next release-policy verify step must run unconditionally/;
+	const badEnv = /the nested-next release-policy verify step must set env to exactly/;
+	const badPermissions = /the nested-next job must set permissions to exactly/;
 	const cases = [
 		['no verify step', (doc) => { doc.jobs['nested-next'].steps = doc.jobs['nested-next'].steps.filter((s) => s !== verifyStep(doc)); }, noStep],
 		['a bare verify without the release/next files', (doc) => { verifyStep(doc).run = 'node release/next/release-policy.mjs verify'; }, noStep],
@@ -348,6 +368,23 @@ test('the release-policy verify rule reports each listed way the step can drop o
 		['a step behind if: false', (doc) => { verifyStep(doc).if = false; }, notUnconditional],
 		['the step moved to another job', (doc) => { const step = verifyStep(doc); doc.jobs['nested-next'].steps = doc.jobs['nested-next'].steps.filter((s) => s !== step); doc.jobs.other = { steps: [step] }; }, noStep],
 		['no nested-next job', (doc) => { delete doc.jobs['nested-next']; }, /ci\.yml has no "nested-next" job/],
+		['the offline command without --online', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace(' --online --online-roles bskel', ''); }, noStep],
+		['--online over all three roles, which the workflow token cannot read', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace(' --online-roles bskel', ''); }, noStep],
+		['--online over a different role list', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace('--online-roles bskel', '--online-roles bskel,becoder'); }, noStep],
+		['--online-roles without --online', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace(' --online --online-roles', ' --online-roles'); }, noStep],
+		['the flags moved behind the files', (doc) => { verifyStep(doc).run = RELEASE_POLICY_VERIFY_COMMAND.replace(' --online --online-roles bskel', '') + ' --online --online-roles bskel'; }, noStep],
+		['no token in the step env', (doc) => { delete verifyStep(doc).env; }, badEnv],
+		['an empty step env', (doc) => { verifyStep(doc).env = {}; }, badEnv],
+		['a token taken from a secret', (doc) => { verifyStep(doc).env = { GITHUB_TOKEN: '${{ secrets.READ_PAT }}' }; }, badEnv],
+		['the workflow token under another name', (doc) => { verifyStep(doc).env = { GH_TOKEN: '${{ github.token }}' }; }, badEnv],
+		['an extra variable in the step env', (doc) => { verifyStep(doc).env.EXTRA = '1'; }, badEnv],
+		['no job-level permissions', (doc) => { delete doc.jobs['nested-next'].permissions; }, badPermissions],
+		['job permissions without actions: read', (doc) => { doc.jobs['nested-next'].permissions = { contents: 'read' }; }, badPermissions],
+		['job permissions without contents: read', (doc) => { doc.jobs['nested-next'].permissions = { actions: 'read' }; }, badPermissions],
+		['job permissions with another scope', (doc) => { doc.jobs['nested-next'].permissions.packages = 'read'; }, badPermissions],
+		['job permissions granting contents: write', (doc) => { doc.jobs['nested-next'].permissions.contents = 'write'; }, badPermissions],
+		['job permissions granting actions: write', (doc) => { doc.jobs['nested-next'].permissions.actions = 'write'; }, badPermissions],
+		['job permissions: write-all', (doc) => { doc.jobs['nested-next'].permissions = 'write-all'; }, badPermissions],
 	];
 	const unreported = [];
 	for (const [label, edit, expected] of cases) {
