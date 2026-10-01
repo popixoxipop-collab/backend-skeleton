@@ -245,6 +245,32 @@ test('M4 inventory pins Linux x86_64 Python 3.12 and the exact reviewed binding 
   }
 });
 
+test('M4 collector rejects any unhashed RECORD row except RECORD itself and requires sizes for hashed rows',()=>{
+  const fx=fixture();
+  try{
+    const record=path.join(fx.runtime,'mujoco-3.12.0.dist-info','RECORD');
+    const original=fs.readFileSync(record,'utf8');
+
+    fs.writeFileSync(record,original.replace(
+      /mujoco\/__init__\.py,sha256=[^,]+,[0-9]+/,
+      'mujoco/__init__.py,,',
+    ));
+    let result=collect(fx);
+    assert.notEqual(result.child.status,0);
+    assert.match(result.child.stderr,/unhashed RECORD entry is not admissible/);
+
+    fs.writeFileSync(record,original.replace(
+      /(mujoco\/__init__\.py,sha256=[^,]+),[0-9]+/,
+      '$1,',
+    ));
+    result=collect(fx);
+    assert.notEqual(result.child.status,0);
+    assert.match(result.child.stderr,/hashed RECORD entry is missing size/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 collector rejects duplicate-key/NaN wire input before filesystem inventory',()=>{
   const fx=fixture();
   try{
