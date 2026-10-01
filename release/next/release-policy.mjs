@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { publicKeyIdFromPublic, verifyPayload } from '../../lib/attest.mjs';
 
 const SHA40 = /^[0-9a-f]{40}$/;
@@ -1091,4 +1092,14 @@ function main() {
   process.exit(result.ok ? 0 : 2);
 }
 
-if (import.meta.url === 'file://' + process.argv[1]) main();
+// import.meta.url is percent-encoded and symlink-resolved, so compare it with the resolved argv[1] as a file URL.
+function invokedAsScript() {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (invokedAsScript()) main();
