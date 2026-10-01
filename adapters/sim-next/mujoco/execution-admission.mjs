@@ -17,8 +17,12 @@ const GIT_SHA=/^[0-9a-f]{40}$/;
 const VERSION='3.12.0';
 const REQUIRED_BINDINGS=Object.freeze([
   'mujoco/__init__.py',
+  'mujoco/_callbacks.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_constants.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_enums.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_errors.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_functions.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_render.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_specs.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_structs.cpython-312-x86_64-linux-gnu.so',
 ]);
