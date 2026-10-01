@@ -241,11 +241,11 @@ export function validateMujocoRuntimeInventory(value){
   }
 
   exactKeys(value.startup,[
-    'isolated_flag','no_site_flag','dont_write_bytecode','ambient_environment_empty',
+    'isolated_flag','no_site_flag','dont_write_bytecode',
     'pth_processing_disabled','runtime_import_root_explicit',
   ],'runtime inventory startup');
   for(const key of [
-    'isolated_flag','no_site_flag','dont_write_bytecode','ambient_environment_empty',
+    'isolated_flag','no_site_flag','dont_write_bytecode',
     'pth_processing_disabled','runtime_import_root_explicit',
   ]){
     if(value.startup[key]!==true) throw new TypeError(`runtime inventory startup.${key} must be true`);
