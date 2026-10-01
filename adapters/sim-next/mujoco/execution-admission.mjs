@@ -307,7 +307,10 @@ export function validateMujocoExecutionEnforcementEvidence(value){
     'pre_post_source_hash_equal',
     'runtime_closure_reverified',
     'native_library_reverified',
+    'native_dependency_closure_reverified',
     'plugin_closure_reverified',
+    'decoder_closure_reverified',
+    'resource_provider_closure_reverified',
   ];
   exactKeys(probes,required,'enforcement probes');
   for(const key of required){
@@ -383,6 +386,7 @@ export function buildMujocoExecutionAdmissionCandidate(input){
       'runtime-execution-policy-hash-not-bound',
       'read-only-immutable-staging-enforcement-not-proven',
       'toctou-hardlink-denial-not-proven',
+      'native-dependency-closure-not-independently-admitted',
       'runtime-plugin-decoder-resource-provider-closure-not-independently-admitted',
     );
   }else{
