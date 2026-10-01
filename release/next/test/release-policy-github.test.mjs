@@ -103,7 +103,12 @@ test('each attempt is aborted after timeoutMs (15 s by default) and the transpor
   let attempts = 0;
   const hang = (_url, init) => new Promise((_resolve, reject) => {
     attempts += 1;
-    init.signal.addEventListener('abort', () => reject(init.signal.reason ?? new Error('aborted')));
+    // AbortSignal.timeout() timers are unref-ed; a real socket keeps the loop alive, this double needs its own handle.
+    const keepAlive = setTimeout(() => {}, 2000);
+    init.signal.addEventListener('abort', () => {
+      clearTimeout(keepAlive);
+      reject(init.signal.reason ?? new Error('aborted'));
+    });
   });
   await assert.rejects(create({ env: {}, fetchImpl: hang, sleep: sleeper(), timeoutMs: 20 })(REQUEST), /after 3 attempts/);
   assert.equal(attempts, 3);
