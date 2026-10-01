@@ -198,6 +198,8 @@ def parse_record(runtime_root: Path) -> tuple[str, int, int, set[str]]:
         if digest_spec:
             if not digest_spec.startswith("sha256="):
                 fail(f"unsupported RECORD digest algorithm for {rel}")
+            if not size_text:
+                fail(f"hashed RECORD entry is missing size for {rel}")
             encoded = digest_spec[len("sha256="):]
             padding = "=" * ((4 - len(encoded) % 4) % 4)
             try:
@@ -209,20 +211,24 @@ def parse_record(runtime_root: Path) -> tuple[str, int, int, set[str]]:
             actual, size = hash_file(target)
             if actual != wanted:
                 fail(f"RECORD digest mismatch for {rel}")
-            if size_text:
-                try:
-                    wanted_size = int(size_text)
-                except ValueError as exc:
-                    fail(f"invalid RECORD size for {rel}")
-                    raise AssertionError from exc
-                if size != wanted_size:
-                    fail(f"RECORD size mismatch for {rel}")
+            try:
+                wanted_size = int(size_text)
+            except ValueError as exc:
+                fail(f"invalid RECORD size for {rel}")
+                raise AssertionError from exc
+            if size != wanted_size:
+                fail(f"RECORD size mismatch for {rel}")
             verified += 1
-        elif target.exists():
-            # RECORD itself normally has no digest. Presence is still checked and
-            # its exact bytes are bound by record_sha above.
-            if target.is_symlink() or not target.is_file():
-                fail(f"unhashed RECORD entry is not a regular file: {rel}")
+        else:
+            # PEP 376 permits the RECORD row itself to omit hash and size.
+            # Admission intentionally refuses any other unhashed installed row:
+            # every other runtime file must be bound to exact bytes.
+            if rel != RECORD_REL:
+                fail(f"unhashed RECORD entry is not admissible: {rel}")
+            if size_text:
+                fail("RECORD self-row must omit size when hash is omitted")
+            if not target.exists() or target.is_symlink() or not target.is_file():
+                fail("RECORD self-row must resolve to the regular RECORD file")
     return record_sha, expected, verified, listed
 
 
