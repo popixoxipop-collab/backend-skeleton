@@ -2406,8 +2406,30 @@ test('typescript-express: a numeric literal ending in a decimal point keeps a wr
 	], ['GET /real']);
 });
 
-// Only the decimal point of a numeric literal stops being a member dot: after `1..`, `1.5.`, `0x1.`, `1e3.`,
-// `1n.`, `.5.`, `1 .` or `a1.` the next word is still a member name, not a keyword.
+// The decimal point is recognised whatever comes before the number (a sign, an operator, nothing at all) and
+// however many digits the number has. Expected values are the result of running each body.
+test('typescript-express: a numeric literal ending in a decimal point is recognised after a sign or operator, without a space before it, and when long', () => {
+	assertBodiesBeforeRoute([
+		['let x = -1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = +1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = y*1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = y?2:1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x=1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 123456789.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 1_000_000.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+	], []);
+	assertBodiesBeforeRoute([
+		['let x = -1.', 'if (a)', '  app = fakeApp'],
+		['let x = y*1.', 'while (a)', '  app = fakeApp'],
+		['let x = y?2:1.', 'for (const item of items)', '  app = fakeApp'],
+		['let x=1.', 'if (a)', '  app = fakeApp'],
+		['let x = 123456789.', 'if (a)', '  app = fakeApp'],
+	], ['GET /real']);
+});
+
+// Only the decimal point of a numeric literal stops being a member dot: after `1..`, `1.5.`, `0x1.`, `0x1_0.`, `1e3.`,
+// `1n.`, `.5.`, `1 .`, `a1.`, `$1.`, `_1.` or `\u{e9}1.` (a name ending in a digit; `\u{e9}` is a letter outside ASCII)
+// the next word is still a member name, not a keyword.
 test('typescript-express: a dot after a numeric literal that is not its decimal point still makes the next word a member name', () => {
 	assertBodiesBeforeRoute([
 		['let y = 1..else', 'app = fakeApp'],
@@ -2418,6 +2440,10 @@ test('typescript-express: a dot after a numeric literal that is not its decimal 
 		['let y = .5.else', 'app = fakeApp'],
 		['let y = 1 .else', 'app = fakeApp'],
 		['const a1 = {}', 'let y = a1.else', 'app = fakeApp'],
+		['let y = 0x1_0.else', 'app = fakeApp'],
+		['const $1 = {}', 'let y = $1.else', 'app = fakeApp'],
+		['const _1 = {}', 'let y = _1.else', 'app = fakeApp'],
+		['const \u{e9}1 = {}', 'let y = \u{e9}1.else', 'app = fakeApp'],
 		['Number.prototype.if = function () {}', 'let y = 1..if (a)', 'app = fakeApp'],
 		['Number.prototype.if = function () {}', 'let y = 1.5.if (a)', 'app = fakeApp'],
 		['Number.prototype.if = function () {}', 'let y = 1 .if (a)', 'app = fakeApp'],
