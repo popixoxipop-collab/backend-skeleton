@@ -649,7 +649,7 @@ def main() -> int:
         try:
             model = mujoco.MjModel.from_xml_path(str(root_path))
         except Exception as exc:
-            raise HelperError("MODEL_COMPILE_FAILED", _safe_message(exc)) from exc
+            raise HelperError("MODEL_COMPILE_FAILED", "MuJoCo model compilation failed") from exc
 
         # Re-bind the exact staged bytes after compilation. T16 must provide a
         # read-only staging mount; this second pass makes any observed drift
