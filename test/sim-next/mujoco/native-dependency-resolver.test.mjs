@@ -153,6 +153,7 @@ function run(fx,searchRoots=[fx.lib1],raw=null){
   const input=raw??JSON.stringify({
     protocol:'sbf.sim-mujoco-native-dependency-resolve/draft-1',
     target:'SIM-mujoco',
+    admission_candidate_sha:'a42d944ad9033bc2305ce3ad9c72aaaee63a7a3f',
     runtime_import_root:fx.runtime,
     search_roots:searchRoots,
   });
@@ -180,6 +181,9 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
     assert.equal(parsed.platform,'Linux-x86_64');
     assert.match(parsed.python_version,/^3\.12\.\d+$/);
     assert.equal(parsed.mujoco_version,'3.12.0');
+    assert.equal(parsed.admission_candidate_sha,'a42d944ad9033bc2305ce3ad9c72aaaee63a7a3f');
+    assert.match(parsed.resolver.sha256,/^[a-f0-9]{64}$/);
+    assert.ok(parsed.resolver.size_bytes>0);
     assert.equal(parsed.claims.elf_metadata_parsed,true);
     assert.equal(parsed.claims.subprocess_executed,false);
     assert.equal(parsed.claims.mujoco_imported,false);
@@ -309,6 +313,7 @@ test('M4A wire rejects duplicate keys NaN and unsupported fields',()=>{
       JSON.stringify({
         protocol:'sbf.sim-mujoco-native-dependency-resolve/draft-1',
         target:'SIM-mujoco',
+        admission_candidate_sha:'a42d944ad9033bc2305ce3ad9c72aaaee63a7a3f',
         runtime_import_root:fx.runtime,
         search_roots:[fx.lib1],
         approved:true,
@@ -318,6 +323,24 @@ test('M4A wire rejects duplicate keys NaN and unsupported fields',()=>{
       assert.notEqual(child.status,0);
       assert.match(child.stderr,/M4_NATIVE_DEPENDENCY_DENIED/);
     }
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4A rejects request binding to any non-canonical admission candidate',()=>{
+  const fx=fixture();
+  try{
+    const raw=JSON.stringify({
+      protocol:'sbf.sim-mujoco-native-dependency-resolve/draft-1',
+      target:'SIM-mujoco',
+      admission_candidate_sha:'0'.repeat(40),
+      runtime_import_root:fx.runtime,
+      search_roots:[fx.lib1],
+    });
+    const {child}=run(fx,[fx.lib1],raw);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/not bound to the canonical M4 admission candidate/);
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
