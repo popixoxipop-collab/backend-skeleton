@@ -663,3 +663,18 @@ test('M4 admission input rejects approval knobs and revoked required runtime byt
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
 });
+
+
+test('M4 collector rejects duplicate RECORD paths',()=>{
+  const fx=fixture();
+  try{
+    const record=path.join(fx.runtime,'mujoco-3.12.0.dist-info','RECORD');
+    const rows=fs.readFileSync(record,'utf8').trimEnd().split('\n');
+    fs.writeFileSync(record,[...rows,rows[0],''].join('\n'));
+    const result=collect(fx);
+    assert.notEqual(result.child.status,0);
+    assert.match(result.child.stderr,/duplicate path/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
