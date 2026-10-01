@@ -54,14 +54,25 @@ test('forgery 1b: a self-consistent fake head passes offline but fails online on
 const FIELD_CASES = [
   ['repository.full_name', (run) => { run.repository.full_name = 'someone-else/backend-skeleton'; }],
   ['repository.full_name', (run) => { delete run.repository; }],
+  ['repository.full_name', (run) => { run.repository.full_name = run.repository.full_name.toUpperCase(); }],
+  ['repository.full_name', (run) => { run.repository.full_name += '-fork'; }],
+  ['repository.full_name', (run) => { run.repository.full_name = ` ${run.repository.full_name}`; }],
   ['event', (run) => { run.event = 'pull_request'; }],
   ['event', (run) => { run.event = 'workflow_dispatch'; }],
   ['event', (run) => { run.event = 'schedule'; }],
   ['head_branch', (run) => { run.head_branch = 'feature/forged'; }],
   ['head_branch', (run) => { run.head_branch = 'Main'; }],
   ['head_branch', (run) => { run.head_branch = null; }],
+  ['head_branch', (run) => { run.head_branch = 'main-forged'; }],
+  ['head_branch', (run) => { run.head_branch = 'mainline'; }],
+  ['head_branch', (run) => { run.head_branch = 'refs/heads/main'; }],
+  ['head_branch', (run) => { run.head_branch = 'main '; }],
   ['head_sha', (run) => { run.head_sha = 'f'.repeat(40); }],
   ['head_sha', (run) => { run.head_sha = run.head_sha.toUpperCase(); }],
+  ['head_sha', (run) => { run.head_sha = run.head_sha.slice(0, 7); }],
+  ['head_sha', (run) => { run.head_sha = run.head_sha.slice(0, 7) + 'f'.repeat(33); }],
+  ['head_sha', (run) => { run.head_sha = run.head_sha.slice(0, 39) + (run.head_sha.endsWith('0') ? '1' : '0'); }],
+  ['head_sha', (run) => { run.head_sha = ` ${run.head_sha}`; }],
   ['status', (run) => { run.status = 'in_progress'; }],
   ['status', (run) => { run.status = 'queued'; }],
   ['conclusion', (run) => { run.conclusion = 'failure'; }],
@@ -173,6 +184,18 @@ test('roles select what is fetched and the result names exactly what was not che
   assert.deepEqual(result.checked_roles, ['bskel', 'beval']);
   assert.deepEqual(result.not_checked_roles, ['becoder']);
   assert.deepEqual(fetchRun.calls.map((c) => c.repo), [repoOf(inventory, 'bskel').repo, repoOf(inventory, 'beval').repo]);
+});
+
+test('with duplicate role entries the last one is checked, which is the entry the rest of the policy binds heads to', async () => {
+  const forged = clone(inventory);
+  const decoy = clone(repoOf(forged, 'bskel'));
+  decoy.verification.ci_run = 999999999999;
+  forged.repositories.push(decoy);
+  assert.ok(policy.verifyCompatibilityInventory(forged).errors.some((e) => e.code === 'DUPLICATE_ROLE'), 'offline verification already refuses the duplicate');
+  const fetchRun = scriptedFetchRun(inventory, (request) => (request.runId === decoy.verification.ci_run ? { status: 404, body: null } : { status: 200, body: goodRun(inventory, 'bskel') }));
+  const result = await verifyOnline(forged, { roles: ['bskel'], fetchRun });
+  assert.deepEqual(fetchRun.calls.map((call) => call.runId), [decoy.verification.ci_run]);
+  assert.deepEqual(result.errors.map((e) => [e.code, e.role]), [['ONLINE_RUN_NOT_FOUND', 'bskel']]);
 });
 
 test('unknown roles, an empty role list, a missing inventory role and a missing fetchRun fail closed', async () => {

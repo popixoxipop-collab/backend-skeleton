@@ -171,6 +171,32 @@ test('usage and flag errors exit 1 with no JSON on stdout and no network traffic
   }
 });
 
+test('each flag error names its own cause on the first line of stderr', async () => {
+  const [inv, pl, man] = COMMITTED;
+  const cases = [
+    [['verify', '--online', '--online-roles'], /--online-roles needs a value/],
+    [['verify', '--online', '--online-roles', 'bskel', '--online-roles', 'beval', ...COMMITTED], /--online-roles was given more than once/],
+    [['verify', '--online', '--online-roles=bskel', '--online-roles', 'beval', ...COMMITTED], /--online-roles was given more than once/],
+    [['verify', '--online', '--online-roles', 'bskel', '--online-roles=beval', ...COMMITTED], /--online-roles was given more than once/],
+    [['verify', '--online-roles', 'bskel', ...COMMITTED], /--online-roles requires --online/],
+    [['verify', '--online', '--online-roles', '', ...COMMITTED], /--online-roles has an empty entry/],
+    [['verify', '--online', '--online-roles', 'bskel,,beval', ...COMMITTED], /--online-roles has an empty entry/],
+    [['verify', '--online', '--online-roles', 'bskel,nope', ...COMMITTED], /unknown role in --online-roles: nope/],
+    [['verify', '--frobnicate', ...COMMITTED], /unknown option: --frobnicate/],
+    [['verify', inv, pl, man, '--online'], /options must come directly after "verify", before the files: --online/],
+    [['verify', '--online'], /verify needs an inventory, a release plan and an evidence manifest/],
+    [['frobnicate', ...COMMITTED], /unknown command: frobnicate/],
+    [[], /missing command/],
+  ];
+  for (const [argv, cause] of cases) {
+    const r = await run(argv);
+    assert.equal(r.code, 1, argv.join(' '));
+    assert.equal(r.stdout, '', argv.join(' '));
+    assert.match(r.stderr.split('\n')[0], cause, argv.join(' '));
+    assert.equal(r.fetchSpy.calls.length, 0, argv.join(' '));
+  }
+});
+
 test('an unreadable or malformed inventory or plan exits 1 with a message on stderr and nothing on stdout', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-cli-bad-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -213,6 +239,29 @@ test('the token is sent as a bearer credential and never printed, even when a tr
   }
   const anonymous = await run(['verify', '--online', '--online-roles', 'bskel', ...COMMITTED], { env: {} });
   assert.equal(new Headers(anonymous.fetchSpy.calls[0].init.headers).get('authorization'), null);
+});
+
+test('a credential that surfaces anywhere in the report is redacted: offline errors, online mismatches and stderr', async (t) => {
+  const leaky = clone(inventory);
+  repoOf(leaky, 'bskel').repo = TOKEN;
+  const offline = await run(['verify', ...filesFor(t, leaky)], { env: { GH_TOKEN: TOKEN } });
+  assert.equal(offline.code, 2);
+  assert.ok(offline.json.inventory.errors.some((e) => e.code === 'REPOSITORY_IDENTITY_MISMATCH'), 'the offending value is reported back');
+  assert.ok(!offline.stdout.includes(TOKEN), 'the offline sections are redacted too');
+  assert.match(offline.stdout, /\[redacted\]/);
+
+  // JSON.stringify escapes both the quote and the backslash, so only redaction before serialization can remove this one.
+  const awkward = 'tok"en\\secret-0123456789';
+  const echoed = fakeGithubFetch(inventory, { bskel: { status: 200, body: runBody('head_branch', awkward) } });
+  const online = await run(['verify', '--online', '--online-roles', 'bskel', ...COMMITTED], { env: { GH_TOKEN: awkward }, fetchImpl: echoed });
+  assert.equal(online.code, 2);
+  assert.deepEqual(online.json.online.errors.map((e) => [e.code, e.field, e.actual]), [['ONLINE_RUN_MISMATCH', 'head_branch', '[redacted]']]);
+  assert.ok(!online.stdout.includes(awkward) && !online.stdout.includes(JSON.stringify(awkward).slice(1, -1)));
+
+  const named = await run(['verify', path.join(os.tmpdir(), `${TOKEN}.json`), PLAN_PATH, MANIFEST_PATH], { env: { GH_TOKEN: TOKEN } });
+  assert.equal(named.code, 1);
+  assert.match(named.stderr, /cannot read inventory/);
+  assert.ok(!named.stderr.includes(TOKEN), 'stderr is redacted too');
 });
 
 test('runCli reports through its return value and streams only, never through process.exitCode', async () => {

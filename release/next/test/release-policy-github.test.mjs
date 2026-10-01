@@ -131,6 +131,38 @@ test('rejects a repository or run id that is not strictly well formed before any
   assert.equal(fetchImpl.calls.length, 0);
 });
 
+test('credential-shaped text is scrubbed from failure messages even when it is not the token in use', async () => {
+  const create = await load();
+  const body = 'Ab3x'.repeat(8);
+  const shaped = [
+    ['Bearer', `Authorization: Bearer other.credential-${body}`, `other.credential-${body}`],
+    ['bearer in lower case', `authorization: bearer lower.case-${body}`, `lower.case-${body}`],
+    ...['p', 'o', 'u', 's', 'r'].map((kind) => [`gh${kind}_ token`, `echoed gh${kind}_${body} back`, `gh${kind}_${body}`]),
+    ['fine-grained token', `echoed github_pat_${body}_${body} back`, `github_pat_${body}_${body}`],
+  ];
+  for (const env of [{}, { GH_TOKEN: TOKEN }]) {
+    for (const [label, message, credential] of shaped) {
+      const fetchRun = create({ env, fetchImpl: async () => { throw new Error(message); }, sleep: sleeper() });
+      await assert.rejects(fetchRun(REQUEST), (error) => {
+        assert.match(error.message, /^GitHub API request failed after 3 attempts: /, label);
+        assert.ok(!error.message.includes(credential), `${label}: ${error.message}`);
+        assert.match(error.message, /\[redacted\]/, label);
+        return true;
+      });
+    }
+  }
+});
+
+test('redactSecrets masks secrets of eight or more characters and leaves shorter ones alone, so a stray value cannot garble a message', async () => {
+  const { redactSecrets } = await import('../release-policy-github.mjs');
+  assert.equal(redactSecrets('a abcdefgh b abcdefgh', ['abcdefgh']), 'a [redacted] b [redacted]');
+  assert.equal(redactSecrets('a abcdefg b', ['abcdefg']), 'a abcdefg b');
+  assert.equal(redactSecrets('plain message', ['']), 'plain message');
+  assert.equal(redactSecrets('plain message', [undefined, null, 7]), 'plain message');
+  assert.equal(redactSecrets('plain message'), 'plain message');
+  assert.equal(redactSecrets(undefined, ['abcdefgh']), 'undefined');
+});
+
 test('failure messages never contain the token, whatever the transport error says', async () => {
   const create = await load();
   const leaky = [new Error(`upstream rejected Authorization: Bearer ${TOKEN}`), `plain string with ${TOKEN}`];

@@ -111,6 +111,8 @@ test('repo-relative paths only: absolute, parent, backslash, NUL and non-canonic
     ['schemas//next/identity-conformance.json', IDENTITY_PACK_SHA256], ['schemas/./next/identity-conformance.json', IDENTITY_PACK_SHA256],
     [IDENTITY_PACK + '/', IDENTITY_PACK_SHA256], ['..', IDENTITY_PACK_SHA256], ['.', IDENTITY_PACK_SHA256],
     ['a' + String.fromCharCode(0) + 'b', IDENTITY_PACK_SHA256],
+    ['/etc/hosts', IDENTITY_PACK_SHA256], ['//server/share/file.json', IDENTITY_PACK_SHA256],
+    ['C:/Windows/win.ini', IDENTITY_PACK_SHA256], ['c:/' + IDENTITY_PACK, IDENTITY_PACK_SHA256], ['C:foo', IDENTITY_PACK_SHA256],
   ];
   for (const [p, sha] of unsafe) {
     const result = verify(accept(inventory, 't19_03', fileRef(p, sha)), root);

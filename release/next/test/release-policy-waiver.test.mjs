@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as policy from '../release-policy.mjs';
 import {
-  IDENTITY_PACK_SHA256, MANIFEST_PATH, WAIVER,
+  IDENTITY_PACK, IDENTITY_PACK_SHA256, MANIFEST_PATH, WAIVER,
   accept, clone, codes, fileRef, inventory, plan, repoOf, tempRoot, waiverRef,
 } from './policy-fixtures.mjs';
 
@@ -111,6 +113,45 @@ test('identity_conformance_sha256 is checked against the pack bytes and the old 
 
   const renamedBack = mutate((i) => { i.bskel_pack_sha256 = i.identity_conformance_sha256; delete i.identity_conformance_sha256; });
   assert.ok(codes(renamedBack).includes('PROMOTION_EVIDENCE_LEGACY_KEY'), 'reverting the rename is an error');
+});
+
+test('the identity pin is a check of its own: a waiver on t01_06 does not excuse a missing or edited pack, and an entry that is not accepted is checked too', (t) => {
+  const identity = (result) => codes(result).filter((c) => c.startsWith('IDENTITY_CONFORMANCE_'));
+  const waived = clone(inventory);
+  waived.promotion_evidence.t01_06.evidence_ref = waiverRef({ scope: 'promotion_evidence.t01_06' });
+
+  const intact = verify(waived, tempRoot(t));
+  assert.equal(intact.ok, true, JSON.stringify(intact.errors));
+  assert.deepEqual(intact.waived_evidence.map((w) => w.key), ['t01_06']);
+
+  const missing = verify(waived, tempRoot(t, { withPack: false }));
+  assert.equal(missing.ok, false);
+  assert.deepEqual(identity(missing), ['IDENTITY_CONFORMANCE_FILE_UNREADABLE']);
+  assert.deepEqual(missing.errors.filter((e) => e.code === 'IDENTITY_CONFORMANCE_FILE_UNREADABLE').map((e) => e.path), [IDENTITY_PACK]);
+
+  const edited = tempRoot(t);
+  fs.appendFileSync(path.join(edited, IDENTITY_PACK), '\n');
+  const changed = verify(waived, edited);
+  assert.equal(changed.ok, false);
+  assert.deepEqual(identity(changed), ['IDENTITY_CONFORMANCE_SHA256_MISMATCH']);
+
+  const unaccepted = clone(inventory);
+  unaccepted.promotion_evidence.t01_06.observed_state = 'NOT_ACCEPTED';
+  unaccepted.promotion_evidence.t01_06.identity_conformance_sha256 = 'c'.repeat(64);
+  assert.deepEqual(identity(verify(unaccepted, tempRoot(t))), ['IDENTITY_CONFORMANCE_SHA256_MISMATCH']);
+});
+
+test('an entry whose required_state is not ACCEPTED neither clears its blocker nor lists a waiver as being in effect', (t) => {
+  const root = tempRoot(t);
+  for (const [label, ref] of [['waiver', waiverRef()], ['file ref', fileRef()], ['no ref', undefined]]) {
+    const x = accept(inventory, 't19_03', ref);
+    x.promotion_evidence.t19_03.required_state = 'NOT_ACCEPTED';
+    const result = verify(x, root);
+    assert.equal(result.ok, false, label);
+    assert.deepEqual(codes(result), ['PROMOTION_REQUIRED_STATE'], `${label}: the wrong required_state is the only problem reported`);
+    assert.deepEqual(result.waived_evidence, [], label);
+    assert.ok(result.observed_blockers.includes('INDEPENDENT_QA_NOT_READY'), label);
+  }
 });
 
 test('the inventory schema id is bumped so the renamed key cannot be read by an older verifier', () => {
