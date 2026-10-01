@@ -300,7 +300,7 @@ export function mujocoRuntimeInventoryDigest(inventory){
 export function validateMujocoExecutionEnforcementEvidence(value){
   exactKeys(value,[
     'schema','target','runner_implementation_sha256','runtime_execution_policy_sha256',
-    'permission_manifest_sha256','runtime_inventory_sha256','probes',
+    'permission_manifest_sha256','runtime_inventory_sha256','probe_receipt_bundle_sha256','probes',
   ],'MuJoCo execution enforcement evidence');
   if(value.schema!==MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA) throw new TypeError('enforcement evidence schema is invalid');
   if(value.target!=='SIM-mujoco') throw new TypeError('enforcement evidence target must be SIM-mujoco');
@@ -336,6 +336,10 @@ export function validateMujocoExecutionEnforcementEvidence(value){
     runtime_execution_policy_sha256:digest(value.runtime_execution_policy_sha256,'runtime_execution_policy_sha256'),
     permission_manifest_sha256:digest(value.permission_manifest_sha256,'permission_manifest_sha256'),
     runtime_inventory_sha256:digest(value.runtime_inventory_sha256,'runtime_inventory_sha256'),
+    probe_receipt_bundle_sha256:digest(
+      value.probe_receipt_bundle_sha256,
+      'probe_receipt_bundle_sha256',
+    ),
     probes:Object.freeze({...probes}),
   };
   if(normalized.runner_implementation_sha256===normalized.runtime_execution_policy_sha256){
