@@ -274,6 +274,23 @@ test('M3 success response is M2-validated and bound to exact request source/help
   );
 });
 
+test('M3 authoritative success response requires the exact invocation request', () => {
+  const response=goldenResponse();
+  assert.throws(
+    () => validateMujocoEffectiveHelperResponse(response),
+    /requires exact request binding authority/,
+  );
+
+  assert.equal(
+    validateMujocoEffectiveHelperResponse({
+      protocol:MUJOCO_EFFECTIVE_HELPER_RESPONSE,
+      ok:false,
+      error:{code:'MODEL_COMPILE_FAILED',message:'fixture failed'},
+    }).ok,
+    false,
+  );
+});
+
 test('M3 response refuses runtime claims version drift and loose error envelopes', () => {
   const req=request();
 
@@ -342,6 +359,63 @@ test('M3 Python helper rejects source-byte mismatch and unlisted staging files b
   assert.notEqual(second.child.status,0);
   assert.equal(second.parsed.error.code,'SOURCE_CLOSURE_INVALID');
   assert.match(second.parsed.error.message,/file set does not equal source_bundle/);
+});
+
+test('M3 compiler read-closure preflight rejects absolute and undeclared asset reads before MuJoCo import', () => {
+  const absolute='<mujoco><compiler meshdir="/tmp"/><asset><mesh name="m" file="outside.obj"/></asset></mujoco>';
+  const first=runHelper(request(absolute),{'models/main.xml':absolute});
+  assert.notEqual(first.child.status,0);
+  assert.equal(first.parsed.error.code,'SOURCE_CLOSURE_INVALID');
+  assert.match(first.parsed.error.message,/compiler\.meshdir|relative POSIX path/);
+
+  const undeclared='<mujoco><asset><mesh name="m" file="outside.obj"/></asset></mujoco>';
+  const second=runHelper(request(undeclared),{'models/main.xml':undeclared});
+  assert.notEqual(second.child.status,0);
+  assert.equal(second.parsed.error.code,'SOURCE_CLOSURE_INVALID');
+  assert.match(second.parsed.error.message,/undeclared compiler input/);
+});
+
+test('M3 compiler read-closure preflight accepts an exactly declared relative asset dependency', () => {
+  const xml='<mujoco><asset><mesh name="m" file="mesh.obj"/></asset></mujoco>';
+  const req=request(xml);
+  const assetBytes='v 0 0 0\n';
+  req.source_bundle.dependencies=[{
+    path:'models/mesh.obj',
+    role:'asset',
+    artifact:artifact(assetBytes,'simulation-source','model/obj'),
+  }];
+
+  const script=String.raw`
+import hashlib
+import importlib.util
+import json
+import pathlib
+import sys
+
+helper_path=sys.argv[1]
+request_path=sys.argv[2]
+spec=importlib.util.spec_from_file_location("m3_helper",helper_path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+req=json.loads(pathlib.Path(request_path).read_text())
+module.verify_staged_source_closure(req["source_bundle"],pathlib.Path.cwd())
+print("OK")
+`;
+
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m3-closure-positive-'));
+  try {
+    fs.mkdirSync(path.join(dir,'models'),{recursive:true});
+    fs.writeFileSync(path.join(dir,'models','main.xml'),xml);
+    fs.writeFileSync(path.join(dir,'models','mesh.obj'),assetBytes);
+    fs.writeFileSync(path.join(dir,'request.json'),JSON.stringify(req));
+    const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER,path.join(dir,'request.json')],{
+      cwd:dir,encoding:'utf8',timeout:10_000,maxBuffer:4*1024*1024,env:{},
+    });
+    assert.equal(child.status,0,child.stderr || child.stdout);
+    assert.equal(child.stdout.trim(),'OK');
+  } finally {
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
 });
 
 test('M3 Python helper rejects symlinks in approved staging closure', {
