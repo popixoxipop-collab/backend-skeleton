@@ -106,6 +106,10 @@ jobs:
   # once a source namespace exists, missing/empty nested tests fail closed.
   nested-next:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    # A job-level block replaces the workflow-level one; actions: read lets the T23 verify step read this repository's own CI run.
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -161,8 +165,12 @@ jobs:
         run: node scripts/run-next-nested-tests.mjs T22
       - name: T23 release-next
         run: node scripts/run-next-nested-tests.mjs T23
-      - name: T23 release-policy verify (offline)
-        run: node release/next/release-policy.mjs verify release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json
+      # Checks only the bskel run online: backend-decoder and Backend-evaluation are private and this token gets 404 for their
+      # runs. The output names both as not checked; maintainers run the three-role command from release/next/README.md.
+      - name: T23 release-policy verify (bskel CI run online)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node release/next/release-policy.mjs verify --online --online-roles bskel release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json
   # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
   package-install:
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
