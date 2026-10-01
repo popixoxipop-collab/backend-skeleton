@@ -69,11 +69,16 @@ function fixture(){
   ]);
   for(const [rel,bytes] of entries) write(runtime,rel,bytes);
 
+  const generatedPycPath='mujoco/__pycache__/__init__.cpython-312.pyc';
+  const generatedPycBytes=Buffer.from('generated-cpython312-pyc-fixture');
+  write(runtime,generatedPycPath,generatedPycBytes);
+
   const rows=[];
   for(const [rel,bytes] of entries){
     const raw=Buffer.from(bytes);
     rows.push([rel,`sha256=${recordHash(raw)}`,String(raw.length)]);
   }
+  rows.push([generatedPycPath,'','']);
   rows.push(['mujoco-3.12.0.dist-info/RECORD','','']);
   write(runtime,'mujoco-3.12.0.dist-info/RECORD',rows.map((row)=>row.join(',')).join('\n')+'\n');
 
@@ -148,6 +153,21 @@ test('M4 collector inventories exact runtime bytes without importing or compilin
     assert.equal(parsed.collector.sha256,sha(fs.readFileSync(COLLECTOR)));
     assert.equal(parsed.runtime_closure.record_entries_expected,8);
     assert.equal(parsed.runtime_closure.record_entries_verified,8);
+    assert.equal(parsed.runtime_closure.record_unhashed_entries.length,2);
+    assert.equal(
+      parsed.runtime_closure.record_unhashed_entries.some(
+        (entry)=>entry.path==='mujoco/__pycache__/__init__.cpython-312.pyc'
+          && entry.reason==='generated-cpython312-pyc',
+      ),
+      true,
+    );
+    assert.equal(
+      parsed.runtime_closure.record_unhashed_entries.some(
+        (entry)=>entry.path==='mujoco-3.12.0.dist-info/RECORD'
+          && entry.reason==='record-self',
+      ),
+      true,
+    );
     assert.deepEqual(parsed.runtime_closure.unlisted_files,[]);
     assert.deepEqual(parsed.runtime_closure.symlinks,[]);
     assert.equal(parsed.required_bindings.length,REQUIRED_BINDINGS.length);
@@ -237,7 +257,7 @@ test('M4 inventory rejects unlisted files symlinks stale closure hashes and miss
         ...parsed,
         required_bindings:parsed.required_bindings.filter((x)=>x.path!==REQUIRED_BINDINGS[0]),
       }),
-      /required runtime binding is not closure-bound/,
+      /required_bindings must contain exactly the reviewed MuJoCo 3.12.0 binding set/,
     );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
@@ -265,7 +285,7 @@ test('M4 inventory pins Linux x86_64 Python 3.12 and the exact reviewed binding 
   try{
     const {child,parsed}=collect(fx);
     assert.equal(child.status,0,child.stderr);
-    assert.match(parsed.python_version,/^3\\.12\\.\\d+$/);
+    assert.match(parsed.python_version,/^3\.12\.\d+$/);
     assert.equal(parsed.platform,'Linux-x86_64');
 
     assert.throws(
@@ -288,9 +308,13 @@ test('M4 inventory pins Linux x86_64 Python 3.12 and the exact reviewed binding 
   }
 });
 
-test('M4 collector rejects any unhashed RECORD row except RECORD itself and requires sizes for hashed rows',()=>{
+test('M4 collector allows only closure-bound CPython 3.12 pyc/RECORD unhashed rows and requires sizes for hashed rows',()=>{
   const fx=fixture();
   try{
+    const first=collect(fx);
+    assert.equal(first.child.status,0,first.child.stderr);
+    assert.equal(first.parsed.runtime_closure.record_unhashed_entries.length,2);
+
     const record=path.join(fx.runtime,'mujoco-3.12.0.dist-info','RECORD');
     const original=fs.readFileSync(record,'utf8');
 
@@ -309,6 +333,16 @@ test('M4 collector rejects any unhashed RECORD row except RECORD itself and requ
     result=collect(fx);
     assert.notEqual(result.child.status,0);
     assert.match(result.child.stderr,/hashed RECORD entry is missing size/);
+
+    const tampered=structuredClone(first.parsed);
+    tampered.runtime_closure.record_unhashed_entries=[
+      {path:'mujoco/not-cache.cpython-312.pyc',reason:'generated-cpython312-pyc'},
+      {path:'mujoco-3.12.0.dist-info/RECORD',reason:'record-self'},
+    ];
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory(tampered),
+      /generated-cpython312-pyc must be a MuJoCo __pycache__/,
+    );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
@@ -342,13 +376,13 @@ test('M4 collector and wrapper reject helper symlink laundering before resolutio
     fs.symlinkSync(path.basename(real),fx.helper);
     const {child}=collect(fx);
     assert.notEqual(child.status,0);
-    assert.match(child.stderr,/must not be a symlink/);
+    assert.match(child.stderr,/symlink component/);
 
     const wrapper=spawnSync('python3',['-I','-S','-B',WRAPPER,fx.runtime,fx.helper,sha(fs.readFileSync(real))],{
       encoding:'utf8',env:{},timeout:10_000,
     });
     assert.notEqual(wrapper.status,0);
-    assert.match(wrapper.stderr,/helper must not be a symlink/);
+    assert.match(wrapper.stderr,/helper contains symlink component/);
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
