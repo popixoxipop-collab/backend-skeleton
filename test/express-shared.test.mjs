@@ -157,6 +157,43 @@ test('maskJsComments still reads `/` after a `)` that does not close a control h
 	}
 });
 
+// The stack keeps one entry per open `(`, so the header rule must hold at any depth: a callback body is full
+// of ifs, and a header can sit inside another header's condition.
+test('maskJsComments finds an if/while/for/with header that sits inside call arguments or inside another header', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		"run(() => {\n\tif (ok) /'/.test(c);\n});",
+		"run(function () {\n\twhile (ok) /'/.exec(c);\n});",
+		"run(items, (c) => {\n\tfor (const x of c) /'/.test(x);\n});",
+		"run([() => {\n\twith (c) /'/.test(c);\n}]);",
+		"describe('a', () => {\n\tit('b', () => {\n\t\tif (ok) /'/.test(c);\n\t});\n});",
+		"if (items.some((i) => { if (i) /'/.test(i); return false; })) go();",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
+// Between the keyword and its `(` there can be whitespace and comments. The masked text shows them as spaces, so
+// the keyword is then well before the `(`.
+test('maskJsComments finds a control header whose keyword is dozens of characters before its parenthesis', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		`if${' '.repeat(30)}(ok) /'/.test(c);`,
+		`while${' '.repeat(30)}\n(ok) /'/.exec(c);`,
+		"for /* every chunk of the input, in order */ (const c of cs) /'/.test(c);",
+		"if // why this is checked\n\t(ok) /'/.test(c);",
+		"with /* the object whose members are read below */ (o) /'/.test(c);",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
 // String literals must survive INTACT (unlike the Java masker, which blanks string interiors):
 // every path these adapters report is read straight out of a string literal.
 test('maskJsComments leaves route path literals readable after masking', () => {
