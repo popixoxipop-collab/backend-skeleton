@@ -23,8 +23,12 @@ const WRAPPER=path.resolve(HERE,'../../../adapters/sim-next/mujoco/runtime_wrapp
 
 const REQUIRED_BINDINGS=[
   'mujoco/__init__.py',
+  'mujoco/_callbacks.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_constants.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_enums.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_errors.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_functions.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_render.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_specs.cpython-312-x86_64-linux-gnu.so',
   'mujoco/_structs.cpython-312-x86_64-linux-gnu.so',
 ];
@@ -59,8 +63,12 @@ function fixture(){
 
   const entries=new Map([
     ['mujoco/__init__.py','VERSION="fixture"\n'],
+    ['mujoco/_callbacks.cpython-312-x86_64-linux-gnu.so','callbacks-bytes'],
+    ['mujoco/_constants.cpython-312-x86_64-linux-gnu.so','constants-bytes'],
     ['mujoco/_enums.cpython-312-x86_64-linux-gnu.so','enum-bytes'],
+    ['mujoco/_errors.cpython-312-x86_64-linux-gnu.so','errors-bytes'],
     ['mujoco/_functions.cpython-312-x86_64-linux-gnu.so','function-bytes'],
+    ['mujoco/_render.cpython-312-x86_64-linux-gnu.so','render-bytes'],
     ['mujoco/_specs.cpython-312-x86_64-linux-gnu.so','specs-bytes'],
     ['mujoco/_structs.cpython-312-x86_64-linux-gnu.so','structs-bytes'],
     [NATIVE,'native-bytes'],
