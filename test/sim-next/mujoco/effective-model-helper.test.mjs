@@ -393,11 +393,11 @@ import pathlib
 import sys
 
 helper_path=sys.argv[1]
-request_path=sys.argv[2]
+request_json=sys.argv[2]
 spec=importlib.util.spec_from_file_location("m3_helper",helper_path)
 module=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-req=json.loads(pathlib.Path(request_path).read_text())
+req=json.loads(request_json)
 module.verify_staged_source_closure(req["source_bundle"],pathlib.Path.cwd())
 print("OK")
 `;
@@ -407,8 +407,7 @@ print("OK")
     fs.mkdirSync(path.join(dir,'models'),{recursive:true});
     fs.writeFileSync(path.join(dir,'models','main.xml'),xml);
     fs.writeFileSync(path.join(dir,'models','mesh.obj'),assetBytes);
-    fs.writeFileSync(path.join(dir,'request.json'),JSON.stringify(req));
-    const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER,path.join(dir,'request.json')],{
+    const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER,JSON.stringify(req)],{
       cwd:dir,encoding:'utf8',timeout:10_000,maxBuffer:4*1024*1024,env:{},
     });
     assert.equal(child.status,0,child.stderr || child.stdout);
