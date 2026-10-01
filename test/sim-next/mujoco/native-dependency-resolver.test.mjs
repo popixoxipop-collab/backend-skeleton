@@ -215,6 +215,28 @@ test('M4A fails closed when a DT_NEEDED library resolves ambiguously',()=>{
   }
 });
 
+test('M4A rejects soname symlinks that escape an approved search root',{
+  skip:process.platform==='win32',
+},()=>{
+  const fx=fixture();
+  try{
+    const outside=path.join(fx.root,'outside');
+    fs.mkdirSync(outside,{recursive:true});
+    const outsideLib=path.join(outside,'libfoo-real.so');
+    fs.writeFileSync(outsideLib,elf64());
+
+    const admitted=path.join(fx.lib1,'libfoo.so');
+    fs.rmSync(admitted);
+    fs.symlinkSync(path.relative(fx.lib1,outsideLib),admitted);
+
+    const {child}=run(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/escapes approved search root/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4A rejects slash-bearing DT_NEEDED names',()=>{
   const fx=fixture({seedNeeded:['../libfoo.so']});
   try{
