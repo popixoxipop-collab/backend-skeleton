@@ -401,6 +401,11 @@ def resolve_needed(name: str, binary: Path, dynamic: dict[str, Any], approved_ro
             continue
         if not resolved.is_file():
             continue
+        # Soname symlinks are normal on Linux, but their final real file must
+        # remain inside the exact search root that admitted the name. A symlink
+        # cannot turn an approved directory lookup into an arbitrary path read.
+        if not (resolved == root or inside(resolved, root)):
+            fail(f"DT_NEEDED {name} escapes approved search root {root}: {resolved}")
         if resolved not in matches:
             matches.append(resolved)
     if len(matches) == 0:
