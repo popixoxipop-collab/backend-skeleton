@@ -311,6 +311,34 @@ test('M4 collector and wrapper reject helper symlink laundering before resolutio
   }
 });
 
+test('M4 collector rejects symlinked parent components before reading RECORD targets',{
+  skip:process.platform==='win32',
+},()=>{
+  const fx=fixture();
+  try{
+    const outside=path.join(fx.root,'outside');
+    fs.mkdirSync(outside,{recursive:true});
+    const external=Buffer.from('external-runtime-bytes');
+    fs.writeFileSync(path.join(outside,'external.bin'),external);
+    fs.symlinkSync(outside,path.join(fx.runtime,'mujoco','linkdir'));
+
+    const record=path.join(fx.runtime,'mujoco-3.12.0.dist-info','RECORD');
+    const original=fs.readFileSync(record,'utf8');
+    const extra=[
+      'mujoco/linkdir/external.bin',
+      `sha256=${recordHash(external)}`,
+      String(external.length),
+    ].join(',');
+    fs.writeFileSync(record,original.trimEnd()+'\n'+extra+'\n');
+
+    const {child}=collect(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/contains symlink component/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 plugin list must enumerate the exact plugin closure',()=>{
   const fx=fixture();
   try{
