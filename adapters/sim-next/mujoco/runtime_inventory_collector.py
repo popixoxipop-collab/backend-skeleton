@@ -96,6 +96,23 @@ def logical_path(value: Any, label: str) -> str:
     return value
 
 
+def runtime_member(runtime_root: Path, relative: str, label: str) -> Path:
+    relative = logical_path(relative, label)
+    root = runtime_root.resolve(strict=True)
+    current = root
+    for part in relative.split("/"):
+        current = current / part
+        if current.is_symlink():
+            fail(f"{label} contains symlink component: {relative}")
+    try:
+        resolved = current.resolve(strict=True)
+        resolved.relative_to(root)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(f"{label} escapes or is missing from runtime root: {relative}")
+        raise AssertionError from exc
+    return resolved
+
+
 def hash_file(path: Path) -> tuple[str, int]:
     if path.is_symlink():
         fail(f"symlink cannot be hashed as a trusted runtime file: {path}")
@@ -182,7 +199,7 @@ def inventory_tree(root: Path, prefix: str = "") -> tuple[list[dict[str, Any]], 
 
 
 def parse_record(runtime_root: Path) -> tuple[str, int, int, set[str]]:
-    record = runtime_root / RECORD_REL
+    record = runtime_member(runtime_root, RECORD_REL, "MuJoCo RECORD")
     record_sha, _ = hash_file(record)
     raw = record.read_text(encoding="utf-8")
     expected = 0
@@ -194,7 +211,7 @@ def parse_record(runtime_root: Path) -> tuple[str, int, int, set[str]]:
         rel, digest_spec, size_text = row
         rel = logical_path(rel, "RECORD path")
         listed.add(rel)
-        target = runtime_root / Path(*rel.split("/"))
+        target = runtime_member(runtime_root, rel, "RECORD path")
         if digest_spec:
             if not digest_spec.startswith("sha256="):
                 fail(f"unsupported RECORD digest algorithm for {rel}")
@@ -233,7 +250,7 @@ def parse_record(runtime_root: Path) -> tuple[str, int, int, set[str]]:
 
 
 def metadata_version(runtime_root: Path) -> str:
-    metadata = runtime_root / METADATA_REL
+    metadata = runtime_member(runtime_root, METADATA_REL, "MuJoCo METADATA")
     text = metadata.read_text(encoding="utf-8")
     versions = [
         line.split(":", 1)[1].strip()
