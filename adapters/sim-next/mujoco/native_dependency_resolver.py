@@ -433,8 +433,22 @@ def resolve_needed(
     return matches[0]
 
 
-def seed_files(runtime_root: Path) -> list[Path]:
-    seeds = [runtime_root / REQUIRED_NATIVE]
+def exact_launcher() -> Path:
+    proc_exe = Path("/proc/self/exe")
+    if not proc_exe.exists():
+        fail("/proc/self/exe is unavailable")
+    try:
+        launcher = proc_exe.resolve(strict=True)
+    except (FileNotFoundError, OSError) as exc:
+        fail("could not resolve exact Python launcher")
+        raise AssertionError from exc
+    if not launcher.is_file():
+        fail("exact Python launcher must resolve to a regular file")
+    return launcher
+
+
+def seed_files(runtime_root: Path, launcher: Path) -> list[Path]:
+    seeds = [launcher, runtime_root / REQUIRED_NATIVE]
     seeds.extend(runtime_root / rel for rel in REQUIRED_EXTENSIONS)
     plugin_dir = runtime_root / "mujoco" / "plugin"
     if plugin_dir.exists():
@@ -482,8 +496,12 @@ def logical_native_path(path: Path) -> str:
     return f"system-native/{token}-{name}"
 
 
-def resolve_closure(runtime_root: Path, approved_roots: list[Path]) -> dict[str, Any]:
-    queue = seed_files(runtime_root)
+def resolve_closure(
+    runtime_root: Path,
+    approved_roots: list[Path],
+    launcher: Path,
+) -> dict[str, Any]:
+    queue = seed_files(runtime_root, launcher)
     seed_set = set(queue)
     visited: dict[Path, dict[str, Any]] = {}
     edges: list[dict[str, str]] = []
@@ -548,7 +566,12 @@ def resolve_closure(runtime_root: Path, approved_roots: list[Path]) -> dict[str,
     nodes = sorted(visited.values(), key=lambda row: row["path"])
     edges.sort(key=lambda row: (row["from"], row["needed"], row["to"]))
 
-    external = [Path(row["path"]) for row in nodes if not inside(Path(row["path"]), runtime_root)]
+    external = [
+        Path(row["path"])
+        for row in nodes
+        if not inside(Path(row["path"]), runtime_root)
+        and Path(row["path"]) != launcher
+    ]
     native_dependency_files = [
         {"logical_path": logical_native_path(path), "path": str(path)}
         for path in sorted(set(external), key=str)
@@ -584,7 +607,9 @@ def main() -> int:
             if root not in roots:
                 roots.append(root)
 
-        closure = resolve_closure(runtime_root, roots)
+        launcher = exact_launcher()
+        launcher_sha256, launcher_size = file_hash(launcher)
+        closure = resolve_closure(runtime_root, roots, launcher)
         stdlib = [str(path) for path in stdlib_roots()]
 
         resolver_path = path_without_symlink_components(
@@ -601,6 +626,11 @@ def main() -> int:
             "python_version": platform.python_version(),
             "mujoco_version": MUJOCO_VERSION,
             "admission_candidate_sha": ADMISSION_CANDIDATE_SHA,
+            "launcher": {
+                "path": str(launcher),
+                "sha256": launcher_sha256,
+                "size_bytes": launcher_size,
+            },
             "resolver": {
                 "sha256": resolver_sha256,
                 "size_bytes": resolver_size,
@@ -622,6 +652,7 @@ def main() -> int:
             ),
             "claims": {
                 "elf_metadata_parsed": True,
+                "launcher_native_closure_included": True,
                 "subprocess_executed": False,
                 "mujoco_imported": False,
                 "helper_executed": False,
