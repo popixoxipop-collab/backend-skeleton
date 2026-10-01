@@ -65,6 +65,16 @@ Any other `$` loader token fails closed.
 If the same soname resolves to more than one distinct real file across approved
 roots, the resolver fails as ambiguous instead of guessing loader precedence.
 
+## Candidate and producer identity
+
+Every request is bound to the canonical M4 admission candidate:
+
+`a42d944ad9033bc2305ce3ad9c72aaaee63a7a3f`
+
+The resolver hashes its own exact file bytes and includes that SHA-256 and size
+in every successful output. A target-host deployment must still pin the expected
+resolver bytes before execution; self-reporting alone is not review authority.
+
 ## Output
 
 Schema:
