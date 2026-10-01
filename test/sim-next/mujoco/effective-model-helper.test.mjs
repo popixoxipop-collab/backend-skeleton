@@ -146,6 +146,30 @@ function runHelper(req, files={}) {
   }
 }
 
+test('M3 Python wire rejects duplicate JSON keys and non-standard numeric constants', () => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m3-wire-'));
+  try {
+    for (const raw of [
+      '{"protocol":"a","protocol":"b"}',
+      '{"protocol":NaN}',
+      '{"protocol":Infinity}',
+    ]) {
+      const child=spawnSync('python3',['-I','-S','-B',HELPER],{
+        cwd:dir,input:raw,encoding:'utf8',
+        timeout:10_000,maxBuffer:4*1024*1024,env:{},
+      });
+      assert.notEqual(child.status,0);
+      assert.equal(child.stderr,'');
+      const parsed=JSON.parse(child.stdout);
+      assert.equal(parsed.protocol,MUJOCO_EFFECTIVE_HELPER_RESPONSE);
+      assert.equal(parsed.ok,false);
+      assert.equal(parsed.error.code,'REQUEST_INVALID');
+    }
+  } finally {
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
+});
+
 test('M3 helper request is exact-key bounded and preserves exact source/helper ArtifactRefs', () => {
   const req=request();
   const validated=validateMujocoEffectiveHelperRequest(req);
