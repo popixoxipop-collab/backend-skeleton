@@ -339,10 +339,10 @@ def _safe_compiler_ref(value: Any, label: str) -> str:
             f"{label} must be a relative POSIX path inside the approved source bundle",
         )
     parts = value.split("/")
-    if any(part in ("", ".", "..") for part in parts):
+    if any(part in ("", "..") for part in parts):
         raise HelperError(
             "SOURCE_CLOSURE_INVALID",
-            f"{label} must not contain empty, dot, or parent segments",
+            f"{label} must not contain empty or parent segments",
         )
     normalized = posixpath.normpath(value)
     if normalized in (".", "..") or normalized.startswith("../") or posixpath.isabs(normalized):
