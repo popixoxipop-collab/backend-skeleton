@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { assertArtifactRef } from '../identity.mjs';
 import { validateMujocoEffectiveModelExport } from './effective-model.mjs';
 
@@ -91,7 +93,7 @@ function validateSourceBundle(value) {
 }
 
 function equalJson(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return isDeepStrictEqual(a, b);
 }
 
 export function validateMujocoEffectiveHelperRequest(value) {
