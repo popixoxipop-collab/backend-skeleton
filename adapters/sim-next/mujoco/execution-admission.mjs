@@ -210,8 +210,8 @@ export function validateMujocoRuntimeInventory(value){
       path:relativePath(entry.path,`required_bindings[${index}].path`),
       sha256:digest(entry.sha256,`required_bindings[${index}].sha256`),
     });
-  });
-  const bindingPaths=requiredBindings.map((entry)=>entry.path).sort();
+  }).sort((a,b)=>a.path.localeCompare(b.path));
+  const bindingPaths=requiredBindings.map((entry)=>entry.path);
   const expectedBindingPaths=[...REQUIRED_BINDINGS].sort();
   if(
     bindingPaths.length!==expectedBindingPaths.length ||
