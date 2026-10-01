@@ -74,13 +74,14 @@ It verifies and records:
 5. no symlink entries in the accepted closure;
 6. no MuJoCo-package files outside RECORD;
 7. exact launcher bytes;
-8. exact helper bytes;
-9. exact wrapper bytes;
-10. exact `libmujoco.so.3.12.0`;
-11. required Python extension bindings;
-12. every bundled plugin library under `mujoco/plugin`;
-13. configured interpreter stdlib roots;
-14. configured native dependency files.
+8. exact collector bytes;
+9. exact helper bytes;
+10. exact wrapper bytes;
+11. exact `libmujoco.so.3.12.0`;
+12. required Python extension bindings;
+13. every bundled plugin library under `mujoco/plugin`;
+14. configured interpreter stdlib roots;
+15. configured native dependency files.
 
 The output is:
 
@@ -99,6 +100,7 @@ under `mujoco/plugin` using `ctypes.CDLL`.
 Therefore admission must bind:
 
 - launcher;
+- inventory collector;
 - wrapper;
 - M3 helper;
 - full runtime import-root closure;
@@ -219,7 +221,7 @@ Once actual target-host inventory + enforcement evidence exists, a separate revi
 exact package, including:
 
 - M3 candidate identity;
-- helper/wrapper identities;
+- collector/helper/wrapper identities;
 - launcher identity;
 - runtime/native/plugin closure;
 - interpreter stdlib closure;
