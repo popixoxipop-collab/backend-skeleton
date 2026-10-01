@@ -168,6 +168,15 @@ function expressDefaultBindings(text) {
 const SCOPE_REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', ';']);
 const SCOPE_REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|throw|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
 
+// A keyword is a whole token: not the tail of an identifier (`notif`, `$if`), not its head (`if$x`) and not a member name (`obj.catch`, `obj?. do`).
+// The dot ending a standalone number (`1.`, `1_000.`) is a decimal point, not member access; after `1..`, `1.5.`, `0x1.`, `1 .` or `a1.` the dot still is.
+const STANDALONE_NUMBER = '(?<![$\\p{ID_Continue}\\u200C\\u200D.])\\d[\\d_]*';
+const KEYWORD_TOKEN_START = '(?<![$\\p{ID_Continue}\\u200C\\u200D])(?<!(?<!' + STANDALONE_NUMBER + ')\\.\\s*)';
+const KEYWORD_TOKEN_END = '(?![$\\p{ID_Continue}\\u200C\\u200D])';
+const CONTROL_STATEMENT_HEAD_RE = new RegExp('^(?:if|for|while|with|switch)' + KEYWORD_TOKEN_END, 'u');
+const CONTROL_HEADER_TAIL_RE = new RegExp(KEYWORD_TOKEN_START + '(?:if|while|for(?:\\s+await)?|with|switch|catch)\\s*$', 'u');
+const ELSE_OR_DO_TAIL_RE = new RegExp(KEYWORD_TOKEN_START + '(?:else|do)\\s*$', 'u');
+
 function matchingOpenParenForClose(text, closeIndex) {
 	const searchStart = Math.max(0, closeIndex - 4096);
 	for (let open = closeIndex; open >= searchStart; open--) {
@@ -184,7 +193,7 @@ function controlHeaderEndsAtRecentText(recentText) {
 	const open = matchingOpenParenForClose(recentText, close);
 	if (open === -1) return false;
 	const before = recentText.slice(Math.max(0, open - 128), open).trimEnd();
-	return /\b(?:if|while|for(?:\s+await)?|with|switch|catch)\s*$/.test(before);
+	return CONTROL_HEADER_TAIL_RE.test(before);
 }
 
 function statementBlockEndsAtRecentText(recentText) {
@@ -1391,6 +1400,23 @@ function routeReceiverVariables(text) {
 	return [...new Set(routeReceiverBindings(text).map((binding) => binding.name))].sort();
 }
 
+const LABEL_NAME = '[$_\\p{ID_Start}][$\\u200C\\u200D\\p{ID_Continue}]*';
+const LABEL_PART_RE = new RegExp('[$\\u200C\\u200D\\p{ID_Continue}]', 'u');
+const STATEMENT_LABEL_RE = new RegExp('^\\s*(' + LABEL_NAME + ')\\s*:', 'u');
+const BREAK_LABEL_RE = new RegExp(KEYWORD_TOKEN_START + 'break\\s+(' + LABEL_NAME + ')', 'gu');
+const DO_BODY_RE = new RegExp(KEYWORD_TOKEN_START + 'do\\s+([\\s\\S]*)$', 'u');
+const UNBRACED_DO_PREFIX_RE = new RegExp('^do(?:\\s+' + LABEL_NAME + '\\s*:)*\\s*$', 'u');
+
+// `lbl: app = value` writes `app` exactly like `app = value`; a label only adds a `break lbl` exit.
+function skipStatementLabels(text, statementStart, limit) {
+	let start = statementStart;
+	for (;;) {
+		const label = STATEMENT_LABEL_RE.exec(text.slice(start, limit));
+		if (!label) return start;
+		start += label[0].length;
+	}
+}
+
 function assignmentStatementStart(text, startIndex, equalsIndex) {
 	let statementStart = startIndex;
 	let round = 0;
@@ -1434,14 +1460,14 @@ function assignmentStatementStart(text, startIndex, equalsIndex) {
 				/^(?:===?|!==?)/.test(nextTail) ||
 				/^(?:in|instanceof|as|satisfies)\b/.test(nextTail);
 			const expectsFollowingStatement = controlHeaderEndsAtRecentText(recentStatement) ||
-				/\b(?:else|do)\s*$/.test(recentStatement);
+				ELSE_OR_DO_TAIL_RE.test(recentStatement);
 			if (!expectsFollowingStatement && !continuesFromPrevious && !continuesFromNext) {
 				statementStart = nextIndex;
 			}
 		}
 		if (!/\s/.test(ch)) lastSignificant = ch;
 	}
-	return statementStart;
+	return skipStatementLabels(text, statementStart, equalsIndex);
 }
 function peelAssignmentGrouping(value) {
 	let out = value.trim();
@@ -1474,7 +1500,7 @@ function assignmentTargetDefinitelyWritesName(lhsValue, binding) {
 	let lhs = lhsValue.trim();
 	if (!lhs) return false;
 	lhs = topLevelSequenceAssignmentTarget(lhs);
-	if (!/^(?:if|for|while|with|switch)\b/.test(lhs)) {
+	if (!CONTROL_STATEMENT_HEAD_RE.test(lhs)) {
 		let earlierAssignment = topLevelBindingSeparator(lhs, '=');
 		while (earlierAssignment !== -1) {
 			const operatorPrefix = lhs.slice(Math.max(0, earlierAssignment - 2), earlierAssignment);
@@ -1740,11 +1766,35 @@ function forHeaderWritesApplicationName(text, binding, targetIndex) {
 	return false;
 }
 
+// `lbl: { ... }` acts as a plain block unless `break lbl` leaves it early; the labels must follow `;`, `}` or the text start.
+function isLabelledBlockOpen(text, openIndex) {
+	const labels = [];
+	let i = openIndex - 1;
+	for (;;) {
+		while (i >= 0 && /\s/.test(text[i])) i--;
+		if (text[i] !== ':') break;
+		i--;
+		while (i >= 0 && /\s/.test(text[i])) i--;
+		const end = i + 1;
+		while (i >= 0 && LABEL_PART_RE.test(text[i])) i--;
+		const label = text.slice(i + 1, end);
+		if (!/^[$_\p{ID_Start}]/u.test(label)) return false;
+		labels.push(label);
+	}
+	if (labels.length === 0 || (i >= 0 && text[i] !== ';' && text[i] !== '}')) return false;
+	const close = matchingBraceClose(text, openIndex);
+	if (close === -1) return false;
+	for (const match of text.slice(openIndex + 1, close).matchAll(BREAK_LABEL_RE)) {
+		if (labels.includes(match[1])) return false;
+	}
+	return true;
+}
+
 function isStandaloneBlockOpen(text, openIndex) {
 	let i = openIndex - 1;
 	while (i >= 0 && /\s/.test(text[i])) i--;
 	if (i < 0) return true;
-	return text[i] === ';' || text[i] === '}' || text[i] === '{';
+	return text[i] === ';' || text[i] === '}' || text[i] === '{' || isLabelledBlockOpen(text, openIndex);
 }
 
 function isFinallyBlockOpen(text, openIndex) {
@@ -1856,7 +1906,7 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 		const doBodyDefinite = isDirectlyInUnconditionalDoBody(text, binding, match.index);
 		const tryBodyDefinite = isDirectlyInUnconditionalTryBody(text, binding, match.index, targetIndex);
 		const statementStartForDo = assignmentStatementStart(text, binding.initializationEnd, match.index);
-		const unbracedDoDefinite = /^do\s*$/.test(text.slice(statementStartForDo, match.index).trim());
+		const unbracedDoDefinite = UNBRACED_DO_PREFIX_RE.test(text.slice(statementStartForDo, match.index).trim());
 		if (!ordinaryDefinite && !doBodyDefinite && !tryBodyDefinite && !unbracedDoDefinite) continue;
 		// `if (flag) app++` and similar control-prefixed updates are conditional writes.
 		// A plain do-body is handled separately above because its body executes at least once.
@@ -1872,12 +1922,13 @@ function updateExpressionWritesApplicationName(text, binding, targetIndex) {
 function unbracedDoAssignmentDefinitelyWritesName(text, binding, equalsIndex) {
 	const searchStart = Math.max(binding.initializationEnd, equalsIndex - 512);
 	const recent = text.slice(searchStart, equalsIndex);
-	const match = /\bdo\s+([\s\S]*)$/.exec(recent);
+	const match = DO_BODY_RE.exec(recent);
 	if (!match) return false;
 	const doIndex = searchStart + match.index;
 	const statementStart = assignmentStatementStart(text, binding.initializationEnd, doIndex);
 	if (text.slice(statementStart, doIndex).trim() !== '') return false;
-	return assignmentTargetDefinitelyWritesName(match[1], binding);
+	const body = match[1];
+	return assignmentTargetDefinitelyWritesName(body.slice(skipStatementLabels(body, 0, body.length)), binding);
 }
 
 function applicationBindingStillTrusted(text, binding, targetIndex) {

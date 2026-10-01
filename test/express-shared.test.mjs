@@ -77,6 +77,123 @@ test('maskJsComments handles a `/` inside a regex character class without ending
 	assert.ok(masked.includes('const done = true;'));
 });
 
+// A regex literal can follow `=>` and the `)` that closes an if/while/for/with header, and neither is
+// division. Read as division, a quote inside the literal opened a phantom string that left every later
+// comment unmasked.
+test('maskJsComments reads a regex literal after an arrow as a regex, so a quote inside it does not hide the next comment', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		"const hasQuote = (c) => /'/.test(c);",
+		'const hasQuote = (c) => /"/.test(c);',
+		'const hasTick = (c) => /`/.test(c);',
+		"const hasQuote = (c) => /['\"]/.test(c);",
+		"const hasQuote = (c): boolean => /'/.test(c);",
+		"const hasQuote = async c => /'/.test(c);",
+		"const hasQuote = (c) =>\n\t/'/.test(c);",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
+test('maskJsComments reads a regex literal after an if/while/for/with header as a regex, so a quote inside it does not hide the next comment', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		"if (ok) /'/.test(c);",
+		'if (ok) /"/.test(c);',
+		"if(ok) /'/.test(c);",
+		"if (f(x)) /'/.test(c);",
+		"if (ok)\n\t/'/.test(c);",
+		"else if (ok) /'/.test(c);",
+		"while (ok) /'/.exec(c);",
+		"for (const c of cs) /'/.test(c);",
+		"for await (const c of cs) /'/.test(c);",
+		"for (let i = 0; i < n; i++) /'/.test(c);",
+		"with (o) /'/.test(c);",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
+// `\//` inside a regex is an escaped slash followed by the closing slash, not the start of a line comment:
+// the rest of the line is code and must not be blanked.
+test('maskJsComments does not read an escaped slash in a regex after an arrow or a control header as a line comment', () => {
+	for (const src of [
+		'if (a) /\\//.test(y); app = x;',
+		'if (a) /\\/\\//.test(y); app = x;',
+		'while (a) /a\\/b/.test(y); app = x;',
+		'for (const c of cs) /\\//.test(c); app = x;',
+		'const f = (c) => /\\//.test(c); app = x;',
+	]) {
+		assert.equal(maskJsComments(src), src);
+	}
+});
+
+// The narrow side of the rule: only the `)` that closes an if/while/for/with header makes a following `/` a
+// regex. After any other `)` it is still division, whether the `)` closes a call, a grouping, a member named
+// like a keyword, an identifier that ends in a keyword, or a header-like word that sits inside a comment.
+test('maskJsComments still reads `/` after a `)` that does not close a control header as division', () => {
+	for (const src of [
+		"const r = f(x) / 2; // it's here",
+		"const r = (a + b) / 2; // it's here",
+		"const r = a.if(x) / 2; // it's here",
+		"const r = a?.while(x) / 2; // it's here",
+		"const r = gif(x) / 2; // it's here",
+		"const r = awhile(x) / 2; // it's here",
+		"const r = for_(x) / 2; // it's here",
+		"const r = $with(x) / 2; // it's here",
+		"if (f(x) / 2 > 1) go(); // it's here",
+		"if (a) go(); const r = f(x) / 2; // it's here",
+		"// while\n(a + b) / 2; // it's here",
+		"/* if */ (a + b) / 2; // it's here",
+	]) {
+		const masked = maskJsComments(src);
+		assert.ok(!masked.includes("it's here"), `the trailing comment of ${JSON.stringify(src)} must be masked`);
+	}
+});
+
+// The stack keeps one entry per open `(`, so the header rule must hold at any depth: a callback body is full
+// of ifs, and a header can sit inside another header's condition.
+test('maskJsComments finds an if/while/for/with header that sits inside call arguments or inside another header', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		"run(() => {\n\tif (ok) /'/.test(c);\n});",
+		"run(function () {\n\twhile (ok) /'/.exec(c);\n});",
+		"run(items, (c) => {\n\tfor (const x of c) /'/.test(x);\n});",
+		"run([() => {\n\twith (c) /'/.test(c);\n}]);",
+		"describe('a', () => {\n\tit('b', () => {\n\t\tif (ok) /'/.test(c);\n\t});\n});",
+		"if (items.some((i) => { if (i) /'/.test(i); return false; })) go();",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
+// Between the keyword and its `(` there can be whitespace and comments. The masked text shows them as spaces, so
+// the keyword is then well before the `(`.
+test('maskJsComments finds a control header whose keyword is dozens of characters before its parenthesis', () => {
+	const trailer = ["// router.get('/phantom', h)", "router.get('/real', h);"];
+	const heads = [
+		`if${' '.repeat(30)}(ok) /'/.test(c);`,
+		`while${' '.repeat(30)}\n(ok) /'/.exec(c);`,
+		"for /* every chunk of the input, in order */ (const c of cs) /'/.test(c);",
+		"if // why this is checked\n\t(ok) /'/.test(c);",
+		"with /* the object whose members are read below */ (o) /'/.test(c);",
+	];
+	for (const head of heads) {
+		const masked = maskJsComments([head, ...trailer].join('\n'));
+		assert.ok(!masked.includes('phantom'), `the comment after ${JSON.stringify(head)} must be masked`);
+		assert.ok(masked.includes("'/real'"), `real code after ${JSON.stringify(head)} must survive`);
+	}
+});
+
 // String literals must survive INTACT (unlike the Java masker, which blanks string interiors):
 // every path these adapters report is read straight out of a string literal.
 test('maskJsComments leaves route path literals readable after masking', () => {
@@ -2128,6 +2245,359 @@ test('typescript-express: other unbraced control headers keep app reassignment c
 	for (const body of conditional) assert.deepEqual(scanEndpoints(body), ['GET /real'], body.join(' / '));
 	// A do-while body always runs at least once, so the reassignment is definite.
 	assert.deepEqual(scanEndpoints(['do', '  app = fakeApp', 'while (x)']), []);
+});
+
+// Scans `let app: any = express(); <body> app.get('/real', ...)`. [] means the app binding was
+// definitely replaced before the route; ['GET /real'] means the Express app may still be the receiver.
+function scanBodyBeforeRoute(body) {
+	const root = writeTree({
+		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
+		'tsconfig.json': '{}',
+		'src/server.ts': [
+			"import express, { Router } from 'express';",
+			'const router: Router = Router();',
+			'let app: any = express();',
+			...body,
+			"app.get('/real', realHandler);",
+		].join('\n'),
+	});
+	const projectRoot = detectTypeScriptExpressRoot(root);
+	assert.ok(projectRoot);
+	const result = scanTypeScriptExpress(root, projectRoot);
+	return result.modules.flatMap((m) => m.controllers).flatMap((c) => c.endpoints).map((e) => `${e.verb} ${e.path}`);
+}
+
+// Compares every body in one assertion so a failure lists all wrong cases, not just the first.
+function assertBodiesBeforeRoute(bodies, expected) {
+	const actual = {};
+	const wanted = {};
+	for (const body of bodies) {
+		const key = body.join(' / ');
+		actual[key] = scanBodyBeforeRoute(body);
+		wanted[key] = expected;
+	}
+	assert.deepEqual(actual, wanted);
+}
+
+test('typescript-express: a statement label before a definite app reassignment does not keep the old app trusted', () => {
+	assertBodiesBeforeRoute([
+		['lbl:', '  app = fakeApp'],
+		['lbl: app = fakeApp'],
+		['a1:', 'b1:', '  app = fakeApp'],
+		['cleanup();', 'lbl:', '  app = fakeApp'],
+		['cleanup()', 'lbl:', '  app = fakeApp'],
+		['cleanup(); lbl: app = fakeApp'],
+		['lbl:', '  cleanup(), app = fakeApp'],
+		['lbl:', '  (app = fakeApp)'],
+		['lbl:', '  ({ app } = { app: fakeApp })'],
+		['lbl:', '  app++'],
+		['lbl:', '  do { app = fakeApp } while (a)'],
+		['lbl:', '  try { app = fakeApp } finally {}'],
+		['lbl:', '  for (app of [fakeApp]) {}'],
+		['{', '  lbl:', '    app = fakeApp', '}'],
+		['lbl:', '  { app = fakeApp }'],
+		['lbl: { app = fakeApp }'],
+		['\u00e9t\u00e9: { app = fakeApp }'],
+		['a\u200Db: { app = fakeApp }'],
+		['lbl: {', '  app = fakeApp', '  other: { break other }', '}'],
+		['lbl: // note', '  app = fakeApp'],
+		['lbl: /* note */ app = fakeApp'],
+		['$lbl:', '  app = fakeApp'],
+		['_lbl:', '  app = fakeApp'],
+		['\u00e9t\u00e9:', '  app = fakeApp'],
+		['lbl: app += 1'],
+		['lbl: [app] = [fakeApp]'],
+		['if (a) cleanup();', 'lbl: { app = fakeApp }'],
+		['{ cleanup() }', 'lbl: { app = fakeApp }'],
+		['do lbl: app = fakeApp;', 'while (a);'],
+		['do', '  lbl:', '  other:', '  app = fakeApp', 'while (a);'],
+		['do lbl: app++;', 'while (a);'],
+		['lbl: do app = fakeApp;', 'while (a);'],
+		['lbl: do {', '  app = fakeApp', '} while (a);'],
+		['do {', '  lbl: app = fakeApp', '} while (a);'],
+	], []);
+});
+
+test('typescript-express: a statement label does not make a conditional app reassignment definite', () => {
+	assertBodiesBeforeRoute([
+		['lbl:', '  if (a)', '    app = fakeApp'],
+		['lbl:', '  if (a) {', '    app = fakeApp', '  }'],
+		['lbl:', '  while (a)', '    app = fakeApp'],
+		['lbl:', '  app ||= fakeApp'],
+		['if (a)', '  lbl:', '    app = fakeApp'],
+		['if (a) lbl: app = fakeApp'],
+		// A ternary colon is not a label.
+		['a ?', '  b :', '  app = fakeApp'],
+		['a', '  ? b', '  : app = fakeApp'],
+		['a ? cleanup() :', '  app = fakeApp'],
+		// `break <label>` can leave a labelled block before the write.
+		['lbl: {', '  if (a) break lbl', '  app = fakeApp', '}'],
+		['a1: b1: {', '  if (a) break a1', '  app = fakeApp', '}'],
+		['\u00e9t\u00e9: {', '  if (a) break \u00e9t\u00e9', '  app = fakeApp', '}'],
+		// The write must be the first statement of an inner block to be read as definite at all, so the
+		// same `break <label>` guard is also checked with the write nested behind it.
+		['lbl: {', '  if (a) break lbl;', '  { app = fakeApp }', '}'],
+		['lbl: {', '  if (a) break lbl;', '  try { cleanup() } finally { app = fakeApp }', '}'],
+		['lbl: {', '  if (a) break lbl;', '  do { app = fakeApp } while (b);', '}'],
+		['a1: b1: {', '  if (a) break a1;', '  { app = fakeApp }', '}'],
+		['a1: b1: {', '  if (a) break b1;', '  { app = fakeApp }', '}'],
+		['\u00e9t\u00e9: {', '  if (a) break \u00e9t\u00e9;', '  { app = fakeApp }', '}'],
+		// A labelled block only counts as a plain block when the label starts a statement.
+		['if (a) lbl: { app = fakeApp }'],
+		['while (a) lbl: { app = fakeApp }'],
+		['if (a) cleanup()', 'else lbl: { app = fakeApp }'],
+		['if (a) cleanup()', 'else lbl: app = fakeApp'],
+		['lbl: for (const item of items)', '  app = fakeApp'],
+		['lbl: while (a)', '  app = fakeApp'],
+		['lbl: if (a)', '  app = fakeApp'],
+		['switch (a) {', '  case 1: {', '    app = fakeApp', '  }', '}'],
+		['switch (a) {', '  case 1:', '    lbl: app = fakeApp', '}'],
+		['const run = () => {', '  lbl: {', '    app = fakeApp', '  }', '}'],
+		['do lbl: if (a) app = fakeApp;', 'while (b);'],
+	], ['GET /real']);
+});
+
+test('typescript-express: keyword-named members and identifiers are not control headers before a definite app reassignment', () => {
+	assertBodiesBeforeRoute([
+		['promise.catch(handle)', 'app = fakeApp'],
+		['promise?.catch(handle)', 'app = fakeApp'],
+		['promise. catch(handle)', 'app = fakeApp'],
+		['promise', '  .catch(handle)', 'app = fakeApp'],
+		['promise.', '  catch(handle)', 'app = fakeApp'],
+		["const k = Symbol.for('k')", 'app = fakeApp'],
+		['const arr2 = arr.with(0, 1)', 'app = fakeApp'],
+		['$if(cond)', 'app = fakeApp'],
+		['xo.while(a)', 'app = fakeApp'],
+		['xo.switch(a)', 'app = fakeApp'],
+		['xo.if(a)', 'app = fakeApp'],
+		['const run = obj.do', 'app = fakeApp'],
+		['const run2 = obj.else', 'app = fakeApp'],
+		['promise.catch(handle)', 'app++'],
+		['xo?.while(a)', 'app = fakeApp'],
+		['xo. /* note */ if(cond)', 'app = fakeApp'],
+		['obj?.do', 'app = fakeApp'],
+		['obj. else', 'app = fakeApp'],
+		['obj.', '  else', 'app = fakeApp'],
+		['function \u00e9if(c) { return c }', '\u00e9if(cond)', 'app = fakeApp'],
+		['function a\u200Dif(c) { return c }', 'a\u200Dif(cond)', 'app = fakeApp'],
+		['obj.do', 'do app = fakeApp;', 'while (a);'],
+		['obj?.do', 'do', '  app = fakeApp', 'while (a);'],
+	], []);
+});
+
+test('typescript-express: real control keywords keep their classification next to keyword-named members', () => {
+	assertBodiesBeforeRoute([
+		['if (a)', '  app = fakeApp'],
+		['while (a)', '  app = fakeApp'],
+		['for (const item of items)', '  app = fakeApp'],
+		['cleanup();', 'if (a)', '  app = fakeApp'],
+		['{ cleanup() }', 'if (a)', '  app = fakeApp'],
+		['if (a) cleanup()', 'else', '  app = fakeApp'],
+		['if (a) cleanup();', 'else if (b)', '  app = fakeApp'],
+	], ['GET /real']);
+	assertBodiesBeforeRoute([
+		['const notif = 1', 'app = fakeApp'],
+		['promise.then(handle)', 'app = fakeApp'],
+		['if (a) cleanup()', 'else if (b) cleanup()', 'app = fakeApp'],
+		['try { cleanup() } finally {}', 'app = fakeApp'],
+	], []);
+});
+
+// A control keyword is a whole token: `if$x` and `while\u00e9` are plain identifiers, so a chained write that
+// starts with one of them still definitely replaces the app. A leading label must not change that.
+test('typescript-express: keyword-prefixed identifiers at the start of a chained write do not hide the app reassignment', () => {
+	assertBodiesBeforeRoute([
+		['let x', 'x = app = fakeApp'],
+		['let if$x', 'if$x = app = fakeApp'],
+		['let for$x', 'for$x = app = fakeApp'],
+		['let while$x', 'while$x = app = fakeApp'],
+		['let with$x', 'with$x = app = fakeApp'],
+		['let switch$x', 'switch$x = app = fakeApp'],
+		['let if\u00e9', 'if\u00e9 = app = fakeApp'],
+		['let while\u00e9', 'while\u00e9 = app = fakeApp'],
+		['let if\u200Dx', 'if\u200Dx = app = fakeApp'],
+		['let if$x;', '(if$x = app = fakeApp)'],
+		['let if$x, y', 'if$x = y = app = fakeApp'],
+		['let if$x', 'cleanup();', 'if$x = app = fakeApp'],
+		['let if$x; if$x = app = fakeApp;'],
+		['let if$x', 'lbl: if$x = app = fakeApp'],
+		['let if$x;', '{', 'if$x = app = fakeApp', '}'],
+	], []);
+	assertBodiesBeforeRoute([
+		['let x', 'if (a) x = app = fakeApp'],
+		['let x', 'if(a) x = app = fakeApp'],
+		['let x', 'while (a) x = app = fakeApp'],
+		['let x', 'for (const i of items) x = app = fakeApp'],
+		['let x', 'for await (const i of items) x = app = fakeApp'],
+		['let if$x', 'if (a) if$x = app = fakeApp'],
+		['let if$x', 'if (a)', '  if$x = app = fakeApp'],
+	], ['GET /real']);
+});
+
+// Pins current behaviour, not the ideal one: a newline right after `for` ends the statement, so the
+// later `await (...)` header is not recognised and the loop body reads as a definite statement.
+// The route is dropped (fail-closed) although the write is conditional.
+test('typescript-express: for + newline + await header currently drops the route while the other for-await layouts stay conditional', () => {
+	assertBodiesBeforeRoute([
+		['for', 'await (const item of items)', '  app = fakeApp'],
+		['for', '  await', '  (const item of items)', '  app = fakeApp'],
+	], []);
+	assertBodiesBeforeRoute([
+		['for await (const item of items)', '  app = fakeApp'],
+		['for await', '(const item of items)', '  app = fakeApp'],
+		['for await(const item of items) app = fakeApp'],
+		['for await (const item of items) app = fakeApp'],
+		['for (const item of items)', '  app = fakeApp'],
+	], ['GET /real']);
+	// A write after the loop is definite whichever way the header is broken across lines.
+	assertBodiesBeforeRoute([
+		['for await (const item of items) cleanup()', 'app = fakeApp'],
+		['for', 'await (const item of items) cleanup()', 'app = fakeApp'],
+	], []);
+});
+
+// Pins current behaviour, not the ideal one: the `\\b` in topLevelSequenceAssignmentTarget is a
+// literal backslash + b and never matches, so `if (a) cleanup(), app = x` is read as the definite
+// sequence `cleanup(), app = x`. The route is dropped (fail-closed) although the write is conditional.
+test('typescript-express: a comma-sequence write under an if/while header currently drops the route', () => {
+	assertBodiesBeforeRoute([
+		['if (a) cleanup(), app = fakeApp'],
+		['while (a) cleanup(), app = fakeApp'],
+		['lbl:', '  if (a) cleanup(), app = fakeApp'],
+	], []);
+});
+
+// Pins current behaviour, not the ideal one: a `finally` block is read as a definite scope even when
+// the `try` is the unbraced body of an if/while/else, so the route is dropped (fail-closed) although
+// the write is conditional. A leading label reads exactly like no label.
+test('typescript-express: a finally write under an unbraced control header currently drops the route, labelled or not', () => {
+	assertBodiesBeforeRoute([
+		['if (a)', '  try { cleanup() } finally { app = fakeApp }'],
+		['if (a)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+		['while (a)', '  try { cleanup() } finally { app = fakeApp }'],
+		['if (a) cleanup()', 'else', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+	], []);
+});
+
+// Over-conservative pins: main answered ['GET /real'] for these conditional writes; pinned as they are now, a follow-up may flip them.
+test('typescript-express: labelled writes under a conditional header are currently read as definite', () => {
+	assertBodiesBeforeRoute([
+		['for', 'await (const item of items)', '  lbl: app = fakeApp'],
+		['while (a)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+		['for (const item of items)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+		['if (a) try { cleanup() } finally { lbl: app = fakeApp }'],
+		['if (a) cleanup(); else if (b)', '  try {} finally { lbl: app = fakeApp }'],
+		['if (a)', '  try { cleanup() } finally { lbl: app++ }'],
+		['if (a)', '  try { cleanup() } finally {', '    lbl:', '    app = fakeApp', '  }'],
+	], []);
+});
+
+// A numeric literal may end in its decimal point (`1.`, `0.`, `1_000.`). That dot is not member access, so the
+// keyword on the next line is still a keyword: the control header is recognised and a regex literal right after
+// it is not read as a division that swallows the later reassignment.
+test('typescript-express: a numeric literal ending in a decimal point does not hide the control header on the next line', () => {
+	assertBodiesBeforeRoute([
+		['let x = 1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 1.', "if (a) /'/.test(text)", 'app = fakeApp', "const t = /'/"],
+		['let x = 1.', 'if (a) /{/.test(text)', 'app = fakeApp'],
+		['let x = 1.', 'while (a) /\\(/.exec(text)', 'app = fakeApp'],
+		['let x = 1.', 'for (const i of items) /\\(/.exec(text)', 'app = fakeApp'],
+		['let x = 1.', 'with (o) /\\(/.exec(text)', 'app = fakeApp'],
+		['let x: number = 1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 0.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 1_000.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 5. // c', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+	], []);
+});
+
+// Likewise a write under that header, or after `else`, stays conditional.
+test('typescript-express: a numeric literal ending in a decimal point keeps a write under the control header on the next line conditional', () => {
+	assertBodiesBeforeRoute([
+		['let x = 1.', 'if (a)', '  app = fakeApp'],
+		['let x = 1.', 'while (a)', '  app = fakeApp'],
+		['let x = 1.', 'for (const item of items)', '  app = fakeApp'],
+		['let x = 1.', 'for await (const item of items)', '  app = fakeApp'],
+		['let x = 1.', 'while (a)', '  lbl: app = fakeApp'],
+		['let x = 1.', 'if (a) cleanup()', 'else', '  app = fakeApp'],
+		['let x', 'if (b) x = 1.', 'else', '  app = fakeApp'],
+	], ['GET /real']);
+});
+
+// The decimal point is recognised whatever comes before the number (a sign, an operator, nothing at all) and
+// however many digits the number has. Expected values are the result of running each body.
+test('typescript-express: a numeric literal ending in a decimal point is recognised after a sign or operator, without a space before it, and when long', () => {
+	assertBodiesBeforeRoute([
+		['let x = -1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = +1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = y*1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = y?2:1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x=1.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 123456789.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+		['let x = 1_000_000.', 'if (a) /\\(/.test(text)', 'app = fakeApp'],
+	], []);
+	assertBodiesBeforeRoute([
+		['let x = -1.', 'if (a)', '  app = fakeApp'],
+		['let x = y*1.', 'while (a)', '  app = fakeApp'],
+		['let x = y?2:1.', 'for (const item of items)', '  app = fakeApp'],
+		['let x=1.', 'if (a)', '  app = fakeApp'],
+		['let x = 123456789.', 'if (a)', '  app = fakeApp'],
+	], ['GET /real']);
+});
+
+// Only the decimal point of a numeric literal stops being a member dot: after `1..`, `1.5.`, `0x1.`, `0x1_0.`, `1e3.`,
+// `1n.`, `.5.`, `1 .`, `a1.`, `$1.`, `_1.` or `\u{e9}1.` (a name ending in a digit; `\u{e9}` is a letter outside ASCII)
+// the next word is still a member name, not a keyword.
+test('typescript-express: a dot after a numeric literal that is not its decimal point still makes the next word a member name', () => {
+	assertBodiesBeforeRoute([
+		['let y = 1..else', 'app = fakeApp'],
+		['let y = 1.5.else', 'app = fakeApp'],
+		['let y = 0x1.else', 'app = fakeApp'],
+		['let y = 1e3.else', 'app = fakeApp'],
+		['let y = 1n.else', 'app = fakeApp'],
+		['let y = .5.else', 'app = fakeApp'],
+		['let y = 1 .else', 'app = fakeApp'],
+		['const a1 = {}', 'let y = a1.else', 'app = fakeApp'],
+		['let y = 0x1_0.else', 'app = fakeApp'],
+		['const $1 = {}', 'let y = $1.else', 'app = fakeApp'],
+		['const _1 = {}', 'let y = _1.else', 'app = fakeApp'],
+		['const \u{e9}1 = {}', 'let y = \u{e9}1.else', 'app = fakeApp'],
+		['Number.prototype.if = function () {}', 'let y = 1..if (a)', 'app = fakeApp'],
+		['Number.prototype.if = function () {}', 'let y = 1.5.if (a)', 'app = fakeApp'],
+		['Number.prototype.if = function () {}', 'let y = 1 .if (a)', 'app = fakeApp'],
+	], []);
+});
+
+// The comment masker used to read the `/` of a regex literal after `=>` or after a control header's `)` as division,
+// so a quote inside the literal opened a phantom string and the next `// ...` comment stayed unmasked. A comment
+// ending in `.` then read as a member access in front of the `if` / `while` on the following line, and the control
+// header was missed. Expected values are the result of running each body.
+test('typescript-express: a quote in a regex literal after an arrow or a control header does not hide a control header below a comment that ends in a dot', () => {
+	assertBodiesBeforeRoute([
+		["const f1 = (c) => /'/.test(c)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		['const f1 = (c) => /"/.test(c)', '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		["const f1 = (c) => /'/.test(c)", '// Use the stub.', 'while (b)', '  app = fakeApp'],
+		["const f1 = (c) => /'/.test(c)", '// Mirrors the old stub, e.g.', 'if (b)', '  app = fakeApp'],
+		["if (a) /'/.test(y)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		["while (a) /'/.test(y)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+		["for (const c of arr) /'/.test(c)", '// Use the stub.', 'if (b)', '  app = fakeApp'],
+	], ['GET /real']);
+	assertBodiesBeforeRoute([
+		["const f1 = (c) => /'/.test(c)", '// Use the stub.', 'if (b) /\\(/.test(y)', 'app = fakeApp'],
+		["if (a) /'/.test(y)", '// Use the stub.', 'if (b) /\\(/.test(y)', 'app = fakeApp'],
+	], []);
+});
+
+// Same cause, other symptom: `/\//` after a control header's `)` or after `=>` was read as division followed by a
+// line comment, which blanked the rest of the line and left the reassignment looking conditional or absent.
+test('typescript-express: a regex with an escaped slash after a control header or an arrow does not hide the code after it', () => {
+	assertBodiesBeforeRoute([
+		['if (a) /\\//.test(y)', 'app = fakeApp'],
+		['if (a) /\\//.test(y); app = fakeApp'],
+		['const f = (c) => /\\//.test(c)', 'app = fakeApp'],
+	], []);
+	assertBodiesBeforeRoute([
+		['if (a) /\\//.test(y)', 'if (b)', '  app = fakeApp'],
+	], ['GET /real']);
 });
 
 test('typescript-express: initializer-free var redeclaration in a classic for preserves the trusted app', () => {

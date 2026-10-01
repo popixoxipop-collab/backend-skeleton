@@ -95,10 +95,24 @@ export function declaresExpress(packageJsonPath) {
 // bails at end of line so a misjudged division can never run away past it.
 // Deliberately narrow. Arithmetic operators (`+ - * % ^ < > ~`) are legal regex-preceders in the
 // grammar but never appear before one in real code (`a + /re/` is a type error), while
-// `y++ / 2` IS real -- so including them buys nothing and costs a false positive. These twelve
-// cover every position a regex literal actually occupies in practice.
-const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+// `y++ / 2` IS real -- so including them buys nothing and costs a false positive. These twelve,
+// plus the two positions below, cover every position a regex literal actually occupies in practice.
+//
+// `=>` and the `)` that closes an if/while/for/with header are the other two: an arrow body is an
+// expression and a header is followed by a statement, so `/` there is never division. Read as
+// division, a quote inside the literal opened a phantom string that left every later comment
+// unmasked, and an escaped slash (`/\//`) was read as the start of a line comment.
+const ARROW = '=>';
+const HEADER_CLOSE = 'header)';
+const REGEX_PRECEDING_CHARS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', ARROW, HEADER_CLOSE]);
 const REGEX_PRECEDING_KEYWORD_RE = /\b(?:return|typeof|case|in|of|new|delete|do|else|yield|await|void|instanceof)\s*$/;
+// Looked up in the masked output, so a keyword inside a comment never counts. A `.` right before the
+// keyword makes it a member name (`a.if(x)`), and an identifier character makes it part of a longer word.
+const CONTROL_HEADER_OPEN_RE = /(?<![$\p{ID_Continue}\u{200C}\u{200D}.])(?:if|while|for(?:\s+await)?|with)\s*$/u;
+
+function opensControlHeader(masked, openIndex) {
+	return CONTROL_HEADER_OPEN_RE.test(masked.slice(Math.max(0, openIndex - 64), openIndex).join(''));
+}
 
 function isRegexStart(lastSignificant, recentText) {
 	if (lastSignificant === null) return true; // start of file
@@ -134,6 +148,7 @@ export function maskJsComments(text) {
 	let i = 0;
 	let quote = null; // "'" | '"' | '`' when inside a string/template literal
 	let lastSignificant = null; // last non-whitespace CODE character seen
+	const headerParens = []; // one entry per open `(`: does it follow if/while/for/with?
 	while (i < text.length) {
 		const ch = text[i];
 		if (quote) {
@@ -158,6 +173,17 @@ export function maskJsComments(text) {
 		if (ch === '/' && isRegexStart(lastSignificant, text.slice(Math.max(0, i - 12), i))) {
 			i = skipRegexLiteral(text, i);
 			lastSignificant = '/';
+			continue;
+		}
+		if (ch === '(') {
+			headerParens.push(opensControlHeader(out, i));
+		} else if (ch === ')' && headerParens.pop() === true) {
+			lastSignificant = HEADER_CLOSE;
+			i++;
+			continue;
+		} else if (ch === '>' && text[i - 1] === '=') {
+			lastSignificant = ARROW;
+			i++;
 			continue;
 		}
 		if (!/\s/.test(ch)) lastSignificant = ch;
