@@ -37,6 +37,7 @@ MAX_DYNAMIC_ENTRIES = 65536
 MAX_STRTAB_BYTES = 16 * 1024 * 1024
 MAX_NEEDED_PER_FILE = 4096
 MAX_GRAPH_FILES = 4096
+MAX_GRAPH_EDGES = 65536
 MAX_TEXT = 4096
 
 ELF_MAGIC = b"\x7fELF"
@@ -278,6 +279,8 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
                     fail(f"PT_DYNAMIC exceeds file bounds for {path}")
                 dynamic = (p_offset, p_filesz)
             elif p_type == PT_INTERP:
+                if p_filesz <= 1 or p_filesz > MAX_TEXT + 1:
+                    fail(f"PT_INTERP size is invalid for {path}")
                 raw = read_exact(handle, p_offset, p_filesz, file_size, "PT_INTERP")
                 if not raw.endswith(b"\0"):
                     fail(f"PT_INTERP must be NUL terminated for {path}")
@@ -286,6 +289,8 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
                 except UnicodeDecodeError as exc:
                     fail(f"PT_INTERP must be valid UTF-8 for {path}")
                     raise AssertionError from exc
+                if any(ord(ch) < 32 or ord(ch) == 127 for ch in interp):
+                    fail(f"PT_INTERP contains control characters for {path}")
                 if not interp.startswith("/"):
                     fail(f"PT_INTERP must be absolute for {path}")
 
@@ -508,11 +513,11 @@ def resolve_closure(
     interpreter_files: set[Path] = set()
 
     while queue:
-        if len(visited) > MAX_GRAPH_FILES:
-            fail("native dependency graph exceeds file-count limit")
         binary = queue.pop(0)
         if binary in visited:
             continue
+        if len(visited) >= MAX_GRAPH_FILES:
+            fail("native dependency graph exceeds file-count limit")
         dynamic = parse_elf_dynamic(binary)
 
         interp = dynamic["interp"]
@@ -535,6 +540,8 @@ def resolve_closure(
         for name in dynamic["needed"]:
             target = resolve_needed(name, binary, dynamic, runtime_root, approved_roots)
             needed_rows.append({"name": name, "path": str(target)})
+            if len(edges) >= MAX_GRAPH_EDGES:
+                fail("native dependency graph exceeds edge-count limit")
             edges.append({"from": str(binary), "needed": name, "to": str(target)})
             if target not in visited and target not in queue:
                 queue.append(target)
