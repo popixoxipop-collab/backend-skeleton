@@ -156,6 +156,10 @@ export function validateMujocoRuntimeInventory(value){
   ],'MuJoCo runtime inventory');
   if(value.schema!==MUJOCO_RUNTIME_INVENTORY_SCHEMA) throw new TypeError('runtime inventory schema is invalid');
   if(value.target!=='SIM-mujoco') throw new TypeError('runtime inventory target must be SIM-mujoco');
+  if(value.platform!=='Linux-x86_64') throw new TypeError('runtime inventory platform must be Linux-x86_64');
+  if(typeof value.python_version!=='string'||!/^3\.12\.\d+$/.test(value.python_version)){
+    throw new TypeError('runtime inventory python_version must be Python 3.12.x');
+  }
   if(value.mujoco_version!==VERSION) throw new TypeError(`runtime inventory mujoco_version must be ${VERSION}`);
 
   exactKeys(value.launcher,['basename','sha256'],'runtime inventory launcher');
@@ -207,6 +211,14 @@ export function validateMujocoRuntimeInventory(value){
       sha256:digest(entry.sha256,`required_bindings[${index}].sha256`),
     });
   });
+  const bindingPaths=requiredBindings.map((entry)=>entry.path).sort();
+  const expectedBindingPaths=[...REQUIRED_BINDINGS].sort();
+  if(
+    bindingPaths.length!==expectedBindingPaths.length ||
+    bindingPaths.some((entry,index)=>entry!==expectedBindingPaths[index])
+  ){
+    throw new TypeError('required_bindings must contain exactly the reviewed MuJoCo 3.12.0 binding set');
+  }
 
   if(!Array.isArray(value.plugin_libraries)) throw new TypeError('plugin_libraries must be an array');
   const plugins=value.plugin_libraries.map((entry,index)=>{
@@ -306,6 +318,7 @@ export function validateMujocoExecutionEnforcementEvidence(value){
     'ambient_environment_empty',
     'pre_post_source_hash_equal',
     'runtime_closure_reverified',
+    'stdlib_closure_reverified',
     'native_library_reverified',
     'native_dependency_closure_reverified',
     'plugin_closure_reverified',
