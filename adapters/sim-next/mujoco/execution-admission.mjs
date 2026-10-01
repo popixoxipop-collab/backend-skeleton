@@ -269,7 +269,7 @@ export function validateMujocoRuntimeInventory(value){
     launcher.sha256,collector.sha256,helper.sha256,wrapper.sha256,closureSha,nativeLibrary.sha256,
   ];
   if(new Set(roleShas).size!==roleShas.length){
-    throw new TypeError('launcher/helper/wrapper/runtime-closure/native roles must use distinct digests');
+    throw new TypeError('launcher/collector/helper/wrapper/runtime-closure/native roles must use distinct digests');
   }
 
   return Object.freeze({
@@ -367,6 +367,7 @@ export function buildMujocoExecutionAdmissionCandidate(input){
 
   const trustDigests=[
     runtime.launcher.sha256,
+    runtime.collector.sha256,
     runtime.helper.sha256,
     runtime.wrapper.sha256,
     runtime.runtime_closure.closure_sha256,
