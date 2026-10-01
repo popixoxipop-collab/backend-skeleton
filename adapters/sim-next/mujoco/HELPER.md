@@ -56,6 +56,22 @@ Before importing MuJoCo, the helper:
 
 An unlisted source file is a failure, not an implicit dependency.
 
+Before MuJoCo import, M3 also performs a bounded compiler-read preflight over the
+root MJCF plus every dependency declared with role `include`:
+
+- XML must be bounded, UTF-8, namespace-free, and free of DOCTYPE/ENTITY;
+- `include file=...` must resolve from the main MJCF directory to an exact
+  `source_bundle` dependency with role `include`;
+- file-backed `mesh`, `hfield`, `skin`, and `texture` assets must resolve,
+  after reviewed `compiler` path semantics, to exact dependencies with role
+  `asset`;
+- absolute, URI-like, backslash, dot/parent, or undeclared compiler inputs fail;
+- `assetdir`, `meshdir`, and `texturedir` must themselves stay relative;
+- plugin/extension semantics and unreviewed file-bearing elements fail closed.
+
+This is intentionally narrower than MuJoCo's full grammar. Unsupported input is
+rejected rather than compiled while still claiming `source_bundle_bound=true`.
+
 ## Compilation
 
 Only after closure verification:
@@ -118,7 +134,11 @@ Protocol:
 `sbf.sim-mujoco-effective-helper-response/draft-1`
 
 The JS boundary re-validates success output using the already independently
-reviewed M2 validator and additionally requires:
+reviewed M2 validator. An authoritative `ok:true` validation additionally requires
+the exact invocation request; omitting it is an error. Error-envelope shape
+validation remains request-independent.
+
+For successful responses the boundary additionally requires:
 
 - compiler version exactly `3.12.0`;
 - returned source bundle exactly equals the request;
