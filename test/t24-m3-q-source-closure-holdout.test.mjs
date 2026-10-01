@@ -152,6 +152,134 @@ print("OK")
   }
 });
 
+test('Q-M3 source closure: plugin/extension and unreviewed file-bearing model assets fail closed', () => {
+  const cases=[
+    '<mujoco><extension><plugin plugin="vendor.example"/></extension></mujoco>',
+    '<mujoco><asset><model name="sub" file="submodel.xml"/></asset></mujoco>',
+  ];
+  for (const xml of cases) {
+    const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-q-m3-unreviewed-'));
+    try {
+      fs.mkdirSync(path.join(dir,'models'),{recursive:true});
+      fs.writeFileSync(path.join(dir,'models','main.xml'),xml);
+
+      const script=String.raw`
+import hashlib
+import importlib.util
+import pathlib
+import sys
+
+helper_path=sys.argv[1]
+spec=importlib.util.spec_from_file_location("q_m3_helper",helper_path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+root=pathlib.Path.cwd()
+data=(root/"models"/"main.xml").read_bytes()
+bundle={
+  "root":{"path":"models/main.xml","artifact":{
+    "artifact_ref":"sbf.artifact-ref/1","family":"simulation-source","version":"draft-1",
+    "media_type":"application/xml","byte_sha256":hashlib.sha256(data).hexdigest(),"size_bytes":len(data),
+  }},
+  "dependencies":[],
+}
+module.verify_staged_source_closure(bundle,root)
+`;
+      const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER],{
+        cwd:dir,encoding:'utf8',timeout:10_000,maxBuffer:4*1024*1024,env:{},
+      });
+      assert.notEqual(child.status,0,xml);
+    } finally {
+      fs.rmSync(dir,{recursive:true,force:true});
+    }
+  }
+});
+
+test('Q-M3 source closure: relative meshdir and texturedir resolve from main MJCF directory', () => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-q-m3-dirs-'));
+  try {
+    fs.mkdirSync(path.join(dir,'models','mesh-assets'),{recursive:true});
+    fs.mkdirSync(path.join(dir,'models','textures'),{recursive:true});
+    const xml='<mujoco><compiler meshdir="mesh-assets" texturedir="textures"/><asset><mesh name="m" file="m.obj"/><texture name="t" type="cube" fileup="up.png"/></asset></mujoco>';
+    fs.writeFileSync(path.join(dir,'models','main.xml'),xml);
+    fs.writeFileSync(path.join(dir,'models','mesh-assets','m.obj'),'v 0 0 0\n');
+    fs.writeFileSync(path.join(dir,'models','textures','up.png'),'fixture-png');
+
+    const script=String.raw`
+import hashlib
+import importlib.util
+import pathlib
+import sys
+
+helper_path=sys.argv[1]
+spec=importlib.util.spec_from_file_location("q_m3_helper",helper_path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+root=pathlib.Path.cwd()
+def entry(rel,role=None):
+    data=(root/rel).read_bytes()
+    out={"path":rel,"artifact":{
+      "artifact_ref":"sbf.artifact-ref/1","family":"simulation-source","version":"draft-1",
+      "media_type":"application/octet-stream","byte_sha256":hashlib.sha256(data).hexdigest(),"size_bytes":len(data),
+    }}
+    if role is not None: out["role"]=role
+    return out
+bundle={
+  "root":entry("models/main.xml"),
+  "dependencies":[
+    entry("models/mesh-assets/m.obj","asset"),
+    entry("models/textures/up.png","asset"),
+  ],
+}
+module.verify_staged_source_closure(bundle,root)
+print("OK")
+`;
+    const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER],{
+      cwd:dir,encoding:'utf8',timeout:10_000,maxBuffer:4*1024*1024,env:{},
+    });
+    assert.equal(child.status,0,child.stderr || child.stdout);
+    assert.equal(child.stdout.trim(),'OK');
+  } finally {
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
+});
+
+test('Q-M3 source closure: compiler refs reject URI and parent traversal', () => {
+  for (const xml of [
+    '<mujoco><asset><mesh name="m" file="https://example.invalid/m.obj"/></asset></mujoco>',
+    '<mujoco><compiler meshdir="../outside"/><asset><mesh name="m" file="m.obj"/></asset></mujoco>',
+  ]) {
+    const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-q-m3-path-'));
+    try {
+      fs.mkdirSync(path.join(dir,'models'),{recursive:true});
+      fs.writeFileSync(path.join(dir,'models','main.xml'),xml);
+      const script=String.raw`
+import hashlib
+import importlib.util
+import pathlib
+import sys
+
+helper_path=sys.argv[1]
+spec=importlib.util.spec_from_file_location("q_m3_helper",helper_path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+root=pathlib.Path.cwd()
+data=(root/"models"/"main.xml").read_bytes()
+bundle={"root":{"path":"models/main.xml","artifact":{
+  "artifact_ref":"sbf.artifact-ref/1","family":"simulation-source","version":"draft-1",
+  "media_type":"application/xml","byte_sha256":hashlib.sha256(data).hexdigest(),"size_bytes":len(data)
+}},"dependencies":[]}
+module.verify_staged_source_closure(bundle,root)
+`;
+      const child=spawnSync('python3',['-I','-S','-B','-c',script,HELPER],{
+        cwd:dir,encoding:'utf8',timeout:10_000,maxBuffer:4*1024*1024,env:{},
+      });
+      assert.notEqual(child.status,0,xml);
+    } finally {
+      fs.rmSync(dir,{recursive:true,force:true});
+    }
+  }
+});
+
 test('Q-M3 source: compiler helper contains no direct simulation/runtime execution surface', () => {
   const source=fs.readFileSync(HELPER,'utf8');
   assert.match(source,/MjModel\.from_xml_path/);
