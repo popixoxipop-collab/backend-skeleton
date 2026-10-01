@@ -69,8 +69,18 @@ def absolute_path(value: Any, label: str, *, directory: bool | None = None) -> P
     path = Path(value)
     if not path.is_absolute():
         fail(f"{label} must be absolute")
-    if path.is_symlink():
-        fail(f"{label} must not be a symlink")
+
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        try:
+            current.lstat()
+        except (FileNotFoundError, OSError) as exc:
+            fail(f"{label} does not exist")
+            raise AssertionError from exc
+        if current.is_symlink():
+            fail(f"{label} contains symlink component")
+
     try:
         resolved = path.resolve(strict=True)
     except (FileNotFoundError, OSError) as exc:
