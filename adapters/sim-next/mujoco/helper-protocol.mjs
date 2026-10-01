@@ -130,14 +130,15 @@ export function validateMujocoEffectiveHelperResponse(value, { request = null } 
         `MuJoCo helper response compiler.version must be ${MUJOCO_EFFECTIVE_HELPER_ENGINE_VERSION}`,
       );
     }
-    if (request !== null) {
-      const normalizedRequest = validateMujocoEffectiveHelperRequest(request);
-      if (!equalJson(effective_model.source_bundle, normalizedRequest.source_bundle)) {
-        throw new TypeError('MuJoCo helper response source_bundle does not match the exact request');
-      }
-      if (!equalJson(effective_model.compiler.helper_artifact, normalizedRequest.helper_artifact)) {
-        throw new TypeError('MuJoCo helper response helper_artifact does not match the exact request');
-      }
+    if (request === null) {
+      throw new TypeError('MuJoCo helper success response requires exact request binding authority');
+    }
+    const normalizedRequest = validateMujocoEffectiveHelperRequest(request);
+    if (!equalJson(effective_model.source_bundle, normalizedRequest.source_bundle)) {
+      throw new TypeError('MuJoCo helper response source_bundle does not match the exact request');
+    }
+    if (!equalJson(effective_model.compiler.helper_artifact, normalizedRequest.helper_artifact)) {
+      throw new TypeError('MuJoCo helper response helper_artifact does not match the exact request');
     }
     return Object.freeze({
       protocol:MUJOCO_EFFECTIVE_HELPER_RESPONSE,
