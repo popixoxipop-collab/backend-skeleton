@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import path from 'node:path';
 
 import {
   artifactTrustPolicyDigest,
@@ -9,268 +8,106 @@ import {
 import { permissionManifestDigest } from '../../../lib/trust-next/permission-manifest.mjs';
 import { buildMujocoEffectiveModelHelperPlan } from './helper-requirements.mjs';
 
-export const MUJOCO_RUNTIME_INVENTORY_SCHEMA = 'sbf.sim-mujoco-runtime-inventory/draft-1';
-export const MUJOCO_EXECUTION_ADMISSION_CANDIDATE =
-  'sbf.sim-mujoco-execution-admission-candidate/draft-1';
+export const MUJOCO_RUNTIME_INVENTORY_SCHEMA='sbf.sim-mujoco-runtime-inventory/draft-1';
+export const MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA='sbf.sim-mujoco-execution-enforcement/draft-1';
+export const MUJOCO_EXECUTION_ADMISSION_CANDIDATE='sbf.sim-mujoco-execution-admission-candidate/draft-1';
 
-const SHA256 = /^[a-f0-9]{64}$/;
-const GIT_SHA = /^[a-f0-9]{40}$/;
-const MAX_ENTRIES = 20_000;
-const MAX_PATH = 8192;
+const SHA256=/^[0-9a-f]{64}$/;
+const GIT_SHA=/^[0-9a-f]{40}$/;
+const VERSION='3.12.0';
+const REQUIRED_BINDINGS=Object.freeze([
+  'mujoco/__init__.py',
+  'mujoco/_enums.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_functions.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_specs.cpython-312-x86_64-linux-gnu.so',
+  'mujoco/_structs.cpython-312-x86_64-linux-gnu.so',
+]);
+const REQUIRED_NATIVE='mujoco/libmujoco.so.3.12.0';
 
-function plain(value, label) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError(`${label} must be an object`);
-  }
+function plain(value,label){
+  if(value===null||typeof value!=='object'||Array.isArray(value)) throw new TypeError(`${label} must be an object`);
   return value;
 }
 
-function exactKeys(value, expected, label) {
-  plain(value, label);
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+function exactKeys(value,keys,label){
+  plain(value,label);
+  const actual=Object.keys(value).sort();
+  const wanted=[...keys].sort();
+  if(actual.length!==wanted.length||actual.some((key,index)=>key!==wanted[index])){
     throw new TypeError(`${label} must contain exactly: ${wanted.join(', ')}`);
   }
 }
 
-function hash(value, label) {
-  if (typeof value !== 'string' || !SHA256.test(value)) {
-    throw new TypeError(`${label} must be a lowercase SHA-256 digest`);
+function digest(value,label){
+  if(typeof value!=='string'||!SHA256.test(value)) throw new TypeError(`${label} must be a lowercase SHA-256`);
+  return value;
+}
+
+function integer(value,label,{min=0}={}){
+  if(!Number.isSafeInteger(value)||value<min) throw new TypeError(`${label} must be a safe integer >= ${min}`);
+  return value;
+}
+
+function bounded(value,label){
+  if(typeof value!=='string'||value.length===0||value.length>4096||/[\x00-\x1f\x7f]/.test(value)){
+    throw new TypeError(`${label} must be a bounded control-free string`);
   }
   return value;
 }
 
-function size(value, label) {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new TypeError(`${label} must be a non-negative safe integer`);
-  }
-  return value;
-}
-
-function text(value, label, { absolute = false } = {}) {
-  if (
-    typeof value !== 'string' ||
-    value.length === 0 ||
-    value.length > MAX_PATH ||
-    /[\x00-\x1f\x7f]/.test(value)
-  ) {
-    throw new TypeError(`${label} must be a bounded non-empty control-free string`);
-  }
-  if (absolute && !value.startsWith('/')) {
-    throw new TypeError(`${label} must be an absolute POSIX path`);
-  }
-  return value;
-}
-
-function relativePath(value, label) {
-  text(value, label);
-  if (
-    value.startsWith('/') ||
-    value.includes('\\') ||
-    value.split('/').some((part) => !part || part === '.' || part === '..')
-  ) {
+function relativePath(value,label){
+  bounded(value,label);
+  if(value.includes('\\')||value.startsWith('/')||/^[A-Za-z]:\//.test(value)||
+     /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)||
+     value.split('/').some((part)=>!part||part==='.'||part==='..')){
     throw new TypeError(`${label} must be a normalized relative POSIX path`);
   }
   return value;
 }
 
-function fileIdentity(value, label, { absolutePath = false, pathField = 'path' } = {}) {
-  exactKeys(value, [pathField, 'sha256', 'size_bytes'], label);
-  const rawPath = absolutePath
-    ? text(value[pathField], `${label}.${pathField}`, { absolute:true })
-    : relativePath(value[pathField], `${label}.${pathField}`);
-  return Object.freeze({
-    [pathField]:rawPath,
-    sha256:hash(value.sha256, `${label}.sha256`),
-    size_bytes:size(value.size_bytes, `${label}.size_bytes`),
-  });
-}
-
-function launcherIdentity(value) {
-  exactKeys(value, ['requested_path','resolved_path','sha256','size_bytes'], 'runtime inventory launcher');
-  return Object.freeze({
-    requested_path:text(value.requested_path, 'runtime inventory launcher.requested_path', { absolute:true }),
-    resolved_path:text(value.resolved_path, 'runtime inventory launcher.resolved_path', { absolute:true }),
-    sha256:hash(value.sha256, 'runtime inventory launcher.sha256'),
-    size_bytes:size(value.size_bytes, 'runtime inventory launcher.size_bytes'),
-  });
-}
-
-function closureEntry(value, index) {
-  exactKeys(value, ['path','sha256','size_bytes'], `runtime closure entry[${index}]`);
-  return Object.freeze({
-    path:relativePath(value.path, `runtime closure entry[${index}].path`),
-    sha256:hash(value.sha256, `runtime closure entry[${index}].sha256`),
-    size_bytes:size(value.size_bytes, `runtime closure entry[${index}].size_bytes`),
-  });
-}
-
-function stableClosureDigest(entries) {
-  const payload=JSON.stringify(entries);
-  return crypto.createHash('sha256')
-    .update(Buffer.from('sbf.sim-mujoco-runtime-closure/draft-1\n'+payload+'\n','utf8'))
-    .digest('hex');
-}
-
-function stableJson(value) {
-  if (Array.isArray(value)) return value.map(stableJson);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key)=>[key,stableJson(value[key])]));
+function canonical(value){
+  if(Array.isArray(value)) return value.map(canonical);
+  if(value&&typeof value==='object'){
+    return Object.fromEntries(Object.keys(value).sort().map((key)=>[key,canonical(value[key])]));
   }
   return value;
 }
 
-export function mujocoRuntimeInventoryDigest(inventory) {
-  const normalized=validateMujocoRuntimeInventory(inventory);
+function hashJson(value,domain=''){
   return crypto.createHash('sha256')
-    .update(Buffer.from(
-      'sbf.sim-mujoco-runtime-inventory-json/draft-1\n'+JSON.stringify(stableJson(normalized))+'\n',
-      'utf8',
-    ))
+    .update(Buffer.from(`${domain}${JSON.stringify(canonical(value))}\n`,'utf8'))
     .digest('hex');
 }
 
-export function validateMujocoRuntimeInventory(value) {
-  exactKeys(value, [
-    'schema','status','mujoco_version','python_abi','venv_root','site_packages',
-    'launcher','helper','record','metadata','runtime_closure','native_library',
-    'bindings','claims',
-  ], 'MuJoCo runtime inventory');
-
-  if (value.schema !== MUJOCO_RUNTIME_INVENTORY_SCHEMA) {
-    throw new TypeError('MuJoCo runtime inventory schema is invalid');
+function fileEntry(value,label){
+  exactKeys(value,['path','sha256','size_bytes','kind'],label);
+  const kind=bounded(value.kind,`${label}.kind`);
+  if(!['python','extension','native','plugin','metadata','resource','stdlib'].includes(kind)){
+    throw new TypeError(`${label}.kind is unsupported`);
   }
-  if (value.status !== 'INVENTORY_OBSERVED_NOT_ADMITTED') {
-    throw new TypeError('MuJoCo runtime inventory status must remain INVENTORY_OBSERVED_NOT_ADMITTED');
-  }
-  if (value.mujoco_version !== '3.12.0') {
-    throw new TypeError('MuJoCo runtime inventory must be pinned to 3.12.0');
-  }
-  if (typeof value.python_abi !== 'string' || !/^\d+\.\d+$/.test(value.python_abi)) {
-    throw new TypeError('MuJoCo runtime inventory python_abi is invalid');
-  }
-
-  const venv_root=text(value.venv_root, 'runtime inventory venv_root', { absolute:true });
-  const site_packages=text(value.site_packages, 'runtime inventory site_packages', { absolute:true });
-  const launcher=launcherIdentity(value.launcher);
-  const helper=fileIdentity(value.helper, 'runtime inventory helper', { absolutePath:true });
-  const record=(()=>{
-    exactKeys(value.record, ['path','sha256','size_bytes','verified_entry_count'], 'runtime inventory record');
-    return Object.freeze({
-      path:text(value.record.path, 'runtime inventory record.path', { absolute:true }),
-      sha256:hash(value.record.sha256, 'runtime inventory record.sha256'),
-      size_bytes:size(value.record.size_bytes, 'runtime inventory record.size_bytes'),
-      verified_entry_count:size(value.record.verified_entry_count, 'runtime inventory record.verified_entry_count'),
-    });
-  })();
-  const metadata=fileIdentity(value.metadata, 'runtime inventory metadata', { absolutePath:true });
-
-  exactKeys(value.runtime_closure, [
-    'contract','sha256','entry_count','total_size_bytes','entries',
-  ], 'runtime inventory runtime_closure');
-  if (value.runtime_closure.contract !== 'sbf.sim-mujoco-runtime-closure/draft-1') {
-    throw new TypeError('runtime closure contract is invalid');
-  }
-  if (
-    !Array.isArray(value.runtime_closure.entries) ||
-    value.runtime_closure.entries.length === 0 ||
-    value.runtime_closure.entries.length > MAX_ENTRIES
-  ) {
-    throw new TypeError(`runtime closure entries must contain 1..${MAX_ENTRIES} items`);
-  }
-  const entries=value.runtime_closure.entries.map(closureEntry);
-  const keys=entries.map((entry)=>entry.path);
-  if (new Set(keys).size !== keys.length) {
-    throw new TypeError('runtime closure entries contain duplicate paths');
-  }
-  const sorted=[...entries].sort((a,b)=>a.path.localeCompare(b.path));
-  if (sorted.some((entry,index)=>entry.path!==entries[index].path)) {
-    throw new TypeError('runtime closure entries must be sorted by path');
-  }
-  const entryCount=size(value.runtime_closure.entry_count, 'runtime closure entry_count');
-  if (entryCount!==entries.length || record.verified_entry_count!==entries.length) {
-    throw new TypeError('runtime closure entry count does not match verified RECORD count');
-  }
-  const totalSize=size(value.runtime_closure.total_size_bytes, 'runtime closure total_size_bytes');
-  const actualTotal=entries.reduce((sum,entry)=>sum+entry.size_bytes,0);
-  if (actualTotal!==totalSize) {
-    throw new TypeError('runtime closure total_size_bytes does not match entries');
-  }
-  const closureSha=hash(value.runtime_closure.sha256, 'runtime closure sha256');
-  if (stableClosureDigest(entries)!==closureSha) {
-    throw new TypeError('runtime closure sha256 does not match canonical verified entries');
-  }
-
-  const native_library=fileIdentity(value.native_library, 'runtime inventory native_library');
-  const byPath=new Map(entries.map((entry)=>[entry.path,entry]));
-  const nativeEntry=byPath.get(native_library.path);
-  if (
-    !nativeEntry ||
-    nativeEntry.sha256!==native_library.sha256 ||
-    nativeEntry.size_bytes!==native_library.size_bytes
-  ) {
-    throw new TypeError('native library identity is not bound to the verified runtime closure');
-  }
-
-  if (!Array.isArray(value.bindings) || value.bindings.length===0) {
-    throw new TypeError('runtime inventory bindings must contain at least one extension module');
-  }
-  const bindings=value.bindings.map((entry,index)=>fileIdentity(entry,`runtime inventory bindings[${index}]`));
-  for (const binding of bindings) {
-    const recorded=byPath.get(binding.path);
-    if (!recorded || recorded.sha256!==binding.sha256 || recorded.size_bytes!==binding.size_bytes) {
-      throw new TypeError(`runtime binding is not bound to verified runtime closure: ${binding.path}`);
-    }
-  }
-
-  exactKeys(value.claims, [
-    'filesystem_inventory_verified',
-    'wheel_record_reverified_against_installed_bytes',
-    'mujoco_imported',
-    'helper_executed',
-    'mjcf_compiled',
-    'execution_admitted',
-  ], 'runtime inventory claims');
-  if (
-    value.claims.filesystem_inventory_verified!==true ||
-    value.claims.wheel_record_reverified_against_installed_bytes!==true
-  ) {
-    throw new TypeError('runtime inventory must prove filesystem and RECORD verification');
-  }
-  for (const field of ['mujoco_imported','helper_executed','mjcf_compiled','execution_admitted']) {
-    if (value.claims[field]!==false) {
-      throw new TypeError(`runtime inventory cannot claim ${field}`);
-    }
-  }
-
   return Object.freeze({
-    schema:MUJOCO_RUNTIME_INVENTORY_SCHEMA,
-    status:'INVENTORY_OBSERVED_NOT_ADMITTED',
-    mujoco_version:'3.12.0',
-    python_abi:value.python_abi,
-    venv_root,
-    site_packages,
-    launcher,
-    helper,
-    record,
-    metadata,
-    runtime_closure:Object.freeze({
-      contract:'sbf.sim-mujoco-runtime-closure/draft-1',
-      sha256:closureSha,
-      entry_count:entries.length,
-      total_size_bytes:totalSize,
-      entries:Object.freeze(entries),
-    }),
-    native_library,
-    bindings:Object.freeze(bindings),
-    claims:Object.freeze({...value.claims}),
+    path:relativePath(value.path,`${label}.path`),
+    sha256:digest(value.sha256,`${label}.sha256`),
+    size_bytes:integer(value.size_bytes,`${label}.size_bytes`),
+    kind,
   });
 }
 
-function validatedPolicy(value) {
+function validateFiles(value){
+  if(!Array.isArray(value)||value.length===0||value.length>20000) throw new TypeError('runtime_closure.files must contain 1..20000 entries');
+  const files=value.map((entry,index)=>fileEntry(entry,`runtime_closure.files[${index}]`));
+  const sorted=[...files].sort((a,b)=>a.path.localeCompare(b.path));
+  if(new Set(sorted.map((x)=>x.path)).size!==sorted.length) throw new TypeError('runtime_closure.files contains duplicate paths');
+  return Object.freeze(sorted);
+}
+
+function fileMap(files){
+  return new Map(files.map((entry)=>[entry.path,entry]));
+}
+
+function validatedPolicy(value){
   const result=validateArtifactTrustPolicy(value);
-  if (!result.ok) {
+  if(!result.ok){
     const error=new TypeError('current artifact trust policy is invalid');
     error.details=result.errors;
     throw error;
@@ -278,108 +115,318 @@ function validatedPolicy(value) {
   return result.value;
 }
 
-function proposedTrustPolicy(current, digests) {
+function proposedTrustPolicy(current,digests){
   const revoked=new Set(current.revoked.map((entry)=>entry.sha256));
-  for (const digest of digests) {
-    if (revoked.has(digest)) {
-      throw new TypeError(`required runtime digest is revoked: ${digest}`);
-    }
+  for(const sha256 of digests){
+    if(revoked.has(sha256)) throw new TypeError(`required runtime digest is revoked: ${sha256}`);
   }
   const allow=[...current.allow];
-  const have=new Set(allow.map((entry)=>entry.usage+':'+entry.sha256));
+  const seen=new Set(allow.map((entry)=>`${entry.usage}:${entry.sha256}`));
   let added=false;
-  for (const digest of digests) {
-    const key='helper:'+digest;
-    if (have.has(key)) continue;
-    allow.push({usage:'helper',sha256:digest});
-    have.add(key);
+  for(const sha256 of digests){
+    const key=`helper:${sha256}`;
+    if(seen.has(key)) continue;
+    allow.push({usage:'helper',sha256});
+    seen.add(key);
     added=true;
   }
-  return validatedPolicy({
+  const result=validateArtifactTrustPolicy({
     schema:current.schema,
     generation:current.generation+(added?1:0),
     allow,
     revoked:[...current.revoked],
   });
+  if(!result.ok){
+    const error=new TypeError('proposed runtime artifact trust policy is invalid');
+    error.details=result.errors;
+    throw error;
+  }
+  return result.value;
 }
 
-export function buildMujocoExecutionAdmissionCandidate(input) {
-  exactKeys(input, [
-    'm3CandidateSha','runtimeInventory','currentArtifactTrustPolicy','readRoots','limits',
-  ], 'MuJoCo execution admission input');
+export function runtimeClosureDigest(files){
+  return hashJson(validateFiles(files),'sbf.sim-mujoco-runtime-closure/draft-1\n');
+}
 
-  if (typeof input.m3CandidateSha!=='string' || !GIT_SHA.test(input.m3CandidateSha)) {
+export function validateMujocoRuntimeInventory(value){
+  exactKeys(value,[
+    'schema','target','platform','python_version','mujoco_version',
+    'launcher','helper','wrapper','runtime_closure','native_library',
+    'required_bindings','plugin_libraries','startup',
+  ],'MuJoCo runtime inventory');
+  if(value.schema!==MUJOCO_RUNTIME_INVENTORY_SCHEMA) throw new TypeError('runtime inventory schema is invalid');
+  if(value.target!=='SIM-mujoco') throw new TypeError('runtime inventory target must be SIM-mujoco');
+  if(value.mujoco_version!==VERSION) throw new TypeError(`runtime inventory mujoco_version must be ${VERSION}`);
+
+  exactKeys(value.launcher,['basename','sha256'],'runtime inventory launcher');
+  const launcher={
+    basename:bounded(value.launcher.basename,'launcher.basename'),
+    sha256:digest(value.launcher.sha256,'launcher.sha256'),
+  };
+  if(/[\\/]/.test(launcher.basename)||launcher.basename==='.'||launcher.basename==='..'){
+    throw new TypeError('launcher.basename must be an executable basename');
+  }
+
+  exactKeys(value.helper,['sha256'],'runtime inventory helper');
+  exactKeys(value.wrapper,['sha256'],'runtime inventory wrapper');
+  const helper={sha256:digest(value.helper.sha256,'helper.sha256')};
+  const wrapper={sha256:digest(value.wrapper.sha256,'wrapper.sha256')};
+
+  exactKeys(value.runtime_closure,[
+    'closure_sha256','record_sha256','record_entries_expected','record_entries_verified',
+    'unlisted_files','symlinks','files',
+  ],'runtime_closure');
+  const files=validateFiles(value.runtime_closure.files);
+  const closureSha=runtimeClosureDigest(files);
+  if(value.runtime_closure.closure_sha256!==closureSha){
+    throw new TypeError('runtime_closure.closure_sha256 does not bind the exact sorted file inventory');
+  }
+  const recordSha=digest(value.runtime_closure.record_sha256,'runtime_closure.record_sha256');
+  const expected=integer(value.runtime_closure.record_entries_expected,'record_entries_expected',{min:1});
+  const verified=integer(value.runtime_closure.record_entries_verified,'record_entries_verified',{min:0});
+  if(expected!==verified) throw new TypeError('all hashed RECORD entries must be verified against installed bytes');
+  if(!Array.isArray(value.runtime_closure.unlisted_files)||value.runtime_closure.unlisted_files.length!==0){
+    throw new TypeError('runtime closure must contain no unlisted MuJoCo package files');
+  }
+  if(!Array.isArray(value.runtime_closure.symlinks)||value.runtime_closure.symlinks.length!==0){
+    throw new TypeError('runtime closure must contain no symlink entries');
+  }
+
+  exactKeys(value.native_library,['path','sha256'],'native_library');
+  const nativeLibrary={
+    path:relativePath(value.native_library.path,'native_library.path'),
+    sha256:digest(value.native_library.sha256,'native_library.sha256'),
+  };
+  if(nativeLibrary.path!==REQUIRED_NATIVE) throw new TypeError(`native_library.path must be ${REQUIRED_NATIVE}`);
+
+  if(!Array.isArray(value.required_bindings)) throw new TypeError('required_bindings must be an array');
+  const requiredBindings=value.required_bindings.map((entry,index)=>{
+    exactKeys(entry,['path','sha256'],`required_bindings[${index}]`);
+    return Object.freeze({
+      path:relativePath(entry.path,`required_bindings[${index}].path`),
+      sha256:digest(entry.sha256,`required_bindings[${index}].sha256`),
+    });
+  });
+
+  if(!Array.isArray(value.plugin_libraries)) throw new TypeError('plugin_libraries must be an array');
+  const plugins=value.plugin_libraries.map((entry,index)=>{
+    exactKeys(entry,['path','sha256'],`plugin_libraries[${index}]`);
+    return Object.freeze({
+      path:relativePath(entry.path,`plugin_libraries[${index}].path`),
+      sha256:digest(entry.sha256,`plugin_libraries[${index}].sha256`),
+    });
+  }).sort((a,b)=>a.path.localeCompare(b.path));
+
+  const byPath=fileMap(files);
+  const nativeEntry=byPath.get(nativeLibrary.path);
+  if(!nativeEntry||nativeEntry.sha256!==nativeLibrary.sha256||nativeEntry.kind!=='native'){
+    throw new TypeError('native_library must match an exact native entry in runtime closure');
+  }
+  for(const path of REQUIRED_BINDINGS){
+    const claimed=requiredBindings.find((entry)=>entry.path===path);
+    const actual=byPath.get(path);
+    if(!claimed||!actual||claimed.sha256!==actual.sha256){
+      throw new TypeError(`required runtime binding is not closure-bound: ${path}`);
+    }
+  }
+  for(const plugin of plugins){
+    const actual=byPath.get(plugin.path);
+    if(!actual||actual.sha256!==plugin.sha256||actual.kind!=='plugin'){
+      throw new TypeError(`plugin library is not closure-bound: ${plugin.path}`);
+    }
+  }
+  const discoveredPlugins=files.filter((entry)=>entry.kind==='plugin').map((entry)=>entry.path).sort();
+  if(JSON.stringify(discoveredPlugins)!==JSON.stringify(plugins.map((entry)=>entry.path))){
+    throw new TypeError('plugin_libraries must enumerate every plugin entry in runtime closure');
+  }
+
+  exactKeys(value.startup,[
+    'isolated_flag','no_site_flag','dont_write_bytecode','ambient_environment_empty',
+    'pth_processing_disabled','runtime_import_root_explicit',
+  ],'runtime inventory startup');
+  for(const key of [
+    'isolated_flag','no_site_flag','dont_write_bytecode','ambient_environment_empty',
+    'pth_processing_disabled','runtime_import_root_explicit',
+  ]){
+    if(value.startup[key]!==true) throw new TypeError(`runtime inventory startup.${key} must be true`);
+  }
+
+  const roleShas=[launcher.sha256,helper.sha256,wrapper.sha256,closureSha,nativeLibrary.sha256];
+  if(new Set(roleShas).size!==roleShas.length){
+    throw new TypeError('launcher/helper/wrapper/runtime-closure/native roles must use distinct digests');
+  }
+
+  return Object.freeze({
+    schema:MUJOCO_RUNTIME_INVENTORY_SCHEMA,
+    target:'SIM-mujoco',
+    platform:bounded(value.platform,'platform'),
+    python_version:bounded(value.python_version,'python_version'),
+    mujoco_version:VERSION,
+    launcher:Object.freeze(launcher),
+    helper:Object.freeze(helper),
+    wrapper:Object.freeze(wrapper),
+    runtime_closure:Object.freeze({
+      closure_sha256:closureSha,
+      record_sha256:recordSha,
+      record_entries_expected:expected,
+      record_entries_verified:verified,
+      unlisted_files:Object.freeze([]),
+      symlinks:Object.freeze([]),
+      files,
+    }),
+    native_library:Object.freeze(nativeLibrary),
+    required_bindings:Object.freeze(requiredBindings),
+    plugin_libraries:Object.freeze(plugins),
+    startup:Object.freeze({...value.startup}),
+  });
+}
+
+export function mujocoRuntimeInventoryDigest(inventory){
+  return hashJson(validateMujocoRuntimeInventory(inventory),'sbf.sim-mujoco-runtime-inventory-json/draft-1\n');
+}
+
+export function validateMujocoExecutionEnforcementEvidence(value){
+  exactKeys(value,[
+    'schema','target','runner_implementation_sha256','runtime_execution_policy_sha256',
+    'permission_manifest_sha256','runtime_inventory_sha256','probes',
+  ],'MuJoCo execution enforcement evidence');
+  if(value.schema!==MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA) throw new TypeError('enforcement evidence schema is invalid');
+  if(value.target!=='SIM-mujoco') throw new TypeError('enforcement evidence target must be SIM-mujoco');
+  const probes=plain(value.probes,'enforcement probes');
+  const required=[
+    'source_mount_read_only',
+    'runtime_mount_read_only',
+    'source_symlink_denied',
+    'source_hardlink_denied',
+    'source_write_denied',
+    'runtime_write_denied',
+    'network_connect_denied',
+    'network_listen_denied',
+    'unexpected_process_denied',
+    'ambient_environment_empty',
+    'pre_post_source_hash_equal',
+    'runtime_closure_reverified',
+    'native_library_reverified',
+    'plugin_closure_reverified',
+  ];
+  exactKeys(probes,required,'enforcement probes');
+  for(const key of required){
+    if(probes[key]!==true) throw new TypeError(`enforcement probe ${key} must be true`);
+  }
+  const normalized={
+    schema:MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA,
+    target:'SIM-mujoco',
+    runner_implementation_sha256:digest(value.runner_implementation_sha256,'runner_implementation_sha256'),
+    runtime_execution_policy_sha256:digest(value.runtime_execution_policy_sha256,'runtime_execution_policy_sha256'),
+    permission_manifest_sha256:digest(value.permission_manifest_sha256,'permission_manifest_sha256'),
+    runtime_inventory_sha256:digest(value.runtime_inventory_sha256,'runtime_inventory_sha256'),
+    probes:Object.freeze({...probes}),
+  };
+  if(normalized.runner_implementation_sha256===normalized.runtime_execution_policy_sha256){
+    throw new TypeError('runner implementation and runtime execution policy must use distinct digests');
+  }
+  return Object.freeze(normalized);
+}
+
+export function buildMujocoExecutionAdmissionCandidate(input){
+  exactKeys(input,[
+    'm3CandidateSha','runtimeInventory','currentArtifactTrustPolicy','readRoots','limits','enforcementEvidence',
+  ],'MuJoCo execution admission input');
+  if(typeof input.m3CandidateSha!=='string'||!GIT_SHA.test(input.m3CandidateSha)){
     throw new TypeError('m3CandidateSha must be an exact 40-hex Git SHA');
   }
-  const inventory=validateMujocoRuntimeInventory(input.runtimeInventory);
+  const runtime=validateMujocoRuntimeInventory(input.runtimeInventory);
   const currentPolicy=validatedPolicy(input.currentArtifactTrustPolicy);
-  if (!Array.isArray(input.readRoots) || input.readRoots.length===0) {
-    throw new TypeError('readRoots must be a non-empty array');
-  }
-  plain(input.limits, 'limits');
+  if(!Array.isArray(input.readRoots)||input.readRoots.length===0) throw new TypeError('readRoots must be a non-empty array');
+  plain(input.limits,'limits');
 
-  const requiredDigests=[
-    inventory.launcher.sha256,
-    inventory.helper.sha256,
-    inventory.runtime_closure.sha256,
-    inventory.native_library.sha256,
+  const trustDigests=[
+    runtime.launcher.sha256,
+    runtime.helper.sha256,
+    runtime.wrapper.sha256,
+    runtime.runtime_closure.closure_sha256,
+    runtime.native_library.sha256,
+    ...runtime.plugin_libraries.map((plugin)=>plugin.sha256),
   ];
-  if (new Set(requiredDigests).size!==requiredDigests.length) {
-    throw new TypeError('launcher/helper/runtime-closure/native-library identities must be distinct');
-  }
-
-  const proposedPolicy=proposedTrustPolicy(currentPolicy,requiredDigests);
+  const proposedPolicy=proposedTrustPolicy(currentPolicy,trustDigests);
   const trustDelta=diffArtifactTrustPolicies(currentPolicy,proposedPolicy);
-  const launcherBasename=path.posix.basename(inventory.launcher.requested_path);
-  if (!launcherBasename || launcherBasename==='.' || launcherBasename==='..') {
-    throw new TypeError('runtime launcher basename is invalid');
-  }
 
   const helperPlan=buildMujocoEffectiveModelHelperPlan({
-    launcher:{basename:launcherBasename,sha256:inventory.launcher.sha256},
+    launcher:runtime.launcher,
     assets:[
-      {id:'effective-model-helper',sha256:inventory.helper.sha256},
-      {id:'mujoco-runtime-closure',sha256:inventory.runtime_closure.sha256},
-      {id:'mujoco-native-library',sha256:inventory.native_library.sha256},
+      {id:'effective-model-helper',sha256:runtime.helper.sha256},
+      {id:'mujoco-runtime-closure',sha256:runtime.runtime_closure.closure_sha256},
+      {id:'mujoco-native-library',sha256:runtime.native_library.sha256},
+      {id:'mujoco-runtime-wrapper',sha256:runtime.wrapper.sha256},
+      ...runtime.plugin_libraries.map((plugin,index)=>({
+        id:`mujoco-bundled-plugin-${String(index).padStart(3,'0')}`,
+        sha256:plugin.sha256,
+      })),
     ],
     artifactTrustPolicy:proposedPolicy,
     readRoots:input.readRoots,
     limits:input.limits,
   });
 
-  const permissionManifest=helperPlan.helper_requirements.runtime.permission_manifest;
-  const unresolved=[
-    ...(trustDelta.expanded?['artifact-trust-expansion-requires-independent-approval']:[]),
-    'runtime-inventory-requires-independent-review',
-    'runner-implementation-hash-not-bound',
-    'runtime-execution-policy-hash-not-bound',
-    'read-only-immutable-staging-enforcement-not-proven',
-    'toctou-hardlink-denial-not-proven',
-    'runtime-plugin-decoder-resource-provider-closure-not-independently-admitted',
+  const permission=helperPlan.helper_requirements.runtime.permission_manifest;
+  const permissionSha=permissionManifestDigest(permission);
+  const inventorySha=mujocoRuntimeInventoryDigest(runtime);
+
+  const unresolved=[];
+  if(trustDelta.expanded) unresolved.push('artifact-trust-expansion-requires-independent-approval');
+
+  let enforcement=null;
+  if(input.enforcementEvidence===null){
+    unresolved.push(
+      'enforcement-evidence-missing',
+      'runner-implementation-hash-not-bound',
+      'runtime-execution-policy-hash-not-bound',
+      'read-only-immutable-staging-enforcement-not-proven',
+      'toctou-hardlink-denial-not-proven',
+      'runtime-plugin-decoder-resource-provider-closure-not-independently-admitted',
+    );
+  }else{
+    enforcement=validateMujocoExecutionEnforcementEvidence(input.enforcementEvidence);
+    if(enforcement.permission_manifest_sha256!==permissionSha) unresolved.push('permission-manifest-digest-mismatch');
+    if(enforcement.runtime_inventory_sha256!==inventorySha) unresolved.push('runtime-inventory-digest-mismatch');
+  }
+  unresolved.push(
     't16-runtime-binding-not-created',
     'unique-execution-attempt-not-created',
     'independent-t20-t16-admission-verdict-required',
-  ];
+  );
+
+  const structuralBlockers=unresolved.filter((item)=>![
+    'artifact-trust-expansion-requires-independent-approval',
+    't16-runtime-binding-not-created',
+    'unique-execution-attempt-not-created',
+    'independent-t20-t16-admission-verdict-required',
+  ].includes(item));
 
   return Object.freeze({
     schema:MUJOCO_EXECUTION_ADMISSION_CANDIDATE,
     state:'NOT_ADMITTED',
+    review_readiness:structuralBlockers.length===0?'READY_FOR_INDEPENDENT_REVIEW':'BLOCKED',
     m3_candidate_sha:input.m3CandidateSha,
-    runtime_inventory_digest:mujocoRuntimeInventoryDigest(inventory),
-    runtime_inventory:inventory,
+    runtime_inventory_digest:inventorySha,
+    runtime_inventory:runtime,
     proposed_artifact_trust_policy:proposedPolicy,
     proposed_artifact_trust_policy_digest:artifactTrustPolicyDigest(proposedPolicy),
     artifact_trust_delta:trustDelta,
     helper_plan:helperPlan,
-    permission_manifest_digest:permissionManifestDigest(permissionManifest),
+    permission_manifest_digest:permissionSha,
+    enforcement_evidence:enforcement,
     required_runtime_identities:Object.freeze({
-      launcher_sha256:inventory.launcher.sha256,
-      helper_sha256:inventory.helper.sha256,
-      runtime_closure_sha256:inventory.runtime_closure.sha256,
-      native_library_sha256:inventory.native_library.sha256,
+      launcher_sha256:runtime.launcher.sha256,
+      helper_sha256:runtime.helper.sha256,
+      wrapper_sha256:runtime.wrapper.sha256,
+      runtime_closure_sha256:runtime.runtime_closure.closure_sha256,
+      native_library_sha256:runtime.native_library.sha256,
+      plugin_sha256:Object.freeze(runtime.plugin_libraries.map((plugin)=>plugin.sha256)),
     }),
     unresolved:Object.freeze(unresolved),
     execution_authorized:false,
-    note:'A1 evidence bundle only. Independent T20/T16 review must close every unresolved item before a real MuJoCo process may be launched.',
+    t16_runtime_binding_allowed:false,
+    note:'A1 evidence bundle only. Independent T20/T16 review must close the exact evidence package before a RuntimeBinding/attempt is created or real MuJoCo is launched.',
   });
 }
