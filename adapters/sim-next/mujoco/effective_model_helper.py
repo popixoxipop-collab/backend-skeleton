@@ -634,6 +634,11 @@ def main() -> int:
         except Exception as exc:
             raise HelperError("MODEL_COMPILE_FAILED", _safe_message(exc)) from exc
 
+        # Re-bind the exact staged bytes after compilation. T16 must provide a
+        # read-only staging mount; this second pass makes any observed drift
+        # fail closed instead of attaching M2 facts to stale pre-compile hashes.
+        verify_staged_source_closure(request["source_bundle"], staging_root)
+
         effective_model = extract_effective_model(
             model,
             mujoco,
