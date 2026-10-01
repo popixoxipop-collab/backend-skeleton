@@ -370,6 +370,7 @@ test('M4 complete structural evidence becomes review-ready only and still cannot
       runtime_execution_policy_sha256:'2'.repeat(64),
       permission_manifest_sha256:preliminary.permission_manifest_digest,
       runtime_inventory_sha256:mujocoRuntimeInventoryDigest(parsed),
+      probe_receipt_bundle_sha256:'3'.repeat(64),
       probes:{
         source_mount_read_only:true,
         runtime_mount_read_only:true,
@@ -415,6 +416,7 @@ test('M4 enforcement evidence must bind exact permission and runtime inventory d
       runtime_execution_policy_sha256:'2'.repeat(64),
       permission_manifest_sha256:'f'.repeat(64),
       runtime_inventory_sha256:'e'.repeat(64),
+      probe_receipt_bundle_sha256:'3'.repeat(64),
       probes:{
         source_mount_read_only:true,
         runtime_mount_read_only:true,
@@ -440,6 +442,61 @@ test('M4 enforcement evidence must bind exact permission and runtime inventory d
     assert.equal(candidate.review_readiness,'BLOCKED');
     assert.equal(candidate.unresolved.includes('permission-manifest-digest-mismatch'),true);
     assert.equal(candidate.unresolved.includes('runtime-inventory-digest-mismatch'),true);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4 enforcement evidence requires an exact negative-probe receipt bundle digest',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const preliminary=baseCandidate(parsed,null);
+    const enforcement={
+      schema:MUJOCO_EXECUTION_ENFORCEMENT_SCHEMA,
+      target:'SIM-mujoco',
+      runner_implementation_sha256:'1'.repeat(64),
+      runtime_execution_policy_sha256:'2'.repeat(64),
+      permission_manifest_sha256:preliminary.permission_manifest_digest,
+      runtime_inventory_sha256:mujocoRuntimeInventoryDigest(parsed),
+      probe_receipt_bundle_sha256:'3'.repeat(64),
+      probes:{
+        source_mount_read_only:true,
+        runtime_mount_read_only:true,
+        source_symlink_denied:true,
+        source_hardlink_denied:true,
+        source_write_denied:true,
+        runtime_write_denied:true,
+        network_connect_denied:true,
+        network_listen_denied:true,
+        unexpected_process_denied:true,
+        ambient_environment_empty:true,
+        pre_post_source_hash_equal:true,
+        runtime_closure_reverified:true,
+        stdlib_closure_reverified:true,
+        native_library_reverified:true,
+        native_dependency_closure_reverified:true,
+        plugin_closure_reverified:true,
+        decoder_closure_reverified:true,
+        resource_provider_closure_reverified:true,
+      },
+    };
+    const ok=baseCandidate(parsed,enforcement);
+    assert.equal(ok.enforcement_evidence.probe_receipt_bundle_sha256,'3'.repeat(64));
+
+    const missing=structuredClone(enforcement);
+    delete missing.probe_receipt_bundle_sha256;
+    assert.throws(
+      ()=>baseCandidate(parsed,missing),
+      /must contain exactly/,
+    );
+
+    const invalid={...enforcement,probe_receipt_bundle_sha256:'not-a-hash'};
+    assert.throws(
+      ()=>baseCandidate(parsed,invalid),
+      /probe_receipt_bundle_sha256 must be a lowercase SHA-256/,
+    );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
