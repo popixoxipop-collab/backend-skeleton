@@ -31,8 +31,12 @@ METADATA_REL = f"{DIST_INFO}/METADATA"
 NATIVE_REL = "mujoco/libmujoco.so.3.12.0"
 REQUIRED_BINDINGS = (
     "mujoco/__init__.py",
+    "mujoco/_callbacks.cpython-312-x86_64-linux-gnu.so",
+    "mujoco/_constants.cpython-312-x86_64-linux-gnu.so",
     "mujoco/_enums.cpython-312-x86_64-linux-gnu.so",
+    "mujoco/_errors.cpython-312-x86_64-linux-gnu.so",
     "mujoco/_functions.cpython-312-x86_64-linux-gnu.so",
+    "mujoco/_render.cpython-312-x86_64-linux-gnu.so",
     "mujoco/_specs.cpython-312-x86_64-linux-gnu.so",
     "mujoco/_structs.cpython-312-x86_64-linux-gnu.so",
 )
