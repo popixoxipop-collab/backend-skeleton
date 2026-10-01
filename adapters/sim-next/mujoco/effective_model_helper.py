@@ -563,6 +563,19 @@ def extract_effective_model(
     }
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise HelperError("REQUEST_INVALID", f"request contains duplicate JSON key: {key}")
+        out[key] = value
+    return out
+
+
+def _reject_json_constant(value: str) -> Any:
+    raise HelperError("REQUEST_INVALID", f"request contains non-standard JSON number: {value}")
+
+
 def _load_request() -> dict[str, Any]:
     raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
     if len(raw) > MAX_REQUEST_BYTES:
@@ -575,7 +588,11 @@ def _load_request() -> dict[str, Any]:
     except UnicodeDecodeError as exc:
         raise HelperError("REQUEST_INVALID", "request must be valid UTF-8") from exc
     try:
-        value = json.loads(text)
+        value = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_json_constant,
+        )
     except json.JSONDecodeError as exc:
         raise HelperError("REQUEST_INVALID", "request must contain valid JSON") from exc
     return validate_request(value)
