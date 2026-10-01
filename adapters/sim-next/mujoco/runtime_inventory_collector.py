@@ -44,6 +44,8 @@ MAX_REQUEST_BYTES = 1024 * 1024
 MAX_FILES = 20_000
 MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
+MAX_STDLIB_ROOTS = 8
+MAX_NATIVE_DEPENDENCY_FILES = 512
 
 
 class CollectError(Exception):
@@ -337,6 +339,8 @@ def main() -> int:
 
         if not isinstance(request["stdlib_roots"], list) or not request["stdlib_roots"]:
             fail("stdlib_roots must be a non-empty array")
+        if len(request["stdlib_roots"]) > MAX_STDLIB_ROOTS:
+            fail(f"stdlib_roots exceeds limit {MAX_STDLIB_ROOTS}")
         stdlib_roots = [
             absolute_path(item, f"stdlib_roots[{index}]", directory=True)
             for index, item in enumerate(request["stdlib_roots"])
@@ -344,6 +348,10 @@ def main() -> int:
 
         if not isinstance(request["native_dependency_files"], list):
             fail("native_dependency_files must be an array")
+        if len(request["native_dependency_files"]) > MAX_NATIVE_DEPENDENCY_FILES:
+            fail(
+                f"native_dependency_files exceeds limit {MAX_NATIVE_DEPENDENCY_FILES}"
+            )
         native_dependency_files: list[tuple[str, Path]] = []
         for index, item in enumerate(request["native_dependency_files"]):
             item = exact_keys(
@@ -387,6 +395,11 @@ def main() -> int:
             })
 
         files.sort(key=lambda entry: entry["path"])
+        if len(files) > MAX_FILES:
+            fail(f"combined runtime closure exceeds file-count limit {MAX_FILES}")
+        combined_size = sum(entry["size_bytes"] for entry in files)
+        if combined_size > MAX_TOTAL_BYTES:
+            fail("combined runtime closure exceeds aggregate byte limit")
         paths = [entry["path"] for entry in files]
         if len(paths) != len(set(paths)):
             fail("runtime inventory logical paths collide")
