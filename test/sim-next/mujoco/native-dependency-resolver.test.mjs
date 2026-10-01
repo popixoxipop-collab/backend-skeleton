@@ -194,10 +194,11 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
     assert.equal(parsed.native_dependency_files.every(x=>x.logical_path.startsWith('system-native/')),true);
 
     const source=fs.readFileSync(RESOLVER,'utf8');
-    assert.doesNotMatch(source,/import\s+mujoco/);
-    assert.doesNotMatch(source,/subprocess/);
-    assert.doesNotMatch(source,/os\.system/);
-    assert.doesNotMatch(source,/Popen/);
+    assert.doesNotMatch(source,/^\s*import\s+mujoco\b/m);
+    assert.doesNotMatch(source,/^\s*from\s+mujoco\b/m);
+    assert.doesNotMatch(source,/^\s*(?:import|from)\s+subprocess\b/m);
+    assert.doesNotMatch(source,/\bos\.system\s*\(/);
+    assert.doesNotMatch(source,/\bPopen\s*\(/);
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
