@@ -2362,6 +2362,22 @@ test('typescript-express: a finally write under an unbraced control header curre
 	], []);
 });
 
+// Over-conservative pins: main answered ['GET /real'] for these conditional writes; pinned as they are now, a follow-up may flip them.
+test('typescript-express: labelled or trailing-dot writes under a conditional header are currently read as definite', () => {
+	assertBodiesBeforeRoute([
+		['for', 'await (const item of items)', '  lbl: app = fakeApp'],
+		['while (a)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+		['for (const item of items)', '  try { cleanup() } finally { lbl: app = fakeApp }'],
+		['if (a) try { cleanup() } finally { lbl: app = fakeApp }'],
+		['if (a) cleanup(); else if (b)', '  try {} finally { lbl: app = fakeApp }'],
+		['let x = 1.', 'if (a)', '  app = fakeApp'],
+		['let x = 1.', 'while (a)', '  lbl: app = fakeApp'],
+		['let x', 'if (b) x = 1.', 'else', '  app = fakeApp'],
+		['if (a)', '  try { cleanup() } finally { lbl: app++ }'],
+		['if (a)', '  try { cleanup() } finally {', '    lbl:', '    app = fakeApp', '  }'],
+	], []);
+});
+
 test('typescript-express: initializer-free var redeclaration in a classic for preserves the trusted app', () => {
 	const root = writeTree({
 		'package.json': JSON.stringify({ name: 'x', dependencies: { express: '^4.18.2' } }),
