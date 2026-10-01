@@ -338,6 +338,30 @@ test('M4A bounds and sanitizes PT_INTERP before reading loader metadata',()=>{
   }
 });
 
+test('M4A recursively seeds nested MuJoCo plugin libraries',()=>{
+  const fx=fixture({pluginNeeded:[]});
+  try{
+    const nested=write(
+      fx.runtime,
+      'mujoco/plugin/nested/libnested-plugin.so',
+      elf64({needed:['libfoo.so']}),
+    );
+    const {child,parsed}=run(fx);
+    assert.equal(child.status,0,child.stderr);
+    const node=parsed.nodes.find(x=>x.path===nested);
+    assert.ok(node);
+    assert.equal(node.seed,true);
+    assert.equal(
+      parsed.edges.some(
+        edge=>edge.from===nested&&edge.needed==='libfoo.so',
+      ),
+      true,
+    );
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4A fails closed when a DT_NEEDED library resolves ambiguously',()=>{
   const fx=fixture({duplicateRoot:true});
   try{
