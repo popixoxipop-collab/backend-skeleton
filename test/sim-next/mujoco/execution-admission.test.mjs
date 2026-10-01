@@ -145,6 +145,7 @@ test('M4 collector inventories exact runtime bytes without importing or compilin
     assert.equal(child.stderr,'');
     assert.equal(parsed.schema,MUJOCO_RUNTIME_INVENTORY_SCHEMA);
     assert.equal(parsed.mujoco_version,'3.12.0');
+    assert.equal(parsed.collector.sha256,sha(fs.readFileSync(COLLECTOR)));
     assert.equal(parsed.runtime_closure.record_entries_expected,8);
     assert.equal(parsed.runtime_closure.record_entries_verified,8);
     assert.deepEqual(parsed.runtime_closure.unlisted_files,[]);
@@ -163,6 +164,26 @@ test('M4 collector inventories exact runtime bytes without importing or compilin
     const source=fs.readFileSync(COLLECTOR,'utf8');
     assert.doesNotMatch(source,/^\s*import\s+mujoco\b/m);
     assert.doesNotMatch(source,/MjModel|from_xml_path|mj_step|mj_forward/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4 inventory identity changes if collector identity is changed and candidate preserves collector SHA',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const original=mujocoRuntimeInventoryDigest(parsed);
+    const changed=structuredClone(parsed);
+    changed.collector.sha256='f'.repeat(64);
+    assert.notEqual(original,mujocoRuntimeInventoryDigest(changed));
+
+    const candidate=baseCandidate(parsed,null);
+    assert.equal(
+      candidate.required_runtime_identities.collector_sha256,
+      parsed.collector.sha256,
+    );
   }finally{
     fs.rmSync(fx.root,{recursive:true,force:true});
   }
