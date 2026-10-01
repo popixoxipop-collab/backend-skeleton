@@ -378,7 +378,13 @@ def main() -> int:
         ]
         plugins.sort(key=lambda entry: entry["path"])
 
-        launcher_resolved = Path(sys.executable).resolve(strict=True)
+        proc_exe = Path("/proc/self/exe")
+        if proc_exe.exists():
+            launcher_resolved = proc_exe.resolve(strict=True)
+        elif sys.executable:
+            launcher_resolved = Path(sys.executable).resolve(strict=True)
+        else:
+            fail("could not resolve the exact Python launcher executable")
         launcher_sha, _ = hash_file(launcher_resolved)
         helper_sha, _ = hash_file(helper)
         wrapper_sha, _ = hash_file(wrapper)
@@ -390,7 +396,7 @@ def main() -> int:
             "python_version": platform.python_version(),
             "mujoco_version": MUJOCO_VERSION,
             "launcher": {
-                "basename": Path(sys.executable).name,
+                "basename": launcher_resolved.name,
                 "sha256": launcher_sha,
             },
             "helper": {"sha256": helper_sha},
