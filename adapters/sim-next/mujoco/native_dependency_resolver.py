@@ -528,6 +528,8 @@ def resolve_closure(
             if not any(inside(interp_resolved, root) or interp_resolved == root for root in approved_roots):
                 fail(f"PT_INTERP resolves outside approved roots: {interp_resolved}")
             interpreter_files.add(interp_resolved)
+            if interp_resolved not in visited and interp_resolved not in queue:
+                queue.append(interp_resolved)
 
         needed_rows = []
         for name in dynamic["needed"]:
@@ -549,19 +551,12 @@ def resolve_closure(
             "interp": str(interp_resolved) if interp_resolved else None,
         }
 
-    for interp in sorted(interpreter_files, key=str):
-        if interp not in visited:
-            sha256, size = file_hash(interp)
-            visited[interp] = {
-                "path": str(interp),
-                "sha256": sha256,
-                "size_bytes": size,
-                "seed": False,
-                "needed": [],
-                "runpath": [],
-                "rpath": [],
-                "interp": None,
-            }
+    missing_interp = [path for path in interpreter_files if path not in visited]
+    if missing_interp:
+        fail(
+            "PT_INTERP files were not traversed: "
+            + ", ".join(str(path) for path in sorted(missing_interp, key=str))
+        )
 
     nodes = sorted(visited.values(), key=lambda row: row["path"])
     edges.sort(key=lambda row: (row["from"], row["needed"], row["to"]))
