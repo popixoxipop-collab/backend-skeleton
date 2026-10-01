@@ -52,7 +52,7 @@ A `promotion_evidence` entry that is ACCEPTED (required and observed) only remov
 - `{"kind": "file", "path": "<repo-relative path>", "sha256": "<64 hex>"}`: the file must be a regular file inside the repository (no absolute path, `.`, `..` or backslash; symlinks must resolve inside the repository) whose bytes hash to `sha256`; or
 - `{"kind": "waiver", "waiver": {"id", "approved_by", "approved_on" (YYYY-MM-DD), "scope", "reason"}}`: shape-checked only, not authenticated. Waivers are listed in the output's `waived_evidence`.
 
-`t01_06` points at `schemas/next/identity-conformance.json`. That pins the artifact. It does not pin the bskel 23/23 verifier run or the becoder/beval 12/12 replays, which stay narrative claims. `identity_conformance_sha256` (formerly `bskel_pack_sha256`) is checked against the same file, so any later edit of that file requires updating both hashes in `compatibility-inventory.json`.
+`t01_06` points at `schemas/next/identity-conformance.json`. That pins the artifact. It does not pin the bskel 23/23 verifier run or the becoder/beval 12/12 replays, which stay narrative claims. `identity_conformance_sha256` (formerly `bskel_pack_sha256`) is checked against the same file, so any later edit of that file requires updating both hashes in `compatibility-inventory.json`. The pin is checked only when the key is present: deleting it is not an error, and if `t01_06` then carries a `waiver` ref, nothing pins the file any more.
 
 ## Authenticated release evidence
 
