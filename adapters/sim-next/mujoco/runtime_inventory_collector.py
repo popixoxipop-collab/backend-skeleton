@@ -69,6 +69,8 @@ def absolute_path(value: Any, label: str, *, directory: bool | None = None) -> P
     path = Path(value)
     if not path.is_absolute():
         fail(f"{label} must be absolute")
+    if path.is_symlink():
+        fail(f"{label} must not be a symlink")
     try:
         resolved = path.resolve(strict=True)
     except (FileNotFoundError, OSError) as exc:
@@ -240,10 +242,28 @@ def read_request() -> dict[str, Any]:
     raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
     if len(raw) > MAX_REQUEST_BYTES:
         fail("collector request exceeds byte limit")
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in out:
+                fail(f"collector request contains duplicate JSON key: {key}")
+            out[key] = item
+        return out
+
+    def reject_constant(value: str) -> Any:
+        fail(f"collector request contains non-standard JSON number: {value}")
+
     try:
-        value = json.loads(raw.decode("utf-8"))
-    except Exception as exc:
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=unique_object,
+            parse_constant=reject_constant,
+        )
+    except UnicodeDecodeError as exc:
         fail("collector request must be valid UTF-8 JSON")
+        raise AssertionError from exc
+    except json.JSONDecodeError as exc:
+        fail("collector request must be valid JSON")
         raise AssertionError from exc
     value = exact_keys(
         value,
