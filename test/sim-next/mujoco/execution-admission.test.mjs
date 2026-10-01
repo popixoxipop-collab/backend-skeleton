@@ -217,6 +217,74 @@ test('M4 inventory rejects unlisted files symlinks stale closure hashes and miss
   }
 });
 
+test('M4 inventory pins Linux x86_64 Python 3.12 and the exact reviewed binding set',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    assert.match(parsed.python_version,/^3\\.12\\.\\d+$/);
+    assert.equal(parsed.platform,'Linux-x86_64');
+
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({...parsed,platform:'Linux-aarch64'}),
+      /platform must be Linux-x86_64/,
+    );
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({...parsed,python_version:'3.13.0'}),
+      /Python 3.12.x/,
+    );
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory({
+        ...parsed,
+        required_bindings:[...parsed.required_bindings,{path:'mujoco/extra.so',sha256:'a'.repeat(64)}],
+      }),
+      /must contain exactly the reviewed MuJoCo 3.12.0 binding set/,
+    );
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4 collector rejects duplicate-key/NaN wire input before filesystem inventory',()=>{
+  const fx=fixture();
+  try{
+    for(const raw of [
+      '{"protocol":"a","protocol":"b"}',
+      '{"protocol":NaN}',
+    ]){
+      const child=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
+        input:raw,encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024,
+      });
+      assert.notEqual(child.status,0);
+      assert.match(child.stderr,/M4_RUNTIME_INVENTORY_DENIED/);
+    }
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4 collector and wrapper reject helper symlink laundering before resolution',{
+  skip:process.platform==='win32',
+},()=>{
+  const fx=fixture();
+  try{
+    const real=fx.helper+'.real';
+    fs.renameSync(fx.helper,real);
+    fs.symlinkSync(path.basename(real),fx.helper);
+    const {child}=collect(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/must not be a symlink/);
+
+    const wrapper=spawnSync('python3',['-I','-S','-B',WRAPPER,fx.runtime,fx.helper,sha(fs.readFileSync(real))],{
+      encoding:'utf8',env:{},timeout:10_000,
+    });
+    assert.notEqual(wrapper.status,0);
+    assert.match(wrapper.stderr,/helper must not be a symlink/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 plugin list must enumerate the exact plugin closure',()=>{
   const fx=fixture();
   try{
@@ -289,8 +357,12 @@ test('M4 complete structural evidence becomes review-ready only and still cannot
         ambient_environment_empty:true,
         pre_post_source_hash_equal:true,
         runtime_closure_reverified:true,
+        stdlib_closure_reverified:true,
         native_library_reverified:true,
+        native_dependency_closure_reverified:true,
         plugin_closure_reverified:true,
+        decoder_closure_reverified:true,
+        resource_provider_closure_reverified:true,
       },
     };
     const candidate=baseCandidate(parsed,enforcement);
@@ -330,8 +402,12 @@ test('M4 enforcement evidence must bind exact permission and runtime inventory d
         ambient_environment_empty:true,
         pre_post_source_hash_equal:true,
         runtime_closure_reverified:true,
+        stdlib_closure_reverified:true,
         native_library_reverified:true,
+        native_dependency_closure_reverified:true,
         plugin_closure_reverified:true,
+        decoder_closure_reverified:true,
+        resource_provider_closure_reverified:true,
       },
     };
     const candidate=baseCandidate(parsed,bad);
