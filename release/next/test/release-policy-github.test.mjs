@@ -98,30 +98,47 @@ test('retries only network errors, 5xx and 429, at most three attempts, sleeping
   }
 });
 
-test('each attempt is aborted after timeoutMs (15 s by default) and the transport stops after three attempts', async () => {
-  const create = await load();
-  let attempts = 0;
-  const hang = (_url, init) => new Promise((_resolve, reject) => {
-    attempts += 1;
-    // AbortSignal.timeout() timers are unref-ed; a real socket keeps the loop alive, this double needs its own handle.
-    const keepAlive = setTimeout(() => {}, 2000);
-    init.signal.addEventListener('abort', () => {
-      clearTimeout(keepAlive);
-      reject(init.signal.reason ?? new Error('aborted'));
-    });
-  });
-  await assert.rejects(create({ env: {}, fetchImpl: hang, sleep: sleeper(), timeoutMs: 20 })(REQUEST), /after 3 attempts/);
-  assert.equal(attempts, 3);
-
+// Records the delay of every AbortSignal.timeout() call made while `body` runs.
+async function recordingTimeouts(body) {
   const original = AbortSignal.timeout;
   const requested = [];
   AbortSignal.timeout = (ms) => { requested.push(ms); return original.call(AbortSignal, ms); };
   try {
-    await create({ env: {}, fetchImpl: scripted(json(200, {})), sleep: sleeper() })(REQUEST);
+    await body();
   } finally {
     AbortSignal.timeout = original;
   }
-  assert.deepEqual(requested, [15000]);
+  return requested;
+}
+
+test('each attempt gets its own signal that aborts after timeoutMs (15 s by default) and the transport stops after three attempts', async () => {
+  const create = await load();
+  const signals = [];
+  // Behaves like fetch: an already aborted signal rejects at once, any other settles when it aborts. The 1 s guard is
+  // also the handle that keeps the event loop alive (AbortSignal.timeout() timers are unref-ed, a real socket is not),
+  // and it turns a signal that never aborts into a quick, distinguishable failure instead of a hang.
+  const hang = (_url, init) => new Promise((_resolve, reject) => {
+    signals.push(init.signal);
+    if (init.signal.aborted) {
+      reject(init.signal.reason);
+      return;
+    }
+    const guard = setTimeout(() => reject(new Error('the signal did not abort within 1 s')), 1000);
+    init.signal.addEventListener('abort', () => {
+      clearTimeout(guard);
+      reject(init.signal.reason);
+    });
+  });
+  const requested = await recordingTimeouts(() => assert.rejects(
+    create({ env: {}, fetchImpl: hang, sleep: sleeper(), timeoutMs: 20 })(REQUEST),
+    /^Error: GitHub API request failed after 3 attempts: TimeoutError/,
+  ));
+  assert.deepEqual(requested, [20, 20, 20], 'timeoutMs must reach every attempt');
+  assert.equal(signals.length, 3);
+  assert.equal(new Set(signals).size, 3, 'a signal that is reused stays aborted and fails the retries at once');
+
+  const byDefault = await recordingTimeouts(() => create({ env: {}, fetchImpl: scripted(json(200, {})), sleep: sleeper() })(REQUEST));
+  assert.deepEqual(byDefault, [15000]);
 });
 
 test('rejects a repository or run id that is not strictly well formed before any request is made', async () => {
