@@ -8,6 +8,8 @@ import {
 
 export const T11_SHADOW_PROJECTION_SCHEMA = 'bskel.internal.t11-shadow-projection/0';
 
+const ASYNC_PROJECTOR_MESSAGE = 'async projector results are not accepted by the synchronous T11 shadow shell';
+
 function nonEmptyString(value, name) {
   if (typeof value !== 'string' || value.trim() === '') throw new TypeError(name + ' must be a non-empty string');
   return value;
@@ -22,6 +24,25 @@ function deepFreeze(value) {
 
 function jsonClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+// An async projector returns a promise that may reject later. The caller already receives a
+// TypeError for it, so the rejection is absorbed here: left unhandled, Node ends the caller's process
+// with the projector's own error even though the caller caught ours.
+function assertNotThenable(projected) {
+  let then;
+  try {
+    then = projected.then;
+  } catch {
+    throw new TypeError(ASYNC_PROJECTOR_MESSAGE);
+  }
+  if (typeof then !== 'function') return;
+  try {
+    then.call(projected, undefined, () => {});
+  } catch {
+    // a then() that throws has no rejection left to observe
+  }
+  throw new TypeError(ASYNC_PROJECTOR_MESSAGE);
 }
 
 // T11-03 pre-freeze execution shell.
@@ -45,6 +66,8 @@ export function runLegacyHttpShadowProjection({
   nonEmptyString(projectorContract, 'projectorContract');
 
   const bridge = bridgeLegacyHttpScan({ adapter, report });
+  // The projector may hold a reference to `report`; everything below uses values read before it runs.
+  const adapterId = bridge.source_adapter.id;
   const legacySnapshot = legacyHttpSemanticSnapshot(report);
   const projectorInput = deepFreeze(jsonClone({
     bridge,
@@ -55,9 +78,7 @@ export function runLegacyHttpShadowProjection({
   if (!projected || typeof projected !== 'object' || Array.isArray(projected)) {
     throw new TypeError('projector must return an object');
   }
-  if (projected.then && typeof projected.then === 'function') {
-    throw new TypeError('async projector results are not accepted by the synchronous T11 shadow shell');
-  }
+  assertNotThenable(projected);
   if (projected.projector_contract !== projectorContract) {
     throw new Error('projector contract mismatch: expected "' + projectorContract + '", got "' +
       (projected.projector_contract ?? '(missing)') + '"');
@@ -65,9 +86,9 @@ export function runLegacyHttpShadowProjection({
   if (!projected.semantic_snapshot || projected.semantic_snapshot.schema !== LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA) {
     throw new Error('projector must return semantic_snapshot with schema ' + LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA);
   }
-  if (projected.semantic_snapshot.adapter !== report.adapter) {
+  if (projected.semantic_snapshot.adapter !== adapterId) {
     throw new Error('projected adapter "' + (projected.semantic_snapshot.adapter ?? '(missing)') +
-      '" does not match legacy adapter "' + report.adapter + '"');
+      '" does not match legacy adapter "' + adapterId + '"');
   }
 
   const parity = compareLegacyHttpSemanticSnapshots(
@@ -79,7 +100,7 @@ export function runLegacyHttpShadowProjection({
   return deepFreeze({
     schema: T11_SHADOW_PROJECTION_SCHEMA,
     mode: 'shadow-only',
-    adapter_id: report.adapter,
+    adapter_id: adapterId,
     projector_id: projectorId,
     projector_contract: projectorContract,
     authoritative_source: 'sbf.scan-report/2',

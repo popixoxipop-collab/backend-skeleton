@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runScan } from '../../scanners/index.mjs';
 import { ADAPTERS } from '../../scanners/registry.mjs';
 import { legacyHttpBaseline } from '../../adapters/http-legacy-next/baselines.mjs';
@@ -116,4 +117,70 @@ test('T11-03 synchronous shell rejects a Promise projector result', () => {
       semantic_snapshot: legacy_semantic_snapshot,
     }),
   }), /async projector/);
+});
+
+test('T11-03 a rejecting async projector leaves the caller running', () => {
+  const href = (...parts) => pathToFileURL(path.join(REPO_ROOT, ...parts)).href;
+  const baseline = legacyHttpBaseline('python-fastapi');
+  const script = `
+    import { runScan } from ${JSON.stringify(href('scanners', 'index.mjs'))};
+    import { ADAPTERS } from ${JSON.stringify(href('scanners', 'registry.mjs'))};
+    import { runLegacyHttpShadowProjection } from ${JSON.stringify(href('adapters', 'http-legacy-next', 'shadow-projection.mjs'))};
+    const report = runScan({ repoRoot: ${JSON.stringify(path.join(REPO_ROOT, baseline.fixture))}, terms: [] });
+    const adapter = ADAPTERS.find((item) => item.id === 'python-fastapi');
+    try {
+      runLegacyHttpShadowProjection({
+        adapter, report, projectorId: 'rejecting', projectorContract: 'fixture.projector/1',
+        projector: async () => { throw new Error('projector failed'); },
+      });
+      console.log('NO-THROW');
+    } catch (err) {
+      console.log('caught ' + err.constructor.name + ': ' + err.message);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    console.log('caller still running');
+  `;
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000,
+  });
+
+  assert.equal(child.status, 0, child.stderr);
+  assert.match(child.stdout, /caught TypeError: async projector results are not accepted/);
+  assert.match(child.stdout, /caller still running/);
+  assert.doesNotMatch(child.stderr, /projector failed/);
+});
+
+test('T11-03 a thenable whose then fails is still rejected as an async projector result', () => {
+  const { report, adapter } = fixture('python-fastapi');
+  const run = (projector) => () => runLegacyHttpShadowProjection({
+    adapter, report, projectorId: 'thenable', projectorContract: 'fixture.projector/1', projector,
+  });
+  const asyncRejection = (err) => err instanceof TypeError && /async projector/.test(err.message);
+
+  assert.throws(run(() => ({ then() { throw new Error('then exploded'); } })), asyncRejection);
+  assert.throws(run(() => Object.defineProperty({}, 'then', {
+    get() { throw new Error('getter exploded'); },
+  })), asyncRejection);
+  assert.throws(run(() => ({ then: () => {} })), asyncRejection);
+});
+
+test('T11-03 a projector cannot change the adapter by rewriting the report it closes over', () => {
+  const rewrite = (id, projectedAdapter) => {
+    const { report, adapter } = fixture(id);
+    return runLegacyHttpShadowProjection({
+      adapter, report, projectorId: 'rewriter', projectorContract: 'fixture.projector/1',
+      projector: ({ legacy_semantic_snapshot }) => {
+        report.adapter = 'python-fastapi';
+        return {
+          projector_contract: 'fixture.projector/1',
+          semantic_snapshot: { ...structuredClone(legacy_semantic_snapshot), adapter: projectedAdapter },
+        };
+      },
+    });
+  };
+
+  assert.throws(() => rewrite('java-spring', 'python-fastapi'), /does not match legacy adapter "java-spring"/);
+  const result = rewrite('java-spring', 'java-spring');
+  assert.equal(result.adapter_id, 'java-spring');
+  assert.equal(result.parity.equal, true);
 });
