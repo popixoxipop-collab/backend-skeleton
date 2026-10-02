@@ -498,6 +498,50 @@ test('M4A allows canonical $ORIGIN/.. RUNPATH inside the MuJoCo runtime root',()
   }
 });
 
+test('M4A treats the absent MuJoCo wheel build RUNPATH as inactive and resolves only the pinned libmujoco seed',()=>{
+  const stale='/tmpfs/src/git/mujoco_internal/build/lib';
+  assert.equal(fs.existsSync(stale),false,'real-wheel stale RUNPATH must be absent on the CI target');
+  const fx=fixture({
+    pluginNeeded:['libmujoco.so.3.12.0'],
+    pluginRunpath:stale,
+  });
+  try{
+    const {child,parsed}=run(fx);
+    assert.equal(child.status,0,child.stderr);
+    const plugin=parsed.nodes.find(x=>x.path.endsWith('/mujoco/plugin/libplugin-fixture.so'));
+    assert.ok(plugin);
+    assert.deepEqual(plugin.runpath,[stale]);
+    assert.equal(
+      parsed.edges.some(
+        e=>e.from===plugin.path
+          && e.needed==='libmujoco.so.3.12.0'
+          && e.to.endsWith('/mujoco/libmujoco.so.3.12.0'),
+      ),
+      true,
+    );
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4A still rejects an existing absolute RUNPATH outside approved roots',()=>{
+  const fx=fixture({pluginNeeded:['libmujoco.so.3.12.0']});
+  const outside=path.join(fx.root,'existing-unapproved-runpath');
+  try{
+    fs.mkdirSync(outside,{recursive:true});
+    write(
+      fx.runtime,
+      'mujoco/plugin/libplugin-fixture.so',
+      elf64({needed:['libmujoco.so.3.12.0'],runpath:outside}),
+    );
+    const {child}=run(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/dynamic search path is outside approved roots/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4A rejects unsupported dynamic-loader tokens and relative runpaths',()=>{
   for(const runpath of ['$LIB','relative/lib']){
     const fx=fixture({seedRunpath:runpath});
