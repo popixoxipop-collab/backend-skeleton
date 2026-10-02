@@ -1,0 +1,2 @@
+# Historical-replay fixtures are sha256-pinned bytes: never convert line endings on checkout.
+test/fixtures/historical-replay/** -text

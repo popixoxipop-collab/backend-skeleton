@@ -6,7 +6,9 @@
 //   * the current interpretation (classification, operation ids, reader name, verdicts) equals the
 //     interpretation recorded when the old code read the same bytes,
 //   * old evidence stays readable (identity refs, gate attestation, run/evidence binding, protocol
-//     item refs) and its pinned snapshot refs (git commit shas, ArtifactRefs) still resolve.
+//     item refs) and every record's provenance commit is a 40-hex sha that is a member of
+//     PINNED_SNAPSHOT_COMMITS (and matches its tag). git is not consulted, so this does not prove the
+//     commit still exists in any repository.
 // Fixtures live in test/fixtures/historical-replay/ (see manifest.json for per-record provenance and
 // scripts/historical-replay-generate.mjs for how they were produced).
 //
