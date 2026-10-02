@@ -94,7 +94,7 @@ The output is:
 The runtime-closure identity is a canonical SHA-256 over the full sorted file inventory, not merely
 the wheel RECORD digest.
 
-The closure remains bounded. The file-count ceiling is 50,000 and the aggregate-byte ceiling remains
+Both the filesystem collector and the independent admission validator enforce the same bound. The closure remains bounded. The file-count ceiling is 50,000 and the aggregate-byte ceiling remains
 16 GiB. The real Alienware/WSL target was observed filesystem-only at 39,437 regular files under the
 runtime import root, 1,213 regular files under the single approved Python stdlib root, and 21 explicit
 native dependency files (40,671 combined before symlink-only entries). The prior 20,000 ceiling therefore
