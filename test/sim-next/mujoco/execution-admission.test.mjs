@@ -151,6 +151,13 @@ function baseCandidate(parsed,enforcementEvidence=null){
   });
 }
 
+test('M4 collector keeps full-runtime file ceiling bounded above observed Alienware closure',()=>{
+  const src=fs.readFileSync(COLLECTOR,'utf8');
+  assert.match(src,/MAX_FILES = 50_000/);
+  assert.doesNotMatch(src,/MAX_FILES = 20_000/);
+  assert.match(src,/MAX_TOTAL_BYTES = 16 \* 1024 \* 1024 \* 1024/);
+});
+
 test('M4 collector inventories exact runtime bytes without importing or compiling MuJoCo',()=>{
   const fx=fixture();
   try{
