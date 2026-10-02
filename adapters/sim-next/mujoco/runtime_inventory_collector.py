@@ -45,6 +45,7 @@ MAX_FILES = 50_000
 MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 MAX_STDLIB_ROOTS = 8
+MAX_STDLIB_SYMLINK_TARGETS = 32
 MAX_NATIVE_DEPENDENCY_FILES = 512
 
 
@@ -173,10 +174,21 @@ def classify_runtime_file(path: str) -> str:
     return "resource"
 
 
-def inventory_tree(root: Path, prefix: str = "") -> tuple[list[dict[str, Any]], list[str]]:
+def inventory_tree(
+    root: Path,
+    prefix: str = "",
+    *,
+    stdlib_root_index: int | None = None,
+    approved_stdlib_symlinks: dict[tuple[int, str], Path] | None = None,
+    observed_stdlib_symlinks: set[tuple[int, str]] | None = None,
+) -> tuple[list[dict[str, Any]], list[str], list[dict[str, Any]]]:
     files: list[dict[str, Any]] = []
     symlinks: list[str] = []
+    stdlib_symlink_bindings: list[dict[str, Any]] = []
     total = 0
+    approved = approved_stdlib_symlinks or {}
+    observed = observed_stdlib_symlinks if observed_stdlib_symlinks is not None else set()
+
     for directory, dirnames, filenames in os.walk(root, followlinks=False):
         directory_path = Path(directory)
 
@@ -186,6 +198,7 @@ def inventory_tree(root: Path, prefix: str = "") -> tuple[list[dict[str, Any]], 
             rel = child.relative_to(root).as_posix()
             logical = f"{prefix}/{rel}" if prefix else rel
             if child.is_symlink():
+                # Directory symlinks are never part of the approved stdlib binding contract.
                 symlinks.append(logical)
             else:
                 kept_dirs.append(name)
@@ -196,8 +209,49 @@ def inventory_tree(root: Path, prefix: str = "") -> tuple[list[dict[str, Any]], 
             rel = child.relative_to(root).as_posix()
             logical = f"{prefix}/{rel}" if prefix else rel
             if child.is_symlink():
-                symlinks.append(logical)
+                key = (stdlib_root_index, rel) if stdlib_root_index is not None else None
+                expected = approved.get(key) if key is not None else None
+                if expected is None:
+                    symlinks.append(logical)
+                    continue
+                try:
+                    resolved = child.resolve(strict=True)
+                except (FileNotFoundError, OSError) as exc:
+                    fail(f"approved stdlib symlink target does not exist: {logical}")
+                    raise AssertionError from exc
+                if resolved != expected:
+                    fail(f"approved stdlib symlink resolved target mismatch: {logical}")
+                if resolved.is_symlink() or not resolved.is_file():
+                    fail(f"approved stdlib symlink must resolve to a regular file: {logical}")
+                try:
+                    link_target = os.readlink(child)
+                except OSError as exc:
+                    fail(f"approved stdlib symlink link text cannot be read: {logical}")
+                    raise AssertionError from exc
+                if not link_target or len(link_target) > 4096 or "\x00" in link_target:
+                    fail(f"approved stdlib symlink link text is invalid: {logical}")
+                sha256, size = hash_file(resolved)
+                total += size
+                if total > MAX_TOTAL_BYTES:
+                    fail("runtime closure exceeds aggregate byte limit")
+                files.append({
+                    "path": logical,
+                    "sha256": sha256,
+                    "size_bytes": size,
+                    "kind": "stdlib",
+                })
+                stdlib_symlink_bindings.append({
+                    "path": logical,
+                    "link_target": link_target,
+                    "resolved_path": str(resolved),
+                    "sha256": sha256,
+                    "size_bytes": size,
+                })
+                observed.add(key)
+                if len(files) > MAX_FILES:
+                    fail(f"runtime closure exceeds file-count limit {MAX_FILES}")
                 continue
+
             sha256, size = hash_file(child)
             total += size
             if total > MAX_TOTAL_BYTES:
@@ -211,7 +265,7 @@ def inventory_tree(root: Path, prefix: str = "") -> tuple[list[dict[str, Any]], 
             })
             if len(files) > MAX_FILES:
                 fail(f"runtime closure exceeds file-count limit {MAX_FILES}")
-    return files, symlinks
+    return files, symlinks, stdlib_symlink_bindings
 
 
 def unhashed_record_reason(relative: str) -> str:
@@ -336,6 +390,7 @@ def read_request() -> dict[str, Any]:
             "helper_path",
             "wrapper_path",
             "stdlib_roots",
+            "stdlib_symlink_targets",
             "native_dependency_files",
         },
         "collector request",
@@ -365,6 +420,36 @@ def main() -> int:
             absolute_path(item, f"stdlib_roots[{index}]", directory=True)
             for index, item in enumerate(request["stdlib_roots"])
         ]
+
+        if not isinstance(request["stdlib_symlink_targets"], list):
+            fail("stdlib_symlink_targets must be an array")
+        if len(request["stdlib_symlink_targets"]) > MAX_STDLIB_SYMLINK_TARGETS:
+            fail(f"stdlib_symlink_targets exceeds limit {MAX_STDLIB_SYMLINK_TARGETS}")
+        approved_stdlib_symlinks: dict[tuple[int, str], Path] = {}
+        for index, item in enumerate(request["stdlib_symlink_targets"]):
+            item = exact_keys(
+                item,
+                {"root_index", "path", "resolved_path"},
+                f"stdlib_symlink_targets[{index}]",
+            )
+            root_index = item["root_index"]
+            if (
+                not isinstance(root_index, int)
+                or isinstance(root_index, bool)
+                or root_index < 0
+                or root_index >= len(stdlib_roots)
+            ):
+                fail(f"stdlib_symlink_targets[{index}].root_index is invalid")
+            rel = logical_path(item["path"], f"stdlib_symlink_targets[{index}].path")
+            resolved = absolute_path(
+                item["resolved_path"],
+                f"stdlib_symlink_targets[{index}].resolved_path",
+                directory=False,
+            )
+            key = (root_index, rel)
+            if key in approved_stdlib_symlinks:
+                fail("stdlib_symlink_targets contains duplicate root/path binding")
+            approved_stdlib_symlinks[key] = resolved
 
         if not isinstance(request["native_dependency_files"], list):
             fail("native_dependency_files must be an array")
@@ -400,14 +485,31 @@ def main() -> int:
             record_unhashed,
         ) = parse_record(runtime_root)
 
-        site_files, site_symlinks = inventory_tree(runtime_root)
+        site_files, site_symlinks, site_stdlib_symlink_bindings = inventory_tree(runtime_root)
+        if site_stdlib_symlink_bindings:
+            fail("runtime import root cannot contain approved stdlib symlink bindings")
         files = list(site_files)
         symlinks = list(site_symlinks)
+        stdlib_symlink_bindings: list[dict[str, Any]] = []
+        observed_stdlib_symlinks: set[tuple[int, str]] = set()
 
         for index, root in enumerate(stdlib_roots):
-            entries, links = inventory_tree(root, prefix=f"python-stdlib-{index}")
+            entries, links, bindings = inventory_tree(
+                root,
+                prefix=f"python-stdlib-{index}",
+                stdlib_root_index=index,
+                approved_stdlib_symlinks=approved_stdlib_symlinks,
+                observed_stdlib_symlinks=observed_stdlib_symlinks,
+            )
             files.extend(entries)
             symlinks.extend(links)
+            stdlib_symlink_bindings.extend(bindings)
+
+        missing_stdlib_symlinks = sorted(
+            set(approved_stdlib_symlinks) - observed_stdlib_symlinks
+        )
+        if missing_stdlib_symlinks:
+            fail("approved stdlib symlink target was not observed")
 
         for logical, file_path in native_dependency_files:
             sha256, size = hash_file(file_path)
@@ -419,6 +521,7 @@ def main() -> int:
             })
 
         files.sort(key=lambda entry: entry["path"])
+        stdlib_symlink_bindings.sort(key=lambda entry: entry["path"])
         if len(files) > MAX_FILES:
             fail(f"combined runtime closure exceeds file-count limit {MAX_FILES}")
         combined_size = sum(entry["size_bytes"] for entry in files)
@@ -492,6 +595,7 @@ def main() -> int:
                 "record_unhashed_entries": record_unhashed,
                 "unlisted_files": unlisted,
                 "symlinks": sorted(symlinks),
+                "stdlib_symlink_bindings": stdlib_symlink_bindings,
                 "files": files,
             },
             "native_library": {
