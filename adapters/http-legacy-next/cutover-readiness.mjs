@@ -37,7 +37,8 @@ export function evaluateLegacyHttpCutoverReadiness({ adapterId, checks } = {}) {
   const normalized = {};
   const blockers = [];
   for (const [name, blocker] of CHECKS) {
-    const value = requireBoolean(checks[name], `checks.${name}`);
+    // Own properties only: a gate inherited from a prototype must not count as an answer.
+    const value = requireBoolean(Object.hasOwn(checks, name) ? checks[name] : undefined, `checks.${name}`);
     normalized[name] = value;
     if (!value) blockers.push(blocker);
   }

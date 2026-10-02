@@ -5,7 +5,13 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runScan } from '../../scanners/index.mjs';
 import { ADAPTERS } from '../../scanners/registry.mjs';
-import { legacyHttpBaseline } from '../../adapters/http-legacy-next/baselines.mjs';
+import { LEGACY_HTTP_ADAPTER_IDS, legacyHttpBaseline } from '../../adapters/http-legacy-next/baselines.mjs';
+import { bridgeLegacyHttpScan } from '../../adapters/http-legacy-next/bridge.mjs';
+import {
+  LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA,
+  legacyHttpSemanticDigest,
+  legacyHttpSemanticSnapshot,
+} from '../../adapters/http-legacy-next/parity.mjs';
 import {
   runLegacyHttpShadowProjection,
   T11_SHADOW_PROJECTION_SCHEMA,
@@ -183,4 +189,192 @@ test('T11-03 a projector cannot change the adapter by rewriting the report it cl
   const result = rewrite('java-spring', 'java-spring');
   assert.equal(result.adapter_id, 'java-spring');
   assert.equal(result.parity.equal, true);
+});
+
+const identityProjector = ({ legacy_semantic_snapshot }) => ({
+  projector_contract: 'fixture.projector/1',
+  semantic_snapshot: structuredClone(legacy_semantic_snapshot),
+});
+
+function shadow(id, overrides = {}) {
+  const { report, adapter } = fixture(id);
+  const result = runLegacyHttpShadowProjection({
+    adapter,
+    report,
+    projectorId: 'fixture-identity-projector',
+    projectorContract: 'fixture.projector/1',
+    projector: identityProjector,
+    ...overrides,
+  });
+  return { report, adapter, result };
+}
+
+test('T11-03 each legacy adapter gets a shadow result that names it, its projector and its digests', () => {
+  for (const id of LEGACY_HTTP_ADAPTER_IDS) {
+    const { report, result } = shadow(id);
+    assert.equal(result.adapter_id, id, id);
+    assert.equal(result.projector_id, 'fixture-identity-projector', id);
+    assert.equal(result.projector_contract, 'fixture.projector/1', id);
+    assert.equal(result.legacy_semantic_sha256, legacyHttpSemanticDigest(report), id);
+    assert.equal(result.projected_semantic_sha256, result.legacy_semantic_sha256, id);
+    assert.deepEqual(result.parity, { equal: true, diffs: [], truncated: false }, id);
+    assert.equal(result.promotion_allowed, false, id);
+  }
+});
+
+test('T11-03 the legacy digest comes from the legacy snapshot and the projected digest from the projection', () => {
+  const { report, result } = shadow('javascript-express', {
+    projector: ({ legacy_semantic_snapshot }) => {
+      const semantic_snapshot = structuredClone(legacy_semantic_snapshot);
+      semantic_snapshot.verdict = 'drifted';
+      return { projector_contract: 'fixture.projector/1', semantic_snapshot };
+    },
+  });
+  const drifted = legacyHttpSemanticSnapshot(report);
+  drifted.verdict = 'drifted';
+
+  assert.equal(result.legacy_semantic_sha256, legacyHttpSemanticDigest(report));
+  assert.equal(result.projected_semantic_sha256, legacyHttpSemanticDigest(drifted));
+  assert.notEqual(result.legacy_semantic_sha256, result.projected_semantic_sha256);
+});
+
+test('T11-03 the projector receives the bridge and the legacy snapshot, both frozen, and nothing else', () => {
+  const { report, adapter } = fixture('ruby-rails');
+  let seen;
+  runLegacyHttpShadowProjection({
+    adapter,
+    report,
+    projectorId: 'spy',
+    projectorContract: 'fixture.projector/1',
+    projector: (input) => {
+      seen = input;
+      return identityProjector(input);
+    },
+  });
+
+  assert.deepEqual(Object.keys(seen).sort(), ['bridge', 'legacy_semantic_snapshot']);
+  assert.equal(seen.legacy_semantic_snapshot.schema, LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA);
+  assert.deepEqual(seen.legacy_semantic_snapshot, legacyHttpSemanticSnapshot(report));
+  assert.deepEqual(seen.bridge, bridgeLegacyHttpScan({ adapter, report }));
+  assert.equal(seen.bridge.source_adapter.id, 'ruby-rails');
+  for (const part of [seen, seen.bridge, seen.bridge.legacy_report, seen.legacy_semantic_snapshot]) {
+    assert.ok(Object.isFrozen(part));
+  }
+});
+
+test('T11-03 the shadow result is deeply frozen and states that the legacy scan stays authoritative', () => {
+  const { result } = shadow('java-spring', {
+    projector: ({ legacy_semantic_snapshot }) => {
+      const semantic_snapshot = structuredClone(legacy_semantic_snapshot);
+      semantic_snapshot.confidence = 'drifted';
+      return { projector_contract: 'fixture.projector/1', semantic_snapshot };
+    },
+  });
+
+  for (const part of [result, result.parity, result.parity.diffs, result.parity.diffs[0], result.notes]) {
+    assert.ok(Object.isFrozen(part));
+  }
+  assert.throws(() => { result.promotion_allowed = true; }, TypeError);
+  assert.throws(() => { result.parity.equal = true; }, TypeError);
+  assert.throws(() => { result.parity.diffs.push({}); }, TypeError);
+  assert.throws(() => { result.notes.push('extra'); }, TypeError);
+  assert.equal(result.notes.length, 3);
+  assert.match(result.notes[0], /The stable legacy scan remains authoritative/);
+});
+
+test('T11-03 the shell validates its own arguments before it runs the projector', () => {
+  const { report, adapter } = fixture('python-fastapi');
+  let calls = 0;
+  const countingProjector = (input) => {
+    calls += 1;
+    return identityProjector(input);
+  };
+  const run = (overrides = {}) => () => runLegacyHttpShadowProjection({
+    adapter,
+    report,
+    projectorId: 'id',
+    projectorContract: 'fixture.projector/1',
+    projector: countingProjector,
+    ...overrides,
+  });
+
+  for (const bad of [undefined, null, 'projector', 42, {}]) {
+    assert.throws(run({ projector: bad }), /projector must be a function/, String(bad));
+  }
+  for (const bad of [undefined, null, '', '   ', 7, {}]) {
+    assert.throws(run({ projectorId: bad }), /projectorId must be a non-empty string/, String(bad));
+    assert.throws(run({ projectorContract: bad }), /projectorContract must be a non-empty string/, String(bad));
+  }
+  assert.throws(() => runLegacyHttpShadowProjection(), /projector must be a function/);
+  assert.equal(calls, 0);
+
+  assert.equal(run()().parity.equal, true);
+  assert.equal(calls, 1);
+});
+
+test('T11-03 a projector must return an object carrying its contract, a snapshot and the same adapter', () => {
+  const { report, adapter } = fixture('typescript-express');
+  const run = (projector) => () => runLegacyHttpShadowProjection({
+    adapter, report, projectorId: 'id', projectorContract: 'fixture.projector/1', projector,
+  });
+  const snapshot = () => legacyHttpSemanticSnapshot(report);
+
+  for (const bad of [undefined, null, 'text', 42, true, []]) {
+    assert.throws(run(() => bad), /^TypeError: projector must return an object$/, String(bad));
+  }
+  assert.throws(
+    run(() => ({ semantic_snapshot: snapshot() })),
+    /projector contract mismatch: expected "fixture\.projector\/1", got "\(missing\)"/,
+  );
+  assert.throws(
+    run(() => ({ projector_contract: 'other/9', semantic_snapshot: snapshot() })),
+    /projector contract mismatch: expected "fixture\.projector\/1", got "other\/9"/,
+  );
+  for (const bad of [undefined, null, {}, { schema: 'other' }]) {
+    assert.throws(
+      run(() => ({ projector_contract: 'fixture.projector/1', semantic_snapshot: bad })),
+      (err) => err.message === `projector must return semantic_snapshot with schema ${LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA}`,
+      JSON.stringify(bad),
+    );
+  }
+  assert.throws(
+    run(() => ({
+      projector_contract: 'fixture.projector/1',
+      semantic_snapshot: { schema: LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA },
+    })),
+    /projected adapter "\(missing\)" does not match legacy adapter "typescript-express"/,
+  );
+  assert.throws(
+    run(() => ({
+      projector_contract: 'fixture.projector/1',
+      semantic_snapshot: { ...snapshot(), adapter: 'java-spring' },
+    })),
+    /projected adapter "java-spring" does not match legacy adapter "typescript-express"/,
+  );
+});
+
+test('T11-03 the shell hands maxDiffs to the comparison and reports truncation', () => {
+  const { report, adapter } = fixture('java-spring');
+  const threeDifferences = ({ legacy_semantic_snapshot }) => {
+    const semantic_snapshot = structuredClone(legacy_semantic_snapshot);
+    semantic_snapshot.confidence = 'drift-1';
+    semantic_snapshot.verdict = 'drift-2';
+    semantic_snapshot.api_surface_source = 'drift-3';
+    return { projector_contract: 'fixture.projector/1', semantic_snapshot };
+  };
+  const run = (extra = {}) => runLegacyHttpShadowProjection({
+    adapter, report, projectorId: 'id', projectorContract: 'fixture.projector/1', projector: threeDifferences, ...extra,
+  });
+
+  const all = run();
+  assert.equal(all.parity.diffs.length, 3);
+  assert.equal(all.parity.truncated, false);
+
+  const capped = run({ maxDiffs: 2 });
+  assert.equal(capped.parity.diffs.length, 2);
+  assert.equal(capped.parity.truncated, true);
+  assert.equal(capped.parity.equal, false);
+
+  assert.throws(() => run({ maxDiffs: 0 }), /maxDiffs must be an integer from 1 through 1000/);
+  assert.throws(() => run({ maxDiffs: 1001 }), /maxDiffs must be an integer from 1 through 1000/);
 });

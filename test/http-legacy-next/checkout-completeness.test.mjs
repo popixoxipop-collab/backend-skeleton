@@ -57,8 +57,8 @@ function git(root, ...args) {
   return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
-function makeRepo(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-sparse-'));
+function makeRepoAt(root, files) {
+  fs.mkdirSync(root, { recursive: true });
   execFileSync('git', ['init', '--quiet', '--initial-branch=main', root]);
   for (const [rel, content] of Object.entries(files)) {
     const file = path.join(root, rel);
@@ -68,6 +68,10 @@ function makeRepo(files) {
   execFileSync('git', ['-C', root, 'add', '-A']);
   execFileSync('git', ['-C', root, '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'fixture']);
   return root;
+}
+
+function makeRepo(files) {
+  return makeRepoAt(fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-sparse-')), files);
 }
 
 function sparse(root, ...cone) {
@@ -476,5 +480,50 @@ test('T11 corpus completeness validates its arguments', () => {
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness refuses a checkout whose git working tree is configured elsewhere', () => {
+  const root = makeRepo({ 'pyproject.toml': PYPROJECT, 'app/main.py': FASTAPI_APP });
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-elsewhere-'));
+  try {
+    // `git config` cannot write the setting through the repository it would break, so edit the file.
+    execFileSync('git', ['config', '--file', path.join(root, '.git', 'config'), 'core.worktree', elsewhere]);
+    assert.equal(fs.realpathSync(git(root, 'rev-parse', '--show-toplevel')), fs.realpathSync(elsewhere));
+
+    assert.throws(
+      () => inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' }),
+      /repoRoot escapes its git toplevel/,
+    );
+    assert.throws(
+      () => assertLegacyCorpusCheckoutComplete({ repoRoot: root, adapterId: 'ruby-rails' }),
+      /repoRoot escapes its git toplevel/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness keeps whitespace at both ends of the checkout directory name', () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-spaced-'));
+  try {
+    const root = makeRepoAt(path.join(parent, ' spaced checkout '), {
+      'pyproject.toml': PYPROJECT,
+      'app/main.py': FASTAPI_APP,
+      'tests/test_api.py': 'def test_x(): pass\n',
+    });
+
+    const full = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(full.complete, true);
+    assert.equal(full.mode, 'full-working-tree');
+    assert.equal(full.project_root, '.');
+
+    sparse(root, 'app');
+    const partial = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(partial.mode, 'sparse-readset-verified');
+    assert.deepEqual(partial.missing_paths, ['tests/test_api.py']);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 });
