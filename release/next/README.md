@@ -57,6 +57,10 @@ Neither kind proves what the evidence says. A `file` ref proves that a file with
 
 `t01_06` points at `schemas/next/identity-conformance.json`. That pins the artifact. It does not pin the bskel 23/23 verifier run or the becoder/beval 12/12 replays, which stay narrative claims. `identity_conformance_sha256` (formerly `bskel_pack_sha256`) is checked against the same file, so any later edit of that file requires updating both hashes in `compatibility-inventory.json`. The pin is checked only when the key is present: deleting it is not an error, and if `t01_06` then carries a `waiver` ref, nothing pins the file any more.
 
+`t01_06.current_rerun` in `compatibility-inventory.json` repeats the 23/23 and 12/12 checks on the mains of 2026-10-02. It is a re-run by the author of that change on one host, not an independent review and not signed evidence; the older strings are kept as old narrative, each naming its own earlier anchor. Nothing checks either.
+
+The prerequisites T00-01, T00-04A, T00-05 and T01-06 in `release-plan.json` carry a `coordination_ref`. It names the exact commits and git blob SHAs of the control artifacts that exist only on the coordination branch `scale/T00/bootstrap-baseline` of `popixoxipop-collab/backend-skeleton` (they are not merged to main). `verify` ignores it, because it checks only `id`, `required_state` and `observed_state` of each prerequisite, so a wrong SHA or an orphaned one (the branch force-pushed or deleted) is not detected. To check an entry: after `git fetch origin scale/T00/bootstrap-baseline`, `git rev-parse <commit>:<path>` prints the `blob`, and `git merge-base --is-ancestor <commit> <cited_at_tip>` exits 0.
+
 ## Authenticated release evidence
 
 A content hash alone proves artifact integrity, not who produced the assertion. Release PASS evidence therefore requires an external T00-pinned Ed25519 authority.

@@ -1,6 +1,47 @@
 {
   "evidence": "sbf.t01-compatibility-evidence/1",
-  "status": "partial-blocked-on-consumers-and-t00-freeze",
+  "status": "accepted-additive-compatibility-candidate-prefreeze",
+  "scope_note": "status, scope_note, current_state and interpretation were updated on 2026-10-02 so that this file, release/next/compatibility-inventory.json and contracts/next/README.md state one T01-05 and T01-06 state. Every other section (observed_at through conformance_pack, including remaining_requirements and interpretation_at_observation) is the observation of 2026-09-25 at the backend-skeleton head named in package_source and is left as written, as history: it still shows consumer results 'not-submitted' and both former consumer pull requests closed without merge, which is no longer the current state. Nothing in code or tests reads this file.",
+  "current_state": {
+    "recorded_on": "2026-10-02",
+    "t01_05": "PASS on the coordination record: gates.T01.verdict is PASS(T01-05_CONSUMER_COMPATIBILITY) in integration/scale/T00-05-execution-state.json on the branch scale/T00/bootstrap-baseline of popixoxipop-collab/backend-skeleton, first recorded at commit b9b5ee7180123b93271529fcfcd0896444ce3d34 (blob e9def64715a91a7a8f1e1c7cca138dd8787e6b2b). The gate details in that record name backend-skeleton PR 82 head e499073aaa7fe9c116e30fbff0536cccecb6eb69 and T19 review head 52d1cd1980cc40b52dd48c601fbdcb6ab6ffcf82; package_source below names PR 82 head 303358738861387524020ae07c23a1a1d0cc8b0d. The consumer contract tests behind T01-05 were re-run and pass on 2026-10-02.",
+    "t01_06": "ACCEPTED on the coordination record: promotion_gate.t01_06.state in the same file, first recorded at commit 2d226b1b14f533ba181300ca955ff4969dba0c66 (blob 2ce7433858e9321e5c41f58676a4135780c855d4). Scope is additive consumer compatibility against the candidate-prefreeze identity-conformance pack only, with default_activation false and release false. The checks behind it were re-run and pass on 2026-10-02.",
+    "evidence_location": "release/next/release-plan.json (coordination_ref on T01-06 and on the T00 prerequisites) and release/next/compatibility-inventory.json (promotion_evidence.t01_06.current_rerun).",
+    "requirements": [
+      {
+        "applies_to": "remaining_requirements items 1 and 2 (counted from 1)",
+        "status": "MET_BY_RERUN",
+        "basis": "Both consumer repositories replay the pack and emit sbf.identity-consumer-result/1 with 12/12 passing: becoder through scripts/t01-next-identity-compatibility-smoke.mjs, beval through lib/next-runtime/identity-consumer.mjs. Re-run on 2026-10-02 (inventory promotion_evidence.t01_06.current_rerun). This file does not say which of the labels T15 and T16 names which repository."
+      },
+      {
+        "applies_to": "remaining_requirements item 3",
+        "status": "MET_BY_RERUN",
+        "basis": "verifyRequiredConsumerSet accepted both results on 2026-10-02, 12 verified cases each. The beval result was produced by calling replayIdentityConformanceBytes on a checkout, and the set was built by a scratch script that is not committed. No consumer-set result is bound in evidence-manifest.json, which has no entries."
+      },
+      {
+        "applies_to": "remaining_requirements item 4",
+        "status": "MET_BY_RERUN",
+        "basis": "becoder: the smoke script packs both repositories, installs both tarballs and replays 12/12. beval: npm run test:pack installs backend-evaluator-0.1.0.tgz and replays 12/12 without backend-skeleton installed. Both re-run on 2026-10-02 at the heads recorded in the inventory."
+      },
+      {
+        "applies_to": "remaining_requirements item 5",
+        "status": "NOT_LOCATED",
+        "basis": "No approval record for the private cross-repo artifact or credential handoff was found in the coordination files read for this update."
+      },
+      {
+        "applies_to": "remaining_requirements item 6",
+        "status": "PARTLY",
+        "basis": "T00-04A is ACTIVE_CORE_FREEZE for four core T01 blobs, and T00 coordination recorded T01-06 ACCEPTED. The final freeze of the pack, the verifier and the result and set schemas has not happened, so the acceptance is additive and the pack stays candidate-prefreeze."
+      }
+    ],
+    "not_established": [
+      "A final freeze. schemas/next/identity-conformance.json is still status candidate-prefreeze, and the T00-04A core freeze pins four core T01 blobs only (contracts/next/identity.mjs, schemas/next/artifact-ref.schema.json, schemas/next/identity-envelope.schema.json, schemas/next/identity.golden.json).",
+      "Signed or bound consumer-set evidence. evidence-manifest.json has no entries, and the release check 'T01-06 accepted consumer-set evidence' is NOT_RUN.",
+      "An independent re-run. The 2026-10-02 re-run was done by the author of this update on one macOS host (Node v24.19.0).",
+      "An approval record for the private cross-repo handoff (requirement 5).",
+      "A release, a default-writer change, a cutover, or any runtime behaviour of a consumer beyond the 12 reviewed identity vectors."
+    ]
+  },
   "observed_at": "2026-09-25T04:31:13.280Z",
   "package_source": {
     "repository": "popixoxipop-collab/backend-skeleton",
@@ -80,6 +121,7 @@
     }
   },
   "external_consumer_state": {
+    "as_of": "2026-09-25 observation; superseded by current_state",
     "becoder": {
       "repository": "popixoxipop-collab/backend-decoder",
       "former_pull_request": 8,
@@ -95,6 +137,7 @@
     }
   },
   "coordination": {
+    "as_of": "2026-09-25 observation; superseded by current_state",
     "t00_state": "T01 exact-byte semantics accepted only as T00-04A candidate; activation still blocked by baseline infrastructure/freeze gates",
     "t19_state": "valid evidence candidate; not covered/certified",
     "t18_state": "protocol shadow consumer uses T01-shaped exact ArtifactRef without claiming ownership"
@@ -107,7 +150,8 @@
     "T00/T20/T23 approve the private cross-repo artifact or credential handoff without weakening repository privacy.",
     "T00-04 activation/final freeze authorizes compatibility promotion."
   ],
-  "interpretation": "Package-side identity and result-verifier evidence is green. T01-05 and T01-06 are not complete until independent consumer results and coordination gates are satisfied.",
+  "interpretation_at_observation": "Package-side identity and result-verifier evidence is green. T01-05 and T01-06 are not complete until independent consumer results and coordination gates are satisfied.",
+  "interpretation": "On the coordination record T01-05 passes and T01-06 is accepted, and the checks behind them reproduced on 2026-10-02. That is additive compatibility against the candidate-prefreeze pack only: not a final freeze, not signed evidence, not an independent re-run, and no release, default-writer change or cutover. See current_state.not_established.",
   "conformance_pack": {
     "path": "schemas/next/identity-conformance.json",
     "byte_sha256": "2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42",

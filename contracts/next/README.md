@@ -112,13 +112,20 @@ No stable writer, CLI entry point, adapter descriptor, package lock, `sbf_contra
 
 ## T01 task mapping
 
-| Task | State after this slice | Evidence |
+| Task | State | Evidence |
 |---|---|---|
 | T01-01 existing wire contract audit | implemented as baseline assertions | existing golden digests replayed by production serializer |
 | T01-02 vNext boundary RFC | implemented as opt-in artifact ref + HTTP-only envelope | this document and schemas |
 | T01-03 dual reader + schema | implemented | `readIdentity`, schema tests |
 | T01-04 identity/hash golden vectors | implemented for this slice | legacy replay + exact-byte artifact + envelope vectors |
-| T01-05 consumer contract tests | not complete | becoder/beval independent readers still need cross-repo work |
-| T01-06 compatibility promotion evidence | not complete | requires packed artifacts and cross-repo replay |
+| T01-05 consumer contract tests | PASS on the T00 coordination record (additive, candidate pre-freeze); re-run 2026-10-02 | `gates.T01.verdict` in `integration/scale/T00-05-execution-state.json` on the branch `scale/T00/bootstrap-baseline`, first at commit `b9b5ee7180123b93271529fcfcd0896444ce3d34`; `release/next/compatibility-inventory.json` `promotion_evidence.t01_06.current_rerun` |
+| T01-06 compatibility promotion evidence | ACCEPTED on the T00 coordination record (additive only); re-run 2026-10-02 | `promotion_gate.t01_06` in the same file, first at commit `2d226b1b14f533ba181300ca955ff4969dba0c66`; `release/next/release-plan.json` `coordination_ref` |
 
-T01-05 and T01-06 are intentionally not marked complete by backend-skeleton unit tests alone.
+The unit tests in this directory do not decide T01-05 or T01-06 by themselves. The decision is recorded on the coordination branch `scale/T00/bootstrap-baseline` of this repository (the commits named above) and is not merged to main; `release/next/release-plan.json` carries the exact commit and blob SHAs, and `release-policy.mjs verify` does not check them.
+
+The acceptance covers additive consumer compatibility against the **candidate pre-freeze** pack only:
+
+- It is not a final freeze. The T00-04A core freeze pins `contracts/next/identity.mjs`, `schemas/next/artifact-ref.schema.json`, `schemas/next/identity-envelope.schema.json` and `schemas/next/identity.golden.json`; the conformance pack, the verifier and the result and set schemas are not named there.
+- It is not signed release evidence: `release/next/evidence-manifest.json` has no entries.
+- It is not a release, a default-writer change or a cutover, and legacy HTTP identity stays authoritative.
+- The 2026-10-02 re-run was done by the author of that change on one host; it is not an independent review. `test/contract-next/t01-compatibility-evidence.json` keeps the 2026-09-25 observation and adds its `current_state`.

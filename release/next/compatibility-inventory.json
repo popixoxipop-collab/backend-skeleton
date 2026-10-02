@@ -116,7 +116,63 @@
       "beval_main": "f7189e4208f04867b493c7d874a77325ad84afa3",
       "beval_ci_run": 36264131522,
       "merge_tree_relation": "main ahead 1, behind 0, file delta 0",
-      "rebind_note": "Values above were recorded at the earlier anchors named in each string and were NOT re-run at the T00-E re-pinned heads by the rebind change."
+      "rebind_note": "Values above were recorded at the earlier anchors named in each string and were NOT re-run at the T00-E re-pinned heads by the rebind change.",
+      "narrative_claims_note": "OLD NARRATIVE. bskel_verifier, becoder_packed_replay, beval_candidate_head, beval_candidate_pr, beval_direct_packed_replay, note, beval_main, beval_ci_run and merge_tree_relation are the coordination narrative of 2026-09-26 and 2026-09-27, left unchanged. Nothing checks them: evidence_ref does not cover them and evidence-manifest.json has no entries. Each names its own older anchor, and those anchors are not the heads pinned in this file. current_rerun repeats the same checks on the mains of 2026-10-02.",
+      "current_rerun": {
+        "observed_on": "2026-10-02",
+        "scope": "The same checks as the narrative fields, re-run by the author of this change on one macOS host (Node v24.19.0) at the then-current main of each repository. A re-run, not an independent review and not signed evidence: evidence-manifest.json stays empty and the release check 'T01-06 accepted consumer-set evidence' stays NOT_RUN. The heads pinned in repositories[] and coordination_baseline are not changed by this block.",
+        "heads": {
+          "bskel": "7cabdb5ebeab70985d23d6f33b0990151e5958a9",
+          "becoder": "ebfff2205244f4866655476a828f05b9bf971cff",
+          "beval": "3119c8f8711cdaee665e79345498d2210910fed1"
+        },
+        "bskel_verifier": "23 pass, 0 fail, 0 cancelled, 0 skipped: node --test test/contract-next/contract-identity-next.test.mjs test/contract-next/identity-conformance.test.mjs test/contract-next/package-identity-next.test.mjs test/contract-next/consumer-conformance.test.mjs",
+        "becoder_packed_replay": "12/12 PASS, exit 0, bskel runtime imported false and spawned false, pack sha256 2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42: node scripts/t01-next-identity-compatibility-smoke.mjs --bskel-root <bskel checkout at 7cabdb5ebeab70985d23d6f33b0990151e5958a9> --consumer-commit ebfff2205244f4866655476a828f05b9bf971cff. The script runs npm pack on both repositories, installs both tarballs into a scratch project, and requires six schema and data files of the installed becoder package to be byte-identical to the installed backend-skeleton copies. Also node --test test/next-identity-consumer-result.test.mjs: 9 pass, 0 fail.",
+        "beval_packed_replay": "12/12 PASS without backend-skeleton installed or child_process: npm run test:pack (installed package smoke passed: backend-evaluator-0.1.0.tgz). Also node --test test/next-runtime/identity-conformance.test.mjs: 2 pass, 0 fail.",
+        "consumer_set": "verifyRequiredConsumerSet (contracts/next/consumer-conformance.mjs at the bskel head above) accepted both results, 12 verified cases each, required repositories popixoxipop-collab/backend-decoder and popixoxipop-collab/Backend-evaluation, pack sha256 2df0d860428cb8b6bcc1bcdb560f06ccd1257b3937af65448011a1f0d0c1ec42. The becoder result is the output of the smoke script. The beval result came from calling replayIdentityConformanceBytes in lib/next-runtime/identity-consumer.mjs of the checkout, not from the installed tarball. The harness was a scratch script and is not committed.",
+        "t01_paths_unchanged": {
+          "method": "git diff --quiet <anchor> <head> -- <paths> exits 0 (no difference). The anchors are the commits named in the narrative fields plus the heads pinned in this file.",
+          "bskel": {
+            "paths": [
+              "contracts/next",
+              "schemas/next",
+              "test/contract-next"
+            ],
+            "identical_at": [
+              "bb18182c54a3a8f682ed2d1a6bac26749fcf267e",
+              "1cdd848a5aa97ff558c0574da70fedb899131ff7"
+            ]
+          },
+          "becoder": {
+            "paths": [
+              "lib/next/identity-consumer.mjs",
+              "lib/next/identity-consumer-result.mjs",
+              "schemas/next",
+              "scripts/t01-next-identity-compatibility-smoke.mjs",
+              "test/next-identity-consumer-result.test.mjs"
+            ],
+            "identical_at": [
+              "eb8164560ddd343306234a9140dc89c001519792",
+              "0f0abcea1337335fc44b943932ad3c5f3fbaad6c"
+            ]
+          },
+          "beval": {
+            "paths": [
+              "lib/next-runtime/identity-consumer.mjs",
+              "lib/next-runtime/vendor",
+              "scripts/package-install-smoke.mjs",
+              "test/next-runtime/identity-conformance.test.mjs"
+            ],
+            "identical_at": [
+              "37f07ec374ff5ad7b93264fb8034b0148d043a05",
+              "f7189e4208f04867b493c7d874a77325ad84afa3",
+              "020668cdc2f5a836e78dfe05fd845ea58769a0e9"
+            ]
+          },
+          "pack_blob": "519ae080631cebeed9f3426365ce661f361d90b3 in bskel schemas/next/identity-conformance.json and in beval lib/next-runtime/vendor/t01/identity-conformance.json"
+        },
+        "limits": "The consumer commit inside each result is an argument given to the script, so a result file alone does not prove which commit produced it; the checkouts were at the heads above. GitHub Actions runs on these heads were not read for this block. Nothing here shows a release, a default-writer change, a cutover, or runtime behaviour of any consumer beyond the 12 reviewed identity vectors."
+      }
     },
     "t19_03": {
       "required_state": "ACCEPTED",
