@@ -343,19 +343,40 @@ test('T11 corpus completeness expects every file the Rails scanner reads, whiche
 
     // ripgrep anchors the scanner's `!tmp/**`-style excludes at its working directory, so the Gemfiles
     // below those trees are skipped by a scan that runs from inside the project directory and read by
-    // a scan that runs from anywhere else. The first scan runs from a directory of this test's own, so
-    // what it reads does not depend on where the test process was started; the checks are relations
-    // between the guard and the two scans, never the scanner's own counts.
+    // a scan that runs from anywhere else. The scans run from a directory of this test's own, so what
+    // they read does not depend on where the test process was started. The guard may require more than
+    // a scan reads but never less, so the checks are containment between file sets, never the
+    // scanner's own counts: the test stays green if the scanner stops reading the extra Gemfiles.
     process.chdir(elsewhere);
     const fromElsewhere = runScan({ repoRoot: projectDir, terms: [] });
     assert.equal(fromElsewhere.adapter, 'ruby-rails');
-    assert.equal(result.expected_tracked_read_files, fromElsewhere.files_read.length);
-
     process.chdir(projectDir);
     const fromInside = runScan({ repoRoot: projectDir, terms: [] });
-    assert.deepEqual(fromInside.files_read.filter((file) => !fromElsewhere.files_read.includes(file)), []);
-    assert.ok(fromElsewhere.files_read.length >= fromInside.files_read.length);
+    process.chdir(startDir);
+
+    // The guard's required set, read back from the guard: with the working tree emptied, every required
+    // file is reported missing.
+    for (const entry of fs.readdirSync(projectDir)) {
+      if (entry !== '.git') fs.rmSync(path.join(projectDir, entry), { recursive: true, force: true });
+    }
+    const bare = inspectLegacyCorpusCheckout({ repoRoot: projectDir, adapterId: 'ruby-rails', maxMissing: 1000 });
+    assert.equal(bare.complete, false);
+    assert.equal(bare.missing_count, result.expected_tracked_read_files);
+    assert.equal(bare.missing_paths.length, result.expected_tracked_read_files);
+    const required = new Set(bare.missing_paths);
+    const scanned = new Set([...fromElsewhere.files_read, ...fromInside.files_read]);
+
+    assert.ok(fromElsewhere.files_read.length > 0 && fromInside.files_read.length > 0);
+    assert.deepEqual([...scanned].filter((file) => !required.has(file)), [], 'a file a scan reads is not required');
+    assert.ok(result.expected_tracked_read_files >= fromElsewhere.files_read.length);
     assert.ok(result.expected_tracked_read_files >= fromInside.files_read.length);
+    // Without knowing where the scan runs, the guard may only over-require Gemfile markers; the decoy
+    // directories of this fixture (config_old, libs, app/models_old, ...) must stay out of the set.
+    assert.deepEqual(
+      [...required].filter((file) => !scanned.has(file) && !/(^|\/)Gemfile(\.lock)?$/.test(file)),
+      [],
+      'the guard requires a file no scan reads and that is no Gemfile marker',
+    );
   } finally {
     process.chdir(startDir);
     fs.rmSync(elsewhere, { recursive: true, force: true });
@@ -816,5 +837,31 @@ test('T11 corpus completeness sends a present file with a skip-worktree bit down
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(python, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness fails closed when git cannot list the index', () => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+  });
+  try {
+    assert.equal(inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' }).complete, true);
+
+    // The 12-byte index header alone: HEAD and the unset sparse flag still resolve, but no entry can be
+    // listed, so the skip-worktree bit cannot be read and a full checkout must not be assumed.
+    fs.truncateSync(path.join(root, '.git', 'index'), 12);
+    assert.throws(() => git(root, 'ls-files', '-t', '-z'), Error, 'git itself rejects the truncated index');
+    assert.match(git(root, 'rev-parse', 'HEAD'), /^[0-9a-f]{40,64}$/);
+
+    for (const adapterId of ['python-fastapi', 'javascript-express']) {
+      assert.throws(() => inspectLegacyCorpusCheckout({ repoRoot: root, adapterId }), /git ls-files -t -z failed/);
+    }
+    assert.throws(
+      () => assertLegacyCorpusCheckoutComplete({ repoRoot: root, adapterId: 'python-fastapi' }),
+      /git ls-files -t -z failed/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

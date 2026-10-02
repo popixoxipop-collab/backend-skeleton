@@ -6,8 +6,8 @@ is not declared complete.
 
 Provenance: ported from the draft PR 77 branch `scale/t11-http-legacy-modernization` at head
 `5d328f906dd81fde508c1cd652a6ab159e22a29e`. The stage began as a byte-identical port of the modules
-listed below. Fixes that followed two rounds of read-only substitute review of this stage (neither is
-an independent attestation) changed `parity.mjs`, `shadow-projection.mjs`, `cutover-readiness.mjs`,
+listed below. Fixes that followed read-only review by substitute agent reviewers (not an independent
+attestation) changed `parity.mjs`, `shadow-projection.mjs`, `cutover-readiness.mjs`,
 `checkout-completeness.mjs` and their tests, and added `bridge.test.mjs`. `baselines.mjs`,
 `bridge.mjs` and `baseline.test.mjs` are still byte-identical to that head. This document is
 rewritten to describe what this stage ships. Numbers that PR 77 recorded from the producer machine
