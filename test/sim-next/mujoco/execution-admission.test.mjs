@@ -241,6 +241,34 @@ test('M4 runtime closure digest changes when any file identity changes',()=>{
   assert.notEqual(original,runtimeClosureDigest([{...files[0],size_bytes:2},files[1]]));
 });
 
+test('M4 runtime inventory validator accepts the measured >20k closure but rejects >50k',()=>{
+  const fx=fixture();
+  try{
+    const {child,parsed}=collect(fx);
+    assert.equal(child.status,0,child.stderr);
+    const expanded=structuredClone(parsed);
+    const files=[...expanded.runtime_closure.files];
+    const needed=20_001-files.length;
+    for(let i=0;i<needed;i++){
+      files.push({
+        path:`extra-runtime/file-${String(i).padStart(5,'0')}.bin`,
+        sha256:sha(Buffer.from(`extra-${i}`)),
+        size_bytes:0,
+        kind:'resource',
+      });
+    }
+    expanded.runtime_closure.files=files;
+    expanded.runtime_closure.closure_sha256=runtimeClosureDigest(files);
+    assert.equal(validateMujocoRuntimeInventory(expanded).runtime_closure.files.length,20_001);
+    assert.throws(
+      ()=>runtimeClosureDigest(Array.from({length:50_001},()=>null)),
+      /runtime_closure\.files must contain 1\.\.50000 entries/,
+    );
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 inventory rejects unlisted files symlinks stale closure hashes and missing bindings',()=>{
   const fx=fixture();
   try{
