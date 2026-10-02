@@ -18,12 +18,7 @@ export const SUITES = [
   { id: 'T08', sourcePaths: ['scanners/language/native-server'], testDir: 'test/language-native-server' },
   { id: 'T09', sourcePaths: ['contracts/reconciliation-next'], testDir: 'test/reconciliation-next' },
   { id: 'T10', sourcePaths: ['scanners/persistence-next'], testDir: 'test/persistence-next' },
-  {
-    id: 'T11',
-    sourcePaths: ['adapters/http-legacy-next'],
-    testDir: 'test/http-legacy-next',
-    expectedAbsent: { reason: 'T11 legacy modernization not on main', ref: 'backend-skeleton#77' }
-  },
+  { id: 'T11', sourcePaths: ['adapters/http-legacy-next'], testDir: 'test/http-legacy-next' },
   { id: 'T12', sourcePaths: ['adapters/http-wave-a'], testDir: 'test/http-wave-a' },
   { id: 'T13', sourcePaths: ['adapters/http-wave-bc'], testDir: 'test/http-wave-bc' },
   { id: 'T14', sourcePaths: ['handles/composition-next'], testDir: 'test/provider-composition-next' },
