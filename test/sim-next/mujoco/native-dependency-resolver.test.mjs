@@ -527,7 +527,7 @@ test('M4A rejects a nonexistent RUNPATH when an existing prefix is a symlink',{
   try{
     const outside=path.join(fx.root,'outside-prefix-target');
     fs.mkdirSync(outside,{recursive:true});
-    const link=path.join(fx.runtime,'mujoco','plugin','linked-prefix');
+    const link=path.join(fx.runtime,'linked-prefix');
     fs.symlinkSync(outside,link);
     const runpath=path.join(link,'missing-child');
     const plugin=path.join(fx.runtime,'mujoco','plugin','libplugin-fixture.so');
