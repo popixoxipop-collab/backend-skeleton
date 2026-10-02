@@ -520,6 +520,27 @@ test('M4A ignores a nonexistent absolute build-time RUNPATH and resolves only fr
   }
 });
 
+test('M4A rejects a nonexistent RUNPATH when an existing prefix is a symlink',{
+  skip:process.platform==='win32',
+},()=>{
+  const fx=fixture({pluginNeeded:['libbar.so']});
+  try{
+    const outside=path.join(fx.root,'outside-prefix-target');
+    fs.mkdirSync(outside,{recursive:true});
+    const link=path.join(fx.runtime,'mujoco','plugin','linked-prefix');
+    fs.symlinkSync(outside,link);
+    const runpath=path.join(link,'missing-child');
+    const plugin=path.join(fx.runtime,'mujoco','plugin','libplugin-fixture.so');
+    fs.writeFileSync(plugin,elf64({needed:['libbar.so'],runpath}));
+
+    const {child}=run(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/dynamic search path contains symlink component/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4A still rejects an existing absolute RUNPATH outside approved roots',()=>{
   const fx=fixture({pluginNeeded:['libbar.so']});
   try{
