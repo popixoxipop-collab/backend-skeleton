@@ -15,6 +15,7 @@ export const MUJOCO_EXECUTION_ADMISSION_CANDIDATE='sbf.sim-mujoco-execution-admi
 const SHA256=/^[0-9a-f]{64}$/;
 const GIT_SHA=/^[0-9a-f]{40}$/;
 const VERSION='3.12.0';
+const MAX_RUNTIME_FILES=50_000;
 const REQUIRED_BINDINGS=Object.freeze([
   'mujoco/__init__.py',
   'mujoco/_callbacks.cpython-312-x86_64-linux-gnu.so',
@@ -99,7 +100,7 @@ function fileEntry(value,label){
 }
 
 function validateFiles(value){
-  if(!Array.isArray(value)||value.length===0||value.length>20000) throw new TypeError('runtime_closure.files must contain 1..20000 entries');
+  if(!Array.isArray(value)||value.length===0||value.length>MAX_RUNTIME_FILES) throw new TypeError(`runtime_closure.files must contain 1..${MAX_RUNTIME_FILES} entries`);
   const files=value.map((entry,index)=>fileEntry(entry,`runtime_closure.files[${index}]`));
   const sorted=[...files].sort((a,b)=>a.path.localeCompare(b.path));
   if(new Set(sorted.map((x)=>x.path)).size!==sorted.length) throw new TypeError('runtime_closure.files contains duplicate paths');
