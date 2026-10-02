@@ -189,7 +189,15 @@ def inventory_tree(
     approved = approved_stdlib_symlinks or {}
     observed = observed_stdlib_symlinks if observed_stdlib_symlinks is not None else set()
 
-    for directory, dirnames, filenames in os.walk(root, followlinks=False):
+    def walk_error(exc: OSError) -> None:
+        location = exc.filename if isinstance(exc.filename, str) and exc.filename else str(root)
+        fail(f"runtime inventory traversal failed: {location}")
+
+    for directory, dirnames, filenames in os.walk(
+        root,
+        followlinks=False,
+        onerror=walk_error,
+    ):
         directory_path = Path(directory)
 
         kept_dirs = []
