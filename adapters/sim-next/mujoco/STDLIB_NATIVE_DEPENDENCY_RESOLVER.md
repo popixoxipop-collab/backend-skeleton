@@ -4,11 +4,11 @@ Status: A1 evidence producer / **not admission authority**.
 
 Upstream authority is frozen to:
 
-- M4 #209: `ccf872caa35dc5947765eeb87436179f45b294c2`;
-- Q4-approved M4A #219: `8b7c4977f4c212a4df28cae0fdc795f38796d901`;
-- M4A tree: `b427b86cd7a2ead0ab7a16a5de0209f009f135c3`;
+- M4 #209: `0f980b713a5669f329e9dabc3c4ef7333909859e`;
+- Q4-approved M4A #219: `8172ee29d535db7c608bce60ba103ddf97f20634`;
+- M4A tree: `2c1c65d1ae91101debce7600e062828350511181`;
 - approved resolver SHA-256:
-  `08cfcbfeff4cd7d61c1617329544771a466716186190245bf1a868eefbb33ba3`;
+  `9e0ddc4daa28e05a68086ab11b3475652644ffff19ab24eb8f19708aeaeab7a5`;
 - Q4 #200 verdict: `PASS_FOR_M4A_NATIVE_DEPENDENCY_REVIEW`.
 
 ## Purpose
