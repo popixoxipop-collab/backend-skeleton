@@ -256,6 +256,47 @@ test('M4 collector binds only server-approved stdlib symlink targets and closure
   }
 });
 
+test('M4 collector fails closed when runtime inventory traversal reports a scandir error',()=>{
+  const fx=fixture();
+  try{
+    const harness=write(fx.root,'walk-denial.py',[
+      'import importlib.util',
+      'import pathlib',
+      'import sys',
+      '',
+      'spec = importlib.util.spec_from_file_location("m4_runtime_inventory_collector", sys.argv[1])',
+      'module = importlib.util.module_from_spec(spec)',
+      'spec.loader.exec_module(module)',
+      '',
+      'def denied_walk(root, *args, **kwargs):',
+      '    callback = kwargs.get("onerror")',
+      '    if callback is None:',
+      '        raise RuntimeError("inventory walk omitted fail-closed onerror callback")',
+      '    callback(PermissionError(13, "permission denied", str(pathlib.Path(root) / "blocked")))',
+      '    return iter(())',
+      '',
+      'module.os.walk = denied_walk',
+      'try:',
+      '    module.inventory_tree(pathlib.Path(sys.argv[2]))',
+      'except module.CollectError as exc:',
+      '    if "runtime inventory traversal failed:" not in str(exc):',
+      '        raise',
+      '    raise SystemExit(0)',
+      'raise SystemExit(3)',
+      '',
+    ].join('\n'));
+    const child=spawnSync('python3',['-I','-S','-B',harness,COLLECTOR,fx.stdlib],{
+      encoding:'utf8',
+      env:{},
+      timeout:10_000,
+      maxBuffer:1024*1024,
+    });
+    assert.equal(child.status,0,`stdout=${child.stdout}\nstderr=${child.stderr}`);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 inventory identity changes if collector identity is changed and candidate preserves collector SHA',()=>{
   const fx=fixture();
   try{
