@@ -8,7 +8,7 @@ Status date: 2026-09-25. This file describes the T20-owned branch only. It is no
 |---|---|---|
 | T20-01 threat model / asset classification | implemented | independent integration review only |
 | T20-02 permission manifest / policy | implemented and focused-tested | stable integration/packaging remains T00/T23 |
-| T20-03 sandbox enforcement | **BLOCKED on 2026-09-25; see the update below** | admitted T16/T00-04B effective runner/profile + OS/container/network/socket/device enforcement |
+| T20-03 sandbox enforcement | **BLOCKED on 2026-09-25** (historical). Current (bskel `main` at `ad24e0d8`, checked 2026-10-03): acceptance is not recorded; bskel `release/next/release-plan.json` lists T20-03 as `NOT_ACCEPTED` (required `ACCEPTED`), although enforcement code now exists in `popixoxipop-collab/Backend-evaluation`. See the update below | 2026-09-25 text: admitted T16/T00-04B effective runner/profile + OS/container/network/socket/device enforcement. Current: not re-evaluated for this update; whether the Backend-evaluation slice meets the acceptance criteria is not decided here (see the update below) |
 | T20-04 digest/signature/revocation | data plane + Ed25519 verification implemented | production trust-root distribution/revocation freshness + runtime use remain unapproved |
 | T20-05 malicious fixture regression | 20-case spec + evidence evaluator implemented | 14 runner/evidence cases require actual external execution evidence |
 | T20-06 security closeout | readiness evaluator implemented | cannot be ready until T20-03/T20-05 actual evidence, zero leaks/orphans, downgrade rehearsal, no blockers |

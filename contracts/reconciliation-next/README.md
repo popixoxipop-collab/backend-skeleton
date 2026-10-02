@@ -92,13 +92,13 @@ wiring. T00/T23's required `nested-next` dispatcher now explicitly executes the 
 exact-head evidence must show `NESTED_SUITE T09 RUN 7 files` and terminal counts on Node 22/24.
 Generic root-test success alone is still not T09 focused evidence.
 
-The current T09 suite contains **110 tests**:
+The T09 suite at `main` `ad24e0d8` contains **113 tests** (the total the command above reports):
 
 - 19 field-decision regressions,
 - 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
 - 22 OpenAPI context/root/operation-security/duplicate-ID/schema-presence/context-provenance regressions,
 - 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
-- 22 exact ArtifactRef/T16 binding/evidence regressions,
+- 25 exact ArtifactRef/T16 binding/evidence regressions (22 when this slice was first integrated; 3 same-ID/different-content rejection tests were added later),
 - 22 bound runtime-route reconciliation regressions,
 - 16 policy-neutral promotion-readiness regressions.
 

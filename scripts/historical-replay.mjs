@@ -7,8 +7,9 @@
 //     interpretation recorded when the old code read the same bytes,
 //   * old evidence stays readable (identity refs, gate attestation, run/evidence binding, protocol
 //     item refs) and every record's provenance commit is a 40-hex sha that is a member of
-//     PINNED_SNAPSHOT_COMMITS (and matches its tag). git is not consulted, so this does not prove the
-//     commit still exists in any repository.
+//     PINNED_SNAPSHOT_COMMITS (when the record names a tag, that tag must map to the same commit; a
+//     git-historical-bytes record must also carry a non-empty git_path). git is not consulted, so
+//     this does not prove the commit still exists in any repository.
 // Fixtures live in test/fixtures/historical-replay/ (see manifest.json for per-record provenance and
 // scripts/historical-replay-generate.mjs for how they were produced).
 //
