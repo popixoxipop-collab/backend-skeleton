@@ -71,6 +71,18 @@ function relativePath(value,label){
   return value;
 }
 
+function absolutePosixPath(value,label){
+  bounded(value,label);
+  if(
+    !value.startsWith('/') ||
+    value.includes('\\') ||
+    value.split('/').slice(1).some((part)=>!part||part==='.'||part==='..')
+  ){
+    throw new TypeError(`${label} must be a normalized absolute POSIX path`);
+  }
+  return value;
+}
+
 function canonical(value){
   if(Array.isArray(value)) return value.map(canonical);
   if(value&&typeof value==='object'){
@@ -109,6 +121,51 @@ function validateFiles(value){
 
 function fileMap(files){
   return new Map(files.map((entry)=>[entry.path,entry]));
+}
+
+function validateStdlibSymlinkBindings(value,files){
+  if(!Array.isArray(value)||value.length>32){
+    throw new TypeError('runtime_closure.stdlib_symlink_bindings must contain 0..32 entries');
+  }
+  const byPath=fileMap(files);
+  const bindings=value.map((entry,index)=>{
+    exactKeys(
+      entry,
+      ['path','link_target','resolved_path','sha256','size_bytes'],
+      `stdlib_symlink_bindings[${index}]`,
+    );
+    const itemPath=relativePath(entry.path,`stdlib_symlink_bindings[${index}].path`);
+    if(!/^python-stdlib-\d+\/.+/.test(itemPath)){
+      throw new TypeError('stdlib symlink binding path must be inside a configured python-stdlib root');
+    }
+    const linkTarget=bounded(entry.link_target,`stdlib_symlink_bindings[${index}].link_target`);
+    const resolvedPath=absolutePosixPath(
+      entry.resolved_path,
+      `stdlib_symlink_bindings[${index}].resolved_path`,
+    );
+    const sha256=digest(entry.sha256,`stdlib_symlink_bindings[${index}].sha256`);
+    const sizeBytes=integer(entry.size_bytes,`stdlib_symlink_bindings[${index}].size_bytes`);
+    const closureEntry=byPath.get(itemPath);
+    if(
+      !closureEntry ||
+      closureEntry.kind!=='stdlib' ||
+      closureEntry.sha256!==sha256 ||
+      closureEntry.size_bytes!==sizeBytes
+    ){
+      throw new TypeError(`stdlib symlink binding is not byte-bound in runtime closure: ${itemPath}`);
+    }
+    return Object.freeze({
+      path:itemPath,
+      link_target:linkTarget,
+      resolved_path:resolvedPath,
+      sha256,
+      size_bytes:sizeBytes,
+    });
+  }).sort((a,b)=>a.path.localeCompare(b.path));
+  if(new Set(bindings.map((entry)=>entry.path)).size!==bindings.length){
+    throw new TypeError('runtime_closure.stdlib_symlink_bindings contains duplicate paths');
+  }
+  return Object.freeze(bindings);
 }
 
 function validateUnhashedRecordEntries(value){
@@ -222,7 +279,7 @@ export function validateMujocoRuntimeInventory(value){
 
   exactKeys(value.runtime_closure,[
     'closure_sha256','record_sha256','record_entries_expected','record_entries_verified',
-    'record_unhashed_entries','unlisted_files','symlinks','files',
+    'record_unhashed_entries','unlisted_files','symlinks','stdlib_symlink_bindings','files',
   ],'runtime_closure');
   const files=validateFiles(value.runtime_closure.files);
   const closureSha=runtimeClosureDigest(files);
@@ -238,8 +295,12 @@ export function validateMujocoRuntimeInventory(value){
     throw new TypeError('runtime closure must contain no unlisted MuJoCo package files');
   }
   if(!Array.isArray(value.runtime_closure.symlinks)||value.runtime_closure.symlinks.length!==0){
-    throw new TypeError('runtime closure must contain no symlink entries');
+    throw new TypeError('runtime closure must contain no unapproved symlink entries');
   }
+  const stdlibSymlinkBindings=validateStdlibSymlinkBindings(
+    value.runtime_closure.stdlib_symlink_bindings,
+    files,
+  );
 
   exactKeys(value.native_library,['path','sha256'],'native_library');
   const nativeLibrary={
@@ -339,6 +400,7 @@ export function validateMujocoRuntimeInventory(value){
       record_unhashed_entries:recordUnhashed,
       unlisted_files:Object.freeze([]),
       symlinks:Object.freeze([]),
+      stdlib_symlink_bindings:stdlibSymlinkBindings,
       files,
     }),
     native_library:Object.freeze(nativeLibrary),
