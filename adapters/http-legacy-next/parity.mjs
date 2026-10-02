@@ -39,6 +39,7 @@ function plainEntity(value) {
 function plainEndpoint(value) {
 	return {
 		method: value?.method ?? null,
+		verb: value?.verb ?? null,
 		path: value?.path ?? null,
 		operationId: value?.operationId ?? null,
 		file: value?.file ?? null,
@@ -64,14 +65,20 @@ function plainModule(value) {
 	};
 }
 
-// A scan report's `.file` values are absolute and the report does not say which directory was scanned,
-// so by default the snapshot and its digest depend on where the checkout lives. Passing `root`, the
-// repoRoot the scan was given, rewrites each `.file` to a POSIX path relative to it. A `.file` that is
-// not below `root` throws instead of staying machine-specific.
+// A scan report's `.file` values follow the repoRoot string the scan was given and the report does not say
+// which directory was scanned, so by default the snapshot and its digest depend on where the checkout
+// lives. Passing `root`, the absolute repoRoot of the scan, rewrites each `.file` to a POSIX path relative
+// to it. A relative `root` or `.file` throws, because path.relative would resolve it against the working
+// directory and the result would depend on where the caller runs; so does a `.file` that is not below
+// `root`, instead of staying machine-specific.
 function relativeFileMapper(root) {
 	if (typeof root !== 'string' || root === '') throw new TypeError('root must be a non-empty string');
+	if (!path.isAbsolute(root)) throw new TypeError('root must be an absolute path');
 	return (file) => {
 		if (file === null) return null;
+		if (!path.isAbsolute(file)) {
+			throw new Error(`scan report file "${file}" is not an absolute path, so it cannot be made relative to root "${root}"`);
+		}
 		const relative = path.relative(root, file);
 		if (relative === '' || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
 			throw new Error(`scan report file "${file}" is not under root "${root}"`);

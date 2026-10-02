@@ -74,6 +74,13 @@ function expectedSparseReadSet(adapterId, trackedRelativePaths) {
   return null;
 }
 
+// `core.sparseCheckout` can be switched off for one worktree (`git config --worktree`) while the files stay
+// missing and `git status` stays clean; the skip-worktree bit (tag `S`) that sparse checkout sets on every
+// entry it left out is then the only record of it. `-z` keeps the entries NUL-separated like the paths.
+function hasSkipWorktreeEntry(root) {
+  return git(root, ['ls-files', '-t', '-z']).split('\0').some((entry) => entry.startsWith('S '));
+}
+
 export function inspectLegacyCorpusCheckout({ repoRoot, adapterId, maxMissing = 50 } = {}) {
   if (typeof repoRoot !== 'string' || repoRoot.length === 0) throw new TypeError('repoRoot is required');
   if (typeof adapterId !== 'string' || adapterId.length === 0) throw new TypeError('adapterId is required');
@@ -90,7 +97,7 @@ export function inspectLegacyCorpusCheckout({ repoRoot, adapterId, maxMissing = 
 
   const head = gitLine(root, ['rev-parse', 'HEAD']);
   const sparse = gitLine(root, ['config', '--bool', 'core.sparseCheckout'], { optional: true }) === 'true';
-  if (!sparse) {
+  if (!sparse && !hasSkipWorktreeEntry(root)) {
     return Object.freeze({
       complete: true,
       mode: 'full-working-tree',

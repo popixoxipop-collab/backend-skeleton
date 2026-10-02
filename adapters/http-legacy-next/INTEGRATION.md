@@ -6,8 +6,8 @@ is not declared complete.
 
 Provenance: ported from the draft PR 77 branch `scale/t11-http-legacy-modernization` at head
 `5d328f906dd81fde508c1cd652a6ab159e22a29e`. The stage began as a byte-identical port of the modules
-listed below. Fixes that followed a read-only substitute review of this stage (not an independent
-attestation) changed `parity.mjs`, `shadow-projection.mjs`, `cutover-readiness.mjs`,
+listed below. Fixes that followed two rounds of read-only substitute review of this stage (neither is
+an independent attestation) changed `parity.mjs`, `shadow-projection.mjs`, `cutover-readiness.mjs`,
 `checkout-completeness.mjs` and their tests, and added `bridge.test.mjs`. `baselines.mjs`,
 `bridge.mjs` and `baseline.test.mjs` are still byte-identical to that head. This document is
 rewritten to describe what this stage ships. Numbers that PR 77 recorded from the producer machine
@@ -33,8 +33,8 @@ fails a suite that still declares itself absent once its source or tests exist, 
 | --- | --- |
 | `baselines.mjs` | Descriptors and inventories for the five committed legacy fixtures (`java-spring`, `ruby-rails`, `python-fastapi`, `typescript-express`, `javascript-express`). Offline. |
 | `bridge.mjs` | Lossless `sbf.http-legacy-bridge/1` wrapper (mode `compatibility-only`) around an existing legacy scan report. Fails closed on an adapter/report mismatch and on adapters outside T11. |
-| `parity.mjs` | Semantic snapshot of a legacy report and a bounded diff (`maxDiffs` 1..1000). The snapshot and digest depend on the checkout location unless the optional `root` is passed. |
-| `checkout-completeness.mjs` | Guard for sparse checkouts of ruby-rails and python-fastapi projects: it lists the tracked paths with `git ls-tree -r -z` and requires the files that adapter's scanner reads to exist. Other sparse checkouts are refused; a non-sparse working tree is reported complete without being checked. See "Corpus checkout completeness" for what is and is not verified. |
+| `parity.mjs` | Semantic snapshot of a legacy report (each endpoint's HTTP `verb` and handler `method` included) and a bounded diff (`maxDiffs` 1..1000). The snapshot and digest depend on the checkout location unless the optional absolute `root` is passed. |
+| `checkout-completeness.mjs` | Guard for sparse checkouts of ruby-rails and python-fastapi projects: it lists the tracked paths with `git ls-tree -r -z` and requires the files that adapter's scanner reads to exist. A checkout is sparse when `core.sparseCheckout` is `true` or any tracked entry carries the skip-worktree bit (`git ls-files -t -z`). Other sparse checkouts are refused; a working tree that is not sparse is reported complete without being checked. See "Corpus checkout completeness" for what is and is not verified. |
 | `cutover-readiness.mjs` | Fail-closed 10-check migration checklist. |
 | `shadow-projection.mjs` | Dependency-injected, non-authoritative comparison shell. |
 
@@ -89,11 +89,20 @@ Its semantic SHA-256 is regression-only and is explicitly not ContractRef identi
 
 The snapshot covers the report's adapter, confidence, API surface source, verdict, path-prefix
 signals and `files_read`, and per module its name, controllers (class name, base path, file, and
-each endpoint's handler `method`, `path`, `operationId` and file), entities, enums and DTOs. It does not
-cover an endpoint's HTTP `verb`, line numbers, or the report's other fields (`terms`, `unknowns`,
-`collisions`, `rg_available`). A change that only flips an HTTP verb therefore leaves `equal` true and
-the digest unchanged. Adding the verb would change every digest, so it is a known limit of this stage,
-not something it fixes.
+each endpoint's handler `method`, HTTP `verb`, `path`, `operationId` and file), entities, enums and
+DTOs. A scan report's endpoint carries both `method`, the handler's name, and `verb`, the HTTP verb, and
+the snapshot keeps them apart. An endpoint without a `verb` records `null`, so a change that only flips,
+changes the case of or removes an HTTP verb makes `equal` false, shows as a `value` difference at
+`modules[i].controllers[j].endpoints[k].verb` and moves the digest. The snapshot does not cover line
+numbers or the report's other fields (`terms`, `unknowns`, `collisions`, `rg_available`).
+
+A digest computed before the `verb` became part of the snapshot is not comparable with one computed now:
+every endpoint gained a key, so every digest changed, also for a report whose verbs did not change. That
+includes any digest quoted from an earlier head of this stage's pull request, and PR 77's
+`semantic_sha256` values, whose parity module never recorded the verb. The schema string stays
+`sbf.http-legacy-semantic-snapshot/1` because nothing in this repository stores a snapshot or a digest
+(no fixture, test pin or release file holds one), so there is no stored value that a new version string
+would protect. Whoever pins a digest must compute it with this module.
 
 ### Location-independent snapshots and digests
 
@@ -108,17 +117,32 @@ scan was given. It rewrites each `.file` to a POSIX path relative to that root:
 - `legacyHttpSemanticSnapshot(report, { root })`, `legacyHttpSemanticDigest(report, { root })`,
   `compareLegacyHttpReports(expected, actual, { expectedRoot, actualRoot })` and
   `runLegacyHttpShadowProjection({ ..., root })`.
-- Without these options nothing changes: the snapshot, the digest and the comparison are what they
-  were before, so a digest computed the old way stays valid.
+- Without these options the files stay as the scan reported them, so the snapshot and the digest again
+  depend on where the checkout lives (the `verb` change above applies either way).
 - It fails closed. A `.file` that is not strictly below the root (another directory, a sibling that
-  shares a name prefix, a `..` climb, the root itself) or is not a string throws. `root` must be a
-  non-empty string, only a report (not a snapshot) can be given one, and `expectedRoot` and
-  `actualRoot` must be given together.
+  shares a name prefix, a `..` climb, the root itself), is not a string or is not an absolute path
+  throws. `root` must be a non-empty absolute path: `path.relative` would resolve a relative `root`
+  or `.file` against the working directory, and the same report would then give different snapshots
+  from different directories. Only a report (not a snapshot) can be given a `root`, and `expectedRoot`
+  and `actualRoot` must be given together.
+- This is narrower than what this branch accepted up to commit `d8883ce`: a relative `root`, and a
+  relative `.file` given a `root`, were resolved against the process working directory there. All four
+  entry points above now throw on them, `runLegacyHttpShadowProjection({ root })` before the projector
+  is called. A caller that scanned with a relative `repoRoot` scans again with an absolute one and
+  passes that string as `root`; a report is still accepted without `root`, with its files as reported.
 - The scanner builds `.file` from the `repoRoot` string as passed and does not resolve symlinks, so
-  pass that same string as `root`. A relative `repoRoot` is resolved against the working directory
-  as the scanner does, but the scanners do not treat a relative and an absolute root alike
-  (javascript-express reports absolute real paths, typescript-express reports different paths), so use
-  an absolute `repoRoot` for any digest meant to be compared.
+  scan with an absolute `repoRoot` and pass that same string as `root`. Given a relative `repoRoot`,
+  the java-spring, ruby-rails, python-fastapi and typescript-express scanners put that string in
+  front of every `.file` (`test/fixtures/java-spring/src/...`), a path relative to the scan's working
+  directory and not to the root, and javascript-express reports absolute real paths; `root` rejects
+  the first kind rather than guess the directory.
+- The Rails scanner's `tmp`, `log`, `vendor/bundle`, `.bundle` and `node_modules` excludes are anchored
+  at ripgrep's working directory, so for a project with a `Gemfile` below one of those trees
+  `files_read`, and with it the snapshot and the digest (with a `root` too), depend on the directory
+  the scan ran from. Pin a Rails digest from a fixed scan working directory. The committed ruby-rails
+  fixture has no `Gemfile` below those trees, and each of the five committed fixtures gives the same
+  digest (with its absolute `root`) from the repository root, from a temporary directory and from the
+  fixture directory.
 - The bridge still keeps the absolute paths in `bridge.legacy_report`, because it is lossless by
   design. With `root`, the shadow shell hands the projector the snapshot with root-relative files and
   the projector must report its files the same way.
@@ -126,7 +150,8 @@ scan was given. It rewrites each `.file` to a POSIX path relative to that root:
 Digests recorded by a producer from a scan in its own checkout path embed that path. PR 77's
 `semantic_sha256` values were produced that way (its corpus CLI builds the snapshot without a root),
 so every one of them, for every adapter and not only the Express ones, has to be re-measured with the
-root before it can be compared on another machine or in another directory.
+root before it can be compared on another machine or in another directory, and with this module's
+snapshot, which also records the verb (see "T11-04 parity").
 
 ## T11-03 pre-freeze shadow shell
 
@@ -162,7 +187,14 @@ sparse checkout. PR 77 added it because:
 
 What the guard does:
 
-- When `core.sparseCheckout` is not `true` it returns `complete: true` with mode
+- It treats a checkout as sparse when `core.sparseCheckout` is `true`, or when any tracked entry
+  below `repoRoot` carries the skip-worktree bit, which `git ls-files -t -z` prints with the tag `S`
+  (NUL-separated like the paths; sparse checkout sets the bit on every entry it leaves out of the
+  working tree). The second condition catches a worktree whose flag was switched off with
+  `git config --worktree core.sparseCheckout false` while the files stay missing and `git status`
+  stays clean. The bit counts, not the flag, so a checkout that was sparse and then disabled with
+  `git sparse-checkout disable` (which clears the bits and restores the files) is a full one again.
+- When it is not sparse in either sense it returns `complete: true` with mode
   `full-working-tree` and checks nothing else. It shows that the checkout is not sparse, not that
   every tracked file is present: a working tree with deleted or modified tracked files, or a copy
   that is not a git sparse checkout, is reported complete by design.
@@ -178,10 +210,16 @@ What the guard does:
     directory, which the guard cannot know, so it may over-require Gemfiles below those trees and
     never under-requires.
 - It rejects sparse checkouts for other adapters (`sparse-unsupported-adapter`, `complete: false`)
-  until an adapter-specific tracked-read-set rule is audited.
+  until an adapter-specific tracked-read-set rule is audited. A skip-worktree bit counts as sparse
+  here too, so a file someone marked with `git update-index --skip-worktree` sends its checkout down
+  this path: for ruby-rails and python-fastapi the read set is then checked (and found present), for
+  the other adapters the answer is `complete: false` although nothing is missing. The guard cannot
+  tell that use of the bit from a sparse checkout, so it errs on the side of refusing.
 - It throws when `repoRoot` is not in a git repository or when its git working tree is configured
   elsewhere (`core.worktree`); for a sparse checkout it also throws when the project directory is not
-  tracked in `HEAD`. It bounds `git ls-tree` output to 16 MiB and fails closed above that bound.
+  tracked in `HEAD`. It bounds the output of `git ls-files` (run whenever `core.sparseCheckout` is not
+  `true`) and of `git ls-tree` (run for sparse checkouts) to 16 MiB each and fails closed above that
+  bound: a project with more tracked files than that fits throws instead of being reported complete.
 - Every git call runs without the variables git itself lists as repository-local (`GIT_DIR`,
   `GIT_WORK_TREE`, `GIT_CONFIG_COUNT` with its `KEY`/`VALUE` entries, `GIT_CONFIG_PARAMETERS`, ...),
   on a copy of the environment, because a caller inside a git hook inherits them and the guard
@@ -192,8 +230,17 @@ What is verified, and what is not:
 
 - The tests build synthetic temporary git repositories. Two of them also run the FastAPI and the
   Rails scanner on such a repository and compare the guard's expected read set with the scanner's
-  `files_read` (FastAPI: same count; Rails: same count when the scan runs from another directory, at
-  least that of a scan from inside the project).
+  `files_read` (FastAPI: same count; Rails: same count for a scan that runs from a directory outside
+  the project, at least that of a scan from inside it, and every file the scan from inside reads is
+  also read by the other). They do not assert the Rails scanner's own counts, which depend on its
+  working directory.
+- They also cover a worktree whose `core.sparseCheckout` was switched off with `git config --worktree`
+  (incomplete while a read-set file is missing, complete when the read set is present), a full
+  checkout, one that was sparse and then disabled, file names that merely start with `S ` or hold a
+  line break followed by `S `, a sparse index (`git sparse-checkout init --sparse-index`: `git ls-files`
+  expands it in memory, which git may announce on stderr and which is slow for a very large project,
+  and then tags every omitted file `S`), a project below the git top level, and
+  `git update-index --skip-worktree` on a file that is present.
 - The guard has not been run against the 17 corpus repositories. The producer-machine read-set counts
   that PR 77 recorded (Discourse 1550/1550, Forem 668/668, Mastodon 741/741, Polar/server 1700/1700,
   Mealie 636/636) are PR 77 evidence for the follow-up PRs to re-establish; they are not asserted here.

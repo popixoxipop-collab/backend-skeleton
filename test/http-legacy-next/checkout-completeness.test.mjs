@@ -328,28 +328,37 @@ test('T11 corpus completeness expects every file the Rails scanner reads, whiche
     'tmp/cache/Gemfile': 'gem "dep"\n',
     'log/Gemfile': 'gem "dep"\n',
     'log/development.rb': 'x = 1\n',
+    'config_old/legacy.rb': 'x = 1\n',
+    'libs/helper.rb': 'x = 1\n',
+    'app/models_old/legacy.rb': 'class Legacy; end\n',
+    'app/controllers_old/legacy_controller.rb': 'class LegacyController; end\n',
   });
   const startDir = process.cwd();
+  const elsewhere = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'sbf-t11-scan-cwd-')));
   try {
     sparse(root, 'config', 'app', 'lib', 'spec', 'engines', 'vendor', 'node_modules', 'tmp', 'log');
     const projectDir = fs.realpathSync(root);
     const result = inspectLegacyCorpusCheckout({ repoRoot: projectDir, adapterId: 'ruby-rails' });
     assert.equal(result.complete, true);
 
-    // ripgrep anchors the scanner's `!tmp/**`-style excludes at its working directory: from any other
-    // directory the Gemfiles below those trees are read as well.
+    // ripgrep anchors the scanner's `!tmp/**`-style excludes at its working directory, so the Gemfiles
+    // below those trees are skipped by a scan that runs from inside the project directory and read by
+    // a scan that runs from anywhere else. The first scan runs from a directory of this test's own, so
+    // what it reads does not depend on where the test process was started; the checks are relations
+    // between the guard and the two scans, never the scanner's own counts.
+    process.chdir(elsewhere);
     const fromElsewhere = runScan({ repoRoot: projectDir, terms: [] });
     assert.equal(fromElsewhere.adapter, 'ruby-rails');
-    assert.equal(fromElsewhere.files_read.length, 15);
     assert.equal(result.expected_tracked_read_files, fromElsewhere.files_read.length);
 
     process.chdir(projectDir);
     const fromInside = runScan({ repoRoot: projectDir, terms: [] });
-    assert.equal(fromInside.files_read.length, 11);
     assert.deepEqual(fromInside.files_read.filter((file) => !fromElsewhere.files_read.includes(file)), []);
+    assert.ok(fromElsewhere.files_read.length >= fromInside.files_read.length);
     assert.ok(result.expected_tracked_read_files >= fromInside.files_read.length);
   } finally {
     process.chdir(startDir);
+    fs.rmSync(elsewhere, { recursive: true, force: true });
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -572,5 +581,240 @@ test('T11 corpus completeness ignores variables that point git at another reposi
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(other, { recursive: true, force: true });
+  }
+});
+
+// The test above switches the flag off on a sparse checkout, which the skip-worktree check now catches even
+// without the scrub; this one switches it on for a full checkout, which only the scrub keeps from failing.
+test('T11 corpus completeness is not made sparse by configuration variables the caller inherited', () => {
+  const root = makeRepo({
+    'package.json': '{"name":"x"}\n',
+    'src/app.js': 'module.exports = {};\n',
+  });
+  try {
+    const expected = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'javascript-express' });
+    assert.equal(expected.complete, true);
+    assert.equal(expected.mode, 'full-working-tree');
+
+    for (const variables of [
+      { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.sparseCheckout', GIT_CONFIG_VALUE_0: 'true' },
+      { GIT_CONFIG_PARAMETERS: "'core.sparseCheckout=true'" },
+    ]) {
+      const actual = withEnv(variables, () => inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'javascript-express' }));
+      assert.deepEqual(actual, expected, JSON.stringify(variables));
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// `git sparse-checkout` leaves the files it omits out of the working tree and sets the skip-worktree bit (tag
+// `S` in `git ls-files -t`) on each of their index entries. Switching `core.sparseCheckout` off for the worktree
+// afterwards changes nothing on disk, keeps those bits and keeps `git status` clean, so the flag alone cannot
+// prove that a checkout is full.
+function switchSparseFlagOff(root) {
+  git(root, 'config', '--worktree', 'core.sparseCheckout', 'false');
+  assert.equal(git(root, 'config', '--bool', 'core.sparseCheckout'), 'false');
+}
+
+test('T11 corpus completeness does not take a switched-off sparse flag as proof of a full checkout', () => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    'tests/t.py': 'def test_x(): pass\n',
+  });
+  try {
+    sparse(root, 'app');
+    switchSparseFlagOff(root);
+    assert.equal(fs.existsSync(path.join(root, 'tests', 't.py')), false);
+    assert.equal(git(root, 'status', '--porcelain'), '', 'git itself reports nothing missing');
+
+    const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, false);
+    assert.equal(result.mode, 'sparse-readset-verified');
+    assert.equal(result.expected_tracked_read_files, 2);
+    assert.equal(result.materialized_read_files, 1);
+    assert.deepEqual(result.missing_paths, ['tests/t.py']);
+    assert.throws(
+      () => assertLegacyCorpusCheckoutComplete({ repoRoot: root, adapterId: 'python-fastapi' }),
+      (err) => err?.code === 'T11_CORPUS_CHECKOUT_INCOMPLETE' && err.checkout.missing_count === 1,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness fails closed for an unsupported adapter whose sparse flag was switched off', () => {
+  const root = makeRepo({
+    'package.json': '{"dependencies":{"express":"1.0.0"}}\n',
+    'src/app.js': 'require("express")\n',
+    'lib/helper.js': 'module.exports = 1\n',
+  });
+  try {
+    sparse(root, 'src');
+    switchSparseFlagOff(root);
+    assert.equal(fs.existsSync(path.join(root, 'lib', 'helper.js')), false);
+
+    const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'javascript-express' });
+    assert.equal(result.complete, false);
+    assert.equal(result.mode, 'sparse-unsupported-adapter');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness still accepts a full checkout, also one that was sparse and then disabled', () => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    'tests/t.py': 'def test_x(): pass\n',
+  });
+  try {
+    let result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, true);
+    assert.equal(result.mode, 'full-working-tree');
+
+    sparse(root, 'app');
+    assert.equal(inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' }).complete, false);
+
+    git(root, 'sparse-checkout', 'disable');
+    assert.equal(fs.existsSync(path.join(root, 'tests', 't.py')), true);
+    result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, true);
+    assert.equal(result.mode, 'full-working-tree');
+    assert.equal(inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'javascript-express' }).mode, 'full-working-tree');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness reads the skip-worktree tag, not file names that merely start with S', () => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    'S app.py': 'x = 1\n',
+  });
+  try {
+    assert.match(git(root, 'ls-files', '-t'), /^H S app\.py$/m);
+    const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, true);
+    assert.equal(result.mode, 'full-working-tree');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness splits the index listing on NUL, so a name with a line break cannot fake a skip-worktree entry', { skip: process.platform === 'win32' && 'a file name cannot hold a line break here' }, () => {
+  const tricky = 'docs/a\nS b.md';
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    [tricky]: 'not python\n',
+  });
+  try {
+    assert.ok(git(root, 'ls-files', '-t', '-z').split('\0').includes('H ' + tricky), 'one NUL-separated entry holds the whole name');
+    assert.ok(git(root, 'ls-files', '-t', '-z').includes('\nS b.md'), 'the second half of the name looks like an entry of its own to a line split');
+    const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, true);
+    assert.equal(result.mode, 'full-working-tree');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness sees the skip-worktree entries of a sparse index too', (t) => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    'tests/deep/t.py': 'def test_x(): pass\n',
+    'tests/t2.py': 'def test_y(): pass\n',
+  });
+  try {
+    try {
+      git(root, 'sparse-checkout', 'init', '--cone', '--sparse-index');
+    } catch {
+      t.skip('this git has no sparse index');
+      return;
+    }
+    git(root, 'sparse-checkout', 'set', 'app');
+    assert.match(git(root, 'ls-files', '-t', '--sparse'), /^S tests\/$/m, 'the index keeps one entry for the whole omitted directory');
+    switchSparseFlagOff(root);
+
+    const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, false);
+    assert.equal(result.mode, 'sparse-readset-verified');
+    assert.deepEqual(result.missing_paths, ['tests/deep/t.py', 'tests/t2.py']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness looks for skip-worktree entries in the project subtree only', () => {
+  const root = makeRepo({
+    'README.md': 'monorepo\n',
+    'other/lib.py': 'x = 1\n',
+    'server/pyproject.toml': PYPROJECT,
+    'server/app/main.py': FASTAPI_APP,
+  });
+  try {
+    sparse(root, 'server');
+    switchSparseFlagOff(root);
+    assert.equal(fs.existsSync(path.join(root, 'other', 'lib.py')), false);
+
+    const project = inspectLegacyCorpusCheckout({ repoRoot: path.join(root, 'server'), adapterId: 'python-fastapi' });
+    assert.equal(project.complete, true);
+    assert.equal(project.mode, 'full-working-tree');
+    assert.equal(project.project_root, 'server');
+
+    const whole = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(whole.complete, false);
+    assert.equal(whole.mode, 'sparse-readset-verified');
+    assert.deepEqual(whole.missing_paths, ['other/lib.py']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness treats skip-worktree entries like a sparse checkout: a read set that is present is enough', () => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    'docs/guide.md': 'not python\n',
+  });
+  try {
+    sparse(root, 'app');
+    switchSparseFlagOff(root);
+    assert.equal(fs.existsSync(path.join(root, 'docs', 'guide.md')), false);
+
+    const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(result.complete, true);
+    assert.equal(result.mode, 'sparse-readset-verified');
+    assert.equal(result.expected_tracked_read_files, 1);
+    assert.equal(result.materialized_read_files, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('T11 corpus completeness sends a present file with a skip-worktree bit down the sparse path as well', () => {
+  const root = makeRepo({
+    'package.json': '{"dependencies":{"express":"1.0.0"}}\n',
+    'src/app.js': 'require("express")\n',
+  });
+  const python = makeRepo({ 'pyproject.toml': PYPROJECT, 'app/main.py': FASTAPI_APP });
+  try {
+    git(root, 'update-index', '--skip-worktree', 'src/app.js');
+    assert.equal(fs.existsSync(path.join(root, 'src', 'app.js')), true);
+    const unsupported = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'javascript-express' });
+    assert.equal(unsupported.complete, false, 'an adapter without an audited rule cannot tell, so it fails closed');
+    assert.equal(unsupported.mode, 'sparse-unsupported-adapter');
+
+    git(python, 'update-index', '--skip-worktree', 'app/main.py');
+    const supported = inspectLegacyCorpusCheckout({ repoRoot: python, adapterId: 'python-fastapi' });
+    assert.equal(supported.complete, true, 'the read set is present');
+    assert.equal(supported.mode, 'sparse-readset-verified');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(python, { recursive: true, force: true });
   }
 });

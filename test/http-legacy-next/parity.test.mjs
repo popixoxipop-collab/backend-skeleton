@@ -161,6 +161,9 @@ const SNAPSHOT_FIELDS = [
 	['controller file', (r) => { controller0(r).file = '/checkout/C2.java'; }],
 	['endpoints removed', (r) => { controller0(r).endpoints = []; }],
 	['endpoint method', (r) => { endpoint0(r).method = 'other'; }],
+	['endpoint verb', (r) => { endpoint0(r).verb = 'POST'; }],
+	['endpoint verb case', (r) => { endpoint0(r).verb = 'get'; }],
+	['endpoint verb removed', (r) => { delete endpoint0(r).verb; }],
 	['endpoint path', (r) => { endpoint0(r).path = '/c1/y'; }],
 	['endpoint operationId', (r) => { endpoint0(r).operationId = 'other'; }],
 	['endpoint file', (r) => { endpoint0(r).file = '/checkout/Other.java'; }],
@@ -246,6 +249,91 @@ test('T11-04 the snapshot normalises absent parts to null or empty values', () =
 	]);
 	for (const bad of [null, undefined, 'report', {}, { schema: 'sbf.scan-report/1' }]) {
 		assert.throws(() => legacyHttpSemanticSnapshot(bad), /requires sbf\.scan-report\/2/, String(bad));
+	}
+});
+
+// A scan report names each endpoint twice over: `method` is the handler's name and `verb` is the HTTP verb.
+// The snapshot keeps both, so a change of verb alone is a change of contract.
+test('T11-04 an endpoint keeps its handler name and its HTTP verb apart, and a missing part becomes null', () => {
+	const endpointSnapshot = (endpoint) => {
+		const changed = fullReport();
+		controller0(changed).endpoints = [endpoint];
+		return legacyHttpSemanticSnapshot(changed).modules[0].controllers[0].endpoints[0];
+	};
+	const nothing = { method: null, verb: null, path: null, operationId: null, file: null };
+
+	assert.deepEqual(
+		endpointSnapshot({ method: 'list', verb: 'GET', path: '/p', operationId: 'o', file: 'f', line: 9 }),
+		{ method: 'list', verb: 'GET', path: '/p', operationId: 'o', file: 'f' },
+	);
+	assert.deepEqual(endpointSnapshot({ method: 'list', verb: 'POST' }), { ...nothing, method: 'list', verb: 'POST' });
+	assert.deepEqual(endpointSnapshot({ method: 'GET', verb: 'list' }), { ...nothing, method: 'GET', verb: 'list' });
+	assert.deepEqual(endpointSnapshot({ verb: 'GET' }), { ...nothing, verb: 'GET' });
+	assert.deepEqual(endpointSnapshot({ method: 'list' }), { ...nothing, method: 'list' });
+	for (const absent of [{}, null, undefined, { verb: undefined }, { verb: null }]) {
+		assert.deepEqual(endpointSnapshot(absent), nothing, JSON.stringify(absent));
+	}
+	assert.equal(endpointSnapshot({ verb: '' }).verb, '', 'an empty verb is not turned into null');
+
+	const withVerb = fullReport();
+	const noVerb = fullReport();
+	delete endpoint0(noVerb).verb;
+	const nullVerb = fullReport();
+	endpoint0(nullVerb).verb = null;
+	assert.equal(legacyHttpSemanticDigest(noVerb), legacyHttpSemanticDigest(nullVerb), 'a missing verb and a null verb are the same');
+	assert.notEqual(legacyHttpSemanticDigest(noVerb), legacyHttpSemanticDigest(withVerb));
+});
+
+const endpointsOf = (r) => r.related_modules.flatMap((module) => (module.controllers ?? []).flatMap((controller) => controller.endpoints ?? []));
+const verbsOf = (snapshot) => snapshot.modules.flatMap((module) => module.controllers.flatMap((controller) => controller.endpoints.map((endpoint) => endpoint.verb)));
+const flippedVerb = (verb) => (verb === 'GET' ? 'DELETE' : 'GET');
+
+test('T11-04 flipping the HTTP verb of every endpoint of a fixture moves the digest and the comparison, for all five adapters', () => {
+	for (const id of LEGACY_HTTP_ADAPTER_IDS) {
+		const root = path.join(REPO_ROOT, legacyHttpBaseline(id).fixture);
+		const original = report(id);
+		const flipped = structuredClone(original);
+		const endpoints = endpointsOf(flipped);
+		for (const endpoint of endpoints) endpoint.verb = flippedVerb(endpoint.verb);
+		assert.equal(endpoints.length, legacyHttpBaseline(id).inventory.endpointCount, `${id}: every endpoint of the fixture was flipped`);
+
+		assert.notEqual(legacyHttpSemanticDigest(flipped), legacyHttpSemanticDigest(original), id);
+		assert.notEqual(legacyHttpSemanticDigest(flipped, { root }), legacyHttpSemanticDigest(original, { root }), `${id}, with a root`);
+		const before = verbsOf(legacyHttpSemanticSnapshot(original));
+		const after = verbsOf(legacyHttpSemanticSnapshot(flipped));
+		assert.equal(before.length, endpoints.length, id);
+		for (const options of [{}, { expectedRoot: root, actualRoot: root }]) {
+			const label = `${id} ${JSON.stringify(Object.keys(options))}`;
+			const parity = compareLegacyHttpReports(original, flipped, { ...options, maxDiffs: 1000 });
+			assert.equal(parity.equal, false, label);
+			assert.equal(parity.truncated, false, label);
+			assert.equal(parity.diffs.length, endpoints.length, label);
+			assert.ok(parity.diffs.every((diff) => diff.kind === 'value' && /^modules\[\d+\]\.controllers\[\d+\]\.endpoints\[\d+\]\.verb$/.test(diff.path)), label);
+			assert.deepEqual(parity.diffs.map((diff) => diff.expected), before, label);
+			assert.deepEqual(parity.diffs.map((diff) => diff.actual), after, label);
+		}
+	}
+});
+
+test('T11-04 flipping the HTTP verb of one endpoint at a time is found at that endpoint, on every endpoint of every fixture', () => {
+	for (const id of LEGACY_HTTP_ADAPTER_IDS) {
+		const original = report(id);
+		const digest = legacyHttpSemanticDigest(original);
+		let flips = 0;
+		original.related_modules.forEach((module, m) => (module.controllers ?? []).forEach((controller, c) => (controller.endpoints ?? []).forEach((endpoint, e) => {
+			const changed = structuredClone(original);
+			const target = changed.related_modules[m].controllers[c].endpoints[e];
+			target.verb = flippedVerb(endpoint.verb);
+			const at = `modules[${m}].controllers[${c}].endpoints[${e}]`;
+			assert.notEqual(legacyHttpSemanticDigest(changed), digest, `${id} ${at}`);
+			assert.deepEqual(compareLegacyHttpReports(original, changed), {
+				equal: false,
+				diffs: [{ path: `${at}.verb`, kind: 'value', expected: endpoint.verb ?? null, actual: target.verb }],
+				truncated: false,
+			}, `${id} ${at}`);
+			flips += 1;
+		})));
+		assert.equal(flips, legacyHttpBaseline(id).inventory.endpointCount, id);
 	}
 });
 
@@ -396,16 +484,7 @@ test('T11-04 with a root, every file becomes a forward-slash path below the root
 	assert.equal(legacyHttpSemanticSnapshot(nested, { root: '/checkout' }).modules[0].controllers[0].file, 'src/main/java/C1.java');
 });
 
-test('T11-04 a relative root and relative files are resolved against the working directory, as the scanner does', () => {
-	const expected = relativeToCheckout(legacyHttpSemanticSnapshot(fullReport()));
-	const below = moveReport(fullReport(), '/checkout', 'some-checkout');
-	assert.deepEqual(legacyHttpSemanticSnapshot(below, { root: 'some-checkout' }), expected);
-	assert.deepEqual(legacyHttpSemanticSnapshot(below, { root: './some-checkout/' }), expected);
-
-	const elsewhere = moveReport(fullReport(), '/checkout', 'elsewhere');
-	assert.throws(() => legacyHttpSemanticSnapshot(elsewhere, { root: 'some-checkout' }), /is not under root "some-checkout"/);
-});
-
+// Every place a scan report carries a `.file`.
 const FILE_SLOTS = [
 	['controller', (r) => controller0(r)],
 	['endpoint', (r) => endpoint0(r)],
@@ -413,6 +492,84 @@ const FILE_SLOTS = [
 	['enum', (r) => enum0(r)],
 	['dto', (r) => dtos(r)[1]],
 ];
+
+// path.relative resolves a relative argument against the working directory, so a relative root or file would
+// make the snapshot depend on where the caller happens to run. Both are rejected, and the cases below are the
+// ones that would still have succeeded from one of the two directories.
+function inDirectory(dir, run) {
+	const start = process.cwd();
+	process.chdir(dir);
+	try {
+		return run();
+	} finally {
+		process.chdir(start);
+	}
+}
+
+function workingDirectories(t) {
+	const tmp = fs.realpathSync(scratchDir(t));
+	const dirs = [path.join(tmp, 'one'), path.join(tmp, 'two', 'deeper')];
+	for (const dir of dirs) fs.mkdirSync(dir, { recursive: true });
+	return dirs;
+}
+
+test('T11-04 a relative root is rejected from any working directory, also where it would name the right checkout', (t) => {
+	const [first, second] = workingDirectories(t);
+	const checkout = path.join(first, 'some-checkout');
+	const report = moveReport(fullReport(), '/checkout', checkout);
+	const expected = relativeToCheckout(legacyHttpSemanticSnapshot(fullReport()));
+	const digest = legacyHttpSemanticDigest(report, { root: checkout });
+	const notAbsolute = { name: 'TypeError', message: /root must be an absolute path/ };
+
+	for (const dir of [first, second]) {
+		inDirectory(dir, () => {
+			for (const root of ['some-checkout', './some-checkout', './some-checkout/', 'some-checkout/', '.', '..', 'a/../b']) {
+				const label = `${JSON.stringify(root)} from ${dir}`;
+				assert.throws(() => legacyHttpSemanticSnapshot(report, { root }), notAbsolute, label);
+				assert.throws(() => legacyHttpSemanticDigest(report, { root }), notAbsolute, label);
+				assert.throws(() => compareLegacyHttpReports(report, report, { expectedRoot: root, actualRoot: checkout }), notAbsolute, label);
+				assert.throws(() => compareLegacyHttpReports(report, report, { expectedRoot: checkout, actualRoot: root }), notAbsolute, label);
+			}
+			assert.deepEqual(legacyHttpSemanticSnapshot(report, { root: checkout }), expected, `an absolute root from ${dir}`);
+			assert.equal(legacyHttpSemanticDigest(report, { root: checkout }), digest, `an absolute root from ${dir}`);
+		});
+	}
+});
+
+const RELATIVE_FILES = ['some-checkout/X.java', './some-checkout/X.java', 'X.java', './X.java', '../X.java', ''];
+
+test('T11-04 with a root, a relative file is rejected wherever the report carries one, and without a root it is kept as reported', () => {
+	const notAbsolute = { message: /is not an absolute path/ };
+	for (const [slot, pick] of FILE_SLOTS) {
+		for (const file of RELATIVE_FILES) {
+			const bad = fullReport();
+			pick(bad).file = file;
+			const label = `${slot}: ${JSON.stringify(file)}`;
+			assert.throws(() => legacyHttpSemanticSnapshot(bad, { root: '/checkout' }), notAbsolute, label);
+			assert.throws(() => legacyHttpSemanticDigest(bad, { root: '/checkout' }), notAbsolute, label);
+			assert.throws(() => compareLegacyHttpReports(fullReport(), bad, CHECKOUT), notAbsolute, label);
+			assert.throws(() => compareLegacyHttpReports(bad, fullReport(), CHECKOUT), notAbsolute, label);
+			assert.equal(snapshotFiles(legacyHttpSemanticSnapshot(bad)).filter((entry) => entry === file).length, 1, `${label}: kept as reported without a root`);
+		}
+	}
+});
+
+test('T11-04 with a root, a relative file is rejected from any working directory, also where it would land below the root', (t) => {
+	const [first, second] = workingDirectories(t);
+	const checkout = path.join(first, 'some-checkout');
+	const relativeReport = moveReport(fullReport(), '/checkout', 'some-checkout');
+	assert.ok(snapshotFiles(legacyHttpSemanticSnapshot(relativeReport)).includes('some-checkout/C1.java'));
+	const notAbsolute = { message: /is not an absolute path/ };
+
+	for (const dir of [first, second]) {
+		inDirectory(dir, () => {
+			const label = `from ${dir}`;
+			assert.throws(() => legacyHttpSemanticSnapshot(relativeReport, { root: checkout }), notAbsolute, label);
+			assert.throws(() => legacyHttpSemanticDigest(relativeReport, { root: checkout }), notAbsolute, label);
+			assert.throws(() => compareLegacyHttpReports(relativeReport, relativeReport, { expectedRoot: checkout, actualRoot: checkout }), notAbsolute, label);
+		});
+	}
+});
 
 const NOT_BELOW_THE_ROOT = [
 	['another directory', '/elsewhere/X.java'],

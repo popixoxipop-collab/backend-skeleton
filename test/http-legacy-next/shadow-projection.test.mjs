@@ -457,3 +457,41 @@ test('T11-03 a scan report file outside the root, or a bad root, stops the shell
   }
   assert.equal(calls, 1, 'the projector did not run again');
 });
+
+test('T11-03 a relative root stops the shell before the projector runs, from any working directory', (t) => {
+  const start = process.cwd();
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 't11-shadow-'));
+  t.after(() => {
+    process.chdir(start);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+  const { root, report, adapter } = checkoutOf('python-fastapi', path.join(tmp, 'checkout'));
+  let calls = 0;
+  const run = (overrides) => () => runLegacyHttpShadowProjection({
+    adapter,
+    report,
+    root,
+    projectorId: 'id',
+    projectorContract: 'fixture.projector/1',
+    projector: (input) => {
+      calls += 1;
+      return identityProjector(input);
+    },
+    ...overrides,
+  });
+
+  let ran = 0;
+  for (const from of [start, tmp, os.tmpdir()]) {
+    process.chdir(from);
+    const relative = path.relative(from, root);
+    assert.equal(path.isAbsolute(relative), false, from);
+    assert.equal(fs.realpathSync(path.resolve(relative)), fs.realpathSync(root), 'resolved against ' + from + ' it would name the right checkout');
+    assert.throws(run({ root: relative }), /root must be an absolute path/, relative);
+    assert.throws(run({ root: './' + relative }), /root must be an absolute path/, './' + relative);
+    assert.equal(calls, ran, 'the projector did not run for a relative root, working directory ' + from);
+
+    assert.equal(run({})().parity.equal, true, 'the absolute root still works from ' + from);
+    ran += 1;
+    assert.equal(calls, ran);
+  }
+});
