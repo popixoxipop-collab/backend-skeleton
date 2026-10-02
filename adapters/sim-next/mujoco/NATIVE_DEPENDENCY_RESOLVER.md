@@ -61,10 +61,24 @@ RPATH/RUNPATH may add only:
 - absolute directories that resolve under the binary directory or approved
   search roots.
 
+An absolute RUNPATH/RPATH element that does not exist on the observed target is
+treated as inactive for that resolver observation: every existing path prefix is
+still checked for symlinks, the missing path contributes no dependency
+candidate, and the original RUNPATH/RPATH string remains in the emitted ELF node
+metadata. If that path later exists, a fresh resolver run applies the normal
+approved-root rule and fails closed when it is outside the approved roots.
+
+The only in-runtime soname fallback is the fixed reviewed
+`libmujoco.so.3.12.0` seed at `mujoco/libmujoco.so.3.12.0`. The runtime
+import root is not added as a general loader search root. This models the
+bundled MuJoCo plugin dependency without admitting arbitrary package-local
+sonames.
+
 Any other `$` loader token fails closed.
 
-If the same soname resolves to more than one distinct real file across approved
-roots, the resolver fails as ambiguous instead of guessing loader precedence.
+If the same soname resolves to more than one distinct real file across dynamic,
+pinned-runtime, or approved roots, the resolver fails as ambiguous instead of
+guessing loader precedence.
 
 ## Candidate and producer identity
 
@@ -114,6 +128,10 @@ The resolver still does not claim that every possible stdlib extension module
 will be imported by future code. #209 separately binds the complete configured
 stdlib filesystem roots, while T20/T16 enforcement must preserve that exact
 runtime environment.
+
+A successful observation of an absent absolute RUNPATH is not a persistent
+filesystem guarantee. Final T20/T16 admission must revalidate the resolver
+against the execution-time filesystem before authorizing helper execution.
 
 ## Review boundary
 

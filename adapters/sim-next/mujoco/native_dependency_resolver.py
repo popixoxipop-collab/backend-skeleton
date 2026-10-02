@@ -57,6 +57,11 @@ DT_RPATH = 15
 DT_RUNPATH = 29
 
 REQUIRED_NATIVE = "mujoco/libmujoco.so.3.12.0"
+# This is not a general runtime search root. It models only the exact reviewed
+# MuJoCo native object that is already part of the fixed seed set.
+PINNED_RUNTIME_SONAMES = {
+    "libmujoco.so.3.12.0": REQUIRED_NATIVE,
+}
 REQUIRED_EXTENSIONS = (
     "mujoco/_callbacks.cpython-312-x86_64-linux-gnu.so",
     "mujoco/_constants.cpython-312-x86_64-linux-gnu.so",
@@ -386,13 +391,33 @@ def expand_dynamic_dir(
     binary: Path,
     runtime_root: Path,
     approved_roots: list[Path],
-) -> Path:
+) -> Path | None:
     expanded = value.replace("$" + "{ORIGIN}", str(binary.parent)).replace("$ORIGIN", str(binary.parent))
     if "$" in expanded:
         fail(f"unsupported dynamic-loader token in path: {value}")
     candidate = Path(expanded)
     if not candidate.is_absolute():
         fail(f"relative RPATH/RUNPATH is unsupported: {value}")
+
+    # A wheel can retain an absolute build-time RUNPATH that is absent on the
+    # target host. The dynamic loader cannot read bytes from a path that does
+    # not exist, so it contributes no candidate to this observation. We still
+    # inspect every existing prefix component and reject symlinked prefixes.
+    # If the path later appears, a fresh resolver run will either admit it only
+    # under the existing root policy or fail closed as outside approved roots.
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current = current / part
+        try:
+            current.lstat()
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            fail(f"dynamic search path cannot be inspected: {candidate}")
+            raise AssertionError from exc
+        if current.is_symlink():
+            fail("dynamic search path contains symlink component")
+
     resolved = path_without_symlink_components(str(candidate), "dynamic search path", directory=True)
     allowed = [binary.parent, runtime_root, *approved_roots]
     if not any(inside(resolved, root) or resolved == root for root in allowed):
@@ -411,7 +436,7 @@ def resolve_needed(
     source = dynamic["runpath"] if dynamic["runpath"] else dynamic["rpath"]
     for value in source:
         resolved = expand_dynamic_dir(value, binary, runtime_root, approved_roots)
-        if resolved not in dynamic_dirs:
+        if resolved is not None and resolved not in dynamic_dirs:
             dynamic_dirs.append(resolved)
 
     roots = [*dynamic_dirs, *approved_roots]
@@ -433,6 +458,25 @@ def resolve_needed(
             fail(f"DT_NEEDED {name} escapes approved search root {root}: {resolved}")
         if resolved not in matches:
             matches.append(resolved)
+
+    # MuJoCo 3.12.0 bundled plugins are loaded after the package extension
+    # modules and can name the exact libmujoco soname while carrying a stale
+    # wheel build-time RUNPATH. Model only that one fixed, already-seeded
+    # runtime object; this does not add runtime_root as a general search root.
+    pinned_relative = PINNED_RUNTIME_SONAMES.get(name)
+    if pinned_relative is not None:
+        candidate = runtime_root / pinned_relative
+        if candidate.exists():
+            resolved = path_without_symlink_components(
+                str(candidate),
+                f"pinned runtime DT_NEEDED {name}",
+                directory=False,
+            )
+            if not (resolved == runtime_root or inside(resolved, runtime_root)):
+                fail(f"pinned runtime DT_NEEDED {name} escapes runtime root: {resolved}")
+            if resolved not in matches:
+                matches.append(resolved)
+
     if len(matches) == 0:
         fail(f"unresolved DT_NEEDED {name} from {binary}")
     if len(matches) > 1:
