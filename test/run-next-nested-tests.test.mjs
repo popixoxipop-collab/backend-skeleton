@@ -174,8 +174,8 @@ function suiteFiles(suite, testContent) {
 	return { [`${suite.sourcePaths[0]}/index.mjs`]: SOURCE_FILE, [`${suite.testDir}/a.test.mjs`]: testContent };
 }
 
-function runCli(t, files, args) {
-	const root = buildRoot(t, { ...files, 'scripts/run-next-nested-tests.mjs': RUNNER_SOURCE });
+function runCli(t, files, args, runnerSource = RUNNER_SOURCE) {
+	const root = buildRoot(t, { ...files, 'scripts/run-next-nested-tests.mjs': runnerSource });
 	const env = { ...process.env };
 	delete env.NODE_TEST_CONTEXT;
 	const result = spawnSync(process.execPath, ['scripts/run-next-nested-tests.mjs', ...args], { cwd: root, encoding: 'utf8', env });
@@ -222,6 +222,17 @@ test('CLI: a declared absence exits 0 and prints its ref', { skip: DECLARED_SUIT
 	const r = runCli(t, {}, [DECLARED_SUITE.id]);
 	assert.equal(r.exit, 0, r.stderr);
 	assert.equal(r.stdout, `NESTED_SUITE ${DECLARED_SUITE.id} EXPECTED_ABSENT ref=${DECLARED_SUITE.expectedAbsent.ref}\n`);
+});
+
+// Once every real suite exists, no real suite declares an absence and the test above is skipped.
+// This keeps the same CLI path covered by declaring a throwaway suite absent in the runner copy.
+test('CLI: a declared absence exits 0 and prints its ref, independent of the real SUITES', (t) => {
+	const declared = `{ id: 'T99', sourcePaths: ['src-next'], testDir: 'test/next-suite', expectedAbsent: ${JSON.stringify(DECLARED)} },`;
+	const source = RUNNER_SOURCE.replace('export const SUITES = [', `export const SUITES = [\n  ${declared}`);
+	assert.notEqual(source, RUNNER_SOURCE, 'the runner copy must declare the fixture suite');
+	const r = runCli(t, {}, ['T99'], source);
+	assert.equal(r.exit, 0, r.stderr);
+	assert.equal(r.stdout, `NESTED_SUITE T99 EXPECTED_ABSENT ref=${DECLARED.ref}\n`);
 });
 
 test('CLI: with no arguments it starts at the first suite of SUITES and stops at the first failure', (t) => {
