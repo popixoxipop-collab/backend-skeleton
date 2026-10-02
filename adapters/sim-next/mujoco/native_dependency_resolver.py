@@ -28,7 +28,7 @@ REQUEST_PROTOCOL = "sbf.sim-mujoco-native-dependency-resolve/draft-1"
 OUTPUT_SCHEMA = "sbf.sim-mujoco-native-dependency-closure/draft-1"
 TARGET = "SIM-mujoco"
 MUJOCO_VERSION = "3.12.0"
-ADMISSION_CANDIDATE_SHA = "5548cde6b023be3b5988424a92d03c7ea17072c7"
+ADMISSION_CANDIDATE_SHA = "901efe96147ecc953e57b6ee9c3ee23095f94d8c"
 
 MAX_REQUEST_BYTES = 1024 * 1024
 MAX_SEARCH_ROOTS = 32
