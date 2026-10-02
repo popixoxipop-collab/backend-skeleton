@@ -1,0 +1,334 @@
+{
+  "contract": "sbf.t11-http-corpus-baseline/1",
+  "note": "T11 regression baselines measured on every pinned third-party entry in the existing oracle manifest. These are scanner-regression digests, NOT ContractRef hashes or application-completeness claims.",
+  "oracle_manifest_ref": "main@5472a8b82655840d1d3ce76cb926987376e37ca6:test/fixtures/oracle-manifest.json",
+  "entries": [
+    {
+      "id": "spring-petclinic",
+      "owner": "spring-projects",
+      "repo": "spring-petclinic",
+      "ref": "818c4136ea971c21674525f9053de0d9c7ad8cfe",
+      "path": null,
+      "adapter": "java-spring",
+      "terms": [
+        "owner"
+      ],
+      "semantic_sha256": "38dfff9c4191374e57ac4cad7a30d9b7ac323e2b59864eabc58d0a4c1c35a504",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 0,
+        "entity_count": 4,
+        "files_read_count": 30,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "ali-bouali-asymmetric-encryption",
+      "owner": "ali-bouali",
+      "repo": "spring-security-asymmetric-encryption",
+      "ref": "c3663da2bdba846d499f233fdbbae7558c97d469",
+      "path": null,
+      "adapter": "java-spring",
+      "terms": [
+        "category"
+      ],
+      "semantic_sha256": "d7858782dafb0820b08a3516ca91b41fa4274585330fd1686f2be828b4292de7",
+      "observed": {
+        "module_count": 2,
+        "endpoint_count": 12,
+        "entity_count": 2,
+        "files_read_count": 54,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "realworld-java21-springboot3",
+      "owner": "1chz",
+      "repo": "realworld-java21-springboot3",
+      "ref": "93e018e9a769dadae5a80b922d649bd7c79545cd",
+      "path": null,
+      "adapter": "java-spring",
+      "terms": [
+        "article"
+      ],
+      "semantic_sha256": "6f865d43e2341a0e95559f06a01b281ac262a13069ff87e6c73dbc2c41a336b8",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 0,
+        "entity_count": 7,
+        "files_read_count": 22,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "discourse",
+      "owner": "discourse",
+      "repo": "discourse",
+      "ref": "0be6cfbf552e4056589b9b43b873d18d42581d19",
+      "path": null,
+      "adapter": "ruby-rails",
+      "terms": [
+        "topic"
+      ],
+      "semantic_sha256": "4470a9035e88971877954c30f9c8bea258d1020b555ca820b442596ea762b281",
+      "observed": {
+        "module_count": 15,
+        "endpoint_count": 202,
+        "entity_count": 188,
+        "files_read_count": 1550,
+        "unknown_count": 71
+      }
+    },
+    {
+      "id": "forem",
+      "owner": "forem",
+      "repo": "forem",
+      "ref": "5f76f390fefbd3e018722986e4c2116d504c11e0",
+      "path": null,
+      "adapter": "ruby-rails",
+      "terms": [
+        "article"
+      ],
+      "semantic_sha256": "d95d53a2e61b991c8e361ccb07400ceef950d0bff33432693464bced1fc5fc6e",
+      "observed": {
+        "module_count": 10,
+        "endpoint_count": 171,
+        "entity_count": 51,
+        "files_read_count": 668,
+        "unknown_count": 57
+      }
+    },
+    {
+      "id": "mastodon",
+      "owner": "mastodon",
+      "repo": "mastodon",
+      "ref": "b4d0f69a809405eb32e253529bac36f86418e9e4",
+      "path": null,
+      "adapter": "ruby-rails",
+      "terms": [
+        "account"
+      ],
+      "semantic_sha256": "f222d0af406d9ecf99387923e8ca00b83c976f7c4e59297049a783430d4ccbe2",
+      "observed": {
+        "module_count": 22,
+        "endpoint_count": 105,
+        "entity_count": 71,
+        "files_read_count": 741,
+        "unknown_count": 121
+      }
+    },
+    {
+      "id": "full-stack-fastapi-template",
+      "owner": "fastapi",
+      "repo": "full-stack-fastapi-template",
+      "ref": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+      "path": null,
+      "adapter": "python-fastapi",
+      "terms": [
+        "item"
+      ],
+      "semantic_sha256": "04a4f5004eb9df9c70b3e520fb20f7fdee75d3eeedd27669448c29cc79084667",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 5,
+        "entity_count": 1,
+        "files_read_count": 40,
+        "unknown_count": 2
+      }
+    },
+    {
+      "id": "polar",
+      "owner": "polarsource",
+      "repo": "polar",
+      "ref": "b99fac67fe6599fc9f0d670bc714245c6e9d31f6",
+      "path": "server",
+      "adapter": "python-fastapi",
+      "terms": [
+        "organization"
+      ],
+      "semantic_sha256": "6fa0c6afe0433d5241b837b820249da88a2f69cbe4d69fe06f83788d0dad8283",
+      "observed": {
+        "module_count": 5,
+        "endpoint_count": 126,
+        "entity_count": 0,
+        "files_read_count": 1700,
+        "unknown_count": 2
+      }
+    },
+    {
+      "id": "mealie",
+      "owner": "mealie-recipes",
+      "repo": "mealie",
+      "ref": "cb32b6249f0e46138bfbda2479e313715c4a1946",
+      "path": null,
+      "adapter": "python-fastapi",
+      "terms": [
+        "recipe"
+      ],
+      "semantic_sha256": "126dcb79f04119637b8f001d5de25438293a49682086bc84d907783a76b4018f",
+      "observed": {
+        "module_count": 9,
+        "endpoint_count": 77,
+        "entity_count": 0,
+        "files_read_count": 636,
+        "unknown_count": 2
+      }
+    },
+    {
+      "id": "fastapi-best-architecture",
+      "owner": "fastapi-practices",
+      "repo": "fastapi-best-architecture",
+      "ref": "a38bd0b4a60ff139817f2a278b64489c76993954",
+      "path": null,
+      "adapter": "python-fastapi",
+      "terms": [
+        "user"
+      ],
+      "semantic_sha256": "852988cd8c8b6a8862e81f15c1b51996c8ee6c51160aab2666cd73dd8446b715",
+      "observed": {
+        "module_count": 2,
+        "endpoint_count": 15,
+        "entity_count": 0,
+        "files_read_count": 299,
+        "unknown_count": 2
+      }
+    },
+    {
+      "id": "petswipe-match-app",
+      "owner": "hoangsonww",
+      "repo": "PetSwipe-Match-App",
+      "ref": "b8573eead531c68a4e2a551883c3a17828b30826",
+      "path": "backend",
+      "adapter": "typescript-express",
+      "terms": [
+        "pet"
+      ],
+      "semantic_sha256": "5f78c9f4f30cf961628f6085cd0864b22dd35767bd48261d6fcd137aa4c0f8d0",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 7,
+        "entity_count": 1,
+        "files_read_count": 46,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "express-postgres-template",
+      "owner": "justine92415",
+      "repo": "express-postgres-template",
+      "ref": "120e90f873b9fa9df286538cdd882e2937343c8f",
+      "path": null,
+      "adapter": "typescript-express",
+      "terms": [
+        "user"
+      ],
+      "semantic_sha256": "75fd0ef018ba428edfbd8eb80a85d85e547658ef2d922dd85dbff10eb804040f",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 0,
+        "entity_count": 1,
+        "files_read_count": 14,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "marketplace-backend",
+      "owner": "leroy-netizen",
+      "repo": "marketplace-backend",
+      "ref": "05ce7465999c22b35d2947cf779dec39527fb0d4",
+      "path": null,
+      "adapter": "typescript-express",
+      "terms": [
+        "product"
+      ],
+      "semantic_sha256": "b14ea76ee75807bc1562044822e375004cd510bb5b597986620f053e5ca1fc3e",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 0,
+        "entity_count": 8,
+        "files_read_count": 56,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "node-express-realworld-commonjs",
+      "owner": "rtfeldman",
+      "repo": "node-express-realworld-example-app",
+      "ref": "ba04b70c31af81ca7935096740a6e083563b3a4a",
+      "path": null,
+      "adapter": "javascript-express",
+      "terms": [
+        "articles",
+        "users",
+        "profiles",
+        "tags",
+        "comments"
+      ],
+      "semantic_sha256": "bc4b141ad5b80910a6aa04bcb8d8a10abc6e26c89e1407d815d5c4370c4d902d",
+      "observed": {
+        "module_count": 4,
+        "endpoint_count": 19,
+        "entity_count": 0,
+        "files_read_count": 13,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "employees-api-mysql",
+      "owner": "JeanCaicedo",
+      "repo": "employees-api-mysql",
+      "ref": "e18789656adc0c91f96d0124fbdfefd86f7bf545",
+      "path": null,
+      "adapter": "javascript-express",
+      "terms": [
+        "employee"
+      ],
+      "semantic_sha256": "dd4b5488a998e9c867b492b74b4d867db1459d8445564f8df03032bcb467ce18",
+      "observed": {
+        "module_count": 1,
+        "endpoint_count": 5,
+        "entity_count": 0,
+        "files_read_count": 6,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "chat-app-backend",
+      "owner": "Serkanbyx",
+      "repo": "chat-app-backend",
+      "ref": "240422182000cccfcea11a043f2683df5821c83d",
+      "path": null,
+      "adapter": "javascript-express",
+      "terms": [
+        "user"
+      ],
+      "semantic_sha256": "e367b7360b5e08e3fe5b9adcec8b898f0fa2fefd353c08b1458ba78ce4c3baf3",
+      "observed": {
+        "module_count": 2,
+        "endpoint_count": 5,
+        "entity_count": 0,
+        "files_read_count": 25,
+        "unknown_count": 1
+      }
+    },
+    {
+      "id": "helloworld-garage",
+      "owner": "nekesam",
+      "repo": "helloworld",
+      "ref": "56c49a984471b77e68607983186c539e97bdbb09",
+      "path": null,
+      "adapter": "javascript-express",
+      "terms": [
+        "record"
+      ],
+      "semantic_sha256": "d8b91f81dc75dbf26f63d408348eb7a7ad2ec71c32df2a2b9cb9f78c47d9c4aa",
+      "observed": {
+        "module_count": 4,
+        "endpoint_count": 26,
+        "entity_count": 0,
+        "files_read_count": 21,
+        "unknown_count": 1
+      }
+    }
+  ]
+}
