@@ -4,11 +4,24 @@ import path from 'node:path';
 
 const SUPPORTED_SPARSE = new Set(['ruby-rails', 'python-fastapi']);
 
+// The variables git itself treats as local to one repository (GIT_DIR, GIT_CONFIG_COUNT, ...). A caller
+// inside a git hook or an outer git command inherits some of them, and they would send every call below
+// to another repository or configuration than the one under repoRoot, so each call runs without them.
+let localEnvNames;
+function gitEnvironment() {
+  localEnvNames ??= execFileSync('git', ['rev-parse', '--local-env-vars'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    .split('\n').filter(Boolean);
+  const env = { ...process.env };
+  for (const name of localEnvNames) delete env[name];
+  return env;
+}
+
 // Returns raw stdout. Tracked paths may begin or end with whitespace, so path data is never trimmed.
 function git(repoRoot, args, { optional = false } = {}) {
   try {
     return execFileSync('git', ['-C', repoRoot, ...args], {
       encoding: 'utf8',
+      env: gitEnvironment(),
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 16 * 1024 * 1024,
     });

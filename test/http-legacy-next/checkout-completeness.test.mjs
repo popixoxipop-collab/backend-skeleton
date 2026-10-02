@@ -527,3 +527,50 @@ test('T11 corpus completeness keeps whitespace at both ends of the checkout dire
     fs.rmSync(parent, { recursive: true, force: true });
   }
 });
+
+function withEnv(variables, run) {
+  const saved = Object.fromEntries(Object.keys(variables).map((name) => [name, process.env[name]]));
+  Object.assign(process.env, variables);
+  try {
+    return run();
+  } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+}
+
+test('T11 corpus completeness ignores variables that point git at another repository or configuration', () => {
+  const root = makeRepo({
+    'pyproject.toml': PYPROJECT,
+    'app/main.py': FASTAPI_APP,
+    'tests/test_api.py': 'def test_x(): pass\n',
+  });
+  const other = makeRepo({ 'README.md': 'unrelated\n' });
+  try {
+    sparse(root, 'app');
+    const expected = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+    assert.equal(expected.mode, 'sparse-readset-verified');
+    assert.deepEqual(expected.missing_paths, ['tests/test_api.py']);
+
+    for (const variables of [
+      { GIT_DIR: path.join(other, '.git') },
+      { GIT_DIR: path.join(other, '.git'), GIT_WORK_TREE: other },
+      { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.sparseCheckout', GIT_CONFIG_VALUE_0: 'false' },
+      { GIT_CONFIG_PARAMETERS: "'core.sparseCheckout=false'" },
+    ]) {
+      const actual = withEnv(variables, () => {
+        const result = inspectLegacyCorpusCheckout({ repoRoot: root, adapterId: 'python-fastapi' });
+        for (const [name, value] of Object.entries(variables)) {
+          assert.equal(process.env[name], value, 'the guard must not change the caller environment: ' + name);
+        }
+        return result;
+      });
+      assert.deepEqual(actual, expected, JSON.stringify(variables));
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(other, { recursive: true, force: true });
+  }
+});
