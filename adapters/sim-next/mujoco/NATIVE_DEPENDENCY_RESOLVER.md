@@ -61,7 +61,13 @@ RPATH/RUNPATH may add only:
 - absolute directories that resolve under the binary directory or approved
   search roots.
 
-Any other `$` loader token fails closed.
+An absolute RPATH/RUNPATH entry whose directory does not exist remains visible
+in the ELF node metadata but is not admitted as a dependency search root.
+Existing path prefixes are still inspected before the entry is skipped; a
+symlink component or path-inspection error fails closed.
+
+An existing absolute RPATH/RUNPATH directory outside the approved roots,
+any relative path, and any other dollar-prefixed loader token still fail closed.
 
 If the same soname resolves to more than one distinct real file across approved
 roots, the resolver fails as ambiguous instead of guessing loader precedence.

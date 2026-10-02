@@ -386,13 +386,32 @@ def expand_dynamic_dir(
     binary: Path,
     runtime_root: Path,
     approved_roots: list[Path],
-) -> Path:
+) -> Path | None:
     expanded = value.replace("$" + "{ORIGIN}", str(binary.parent)).replace("$ORIGIN", str(binary.parent))
     if "$" in expanded:
         fail(f"unsupported dynamic-loader token in path: {value}")
     candidate = Path(expanded)
     if not candidate.is_absolute():
         fail(f"relative RPATH/RUNPATH is unsupported: {value}")
+
+    # Wheel/plugin binaries may retain an absolute build-time RUNPATH that is
+    # not shipped on the target host (for example MuJoCo's /tmpfs build tree).
+    # Such a path cannot contribute a library, so do not admit it as a search
+    # root.  Still walk every existing prefix fail-closed: an existing symlink
+    # or an I/O error must not turn a stale path into an escape hatch.
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current = current / part
+        try:
+            current.lstat()
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            fail(f"dynamic search path cannot be inspected: {candidate}")
+            raise AssertionError from exc
+        if current.is_symlink():
+            fail("dynamic search path contains symlink component")
+
     resolved = path_without_symlink_components(str(candidate), "dynamic search path", directory=True)
     allowed = [binary.parent, runtime_root, *approved_roots]
     if not any(inside(resolved, root) or resolved == root for root in allowed):
@@ -411,6 +430,8 @@ def resolve_needed(
     source = dynamic["runpath"] if dynamic["runpath"] else dynamic["rpath"]
     for value in source:
         resolved = expand_dynamic_dir(value, binary, runtime_root, approved_roots)
+        if resolved is None:
+            continue
         if resolved not in dynamic_dirs:
             dynamic_dirs.append(resolved)
 

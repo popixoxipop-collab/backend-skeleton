@@ -498,6 +498,65 @@ test('M4A allows canonical $ORIGIN/.. RUNPATH inside the MuJoCo runtime root',()
   }
 });
 
+test('M4A ignores a nonexistent absolute build-time RUNPATH and resolves only from approved roots',()=>{
+  const fx=fixture({pluginNeeded:['libbar.so']});
+  try{
+    const stale=path.join(fx.root,'stale-build-tree','lib');
+    const plugin=path.join(fx.runtime,'mujoco','plugin','libplugin-fixture.so');
+    fs.writeFileSync(plugin,elf64({needed:['libbar.so'],runpath:stale}));
+    assert.equal(fs.existsSync(stale),false);
+
+    const {child,parsed}=run(fx);
+    assert.equal(child.status,0,child.stderr);
+    const pluginNode=parsed.nodes.find(x=>x.path===plugin);
+    assert.ok(pluginNode);
+    assert.deepEqual(pluginNode.runpath,[stale]);
+    assert.equal(
+      parsed.edges.some(e=>e.from===plugin&&e.needed==='libbar.so'&&e.to===path.join(fx.lib1,'libbar.so')),
+      true,
+    );
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4A rejects a nonexistent RUNPATH when an existing prefix is a symlink',{
+  skip:process.platform==='win32',
+},()=>{
+  const fx=fixture({pluginNeeded:['libbar.so']});
+  try{
+    const outside=path.join(fx.root,'outside-prefix-target');
+    fs.mkdirSync(outside,{recursive:true});
+    const link=path.join(fx.runtime,'linked-prefix');
+    fs.symlinkSync(outside,link);
+    const runpath=path.join(link,'missing-child');
+    const plugin=path.join(fx.runtime,'mujoco','plugin','libplugin-fixture.so');
+    fs.writeFileSync(plugin,elf64({needed:['libbar.so'],runpath}));
+
+    const {child}=run(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/dynamic search path contains symlink component/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('M4A still rejects an existing absolute RUNPATH outside approved roots',()=>{
+  const fx=fixture({pluginNeeded:['libbar.so']});
+  try{
+    const outside=path.join(fx.root,'outside-existing');
+    fs.mkdirSync(outside,{recursive:true});
+    const plugin=path.join(fx.runtime,'mujoco','plugin','libplugin-fixture.so');
+    fs.writeFileSync(plugin,elf64({needed:['libbar.so'],runpath:outside}));
+
+    const {child}=run(fx);
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/dynamic search path is outside approved roots/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4A rejects unsupported dynamic-loader tokens and relative runpaths',()=>{
   for(const runpath of ['$LIB','relative/lib']){
     const fx=fixture({seedRunpath:runpath});
