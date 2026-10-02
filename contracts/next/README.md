@@ -83,13 +83,13 @@ T15/T16 and future consumers must not report only a boolean pass. The reviewed h
 - `schemas/next/identity-consumer-result.schema.json` — the consumer-owned execution result shape;
 - `contracts/next/consumer-conformance.mjs` — the T01 verifier used after a consumer submits its result.
 
-A result binds the consumer repository + exact 40-hex commit, implementation path, exact SHA-256 of the conformance-pack bytes, command/exit code, and one observation for every reviewed vector. It must explicitly state that bskel was neither imported nor spawned at runtime.
+A result carries the consumer repository + a 40-hex commit, implementation path, exact SHA-256 of the conformance-pack bytes, command/exit code (self-declared), and one observation for every reviewed vector. The verifier checks the pack SHA-256 and the observations against the reviewed pack, but checks the commit only for format (40 lowercase hex characters) and the command only as a non-empty string, so neither is tied to the run that produced the observations (see the T01 task mapping section below). It must explicitly state that bskel was neither imported nor spawned at runtime.
 
-The verifier rejects stale/substituted pack bytes, missing/duplicate/unexpected vectors, operation-ID repair, exact-byte artifact substitution, negative cases that no longer fail closed, summary tampering, and any bskel runtime dependency. JSON object key order is not identity; ArtifactRef and the pack SHA-256 preserve exact-byte boundaries separately.
+The verifier rejects stale/substituted pack bytes, missing/duplicate/unexpected vectors, operation-ID repair, exact-byte artifact substitution, negative cases that no longer fail closed, summary tampering, and any result that declares a bskel runtime import or spawn (`execution.exit_code` and the two `bskel_runtime_*` fields are constants written by the result builders, not observations, and the verifier only compares them with 0 and false; see the T01 task mapping section below). JSON object key order is not identity; ArtifactRef and the pack SHA-256 preserve exact-byte boundaries separately.
 
-This result contract is **candidate pre-freeze**. A valid result proves conformance to these reviewed vectors at the named consumer commit; it does not by itself grant T00-04 activation or runtime/business-behavior certification.
+This result contract is **candidate pre-freeze**. A valid result shows, as reported by the consumer, conformance to these reviewed vectors for the exact pack bytes it names; the verifier does not run the consumer, and it checks the consumer commit the result names for format only (see the T01 task mapping section below). It does not by itself grant T00-04 activation or runtime/business-behavior certification.
 
-When more than one independent consumer is required, `verifyRequiredConsumerSet()` combines already-verified results into `sbf.identity-consumer-set/1`. It rejects duplicate repositories and, when a required repository list is supplied, rejects both missing and unexpected consumers. The generated summary is described by `schemas/next/identity-consumer-set.schema.json`. For T01-05, the intended required set is becoder + beval at exact commits; the function itself is generic and does not hardcode repository names.
+When more than one independent consumer is required, `verifyRequiredConsumerSet()` combines already-verified results into `sbf.identity-consumer-set/1`. It rejects duplicate repositories and, when a required repository list is supplied, rejects both missing and unexpected consumers. The generated summary is described by `schemas/next/identity-consumer-set.schema.json`. For T01-05, the intended required set is becoder + beval, each result naming a commit (the function checks it for format only, see the T01 task mapping section below); the function itself is generic and does not hardcode repository names.
 
 ## Files owned by this T01 slice
 
@@ -112,13 +112,22 @@ No stable writer, CLI entry point, adapter descriptor, package lock, `sbf_contra
 
 ## T01 task mapping
 
-| Task | State after this slice | Evidence |
+| Task | State | Evidence |
 |---|---|---|
 | T01-01 existing wire contract audit | implemented as baseline assertions | existing golden digests replayed by production serializer |
 | T01-02 vNext boundary RFC | implemented as opt-in artifact ref + HTTP-only envelope | this document and schemas |
 | T01-03 dual reader + schema | implemented | `readIdentity`, schema tests |
 | T01-04 identity/hash golden vectors | implemented for this slice | legacy replay + exact-byte artifact + envelope vectors |
-| T01-05 consumer contract tests | not complete | becoder/beval independent readers still need cross-repo work |
-| T01-06 compatibility promotion evidence | not complete | requires packed artifacts and cross-repo replay |
+| T01-05 consumer contract tests | PASS on the T00 coordination record (additive, candidate pre-freeze); re-run 2026-10-02 | `gates.T01.verdict` in `integration/scale/T00-05-execution-state.json` on the branch `scale/T00/bootstrap-baseline`, first at commit `b9b5ee7180123b93271529fcfcd0896444ce3d34`; `release/next/compatibility-inventory.json` `promotion_evidence.t01_06.current_rerun` |
+| T01-06 compatibility promotion evidence | ACCEPTED on the T00 coordination record (additive only, candidate pre-freeze); re-run 2026-10-02 | `promotion_gate.t01_06` in the same file, first at commit `2d226b1b14f533ba181300ca955ff4969dba0c66`; `release/next/release-plan.json` `coordination_ref` |
 
-T01-05 and T01-06 are intentionally not marked complete by backend-skeleton unit tests alone.
+The unit tests in this directory do not decide T01-05 or T01-06 by themselves. The decision is recorded on the coordination branch `scale/T00/bootstrap-baseline` of this repository (the commits named above) and is not merged to main; `release/next/release-plan.json` carries the exact commit and blob SHAs, and `release-policy.mjs verify` does not check them.
+
+The acceptance covers additive consumer compatibility against the **candidate pre-freeze** pack only:
+
+- It is not a final freeze. The T00-04A core freeze pins `contracts/next/identity.mjs`, `schemas/next/artifact-ref.schema.json`, `schemas/next/identity-envelope.schema.json` and `schemas/next/identity.golden.json`; the conformance pack, the verifier and the result and set schemas are not named there.
+- It is not signed release evidence: `release/next/evidence-manifest.json` has no entries.
+- It is not a release, a default-writer change or a cutover, and legacy HTTP identity stays authoritative.
+- The 2026-10-02 re-run was done by one Claude Code session on one host; it is not an independent review. `test/contract-next/t01-compatibility-evidence.json` keeps the 2026-09-25 observation and adds its `current_state`.
+- No rollback material for T01-06 was found. The scale plan's track description defines the T01-06 deliverable as support scope, constraints, rollback and replay material. The replay part is covered by the re-run; the word rollback does not occur in the T01 paths of the three repositories at their mains of 2026-10-02, nor in `integration/scale/T00-05-execution-state.json` at the branch tip. The rollback text in `release/next/release-plan.json` (`migration_stages[].rollback` and `rollback_policy`) and the closing rollback sentence of `release/next/migration-runbook.md` are release-wide policy, not T01-06 evidence. Details are in `current_state.not_established` of the evidence file above.
+- The consumer commits are not bound to the replayed bytes. `verifyRequiredConsumerSet()` checks each `commit_sha` only as 40 lowercase hex characters (forty zeros were still accepted), and `execution.exit_code`, `execution.bskel_runtime_imported` and `execution.bskel_runtime_spawned` in a consumer result are constants written by the result builders, not observations. See `current_state.requirements_note` in the same file.
