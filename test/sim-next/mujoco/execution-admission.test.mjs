@@ -224,6 +224,20 @@ test('M4 inventory identity changes if collector identity is changed and candida
   }
 });
 
+test('M4 full runtime closure accepts the observed >20k target size but remains bounded at 60k',()=>{
+  const makeFiles=(count)=>Array.from({length:count},(_,index)=>({
+    path:`bulk-runtime/file-${String(index).padStart(5,'0')}.bin`,
+    sha256:'a'.repeat(64),
+    size_bytes:1,
+    kind:'resource',
+  }));
+  assert.match(runtimeClosureDigest(makeFiles(20_001)),/^[a-f0-9]{64}$/);
+  assert.throws(
+    ()=>runtimeClosureDigest(makeFiles(60_001)),
+    /runtime_closure\.files must contain 1\.\.60000 entries/,
+  );
+});
+
 test('M4 runtime closure digest changes when any file identity changes',()=>{
   const files=[
     {path:'mujoco/a.py',sha256:'a'.repeat(64),size_bytes:1,kind:'python'},

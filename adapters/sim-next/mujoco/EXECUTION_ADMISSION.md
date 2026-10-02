@@ -91,7 +91,7 @@ The output is:
 
 `sbf.sim-mujoco-runtime-inventory/draft-1`
 
-The runtime-closure identity is a canonical SHA-256 over the full sorted file inventory, not merely
+The full runtime closure remains bounded to at most 60,000 files and 16 GiB total bytes. The 60,000-file ceiling is sized above the observed Alienware target environment (39,437 site-packages files plus 1,213 stdlib files before the 21-file external native union), while preserving a finite fail-closed budget. The separate native-dependency limit remains 512 files and the unhashed RECORD-entry limit remains 20,000.\n\nThe runtime-closure identity is a canonical SHA-256 over the full sorted file inventory, not merely
 the wheel RECORD digest.
 
 ## MuJoCo import closure matters

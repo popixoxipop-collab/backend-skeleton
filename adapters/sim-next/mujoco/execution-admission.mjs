@@ -99,7 +99,7 @@ function fileEntry(value,label){
 }
 
 function validateFiles(value){
-  if(!Array.isArray(value)||value.length===0||value.length>20000) throw new TypeError('runtime_closure.files must contain 1..20000 entries');
+  if(!Array.isArray(value)||value.length===0||value.length>60000) throw new TypeError('runtime_closure.files must contain 1..60000 entries');
   const files=value.map((entry,index)=>fileEntry(entry,`runtime_closure.files[${index}]`));
   const sorted=[...files].sort((a,b)=>a.path.localeCompare(b.path));
   if(new Set(sorted.map((x)=>x.path)).size!==sorted.length) throw new TypeError('runtime_closure.files contains duplicate paths');
