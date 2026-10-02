@@ -94,6 +94,13 @@ The output is:
 The runtime-closure identity is a canonical SHA-256 over the full sorted file inventory, not merely
 the wheel RECORD digest.
 
+The closure remains bounded. The file-count ceiling is 50,000 and the aggregate-byte ceiling remains
+16 GiB. The real Alienware/WSL target was observed filesystem-only at 39,437 regular files under the
+runtime import root, 1,213 regular files under the single approved Python stdlib root, and 21 explicit
+native dependency files (40,671 combined before symlink-only entries). The prior 20,000 ceiling therefore
+rejected the intended full closure; raising only the file-count ceiling preserves the full-root trust model
+without narrowing the inventoried runtime surface.
+
 ## MuJoCo import closure matters
 
 MuJoCo 3.12.0 import is broader than `libmujoco.so` plus one extension.
