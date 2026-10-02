@@ -48,7 +48,7 @@ The current common comparison shape records `syntaxValidated` only. It has **no 
 
 ## Test
 
-T04-owned tests live only under the nested ownership path. They are executed explicitly until T00/T23 provides centrally-owned nested-test discovery:
+T04-owned tests live only under the nested ownership path. On `main` the nested-next CI job runs them centrally as the `T04 language-js-ts` step (`.github/workflows/ci.yml:132-133`, `node scripts/run-next-nested-tests.mjs T04`). The explicit command below still works for a direct local run:
 
 ```bash
 node --test \

@@ -8,13 +8,15 @@ Run them directly:
 node --test test/persistence-next/*.test.mjs
 ```
 
-The repository's current root `npm test` command is `node --test test/*.test.mjs`; Node's shell
-glob does not include this nested directory. Therefore a green existing CI job does **not** by
-itself prove the nested T10 suite ran.
+The repository's root `npm test` command is `node --test test/*.test.mjs`; Node's shell
+glob does not include this nested directory, so a green root `npm test` does **not** by itself prove
+the nested T10 suite ran. On `main` the nested-next CI job runs it as the `T10 persistence-next`
+step (`.github/workflows/ci.yml:144-145`), which is `node scripts/run-next-nested-tests.mjs T10`.
 
-Earlier EOE verification, before the remote connector disappeared from the session, completed the
-then-current T10 suite and the existing DB regression set. Subsequent ActiveRecord/Django/T07/T14
-work has been re-read from the GitHub branch and exercised with isolated branch-source checks, but
-must still receive a real Node nested-suite run before this draft PR is promoted.
+Historical note from the draft PR #84 era (superseded): earlier EOE verification, before the remote
+connector disappeared from the session, completed the then-current T10 suite and the existing DB
+regression set. Later ActiveRecord/Django/T07/T14 work was re-read from the GitHub branch and
+exercised with isolated branch-source checks, and was still waiting for a real Node nested-suite run
+before that draft was promoted. The suite now reaches CI through PR #147 and the nested-next job.
 
 T10 deliberately does not edit the shared root package/CI files. See `CHANGE_REQUESTS.md`.

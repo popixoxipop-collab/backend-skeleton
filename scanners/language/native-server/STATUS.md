@@ -10,8 +10,24 @@ This is a coordination snapshot for the 24-agent scale plan. It records what T08
 | T08-02 transport + static worker runner | implemented in branch | `bskel.native-language/1`, validated facts, bounded NDJSON worker, real parent-enforced timeout, zero ambient env, fail-closed profile budgets |
 | T08-03 Go/C# pilot | implemented in branch | Gin literal groups/routes; ASP.NET Core Minimal + controller literal routes; computed/conventional cases abstain |
 | T08-04 Rust pilot | implemented in branch | Axum literal route/nest/merge subset; Actix direct route/scope subset; ownership/cross-framework/raw-string/lifetime regressions |
-| T08-05 HTTP adapter composition | **BLOCKED** | T00-04A is not active; T01/T02/T03 interfaces are draft. No registry/CLI/shared-schema mutation from T08 |
+| T08-05 HTTP adapter composition | **BLOCKED on 2026-09-25; partly superseded, see the update below** | T00-04A is not active; T01/T02/T03 interfaces are draft. No registry/CLI/shared-schema mutation from T08 |
 | T08-06 static worker packaging | implemented for current Node/static slice | macOS + Windows focused/package verification; package includes runtime files, excludes T08 tests. Compiler-backed helper packaging remains future work |
+
+## Update (`main` at `ad24e0d8`, checked 2026-10-03)
+
+The T08-05 row above is the 2026-09-25 state. Current facts on `main`:
+
+- `release/next/release-plan.json` (lines 46-48) records the prerequisite T00-04A with
+  `observed_state` `ACTIVE_CORE_FREEZE`. Its `coordination_ref` names evidence that exists only on the
+  branch `scale/T00/bootstrap-baseline`, not on `main`; this update did not re-verify that evidence.
+- `bskel.native-language/1` has two consumers: Go Gin (`adapters/http-wave-a/gin.mjs`) and ASP.NET Core
+  (`adapters/http-wave-a/aspnet-core.mjs`), with tests under `test/http-wave-a/`.
+- There is no Rust consumer. `rust-axum` and `rust-actix-web` exist only as catalog entries
+  (`adapters/http-wave-bc/catalog.mjs:9-10`).
+- No scanner registry or CLI code imports these adapters. A source search of `main` found them referenced
+  only by tests, the nested-test runner (`scripts/run-next-nested-tests.mjs`, T12) and the CI step
+  `T12 http-wave-a`.
+- This is not a framework support certificate and changes no acceptance state.
 
 ## Verification revision
 

@@ -36,7 +36,7 @@ The remaining Wave B/C entries in `catalog.mjs` are admission targets, not imple
 
 Each fixture directory carries its own attribution and scope note.
 
-The current machine-readable profile evidence and explicit blockers are recorded in [`profile-evidence.json`](./profile-evidence.json). T23 re-home / required nested-suite integration is tracked in repository issue #137; T19 independent review was requested on PR #118.
+The current machine-readable profile evidence and explicit blockers are recorded in [`profile-evidence.json`](./profile-evidence.json). T23 re-home / required nested-suite integration was tracked in repository issue #137, which is now closed (see "Test and ownership boundary" for what landed); T19 independent review was requested on PR #118, which was closed without merge, and this README records no review outcome.
 
 ## Test and ownership boundary
 
@@ -48,9 +48,9 @@ The repository's current `npm test` glob only discovers `test/*.test.mjs`. T13 d
 node --test test/http-wave-bc/*.test.mjs
 ```
 
-Making nested suites part of required root CI is a T00/T23 integration change. Until that integration lands, a green repository-wide CI run does not by itself prove that the latest T13 focused tests executed.
+Making nested suites part of required CI was a T00/T23 integration change, and it is on `main`: the nested-next job runs this suite as the `T13 http-wave-bc` step (`.github/workflows/ci.yml:150-151`, `node scripts/run-next-nested-tests.mjs T13`). Root `npm test` still does not discover it, so a green root `npm test` alone does not prove the T13 tests ran; the nested-next job does. GitHub branch protection on `main` of this repository lists `nested-next (22.x)` and `nested-next (24.x)` among its required status checks (read from the GitHub API on 2026-10-03; that setting lives in GitHub, not in this repository, so re-check it before relying on it).
 
-T00-04A is now active on the coordinator integration line and T00-04B classifies T13 as `PROFILE_BY_PROFILE`. The current Hono, Koa, and Next.js slices have exact-head static CI evidence, but promotion is still held for T19 independent review and T23 lease/nested-suite integration. Until one of these profiles completes that review path, the remaining catalog entries stay admission targets rather than new implementation fan-out.
+T00-04A is now active on the coordinator integration line and T00-04B classifies T13 as `PROFILE_BY_PROFILE`. The current Hono, Koa, and Next.js slices have exact-head static CI evidence, but promotion is still held for T19 independent review. The T23 nested-suite CI integration is now on `main`; the T23 lease and package-allowlist items were not re-evaluated here, and `profile-evidence.json` (`promotion_blockers`, `promotion_state` `HOLD_T19_T23`) still carries its earlier text. Until one of these profiles completes that review path, the remaining catalog entries stay admission targets rather than new implementation fan-out.
 
 ## Promotion rule
 

@@ -24,5 +24,5 @@ For full-surface inventory evaluation, an abstention/unknown on a gold item is c
 ## Task status
 
 - T19-01: this slice implements the corpus manifest rules and a reference split. Holdout selection is deliberately still empty.
-- T19-02: this slice implements the initial 24-vector catalog and validates its structure/coverage.
+- T19-02: this slice began as a 24-vector catalog; `negative-vectors.json` now carries the full 79-vector catalog (counted at `ad24e0d8`) and the tests validate its structure/coverage. Executable mutation fixtures are a separate, smaller count: 20 (7 harness mutants in `../conformance-next/mutations.json` plus 13 product-core mutants in `../conformance-next/product-mutations.json`, see "Mutation inventory" in `../conformance-next/README.md`). That count is not negative-vector coverage; most catalog entries are not executable fixtures.
 - T19-03/T19-04/T19-06: `../conformance-next/harness.mjs` contains reusable metric/mutation/evidence primitives and tests, but these tasks are not declared complete until their upstream dependencies and real execution artifacts exist.

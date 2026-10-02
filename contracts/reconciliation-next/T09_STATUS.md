@@ -1,11 +1,19 @@
 # T09 implementation status / handoff
 
-Branch: `scale/T09/reconciliation-next-foundation`  
-PR: #83  
-Status: **implemented in draft branch; not merged; shared vocabulary not frozen**
+- Branch: `scale/T09/reconciliation-next-foundation` (original working branch)
+- PR: #83 (closed without merge; the T09 bytes reached `main` through PR #147, merge commit
+  `bb18182c54a3a8f682ed2d1a6bac26749fcf267e`)
+- Status: **on `main` through PR #147; shadow diagnostics only; shared vocabulary not frozen**
 
 This file records T09-local implementation state. It is not a release certificate and does not mark
 T00/T01/T03/T16/T19 tasks accepted.
+
+> Update (checked against `main` at `ad24e0d8`, 2026-10-03): the status above and the CI discovery
+> paragraph near the end were stale. Wording below that says "draft branch", "this PR" or "this
+> branch" describes the history of PR #83 and is kept as written. Current facts: the T09 files are on
+> `main`; the focused suite has 113 tests; the nested-next CI job runs it as the
+> `T09 reconciliation-next` step (`.github/workflows/ci.yml:142-143`). Nothing here promotes any
+> capability; the output stays shadow diagnostics and advisory readiness only.
 
 ## Task mapping
 
@@ -153,19 +161,23 @@ This branch does not edit:
 - `bin/bskel.mjs`,
 - `package.json` or lockfiles.
 
-The 110 focused T09 tests live entirely under `test/reconciliation-next/**`.
-The current shared `test/*.test.mjs` command does not discover them. The out-of-lease root shim was
-removed at commit `92ee509c0654ef1d235851d4abe61cf74bb5c65d`. A shared-owner change request on
-T00 PR #65 asks central CI to include `test/reconciliation-next/*.test.mjs` without granting T09 a
-root/shared-file lease. Until that lands, T09 is BLOCKED for integration and generic CI green does not
-certify the nested focused suite.
+The 113 focused T09 tests (count at `main` `ad24e0d8`) live entirely under `test/reconciliation-next/**`.
+The shared root `npm test` (`node --test test/*.test.mjs`) still does not discover them. The out-of-lease
+root shim was removed at commit `92ee509c0654ef1d235851d4abe61cf74bb5c65d`. The shared-owner change
+request on T00 PR #65 asked central CI to include `test/reconciliation-next/*.test.mjs` without granting
+T09 a root/shared-file lease; on `main` the nested-next job now does that, running
+`node scripts/run-next-nested-tests.mjs T09` as the `T09 reconciliation-next` step
+(`.github/workflows/ci.yml:142-143`), so the earlier "BLOCKED for integration" condition on CI discovery
+no longer applies. Root `npm test` green still does not certify the nested suite; the nested-next job does.
 
 ## Merge / promotion rule
 
 Do not mark this PR ready solely because tests are green. Before shared use:
 
 1. latest-head generic CI must be green,
-2. central CI/shared-owner discovery must actually execute the nested 98-test T09 suite,
+2. central CI/shared-owner discovery must actually execute the nested T09 suite (satisfied on `main`:
+   the `T09 reconciliation-next` nested-next step runs it, 113 tests at `ad24e0d8`; items 1, 3 and 4
+   were not re-evaluated by this update),
 3. T01/T03 must review the local vocabulary and either adopt or map it,
 4. T16 must review the runtime observation boundary,
 5. stable writers remain unchanged until an integration PR explicitly enables a next path.
