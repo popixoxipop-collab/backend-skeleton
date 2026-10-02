@@ -4,18 +4,24 @@ import path from 'node:path';
 
 const SUPPORTED_SPARSE = new Set(['ruby-rails', 'python-fastapi']);
 
+// Returns raw stdout. Tracked paths may begin or end with whitespace, so path data is never trimmed.
 function git(repoRoot, args, { optional = false } = {}) {
   try {
     return execFileSync('git', ['-C', repoRoot, ...args], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 16 * 1024 * 1024,
-    }).trim();
+    });
   } catch (err) {
     if (optional) return null;
     const detail = err.stderr?.toString().trim() || err.message;
     throw new Error('git ' + args.join(' ') + ' failed: ' + detail);
   }
+}
+
+function gitLine(repoRoot, args, options) {
+  const out = git(repoRoot, args, options);
+  return out === null ? null : out.replace(/\n$/, '');
 }
 
 function posix(value) {
@@ -28,12 +34,15 @@ function excludedPython(rel) {
   );
 }
 
-function excludedRails(rel) {
-  return rel === '.bundle' || rel.startsWith('.bundle/') ||
-    rel === 'vendor/bundle' || rel.startsWith('vendor/bundle/') ||
-    rel === 'tmp' || rel.startsWith('tmp/') ||
-    rel === 'log' || rel.startsWith('log/') ||
-    rel === 'node_modules' || rel.startsWith('node_modules/');
+// The Rails scanner lists markers with `rg --files -g Gemfile -g Gemfile.lock` and adds root-anchored
+// excludes (`!tmp/**`, `!log/**`, `!vendor/bundle/**`, `!.bundle/**`, `!node_modules/**`). ripgrep
+// anchors those globs at its own working directory, so they only take effect when the scan runs from
+// inside the project directory; from any other directory a Gemfile below one of those trees is read
+// too. The guard cannot know the scan's working directory, so it requires every tracked Gemfile and
+// Gemfile.lock at any depth (it may over-require, never under-require).
+function isRailsMarker(rel) {
+  const name = rel.slice(rel.lastIndexOf('/') + 1);
+  return name === 'Gemfile' || name === 'Gemfile.lock';
 }
 
 function expectedSparseReadSet(adapterId, trackedRelativePaths) {
@@ -42,8 +51,7 @@ function expectedSparseReadSet(adapterId, trackedRelativePaths) {
   }
   if (adapterId === 'ruby-rails') {
     return trackedRelativePaths.filter((rel) => {
-      if (excludedRails(rel)) return false;
-      if (rel === 'Gemfile' || rel === 'Gemfile.lock') return true;
+      if (isRailsMarker(rel)) return true;
       if (!rel.endsWith('.rb')) return false;
       return rel === 'config/routes.rb' || rel.startsWith('config/') ||
         rel.startsWith('app/controllers/') || rel.startsWith('app/models/') ||
@@ -61,14 +69,14 @@ export function inspectLegacyCorpusCheckout({ repoRoot, adapterId, maxMissing = 
   }
 
   const root = fs.realpathSync(path.resolve(repoRoot));
-  const gitTop = fs.realpathSync(path.resolve(git(root, ['rev-parse', '--show-toplevel'])));
+  const gitTop = fs.realpathSync(path.resolve(gitLine(root, ['rev-parse', '--show-toplevel'])));
   const relProject = posix(path.relative(gitTop, root));
   if (relProject.startsWith('../') || path.isAbsolute(relProject)) {
     throw new Error('repoRoot escapes its git toplevel');
   }
 
-  const head = git(root, ['rev-parse', 'HEAD']);
-  const sparse = git(root, ['config', '--bool', 'core.sparseCheckout'], { optional: true }) === 'true';
+  const head = gitLine(root, ['rev-parse', 'HEAD']);
+  const sparse = gitLine(root, ['config', '--bool', 'core.sparseCheckout'], { optional: true }) === 'true';
   if (!sparse) {
     return Object.freeze({
       complete: true,
@@ -98,15 +106,12 @@ export function inspectLegacyCorpusCheckout({ repoRoot, adapterId, maxMissing = 
     });
   }
 
-  const treeArgs = ['ls-tree', '-r', '--name-only', 'HEAD'];
-  if (relProject) treeArgs.push('--', relProject);
-  const raw = git(gitTop, treeArgs);
-  const tracked = raw ? raw.split('\n').filter(Boolean) : [];
-  const prefix = relProject ? relProject.replace(/\/$/, '') + '/' : '';
-  const relative = tracked
-    .filter((entry) => !prefix || entry === relProject || entry.startsWith(prefix))
-    .map((entry) => prefix ? entry.slice(prefix.length) : entry)
-    .filter(Boolean);
+  // `-z` prints raw NUL-separated names; without it git C-quotes non-ASCII names (core.quotePath) and
+  // names containing a double quote, backslash or control character, and a quoted entry would never
+  // match a `.py`/`.rb` rule. `HEAD:<dir>` lists the project subtree with names already relative to it
+  // and, unlike a pathspec, treats the directory name literally.
+  const raw = git(gitTop, ['ls-tree', '-r', '-z', '--name-only', relProject ? 'HEAD:' + relProject : 'HEAD']);
+  const relative = raw.split('\0').filter(Boolean);
 
   const expected = expectedSparseReadSet(adapterId, relative);
   const missing = [];
