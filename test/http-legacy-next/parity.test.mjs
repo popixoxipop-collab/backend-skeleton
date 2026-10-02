@@ -127,7 +127,8 @@ function fullReport() {
 				line: 4,
 			}],
 			enums: [{ name: 'En1', constants: ['A', 'B'], file: '/checkout/En1.java', line: 5 }],
-			dtos: ['PlainDto', { className: 'D1', file: '/checkout/D1.java' }, { name: 'D2' }],
+			// Names shaped like D<N> are read as decision references by test/doc-integrity.test.mjs.
+			dtos: ['PlainDto', { className: 'Dto1', file: '/checkout/Dto1.java' }, { name: 'Dto2' }],
 		}],
 		files_read: ['src/C1.java'],
 		terms: ['a-term'],
@@ -176,9 +177,9 @@ const SNAPSHOT_FIELDS = [
 	['enum file', (r) => { enum0(r).file = '/checkout/En2.java'; }],
 	['dtos removed', (r) => { module0(r).dtos = []; }],
 	['dto given as a string', (r) => { dtos(r)[0] = 'OtherDto'; }],
-	['dto className', (r) => { dtos(r)[1].className = 'D9'; }],
-	['dto file', (r) => { dtos(r)[1].file = '/checkout/D9.java'; }],
-	['dto name used when className is absent', (r) => { dtos(r)[2].name = 'D9'; }],
+	['dto className', (r) => { dtos(r)[1].className = 'Dto9'; }],
+	['dto file', (r) => { dtos(r)[1].file = '/checkout/Dto9.java'; }],
+	['dto name used when className is absent', (r) => { dtos(r)[2].name = 'Dto9'; }],
 ];
 
 const OUTSIDE_THE_SNAPSHOT = [
@@ -385,7 +386,7 @@ test('T11-04 with a root, the same fixture bytes in two directories give one dig
 
 test('T11-04 with a root, every file becomes a forward-slash path below the root and nothing else changes', () => {
 	const expected = relativeToCheckout(legacyHttpSemanticSnapshot(fullReport()));
-	assert.deepEqual(snapshotFiles(expected).filter(Boolean).sort(), ['C1.java', 'C1.java', 'D1.java', 'E1.java', 'En1.java']);
+	assert.deepEqual(snapshotFiles(expected).filter(Boolean).sort(), ['C1.java', 'C1.java', 'Dto1.java', 'E1.java', 'En1.java']);
 	for (const root of ['/checkout', '/checkout/', '/checkout//', '/checkout/./sub/..']) {
 		assert.deepEqual(legacyHttpSemanticSnapshot(fullReport(), { root }), expected, root);
 	}
