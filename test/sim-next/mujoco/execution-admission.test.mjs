@@ -95,7 +95,7 @@ function fixture(){
   return {root,runtime,stdlib,helper,wrapper,nativeDep};
 }
 
-function collect(fx){
+function collect(fx,stdlibSymlinkTargets=[]){
   const request={
     protocol:'sbf.sim-mujoco-runtime-admission-collect/draft-1',
     target:'SIM-mujoco',
@@ -103,6 +103,7 @@ function collect(fx){
     helper_path:fx.helper,
     wrapper_path:fx.wrapper,
     stdlib_roots:[fx.stdlib],
+    stdlib_symlink_targets:stdlibSymlinkTargets,
     native_dependency_files:[{
       logical_path:'system-native/libsystem-fixture.so',
       path:fx.nativeDep,
@@ -205,6 +206,56 @@ test('M4 collector inventories exact runtime bytes without importing or compilin
   }
 });
 
+test('M4 collector binds only server-approved stdlib symlink targets and closure bytes',()=>{
+  const fx=fixture();
+  try{
+    const target=path.join(fx.stdlib,'os.py');
+    const alias=path.join(fx.stdlib,'sysconfig-alias.py');
+    fs.symlinkSync('os.py',alias);
+    const approved=[{
+      root_index:0,
+      path:'sysconfig-alias.py',
+      resolved_path:fs.realpathSync(target),
+    }];
+
+    const ok=collect(fx,approved);
+    assert.equal(ok.child.status,0,ok.child.stderr);
+    assert.deepEqual(ok.parsed.runtime_closure.symlinks,[]);
+    assert.equal(ok.parsed.runtime_closure.stdlib_symlink_bindings.length,1);
+    const binding=ok.parsed.runtime_closure.stdlib_symlink_bindings[0];
+    assert.equal(binding.path,'python-stdlib-0/sysconfig-alias.py');
+    assert.equal(binding.link_target,'os.py');
+    assert.equal(binding.resolved_path,fs.realpathSync(target));
+    assert.equal(binding.sha256,sha(fs.readFileSync(target)));
+    const aliasEntry=ok.parsed.runtime_closure.files.find((entry)=>entry.path===binding.path);
+    assert.equal(aliasEntry.kind,'stdlib');
+    assert.equal(aliasEntry.sha256,binding.sha256);
+    assert.equal(aliasEntry.size_bytes,binding.size_bytes);
+    assert.equal(
+      validateMujocoRuntimeInventory(ok.parsed).runtime_closure.stdlib_symlink_bindings.length,
+      1,
+    );
+
+    const unapproved=collect(fx,[]);
+    assert.equal(unapproved.child.status,0,unapproved.child.stderr);
+    assert.deepEqual(unapproved.parsed.runtime_closure.symlinks,['python-stdlib-0/sysconfig-alias.py']);
+    assert.throws(
+      ()=>validateMujocoRuntimeInventory(unapproved.parsed),
+      /no unapproved symlink entries/,
+    );
+
+    const mismatch=collect(fx,[{
+      root_index:0,
+      path:'sysconfig-alias.py',
+      resolved_path:fs.realpathSync(fx.helper),
+    }]);
+    assert.notEqual(mismatch.child.status,0);
+    assert.match(mismatch.child.stderr,/approved stdlib symlink resolved target mismatch/);
+  }finally{
+    fs.rmSync(fx.root,{recursive:true,force:true});
+  }
+});
+
 test('M4 inventory identity changes if collector identity is changed and candidate preserves collector SHA',()=>{
   const fx=fixture();
   try{
@@ -287,7 +338,7 @@ test('M4 inventory rejects unlisted files symlinks stale closure hashes and miss
         ...parsed,
         runtime_closure:{...parsed.runtime_closure,symlinks:['mujoco/link.so']},
       }),
-      /no symlink entries/,
+      /no unapproved symlink entries/,
     );
     assert.throws(
       ()=>validateMujocoRuntimeInventory({
@@ -410,6 +461,7 @@ test('M4 collector bounds stdlib roots and native dependency list sizes before i
       helper_path:fx.helper,
       wrapper_path:fx.wrapper,
       stdlib_roots:[fx.stdlib],
+      stdlib_symlink_targets:[],
       native_dependency_files:[{
         logical_path:'system-native/libsystem-fixture.so',
         path:fx.nativeDep,
@@ -422,6 +474,20 @@ test('M4 collector bounds stdlib roots and native dependency list sizes before i
     });
     assert.notEqual(tooManyStdlib.status,0);
     assert.match(tooManyStdlib.stderr,/stdlib_roots exceeds limit 8/);
+
+    const tooManySymlinkTargets=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
+      input:JSON.stringify({
+        ...base,
+        stdlib_symlink_targets:Array.from({length:33},(_,index)=>({
+          root_index:0,
+          path:`alias-${index}.py`,
+          resolved_path:fx.helper,
+        })),
+      }),
+      encoding:'utf8',env:{},timeout:10_000,maxBuffer:1024*1024,
+    });
+    assert.notEqual(tooManySymlinkTargets.status,0);
+    assert.match(tooManySymlinkTargets.stderr,/stdlib_symlink_targets exceeds limit 32/);
 
     const tooManyNative=spawnSync('python3',['-I','-S','-B',COLLECTOR],{
       input:JSON.stringify({
@@ -495,6 +561,7 @@ test('M4 collector and wrapper reject symlinked parent components in fixed absol
       helper_path:path.join(aliasParent,path.basename(fx.helper)),
       wrapper_path:fx.wrapper,
       stdlib_roots:[fx.stdlib],
+      stdlib_symlink_targets:[],
       native_dependency_files:[{
         logical_path:'system-native/libsystem-fixture.so',
         path:fx.nativeDep,
