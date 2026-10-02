@@ -151,11 +151,14 @@ function baseCandidate(parsed,enforcementEvidence=null){
   });
 }
 
-test('M4 collector keeps full-runtime file ceiling bounded above observed Alienware closure',()=>{
+test('M4 collector and validator keep full-runtime file ceiling bounded above observed Alienware closure',()=>{
   const src=fs.readFileSync(COLLECTOR,'utf8');
   assert.match(src,/MAX_FILES = 50_000/);
   assert.doesNotMatch(src,/MAX_FILES = 20_000/);
   assert.match(src,/MAX_TOTAL_BYTES = 16 \* 1024 \* 1024 \* 1024/);
+  const admission=fs.readFileSync(new URL('../../../adapters/sim-next/mujoco/execution-admission.mjs',import.meta.url),'utf8');
+  assert.match(admission,/runtime_closure\.files must contain 1\.\.50000 entries/);
+  assert.doesNotMatch(admission,/runtime_closure\.files must contain 1\.\.20000 entries/);
 });
 
 test('M4 collector inventories exact runtime bytes without importing or compiling MuJoCo',()=>{
