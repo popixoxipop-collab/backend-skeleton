@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runScan } from '../../scanners/index.mjs';
@@ -314,4 +316,178 @@ test('T11-04 maxDiffs accepts exactly the integers 1 through 1000', () => {
 		assert.throws(() => compareLegacyHttpSemanticSnapshots(snapshot, snapshot, { maxDiffs: bad }), /maxDiffs/, String(bad));
 	}
 	assert.throws(() => compareLegacyHttpReports(fullReport(), fullReport(), { maxDiffs: 0 }), /maxDiffs/);
+});
+
+// A scan report names its files by absolute path and does not say which directory it scanned, so a
+// snapshot only becomes location-independent when the caller passes that directory as `root`.
+function checkoutOf(id, dir) {
+	fs.cpSync(path.join(REPO_ROOT, legacyHttpBaseline(id).fixture), dir, { recursive: true });
+	return { root: dir, report: runScan({ repoRoot: dir, terms: [] }) };
+}
+
+function scratchDir(t) {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't11-parity-'));
+	t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+	return dir;
+}
+
+function snapshotFiles(snapshot) {
+	return snapshot.modules.flatMap((m) => [
+		...m.controllers.flatMap((c) => [c.file, ...c.endpoints.map((e) => e.file)]),
+		...[...m.entities, ...m.enums, ...m.dtos].map((item) => item.file),
+	]);
+}
+
+const moveReport = (value, from, to) => JSON.parse(JSON.stringify(value).replaceAll(`"${from}/`, `"${to}/`));
+const relativeToCheckout = (snapshot) => JSON.parse(JSON.stringify(snapshot).replaceAll('"/checkout/', '"'));
+const CHECKOUT = { expectedRoot: '/checkout', actualRoot: '/checkout' };
+
+test('T11-04 without a root, the same fixture bytes in two directories compare unequal, and only by file location', (t) => {
+	const tmp = scratchDir(t);
+	for (const id of LEGACY_HTTP_ADAPTER_IDS) {
+		const first = checkoutOf(id, path.join(tmp, 'first', id));
+		const second = checkoutOf(id, path.join(tmp, 'second', 'deeper', id));
+		const parity = compareLegacyHttpReports(first.report, second.report, { maxDiffs: 1000 });
+		assert.equal(parity.equal, false, id);
+		assert.equal(parity.truncated, false, id);
+		assert.ok(parity.diffs.length > 0 && parity.diffs.every((diff) => diff.path.endsWith('.file')), id);
+		assert.notEqual(legacyHttpSemanticDigest(first.report), legacyHttpSemanticDigest(second.report), id);
+	}
+});
+
+test('T11-04 with a root, the same fixture bytes in two directories give one digest and equal parity for all five adapters', (t) => {
+	const tmp = scratchDir(t);
+	for (const id of LEGACY_HTTP_ADAPTER_IDS) {
+		const first = checkoutOf(id, path.join(tmp, 'first', id));
+		const second = checkoutOf(id, path.join(tmp, 'second', 'deeper', 'still', id));
+		const parity = compareLegacyHttpReports(first.report, second.report, {
+			expectedRoot: first.root,
+			actualRoot: second.root,
+		});
+		assert.deepEqual(parity, { equal: true, diffs: [], truncated: false }, id);
+
+		const digest = legacyHttpSemanticDigest(first.report, { root: first.root });
+		assert.equal(legacyHttpSemanticDigest(second.report, { root: second.root }), digest, id);
+
+		const inPlaceRoot = path.join(REPO_ROOT, legacyHttpBaseline(id).fixture);
+		const inPlace = runScan({ repoRoot: inPlaceRoot, terms: [] });
+		assert.equal(legacyHttpSemanticDigest(inPlace, { root: inPlaceRoot }), digest, `${id}: the checked-in fixture gives the same digest`);
+
+		const snapshot = legacyHttpSemanticSnapshot(first.report, { root: first.root });
+		const files = snapshotFiles(snapshot).filter((file) => file !== null);
+		assert.ok(files.length > 0, id);
+		for (const file of files) {
+			assert.ok(!path.isAbsolute(file) && !file.split('/').includes('..'), `${id}: ${file}`);
+		}
+		assert.ok(!JSON.stringify(snapshot).includes(first.root), `${id}: the snapshot does not carry the checkout path`);
+	}
+});
+
+test('T11-04 with a root, every file becomes a forward-slash path below the root and nothing else changes', () => {
+	const expected = relativeToCheckout(legacyHttpSemanticSnapshot(fullReport()));
+	assert.deepEqual(snapshotFiles(expected).filter(Boolean).sort(), ['C1.java', 'C1.java', 'D1.java', 'E1.java', 'En1.java']);
+	for (const root of ['/checkout', '/checkout/', '/checkout//', '/checkout/./sub/..']) {
+		assert.deepEqual(legacyHttpSemanticSnapshot(fullReport(), { root }), expected, root);
+	}
+
+	const nested = fullReport();
+	controller0(nested).file = '/checkout/src/main/java/C1.java';
+	assert.equal(legacyHttpSemanticSnapshot(nested, { root: '/checkout' }).modules[0].controllers[0].file, 'src/main/java/C1.java');
+});
+
+test('T11-04 a relative root and relative files are resolved against the working directory, as the scanner does', () => {
+	const expected = relativeToCheckout(legacyHttpSemanticSnapshot(fullReport()));
+	const below = moveReport(fullReport(), '/checkout', 'some-checkout');
+	assert.deepEqual(legacyHttpSemanticSnapshot(below, { root: 'some-checkout' }), expected);
+	assert.deepEqual(legacyHttpSemanticSnapshot(below, { root: './some-checkout/' }), expected);
+
+	const elsewhere = moveReport(fullReport(), '/checkout', 'elsewhere');
+	assert.throws(() => legacyHttpSemanticSnapshot(elsewhere, { root: 'some-checkout' }), /is not under root "some-checkout"/);
+});
+
+const FILE_SLOTS = [
+	['controller', (r) => controller0(r)],
+	['endpoint', (r) => endpoint0(r)],
+	['entity', (r) => entity0(r)],
+	['enum', (r) => enum0(r)],
+	['dto', (r) => dtos(r)[1]],
+];
+
+const NOT_BELOW_THE_ROOT = [
+	['another directory', '/elsewhere/X.java'],
+	['a sibling whose name starts with the root name', '/checkout-old/X.java'],
+	['a path that climbs out of the root', '/checkout/../escape/X.java'],
+	['the root itself', '/checkout'],
+	['the parent of the root', '/'],
+];
+
+test('T11-04 a scan report file that is not strictly below the root fails closed wherever the report carries one', () => {
+	for (const [slot, pick] of FILE_SLOTS) {
+		for (const [what, file] of NOT_BELOW_THE_ROOT) {
+			const bad = fullReport();
+			pick(bad).file = file;
+			const label = `${slot}: ${what}`;
+			assert.throws(() => legacyHttpSemanticSnapshot(bad, { root: '/checkout' }), /is not under root "\/checkout"/, label);
+			assert.throws(() => legacyHttpSemanticDigest(bad, { root: '/checkout' }), /is not under root/, label);
+			assert.throws(() => compareLegacyHttpReports(fullReport(), bad, CHECKOUT), /is not under root/, label);
+			assert.throws(() => compareLegacyHttpReports(bad, fullReport(), CHECKOUT), /is not under root/, label);
+		}
+	}
+	for (const bad of [5, {}, true]) {
+		const report = fullReport();
+		controller0(report).file = bad;
+		assert.throws(() => legacyHttpSemanticSnapshot(report, { root: '/checkout' }), TypeError, String(bad));
+	}
+});
+
+test('T11-04 the root must be a non-empty string, and only a scan report can be given one', () => {
+	for (const bad of ['', 5, null, {}, ['/checkout'], true]) {
+		assert.throws(() => legacyHttpSemanticSnapshot(fullReport(), { root: bad }), /root must be a non-empty string/, String(bad));
+		assert.throws(() => legacyHttpSemanticDigest(fullReport(), { root: bad }), /root must be a non-empty string/, String(bad));
+	}
+	assert.throws(
+		() => legacyHttpSemanticDigest(legacyHttpSemanticSnapshot(fullReport()), { root: '/checkout' }),
+		/root only applies to a scan report/,
+	);
+	for (const one of [{ expectedRoot: '/checkout' }, { actualRoot: '/checkout' }]) {
+		assert.throws(() => compareLegacyHttpReports(fullReport(), fullReport(), one), /expectedRoot and actualRoot must be given together/, JSON.stringify(one));
+	}
+});
+
+test('T11-04 with a root, the digest and the comparison still move with every snapshot field and ignore the rest', () => {
+	const base = fullReport();
+	const baseDigest = legacyHttpSemanticDigest(base, { root: '/checkout' });
+	for (const [label, change] of SNAPSHOT_FIELDS) {
+		const changed = fullReport();
+		change(changed);
+		assert.notEqual(legacyHttpSemanticDigest(changed, { root: '/checkout' }), baseDigest, label);
+		assert.equal(compareLegacyHttpReports(base, changed, CHECKOUT).equal, false, label);
+	}
+	for (const [label, change] of OUTSIDE_THE_SNAPSHOT) {
+		const changed = fullReport();
+		change(changed);
+		assert.equal(legacyHttpSemanticDigest(changed, { root: '/checkout' }), baseDigest, label);
+		assert.deepEqual(compareLegacyHttpReports(base, changed, CHECKOUT), { equal: true, diffs: [], truncated: false }, label);
+	}
+});
+
+test('T11-04 with a root, the same bytes at a different place below each root differ at that file, and maxDiffs still applies', () => {
+	const elsewhere = moveReport(fullReport(), '/checkout', '/elsewhere/deeper');
+	assert.deepEqual(
+		compareLegacyHttpReports(fullReport(), elsewhere, { expectedRoot: '/checkout', actualRoot: '/elsewhere/deeper' }),
+		{ equal: true, diffs: [], truncated: false },
+	);
+
+	controller0(elsewhere).file = '/elsewhere/deeper/sub/C1.java';
+	endpoint0(elsewhere).file = '/elsewhere/deeper/sub/C1.java';
+	const roots = { expectedRoot: '/checkout', actualRoot: '/elsewhere/deeper' };
+	assert.deepEqual(compareLegacyHttpReports(fullReport(), elsewhere, roots).diffs, [
+		{ path: 'modules[0].controllers[0].endpoints[0].file', kind: 'value', expected: 'C1.java', actual: 'sub/C1.java' },
+		{ path: 'modules[0].controllers[0].file', kind: 'value', expected: 'C1.java', actual: 'sub/C1.java' },
+	]);
+
+	const capped = compareLegacyHttpReports(fullReport(), elsewhere, { ...roots, maxDiffs: 1 });
+	assert.equal(capped.diffs.length, 1);
+	assert.equal(capped.truncated, true);
+	assert.throws(() => compareLegacyHttpReports(fullReport(), elsewhere, { ...roots, maxDiffs: 0 }), /maxDiffs/);
 });

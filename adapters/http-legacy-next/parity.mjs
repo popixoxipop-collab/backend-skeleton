@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 
 // T11-04 pre-freeze semantic parity harness.
 //
@@ -63,10 +64,39 @@ function plainModule(value) {
 	};
 }
 
-export function legacyHttpSemanticSnapshot(report) {
+// A scan report's `.file` values are absolute and the report does not say which directory was scanned,
+// so by default the snapshot and its digest depend on where the checkout lives. Passing `root`, the
+// repoRoot the scan was given, rewrites each `.file` to a POSIX path relative to it. A `.file` that is
+// not below `root` throws instead of staying machine-specific.
+function relativeFileMapper(root) {
+	if (typeof root !== 'string' || root === '') throw new TypeError('root must be a non-empty string');
+	return (file) => {
+		if (file === null) return null;
+		const relative = path.relative(root, file);
+		if (relative === '' || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+			throw new Error(`scan report file "${file}" is not under root "${root}"`);
+		}
+		return relative.split(path.sep).join('/');
+	};
+}
+
+function relocateFiles(modules, toRelative) {
+	for (const module of modules) {
+		for (const controller of module.controllers) {
+			controller.file = toRelative(controller.file);
+			for (const endpoint of controller.endpoints) endpoint.file = toRelative(endpoint.file);
+		}
+		for (const item of [...module.entities, ...module.enums, ...module.dtos]) item.file = toRelative(item.file);
+	}
+}
+
+export function legacyHttpSemanticSnapshot(report, { root } = {}) {
 	if (!report || typeof report !== 'object' || report.schema !== 'sbf.scan-report/2') {
 		throw new Error('legacy HTTP semantic snapshot requires sbf.scan-report/2');
 	}
+	const toRelative = root === undefined ? null : relativeFileMapper(root);
+	const modules = (report.related_modules ?? []).map(plainModule);
+	if (toRelative) relocateFiles(modules, toRelative);
 	return {
 		schema: LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA,
 		adapter: report.adapter ?? null,
@@ -74,7 +104,7 @@ export function legacyHttpSemanticSnapshot(report) {
 		api_surface_source: report.api_surface_source ?? null,
 		verdict: report.verdict ?? null,
 		path_prefix_signals: JSON.parse(JSON.stringify(report.path_prefix_signals ?? [])),
-		modules: (report.related_modules ?? []).map(plainModule),
+		modules,
 		files_read: [...(report.files_read ?? [])],
 	};
 }
@@ -142,10 +172,10 @@ function stableJsonValue(value) {
 // Regression-only semantic digest. This is NOT sbf.contract-ref/1's exact-byte contract_hash and
 // must never be substituted for it. Its sole purpose is to pin T11 fixture/corpus semantics while
 // allowing irrelevant JSON object key order to vary.
-export function legacyHttpSemanticDigest(snapshotOrReport) {
-	const snapshot = snapshotOrReport?.schema === 'sbf.scan-report/2'
-		? legacyHttpSemanticSnapshot(snapshotOrReport)
-		: snapshotOrReport;
+export function legacyHttpSemanticDigest(snapshotOrReport, { root } = {}) {
+	const isReport = snapshotOrReport?.schema === 'sbf.scan-report/2';
+	if (root !== undefined && !isReport) throw new TypeError('root only applies to a scan report, not to a semantic snapshot');
+	const snapshot = isReport ? legacyHttpSemanticSnapshot(snapshotOrReport, { root }) : snapshotOrReport;
 	if (!snapshot || snapshot.schema !== LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA) {
 		throw new Error('legacy HTTP semantic digest requires a semantic snapshot or sbf.scan-report/2');
 	}
@@ -166,10 +196,17 @@ export function compareLegacyHttpSemanticSnapshots(expected, actual, { maxDiffs 
 	};
 }
 
-export function compareLegacyHttpReports(expectedReport, actualReport, options) {
+// `expectedRoot` and `actualRoot` are the repoRoot of each scan; give both or neither. Without them the
+// two reports are compared with their `.file` values as reported, which differ whenever the two
+// checkouts live in different directories.
+export function compareLegacyHttpReports(expectedReport, actualReport, options = {}) {
+	const { expectedRoot, actualRoot, ...compareOptions } = options;
+	if ((expectedRoot === undefined) !== (actualRoot === undefined)) {
+		throw new TypeError('expectedRoot and actualRoot must be given together');
+	}
 	return compareLegacyHttpSemanticSnapshots(
-		legacyHttpSemanticSnapshot(expectedReport),
-		legacyHttpSemanticSnapshot(actualReport),
-		options,
+		legacyHttpSemanticSnapshot(expectedReport, { root: expectedRoot }),
+		legacyHttpSemanticSnapshot(actualReport, { root: actualRoot }),
+		compareOptions,
 	);
 }

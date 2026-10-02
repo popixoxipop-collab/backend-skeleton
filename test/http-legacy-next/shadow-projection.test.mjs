@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runScan } from '../../scanners/index.mjs';
@@ -377,4 +379,81 @@ test('T11-03 the shell hands maxDiffs to the comparison and reports truncation',
 
   assert.throws(() => run({ maxDiffs: 0 }), /maxDiffs must be an integer from 1 through 1000/);
   assert.throws(() => run({ maxDiffs: 1001 }), /maxDiffs must be an integer from 1 through 1000/);
+});
+
+function checkoutOf(id, dir) {
+  fs.cpSync(path.join(REPO_ROOT, legacyHttpBaseline(id).fixture), dir, { recursive: true });
+  return {
+    root: dir,
+    report: runScan({ repoRoot: dir, terms: [] }),
+    adapter: ADAPTERS.find((item) => item.id === id),
+  };
+}
+
+test('T11-03 with a root, the legacy digest and the projector input do not depend on where the checkout lives', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 't11-shadow-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const shadowOf = ({ report, adapter, root }, extra = {}) => {
+    let seen;
+    const result = runLegacyHttpShadowProjection({
+      adapter,
+      report,
+      root,
+      projectorId: 'fixture-identity-projector',
+      projectorContract: 'fixture.projector/1',
+      projector: (input) => {
+        seen = input;
+        return identityProjector(input);
+      },
+      ...extra,
+    });
+    return { result, seen };
+  };
+
+  for (const id of LEGACY_HTTP_ADAPTER_IDS) {
+    const first = checkoutOf(id, path.join(tmp, 'first', id));
+    const second = checkoutOf(id, path.join(tmp, 'second', 'deeper', id));
+    const one = shadowOf(first);
+    const other = shadowOf(second);
+
+    assert.deepEqual(one.result.parity, { equal: true, diffs: [], truncated: false }, id);
+    assert.equal(one.result.legacy_semantic_sha256, other.result.legacy_semantic_sha256, id);
+    assert.equal(one.result.legacy_semantic_sha256, legacyHttpSemanticDigest(first.report, { root: first.root }), id);
+    assert.deepEqual(one.seen.legacy_semantic_snapshot, legacyHttpSemanticSnapshot(first.report, { root: first.root }), id);
+    assert.deepEqual(one.seen.legacy_semantic_snapshot, other.seen.legacy_semantic_snapshot, id);
+    assert.ok(!JSON.stringify(one.seen.legacy_semantic_snapshot).includes(first.root), id);
+
+    const without = shadowOf({ ...first, root: undefined });
+    assert.deepEqual(without.seen.legacy_semantic_snapshot, legacyHttpSemanticSnapshot(first.report), `${id}: no root keeps the files as reported`);
+    assert.notEqual(without.result.legacy_semantic_sha256, one.result.legacy_semantic_sha256, id);
+  }
+});
+
+test('T11-03 a scan report file outside the root, or a bad root, stops the shell before the projector runs', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 't11-shadow-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const { root, report, adapter } = checkoutOf('python-fastapi', path.join(tmp, 'checkout'));
+  let calls = 0;
+  const run = (overrides) => () => runLegacyHttpShadowProjection({
+    adapter,
+    report,
+    root,
+    projectorId: 'id',
+    projectorContract: 'fixture.projector/1',
+    projector: (input) => {
+      calls += 1;
+      return identityProjector(input);
+    },
+    ...overrides,
+  });
+
+  assert.equal(run({})().parity.equal, true);
+  assert.equal(calls, 1);
+
+  assert.throws(run({ root: path.join(tmp, 'another-checkout') }), /is not under root/);
+  assert.throws(run({ root: path.join(root, 'no-such-subdirectory') }), /is not under root/);
+  for (const bad of ['', 5, null]) {
+    assert.throws(run({ root: bad }), /root must be a non-empty string/, String(bad));
+  }
+  assert.equal(calls, 1, 'the projector did not run again');
 });

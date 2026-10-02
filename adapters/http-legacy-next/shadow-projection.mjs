@@ -60,6 +60,7 @@ export function runLegacyHttpShadowProjection({
   projectorId,
   projectorContract,
   maxDiffs = 100,
+  root,
 } = {}) {
   if (typeof projector !== 'function') throw new TypeError('projector must be a function');
   nonEmptyString(projectorId, 'projectorId');
@@ -68,7 +69,7 @@ export function runLegacyHttpShadowProjection({
   const bridge = bridgeLegacyHttpScan({ adapter, report });
   // The projector may hold a reference to `report`; everything below uses values read before it runs.
   const adapterId = bridge.source_adapter.id;
-  const legacySnapshot = legacyHttpSemanticSnapshot(report);
+  const legacySnapshot = legacyHttpSemanticSnapshot(report, { root });
   const projectorInput = deepFreeze(jsonClone({
     bridge,
     legacy_semantic_snapshot: legacySnapshot,
