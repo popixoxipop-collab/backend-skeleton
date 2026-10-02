@@ -157,9 +157,26 @@ function runTestFiles(scratch, testFiles, timeoutMs) {
   return {
     exit_code:Number.isInteger(run.status)?run.status:null,
     signal:run.signal??null,
+    timed_out:run.error?.code==='ETIMEDOUT',
+    error_code:run.error?.code??null,
     stdout_tail:(run.stdout??'').slice(-1400),
     stderr_tail:(run.stderr??'').slice(-1400),
   };
+}
+
+function wasSignalOrTimeoutTerminated(run) {
+  return run.timed_out||(run.exit_code===null&&run.signal!==null&&run.error_code===null);
+}
+
+// Retry the unmodified suite once when it was killed from outside; non-zero exits and mutated runs are never retried.
+function runBaselineTestFiles(scratch, testFiles, timeoutMs) {
+  const prior_attempts=[];
+  let run=runTestFiles(scratch,testFiles,timeoutMs);
+  if(wasSignalOrTimeoutTerminated(run)){
+    prior_attempts.push(run);
+    run=runTestFiles(scratch,testFiles,timeoutMs);
+  }
+  return {...run,attempts:prior_attempts.length+1,prior_attempts};
 }
 
 function cleanupScratch(parent) {
@@ -201,7 +218,7 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
         materializeTrackedCommit(repoRoot,scratch,resolvedSourceCommit);
         initializeScratchGit(scratch);
         attachControlledDependencies(scratch,dependencyInfo);
-        const baseline=runTestFiles(scratch,mutant.test_files,timeoutMs);
+        const baseline=runBaselineTestFiles(scratch,mutant.test_files,timeoutMs);
       if(baseline.exit_code!==0){
         results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'baseline-failed',reason:'unmodified scratch test suite did not pass; mutant cannot be counted as killed',baseline});
         continue;
@@ -217,7 +234,7 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
       results.push({
         id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,
         status:killed?'killed':'survived',classification:killed?'mutant-detected':'mutant-survived',baseline,
-        exit_code:run.exit_code,signal:run.signal,stdout_tail:run.stdout_tail,stderr_tail:run.stderr_tail,
+        exit_code:run.exit_code,signal:run.signal,timed_out:run.timed_out,error_code:run.error_code,stdout_tail:run.stdout_tail,stderr_tail:run.stderr_tail,
       });
       }finally{cleanupScratch(parent);}
     }

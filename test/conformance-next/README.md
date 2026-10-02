@@ -21,6 +21,7 @@ The repository's current `npm test` glob is `test/*.test.mjs`, so it does **not*
 - unknown/abstention on a gold item remains a false negative in full-surface recall and is reported separately
 - critical mutation survivors fail the mutation gate
 - an empty noncritical mutation denominator is not reported as 100%
+- a product mutant whose unmodified baseline is killed by a signal or by its timeout gets exactly one more baseline attempt (`baseline.attempts`, with the first in `baseline.prior_attempts`); a baseline that still does not exit 0 is `baseline-failed` and never counts as killed, a baseline that exits non-zero by itself is not retried, and mutated runs are never retried
 - a pass evidence pack cannot hide skipped/blocked required commands
 - artifact bytes are re-hashed from an approved root before disk-backed evidence is accepted
 - corpus/holdout inventory evidence must record successful controlled-checkout provenance pinned to the exact repository commit
