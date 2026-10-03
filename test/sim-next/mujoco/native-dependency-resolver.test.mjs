@@ -575,7 +575,12 @@ test('M4A still rejects an existing absolute RUNPATH outside approved roots',()=
 });
 
 test('M4A rejects unsupported dynamic-loader tokens and relative runpaths',()=>{
-  for(const runpath of ['$LIB','relative/lib']){
+  for(const runpath of [
+    '$LIB',
+    '$ORIGIN/$LIB',
+    '${ORIGIN}/$PLATFORM',
+    'relative/lib',
+  ]){
     const fx=fixture({seedRunpath:runpath});
     try{
       const {child}=run(fx);
@@ -584,6 +589,24 @@ test('M4A rejects unsupported dynamic-loader tokens and relative runpaths',()=>{
         child.stderr,
         /unsupported dynamic-loader token|relative RPATH\/RUNPATH is unsupported/,
       );
+    }finally{
+      fs.rmSync(fx.root,{recursive:true,force:true});
+    }
+  }
+});
+
+test('M4A validates loader search paths even when DT_NEEDED is empty',()=>{
+  for(const runpath of ['$LIB','$ORIGIN/$LIB']){
+    const fx=fixture({
+      seedNeeded:[],
+      pluginNeeded:[],
+      seedRunpath:runpath,
+      pluginRunpath:null,
+    });
+    try{
+      const {child}=run(fx);
+      assert.notEqual(child.status,0);
+      assert.match(child.stderr,/unsupported dynamic-loader token/);
     }finally{
       fs.rmSync(fx.root,{recursive:true,force:true});
     }
