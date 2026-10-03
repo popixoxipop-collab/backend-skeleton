@@ -9,7 +9,6 @@ resolution semantics and does not import MuJoCo or execute target code.
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -160,15 +159,42 @@ def load_approved_m4a() -> tuple[ModuleType, Path, str, int]:
         Path(__file__).absolute().with_name("native_dependency_resolver.py"),
         "Q4-approved M4A resolver",
     )
-    sha256, size = file_hash(path)
+    try:
+        source_bytes = path.read_bytes()
+    except OSError as exc:
+        fail("could not read Q4-approved M4A resolver bytes")
+        raise AssertionError from exc
+
+    size = len(source_bytes)
+    sha256 = hashlib.sha256(source_bytes).hexdigest()
     if sha256 != M4A_RESOLVER_SHA256 or size != M4A_RESOLVER_SIZE:
         fail("Q4-approved M4A resolver bytes do not match pinned identity")
 
-    spec = importlib.util.spec_from_file_location("_t24_q4_approved_m4a", str(path))
-    if spec is None or spec.loader is None:
-        fail("could not construct import spec for Q4-approved M4A resolver")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        source_text = source_bytes.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        fail("Q4-approved M4A resolver must be valid UTF-8")
+        raise AssertionError from exc
+
+    try:
+        code = compile(
+            source_text,
+            str(path),
+            "exec",
+            dont_inherit=True,
+            optimize=0,
+        )
+    except (SyntaxError, ValueError, TypeError) as exc:
+        fail("could not compile Q4-approved M4A resolver source bytes")
+        raise AssertionError from exc
+
+    module = ModuleType("_t24_q4_approved_m4a")
+    module.__file__ = str(path)
+    module.__cached__ = None
+    module.__package__ = None
+    module.__loader__ = None
+    module.__spec__ = None
+    exec(code, module.__dict__)
 
     if getattr(module, "ADMISSION_CANDIDATE_SHA", None) != ADMISSION_CANDIDATE_SHA:
         fail("Q4-approved M4A resolver admission binding is unexpected")
