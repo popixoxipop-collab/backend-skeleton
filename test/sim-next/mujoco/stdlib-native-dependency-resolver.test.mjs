@@ -16,9 +16,9 @@ const M4A=path.resolve(
   '../../../adapters/sim-next/mujoco/native_dependency_resolver.py',
 );
 const ADMISSION='8f7311b9e8680b03c7e0844ebce73751dc355fd7';
-const M4A_CANDIDATE='98cec1ef8ee8cdc3c2fcfe475cbba7c695f04df5';
-const M4A_TREE='40f8e20bc313a6c1412964c57cda8c5314e65a5b';
-const M4A_SHA='f7efe3283de5da724d24343d2ba139a263afad5cdcec54c75423c356c884f0b2';
+const M4A_CANDIDATE='34ffcad62688e02ea0c858256d111c0586e68e97';
+const M4A_TREE='5a337c1ea6fcab016ad935b32f3e11784c77fc1f';
+const M4A_SHA='e36f413855e9b8d0efe4fa02f5e6c35d936d999f81d2ee63b54f58ce682b3f85';
 
 function writeU64(buf,offset,value){
   buf.writeBigUInt64LE(BigInt(value),offset);
