@@ -404,9 +404,15 @@ def expand_dynamic_dir(
     approved_roots: list[Path],
 ) -> Path | None:
     if value == "$ORIGIN" or value.startswith("$ORIGIN/"):
-        expanded = str(binary.parent) + value[len("$ORIGIN"):]
+        suffix = value[len("$ORIGIN"):]
+        if "$" in suffix:
+            fail(f"unsupported dynamic-loader token in path: {value}")
+        expanded = str(binary.parent) + suffix
     elif value == "${ORIGIN}" or value.startswith("${ORIGIN}/"):
-        expanded = str(binary.parent) + value[len("${ORIGIN}"):]
+        suffix = value[len("${ORIGIN}"):]
+        if "$" in suffix:
+            fail(f"unsupported dynamic-loader token in path: {value}")
+        expanded = str(binary.parent) + suffix
     elif "$" in value:
         fail(f"unsupported dynamic-loader token in path: {value}")
     else:
@@ -623,6 +629,14 @@ def resolve_closure(
         if len(visited) >= MAX_GRAPH_FILES:
             fail("native dependency graph exceeds file-count limit")
         dynamic = parse_elf_dynamic(binary)
+
+        # Validate loader search paths even when this ELF has no DT_NEEDED
+        # entries. Unsupported tokens, relative paths, symlink escapes, and
+        # existing paths outside approved roots must never survive into a
+        # successful closure merely because dependency iteration is empty.
+        search_paths = dynamic["runpath"] if dynamic["runpath"] else dynamic["rpath"]
+        for value in search_paths:
+            expand_dynamic_dir(value, binary, runtime_root, approved_roots)
 
         interp = dynamic["interp"]
         interp_resolved: Path | None = None
