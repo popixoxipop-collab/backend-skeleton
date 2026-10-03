@@ -92,6 +92,108 @@ test('product mutation campaign never counts a failure as killed when the unmodi
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
+// Fixture suite driven by T19_FIXTURE_MODE: counts its runs outside the scratch tree and can SIGKILL the node --test process that runs it.
+const SIGNAL_FIXTURE_TEST=[
+ "import test from 'node:test'; import assert from 'node:assert/strict'; import fs from 'node:fs'; import { value } from '../subject.mjs';",
+ "const counter=process.env.T19_FIXTURE_COUNTER;",
+ "const run=(fs.existsSync(counter)?Number(fs.readFileSync(counter,'utf8')):0)+1;",
+ "fs.writeFileSync(counter,String(run));",
+ "const mode=process.env.T19_FIXTURE_MODE;",
+ "function killRunner(){",
+ "  if(process.env.T19_FIXTURE_PROTECTED_PIDS.split(',').includes(String(process.ppid))) throw new Error('refusing to signal the outer test runner');",
+ "  process.kill(process.ppid,'SIGKILL');",
+ "  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,500);",
+ "  process.exit(86);",
+ "}",
+ "test('signal fixture',()=>{",
+ "  if(mode==='kill-always'||(mode==='kill-first'&&run===1)||(mode==='kill-mutated'&&value!==1)) killRunner();",
+ "  if(mode==='hang-always'){ setInterval(()=>{},1000); return new Promise(()=>{}); }",
+ "  assert.equal(value,mode==='fail-always'?2:1);",
+ "});",
+ "",
+].join('\n');
+
+function runSignalFixtureCampaign(mode,{timeoutMs=30_000}={}) {
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-signal-'));
+ const counter=path.join(root,'fixture-counter.txt');
+ const env={T19_FIXTURE_MODE:mode,T19_FIXTURE_COUNTER:counter,T19_FIXTURE_PROTECTED_PIDS:`${process.pid},${process.ppid}`};
+ const saved=Object.fromEntries(Object.keys(env).map((key)=>[key,process.env[key]]));
+ try{
+  fs.mkdirSync(path.join(root,'test'),{recursive:true});
+  fs.writeFileSync(path.join(root,'subject.mjs'),'export const value = 1;\n');
+  fs.writeFileSync(path.join(root,'test','subject.test.mjs'),SIGNAL_FIXTURE_TEST);
+  const sourceCommit=initFixtureRepo(root);
+  const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[{id:'signal-fixture',vector_id:'NEG-TEST-04',critical:true,file:'subject.mjs',find:'value = 1',replace:'value = 3',test_files:['test/subject.test.mjs'],timeout_ms:timeoutMs,invariant:'baseline signal handling'}]};
+  Object.assign(process.env,env);
+  const result=runProductMutationCampaign({repoRoot:root,catalog,sourceCommit});
+  const runs=fs.existsSync(counter)?Number(fs.readFileSync(counter,'utf8')):0;
+  return {result,mutant:result.mutants[0],runs};
+ }finally{
+  for(const [key,value] of Object.entries(saved)){
+   if(value===undefined) delete process.env[key]; else process.env[key]=value;
+  }
+  fs.rmSync(root,{recursive:true,force:true});
+ }
+}
+
+test('product mutation baseline killed by a signal is retried once and a recovered baseline keeps a normal mutant verdict',{skip:process.platform==='win32'},()=>{
+ const {mutant,runs}=runSignalFixtureCampaign('kill-first');
+ assert.equal(mutant.baseline.exit_code,0,JSON.stringify(mutant,null,2));
+ assert.equal(mutant.baseline.attempts,2);
+ assert.equal(mutant.baseline.prior_attempts.length,1);
+ assert.equal(mutant.baseline.prior_attempts[0].exit_code,null);
+ assert.equal(mutant.baseline.prior_attempts[0].signal,'SIGKILL');
+ assert.equal(mutant.baseline.prior_attempts[0].timed_out,false);
+ assert.equal(mutant.status,'killed');
+ assert.equal(mutant.classification,'mutant-detected');
+ assert.equal(runs,3,'killed baseline, recovered baseline, mutated run');
+});
+
+test('product mutation baseline killed by a signal on every attempt stays baseline-failed after one retry and is never counted as killed',{skip:process.platform==='win32'},()=>{
+ const {mutant,runs}=runSignalFixtureCampaign('kill-always');
+ assert.equal(mutant.status,'survived');
+ assert.equal(mutant.classification,'baseline-failed');
+ assert.equal(mutant.baseline.exit_code,null);
+ assert.equal(mutant.baseline.signal,'SIGKILL');
+ assert.equal(mutant.baseline.attempts,2);
+ assert.equal(mutant.baseline.prior_attempts.length,1);
+ assert.equal(runs,2,'exactly two baseline attempts and no mutated run');
+});
+
+test('product mutation baseline that fails an assertion is not retried',()=>{
+ const {mutant,runs}=runSignalFixtureCampaign('fail-always');
+ assert.equal(mutant.status,'survived');
+ assert.equal(mutant.classification,'baseline-failed');
+ assert.equal(mutant.baseline.exit_code,1);
+ assert.equal(mutant.baseline.attempts,1);
+ assert.deepEqual(mutant.baseline.prior_attempts,[]);
+ assert.equal(runs,1);
+});
+
+test('product mutation baseline that exceeds its timeout is retried once and reported as timed out',()=>{
+ const {mutant}=runSignalFixtureCampaign('hang-always',{timeoutMs:1000});
+ assert.equal(mutant.status,'survived');
+ assert.equal(mutant.classification,'baseline-failed');
+ assert.equal(mutant.baseline.timed_out,true);
+ assert.equal(mutant.baseline.error_code,'ETIMEDOUT');
+ assert.equal(mutant.baseline.attempts,2);
+ assert.equal(mutant.baseline.prior_attempts.length,1);
+ assert.equal(mutant.baseline.prior_attempts[0].timed_out,true);
+ if(process.platform!=='win32') assert.equal(mutant.baseline.signal,'SIGKILL');
+});
+
+test('product mutation run killed by a signal is not counted as killed and is not retried',{skip:process.platform==='win32'},()=>{
+ const {mutant,runs}=runSignalFixtureCampaign('kill-mutated');
+ assert.equal(mutant.baseline.exit_code,0);
+ assert.equal(mutant.baseline.attempts,1);
+ assert.equal(mutant.status,'survived');
+ assert.equal(mutant.classification,'mutant-survived');
+ assert.equal(mutant.exit_code,null);
+ assert.equal(mutant.signal,'SIGKILL');
+ assert.equal(mutant.timed_out,false);
+ assert.equal(runs,2,'one baseline attempt and one mutated attempt');
+});
+
 test('product mutation campaign ignores live ignored bytes and executes only the claimed commit tree',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-t19-product-ignored-bytes-'));
  try{
