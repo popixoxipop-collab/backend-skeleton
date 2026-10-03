@@ -233,6 +233,7 @@ function fixture({
   pluginNeeded=['libbar.so'],
   pluginRunpath=null,
   seedRunpath=null,
+  seedRpath=null,
   duplicateRoot=false,
   fooNeeded=[],
   barNeeded=[],
@@ -245,7 +246,7 @@ function fixture({
   fs.mkdirSync(lib2,{recursive:true});
 
   for(const rel of REQUIRED){
-    write(runtime,rel,elf64({needed:seedNeeded,runpath:seedRunpath}));
+    write(runtime,rel,elf64({needed:seedNeeded,runpath:seedRunpath,rpath:seedRpath}));
   }
   write(runtime,'mujoco/plugin/libplugin-fixture.so',elf64({needed:pluginNeeded,runpath:pluginRunpath}));
   write(lib1,'libfoo.so',elf64({needed:fooNeeded}));
@@ -607,6 +608,49 @@ test('M4A validates loader search paths even when DT_NEEDED is empty',()=>{
       const {child}=run(fx);
       assert.notEqual(child.status,0);
       assert.match(child.stderr,/unsupported dynamic-loader token/);
+    }finally{
+      fs.rmSync(fx.root,{recursive:true,force:true});
+    }
+  }
+});
+
+test('M4A validates DT_RPATH even when DT_RUNPATH is present',()=>{
+  for(const rpath of ['$LIB','/']){
+    const fx=fixture({
+      seedNeeded:[],
+      pluginNeeded:[],
+      seedRunpath:'$ORIGIN',
+      seedRpath:rpath,
+      pluginRunpath:null,
+    });
+    try{
+      const {child}=run(fx);
+      assert.notEqual(child.status,0,rpath);
+      assert.match(
+        child.stderr,
+        /unsupported dynamic-loader token|dynamic search path is outside approved roots/,
+        rpath,
+      );
+    }finally{
+      fs.rmSync(fx.root,{recursive:true,force:true});
+    }
+  }
+});
+
+test('M4A rejects dynamic-loader token syntax in DT_NEEDED',()=>{
+  for(const needed of [
+    '$ORIGIN',
+    '${ORIGIN}',
+    '$LIB',
+    '${LIB}',
+    '$PLATFORM',
+    '${PLATFORM}',
+  ]){
+    const fx=fixture({seedNeeded:[needed],pluginNeeded:[]});
+    try{
+      const {child}=run(fx);
+      assert.notEqual(child.status,0,needed);
+      assert.match(child.stderr,/dynamic-loader token in DT_NEEDED is unsupported/,needed);
     }finally{
       fs.rmSync(fx.root,{recursive:true,force:true});
     }

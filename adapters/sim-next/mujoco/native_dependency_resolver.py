@@ -371,6 +371,8 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
         for name in needed:
             if "/" in name or "\\" in name:
                 fail(f"slash-bearing DT_NEEDED is unsupported: {name}")
+            if "$" in name:
+                fail(f"dynamic-loader token in DT_NEEDED is unsupported: {name}")
 
         def parse_paths(offsets: list[int], label: str) -> list[str]:
             if not offsets:
@@ -634,8 +636,11 @@ def resolve_closure(
         # entries. Unsupported tokens, relative paths, symlink escapes, and
         # existing paths outside approved roots must never survive into a
         # successful closure merely because dependency iteration is empty.
-        search_paths = dynamic["runpath"] if dynamic["runpath"] else dynamic["rpath"]
-        for value in search_paths:
+        # Validate every encoded search-path list before applying loader lookup
+        # precedence. DT_RUNPATH remains authoritative for dependency lookup,
+        # but an inactive DT_RPATH must not carry unsupported tokens, relative
+        # paths, symlink escapes, or paths outside approved roots into evidence.
+        for value in [*dynamic["runpath"], *dynamic["rpath"]]:
             expand_dynamic_dir(value, binary, runtime_root, approved_roots)
 
         interp = dynamic["interp"]
