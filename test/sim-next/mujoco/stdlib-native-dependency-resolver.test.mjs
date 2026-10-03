@@ -149,7 +149,7 @@ print(producer.M4A_RESOLVER_SHA256)
 });
 
 test('M4B executes the exact hashed M4A source bytes even when a valid malicious pyc cache exists',()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4b-pyc-bypass-'));
+  const root=fs.mkdtempSync(path.join(os.homedir(),'bskel-m4b-pyc-bypass-'));
   try{
     const producerCopy=path.join(root,'stdlib_native_dependency_resolver.py');
     const m4aCopy=path.join(root,'native_dependency_resolver.py');
