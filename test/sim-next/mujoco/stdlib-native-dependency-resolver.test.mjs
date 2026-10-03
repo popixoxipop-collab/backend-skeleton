@@ -169,12 +169,12 @@ marker=Path(sys.argv[3])
 approved=m4a_path.read_bytes()
 target_size=len(approved)
 prefix=(
-    "from pathlib import Path\\n"
-    "ADMISSION_CANDIDATE_SHA = \\\"8f7311b9e8680b03c7e0844ebce73751dc355fd7\\\"\\n"
-    f"Path({str(marker)!r}).write_text('PYC_EXECUTED',encoding='utf-8')\\n"
+    "from pathlib import Path\n"
+    "ADMISSION_CANDIDATE_SHA = \"8f7311b9e8680b03c7e0844ebce73751dc355fd7\"\n"
+    f"Path({str(marker)!r}).write_text('PYC_EXECUTED',encoding='utf-8')\n"
 ).encode("utf-8")
 assert len(prefix)+2 <= target_size
-malicious=prefix+b"#"+b"x"*(target_size-len(prefix)-2)+b"\\n"
+malicious=(prefix+b"#").ljust(target_size-1,b"x")+b"\n"
 assert len(malicious)==target_size
 stamp=1760000000
 m4a_path.write_bytes(malicious)
