@@ -283,7 +283,7 @@ function run(fx,searchRoots=[fx.lib1],raw=null){
   const input=raw??JSON.stringify({
     protocol:'sbf.sim-mujoco-native-dependency-resolve/draft-1',
     target:'SIM-mujoco',
-    admission_candidate_sha:'bbc27034f038bf710985434b9c617a117557ddcf',
+    admission_candidate_sha:'8f7311b9e8680b03c7e0844ebce73751dc355fd7',
     runtime_import_root:fx.runtime,
     search_roots:allRoots,
   });
@@ -311,7 +311,7 @@ test('M4A resolves a synthetic MuJoCo ELF closure without subprocess or MuJoCo i
     assert.equal(parsed.platform,'Linux-x86_64');
     assert.match(parsed.python_version,/^3\.12\.\d+$/);
     assert.equal(parsed.mujoco_version,'3.12.0');
-    assert.equal(parsed.admission_candidate_sha,'bbc27034f038bf710985434b9c617a117557ddcf');
+    assert.equal(parsed.admission_candidate_sha,'8f7311b9e8680b03c7e0844ebce73751dc355fd7');
     assert.match(parsed.resolver.sha256,/^[a-f0-9]{64}$/);
     assert.ok(parsed.resolver.size_bytes>0);
     assert.equal(parsed.claims.elf_metadata_parsed,true);
@@ -603,7 +603,7 @@ test('M4A wire rejects duplicate keys NaN and unsupported fields',()=>{
       JSON.stringify({
         protocol:'sbf.sim-mujoco-native-dependency-resolve/draft-1',
         target:'SIM-mujoco',
-        admission_candidate_sha:'bbc27034f038bf710985434b9c617a117557ddcf',
+        admission_candidate_sha:'8f7311b9e8680b03c7e0844ebce73751dc355fd7',
         runtime_import_root:fx.runtime,
         search_roots:[fx.lib1],
         approved:true,
