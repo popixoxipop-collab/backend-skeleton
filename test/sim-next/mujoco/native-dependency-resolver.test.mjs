@@ -393,6 +393,38 @@ test('M4A bounds and sanitizes PT_INTERP before reading loader metadata',()=>{
   }
 });
 
+
+test('M4A rejects malformed ELF type/load/dynamic mapping and ORIGIN-prefix spoofing',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4a-malformed-segments-'));
+  try{
+    for(const [name,mutate,pattern] of [
+      ['etype-none',b=>b.writeUInt16LE(0,16),/ELF type must be ET_EXEC or ET_DYN/],
+      ['load-filesz-gt-memsz',b=>writeU64(b,64+40,1),/segment file size exceeds memory size/],
+      ['dynamic-unmapped-vaddr',b=>writeU64(b,64+56+16,0x900000),/PT_DYNAMIC cannot be mapped uniquely|file\/virtual mapping is inconsistent/],
+    ]){
+      const target=path.join(root,name+'.elf');
+      const bytes=elf64({needed:['libfoo.so']});
+      mutate(bytes); fs.writeFileSync(target,bytes);
+      const child=parseElfDirect(target);
+      assert.notEqual(child.status,0,name);
+      assert.match(child.stdout,pattern,name);
+    }
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+
+  for(const runpath of ['$ORIGIN_UNSUPPORTED','${ORIGIN}_UNSUPPORTED']){
+    const fx=fixture({seedRunpath:runpath});
+    try{
+      const {child}=run(fx);
+      assert.notEqual(child.status,0,runpath);
+      assert.match(child.stderr,/unsupported dynamic-loader token/,runpath);
+    }finally{
+      fs.rmSync(fx.root,{recursive:true,force:true});
+    }
+  }
+});
+
 test('M4A recursively seeds nested MuJoCo plugin libraries',()=>{
   const fx=fixture({pluginNeeded:[]});
   try{
