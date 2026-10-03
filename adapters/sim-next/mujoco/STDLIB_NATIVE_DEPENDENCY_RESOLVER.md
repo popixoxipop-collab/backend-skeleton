@@ -5,7 +5,7 @@ Status: A1 evidence producer / **not admission authority**.
 Upstream authority is frozen to:
 
 - M4 v5 #232: `8f7311b9e8680b03c7e0844ebce73751dc355fd7`;
-- Q4-approved M4A v8 #234: `98cec1ef8ee8cdc3c2fcfe475cbba7c695f04df5`;
+- Q4-approved M4A v9 #239: `98cec1ef8ee8cdc3c2fcfe475cbba7c695f04df5`;
 - M4A tree: `40f8e20bc313a6c1412964c57cda8c5314e65a5b`;
 - approved resolver SHA-256:
   `f7efe3283de5da724d24343d2ba139a263afad5cdcec54c75423c356c884f0b2`;
@@ -23,9 +23,13 @@ M4B does not execute the target runtime.
 
 M4B does not implement its own ELF parser or DT_NEEDED resolver.
 
-Before work begins it verifies the adjacent Q4-approved
-`native_dependency_resolver.py` by exact SHA-256 and size. It imports that
-reviewed module under a private module name and reuses its:
+Before work begins it reads the adjacent Q4-approved
+`native_dependency_resolver.py` exactly once, verifies those exact bytes by
+SHA-256 and size, decodes and compiles those same bytes, and executes the
+resulting code object in a private module namespace. It never delegates loading
+to Python's source/bytecode import cache, so an adjacent timestamp-valid
+`__pycache__/*.pyc` cannot substitute different executable bytes. It then
+reuses the approved module's:
 
 - path/symlink validation;
 - stdlib root resolution;
@@ -36,7 +40,7 @@ reviewed module under a private module name and reuses its:
 - logical native-path mapping;
 - canonical hashing.
 
-Parser byte drift is fatal. Any `ResolveError` emitted by an approved M4A helper is translated into the single M4B fail-closed error protocol; approved-parser denials are never allowed to escape as a traceback-based alternate authority path.
+Parser byte drift, decode failure, or compile failure is fatal. Any `ResolveError` emitted by an approved M4A helper is translated into the single M4B fail-closed error protocol; approved-parser denials are never allowed to escape as a traceback-based alternate authority path.
 
 ## Native-extension seed boundary
 
@@ -96,7 +100,7 @@ Schema:
 The output binds:
 
 - exact #232 candidate;
-- exact #234 candidate/tree;
+- exact #239 candidate/tree;
 - exact Q4-approved resolver SHA/size;
 - exact running Python launcher path/SHA/size;
 - exact stdlib roots and native-extension roots;
@@ -104,7 +108,7 @@ The output binds:
 - dependency graph;
 - external native files as both the exact inventory-facing `native_dependency_files` mapping and explicit `external_native_files` rows carrying logical path, real path, SHA-256 and size;
 - M4B producer SHA/size;
-- canonical closure SHA over upstream #232/#234/parser identity, exact launcher identity, roots, seeds, graph, external native files and the fixed strict-union policy.
+- canonical closure SHA over upstream #232/#239/parser identity, exact launcher identity, roots, seeds, graph, external native files and the fixed strict-union policy.
 
 All execution/admission claims remain false.
 

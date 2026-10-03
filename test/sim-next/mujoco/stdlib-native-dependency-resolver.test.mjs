@@ -148,6 +148,65 @@ print(producer.M4A_RESOLVER_SHA256)
   assert.doesNotMatch(source,/^\s*(?:import|from)\s+subprocess\b/m);
 });
 
+test('M4B executes the exact hashed M4A source bytes even when a valid malicious pyc cache exists',()=>{
+  const root=fs.mkdtempSync(path.join(os.homedir(),'bskel-m4b-pyc-bypass-'));
+  try{
+    const producerCopy=path.join(root,'stdlib_native_dependency_resolver.py');
+    const m4aCopy=path.join(root,'native_dependency_resolver.py');
+    const marker=path.join(root,'PYC_EXECUTED');
+    fs.copyFileSync(PRODUCER,producerCopy);
+    fs.copyFileSync(M4A,m4aCopy);
+    const child=spawnSync('python3',['-I','-S','-B','-c',String.raw`
+import importlib.util
+import os
+from pathlib import Path
+import py_compile
+import sys
+
+producer_path=Path(sys.argv[1])
+m4a_path=Path(sys.argv[2])
+marker=Path(sys.argv[3])
+approved=m4a_path.read_bytes()
+target_size=len(approved)
+prefix=(
+    "from pathlib import Path\n"
+    "ADMISSION_CANDIDATE_SHA = \"8f7311b9e8680b03c7e0844ebce73751dc355fd7\"\n"
+    f"Path({str(marker)!r}).write_text('PYC_EXECUTED',encoding='utf-8')\n"
+).encode("utf-8")
+assert len(prefix)+2 <= target_size
+malicious=(prefix+b"#").ljust(target_size-1,b"x")+b"\n"
+assert len(malicious)==target_size
+stamp=1760000000
+m4a_path.write_bytes(malicious)
+os.utime(m4a_path,(stamp,stamp))
+py_compile.compile(str(m4a_path),doraise=True)
+m4a_path.write_bytes(approved)
+os.utime(m4a_path,(stamp,stamp))
+
+spec=importlib.util.spec_from_file_location("m4b_under_test",str(producer_path))
+producer=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(producer)
+m4a,_,sha256,size=producer.load_approved_m4a()
+assert not marker.exists(), "cached bytecode executed instead of approved source bytes"
+assert sha256==producer.M4A_RESOLVER_SHA256
+assert size==producer.M4A_RESOLVER_SIZE
+assert m4a.ADMISSION_CANDIDATE_SHA==producer.ADMISSION_CANDIDATE_SHA
+assert callable(m4a.parse_elf_dynamic)
+print("PYC_BYPASS_DENIED")
+`,producerCopy,m4aCopy,marker],{
+      encoding:'utf8',
+      env:{},
+      timeout:10_000,
+      maxBuffer:8*1024*1024,
+    });
+    assert.equal(child.status,0,child.stderr);
+    assert.match(child.stdout,/PYC_BYPASS_DENIED/);
+    assert.equal(fs.existsSync(marker),false);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});
+
 test('M4B translates Q4-approved parser denials into its own fail-closed protocol',()=>{
   const child=directScript(String.raw`
 def denied():
