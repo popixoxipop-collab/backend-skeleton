@@ -57,6 +57,19 @@ DT_STRTAB = 5
 DT_STRSZ = 10
 DT_RPATH = 15
 DT_RUNPATH = 29
+DT_CONFIG = 0x6FFFFEFA
+DT_DEPAUDIT = 0x6FFFFEFB
+DT_AUDIT = 0x6FFFFEFC
+DT_AUXILIARY = 0x7FFFFFFD
+DT_FILTER = 0x7FFFFFFF
+
+UNSUPPORTED_DEPENDENCY_DYNAMIC_TAGS = {
+    DT_CONFIG: "DT_CONFIG",
+    DT_DEPAUDIT: "DT_DEPAUDIT",
+    DT_AUDIT: "DT_AUDIT",
+    DT_AUXILIARY: "DT_AUXILIARY",
+    DT_FILTER: "DT_FILTER",
+}
 
 REQUIRED_NATIVE = "mujoco/libmujoco.so.3.12.0"
 # This is not a general runtime search root. It models only the exact reviewed
@@ -274,12 +287,17 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
         interp: str | None = None
         for index in range(phnum):
             row = ph_bytes[index * phentsize : (index + 1) * phentsize]
-            p_type, _p_flags, p_offset, p_vaddr, _p_paddr, p_filesz, p_memsz, _p_align = struct.unpack(
+            p_type, _p_flags, p_offset, p_vaddr, _p_paddr, p_filesz, p_memsz, p_align = struct.unpack(
                 "<IIQQQQQQ", row
             )
             if p_type in (PT_LOAD, PT_DYNAMIC) and p_filesz > p_memsz:
                 fail(f"ELF segment file size exceeds memory size for {path}")
             if p_type == PT_LOAD:
+                if p_align not in (0, 1):
+                    if p_align & (p_align - 1):
+                        fail(f"PT_LOAD alignment must be zero, one, or a power of two for {path}")
+                    if p_vaddr % p_align != p_offset % p_align:
+                        fail(f"PT_LOAD file/virtual alignment is inconsistent for {path}")
                 if p_offset + p_filesz > file_size:
                     fail(f"PT_LOAD exceeds file bounds for {path}")
                 loads.append((p_offset, p_vaddr, p_filesz))
@@ -306,6 +324,9 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
                     fail(f"PT_INTERP contains control characters for {path}")
                 if not interp.startswith("/"):
                     fail(f"PT_INTERP must be absolute for {path}")
+
+        if not loads:
+            fail(f"ELF must contain at least one PT_LOAD segment for {path}")
 
         if dynamic is None:
             return {"needed": [], "runpath": [], "rpath": [], "interp": interp}
@@ -348,6 +369,11 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
                 runpath_offsets.append(value)
             elif tag == DT_RPATH:
                 rpath_offsets.append(value)
+            elif tag in UNSUPPORTED_DEPENDENCY_DYNAMIC_TAGS:
+                fail(
+                    f"unsupported dependency-bearing dynamic tag "
+                    f"{UNSUPPORTED_DEPENDENCY_DYNAMIC_TAGS[tag]} for {path}"
+                )
 
         if not terminated:
             fail(f"PT_DYNAMIC has no DT_NULL terminator for {path}")

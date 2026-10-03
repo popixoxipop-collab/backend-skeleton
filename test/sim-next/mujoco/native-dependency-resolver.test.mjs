@@ -398,17 +398,55 @@ test('M4A bounds and sanitizes PT_INTERP before reading loader metadata',()=>{
 test('M4A rejects malformed ELF type/load/dynamic mapping and ORIGIN-prefix spoofing',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'bskel-m4a-malformed-segments-'));
   try{
-    for(const [name,mutate,pattern] of [
-      ['etype-none',b=>b.writeUInt16LE(0,16),/ELF type must be ET_EXEC or ET_DYN/],
-      ['load-filesz-gt-memsz',b=>writeU64(b,64+40,1),/segment file size exceeds memory size/],
-      ['dynamic-unmapped-vaddr',b=>writeU64(b,64+56+16,0x900000),/PT_DYNAMIC cannot be mapped uniquely|file\/virtual mapping is inconsistent/],
+    for(const [name,build,mutate,pattern] of [
+      ['etype-none',()=>elf64({needed:['libfoo.so']}),b=>b.writeUInt16LE(0,16),/ELF type must be ET_EXEC or ET_DYN/],
+      ['load-filesz-gt-memsz',()=>elf64({needed:['libfoo.so']}),b=>writeU64(b,64+40,1),/segment file size exceeds memory size/],
+      ['load-align-not-power-of-two',()=>elf64(),b=>writeU64(b,64+48,3),/PT_LOAD alignment must be zero, one, or a power of two/],
+      ['load-offset-vaddr-misaligned',()=>elf64(),b=>writeU64(b,64+16,0x400001),/PT_LOAD file\/virtual alignment is inconsistent/],
+      ['missing-load',()=>elf64(),b=>b.writeUInt32LE(4,64),/at least one PT_LOAD segment/],
+      ['dynamic-unmapped-vaddr',()=>elf64({needed:['libfoo.so']}),b=>writeU64(b,64+56+16,0x900000),/PT_DYNAMIC cannot be mapped uniquely|file\/virtual mapping is inconsistent/],
     ]){
       const target=path.join(root,name+'.elf');
-      const bytes=elf64({needed:['libfoo.so']});
+      const bytes=build();
       mutate(bytes); fs.writeFileSync(target,bytes);
       const child=parseElfDirect(target);
       assert.notEqual(child.status,0,name);
       assert.match(child.stdout,pattern,name);
+    }
+
+    for(const [name,mutate] of [
+      ['load-align-zero',b=>writeU64(b,64+48,0)],
+      ['load-align-one',b=>writeU64(b,64+48,1)],
+      ['load-align-congruent-nonzero',b=>{
+        writeU64(b,64+8,8);
+        writeU64(b,64+16,0x400008);
+        writeU64(b,64+32,b.length-8);
+        writeU64(b,64+40,b.length-8);
+        writeU64(b,64+48,4096);
+      }],
+    ]){
+      const target=path.join(root,name+'.elf');
+      const bytes=elf64();
+      mutate(bytes); fs.writeFileSync(target,bytes);
+      const child=parseElfDirect(target);
+      assert.equal(child.status,0,child.stdout+child.stderr);
+      assert.match(child.stdout,/PASS/);
+    }
+
+    for(const [name,tag] of [
+      ['dt-config',0x6ffffefa],
+      ['dt-depaudit',0x6ffffefb],
+      ['dt-audit',0x6ffffefc],
+      ['dt-auxiliary',0x7ffffffd],
+      ['dt-filter',0x7fffffff],
+    ]){
+      const target=path.join(root,name+'.elf');
+      const bytes=elf64({needed:['libfoo.so']});
+      writeU64(bytes,256,tag);
+      fs.writeFileSync(target,bytes);
+      const child=parseElfDirect(target);
+      assert.notEqual(child.status,0,name);
+      assert.match(child.stdout,/unsupported dependency-bearing dynamic tag/,name);
     }
   }finally{
     fs.rmSync(root,{recursive:true,force:true});
