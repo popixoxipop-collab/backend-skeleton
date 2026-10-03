@@ -83,6 +83,23 @@ function absolutePosixPath(value,label){
   return value;
 }
 
+function compareUnicodeCodePoints(left,right){
+  if(left===right) return 0;
+  const a=left[Symbol.iterator]();
+  const b=right[Symbol.iterator]();
+  for(;;){
+    const av=a.next();
+    const bv=b.next();
+    if(av.done||bv.done){
+      if(av.done&&bv.done) return 0;
+      return av.done?-1:1;
+    }
+    const ac=av.value.codePointAt(0);
+    const bc=bv.value.codePointAt(0);
+    if(ac!==bc) return ac<bc?-1:1;
+  }
+}
+
 function canonical(value){
   if(Array.isArray(value)) return value.map(canonical);
   if(value&&typeof value==='object'){
@@ -114,7 +131,7 @@ function fileEntry(value,label){
 function validateFiles(value){
   if(!Array.isArray(value)||value.length===0||value.length>MAX_RUNTIME_FILES) throw new TypeError(`runtime_closure.files must contain 1..${MAX_RUNTIME_FILES} entries`);
   const files=value.map((entry,index)=>fileEntry(entry,`runtime_closure.files[${index}]`));
-  const sorted=[...files].sort((a,b)=>a.path.localeCompare(b.path));
+  const sorted=[...files].sort((a,b)=>compareUnicodeCodePoints(a.path,b.path));
   if(new Set(sorted.map((x)=>x.path)).size!==sorted.length) throw new TypeError('runtime_closure.files contains duplicate paths');
   return Object.freeze(sorted);
 }
@@ -161,7 +178,7 @@ function validateStdlibSymlinkBindings(value,files){
       sha256,
       size_bytes:sizeBytes,
     });
-  }).sort((a,b)=>a.path.localeCompare(b.path));
+  }).sort((a,b)=>compareUnicodeCodePoints(a.path,b.path));
   if(new Set(bindings.map((entry)=>entry.path)).size!==bindings.length){
     throw new TypeError('runtime_closure.stdlib_symlink_bindings contains duplicate paths');
   }
@@ -194,7 +211,7 @@ function validateUnhashedRecordEntries(value){
       throw new TypeError('runtime closure contains an unsupported unhashed RECORD reason');
     }
     return Object.freeze({path:itemPath,reason});
-  }).sort((a,b)=>a.path.localeCompare(b.path));
+  }).sort((a,b)=>compareUnicodeCodePoints(a.path,b.path));
   if(new Set(entries.map((entry)=>entry.path)).size!==entries.length){
     throw new TypeError('runtime_closure.record_unhashed_entries contains duplicate paths');
   }
@@ -316,7 +333,7 @@ export function validateMujocoRuntimeInventory(value){
       path:relativePath(entry.path,`required_bindings[${index}].path`),
       sha256:digest(entry.sha256,`required_bindings[${index}].sha256`),
     });
-  }).sort((a,b)=>a.path.localeCompare(b.path));
+  }).sort((a,b)=>compareUnicodeCodePoints(a.path,b.path));
   const bindingPaths=requiredBindings.map((entry)=>entry.path);
   const expectedBindingPaths=[...REQUIRED_BINDINGS].sort();
   if(
@@ -333,7 +350,7 @@ export function validateMujocoRuntimeInventory(value){
       path:relativePath(entry.path,`plugin_libraries[${index}].path`),
       sha256:digest(entry.sha256,`plugin_libraries[${index}].sha256`),
     });
-  }).sort((a,b)=>a.path.localeCompare(b.path));
+  }).sort((a,b)=>compareUnicodeCodePoints(a.path,b.path));
 
   const byPath=fileMap(files);
   for(const entry of recordUnhashed){
