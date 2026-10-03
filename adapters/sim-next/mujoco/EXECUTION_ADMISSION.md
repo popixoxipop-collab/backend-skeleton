@@ -115,6 +115,10 @@ size are then closure-bound at the symlink's logical path, while any unapproved 
 in `runtime_closure.symlinks` and is rejected by the admission validator. MuJoCo runtime-root symlinks remain
 unconditionally unapproved.
 
+Runtime and stdlib directory traversal is also fail-closed. Every `os.walk()` call installs an `onerror`
+callback that converts a subtree `scandir()` failure into `M4_RUNTIME_INVENTORY_DENIED`; an unreadable or
+otherwise unscannable subtree can never be silently omitted from a successful closure.
+
 ## MuJoCo import closure matters
 
 MuJoCo 3.12.0 import is broader than `libmujoco.so` plus one extension.
