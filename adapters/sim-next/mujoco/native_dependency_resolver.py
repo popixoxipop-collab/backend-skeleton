@@ -44,6 +44,8 @@ ELF_MAGIC = b"\x7fELF"
 ELFCLASS64 = 2
 ELFDATA2LSB = 1
 EM_X86_64 = 62
+ET_EXEC = 2
+ET_DYN = 3
 
 PT_LOAD = 1
 PT_DYNAMIC = 2
@@ -243,7 +245,7 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
 
         (
             _ident,
-            _etype,
+            etype,
             machine,
             version,
             _entry,
@@ -257,6 +259,8 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
             _shnum,
             _shstrndx,
         ) = struct.unpack("<16sHHIQQQIHHHHHH", header)
+        if etype not in (ET_EXEC, ET_DYN):
+            fail(f"ELF type must be ET_EXEC or ET_DYN for {path}")
         if machine != EM_X86_64:
             fail(f"ELF machine must be x86_64 for {path}")
         if version != 1 or ehsize != 64 or phentsize != 56:
@@ -270,9 +274,11 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
         interp: str | None = None
         for index in range(phnum):
             row = ph_bytes[index * phentsize : (index + 1) * phentsize]
-            p_type, _p_flags, p_offset, p_vaddr, _p_paddr, p_filesz, _p_memsz, _p_align = struct.unpack(
+            p_type, _p_flags, p_offset, p_vaddr, _p_paddr, p_filesz, p_memsz, _p_align = struct.unpack(
                 "<IIQQQQQQ", row
             )
+            if p_type in (PT_LOAD, PT_DYNAMIC) and p_filesz > p_memsz:
+                fail(f"ELF segment file size exceeds memory size for {path}")
             if p_type == PT_LOAD:
                 if p_offset + p_filesz > file_size:
                     fail(f"PT_LOAD exceeds file bounds for {path}")
@@ -282,7 +288,7 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
                     fail(f"multiple PT_DYNAMIC segments are unsupported for {path}")
                 if p_offset + p_filesz > file_size:
                     fail(f"PT_DYNAMIC exceeds file bounds for {path}")
-                dynamic = (p_offset, p_filesz)
+                dynamic = (p_offset, p_vaddr, p_filesz)
             elif p_type == PT_INTERP:
                 if interp is not None:
                     fail(f"multiple PT_INTERP segments are unsupported for {path}")
@@ -304,7 +310,12 @@ def parse_elf_dynamic(path: Path) -> dict[str, Any]:
         if dynamic is None:
             return {"needed": [], "runpath": [], "rpath": [], "interp": interp}
 
-        dyn_offset, dyn_size = dynamic
+        dyn_offset, dyn_vaddr, dyn_size = dynamic
+        mapped_dynamic_offset = vaddr_to_offset(
+            dyn_vaddr, dyn_size, loads, "PT_DYNAMIC"
+        )
+        if mapped_dynamic_offset != dyn_offset:
+            fail(f"PT_DYNAMIC file/virtual mapping is inconsistent for {path}")
         if dyn_size % 16 != 0:
             fail(f"PT_DYNAMIC size is not aligned for {path}")
         dyn_count = dyn_size // 16
@@ -392,9 +403,14 @@ def expand_dynamic_dir(
     runtime_root: Path,
     approved_roots: list[Path],
 ) -> Path | None:
-    expanded = value.replace("$" + "{ORIGIN}", str(binary.parent)).replace("$ORIGIN", str(binary.parent))
-    if "$" in expanded:
+    if value == "$ORIGIN" or value.startswith("$ORIGIN/"):
+        expanded = str(binary.parent) + value[len("$ORIGIN"):]
+    elif value == "${ORIGIN}" or value.startswith("${ORIGIN}/"):
+        expanded = str(binary.parent) + value[len("${ORIGIN}"):]
+    elif "$" in value:
         fail(f"unsupported dynamic-loader token in path: {value}")
+    else:
+        expanded = value
     candidate = Path(expanded)
     if not candidate.is_absolute():
         fail(f"relative RPATH/RUNPATH is unsupported: {value}")
