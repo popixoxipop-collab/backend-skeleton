@@ -1,3 +1,7 @@
-// T24 M4A bridge: keep native dependency resolver tests visible to the root CI glob.
-// Import only; this does not execute MuJoCo, the M3 helper, MJCF, or MjModel.
-import './sim-next/mujoco/native-dependency-resolver.test.mjs';
+import test from 'node:test';
+
+if(process.platform==='linux'){
+  await import('./sim-next/mujoco/native-dependency-resolver.test.mjs');
+}else{
+  test('T24 M4A native resolver suite is Linux-only',{skip:'requires Linux x86_64 Python 3.12 native roots'},()=>{});
+}
