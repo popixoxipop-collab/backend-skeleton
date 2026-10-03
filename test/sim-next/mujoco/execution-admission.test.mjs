@@ -43,6 +43,28 @@ function recordHash(bytes){
   return crypto.createHash('sha256').update(bytes).digest('base64url');
 }
 
+
+test('M4 runtime closure digest matches Python canonical path ordering',()=>{
+  const files=[
+    {
+      path:'__pycache__/b.pyc',
+      sha256:'2'.repeat(64),
+      size_bytes:2,
+      kind:'resource',
+    },
+    {
+      path:'OpenGL/a.py',
+      sha256:'1'.repeat(64),
+      size_bytes:1,
+      kind:'python',
+    },
+  ];
+  assert.equal(
+    runtimeClosureDigest(files),
+    '5c59d1066ad6bd9b67058fd2c55efe1c159dbc07156913cf1d8b8cbc9b9a2889',
+  );
+});
+
 function write(root,rel,bytes){
   const target=path.join(root,...rel.split('/'));
   fs.mkdirSync(path.dirname(target),{recursive:true});
