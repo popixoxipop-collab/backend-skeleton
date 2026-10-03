@@ -1,0 +1,11 @@
+# Historical-replay fixtures are sha256-pinned bytes: never convert line endings on checkout.
+test/fixtures/historical-replay/** -text
+
+# Limits of this pin:
+# - A clone's own .git/info/attributes outranks this file. If it sets text/eol for these paths (for example
+#   `* text eol=crlf`), Git converts the fixtures anyway. A global attributes file (core.attributesFile) ranks below
+#   this file, so it cannot override the pin.
+# - The pin only governs files Git writes from now on. A work tree that already holds CRLF copies keeps them after an
+#   update: Git compares stat data, so it usually reports no change and a plain `git checkout -- <dir>` skips them.
+#   Delete the fixtures and check them out again:
+#   rm -r test/fixtures/historical-replay && git checkout -- test/fixtures/historical-replay

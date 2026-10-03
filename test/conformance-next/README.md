@@ -14,7 +14,7 @@ node --test \
   test/conformance-next/product-security-invariants.test.mjs
 ```
 
-The repository's current `npm test` glob is `test/*.test.mjs`, so it does **not** include these nested tests. Wiring this command into shared CI/package scripts is intentionally left to the integration/release owners rather than changing shared files from T19.
+The repository's `npm test` glob is `test/*.test.mjs`, so it does **not** include these nested tests. On `main` the nested-next CI job runs them as the `T19 conformance-next` step (`.github/workflows/ci.yml:158-159`, `node scripts/run-next-nested-tests.mjs T19`). T19 itself still does not change shared CI or package scripts; that wiring is owned by the integration/release owners.
 
 ## What the gate means
 

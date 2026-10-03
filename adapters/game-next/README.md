@@ -2,7 +2,12 @@
 
 This directory is an opt-in, draft bridge for the T17 game-plane expansion. It does not replace or mutate `sbf.webgame-contract/1`.
 
-## Legacy webgame bridge
+## Legacy webgame bridge (design record; not on `main`)
+
+> Not on `main` (checked at `ad24e0d8`, 2026-10-03): `legacy-webgame-bridge.mjs` and the tests
+> `test/game-next/game-next-bridge.test.mjs`, `game-native-export-envelope.test.mjs` and
+> `game-next-schema.test.mjs` exist only in the head of PR #68, which was closed without merge.
+> This section and the bridge items under "Invariants" describe that unmerged draft, not code on `main`.
 
 `legacy-webgame-bridge.mjs` projects the exact bytes of an existing `sbf.webgame-contract/1` document into a conservative draft game graph:
 
@@ -66,7 +71,7 @@ Actual engine/editor execution remains a separate T20 target-runtime isolation t
 
 ## Invariants
 
-The legacy bridge fails closed on:
+The legacy bridge (unmerged; see the note under "Legacy webgame bridge") fails closed on:
 
 - invalid UTF-8 or malformed JSON;
 - another webgame contract version;
@@ -88,16 +93,15 @@ These draft files are not public replacement contracts. They are internal migrat
 ## Focused tests
 
 ```bash
-node --test test/game-next/game-next-bridge.test.mjs
-node --test test/game-next/game-native-export-envelope.test.mjs
-node --test test/game-next/game-next-schema.test.mjs
+node --test test/game-next/native-structure-media-type.test.mjs
+node --test test/game-next/native-text-source-exporters.test.mjs
 ```
 
-The bridge suite also runs a real `scanWebgame -> buildWebgameContract -> bridgeLegacyWebgameContract` pipeline and verifies that a discovered `KeyW` and `movePlayer` never become a causal edge.
+These are the two test files in `test/game-next/` on `main`. Both import `native-export-envelope.mjs`; the dedicated envelope suite `game-native-export-envelope.test.mjs` is not on `main`. The bridge suite `game-next-bridge.test.mjs` (which also ran a real `scanWebgame -> buildWebgameContract -> bridgeLegacyWebgameContract` pipeline and checked that a discovered `KeyW` and `movePlayer` never become a causal edge) and `game-next-schema.test.mjs` are likewise only in the closed PR #68.
 
 ## Test discovery integration
 
-T17 tests intentionally live under `test/game-next/**`, the T17-owned test namespace. The current root `npm test` glob only expands `test/*.test.mjs`, so a generic green root CI job does **not** prove these nested suites ran until T23/T00 integrates nested discovery. T17 runs the three commands above explicitly for focused evidence.
+T17 tests intentionally live under `test/game-next/**`, the T17-owned test namespace. The root `npm test` glob only expands `test/*.test.mjs`, so a green root `npm test` does **not** prove these nested suites ran. On `main` the nested-next CI job runs them as the `T17 game-next` step (`.github/workflows/ci.yml:154-155`, `node scripts/run-next-nested-tests.mjs T17`). The two commands above remain valid for a direct local run.
 
 
 ## Native structure normalization

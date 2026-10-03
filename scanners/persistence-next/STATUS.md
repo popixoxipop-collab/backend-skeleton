@@ -1,10 +1,12 @@
 # T10 Status — Persistence / DB Plane
 
-Status is **implemented in draft, not accepted/released**. PR #84 remains draft.
+Status is **on `main` through PR #147, not accepted/released**. PR #84 (the original draft) was closed
+without merge; its bytes reached `main` through PR #147, merge commit
+`bb18182c54a3a8f682ed2d1a6bac26749fcf267e`.
 
 | T10 task | Current state | Concrete output | Remaining gate |
 |---|---|---|---|
-| T10-01 existing DB baseline | implemented | `BASELINE.md`, bridges keep Plane A/Plane C separate | current-head nested-suite CI visibility |
+| T10-01 existing DB baseline | implemented | `BASELINE.md`, bridges keep Plane A/Plane C separate | nested-suite CI visibility is satisfied on `main` (see "CI discovery") |
 | T10-02 Persistence IR | implemented | `sbf.persistence-ir/1`, provenance, ordered keys/relations | interface review with T01/T03 |
 | T10-03 binding composer | implemented | explicit `entity_ref`/binding only; ORM identity carried | consumer review |
 | T10-04 read-only DB verification | implemented | live table + ordered PK + available key-type verification | live fixture/corpus expansion |
@@ -34,12 +36,14 @@ GitHub and exercised through isolated source checks for:
 These isolated checks are useful evidence, but they do not replace a real Node execution of the
 current nested test suite.
 
-## CI limitation
+## CI discovery
 
-Repository `npm test` currently expands `test/*.test.mjs`; T10 tests are under
-`test/persistence-next/*.test.mjs`. A green current CI therefore does not, by itself, prove that
-the nested T10 suite ran. CR-T10-001 requests a T00/T23-owned root bridge or explicit required CI
-command.
+Repository `npm test` expands only `test/*.test.mjs`; T10 tests are under
+`test/persistence-next/*.test.mjs`, so root `npm test` still does not run them. On `main` the
+nested-next CI job runs them as the `T10 persistence-next` step (`.github/workflows/ci.yml:144-145`,
+`node scripts/run-next-nested-tests.mjs T10`); the local nested run at `main` `ad24e0d8` (Node
+v24.19.0, 2026-10-03) passed 224 of 224 tests. CR-T10-001 requested a T00/T23-owned root bridge or
+explicit required CI command; `CHANGE_REQUESTS.md` is kept unchanged as the historical request.
 
 ## Cross-track dependencies
 
