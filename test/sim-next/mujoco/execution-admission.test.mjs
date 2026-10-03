@@ -43,6 +43,31 @@ function recordHash(bytes){
   return crypto.createHash('sha256').update(bytes).digest('base64url');
 }
 
+test('M4 runtime closure digest matches collector Python code-point path ordering',()=>{
+  const files=[
+    {path:'__pycache__/isympy.cpython-312.pyc',sha256:'1'.repeat(64),size_bytes:1,kind:'resource'},
+    {path:'OpenGL/AGL/__init__.py',sha256:'2'.repeat(64),size_bytes:2,kind:'python'},
+    {path:'é/package.py',sha256:'3'.repeat(64),size_bytes:3,kind:'python'},
+    {path:'😀/package.py',sha256:'4'.repeat(64),size_bytes:4,kind:'python'},
+  ];
+  const script=[
+    'import hashlib,json,sys',
+    'value=json.loads(sys.stdin.read())',
+    'value.sort(key=lambda entry: entry["path"])',
+    'payload=("sbf.sim-mujoco-runtime-closure/draft-1\\n"+json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\\n").encode("utf-8")',
+    'print(hashlib.sha256(payload).hexdigest())',
+  ].join('\n');
+  const python=spawnSync('python3',['-c',script],{
+    input:JSON.stringify(files),
+    encoding:'utf8',
+    env:{},
+    timeout:10_000,
+    maxBuffer:1024*1024,
+  });
+  assert.equal(python.status,0,python.stderr);
+  assert.equal(runtimeClosureDigest(files),python.stdout.trim());
+});
+
 function write(root,rel,bytes){
   const target=path.join(root,...rel.split('/'));
   fs.mkdirSync(path.dirname(target),{recursive:true});
