@@ -1,0 +1,1123 @@
+{
+  "schema": "bskel.track-baseline-record/1",
+  "schema_status": "provisional",
+  "track": "T04",
+  "item": "T04-01",
+  "suite_id": "T04",
+  "title": "JS/TS bounded lexical layer: current behavior and failure cases fixed at an exact revision",
+  "base_commit": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+  "base_tree": "4b8e12754342e11dd6f64976bd4a159c9b56d289",
+  "base_commit_note": "origin/main head when this record was produced; it is the base commit of the pull request that adds this file",
+  "fixture_origin_note": "Each fixture origin is one of: a test file, line and title at the base commit whose source literal the fixture reproduces byte for byte; a pinned Legacy A file (origin_pin names commit, path and Git blob id); or \"authored for this record\" (written for this record, no external source).",
+  "observed_on": "2026-10-08",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "os_release": "25.6.0"
+  },
+  "source_dir": "scanners/language/js-ts",
+  "test_dir": "test/language-js-ts",
+  "sources": [
+    {
+      "path": "scanners/language/js-ts/backend-comparison.mjs",
+      "bytes": 8743,
+      "git_blob_sha1": "6cf04bb2cea6d930e7ff9a3cab12346f95f01f4b",
+      "sha256": "a699df8c21d623becd8ed44cf7d6fba9293d5a2ef99f9bc7112155ae6dfdf0f3"
+    },
+    {
+      "path": "scanners/language/js-ts/module-resolver.mjs",
+      "bytes": 7005,
+      "git_blob_sha1": "31697b82ab4e4dfec96d55b76ff59a15fd6c05ff",
+      "sha256": "5c61df6d99dd9bf94053bd9794357928548e18fca0a97c5aec4bdf8a11aadb9c"
+    },
+    {
+      "path": "scanners/language/js-ts/snapshot-graph.mjs",
+      "bytes": 6839,
+      "git_blob_sha1": "df4417c3cf0eead50e7fe9edc467d10596bef446",
+      "sha256": "4be095ed698d0cb0363c997c5f79a351cefcd4a7d1e68665eee7435f3ce50eb6"
+    },
+    {
+      "path": "scanners/language/js-ts/source-facts.mjs",
+      "bytes": 17342,
+      "git_blob_sha1": "22f4c8101103b5e44518dbba64327eb0713e2ad6",
+      "sha256": "b51aed021a852b89f732ac4494e697824407e41b872d9cb3a7224c9125a6df29"
+    }
+  ],
+  "tests": [
+    {
+      "path": "test/language-js-ts/backend-comparison.test.mjs",
+      "bytes": 9612,
+      "git_blob_sha1": "ffd765ee79c7a80f7f756ead2a6b751160cd8e43",
+      "sha256": "400d6a86232504b966bdb7deca3342f7f811e313f5ddf8971a72db35e2496d1c",
+      "test_count": 16
+    },
+    {
+      "path": "test/language-js-ts/legacy-a-regressions.test.mjs",
+      "bytes": 5368,
+      "git_blob_sha1": "50c6f2505ecd32b1641033e435f7cb2e64689413",
+      "sha256": "ad45103af4431d937b7be546c8a105b8728db2375de10d15aebc6a68dc47542a",
+      "test_count": 7
+    },
+    {
+      "path": "test/language-js-ts/module-resolver.test.mjs",
+      "bytes": 7205,
+      "git_blob_sha1": "7d4f65f4db81ef5178e1c890cc3d537bc44d0cce",
+      "sha256": "f9fbeed686104825dbac5337a95d76c0bb422c650ca806390c187c392fad851c",
+      "test_count": 14
+    },
+    {
+      "path": "test/language-js-ts/snapshot-graph.test.mjs",
+      "bytes": 6762,
+      "git_blob_sha1": "ce9e5294e3ee246152fa7544456705f26acf0294",
+      "sha256": "0b55c7a4bc120f26ff42e603ed2325bf3ba7198b4b31d580c57352ce9bdcf7a7",
+      "test_count": 13
+    },
+    {
+      "path": "test/language-js-ts/source-facts.test.mjs",
+      "bytes": 6704,
+      "git_blob_sha1": "5b7b248b75ff5665b41c2c4e162a67bb0fa07f84",
+      "sha256": "aa72ec7153d9a4de1b3045724d8c6885afa8c7f37cc16989c940b92bed0cad98",
+      "test_count": 12
+    }
+  ],
+  "commands": [
+    {
+      "id": "nested-runner",
+      "command": "node scripts/run-next-nested-tests.mjs T04",
+      "cwd": "repository root",
+      "revision": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "tree": "exact export of the base commit (git archive), no working-tree changes",
+      "node": "v24.19.0",
+      "exit_code": 0,
+      "stdout_first_line": "NESTED_SUITE T04 RUN 5 files",
+      "runner_files": 5,
+      "runner_script": {
+        "path": "scripts/run-next-nested-tests.mjs",
+        "bytes": 6886,
+        "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+        "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+      },
+      "result": {
+        "tests": 62,
+        "suites": 0,
+        "pass": 62,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "direct-tap",
+      "command": "node --test --test-reporter=tap test/language-js-ts/backend-comparison.test.mjs test/language-js-ts/legacy-a-regressions.test.mjs test/language-js-ts/module-resolver.test.mjs test/language-js-ts/snapshot-graph.test.mjs test/language-js-ts/source-facts.test.mjs",
+      "cwd": "repository root",
+      "revision": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "tree": "exact export of the base commit (git archive), no working-tree changes",
+      "node": "v24.19.0",
+      "exit_code": 0,
+      "result": {
+        "tests": 62,
+        "suites": 0,
+        "pass": 62,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "N1-module-edge-kinds",
+      "class": "normal",
+      "origin": "authored for this record",
+      "counterexample": "every module-edge kind the lexical layer emits (import, type-only, named type, export-from, require, destructured require, dynamic import, side-effect import)",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import real from './real.js';\nimport type { Shape } from './types';\nimport { type Opt, run } from './run';\nexport * from './reexport';\nexport { x } from './named';\nconst c = require('./legacy');\nconst { a } = require('./destructured');\nconst lazy = await import('./lazy');\nimport './side-effect';\n",
+        "options": {
+          "filePath": "src/edges.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "4db9d63cff942cab35ad501d1be3c543611a995e88a747d89b0bb566cc30a9ac",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L1 [0,28)",
+          "import ./types L2 [30,66)",
+          "import ./run L3 [68,105)",
+          "export-from ./reexport L4 [107,133)",
+          "export-from ./named L5 [135,162)",
+          "require ./legacy L6 [174,193)",
+          "require ./destructured L7 [209,234)",
+          "dynamic-import ./lazy L8 [255,271)",
+          "import ./side-effect L9 [273,295)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "42f3b455e1b583926155c57bed156e806a297a7ee4c6da6c63f32b3de3994277"
+    },
+    {
+      "id": "N2-express-default-and-named-import",
+      "class": "normal",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:69 (Issue 119 handoff: default plus named Express import bindings are preserved as source facts)",
+      "counterexample": "issue 119 handoff: default plus named Express import bindings stay lexical facts; framework meaning is not claimed",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "\n    import express, { Router } from 'express';\n    const userRouter: Router = express.Router();\n    userRouter.get('/:id', authentication, getUserById);\n  ",
+        "options": {
+          "filePath": "src/routes/user.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "1c8f1944778fd69a5b64c69b90b56d92051752a6d555931216db1be55b0fb1e1",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import express L2 [5,46)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "77cbd960fcc6195403d97676bb0947ab702fecfa5ef42f8f1fc0defc00ffb36c"
+    },
+    {
+      "id": "N3-tsx-mode",
+      "class": "normal",
+      "origin": "authored for this record",
+      "counterexample": "tsx language mode with JSX text after the imports",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import React from 'react';\nimport { Scene } from './Scene';\nexport const App = () => <Scene a=\"b\" />;\n",
+        "options": {
+          "filePath": "src/App.tsx",
+          "language": "tsx"
+        }
+      },
+      "input_sha256": "c2433f5b24690bdd9f2e1d91a833876407e83c187cd09e86f566decaa1eaf9d4",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import react L1 [0,25)",
+          "import ./Scene L2 [27,58)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "1cfd8c9679d55c10474b1724aedd60f00c140d77dee4615056d704b723e2bcfc"
+    },
+    {
+      "id": "N4-utf8-byte-coordinates",
+      "class": "normal",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:119 (Legacy A: UTF-8 byte coordinates remain exact for the supplied source string)",
+      "counterexample": "byte spans stay UTF-8 exact when multibyte text precedes an import",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "const label = '한글😀';\nimport real from './real.js';\n",
+        "options": {
+          "filePath": "src/coords.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "771585774c0c966ea9fcd9e95156acd77009127dd9fffa9eb2344e16bffb51ae",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L2 [28,56)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "59d3fa6e6ce19b15d6c070469c8549df96faa5bb1e2ea41e7ff0066844008ab0"
+    },
+    {
+      "id": "N5-relative-resolution-against-inventory",
+      "class": "normal",
+      "origin": "authored for this record",
+      "counterexample": "relative specifiers resolve only when exactly one inventory path matches (extensionless, explicit .js, parent directory)",
+      "api": "resolveJsTsModuleEdges",
+      "input": {
+        "source": "import a from './a';\nimport b from './lib/b.js';\nimport c from '../shared/c';\n",
+        "options": {
+          "filePath": "src/app/main.ts",
+          "language": "typescript"
+        },
+        "resolve": {
+          "knownFiles": [
+            "src/app/a.ts",
+            "src/app/lib/b.js",
+            "src/shared/c.ts",
+            "src/app/main.ts"
+          ]
+        }
+      },
+      "input_sha256": "43b19f8199cd774810282578b5b4fb0c509a6d7388318bdf0f47d4310a3169f9",
+      "expected": {
+        "complete": true,
+        "allResolved": true,
+        "sourceSyntaxValidated": false,
+        "resolutions": [
+          "./a => resolved:src/app/a.ts",
+          "./lib/b.js => resolved:src/app/lib/b.js",
+          "../shared/c => resolved:src/shared/c.ts"
+        ],
+        "diagnostics": []
+      },
+      "output_sha256": "4027908aaed38962c1b00a9551a5ad124a926987189d4f985204bc534261bfd0"
+    },
+    {
+      "id": "N6-two-file-snapshot",
+      "class": "normal",
+      "origin": "authored for this record",
+      "counterexample": "in-memory two-file snapshot yields a sorted file list and one resolved module-graph edge",
+      "api": "analyzeJsTsSnapshot",
+      "input": {
+        "entries": [
+          {
+            "path": "src/index.ts",
+            "source": "import { dep } from './dep';\nexport const v = dep;\n"
+          },
+          {
+            "path": "src/dep.ts",
+            "source": "export const dep = 1;\n"
+          }
+        ],
+        "options": {}
+      },
+      "input_sha256": "c39bf9b82bc77303213c5b925ff4fd40c409d20ff6b86f63dbbf014e187fcb5a",
+      "expected": {
+        "complete": true,
+        "allResolved": true,
+        "syntaxValidated": false,
+        "files": [
+          "src/dep.ts",
+          "src/index.ts"
+        ],
+        "graph": [
+          "src/index.ts -> ./dep => resolved:src/dep.ts"
+        ],
+        "diagnostics": []
+      },
+      "output_sha256": "e9464239b381ab74c4d657492d4ca2e88f8d435fafeeb76271f96054162cccf0"
+    },
+    {
+      "id": "N7-backend-comparison-agree",
+      "class": "normal",
+      "origin": "authored for this record",
+      "counterexample": "a backend that mirrors the bounded lexical reference agrees field by field",
+      "api": "compareJsTsBackends",
+      "input": {
+        "backends": [
+          {
+            "id": "mirror",
+            "kind": "mirror-of-lexical"
+          },
+          {
+            "id": "bounded-lexical",
+            "kind": "lexical"
+          }
+        ],
+        "corpus": [
+          {
+            "id": "simple-import",
+            "source": "import { x } from './x.js';",
+            "options": {
+              "filePath": "src/app.js",
+              "language": "javascript"
+            }
+          }
+        ]
+      },
+      "input_sha256": "94ad6d9e4848bef327f8cd3edfd183a2c050fdddc7ec6891fb0be4bb539ad2fe",
+      "expected": {
+        "referenceBackendId": "bounded-lexical",
+        "backendIds": [
+          "bounded-lexical",
+          "mirror"
+        ],
+        "corpusCases": 1,
+        "comparisons": [
+          "simple-import: mirror agrees"
+        ]
+      },
+      "output_sha256": "8ba463a9c4dd0b793bd65f9d9b9c879093e25af287d309f2c101a8ab87fe7c11"
+    },
+    {
+      "id": "F1-legacy-a-inert-comment-string-regex",
+      "class": "negative",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:6 (Legacy A: comments, strings and regex text stay inert for module-edge discovery)",
+      "counterexample": "import/require text inside comments, strings and regex literals must not become module edges",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "\n    // import fake from 'comment-only';\n    /* const hidden = require('comment-require'); */\n    const docs = \"import fake from 'string-only'\";\n    const re = /require\\('regex-only'\\)|import fake from 'regex-import'/g;\n    import real from './real.js';\n  ",
+        "options": {
+          "filePath": "src/legacy-a.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "13c1df7ace6afdf99226d79834f7b59fbbdd17911083995231f58f0cbe541917",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L6 [224,252)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "51f7add9928943ec4da509a58d11762b148c619a2e18b12e837f20841bb9ec36"
+    },
+    {
+      "id": "F2-legacy-a-delimiter-damage",
+      "class": "negative",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:25 (Legacy A: delimiter damage is not silently promoted to syntax-valid analysis)",
+      "counterexample": "a missing closing brace is not detected: the pass reports complete=true while syntaxValidated stays false",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "\n    import real from './real.js';\n    function broken() {\n      return 1;\n  ",
+        "options": {
+          "filePath": "src/broken.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "4b13651a9429945793593dfd0ad5ca98547d6b1aee94173750c143a944b871a7",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L2 [5,33)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "7aeaac85abe4fba5d6daf2fb42474d703fa51c3abd6a6a17b8f5da3b3ae4adb7"
+    },
+    {
+      "id": "F3-legacy-a-svelte-fragment-relative-coordinates",
+      "class": "negative",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:44 (Legacy A: lexical coordinates are exact for the provided source string, not a Svelte host container)",
+      "counterexample": "coordinates are relative to the supplied fragment (line 1), not the Svelte host file (the import is on host line 3)",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "  import { Scene } from 'three';\n  const scene = new Scene();\n",
+        "options": {
+          "filePath": "src/Scene.svelte",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "7e948d5cc3fb81855c36afb96b900ccaacc0a648cfcfae6b32f38edddc1b4418",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import three L1 [2,31)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "e45110fa78e61131c9d5b678c42591b522a799e553a8bc1ec337cc1e440d5b4a"
+    },
+    {
+      "id": "F4-legacy-a-unterminated-block-comment",
+      "class": "negative",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:93 (Legacy A: unterminated block comments stay inert and are surfaced as lexical uncertainty)",
+      "counterexample": "an unterminated block comment swallows the trailing text and surfaces a diagnostic; the leaked import is not promoted",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import real from './real.js';\n/* import fake from 'comment-leak.js';",
+        "options": {
+          "filePath": "src/unclosed-comment.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "45887a8e76944bef30ae8378ea00e4baada91880671989af7cfde561462644be",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L1 [0,28)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "unterminated-block-comment@L2"
+        ]
+      },
+      "output_sha256": "9459913e58cdf92859e4415c4ab6ed98011a3eed62aa5f2bb85f378752272b78"
+    },
+    {
+      "id": "F5-legacy-a-unterminated-regex",
+      "class": "negative",
+      "origin": "test/language-js-ts/legacy-a-regressions.test.mjs:106 (Legacy A: unterminated regex bodies cannot manufacture import facts)",
+      "counterexample": "an unterminated regex body ends at the newline, surfaces a diagnostic, and cannot manufacture an import fact",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "const docs = /import fake from 'regex-leak.js';\nimport real from './real.js';",
+        "options": {
+          "filePath": "src/unclosed-regex.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "743448b4ff82104a07dea64e7277664932e8d28d8d7fc9329df7c301c9d4c50b",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L2 [48,76)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "unterminated-regex@L1"
+        ]
+      },
+      "output_sha256": "9acc6aef49ff30b3a71dc8463dea4c2421e377cddd3123426802b97bfb1f815a"
+    },
+    {
+      "id": "F6-unterminated-string-recovers-at-line-end",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "an unterminated quoted string stops at the newline and is reported; the next line is analyzed normally",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "const s = 'abc\nimport real from './real.js';\n",
+        "options": {
+          "filePath": "src/s.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "224718fbf9fa99e31437768c3ca80a9703458e74242fb6ceb686da96a953eb9f",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./real.js L2 [15,43)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "unterminated-string@L1"
+        ]
+      },
+      "output_sha256": "09fc569ab76b1c911457ce868813d380030c4a367a1eba69b79f902fd1aa8188"
+    },
+    {
+      "id": "F7-unterminated-template-hides-later-edges",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "an unterminated template literal swallows everything after it: the later import is silently absent although complete=true (lexical completeness only)",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import first from './first.js';\nconst t = `abc ${x}\nimport lost from './lost.js';\n",
+        "options": {
+          "filePath": "src/t.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "5082e7af8f3ba7eb34a44c5738207bdd9c466e5e763cfba7ec5a8485f586c272",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./first.js L1 [0,30)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "template-expression-unparsed@L2",
+          "unterminated-template@L2"
+        ]
+      },
+      "output_sha256": "e88d01501f982391d7c4e8e4be9758f8c50cddb10b57120e25e241c1afde4772"
+    },
+    {
+      "id": "F8-non-literal-specifiers-emit-no-edge",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "require(name), import(`./${name}`) and import(name) emit diagnostics and no edge; only the literal import is kept",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "const name = './x';\nconst a = require(name);\nconst b = await import(`./${name}`);\nconst c = await import(name);\nimport ok from './ok.js';\n",
+        "options": {
+          "filePath": "src/dynamic.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "911c9746ee4003f1545eb861f979cfae8234f24e9cd3d080c6e675fb26889868",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./ok.js L5 [112,136)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "require-nonliteral@L2",
+          "dynamic-import-nonliteral@L3",
+          "template-expression-unparsed@L3",
+          "dynamic-import-nonliteral@L4"
+        ]
+      },
+      "output_sha256": "528a34b4ae19c6fef53b8b0bdc7cd165e4db94d236e2b93a43e8d3decde52160"
+    },
+    {
+      "id": "F9-escaped-specifier-not-decoded",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "a specifier containing an escape sequence is left unresolved instead of decoded: that import statement yields no edge",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import a from './a\\u0062';\nimport ok from './ok.js';\n",
+        "options": {
+          "filePath": "src/escaped.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "5db67ab8837747f25da0df6775d5499b74a1d0981b40fc4c4ce71c1dbe4e1e61",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import ./ok.js L2 [27,51)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "import-unresolved@L1",
+          "escaped-module-literal@L1"
+        ]
+      },
+      "output_sha256": "d9d2cf9cbd47d02bddb438cf28f07eddb0cb842eab250f9a4e296a435e5d18ef"
+    },
+    {
+      "id": "F10-input-too-large-no-partial-facts",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "input over maxBytes returns complete=false with no edges rather than partial facts",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import real from './real.js';\n",
+        "options": {
+          "filePath": "src/big.ts",
+          "language": "typescript",
+          "maxBytes": 16
+        }
+      },
+      "input_sha256": "eda27ff5104e7198e7e02d62e4371714044df94daa6fa315e11532bbccf0626d",
+      "expected": {
+        "complete": false,
+        "syntaxValidated": false,
+        "edges": [],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "input-too-large"
+        ]
+      },
+      "output_sha256": "13bd43f4c026903210a3cd783787fbe73de41a602504353c219567b9c80f47b9"
+    },
+    {
+      "id": "F11-token-limit-no-partial-facts",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "exceeding maxTokens returns complete=false with no edges rather than a partial token stream",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import a from './a.js';\nimport b from './b.js';\n",
+        "options": {
+          "filePath": "src/tok.ts",
+          "language": "typescript",
+          "maxTokens": 5
+        }
+      },
+      "input_sha256": "28c85a7ea31ecb797f4fabb7ad6447ac84648e928e509d9f61698c1771085311",
+      "expected": {
+        "complete": false,
+        "syntaxValidated": false,
+        "edges": [],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": [
+          "token-limit@L1"
+        ]
+      },
+      "output_sha256": "2e0ee7b034e8cda03ea6c49a3925b9c9f05853ab5e5c8278ad91b13299af5fe3"
+    },
+    {
+      "id": "F12-unsupported-language-mode-throws",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "a language mode outside javascript/typescript/jsx/tsx is rejected with a TypeError instead of being guessed",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import real from './real.js';\n",
+        "options": {
+          "filePath": "src/x.vue",
+          "language": "vue"
+        }
+      },
+      "input_sha256": "bcc802338a4643b3e72145d08fcdd0141b09c573478c0b22e7486476481060e3",
+      "expected": {
+        "threw": "TypeError: unsupported language mode: vue"
+      },
+      "output_sha256": "71e23a2aefea1ba42c7520223603b98493be09f3b1e1586616b929e415202cdc"
+    },
+    {
+      "id": "F13-alias-and-package-stay-unresolved",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "tsconfig-style aliases and package names stay bare, #-prefixed specifiers are unsupported, a missing relative file is missing: nothing is guessed",
+      "api": "resolveJsTsModuleEdges",
+      "input": {
+        "source": "import a from '@/alias';\nimport b from 'lodash';\nimport c from '#internal/x';\nimport d from './missing';\n",
+        "options": {
+          "filePath": "src/app.ts",
+          "language": "typescript"
+        },
+        "resolve": {
+          "knownFiles": [
+            "src/app.ts",
+            "src/alias.ts",
+            "node_modules/lodash/index.js"
+          ]
+        }
+      },
+      "input_sha256": "142b345f4fc0b80ddce874e60cb8c2aa058df1002daf2915444372c60b33a99a",
+      "expected": {
+        "complete": true,
+        "allResolved": false,
+        "sourceSyntaxValidated": false,
+        "resolutions": [
+          "@/alias => bare:package-or-alias-resolution-not-in-lexical-layer",
+          "lodash => bare:package-or-alias-resolution-not-in-lexical-layer",
+          "#internal/x => unsupported:query-or-fragment-specifier",
+          "./missing => missing:no-inventory-match"
+        ],
+        "diagnostics": [
+          "module-bare@L1",
+          "module-bare@L2",
+          "module-unsupported@L3",
+          "module-missing@L4"
+        ]
+      },
+      "output_sha256": "3c2d7309b92bbb8cc27fa375ed74150ff4e36b867cc6c1ddf64dc4b8cbf0eb7d"
+    },
+    {
+      "id": "F14-ambiguous-relative-match",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "two inventory files match an extensionless specifier: the edge stays ambiguous and no extension priority is applied",
+      "api": "resolveJsTsModuleEdges",
+      "input": {
+        "source": "import a from './a';\n",
+        "options": {
+          "filePath": "src/main.ts",
+          "language": "typescript"
+        },
+        "resolve": {
+          "knownFiles": [
+            "src/main.ts",
+            "src/a.ts",
+            "src/a.js"
+          ]
+        }
+      },
+      "input_sha256": "0dc8e01830e5cb14223e7151a964c27f2c293d661a51424f39cd78618e7e8493",
+      "expected": {
+        "complete": true,
+        "allResolved": false,
+        "sourceSyntaxValidated": false,
+        "resolutions": [
+          "./a => ambiguous:multiple-inventory-matches [src/a.js,src/a.ts]"
+        ],
+        "diagnostics": [
+          "module-ambiguous@L1"
+        ]
+      },
+      "output_sha256": "5d694eba8c7218229a12a6128418c6fc8a23649205f0f2c7d329296809e85277"
+    },
+    {
+      "id": "F15-parent-escape-blocked",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "a relative specifier that climbs above the repository root is blocked even when a matching file name exists",
+      "api": "resolveJsTsModuleEdges",
+      "input": {
+        "source": "import a from '../../outside';\n",
+        "options": {
+          "filePath": "src/main.ts",
+          "language": "typescript"
+        },
+        "resolve": {
+          "knownFiles": [
+            "src/main.ts",
+            "outside.ts"
+          ]
+        }
+      },
+      "input_sha256": "2ce11de6660111ef7a43b80a18d25d488a26d5ccb7e61b77b7667f5a3949e04a",
+      "expected": {
+        "complete": true,
+        "allResolved": false,
+        "sourceSyntaxValidated": false,
+        "resolutions": [
+          "../../outside => blocked:repository-root-escape"
+        ],
+        "diagnostics": [
+          "module-blocked@L1"
+        ]
+      },
+      "output_sha256": "4293da2c32bfa653b447fe81d22f674afed31226ae8e43017d5818b1532a2d4f"
+    },
+    {
+      "id": "F16-snapshot-file-limit-no-partial-graph",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "a snapshot over maxFiles returns complete=false with no files and no module graph",
+      "api": "analyzeJsTsSnapshot",
+      "input": {
+        "entries": [
+          {
+            "path": "src/a.ts",
+            "source": "export const a = 1;\n"
+          },
+          {
+            "path": "src/b.ts",
+            "source": "import { a } from './a';\n"
+          }
+        ],
+        "options": {
+          "maxFiles": 1
+        }
+      },
+      "input_sha256": "7ff0c85fd440c287a2f5a0ff31e069a7b11127d940286d6785c484e754a0235a",
+      "expected": {
+        "complete": false,
+        "allResolved": false,
+        "syntaxValidated": false,
+        "files": [],
+        "graph": [],
+        "diagnostics": [
+          "file-limit"
+        ]
+      },
+      "output_sha256": "207fb1da5ef72b2666d63b40f9b03b205e426b5972d48f452342c356a77ec151"
+    },
+    {
+      "id": "F17-backend-comparison-reports-difference",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "a candidate backend that adds an edge is reported as differing in moduleEdges; no winner is chosen",
+      "api": "compareJsTsBackends",
+      "input": {
+        "backends": [
+          {
+            "id": "candidate",
+            "kind": "adds-edge",
+            "edge": {
+              "kind": "import",
+              "specifier": "./candidate-only.js"
+            }
+          },
+          {
+            "id": "bounded-lexical",
+            "kind": "lexical"
+          }
+        ],
+        "corpus": [
+          {
+            "id": "simple-import",
+            "source": "import { x } from './x.js';",
+            "options": {
+              "filePath": "src/app.js",
+              "language": "javascript"
+            }
+          }
+        ]
+      },
+      "input_sha256": "9394af024cba7301f4e49485f2f495e9d22a1104a764e2a38d1f5715724dbeb8",
+      "expected": {
+        "referenceBackendId": "bounded-lexical",
+        "backendIds": [
+          "bounded-lexical",
+          "candidate"
+        ],
+        "corpusCases": 1,
+        "comparisons": [
+          "simple-import: candidate differs in moduleEdges"
+        ]
+      },
+      "output_sha256": "05fe2d8b22c818cd752d34685a9896de55cbf083256e8229b53c9dd7fd7adc57"
+    },
+    {
+      "id": "F18-snapshot-vue-extension-fails-closed",
+      "class": "negative",
+      "origin": "authored for this record",
+      "counterexample": "a .vue snapshot entry (host container) is not analyzed: the snapshot is incomplete with an unsupported-extension diagnostic, not guessed as script",
+      "api": "analyzeJsTsSnapshot",
+      "input": {
+        "entries": [
+          {
+            "path": "src/template.vue",
+            "source": "import x from './x';"
+          }
+        ]
+      },
+      "input_sha256": "55bd0be9c065cf65c53b73f829714e803a1a82c478cd8c2b07ea0d635b7b1db0",
+      "expected": {
+        "complete": false,
+        "allResolved": false,
+        "syntaxValidated": false,
+        "files": [],
+        "graph": [],
+        "diagnostics": [
+          "unsupported-extension"
+        ]
+      },
+      "output_sha256": "bf30231523551d291eb182f75536ab65e19f86b0dfdc42dd9179cd840390c656"
+    },
+    {
+      "id": "F19-legacy-a-syntax-error-fixture-has-no-syntax-verdict",
+      "class": "negative",
+      "origin": "Legacy A fixture fixtures/webgame-static/syntax-error/src/broken.ts, byte-identical to the pinned blob",
+      "origin_pin": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "5cf7decdc762b154d11008ddb24435a540e96ff3",
+        "path": "fixtures/webgame-static/syntax-error/src/broken.ts",
+        "git_blob_sha1": "4dba1e7c0e350fe4de2d160bb7906359f6032480"
+      },
+      "counterexample": "Legacy A treats this file as a syntax error; the T04 lexical layer reports complete=true, syntaxValidated=false and still emits the three edge, with no syntax-error diagnostic",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "import { Scene } from 'three';\nconst scene = new Scene();\nfunction broken() {\n  return scene;\n",
+        "options": {
+          "filePath": "src/broken.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "49d248c5cbc65044f4a642301455e35bbc2da0ef9ec5182d8d16f0c5a934c60c",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [
+          "import three L1 [0,29)"
+        ],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "a74ba1ef4ce0f8efc3d7c6f699cec0546d2f5900b5eb4fab18e9767d903d14b2"
+    },
+    {
+      "id": "F20-legacy-a-comment-only-fixture-emits-no-edge",
+      "class": "negative",
+      "origin": "Legacy A fixture fixtures/webgame-static/comment-only/src/example.ts, byte-identical to the pinned blob",
+      "origin_pin": {
+        "repository": "popixoxipop-collab/backend-skeleton",
+        "commit": "3bf338fcaab77c31b76cd61f3822fbf7ae11006f",
+        "path": "fixtures/webgame-static/comment-only/src/example.ts",
+        "git_blob_sha1": "719d65c2c60603cc1ad8c0dab7325f6b905e7be7"
+      },
+      "counterexample": "comment and template-literal text that only mentions scene constructors yields no module edge and no diagnostic",
+      "api": "analyzeJsTsSource",
+      "input": {
+        "source": "// new Scene(); new WebGLRenderer(); renderer.render(scene, camera)\nconst docs = `Example only: new Scene(); new WebGLRenderer(); renderer.render(scene, camera)`;\nexport const value = 1;\n",
+        "options": {
+          "filePath": "src/example.ts",
+          "language": "typescript"
+        }
+      },
+      "input_sha256": "5a4ce04aeed010ce218f906a677da6da1ba188462c28cfd449eb6b5964023c52",
+      "expected": {
+        "complete": true,
+        "syntaxValidated": false,
+        "edges": [],
+        "allEdgesLexicalUnresolved": true,
+        "diagnostics": []
+      },
+      "output_sha256": "82897eb3374696bcfd26cbf283e7fc66275331660ce4796b2164cb39f2163a1a"
+    }
+  ],
+  "artifact_digest": {
+    "algorithm": "sha256",
+    "covers": "canonical JSON (sorted keys) of [{id, output_sha256}] in fixture order; each output_sha256 is the sha256 of the canonical JSON of the full API result",
+    "value": "d8c5ddcafd1b27a6a6a0e4615cbcbff7c35f000012308ad77e9d1b054909d073"
+  },
+  "ci_observations": [
+    {
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "workflow": "CI",
+      "run_id": 37086190872,
+      "run_number": 1860,
+      "run_attempt": 1,
+      "event": "push",
+      "head_sha": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "job_id": 111096946339,
+          "name": "nested-next (22.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T04 language-js-ts",
+          "step_conclusion": "success"
+        },
+        {
+          "job_id": 111096946426,
+          "name": "nested-next (24.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T04 language-js-ts",
+          "step_conclusion": "success"
+        }
+      ],
+      "observed_via": "gh api, read-only"
+    }
+  ],
+  "pins": {
+    "legacy_a": {
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "pull_request": 63,
+      "observed_on": "2026-10-08",
+      "state": "open draft, not merged; the head can still move",
+      "head_ref": "feature/webgame-a-static",
+      "head_commit": "4e2e15e200eb965d4107acf59db21583d2657ea1",
+      "base_commit": "b39708a43b9a28896f24529fd771c1382013db7e",
+      "commit_count": 115,
+      "cited_commits": [
+        {
+          "role": "conservative JS/TS parser",
+          "commit": "5afa5f688693a27b186440f6c9b79a3cdddad5cd"
+        },
+        {
+          "role": "parser tests",
+          "commit": "7f566200bef782ece704e531dcd6b1d661f11020"
+        },
+        {
+          "role": "counterexample: regex literal contents masked",
+          "commit": "fc228311d19e38561bb8acbb44c4434d4bcbcd45"
+        },
+        {
+          "role": "counterexample: unclosed Svelte HTML comments masked",
+          "commit": "e569a9d936509b611859562104356b2986c93187"
+        },
+        {
+          "role": "counterexample tests",
+          "commit": "f48e849bc034089ca423f49775f29377cf30d996"
+        },
+        {
+          "role": "syntax-error fixture (replayed as F19)",
+          "commit": "5cf7decdc762b154d11008ddb24435a540e96ff3",
+          "path": "fixtures/webgame-static/syntax-error/src/broken.ts",
+          "git_blob_sha1": "4dba1e7c0e350fe4de2d160bb7906359f6032480"
+        },
+        {
+          "role": "comment-only fixture (replayed as F20)",
+          "commit": "3bf338fcaab77c31b76cd61f3822fbf7ae11006f",
+          "path": "fixtures/webgame-static/comment-only/src/example.ts",
+          "git_blob_sha1": "719d65c2c60603cc1ad8c0dab7325f6b905e7be7"
+        }
+      ]
+    },
+    "issue_119": {
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "issue": 119,
+      "observed_on": "2026-10-08",
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "T19 holdout: TypeScript Express detector misses `express.Router()` with named Router import",
+      "created_at": "2026-09-25T08:40:34Z",
+      "closed_at": "2026-09-27T10:48:22Z",
+      "note": "An issue has no commit; the closed state and timestamps are the pin. The handoff covered by this track is the import-binding fact in the Express fixture, not router detection."
+    }
+  },
+  "limits": [
+    {
+      "id": "no-syntax-validation",
+      "status": "UNSUPPORTED",
+      "statement": "There is no parser backend. syntaxValidated is false in every output and complete=true only means the bounded lexical pass finished: delimiter damage and a missing closing brace are not reported as errors.",
+      "fixtures": [
+        "F2-legacy-a-delimiter-damage",
+        "F19-legacy-a-syntax-error-fixture-has-no-syntax-verdict"
+      ]
+    },
+    {
+      "id": "template-literals-hide-later-edges",
+      "status": "UNSUPPORTED",
+      "statement": "Template literal interpolation is not tokenized. An unterminated template literal swallows every later import (the second import in the fixture is lost) while complete stays true; the only signal is the info diagnostics template-expression-unparsed and unterminated-template.",
+      "fixtures": [
+        "F7-unterminated-template-hides-later-edges"
+      ]
+    },
+    {
+      "id": "escaped-and-non-literal-specifiers",
+      "status": "UNSUPPORTED",
+      "statement": "Specifiers that contain escapes are not decoded and non-literal require/import arguments emit no edge; each leaves only an info diagnostic.",
+      "fixtures": [
+        "F8-non-literal-specifiers-emit-no-edge",
+        "F9-escaped-specifier-not-decoded"
+      ]
+    },
+    {
+      "id": "no-alias-or-package-resolution",
+      "status": "UNSUPPORTED",
+      "statement": "Alias and package specifiers stay bare with reason package-or-alias-resolution-not-in-lexical-layer even when an inventory file (src/alias.ts, node_modules/lodash/index.js) matches; hash-prefixed specifiers are unsupported; an extensionless specifier matching several inventory files stays ambiguous.",
+      "fixtures": [
+        "F13-alias-and-package-stay-unresolved",
+        "F14-ambiguous-relative-match"
+      ]
+    },
+    {
+      "id": "host-container-files",
+      "status": "UNSUPPORTED",
+      "statement": "Svelte and Vue host containers are not modelled. Coordinates are relative to the source string passed in (the Svelte script fragment reports line 1 where the host file has line 3), a vue language mode throws, and a .vue snapshot entry fails closed with unsupported-extension.",
+      "fixtures": [
+        "F3-legacy-a-svelte-fragment-relative-coordinates",
+        "F12-unsupported-language-mode-throws",
+        "F18-snapshot-vue-extension-fails-closed"
+      ]
+    },
+    {
+      "id": "no-semantic-or-framework-facts",
+      "status": "UNSUPPORTED",
+      "statement": "Only module edges and import bindings are recorded. Call semantics such as express.Router() belong to other tracks; the Express fixture records only the default and named import bindings.",
+      "fixtures": [
+        "N2-express-default-and-named-import"
+      ]
+    },
+    {
+      "id": "no-performance-or-scale-data",
+      "status": "NOT_RECORDED",
+      "statement": "Input, token and file limits are exercised only with tiny maxBytes, maxTokens and maxFiles values; no timing or large-repository measurement is recorded.",
+      "fixtures": [
+        "F10-input-too-large-no-partial-facts",
+        "F11-token-limit-no-partial-facts",
+        "F16-snapshot-file-limit-no-partial-graph"
+      ]
+    },
+    {
+      "id": "no-real-corpus",
+      "status": "NOT_RECORDED",
+      "statement": "Every fixture is an inline string or one of two pinned Legacy A fixture files. No real repository was scanned, so no precision or recall is claimed."
+    },
+    {
+      "id": "legacy-a-is-an-unmerged-draft",
+      "status": "UNKNOWN",
+      "statement": "Legacy A is an open, unmerged draft whose head can still move; the pins fix commit ids, not the draft. No machine comparison between its parser and this lexical layer is recorded beyond the two replayed fixture files."
+    },
+    {
+      "id": "hashes-generated-on-one-platform",
+      "status": "NOT_RECORDED",
+      "statement": "The fixture output hashes were generated on macOS with Node v24.19.0. Their equality on other platforms and Node versions is checked by the record test when CI runs it, not recorded in this file."
+    }
+  ],
+  "verification": {
+    "test": "test/language-js-ts/baseline-record.test.mjs",
+    "run": "node --test test/language-js-ts/baseline-record.test.mjs",
+    "levels": [
+      "always: schema, digest and per-fixture hash checks, plus tampered-record negative tests",
+      "while the recorded sources and tests still equal the recorded blobs: replay every fixture and re-run the recorded test files against the live tree",
+      "when base_commit is present in the checkout: blob equality, ancestry, and a replay from the base commit files",
+      "shallow or non-git checkout: the pinned-commit checks are skipped with an explicit message; a non-shallow checkout that lacks base_commit fails"
+    ]
+  }
+}
