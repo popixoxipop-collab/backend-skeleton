@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,9 +11,11 @@ export const RECORD_FILE = 'scanners/language/js-ts/BASELINE.json';
 export const OWN_FILES = ['test/language-js-ts/baseline-record.test.mjs', 'test/language-js-ts/baseline-record-lib.mjs'];
 export const RUNNER_SCRIPT = 'scripts/run-next-nested-tests.mjs';
 export const AUTHORED = 'authored for this record';
+export const DECLARED_LIMIT = 'legacy-a-commits-declared-not-verified';
 
 const SHA1 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const LIMIT_STATUSES = ['UNSUPPORTED', 'UNKNOWN', 'BLOCKED', 'NOT_RECORDED'];
 const COUNT_KEYS = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo'];
 
@@ -149,6 +152,14 @@ export function verifyRecord(r, files) {
     if (f.origin_pin && typeof f.input?.source === 'string' && blobSha1(Buffer.from(f.input.source, 'utf8')) !== f.origin_pin.git_blob_sha1) {
       bad(`${f.id}: input bytes are not the pinned blob ${f.origin_pin.git_blob_sha1}`);
     }
+    if (f.origin_pin) {
+      const pin = f.origin_pin;
+      const legacy = r?.pins?.legacy_a;
+      if (!REPOSITORY.test(pin.repository ?? '') || typeof pin.path !== 'string' || pin.path === '') bad(`${f.id}: origin_pin needs a repository (owner/name) and a path`);
+      if (!(legacy?.repository === pin.repository && (legacy.cited_commits ?? []).some((c) => c.commit === pin.commit && c.path === pin.path && c.git_blob_sha1 === pin.git_blob_sha1))) {
+        bad(`${f.id}: origin_pin is not one of the cited commits of pins.legacy_a`);
+      }
+    }
   }
   for (const cls of ['normal', 'negative']) {
     if (!(r?.fixtures ?? []).some((f) => f.class === cls)) bad(`needs at least one ${cls} fixture`);
@@ -159,6 +170,12 @@ export function verifyRecord(r, files) {
     if (!LIMIT_STATUSES.includes(l.status)) bad(`limit ${l.id}: status ${l.status} is not one of ${LIMIT_STATUSES.join('/')}`);
     if (typeof l.statement !== 'string' || l.statement.trim() === '') bad(`limit ${l.id}: statement is empty`);
     for (const id of l.fixtures ?? []) if (!ids.has(id)) bad(`limit ${l.id}: unknown fixture ${id}`);
+    for (const c of l.commits ?? []) if (!SHA1.test(c)) bad(`limit ${l.id}: ${c} is not a 40-hex commit id`);
+  }
+  const declared = declaredUnverifiedCommits(r);
+  const declaredLimit = (r?.limits ?? []).find((l) => l.id === DECLARED_LIMIT);
+  if (declared.length > 0 && canonical(declaredLimit?.commits) !== canonical(declared)) {
+    bad(`limit ${DECLARED_LIMIT} must list exactly the pinned commits that no blob pin resolves: ${declared.join(', ')}`);
   }
   const walk = (value, trail) => {
     if (Array.isArray(value)) return value.forEach((v, i) => walk(v, `${trail}[${i}]`));
@@ -378,16 +395,97 @@ export function ancestryVerdict(root, commit, env = process.env) {
   return isAncestor(root, commit) ? { verdict: 'ok' } : { verdict: 'fail', message: `${commit} is not an ancestor of HEAD` };
 }
 
+// The external blob pins: every fixture origin_pin plus every cited commit that carries a path and a blob id. A pin is
+// evidence only after `git rev-parse <commit>:<path>` in a fetch of that commit returns its blob id.
+export function externalBlobPins(r) {
+  const pins = (r?.fixtures ?? []).filter((f) => f.origin_pin).map((f) => ({ label: f.id, ...f.origin_pin }));
+  const legacy = r?.pins?.legacy_a;
+  for (const c of legacy?.cited_commits ?? []) {
+    if ('path' in c || 'git_blob_sha1' in c) pins.push({ label: `pins.legacy_a ${c.role}`, repository: legacy.repository, ...c });
+  }
+  return pins;
+}
+
+// The commit ids under `pins` that no blob pin resolves. The record declares them; nothing here can check them, so
+// verifyRecord requires the limit DECLARED_LIMIT to list exactly these.
+export function declaredUnverifiedCommits(r) {
+  const resolved = new Set(externalBlobPins(r).map((p) => p.commit));
+  const found = new Set();
+  const walk = (value) => {
+    if (Array.isArray(value)) return value.forEach(walk);
+    if (!value || typeof value !== 'object') return;
+    for (const [k, v] of Object.entries(value)) {
+      if (/(^|_)commit$/.test(k) && SHA1.test(v ?? '') && !resolved.has(v)) found.add(v);
+      walk(v);
+    }
+  };
+  walk(r?.pins ?? {});
+  return [...found].sort();
+}
+
+// Each distinct repository is fetched once (`--depth=1`, by commit id) into a throw-away repository and every pin is
+// compared with the blob id that the fetched commit really has at that path. A fetch that fails is `fail`, never a
+// silent skip, unless BASELINE_ALLOW_UNVERIFIED=1 turns it into an explicit `unverified`; a blob that differs, or a
+// malformed pin, is always `fail`.
+export function externalPinVerdict(r, { env = process.env, urlFor = (repository) => `https://github.com/${repository}.git` } = {}) {
+  const pins = externalBlobPins(r);
+  const malformed = pins.filter((p) => !REPOSITORY.test(p.repository ?? '') || !SHA1.test(p.commit ?? '') || !SHA1.test(p.git_blob_sha1 ?? '') || typeof p.path !== 'string' || p.path === '');
+  if (malformed.length > 0) return { verdict: 'fail', message: `malformed external pin: ${malformed.map((p) => p.label).join(', ')}` };
+  const byRepository = new Map();
+  for (const p of pins) byRepository.set(p.repository, [...(byRepository.get(p.repository) ?? []), p]);
+  const mismatched = [];
+  const unavailable = [];
+  for (const [repository, group] of byRepository) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'baseline-pins-'));
+    try {
+      const args = ['fetch', '--no-tags', '--depth=1', urlFor(repository), ...new Set(group.map((p) => p.commit))];
+      const init = git(dir, ['init', '-q']);
+      const res = init.status === 0 ? git(dir, args, { timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }) : init;
+      if (res.status !== 0) {
+        unavailable.push(`\`git ${args.join(' ')}\` failed (${res.error ? res.error.message : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n')[0]}`})`);
+        continue;
+      }
+      for (const p of group) {
+        const actual = blobAtCommit(dir, p.commit, p.path);
+        if (actual !== p.git_blob_sha1) mismatched.push(`${p.label}: ${repository} ${p.commit}:${p.path} is ${actual ?? 'absent'}, the record says ${p.git_blob_sha1}`);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  if (mismatched.length > 0) return { verdict: 'fail', message: mismatched.join('; ') };
+  if (unavailable.length === 0) return { verdict: 'ok', resolved: pins.length };
+  if (env.BASELINE_ALLOW_UNVERIFIED === '1') return { verdict: 'unverified', message: `BASELINE_ALLOW_UNVERIFIED=1, so the external pins were NOT resolved: ${unavailable.join('; ')}` };
+  return { verdict: 'fail', message: `external pin unavailable: ${unavailable.join('; ')}; set BASELINE_ALLOW_UNVERIFIED=1 to skip the external-pin check explicitly` };
+}
+
 // A throw-away upstream with two commits on one branch, a side-branch commit that is not an ancestor of the branch head,
 // and a depth-1 clone of the branch head. The clone lacks the first (pinned) commit the way a CI checkout lacks the real
 // base commit, and `origin` can serve it, so the shallow path needs no network.
+const IDENT = ['-c', 'user.name=baseline-test', '-c', 'user.email=baseline-test@example.invalid', '-c', 'commit.gpgsign=false'];
+
+function run(cwd, ...args) {
+  const res = git(cwd, [...IDENT, ...args]);
+  if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
+  return res.stdout.trim();
+}
+
+// A throw-away upstream with one commit and one file, standing in for the repository an external pin names. The
+// returned pin is correct; the external-pin negatives damage a copy of it. No network is involved.
+export function pinUpstream(dir) {
+  const upstream = path.join(dir, 'pin-upstream');
+  fs.mkdirSync(path.join(upstream, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(upstream, 'docs/a.txt'), 'pinned content\n');
+  run(upstream, 'init', '-q');
+  run(upstream, 'config', 'uploadpack.allowAnySHA1InWant', 'true');
+  run(upstream, 'add', '.');
+  run(upstream, 'commit', '-q', '-m', 'pinned');
+  const commit = run(upstream, 'rev-parse', 'HEAD');
+  const pin = { repository: 'owner/repo', commit, path: 'docs/a.txt', git_blob_sha1: run(upstream, 'rev-parse', 'HEAD:docs/a.txt') };
+  return { url: `file://${upstream}`, pin };
+}
+
 export function depthOneCase(dir) {
-  const ident = ['-c', 'user.name=baseline-test', '-c', 'user.email=baseline-test@example.invalid', '-c', 'commit.gpgsign=false'];
-  const run = (cwd, ...args) => {
-    const res = git(cwd, [...ident, ...args]);
-    if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
-    return res.stdout.trim();
-  };
   const upstream = path.join(dir, 'upstream');
   const write = (rel, text) => {
     fs.mkdirSync(path.dirname(path.join(upstream, rel)), { recursive: true });

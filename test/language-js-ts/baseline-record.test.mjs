@@ -13,6 +13,8 @@ import * as lib from './baseline-record-lib.mjs';
 // disagrees (corrupt: the test fails), or neither hash agrees (the tree moved on: live replays are skipped). The
 // pinned commit decides every case, so it is mandatory: a checkout that lacks it fetches it once, and the git: tests
 // fail with "pinned commit unavailable" when that is impossible unless BASELINE_ALLOW_UNVERIFIED=1 skips them aloud.
+// External pins (the Legacy A fixture files) are resolved the same way: each is fetched from the repository it names and
+// its blob id compared. The Legacy A commits that carry no blob are declared-not-verified in the limits, not resolved.
 
 const root = lib.REPO_ROOT;
 const record = lib.readRecord(root);
@@ -166,6 +168,24 @@ test('git: the base commit is an ancestor of the checked-out commit (a shallow c
   assert.equal(verdict.verdict, 'ok');
 });
 
+test('git: every external pin resolves to its recorded blob in the repository it names', (t) => {
+  const verdict = lib.externalPinVerdict(record);
+  if (!needCommit(t, verdict)) return;
+  assert.equal(verdict.resolved, lib.externalBlobPins(record).length);
+  assert.ok(verdict.resolved >= 2, 'at least the two Legacy A fixture files are pinned');
+});
+
+test('pinned commits that no blob pin resolves are labelled declared-not-verified in the limits', () => {
+  const limit = record.limits.find((l) => l.id === lib.DECLARED_LIMIT);
+  assert.ok(limit, `limit ${lib.DECLARED_LIMIT} is missing`);
+  assert.equal(limit.status, 'NOT_RECORDED');
+  assert.match(limit.statement, /NOT resolved/);
+  assert.deepEqual(limit.commits, lib.declaredUnverifiedCommits(record));
+  assert.ok(limit.commits.includes(record.pins.legacy_a.head_commit) && limit.commits.includes(record.pins.legacy_a.base_commit));
+  const resolved = lib.externalBlobPins(record).map((p) => p.commit);
+  assert.ok(limit.commits.every((c) => !resolved.includes(c)), 'a commit is resolved by a blob pin or declared, never both');
+});
+
 test('git: files extracted from the base commit reproduce every fixture hash', async (t) => {
   if (!needCommit(t)) return;
   const dir = extractBase(t);
@@ -295,6 +315,57 @@ test('negative: a pinned commit that exists but is not an ancestor of HEAD fails
   const optOut = lib.ancestryVerdict(offline.checkout, commit, { BASELINE_ALLOW_UNVERIFIED: '1' });
   assert.equal(optOut.verdict, 'unverified');
   assert.match(optOut.message, /NOT run/);
+});
+
+test('negative: a pin that is not the cited commit, or a declared commit missing from the limits, fails the record', () => {
+  const pinOf = (r) => r.fixtures.find((f) => f.origin_pin);
+  const changes = {
+    'a zeroed commit': (pin) => { pin.commit = '0'.repeat(40); },
+    'another path': (pin) => { pin.path += '.orig'; },
+    'another repository': (pin) => { pin.repository = 'someone/else'; }
+  };
+  for (const [name, change] of Object.entries(changes)) {
+    const bad = clone();
+    change(pinOf(bad).origin_pin);
+    assert.ok(lib.verifyRecord(bad).some((p) => p.startsWith(`${pinOf(bad).id}: origin_pin is not one of the cited commits`)), name);
+  }
+  const unlisted = clone();
+  unlisted.pins.legacy_a.cited_commits.push({ role: 'added without a blob', commit: '3'.repeat(40) });
+  const dropped = clone();
+  dropped.limits = dropped.limits.filter((l) => l.id !== lib.DECLARED_LIMIT);
+  for (const bad of [unlisted, dropped]) assert.ok(lib.verifyRecord(bad).some((p) => p.includes(`limit ${lib.DECLARED_LIMIT} must list exactly`)));
+});
+
+test('negative: an external pin must have its blob in the named repository; a wrong path or blob fails, an unfetchable pin fails unless BASELINE_ALLOW_UNVERIFIED=1', (t) => {
+  const dir = tmpDir(t, 'baseline-record-pin-');
+  const up = lib.pinUpstream(dir);
+  const verdict = (patch, env = {}, url = up.url) => lib.externalPinVerdict({ fixtures: [{ id: 'X', origin_pin: { ...up.pin, ...patch } }] }, { env, urlFor: () => url });
+  assert.deepEqual(verdict({}), { verdict: 'ok', resolved: 1 });
+
+  for (const [name, patch] of Object.entries({ 'a wrong path': { path: 'docs/b.txt' }, 'a wrong blob id': { git_blob_sha1: flip(up.pin.git_blob_sha1) } })) {
+    for (const env of [{}, { BASELINE_ALLOW_UNVERIFIED: '1' }]) {
+      const found = verdict(patch, env);
+      assert.equal(found.verdict, 'fail', `${name}: a fetched commit without the recorded blob always fails`);
+      assert.match(found.message, /^X: owner\/repo /);
+    }
+  }
+  const cannotFetch = {
+    'a zeroed commit': (env) => verdict({ commit: '0'.repeat(40) }, env),
+    'an unreachable repository': (env) => verdict({}, env, `file://${path.join(dir, 'no-such-upstream')}`)
+  };
+  for (const [name, check] of Object.entries(cannotFetch)) {
+    const failed = check({});
+    assert.equal(failed.verdict, 'fail', name);
+    assert.match(failed.message, /external pin unavailable/);
+    assert.throws(() => needCommit({ skip: () => assert.fail(`${name} must not skip`) }, failed), /external pin unavailable/);
+    assert.equal(check({ BASELINE_ALLOW_UNVERIFIED: 'true' }).verdict, 'fail', `${name}: only the value 1 opts out`);
+    const optOut = check({ BASELINE_ALLOW_UNVERIFIED: '1' });
+    assert.equal(optOut.verdict, 'unverified', name);
+    assert.match(optOut.message, /NOT resolved/);
+  }
+  const malformed = verdict({ repository: '--upload-pack=x' }, { BASELINE_ALLOW_UNVERIFIED: '1' });
+  assert.equal(malformed.verdict, 'fail');
+  assert.match(malformed.message, /malformed external pin/);
 });
 
 test('negative: a same-length tampered sha256, a wrong byte count or a wrong blob id fails the recomputation', (t) => {

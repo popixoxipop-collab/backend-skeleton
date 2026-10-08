@@ -1105,6 +1105,20 @@
       "statement": "Legacy A is an open, unmerged draft whose head can still move; the pins fix commit ids, not the draft. No machine comparison between its parser and this lexical layer is recorded beyond the two replayed fixture files."
     },
     {
+      "id": "legacy-a-commits-declared-not-verified",
+      "status": "NOT_RECORDED",
+      "statement": "The record test resolves only the Legacy A commits that carry a path and a blob id (the pinned fixture files of F19 and F20): each is fetched from the repository it names and its blob id is compared. The commits listed here (the head and base of the open draft pull request 63 and five cited commits with no path or blob id) are declared by this record and are NOT resolved: there is no file to compare, and the head of an open draft can move. verifyRecord requires this list to equal the commit ids under pins that no blob pin resolves, so a commit cannot be added to pins without a blob pin or an entry here.",
+      "commits": [
+        "4e2e15e200eb965d4107acf59db21583d2657ea1",
+        "5afa5f688693a27b186440f6c9b79a3cdddad5cd",
+        "7f566200bef782ece704e531dcd6b1d661f11020",
+        "b39708a43b9a28896f24529fd771c1382013db7e",
+        "e569a9d936509b611859562104356b2986c93187",
+        "f48e849bc034089ca423f49775f29377cf30d996",
+        "fc228311d19e38561bb8acbb44c4434d4bcbcd45"
+      ]
+    },
+    {
       "id": "hashes-generated-on-one-platform",
       "status": "NOT_RECORDED",
       "statement": "The fixture output hashes were generated on macOS with Node v24.19.0. Their equality on other platforms and Node versions is checked by the record test when CI runs it, not recorded in this file."
@@ -1114,10 +1128,12 @@
     "test": "test/language-js-ts/baseline-record.test.mjs",
     "run": "node --test test/language-js-ts/baseline-record.test.mjs",
     "levels": [
-      "always: schema, digest and per-fixture hash checks, plus tampered-record negative tests",
-      "while the recorded sources and tests still equal the recorded blobs: replay every fixture and re-run the recorded test files against the live tree",
-      "when base_commit is present in the checkout: blob equality, ancestry, and a replay from the base commit files",
-      "shallow or non-git checkout: the pinned-commit checks are skipped with an explicit message; a non-shallow checkout that lacks base_commit fails"
+      "always: schema, digest, per-fixture hash and external-pin checks on the record, tampered-record negative tests, and every pinned source and test file compared with the checkout by byte count, sha256 and blob id: a record that disagrees with a file in only one hash, or in the size alone, fails as a damaged record",
+      "while every pinned source and test file matches the record: replay every fixture and re-run the recorded test files against the live tree; a file that matches neither recorded hash means the tree has moved on, and then only these live replays are skipped",
+      "base_commit is mandatory: it is read from the checkout, else fetched once with `git fetch --no-tags [--depth=1 when the checkout is shallow] origin <commit>`; when it cannot be had, including in a non-git checkout, the git: tests fail with `pinned commit unavailable`, and only BASELINE_ALLOW_UNVERIFIED=1 turns that failure into an explicit skip",
+      "with base_commit: blob and tree equality, the recorded hashes recomputed from the base commit files, a replay of every fixture and of both recorded commands from files extracted from the base commit, and ancestry: a shallow checkout is deepened once with `git fetch --no-tags --unshallow origin` and base_commit must be an ancestor of HEAD; a failed deepening fails unless BASELINE_ALLOW_UNVERIFIED=1",
+      "external pins: every repository named by a fixture origin_pin or by a cited commit with a blob id is fetched once with `git fetch --no-tags --depth=1 <repository url> <commits>` into a throw-away repository, and each `<commit>:<path>` must have the recorded blob id; an unavailable fetch fails unless BASELINE_ALLOW_UNVERIFIED=1, a blob that differs or a malformed pin always fails; the commits in the limit legacy-a-commits-declared-not-verified are declared, not resolved",
+      "nothing is skipped silently: BASELINE_ALLOW_UNVERIFIED=1 (the value 1 only) is the single opt-out, and every skip it causes names what was not checked"
     ]
   }
 }
