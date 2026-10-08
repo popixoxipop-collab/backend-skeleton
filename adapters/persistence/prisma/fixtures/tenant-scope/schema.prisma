@@ -1,0 +1,12 @@
+// fixture-pin: prisma@7.10.0 case: tenant-scope
+datasource db {
+  provider = "postgresql"
+}
+
+model Order {
+  id       Int    @id
+  tenantId String @map("tenant_id")
+
+  @@index([tenantId])
+  @@map("orders")
+}

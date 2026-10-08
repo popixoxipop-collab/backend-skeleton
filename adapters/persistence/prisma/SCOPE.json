@@ -1,0 +1,1682 @@
+{
+	"contract": "bskel.internal.persistence-orm-scope/0",
+	"target_id": "ORM-prisma-01",
+	"orm": "prisma",
+	"catalog": {
+		"id": "prisma",
+		"state": "implemented-draft",
+		"ingestion": "t10-provider",
+		"producer": "prisma-schema",
+		"requires_live_verification": true,
+		"blocker": null,
+		"limitations": [
+			"default schema candidates only; no schema-folder/runtime Prisma Client claim"
+		]
+	},
+	"status": {
+		"support_completed": false,
+		"runtime_tested": false,
+		"evidence_level": "oracle-compared",
+		"statement": "Development target, not a completed support claim. The repository's Prisma schema provider (scanPrismaPersistence) is compared with the SQL that Prisma 7.10.0 migrate diff produces offline for the fixture schemas in cases. The constructs marked supported match that oracle at the pinned version; every other construct is listed with how the provider omits, flags or mishandles it. Nothing was run against a database or an application runtime."
+	},
+	"pins": {
+		"checked_at": "2026-10-08T15:03:04Z",
+		"packages": [
+			{
+				"name": "prisma",
+				"version": "7.10.0",
+				"role": "orm-cli",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view prisma@7.10.0 version",
+					"exit_code": 0,
+					"output": "7.10.0",
+					"output_sha256": "d32cbc1732a9535d4877b25be1b49a7f9fcb7aad286822715797f5eff8b6f1c8"
+				}
+			}
+		],
+		"not_covered": [
+			{
+				"name": "prisma",
+				"version": "8.0.0-rc.21",
+				"dist_tag": "latest",
+				"reason": "the npm latest dist-tag points at a release candidate of the 8.x line; 8.x grammar and CLI behaviour were not exercised",
+				"registry_check": {
+					"command": "npm view prisma@latest version",
+					"exit_code": 0,
+					"output": "8.0.0-rc.21",
+					"output_sha256": "f4f34cb8f95aef2b238af783b2a5e58481fdbaeb1c425f8abd14fedceb219c5e"
+				}
+			}
+		]
+	},
+	"profile": {
+		"id": "prisma-7.10.0-postgresql-offline",
+		"versions": [
+			"prisma@7.10.0"
+		],
+		"platform": "PostgreSQL provider, offline SQL oracle; recorded on Node v24.19.0 (npm 11.17.0) darwin-arm64; CI Node 22.x and 24.x on Linux not exercised",
+		"capabilities": [
+			"composite-foreign-key",
+			"model-name-as-table-name",
+			"multi-schema-qualification",
+			"positional-composite-primary-key",
+			"schema-version-column-add-drop",
+			"single-column-foreign-key",
+			"table-and-column-mapping",
+			"tenant-column-as-plain-column"
+		]
+	},
+	"constructs": [
+		{
+			"id": "table-and-column-mapping",
+			"category": "baseline",
+			"construct": "@@map and @map physical names with a single-column @id",
+			"orm_behavior": "@@map and @map set the physical table and column names and @id marks a single-column primary key (table users, columns user_pk and email, key users(user_pk)).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"normal"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "model-name-as-table-name",
+			"category": "naming-strategy",
+			"construct": "model and field names used verbatim without @@map",
+			"orm_behavior": "Without @@map the table keeps the model name and the columns keep the field names, with no case conversion or pluralization (UserAccount stays UserAccount). The provider records such table names as inferred.",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"naming"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "positional-composite-primary-key",
+			"category": "composite-key",
+			"construct": "@@id([a, b]) composite primary key",
+			"orm_behavior": "@@id with a positional field list declares a composite primary key whose column order follows the list (tenant_users(user_id,tenant_id)).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"composite-key"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "composite-foreign-key",
+			"category": "composite-key",
+			"construct": "multi-column @relation(fields, references)",
+			"orm_behavior": "A relation with several fields and references becomes one multi-column foreign key whose columns are paired by position (tenant_user_notes(tenant_id,user_id) to tenant_users(tenant_id,user_id)).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"foreign_keys"
+			],
+			"cases": [
+				"composite-key"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "named-argument-composite-primary-key",
+			"category": "composite-key",
+			"construct": "@@id(fields: [a, b]) argument form",
+			"orm_behavior": "The argument form declares the same composite primary key as the positional list (tenant_users(user_id,tenant_id)).",
+			"support": "unknown",
+			"implementation": "planned",
+			"gap_behavior": "ir-unknown",
+			"facets": [
+				"primary_keys"
+			],
+			"cases": [
+				"composite-key-named-args"
+			],
+			"planned_in": "ORM-prisma-02"
+		},
+		{
+			"id": "single-column-foreign-key",
+			"category": "relation",
+			"construct": "@relation(fields, references) with one field",
+			"orm_behavior": "An explicit one-field relation creates a foreign key from the mapped column to the referenced column (posts(author_id) to authors(id)).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"columns",
+				"foreign_keys"
+			],
+			"cases": [
+				"relation"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "implicit-many-to-many",
+			"category": "relation",
+			"construct": "list fields on both sides without a join model",
+			"orm_behavior": "Prisma creates a hidden join table (_PostToTag) with columns A and B, a composite primary key and two foreign keys; no model names it.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "silent-omission",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys",
+				"foreign_keys"
+			],
+			"cases": [
+				"relation-implicit-m2m"
+			],
+			"planned_in": "ORM-prisma-02"
+		},
+		{
+			"id": "multi-schema-qualification",
+			"category": "schema-qualification",
+			"construct": "datasource schemas with @@schema",
+			"orm_behavior": "Models placed in PostgreSQL schemas with @@schema produce schema-qualified tables (tenant_a.orders, tenant_b.invoices).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"multi-schema"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "unsupported-column-type",
+			"category": "unsupported-type",
+			"construct": "Unsupported(\"...\") column type",
+			"orm_behavior": "Unsupported(\"tsvector\") declares a column that exists in the table but that Prisma Client cannot read or write (documents.search).",
+			"support": "partial",
+			"implementation": "implemented",
+			"gap_behavior": "diagnostic",
+			"facets": [
+				"columns"
+			],
+			"cases": [
+				"unsupported-type"
+			],
+			"planned_in": "ORM-prisma-02"
+		},
+		{
+			"id": "tenant-column-as-plain-column",
+			"category": "tenant-scope",
+			"construct": "tenant discriminator column with @@index",
+			"orm_behavior": "A tenant discriminator is an ordinary column plus an optional index; schema.prisma has no tenant-scope attribute, so the column is all the schema shows (orders.tenant_id).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"tenant-scope"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "tenant-isolation-semantics",
+			"category": "tenant-scope",
+			"construct": "tenant isolation enforced outside the schema",
+			"orm_behavior": "Row-level security policies and client extensions that inject a tenant filter live outside schema.prisma; neither the schema nor the offline oracle carries a trace of them.",
+			"support": "unsupported",
+			"implementation": "none",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"tenant-scope"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "schema-version-column-add-drop",
+			"category": "migration-drift",
+			"construct": "column added and column dropped between two schema versions",
+			"orm_behavior": "prisma migrate diff between two schemas lists the column added and the column dropped (accounts.display_name added, accounts.full_name dropped).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"changes"
+			],
+			"cases": [
+				"drift"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "rename-detection",
+			"category": "migration-drift",
+			"construct": "column rename recognised as a rename",
+			"orm_behavior": "A renamed field is indistinguishable from one dropped and one added column: the offline diff and the repository comparator both report add plus drop, never a rename.",
+			"support": "unsupported",
+			"implementation": "none",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "migration-files-scan",
+			"category": "migration-drift",
+			"construct": "prisma/migrations/<timestamp>_<name>/migration.sql",
+			"orm_behavior": "Prisma writes each migration to prisma/migrations/<timestamp>_<name>/migration.sql; the repository migration scanner does not read that layout (tool none in the probe).",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-prisma-02"
+		},
+		{
+			"id": "live-database-drift",
+			"category": "migration-drift",
+			"construct": "schema compared with a running database",
+			"orm_behavior": "prisma migrate diff --from-url, prisma db pull and the repository database introspection compare a schema with a running PostgreSQL server; none was available to the offline scratch install.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-prisma-03"
+		}
+	],
+	"cases": [
+		{
+			"id": "normal",
+			"category": "baseline",
+			"kind": "normal",
+			"purpose": "Single-column primary key with @map on the table and the key column, plus a plain unique column: the baseline the provider is expected to reproduce exactly.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/normal/schema.prisma",
+						"sha256": "14862a05e1457009c9cd4f97d7cf04a5dece6a6a370e0a85dcb4f74899f9a1cb"
+					}
+				]
+			},
+			"oracle_steps": [
+				"normal"
+			],
+			"expected": {
+				"normal": {
+					"tables": [
+						"users"
+					],
+					"columns": [
+						"users.email",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"users(user_pk)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema",
+						"create-unique-index"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"users"
+					],
+					"columns": [
+						"users.email",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"users(user_pk)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		},
+		{
+			"id": "composite-key",
+			"category": "composite-key",
+			"kind": "normal",
+			"purpose": "Positional @@id([userId, tenantId]) join table with single-column foreign keys and a child table that references the composite key with a two-column foreign key.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/composite-key/schema.prisma",
+						"sha256": "734874741842eaefb7bfb5d95f8a4366f2f81b66dbbc2c8ca83afaaddfcf4c0c"
+					}
+				]
+			},
+			"oracle_steps": [
+				"composite-key"
+			],
+			"expected": {
+				"composite-key": {
+					"tables": [
+						"tenant_user_notes",
+						"tenant_users",
+						"tenants",
+						"users"
+					],
+					"columns": [
+						"tenant_user_notes.id",
+						"tenant_user_notes.tenant_id",
+						"tenant_user_notes.user_id",
+						"tenant_users.tenant_id",
+						"tenant_users.user_id",
+						"tenants.tenant_pk",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"tenant_user_notes(id)",
+						"tenant_users(user_id,tenant_id)",
+						"tenants(tenant_pk)",
+						"users(user_pk)"
+					],
+					"foreign_keys": [
+						"tenant_user_notes(tenant_id,user_id)->tenant_users(tenant_id,user_id)",
+						"tenant_users(tenant_id)->tenants(tenant_pk)",
+						"tenant_users(user_id)->users(user_pk)"
+					],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"tenant_user_notes",
+						"tenant_users",
+						"tenants",
+						"users"
+					],
+					"columns": [
+						"tenant_user_notes.id",
+						"tenant_user_notes.tenant_id",
+						"tenant_user_notes.user_id",
+						"tenant_users.tenant_id",
+						"tenant_users.user_id",
+						"tenants.tenant_pk",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"tenant_user_notes(id)",
+						"tenant_users(user_id,tenant_id)",
+						"tenants(tenant_pk)",
+						"users(user_pk)"
+					],
+					"foreign_keys": [
+						"tenant_user_notes(tenant_id,user_id)->tenant_users(tenant_id,user_id)",
+						"tenant_users(tenant_id)->tenants(tenant_pk)",
+						"tenant_users(user_id)->users(user_pk)"
+					]
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 4,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 7,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 4,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "match",
+					"matched": 3,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		},
+		{
+			"id": "composite-key-named-args",
+			"category": "composite-key",
+			"kind": "counterexample",
+			"purpose": "The argument form @@id(fields: [userId, tenantId]) of the same composite primary key, which a parser that reads only a positional list can miss.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/composite-key-named-args/schema.prisma",
+						"sha256": "1101b2c40dd539eba8dd6d5d166de74d33333a0f7727b393ea5626c3c874fbc6"
+					}
+				]
+			},
+			"oracle_steps": [
+				"composite-key-named-args"
+			],
+			"expected": {
+				"composite-key-named-args": {
+					"tables": [
+						"tenant_users"
+					],
+					"columns": [
+						"tenant_users.tenant_id",
+						"tenant_users.user_id"
+					],
+					"primary_keys": [
+						"tenant_users(user_id,tenant_id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"tenant_users"
+					],
+					"columns": [
+						"tenant_users.tenant_id",
+						"tenant_users.user_id"
+					],
+					"primary_keys": [],
+					"foreign_keys": []
+				},
+				"unknowns": [
+					"tenant_users: primary key unknown"
+				],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"tenant_users(user_id,tenant_id)"
+					],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "naming",
+			"category": "naming-strategy",
+			"kind": "counterexample",
+			"purpose": "A model without @@map and fields with and without @map: Prisma applies no case conversion or pluralization, so a snake_case or plural table name would be wrong.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/naming/schema.prisma",
+						"sha256": "07d11ab342ee6723025815777272892d110105b8faa83f5f2ca9103bb2467b52"
+					}
+				]
+			},
+			"oracle_steps": [
+				"naming"
+			],
+			"expected": {
+				"naming": {
+					"tables": [
+						"UserAccount"
+					],
+					"columns": [
+						"UserAccount.display_name",
+						"UserAccount.id",
+						"UserAccount.plainField"
+					],
+					"primary_keys": [
+						"UserAccount(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"UserAccount"
+					],
+					"columns": [
+						"UserAccount.display_name",
+						"UserAccount.id",
+						"UserAccount.plainField"
+					],
+					"primary_keys": [
+						"UserAccount(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [
+					"UserAccount:inferred"
+				],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 3,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		},
+		{
+			"id": "relation",
+			"category": "relation",
+			"kind": "normal",
+			"purpose": "One-to-many relation with an explicit @relation(fields, references) and a mapped foreign-key column.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/relation/schema.prisma",
+						"sha256": "dfdfb260c2df358e0629f4368de8608ba71fb6f97d7250b654faa5fee838b076"
+					}
+				]
+			},
+			"oracle_steps": [
+				"relation"
+			],
+			"expected": {
+				"relation": {
+					"tables": [
+						"authors",
+						"posts"
+					],
+					"columns": [
+						"authors.id",
+						"posts.author_id",
+						"posts.id"
+					],
+					"primary_keys": [
+						"authors(id)",
+						"posts(id)"
+					],
+					"foreign_keys": [
+						"posts(author_id)->authors(id)"
+					],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"authors",
+						"posts"
+					],
+					"columns": [
+						"authors.id",
+						"posts.author_id",
+						"posts.id"
+					],
+					"primary_keys": [
+						"authors(id)",
+						"posts(id)"
+					],
+					"foreign_keys": [
+						"posts(author_id)->authors(id)"
+					]
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 3,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		},
+		{
+			"id": "relation-implicit-m2m",
+			"category": "relation",
+			"kind": "counterexample",
+			"purpose": "Implicit many-to-many between two models: Prisma creates a join table that no model in the schema names.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/relation-implicit-m2m/schema.prisma",
+						"sha256": "9cff12b72fd84e2299ff3105ecec2c4b0d4aa62a5f9c74daa1dea1dd536ccf47"
+					}
+				]
+			},
+			"oracle_steps": [
+				"relation-implicit-m2m"
+			],
+			"expected": {
+				"relation-implicit-m2m": {
+					"tables": [
+						"Post",
+						"Tag",
+						"_PostToTag"
+					],
+					"columns": [
+						"Post.id",
+						"Tag.id",
+						"_PostToTag.A",
+						"_PostToTag.B"
+					],
+					"primary_keys": [
+						"Post(id)",
+						"Tag(id)",
+						"_PostToTag(A,B)"
+					],
+					"foreign_keys": [
+						"_PostToTag(A)->Post(id)",
+						"_PostToTag(B)->Tag(id)"
+					],
+					"unmodeled": [
+						"create-index",
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"Post",
+						"Tag"
+					],
+					"columns": [
+						"Post.id",
+						"Tag.id"
+					],
+					"primary_keys": [
+						"Post(id)",
+						"Tag(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [
+					"Post:inferred",
+					"Tag:inferred"
+				],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "provider-omits",
+					"matched": 2,
+					"oracle_only": [
+						"_PostToTag"
+					],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 2,
+					"oracle_only": [
+						"_PostToTag.A",
+						"_PostToTag.B"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "provider-omits",
+					"matched": 2,
+					"oracle_only": [
+						"_PostToTag(A,B)"
+					],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"_PostToTag(A)->Post(id)",
+						"_PostToTag(B)->Tag(id)"
+					],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "tenant-scope",
+			"category": "tenant-scope",
+			"kind": "counterexample",
+			"purpose": "A tenant discriminator column with an index: the schema carries no tenant-scope attribute, so only an ordinary column can be observed.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/tenant-scope/schema.prisma",
+						"sha256": "729c10c0177194ab34259bdfbbe8ded2089c6e54158bcbe33601422d3a23e843"
+					}
+				]
+			},
+			"oracle_steps": [
+				"tenant-scope"
+			],
+			"expected": {
+				"tenant-scope": {
+					"tables": [
+						"orders"
+					],
+					"columns": [
+						"orders.id",
+						"orders.tenant_id"
+					],
+					"primary_keys": [
+						"orders(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-index",
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"orders"
+					],
+					"columns": [
+						"orders.id",
+						"orders.tenant_id"
+					],
+					"primary_keys": [
+						"orders(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		},
+		{
+			"id": "multi-schema",
+			"category": "schema-qualification",
+			"kind": "normal",
+			"purpose": "Two models placed in different PostgreSQL schemas with @@schema; table names must be schema-qualified.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/multi-schema/schema.prisma",
+						"sha256": "a189ccc5a6cd3d99b0201775052ca21a01e428932743468840bcd4d0a2f651b5"
+					}
+				]
+			},
+			"oracle_steps": [
+				"multi-schema"
+			],
+			"expected": {
+				"multi-schema": {
+					"tables": [
+						"tenant_a.orders",
+						"tenant_b.invoices"
+					],
+					"columns": [
+						"tenant_a.orders.id",
+						"tenant_b.invoices.id"
+					],
+					"primary_keys": [
+						"tenant_a.orders(id)",
+						"tenant_b.invoices(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"tenant_a.orders",
+						"tenant_b.invoices"
+					],
+					"columns": [
+						"tenant_a.orders.id",
+						"tenant_b.invoices.id"
+					],
+					"primary_keys": [
+						"tenant_a.orders(id)",
+						"tenant_b.invoices(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		},
+		{
+			"id": "unsupported-type",
+			"category": "unsupported-type",
+			"kind": "counterexample",
+			"purpose": "A column declared with Unsupported(\"tsvector\"): Prisma creates the column but the type has no Prisma scalar.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/unsupported-type/schema.prisma",
+						"sha256": "15b8124ff73db5982ad2d0ff21249badfffe120d646dd413dad16ab9225a3b67"
+					}
+				]
+			},
+			"oracle_steps": [
+				"unsupported-type"
+			],
+			"expected": {
+				"unsupported-type": {
+					"tables": [
+						"documents"
+					],
+					"columns": [
+						"documents.id",
+						"documents.search"
+					],
+					"primary_keys": [
+						"documents(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"documents"
+					],
+					"columns": [
+						"documents.id"
+					],
+					"primary_keys": [
+						"documents(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [
+					"prisma-field-type-unresolved"
+				],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 1,
+					"oracle_only": [
+						"documents.search"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "drift",
+			"category": "migration-drift",
+			"kind": "counterexample",
+			"purpose": "One column removed and another added between two versions of a schema, which is also what a rename looks like; compared in both directions.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/drift/v1.prisma",
+						"sha256": "359aa737d74453e2b5a5640880aa96594370fbf2247935edf16ab4022428c137"
+					},
+					{
+						"path": "fixtures/drift/v2.prisma",
+						"sha256": "e225adc67f8d2fcfc6292e0cae9b919099f2510e708d1d8f8eb78ef0ab3cd151"
+					}
+				]
+			},
+			"oracle_steps": [
+				"drift-v1",
+				"drift-v1-to-v2"
+			],
+			"expected": {
+				"drift-v1": {
+					"tables": [
+						"accounts"
+					],
+					"columns": [
+						"accounts.full_name",
+						"accounts.id"
+					],
+					"primary_keys": [
+						"accounts(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema"
+					]
+				},
+				"drift-v1-to-v2": {
+					"changes": [
+						"add-column accounts.display_name",
+						"drop-column accounts.full_name"
+					]
+				}
+			},
+			"expected_changes": [
+				"add-column accounts.display_name",
+				"drop-column accounts.full_name"
+			],
+			"provider": {
+				"mode": "t10-provider",
+				"invocation": "scanPrismaPersistence(<temp root holding the fixture as prisma/schema.prisma>)",
+				"admitted": true,
+				"blocker": null,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": {
+					"call_expected_v2_observed_v1": {
+						"findings": [
+							"column-missing accounts.display_name"
+						],
+						"unknowns": []
+					},
+					"call_expected_v1_observed_v2": {
+						"findings": [
+							"column-missing accounts.full_name"
+						],
+						"unknowns": []
+					},
+					"changes": [
+						"add-column accounts.display_name",
+						"drop-column accounts.full_name"
+					]
+				}
+			},
+			"agreement": {
+				"changes": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "agrees"
+		}
+	],
+	"probes": {
+		"migration_plane": {
+			"basis": "oracle-output",
+			"claim": "Prisma writes prisma/migrations/<timestamp>_<name>/migration.sql, a layout the repository migration scanner does not read: it reports no tool. The migration.sql content is the recorded oracle output of the normal case, and the same SQL in a Flyway layout is detected, so an empty result is not a scanner that finds nothing.",
+			"layout": [
+				{
+					"from": "oracle/results/normal.out",
+					"to": "prisma/migrations/20260101000000_init/migration.sql"
+				}
+			],
+			"control": {
+				"from": "oracle/results/normal.out",
+				"to": "db/migration/V1__init.sql"
+			},
+			"observed": {
+				"tool": "none",
+				"files": 0,
+				"tables": 0
+			},
+			"control_observed": {
+				"tool": "flyway",
+				"files": 1,
+				"tables": 1
+			}
+		},
+		"live_database": {
+			"status": "blocked",
+			"reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (prisma migrate diff --from-url, prisma db pull, scanners/db/introspect.mjs) were not run.",
+			"requires": "A reachable PostgreSQL service outside the scratch npm install, provisioned separately from this record.",
+			"affected": [
+				"live-database-drift"
+			]
+		}
+	},
+	"oracle": {
+		"module_type": "commonjs",
+		"scope": "prisma migrate diff --from-empty|--from-schema ... --script run offline in a scratch npm install of the pinned package: it prints the SQL Prisma would emit for each fixture schema. It is the expected-schema oracle for tables, columns, primary keys and foreign keys and the change oracle for the drift case. It does not cover Prisma Client, applied migrations, db pull or any database.",
+		"steps": [
+			{
+				"id": "normal",
+				"case": "normal",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/normal/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/normal.out",
+				"exit_code": 0,
+				"output_sha256": "a2ae5f1f8fdbe7625c9b79533f0269598d19c72ef6dcf08fb947ed74b3edd4f0",
+				"output_bytes": 284,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "composite-key",
+				"case": "composite-key",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/composite-key/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/composite-key.out",
+				"exit_code": 0,
+				"output_sha256": "2f7b0324aa5f462ee779bb6b1454e8f433f94da0f73d6ec24055162c4a6eb040",
+				"output_bytes": 1294,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "composite-key-named-args",
+				"case": "composite-key-named-args",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/composite-key-named-args/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/composite-key-named-args.out",
+				"exit_code": 0,
+				"output_sha256": "1664b48afa686a11e0875a447dbf503b395f8ba5a15f596ef3268cbae93d5c20",
+				"output_bytes": 236,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "naming",
+				"case": "naming",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/naming/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/naming.out",
+				"exit_code": 0,
+				"output_sha256": "42f8c13b73142c9db2165e9d5ebe737648e3a70c03bbc9d5b6a13e6e1ea664f5",
+				"output_bytes": 250,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "relation",
+				"case": "relation",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/relation/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/relation.out",
+				"exit_code": 0,
+				"output_sha256": "a3091d329ba8fbe00fc299192e5382e885d5f783a0172944607370c6c957086f",
+				"output_bytes": 494,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "relation-implicit-m2m",
+				"case": "relation-implicit-m2m",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/relation-implicit-m2m/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/relation-implicit-m2m.out",
+				"exit_code": 0,
+				"output_sha256": "8969f0af0c62dba5410d52121bd58fb7358886b614bdd4bf041c8520a9dfe050",
+				"output_bytes": 826,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "tenant-scope",
+				"case": "tenant-scope",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/tenant-scope/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/tenant-scope.out",
+				"exit_code": 0,
+				"output_sha256": "fea782c1b81c4e9b915e7c55f7048b31fa0794132aa7f568bf40c9bb9cb7620e",
+				"output_bytes": 283,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "multi-schema",
+				"case": "multi-schema",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/multi-schema/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/multi-schema.out",
+				"exit_code": 0,
+				"output_sha256": "22aa5a8e361c55d5c4a4f0ae74d1241ed2e0ae574c8221feae14d0bd57d7d620",
+				"output_bytes": 378,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "unsupported-type",
+				"case": "unsupported-type",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/unsupported-type/schema.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/unsupported-type.out",
+				"exit_code": 0,
+				"output_sha256": "9d13615df300c1b37ba6c9b69e9b326bdf9ffcc24f0a4d1450d444cd651b6e59",
+				"output_bytes": 203,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-v1",
+				"case": "drift",
+				"role": "expected-schema",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-empty",
+					"--to-schema",
+					"fixtures/drift/v1.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/drift-v1.out",
+				"exit_code": 0,
+				"output_sha256": "2ae40b8c3f39fc1b41c8e26848a3e6dd4edc7a36f8eee44db379103992cae09f",
+				"output_bytes": 209,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-v1-to-v2",
+				"case": "drift",
+				"role": "migration-diff",
+				"argv": [
+					"node_modules/.bin/prisma",
+					"migrate",
+					"diff",
+					"--config",
+					"oracle/prisma.config.mjs",
+					"--from-schema",
+					"fixtures/drift/v1.prisma",
+					"--to-schema",
+					"fixtures/drift/v2.prisma",
+					"--script"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/drift-v1-to-v2.out",
+				"exit_code": 0,
+				"output_sha256": "2b82d10dc3643f1e24f66cae4c88f12dca6fbafc3882efd8137e427607addfe6",
+				"output_bytes": 108,
+				"runs": 2,
+				"deterministic": true
+			}
+		],
+		"environment": {
+			"node": "v24.19.0",
+			"npm": "11.17.0",
+			"platform": "darwin",
+			"arch": "arm64",
+			"installed": {
+				"prisma": "7.10.0"
+			},
+			"recorded_by": "adapters/persistence/js-orm-oracle.mjs prisma --write"
+		},
+		"blocked": [
+			{
+				"id": "live-database",
+				"reason": "Oracle output from a running database (prisma migrate diff --from-url, prisma db pull) was not recorded: no PostgreSQL server was available to the offline scratch install and starting one needs a database service outside it.",
+				"affects": [
+					"live-database-drift"
+				]
+			}
+		]
+	},
+	"evidence_plan": {
+		"ORM-prisma-02": {
+			"goal": "Make the Prisma provider report the constructs this record lists as planned instead of omitting them: the named-argument composite primary key, implicit many-to-many join tables, Unsupported() column types and the prisma/migrations layout in the migration scanner.",
+			"constructs": [
+				"named-argument-composite-primary-key",
+				"implicit-many-to-many",
+				"unsupported-column-type",
+				"migration-files-scan"
+			],
+			"depends_on": [
+				"ORM-prisma-01",
+				"T10-02"
+			],
+			"blocked_by": [],
+			"exit_criteria": [
+				"Each construct planned in this step matches the recorded oracle or is reported as unknown or as a diagnostic; none is omitted silently.",
+				"The record audit in test/persistence-next recomputes provider output from the committed fixtures and passes with those claims promoted from planned.",
+				"The oracle results are re-recorded for prisma 7.10.0 (js-orm-oracle.mjs prisma --check) and are unchanged."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "The step stays offline: no database connection and no Prisma Client run, so runtime-tested is not claimed."
+		},
+		"ORM-prisma-03": {
+			"goal": "Cross-check the provider against a live PostgreSQL instance and the migration plane, then issue a limited certification for the pinned version and profile only.",
+			"constructs": [
+				"live-database-drift"
+			],
+			"depends_on": [
+				"ORM-prisma-02"
+			],
+			"blocked_by": [
+				"live-database"
+			],
+			"exit_criteria": [
+				"A PostgreSQL service outside the scratch install is reachable and the commands, exit codes and output hashes of the live run are recorded.",
+				"The certification names the pinned Prisma version, the profile in this record and its construct list; release lines under pins.not_covered stay outside it.",
+				"The live run can be reproduced from the recorded commands alone."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "A live-database run verifies the schema against a database, not an application; runtime-tested stays unclaimed unless an application is exercised."
+		}
+	},
+	"limits": [
+		"Transitive dependencies of the pinned packages were resolved when the oracle was installed and are not locked; only the direct pins are verified.",
+		"Recorded on the Node, npm and platform named in oracle.environment; the CI matrix (Node 22.x and 24.x on Linux) was not exercised.",
+		"Release lines listed under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+		"Nothing here was run against a database server or an application runtime; status.runtime_tested stays false.",
+		"The migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only; see probes.migration_plane.",
+		"The provider reads prisma/schema.prisma and schema.prisma only; schema folders and schema paths set in prisma.config.ts are not scanned.",
+		"The drift comparator reports one direction per call (facts the expected side has and the observed side lacks); the record calls it in both directions, so a column that exists on both sides with a different type is not seen.",
+		"Only SQL-visible constructs are compared (tables, columns, keys); defaults, indexes, unique constraints and Prisma Client behaviour are not."
+	]
+}

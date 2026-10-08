@@ -1,0 +1,5 @@
+CREATE SCHEMA "auth";
+--> statement-breakpoint
+CREATE TABLE "auth"."accounts" (
+	"id" text PRIMARY KEY NOT NULL
+);

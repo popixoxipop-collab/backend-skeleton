@@ -1,0 +1,14 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateTable
+CREATE TABLE "users" (
+    "user_pk" INTEGER NOT NULL,
+    "email" TEXT NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("user_pk")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+

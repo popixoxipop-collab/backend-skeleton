@@ -1,0 +1,14 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateTable
+CREATE TABLE "orders" (
+    "id" INTEGER NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+
+    CONSTRAINT "orders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "orders_tenant_id_idx" ON "orders"("tenant_id");
+

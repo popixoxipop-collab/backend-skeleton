@@ -1,0 +1,477 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:persistence-orm-scope:0",
+  "title": "bskel persistence ORM scope record",
+  "description": "Per-ORM scope, fixture and evidence-plan record for the JavaScript/TypeScript persistence targets. A record describes a development target, never a completed support claim: support is stated per construct, per pinned version and per profile, and runtime verification is never claimed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "target_id", "orm", "catalog", "status", "pins", "profile", "constructs", "cases", "probes", "oracle", "evidence_plan", "limits"],
+  "properties": {
+    "contract": { "const": "bskel.internal.persistence-orm-scope/0" },
+    "target_id": { "type": "string", "pattern": "^ORM-(prisma|drizzle|typeorm|sequelize)-01$" },
+    "orm": { "enum": ["prisma", "drizzle", "typeorm", "sequelize"] },
+    "catalog": { "$ref": "#/$defs/catalog" },
+    "status": { "$ref": "#/$defs/status" },
+    "pins": { "$ref": "#/$defs/pins" },
+    "profile": { "$ref": "#/$defs/profile" },
+    "constructs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/construct" } },
+    "cases": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/case" } },
+    "probes": { "$ref": "#/$defs/probes" },
+    "oracle": { "$ref": "#/$defs/oracle" },
+    "evidence_plan": { "$ref": "#/$defs/evidence_plan" },
+    "limits": { "$ref": "#/$defs/nonEmptyStringList" }
+  },
+  "allOf": [
+    { "if": { "properties": { "orm": { "const": "prisma" } }, "required": ["orm"] }, "then": { "properties": { "target_id": { "const": "ORM-prisma-01" } } } },
+    { "if": { "properties": { "orm": { "const": "drizzle" } }, "required": ["orm"] }, "then": { "properties": { "target_id": { "const": "ORM-drizzle-01" } } } },
+    { "if": { "properties": { "orm": { "const": "typeorm" } }, "required": ["orm"] }, "then": { "properties": { "target_id": { "const": "ORM-typeorm-01" } } } },
+    { "if": { "properties": { "orm": { "const": "sequelize" } }, "required": ["orm"] }, "then": { "properties": { "target_id": { "const": "ORM-sequelize-01" } } } },
+    {
+      "if": { "properties": { "catalog": { "properties": { "state": { "const": "blocked-upstream-facts" } }, "required": ["state"] } }, "required": ["catalog"] },
+      "then": {
+        "properties": {
+          "catalog": { "properties": { "blocker": { "type": "string", "minLength": 1 } } },
+          "status": { "properties": { "evidence_level": { "enum": ["source-fixture", "oracle-recorded"] } } },
+          "profile": { "properties": { "capabilities": { "maxItems": 0 } } },
+          "constructs": { "items": { "properties": { "support": { "enum": ["unsupported", "unknown"] } } } }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "stringList": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+    "nonEmptyStringList": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "exactVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$" },
+    "registryCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "exit_code", "output", "output_sha256"],
+      "properties": {
+        "command": { "type": "string", "pattern": "^npm view [^ ]+ version$" },
+        "exit_code": { "type": "integer" },
+        "output": { "type": "string" },
+        "output_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "state", "ingestion", "producer", "requires_live_verification", "blocker", "limitations"],
+      "properties": {
+        "id": { "enum": ["prisma", "drizzle", "typeorm", "sequelize"] },
+        "state": { "type": "string", "minLength": 1 },
+        "ingestion": { "type": "string", "minLength": 1 },
+        "producer": { "type": "string", "minLength": 1 },
+        "requires_live_verification": { "type": "boolean" },
+        "blocker": { "type": ["string", "null"] },
+        "limitations": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["support_completed", "runtime_tested", "evidence_level", "statement"],
+      "properties": {
+        "support_completed": { "const": false },
+        "runtime_tested": { "const": false },
+        "evidence_level": { "enum": ["source-fixture", "oracle-recorded", "oracle-compared"] },
+        "statement": { "type": "string", "minLength": 20 }
+      }
+    },
+    "pins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checked_at", "packages", "not_covered"],
+      "properties": {
+        "checked_at": { "type": "string", "format": "date-time" },
+        "packages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version", "role", "oracle_install", "registry_check"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "$ref": "#/$defs/exactVersion" },
+              "role": { "enum": ["orm", "orm-cli", "support"] },
+              "oracle_install": { "type": "boolean" },
+              "registry_check": { "$ref": "#/$defs/registryCheck" }
+            }
+          }
+        },
+        "not_covered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version", "dist_tag", "reason", "registry_check"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "$ref": "#/$defs/exactVersion" },
+              "dist_tag": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string", "minLength": 10 },
+              "registry_check": { "$ref": "#/$defs/registryCheck" }
+            }
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "versions", "platform", "capabilities"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "versions": { "$ref": "#/$defs/nonEmptyStringList" },
+        "platform": { "type": "string", "minLength": 1 },
+        "capabilities": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "facetName": { "enum": ["tables", "columns", "primary_keys", "foreign_keys", "changes"] },
+    "construct": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "construct", "orm_behavior", "support", "implementation", "gap_behavior", "facets", "cases", "planned_in"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "category": { "$ref": "#/$defs/category" },
+        "construct": { "type": "string", "minLength": 1 },
+        "orm_behavior": { "type": "string", "minLength": 10 },
+        "support": {
+          "enum": ["supported", "partial", "unsupported", "unknown"],
+          "description": "supported: the repository provider output equals the recorded offline oracle for every referenced fixture case at the pinned versions (not runtime-tested); partial: it matches on part of the claimed facets and records the rest as a gap; unsupported: the provider is missing, blocked or wrong for it; unknown: no value is asserted."
+        },
+        "implementation": { "enum": ["implemented", "planned", "blocked", "none"] },
+        "gap_behavior": { "enum": ["none", "ir-unknown", "diagnostic", "silent-omission", "wrong-value", "not-modeled", "absent-provider"] },
+        "facets": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/facetName" } },
+        "cases": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/slug" } },
+        "planned_in": { "type": ["string", "null"], "pattern": "^ORM-(prisma|drizzle|typeorm|sequelize)-0[23]$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "support": { "const": "supported" } }, "required": ["support"] },
+          "then": { "properties": { "implementation": { "const": "implemented" }, "gap_behavior": { "const": "none" }, "facets": { "minItems": 1 }, "planned_in": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "support": { "const": "partial" } }, "required": ["support"] },
+          "then": { "properties": { "implementation": { "const": "implemented" }, "gap_behavior": { "enum": ["ir-unknown", "diagnostic", "silent-omission"] }, "facets": { "minItems": 1 }, "planned_in": { "type": "string" } } }
+        },
+        {
+          "if": { "properties": { "support": { "const": "unsupported" } }, "required": ["support"] },
+          "then": { "properties": { "implementation": { "enum": ["planned", "blocked", "none"] }, "gap_behavior": { "enum": ["ir-unknown", "diagnostic", "silent-omission", "wrong-value", "not-modeled", "absent-provider"] } } }
+        },
+        {
+          "if": { "properties": { "support": { "const": "unknown" } }, "required": ["support"] },
+          "then": { "properties": { "implementation": { "enum": ["planned", "blocked", "none"] }, "gap_behavior": { "enum": ["ir-unknown", "diagnostic", "absent-provider"] } } }
+        },
+        {
+          "if": { "properties": { "implementation": { "enum": ["planned", "blocked"] } }, "required": ["implementation"] },
+          "then": { "properties": { "planned_in": { "type": "string" } } }
+        }
+      ]
+    },
+    "category": { "enum": ["baseline", "composite-key", "naming-strategy", "relation", "tenant-scope", "migration-drift", "schema-qualification", "unsupported-type", "unknown-construct"] },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tables", "columns", "primary_keys", "foreign_keys", "unmodeled"],
+      "properties": {
+        "tables": { "$ref": "#/$defs/stringList" },
+        "columns": { "$ref": "#/$defs/stringList" },
+        "primary_keys": { "$ref": "#/$defs/stringList" },
+        "foreign_keys": { "$ref": "#/$defs/stringList" },
+        "unmodeled": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "providerFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tables", "columns", "primary_keys", "foreign_keys"],
+      "properties": {
+        "tables": { "$ref": "#/$defs/stringList" },
+        "columns": { "$ref": "#/$defs/stringList" },
+        "primary_keys": { "$ref": "#/$defs/stringList" },
+        "foreign_keys": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "changeFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changes"],
+      "properties": {
+        "changes": { "$ref": "#/$defs/stringList" },
+        "upgrade_statements": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "blockedFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blocked", "reason", "new_migration_files"],
+      "properties": {
+        "blocked": { "const": true },
+        "reason": { "type": "string", "minLength": 1 },
+        "new_migration_files": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "comparatorCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings", "unknowns"],
+      "properties": {
+        "findings": { "$ref": "#/$defs/stringList" },
+        "unknowns": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "invocation", "admitted", "blocker", "facts", "unknowns", "inferred_tables", "diagnostics", "detected", "changes"],
+      "properties": {
+        "mode": { "enum": ["t10-provider", "legacy-adapter-bridge", "absent"] },
+        "invocation": { "type": ["string", "null"] },
+        "admitted": { "type": "boolean" },
+        "blocker": { "type": ["string", "null"] },
+        "facts": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/providerFacts" }] },
+        "unknowns": { "$ref": "#/$defs/stringList" },
+        "inferred_tables": { "$ref": "#/$defs/stringList" },
+        "diagnostics": { "$ref": "#/$defs/stringList" },
+        "detected": { "type": ["boolean", "null"] },
+        "changes": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["call_expected_v2_observed_v1", "call_expected_v1_observed_v2", "changes"],
+              "properties": {
+                "call_expected_v2_observed_v1": { "$ref": "#/$defs/comparatorCall" },
+                "call_expected_v1_observed_v2": { "$ref": "#/$defs/comparatorCall" },
+                "changes": { "$ref": "#/$defs/stringList" }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "absent" } }, "required": ["mode"] },
+          "then": { "properties": { "invocation": { "type": "null" }, "facts": { "type": "null" }, "detected": { "type": "null" }, "changes": { "type": "null" } } },
+          "else": { "properties": { "invocation": { "type": "string", "minLength": 1 }, "admitted": { "const": true } } }
+        }
+      ]
+    },
+    "compareResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "matched", "oracle_only", "provider_only"],
+      "properties": {
+        "result": { "enum": ["empty", "match", "provider-omits", "provider-extra", "mismatch"] },
+        "matched": { "type": "integer", "minimum": 0 },
+        "oracle_only": { "$ref": "#/$defs/stringList" },
+        "provider_only": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "kind", "purpose", "fixture", "oracle_steps", "expected", "provider", "agreement", "outcome"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "category": { "$ref": "#/$defs/category" },
+        "kind": { "enum": ["normal", "counterexample"] },
+        "purpose": { "type": "string", "minLength": 20 },
+        "fixture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files"],
+          "properties": {
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "sha256"],
+                "properties": {
+                  "path": { "type": "string", "pattern": "^fixtures/[A-Za-z0-9_./-]+$" },
+                  "sha256": { "$ref": "#/$defs/sha256" }
+                }
+              }
+            }
+          }
+        },
+        "oracle_steps": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/slug" } },
+        "expected": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "oneOf": [{ "$ref": "#/$defs/facts" }, { "$ref": "#/$defs/changeFacts" }, { "$ref": "#/$defs/blockedFacts" }] }
+        },
+        "expected_changes": { "$ref": "#/$defs/stringList" },
+        "provider": { "$ref": "#/$defs/provider" },
+        "agreement": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": { "$ref": "#/$defs/facetName" },
+              "additionalProperties": { "$ref": "#/$defs/compareResult" }
+            }
+          ]
+        },
+        "outcome": { "enum": ["agrees", "omits", "diverges", "not-detected", "not-applicable"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "category": { "const": "migration-drift" } }, "required": ["category"] },
+          "then": { "required": ["expected_changes"] },
+          "else": { "not": { "required": ["expected_changes"] } }
+        }
+      ]
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["migration_plane", "live_database"],
+      "properties": {
+        "migration_plane": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basis", "claim", "layout", "control", "observed", "control_observed"],
+          "properties": {
+            "basis": { "enum": ["oracle-output", "hand-authored-fixture"] },
+            "claim": { "type": "string", "minLength": 20 },
+            "layout": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/layoutItem" } },
+            "control": { "$ref": "#/$defs/layoutItem" },
+            "observed": { "$ref": "#/$defs/scanSummary" },
+            "control_observed": { "$ref": "#/$defs/scanSummary" }
+          }
+        },
+        "live_database": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason", "requires", "affected"],
+          "properties": {
+            "status": { "const": "blocked" },
+            "reason": { "type": "string", "minLength": 20 },
+            "requires": { "type": "string", "minLength": 10 },
+            "affected": { "$ref": "#/$defs/nonEmptyStringList" }
+          }
+        }
+      }
+    },
+    "layoutItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "pattern": "^(fixtures|oracle)/[A-Za-z0-9_./-]+$" },
+        "to": { "type": "string", "pattern": "^[A-Za-z0-9_./-]+$" }
+      }
+    },
+    "scanSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "files", "tables"],
+      "properties": {
+        "tool": { "type": "string", "minLength": 1 },
+        "files": { "type": "integer", "minimum": 0 },
+        "tables": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_type", "scope", "steps", "environment", "blocked"],
+      "properties": {
+        "module_type": { "enum": ["commonjs", "module"] },
+        "scope": { "type": "string", "minLength": 20 },
+        "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "npm", "platform", "arch", "installed", "recorded_by"],
+          "properties": {
+            "node": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "npm": { "$ref": "#/$defs/exactVersion" },
+            "platform": { "type": "string", "minLength": 1 },
+            "arch": { "type": "string", "minLength": 1 },
+            "installed": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/exactVersion" } },
+            "recorded_by": { "type": "string", "minLength": 1 }
+          }
+        },
+        "blocked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "reason", "affects"],
+            "properties": {
+              "id": { "$ref": "#/$defs/slug" },
+              "reason": { "type": "string", "minLength": 20 },
+              "affects": { "$ref": "#/$defs/nonEmptyStringList" }
+            }
+          }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "case", "role", "argv", "capture", "result_file", "expect_exit", "exit_code", "output_sha256", "output_bytes", "runs", "deterministic"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "case": { "$ref": "#/$defs/slug" },
+        "role": { "enum": ["expected-schema", "migration-diff", "blocked-probe"] },
+        "argv": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "pre": { "type": "array", "items": { "type": "object" } },
+        "clean": { "$ref": "#/$defs/stringList" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "capture": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "kind": { "enum": ["stdout", "stderr", "file", "listing"] },
+              "path": { "type": "string" },
+              "first_line": { "type": "boolean" }
+            }
+          }
+        },
+        "result_file": { "type": "string", "pattern": "^oracle/results/[A-Za-z0-9_.-]+\\.out$" },
+        "expect_exit": { "type": "integer" },
+        "exit_code": { "type": "integer" },
+        "output_sha256": { "$ref": "#/$defs/sha256" },
+        "output_bytes": { "type": "integer", "minimum": 0 },
+        "runs": { "const": 2 },
+        "deterministic": { "const": true }
+      }
+    },
+    "evidence_plan": {
+      "type": "object",
+      "minProperties": 2,
+      "maxProperties": 2,
+      "propertyNames": { "pattern": "^ORM-(prisma|drizzle|typeorm|sequelize)-0[23]$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["goal", "constructs", "depends_on", "blocked_by", "exit_criteria", "evidence_level_after", "runtime_note"],
+        "properties": {
+          "goal": { "type": "string", "minLength": 20 },
+          "constructs": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/slug" } },
+          "depends_on": { "$ref": "#/$defs/nonEmptyStringList" },
+          "blocked_by": { "$ref": "#/$defs/stringList" },
+          "exit_criteria": { "$ref": "#/$defs/nonEmptyStringList" },
+          "evidence_level_after": { "enum": ["source-fixture", "oracle-recorded", "oracle-compared"] },
+          "runtime_note": { "type": "string", "minLength": 20 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "models": [
+    {
+      "name": "Account",
+      "table": "accounts",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": true
+        },
+        {
+          "attr": "displayName",
+          "field": "display_name",
+          "primaryKey": false,
+          "allowNull": false
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"accounts\" (\"id\" INTEGER , \"display_name\" VARCHAR(255) NOT NULL, PRIMARY KEY (\"id\"));"
+  ]
+}

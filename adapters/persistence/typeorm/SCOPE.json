@@ -1,0 +1,1457 @@
+{
+	"contract": "bskel.internal.persistence-orm-scope/0",
+	"target_id": "ORM-typeorm-01",
+	"orm": "typeorm",
+	"catalog": {
+		"id": "typeorm",
+		"state": "implemented-draft",
+		"ingestion": "legacy-adapter-bridge",
+		"producer": "typescript-express",
+		"requires_live_verification": true,
+		"blocker": null,
+		"limitations": [
+			"current legacy bridge reflects the existing TypeORM extraction surface only"
+		]
+	},
+	"status": {
+		"support_completed": false,
+		"runtime_tested": false,
+		"evidence_level": "oracle-compared",
+		"statement": "Development target, not a completed support claim. The repository's TypeORM extraction (the typescript-express adapter read through fromLegacyAdapterScan) is compared with the schema TypeORM 0.3.31 builds from the same fixture entities on an in-memory sql.js database. That extraction reads entity table names and primary keys only; the constructs marked supported match the oracle at the pinned version, and every other construct is listed with how the bridge omits, mis-names or flags it. Nothing was run against PostgreSQL or an application runtime."
+	},
+	"pins": {
+		"checked_at": "2026-10-08T15:03:08Z",
+		"packages": [
+			{
+				"name": "typeorm",
+				"version": "0.3.31",
+				"role": "orm",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view typeorm@0.3.31 version",
+					"exit_code": 0,
+					"output": "0.3.31",
+					"output_sha256": "c1cfe5624a41908d3ae504d01b9ed07ff5b7a5713c8ea59125f8d6971596ad57"
+				}
+			},
+			{
+				"name": "reflect-metadata",
+				"version": "0.2.2",
+				"role": "support",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view reflect-metadata@0.2.2 version",
+					"exit_code": 0,
+					"output": "0.2.2",
+					"output_sha256": "c90df84cf8a32371b60fff556898becaff634036e9e5865204c1879578435847"
+				}
+			},
+			{
+				"name": "sql.js",
+				"version": "1.14.2",
+				"role": "support",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view sql.js@1.14.2 version",
+					"exit_code": 0,
+					"output": "1.14.2",
+					"output_sha256": "ae9d3006e556a69ce426ceb0b7d5b4f92ad107c4962c0ac0a7d09a5ec6b81341"
+				}
+			},
+			{
+				"name": "esbuild",
+				"version": "0.28.2",
+				"role": "support",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view esbuild@0.28.2 version",
+					"exit_code": 0,
+					"output": "0.28.2",
+					"output_sha256": "0e7696bccf30b86595762dbe4ae348bd0225dc97d2faa954f3e4b92b8f5b04e4"
+				}
+			}
+		],
+		"not_covered": [
+			{
+				"name": "typeorm",
+				"version": "1.1.2",
+				"dist_tag": "latest",
+				"reason": "the npm latest dist-tag is the 1.x line; this record exercises only the 0.3 line (npm dist-tag legacy)",
+				"registry_check": {
+					"command": "npm view typeorm@latest version",
+					"exit_code": 0,
+					"output": "1.1.2",
+					"output_sha256": "83d0c4f9ddc089ab58e322e298b6190f2bf591dc225ff5cdd77d05e6a8420619"
+				}
+			}
+		]
+	},
+	"profile": {
+		"id": "typeorm-0.3.31-express-bridge-sqljs-oracle",
+		"versions": [
+			"typeorm@0.3.31"
+		],
+		"platform": "sql.js in-memory SQLite oracle; legacy TypeScript extraction bridge; recorded on Node v24.19.0 (npm 11.17.0) darwin-arm64; CI Node 22.x and 24.x on Linux not exercised",
+		"capabilities": [
+			"entity-literal-table-name"
+		]
+	},
+	"constructs": [
+		{
+			"id": "entity-literal-table-name",
+			"category": "baseline",
+			"construct": "@Entity('name') with @PrimaryGeneratedColumn",
+			"orm_behavior": "@Entity('users') sets the table name literally and @PrimaryGeneratedColumn marks the key property (users(id)).",
+			"support": "supported",
+			"implementation": "implemented",
+			"gap_behavior": "none",
+			"facets": [
+				"tables",
+				"primary_keys"
+			],
+			"cases": [
+				"normal"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "non-primary-columns",
+			"category": "baseline",
+			"construct": "@Column properties",
+			"orm_behavior": "Every @Column property becomes a table column (users.email, orders.tenantId); the bridge emits primary-key fields only, so these columns never reach the IR.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "silent-omission",
+			"facets": [
+				"columns"
+			],
+			"cases": [
+				"normal",
+				"tenant-scope"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "default-table-name-multiword",
+			"category": "naming-strategy",
+			"construct": "@Entity() without a name on a multi-word class",
+			"orm_behavior": "The default naming strategy stores UserAccount as user_account; the bridge derives the lower-cased class name useraccount and marks it inferred, so the name it reports is wrong.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "wrong-value",
+			"facets": [
+				"tables"
+			],
+			"cases": [
+				"naming-default"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "explicit-primary-key-column-name",
+			"category": "naming-strategy",
+			"construct": "@PrimaryGeneratedColumn({ name })",
+			"orm_behavior": "An explicit name sets the key column independently of the property name (profiles(profile_id) for a property called id); the bridge reports the property name.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "wrong-value",
+			"facets": [
+				"primary_keys"
+			],
+			"cases": [
+				"pk-column-name"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "custom-naming-strategy",
+			"category": "naming-strategy",
+			"construct": "DataSource namingStrategy",
+			"orm_behavior": "A naming strategy on the DataSource renames every implicit table and column (WidgetPart is stored as app_widgetpart with column part_name); the bridge never reads the strategy.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "wrong-value",
+			"facets": [
+				"tables"
+			],
+			"cases": [
+				"naming-strategy"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "composite-primary-column",
+			"category": "composite-key",
+			"construct": "several @PrimaryColumn properties",
+			"orm_behavior": "Several @PrimaryColumn properties form one composite key (tenant_users(userId,tenantId)); the bridge leaves the key unknown and reports a diagnostic instead of guessing.",
+			"support": "unknown",
+			"implementation": "planned",
+			"gap_behavior": "ir-unknown",
+			"facets": [
+				"primary_keys"
+			],
+			"cases": [
+				"composite-key"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "many-to-one-relation",
+			"category": "relation",
+			"construct": "@ManyToOne with @JoinColumn",
+			"orm_behavior": "A many-to-one relation with a named join column adds a column and a foreign key to the owning table (posts(author_id) to authors(id)); the bridge emits relations as an empty list and no column for them.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "silent-omission",
+			"facets": [
+				"columns",
+				"foreign_keys"
+			],
+			"cases": [
+				"relation"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "tenant-isolation-semantics",
+			"category": "tenant-scope",
+			"construct": "tenant scope of a column",
+			"orm_behavior": "The entity metadata and the oracle schema hold a plain tenantId column and an index; nothing in them marks the column as a tenant scope or enforces one.",
+			"support": "unsupported",
+			"implementation": "none",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"tenant-scope"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "entity-non-literal-name-forms",
+			"category": "unknown-construct",
+			"construct": "@Entity({ name }) and @Entity(CONSTANT)",
+			"orm_behavior": "TypeORM resolves an options object or a constant to the table name (audit_logs, ledger_entries); the bridge does not recognise either form, so those entities are absent from its output without any unknown or diagnostic.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "silent-omission",
+			"facets": [
+				"tables",
+				"primary_keys"
+			],
+			"cases": [
+				"unknown-entity-forms"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "schema-version-column-add-drop",
+			"category": "migration-drift",
+			"construct": "column added and column dropped between two entity versions",
+			"orm_behavior": "The schema builder reports one column added and one dropped between the versions (accounts.displayName added, accounts.fullName dropped); the comparator, fed the bridge output of both versions, finds no change because columns are not in that output.",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "silent-omission",
+			"facets": [
+				"changes"
+			],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "migration-files-scan",
+			"category": "migration-drift",
+			"construct": "migration classes under src/migration",
+			"orm_behavior": "TypeORM migrations are TypeScript classes in a project-configured directory (src/migration by convention); the repository migration scanner does not read that layout (tool none in the probe).",
+			"support": "unsupported",
+			"implementation": "planned",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-typeorm-02"
+		},
+		{
+			"id": "live-database-drift",
+			"category": "migration-drift",
+			"construct": "entities compared with a running database",
+			"orm_behavior": "typeorm migration:generate and schema:log compare entity metadata with a running PostgreSQL server; none was available to the offline scratch install.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-typeorm-03"
+		}
+	],
+	"cases": [
+		{
+			"id": "normal",
+			"category": "baseline",
+			"kind": "normal",
+			"purpose": "Entity with a literal table name, a generated primary key and one ordinary column: the shape the bridge is built for.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/normal/User.ts",
+						"sha256": "3a72dac96cbe3a85a2e94a8e11fd201a69805d7d4664e141104707c936d377d0"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"normal"
+			],
+			"expected": {
+				"normal": {
+					"tables": [
+						"users"
+					],
+					"columns": [
+						"users.email",
+						"users.id"
+					],
+					"primary_keys": [
+						"users(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"users"
+					],
+					"columns": [
+						"users.id"
+					],
+					"primary_keys": [
+						"users(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 1,
+					"oracle_only": [
+						"users.email"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "naming-default",
+			"category": "naming-strategy",
+			"kind": "counterexample",
+			"purpose": "Two entities without a literal table name: the default naming strategy turns the multi-word class name UserAccount into user_account, while the bridge lower-cases it.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/naming-default/entities.ts",
+						"sha256": "2d2653ed4116aaee9c65204229e93aa02c783c58b0e311cb1c984463636f48c8"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"naming-default"
+			],
+			"expected": {
+				"naming-default": {
+					"tables": [
+						"account",
+						"user_account"
+					],
+					"columns": [
+						"account.id",
+						"user_account.displayName",
+						"user_account.id"
+					],
+					"primary_keys": [
+						"account(id)",
+						"user_account(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"account",
+						"useraccount"
+					],
+					"columns": [
+						"account.id",
+						"useraccount.id"
+					],
+					"primary_keys": [
+						"account(id)",
+						"useraccount(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [
+					"account:inferred",
+					"useraccount:inferred"
+				],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "mismatch",
+					"matched": 1,
+					"oracle_only": [
+						"user_account"
+					],
+					"provider_only": [
+						"useraccount"
+					]
+				},
+				"columns": {
+					"result": "mismatch",
+					"matched": 1,
+					"oracle_only": [
+						"user_account.displayName",
+						"user_account.id"
+					],
+					"provider_only": [
+						"useraccount.id"
+					]
+				},
+				"primary_keys": {
+					"result": "mismatch",
+					"matched": 1,
+					"oracle_only": [
+						"user_account(id)"
+					],
+					"provider_only": [
+						"useraccount(id)"
+					]
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "diverges"
+		},
+		{
+			"id": "pk-column-name",
+			"category": "naming-strategy",
+			"kind": "counterexample",
+			"purpose": "A generated primary key with an explicit column name (profile_id) on a property called id.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/pk-column-name/Profile.ts",
+						"sha256": "2a69a021a1e16584fc3c1cacf041d8873174cd3b835f4d4e2813cd48719909a4"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"pk-column-name"
+			],
+			"expected": {
+				"pk-column-name": {
+					"tables": [
+						"profiles"
+					],
+					"columns": [
+						"profiles.profile_id"
+					],
+					"primary_keys": [
+						"profiles(profile_id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"profiles"
+					],
+					"columns": [
+						"profiles.id"
+					],
+					"primary_keys": [
+						"profiles(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "mismatch",
+					"matched": 0,
+					"oracle_only": [
+						"profiles.profile_id"
+					],
+					"provider_only": [
+						"profiles.id"
+					]
+				},
+				"primary_keys": {
+					"result": "mismatch",
+					"matched": 0,
+					"oracle_only": [
+						"profiles(profile_id)"
+					],
+					"provider_only": [
+						"profiles(id)"
+					]
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "diverges"
+		},
+		{
+			"id": "naming-strategy",
+			"category": "naming-strategy",
+			"kind": "counterexample",
+			"purpose": "A DataSource naming strategy that prefixes table names with app_ and snake-cases column names, which changes every name the entity leaves implicit.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/naming-strategy/WidgetPart.ts",
+						"sha256": "66feb6c2f2062c89b234e43772e46d79546853db3a162fb3c152c93d2d6ec3bb"
+					},
+					{
+						"path": "fixtures/naming-strategy/naming-strategy.ts",
+						"sha256": "2592a18f5cde93fda3e7ae2ececda16de8b6f832465ab4a6def9b125137acc43"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"naming-strategy"
+			],
+			"expected": {
+				"naming-strategy": {
+					"tables": [
+						"app_widgetpart"
+					],
+					"columns": [
+						"app_widgetpart.id",
+						"app_widgetpart.part_name"
+					],
+					"primary_keys": [
+						"app_widgetpart(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"widgetpart"
+					],
+					"columns": [
+						"widgetpart.id"
+					],
+					"primary_keys": [
+						"widgetpart(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [
+					"widgetpart:inferred"
+				],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "mismatch",
+					"matched": 0,
+					"oracle_only": [
+						"app_widgetpart"
+					],
+					"provider_only": [
+						"widgetpart"
+					]
+				},
+				"columns": {
+					"result": "mismatch",
+					"matched": 0,
+					"oracle_only": [
+						"app_widgetpart.id",
+						"app_widgetpart.part_name"
+					],
+					"provider_only": [
+						"widgetpart.id"
+					]
+				},
+				"primary_keys": {
+					"result": "mismatch",
+					"matched": 0,
+					"oracle_only": [
+						"app_widgetpart(id)"
+					],
+					"provider_only": [
+						"widgetpart(id)"
+					]
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "diverges"
+		},
+		{
+			"id": "composite-key",
+			"category": "composite-key",
+			"kind": "counterexample",
+			"purpose": "Two @PrimaryColumn properties on one entity form a composite primary key.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/composite-key/TenantUser.ts",
+						"sha256": "5ce1c9ba1c4ac140fa2a5a5fad79327a91b9c039514763524617b9814af34a59"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"composite-key"
+			],
+			"expected": {
+				"composite-key": {
+					"tables": [
+						"tenant_users"
+					],
+					"columns": [
+						"tenant_users.tenantId",
+						"tenant_users.userId"
+					],
+					"primary_keys": [
+						"tenant_users(userId,tenantId)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"tenant_users"
+					],
+					"columns": [],
+					"primary_keys": [],
+					"foreign_keys": []
+				},
+				"unknowns": [
+					"tenant_users: primary key unknown"
+				],
+				"inferred_tables": [],
+				"diagnostics": [
+					"primary-key-unknown"
+				],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"tenant_users.tenantId",
+						"tenant_users.userId"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"tenant_users(userId,tenantId)"
+					],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "relation",
+			"category": "relation",
+			"kind": "counterexample",
+			"purpose": "@ManyToOne with an explicit @JoinColumn name: the join column and its foreign key exist in the schema but belong to no declared @Column.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/relation/entities.ts",
+						"sha256": "3df5cda0af5a335863dec3f09c1e0c7079b190cbde9a2e7a478ff9e6a96bef61"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"relation"
+			],
+			"expected": {
+				"relation": {
+					"tables": [
+						"authors",
+						"posts"
+					],
+					"columns": [
+						"authors.id",
+						"posts.author_id",
+						"posts.id"
+					],
+					"primary_keys": [
+						"authors(id)",
+						"posts(id)"
+					],
+					"foreign_keys": [
+						"posts(author_id)->authors(id)"
+					],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"authors",
+						"posts"
+					],
+					"columns": [
+						"authors.id",
+						"posts.id"
+					],
+					"primary_keys": [
+						"authors(id)",
+						"posts(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 2,
+					"oracle_only": [
+						"posts.author_id"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 2,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"posts(author_id)->authors(id)"
+					],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "tenant-scope",
+			"category": "tenant-scope",
+			"kind": "counterexample",
+			"purpose": "A tenantId column with an @Index: nothing in the entity marks it as a tenant scope.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/tenant-scope/Order.ts",
+						"sha256": "189855e9afbe60e6963828bd45b5ecacf1e3602c643d5b6e959353f56184f5e4"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"tenant-scope"
+			],
+			"expected": {
+				"tenant-scope": {
+					"tables": [
+						"orders"
+					],
+					"columns": [
+						"orders.id",
+						"orders.tenantId"
+					],
+					"primary_keys": [
+						"orders(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-index"
+					]
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [
+						"orders"
+					],
+					"columns": [
+						"orders.id"
+					],
+					"primary_keys": [
+						"orders(id)"
+					],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 1,
+					"oracle_only": [
+						"orders.tenantId"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "match",
+					"matched": 1,
+					"oracle_only": [],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "unknown-entity-forms",
+			"category": "unknown-construct",
+			"kind": "counterexample",
+			"purpose": "@Entity given an options object and @Entity given a constant instead of a string literal: forms whose table name a literal reader cannot see.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/unknown-entity-forms/entities.ts",
+						"sha256": "f2e5104a7e63cfb5b21ea6bbe3a80c17d741a448e6319ea617e97e44cff9359c"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"unknown-entity-forms"
+			],
+			"expected": {
+				"unknown-entity-forms": {
+					"tables": [
+						"audit_logs",
+						"ledger_entries"
+					],
+					"columns": [
+						"audit_logs.id",
+						"ledger_entries.id"
+					],
+					"primary_keys": [
+						"audit_logs(id)",
+						"ledger_entries(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": {
+					"tables": [],
+					"columns": [],
+					"primary_keys": [],
+					"foreign_keys": []
+				},
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": null
+			},
+			"agreement": {
+				"tables": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"audit_logs",
+						"ledger_entries"
+					],
+					"provider_only": []
+				},
+				"columns": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"audit_logs.id",
+						"ledger_entries.id"
+					],
+					"provider_only": []
+				},
+				"primary_keys": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"audit_logs(id)",
+						"ledger_entries(id)"
+					],
+					"provider_only": []
+				},
+				"foreign_keys": {
+					"result": "empty",
+					"matched": 0,
+					"oracle_only": [],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		},
+		{
+			"id": "drift",
+			"category": "migration-drift",
+			"kind": "counterexample",
+			"purpose": "One column removed and another added between two versions of an entity, which is also what a rename looks like; compared in both directions.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/drift-v1/Account.ts",
+						"sha256": "2f5eda89f078e82b3a297c3c4501447b8f7f63b430575ab10cd63ccbbad86a5d"
+					},
+					{
+						"path": "fixtures/drift-v2/Account.ts",
+						"sha256": "9fa1860f7a7db3a4161c03ae27ff159b996856ef858545d2bc4733c3caaa97a0"
+					},
+					{
+						"path": "fixtures/_harness/routes.ts",
+						"sha256": "2e91420d5ec02aff5c8a1e1632019bc9ab0a4eef78c3b6c168d253f2be0dd3d2"
+					}
+				]
+			},
+			"oracle_steps": [
+				"drift-v1-to-v2"
+			],
+			"expected": {
+				"drift-v1-to-v2": {
+					"changes": [
+						"add-column accounts.displayName",
+						"drop-column accounts.fullName"
+					],
+					"upgrade_statements": 4
+				}
+			},
+			"expected_changes": [
+				"add-column accounts.displayName",
+				"drop-column accounts.fullName"
+			],
+			"provider": {
+				"mode": "legacy-adapter-bridge",
+				"invocation": "typescript-express adapter scan + fromLegacyAdapterScan (temp repo: package.json, Express router stub, fixture .ts files)",
+				"admitted": true,
+				"blocker": null,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": true,
+				"changes": {
+					"call_expected_v2_observed_v1": {
+						"findings": [],
+						"unknowns": []
+					},
+					"call_expected_v1_observed_v2": {
+						"findings": [],
+						"unknowns": []
+					},
+					"changes": []
+				}
+			},
+			"agreement": {
+				"changes": {
+					"result": "provider-omits",
+					"matched": 0,
+					"oracle_only": [
+						"add-column accounts.displayName",
+						"drop-column accounts.fullName"
+					],
+					"provider_only": []
+				}
+			},
+			"outcome": "omits"
+		}
+	],
+	"probes": {
+		"migration_plane": {
+			"basis": "hand-authored-fixture",
+			"claim": "TypeORM migrations are TypeScript classes in a project-configured directory (src/migration by convention). The probe file was written by hand in the shape migration:generate emits; it was not produced by the tool. The repository migration scanner reads Flyway and Liquibase layouts only, so it reports no tool for it, while the same scanner detects a Flyway control file, so an empty result is not a scanner that finds nothing.",
+			"layout": [
+				{
+					"from": "fixtures/migration-probe/1700000000000-Init.ts",
+					"to": "src/migration/1700000000000-Init.ts"
+				}
+			],
+			"control": {
+				"from": "fixtures/migration-probe/control-V1__init.sql",
+				"to": "db/migration/V1__init.sql"
+			},
+			"observed": {
+				"tool": "none",
+				"files": 0,
+				"tables": 0
+			},
+			"control_observed": {
+				"tool": "flyway",
+				"files": 1,
+				"tables": 1
+			}
+		},
+		"live_database": {
+			"status": "blocked",
+			"reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (typeorm migration:generate, typeorm schema:log, scanners/db/introspect.mjs) were not run.",
+			"requires": "A reachable PostgreSQL service outside the scratch npm install, provisioned separately from this record.",
+			"affected": [
+				"live-database-drift"
+			]
+		}
+	},
+	"oracle": {
+		"module_type": "module",
+		"scope": "A TypeORM DataSource on sql.js (in-memory SQLite) built from the esbuild-transpiled fixture entities. Entity metadata (table names, primary columns) and the statements createSchemaBuilder().log() would run are the expected-schema oracle; the drift case diffs two entity versions through the same schema builder. SQLite is not PostgreSQL, so column types and DDL spelling are not compared. It does not cover migrations on disk, a database server or an application.",
+		"steps": [
+			{
+				"id": "normal",
+				"case": "normal",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/normal"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/normal.out",
+				"exit_code": 0,
+				"output_sha256": "dd2832e1a4c9160dda4310cbb87ff6c6f1570d8b47a87925b0bb56b03c23e4b6",
+				"output_bytes": 595,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "naming-default",
+				"case": "naming-default",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/naming-default"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/naming-default.out",
+				"exit_code": 0,
+				"output_sha256": "7eb74f38c946621b7f2d1ea4590f51d5e329bb999d8a2da36820778a106bc80d",
+				"output_bytes": 1044,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "pk-column-name",
+				"case": "pk-column-name",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/pk-column-name"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/pk-column-name.out",
+				"exit_code": 0,
+				"output_sha256": "2d63200829c720a3b757f7a9d9d1027a6aa22b57ff6aedb1cfd69f98b8f59b64",
+				"output_bytes": 458,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "naming-strategy",
+				"case": "naming-strategy",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/naming-strategy"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/naming-strategy.out",
+				"exit_code": 0,
+				"output_sha256": "e99416c345f835ee81b102b1697e2b5613a6fe867cabebfcbe34f32d623bec19",
+				"output_bytes": 646,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "composite-key",
+				"case": "composite-key",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/composite-key"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/composite-key.out",
+				"exit_code": 0,
+				"output_sha256": "b2801bb50e07f31888a7338f4523af94d58a6698b38911e5153fda1cccda295a",
+				"output_bytes": 690,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "relation",
+				"case": "relation",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/relation"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/relation.out",
+				"exit_code": 0,
+				"output_sha256": "2dca7fbc86e6334b063f2873c4c33e077abd1c8bee46f2562a7f45d9862e6e4f",
+				"output_bytes": 1632,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "tenant-scope",
+				"case": "tenant-scope",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/tenant-scope"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/tenant-scope.out",
+				"exit_code": 0,
+				"output_sha256": "c56039bc8cec1bf47eebccfaa2896c2acc18b29e869562bc952832330629d727",
+				"output_bytes": 708,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "unknown-entity-forms",
+				"case": "unknown-entity-forms",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/unknown-entity-forms"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/unknown-entity-forms.out",
+				"exit_code": 0,
+				"output_sha256": "b9c685687eaf3374b656489f9c50dfb119e00174f400d90bbb9e170598b2ec20",
+				"output_bytes": 851,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-v1-to-v2",
+				"case": "drift",
+				"role": "migration-diff",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"--drift",
+					"fixtures/drift-v1",
+					"fixtures/drift-v2"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/drift-v1-to-v2.out",
+				"exit_code": 0,
+				"output_sha256": "d33d7d13ecee8833c064c3b13338a50cb522abb80345ee836ef88272b6ba9eea",
+				"output_bytes": 1335,
+				"runs": 2,
+				"deterministic": true
+			}
+		],
+		"environment": {
+			"node": "v24.19.0",
+			"npm": "11.17.0",
+			"platform": "darwin",
+			"arch": "arm64",
+			"installed": {
+				"typeorm": "0.3.31",
+				"reflect-metadata": "0.2.2",
+				"sql.js": "1.14.2",
+				"esbuild": "0.28.2"
+			},
+			"recorded_by": "adapters/persistence/js-orm-oracle.mjs typeorm --write"
+		},
+		"blocked": [
+			{
+				"id": "live-database",
+				"reason": "Oracle output from a running database (typeorm migration:generate, typeorm schema:log) was not recorded: no PostgreSQL server was available to the offline scratch install and starting one needs a database service outside it.",
+				"affects": [
+					"live-database-drift"
+				]
+			}
+		]
+	},
+	"evidence_plan": {
+		"ORM-typeorm-02": {
+			"goal": "Extend the TypeORM bridge so the constructs this record lists as planned are either extracted correctly or reported as unknown or as a diagnostic instead of being omitted or mis-named: non-primary columns, default and custom naming strategies, explicit primary key column names, composite primary columns, many-to-one relations, non-literal entity name forms, column-level changes and the migration class layout.",
+			"constructs": [
+				"non-primary-columns",
+				"default-table-name-multiword",
+				"explicit-primary-key-column-name",
+				"custom-naming-strategy",
+				"composite-primary-column",
+				"many-to-one-relation",
+				"entity-non-literal-name-forms",
+				"schema-version-column-add-drop",
+				"migration-files-scan"
+			],
+			"depends_on": [
+				"ORM-typeorm-01",
+				"T10-02"
+			],
+			"blocked_by": [],
+			"exit_criteria": [
+				"Each construct planned in this step matches the recorded oracle or is reported as unknown or as a diagnostic; none is omitted silently or reported with a wrong name.",
+				"The record audit in test/persistence-next recomputes bridge output from the committed fixtures and passes with those claims promoted from planned.",
+				"The oracle results are re-recorded for typeorm 0.3.31 (js-orm-oracle.mjs typeorm --check) and are unchanged."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "The step stays offline on an in-memory SQLite database: no PostgreSQL connection and no application run, so runtime-tested is not claimed."
+		},
+		"ORM-typeorm-03": {
+			"goal": "Cross-check the bridge against a live PostgreSQL instance and the migration plane, then issue a limited certification for the pinned version and profile only.",
+			"constructs": [
+				"live-database-drift"
+			],
+			"depends_on": [
+				"ORM-typeorm-02"
+			],
+			"blocked_by": [
+				"live-database"
+			],
+			"exit_criteria": [
+				"A PostgreSQL service outside the scratch install is reachable and the commands, exit codes and output hashes of the live run are recorded.",
+				"The certification names the pinned TypeORM version, the profile in this record and its construct list; release lines under pins.not_covered stay outside it.",
+				"The live run can be reproduced from the recorded commands alone."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "A live-database run verifies the schema against a database, not an application; runtime-tested stays unclaimed unless an application is exercised."
+		}
+	},
+	"limits": [
+		"Transitive dependencies of the pinned packages were resolved when the oracle was installed and are not locked; only the direct pins are verified.",
+		"Recorded on the Node, npm and platform named in oracle.environment; the CI matrix (Node 22.x and 24.x on Linux) was not exercised.",
+		"Release lines listed under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+		"Nothing here was run against a database server or an application runtime; status.runtime_tested stays false.",
+		"The migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only; see probes.migration_plane.",
+		"The oracle runs TypeORM on sql.js (in-memory SQLite), not PostgreSQL; only table, column and key names and primary-key membership are compared, not column types or DDL spelling.",
+		"The bridge runs only when the typescript-express adapter detects an Express project; the audit supplies an Express dependency and a router stub (fixtures/_harness/routes.ts) so the fixture entities are reached.",
+		"The extraction surface reads @Entity, @PrimaryGeneratedColumn and @PrimaryColumn only; other decorators are invisible to it.",
+		"The drift comparator reports one direction per call; the record calls it in both directions."
+	]
+}

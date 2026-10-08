@@ -1,0 +1,80 @@
+{
+  "models": [
+    {
+      "name": "UserAccount",
+      "table": "UserAccounts",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": false
+        },
+        {
+          "attr": "displayName",
+          "field": "displayName",
+          "primaryKey": false,
+          "allowNull": true
+        },
+        {
+          "attr": "createdAt",
+          "field": "createdAt",
+          "primaryKey": false,
+          "allowNull": false
+        },
+        {
+          "attr": "updatedAt",
+          "field": "updatedAt",
+          "primaryKey": false,
+          "allowNull": false
+        }
+      ]
+    },
+    {
+      "name": "SnakeCaseModel",
+      "table": "snake_case_models",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": false
+        },
+        {
+          "attr": "displayName",
+          "field": "display_name",
+          "primaryKey": false,
+          "allowNull": true
+        },
+        {
+          "attr": "createdAt",
+          "field": "created_at",
+          "primaryKey": false,
+          "allowNull": false
+        },
+        {
+          "attr": "updatedAt",
+          "field": "updated_at",
+          "primaryKey": false,
+          "allowNull": false
+        },
+        {
+          "attr": "UserAccountId",
+          "field": "user_account_id",
+          "primaryKey": false,
+          "allowNull": true
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"UserAccounts\" (\"id\"   SERIAL , \"displayName\" VARCHAR(255), \"createdAt\" TIMESTAMP WITH TIME ZONE NOT NULL, \"updatedAt\" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY (\"id\"));",
+    "CREATE TABLE IF NOT EXISTS \"snake_case_models\" (\"id\"   SERIAL , \"display_name\" VARCHAR(255), \"created_at\" TIMESTAMP WITH TIME ZONE NOT NULL, \"updated_at\" TIMESTAMP WITH TIME ZONE NOT NULL, \"user_account_id\" INTEGER REFERENCES \"UserAccounts\" (\"id\") ON DELETE SET NULL ON UPDATE CASCADE, PRIMARY KEY (\"id\"));"
+  ]
+}

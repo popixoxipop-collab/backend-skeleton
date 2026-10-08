@@ -1,0 +1,11 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateTable
+CREATE TABLE "documents" (
+    "id" INTEGER NOT NULL,
+    "search" tsvector,
+
+    CONSTRAINT "documents_pkey" PRIMARY KEY ("id")
+);
+

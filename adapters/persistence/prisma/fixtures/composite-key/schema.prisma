@@ -1,0 +1,38 @@
+// fixture-pin: prisma@7.10.0 case: composite-key
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id      String       @id @map("tenant_pk")
+  members TenantUser[]
+
+  @@map("tenants")
+}
+
+model User {
+  id      String       @id @map("user_pk")
+  members TenantUser[]
+
+  @@map("users")
+}
+
+model TenantUser {
+  userId   String @map("user_id")
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  user     User   @relation(fields: [userId], references: [id])
+  notes    TenantUserNote[]
+
+  @@id([userId, tenantId])
+  @@map("tenant_users")
+}
+
+model TenantUserNote {
+  id       Int        @id
+  tenantId String     @map("tenant_id")
+  userId   String     @map("user_id")
+  member   TenantUser @relation(fields: [tenantId, userId], references: [tenantId, userId])
+
+  @@map("tenant_user_notes")
+}

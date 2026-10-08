@@ -1,0 +1,11 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateTable
+CREATE TABLE "tenant_users" (
+    "user_id" TEXT NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+
+    CONSTRAINT "tenant_users_pkey" PRIMARY KEY ("user_id","tenant_id")
+);
+

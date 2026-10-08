@@ -1,0 +1,31 @@
+{
+  "entities": [
+    {
+      "name": "User",
+      "tableName": "users",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "uuid",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "email",
+          "db": "email",
+          "type": "varchar",
+          "primary": false,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"users\" (\"id\" varchar PRIMARY KEY NOT NULL, \"email\" varchar NOT NULL)"
+  ]
+}

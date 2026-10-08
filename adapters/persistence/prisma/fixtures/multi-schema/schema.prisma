@@ -1,0 +1,19 @@
+// fixture-pin: prisma@7.10.0 case: multi-schema
+datasource db {
+  provider = "postgresql"
+  schemas  = ["tenant_a", "tenant_b"]
+}
+
+model Order {
+  id Int @id
+
+  @@map("orders")
+  @@schema("tenant_a")
+}
+
+model Invoice {
+  id Int @id
+
+  @@map("invoices")
+  @@schema("tenant_b")
+}

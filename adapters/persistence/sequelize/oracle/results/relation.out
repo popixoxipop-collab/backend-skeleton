@@ -1,0 +1,44 @@
+{
+  "models": [
+    {
+      "name": "Author",
+      "table": "authors",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    },
+    {
+      "name": "Post",
+      "table": "posts",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": true
+        },
+        {
+          "attr": "authorId",
+          "field": "author_id",
+          "primaryKey": false,
+          "allowNull": true
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"authors\" (\"id\" INTEGER , PRIMARY KEY (\"id\"));",
+    "CREATE TABLE IF NOT EXISTS \"posts\" (\"id\" INTEGER , \"author_id\" INTEGER REFERENCES \"authors\" (\"id\") ON DELETE CASCADE ON UPDATE CASCADE, PRIMARY KEY (\"id\"));"
+  ]
+}

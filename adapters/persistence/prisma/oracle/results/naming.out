@@ -1,0 +1,12 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateTable
+CREATE TABLE "UserAccount" (
+    "id" INTEGER NOT NULL,
+    "display_name" TEXT NOT NULL,
+    "plainField" TEXT NOT NULL,
+
+    CONSTRAINT "UserAccount_pkey" PRIMARY KEY ("id")
+);
+

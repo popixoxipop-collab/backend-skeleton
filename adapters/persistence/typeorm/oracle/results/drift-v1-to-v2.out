@@ -1,0 +1,60 @@
+{
+  "from": [
+    {
+      "name": "Account",
+      "tableName": "accounts",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "fullName",
+          "db": "fullName",
+          "type": "varchar",
+          "primary": false,
+          "nullable": true
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "to": [
+    {
+      "name": "Account",
+      "tableName": "accounts",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "displayName",
+          "db": "displayName",
+          "type": "varchar",
+          "primary": false,
+          "nullable": true
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "upgrade": [
+    "CREATE TABLE \"temporary_accounts\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"displayName\" varchar)",
+    "INSERT INTO \"temporary_accounts\"(\"id\", \"displayName\") SELECT \"id\", \"fullName\" FROM \"accounts\"",
+    "DROP TABLE \"accounts\"",
+    "ALTER TABLE \"temporary_accounts\" RENAME TO \"accounts\""
+  ]
+}

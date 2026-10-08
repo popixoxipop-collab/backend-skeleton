@@ -1,0 +1,19 @@
+// fixture-pin: prisma@7.10.0 case: relation
+datasource db {
+  provider = "postgresql"
+}
+
+model Author {
+  id    Int    @id
+  posts Post[]
+
+  @@map("authors")
+}
+
+model Post {
+  id       Int    @id
+  authorId Int    @map("author_id")
+  author   Author @relation(fields: [authorId], references: [id])
+
+  @@map("posts")
+}

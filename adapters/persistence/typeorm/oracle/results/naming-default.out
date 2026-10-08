@@ -1,0 +1,49 @@
+{
+  "entities": [
+    {
+      "name": "Account",
+      "tableName": "account",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "UserAccount",
+      "tableName": "user_account",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "displayName",
+          "db": "displayName",
+          "type": "varchar",
+          "primary": false,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"account\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL)",
+    "CREATE TABLE \"user_account\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"displayName\" varchar NOT NULL)"
+  ]
+}

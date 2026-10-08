@@ -1,0 +1,31 @@
+{
+  "entities": [
+    {
+      "name": "WidgetPart",
+      "tableName": "app_widgetpart",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "partName",
+          "db": "part_name",
+          "type": "varchar",
+          "primary": false,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"app_widgetpart\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"part_name\" varchar NOT NULL)"
+  ]
+}

@@ -1,0 +1,20 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "tenant_a";
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "tenant_b";
+
+-- CreateTable
+CREATE TABLE "tenant_a"."orders" (
+    "id" INTEGER NOT NULL,
+
+    CONSTRAINT "orders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tenant_b"."invoices" (
+    "id" INTEGER NOT NULL,
+
+    CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
+);
+

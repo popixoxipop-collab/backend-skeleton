@@ -1,0 +1,28 @@
+{
+  "models": [
+    {
+      "name": "Document",
+      "table": "documents",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": true
+        },
+        {
+          "attr": "tenantId",
+          "field": "tenant_id",
+          "primaryKey": false,
+          "allowNull": false
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"documents\" (\"id\" INTEGER , \"tenant_id\" VARCHAR(255) NOT NULL, PRIMARY KEY (\"id\"));"
+  ]
+}

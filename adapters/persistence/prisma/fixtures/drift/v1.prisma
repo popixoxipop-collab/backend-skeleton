@@ -1,0 +1,11 @@
+// fixture-pin: prisma@7.10.0 case: drift-v1
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id       Int    @id
+  fullName String @map("full_name")
+
+  @@map("accounts")
+}

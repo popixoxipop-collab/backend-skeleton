@@ -1,0 +1,73 @@
+{
+  "models": [
+    {
+      "name": "Post",
+      "table": "posts",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    },
+    {
+      "name": "Tag",
+      "table": "tags",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "id",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    },
+    {
+      "name": "PostTags",
+      "table": "PostTags",
+      "primaryKeyAttributes": [
+        "PostId",
+        "TagId"
+      ],
+      "columns": [
+        {
+          "attr": "createdAt",
+          "field": "createdAt",
+          "primaryKey": false,
+          "allowNull": false
+        },
+        {
+          "attr": "updatedAt",
+          "field": "updatedAt",
+          "primaryKey": false,
+          "allowNull": false
+        },
+        {
+          "attr": "PostId",
+          "field": "PostId",
+          "primaryKey": true,
+          "allowNull": true
+        },
+        {
+          "attr": "TagId",
+          "field": "TagId",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"posts\" (\"id\" INTEGER , PRIMARY KEY (\"id\"));",
+    "CREATE TABLE IF NOT EXISTS \"tags\" (\"id\" INTEGER , PRIMARY KEY (\"id\"));",
+    "CREATE TABLE IF NOT EXISTS \"PostTags\" (\"createdAt\" TIMESTAMP WITH TIME ZONE NOT NULL, \"updatedAt\" TIMESTAMP WITH TIME ZONE NOT NULL, \"PostId\" INTEGER  REFERENCES \"posts\" (\"id\") ON DELETE CASCADE ON UPDATE CASCADE, \"TagId\" INTEGER  REFERENCES \"tags\" (\"id\") ON DELETE CASCADE ON UPDATE CASCADE, PRIMARY KEY (\"PostId\",\"TagId\"));"
+  ]
+}
