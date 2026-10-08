@@ -1,0 +1,42 @@
+{
+  "record": "t04-02-interface-vocabulary/1",
+  "task": "T04-02",
+  "status": "provisional; not an SBF contract; any stable shared vocabulary belongs to T01",
+  "modules": {
+    "backend-comparison.mjs": ["JS_TS_BACKEND_CONTRACT", "analyzeWithJsTsBackend", "compareJsTsBackends", "lexicalJsTsBackend", "validateJsTsBackend"],
+    "module-resolver.mjs": ["DEFAULT_JS_TS_EXTENSIONS", "JS_TS_RESOLUTION_CONTRACT", "resolveJsTsModuleEdge", "resolveJsTsModuleEdges"],
+    "snapshot-graph.mjs": ["JS_TS_SNAPSHOT_CONTRACT", "analyzeJsTsSnapshot"],
+    "source-facts.mjs": ["JS_TS_FACTS_CONTRACT", "analyzeJsTsSource"]
+  },
+  "contracts": {
+    "JS_TS_BACKEND_CONTRACT": "bskel.internal.js-ts-backend/0",
+    "JS_TS_FACTS_CONTRACT": "bskel.internal.js-ts-source-facts/0",
+    "JS_TS_RESOLUTION_CONTRACT": "bskel.internal.js-ts-resolution/0",
+    "JS_TS_SNAPSHOT_CONTRACT": "bskel.internal.js-ts-snapshot/0"
+  },
+  "vocabulary": {
+    "binding_kinds": ["commonjs-default", "commonjs-named", "default", "named", "namespace"],
+    "comparison_differences": ["backend-error", "complete", "diagnostics", "moduleEdges", "normalized-output", "syntaxValidated"],
+    "edge_kinds": ["dynamic-import", "export-from", "import", "require"],
+    "lexical_diagnostics": ["dynamic-import-nonliteral", "escaped-module-literal", "import-unresolved", "input-too-large", "require-nonliteral", "template-expression-unparsed", "token-limit", "unterminated-block-comment", "unterminated-regex", "unterminated-string", "unterminated-template"],
+    "resolver_diagnostics": ["module-ambiguous", "module-bare", "module-blocked", "module-missing", "module-unsupported", "source-facts-incomplete"],
+    "resolver_reasons": ["absolute-specifier", "invalid-specifier", "multiple-inventory-matches", "no-inventory-match", "package-or-alias-resolution-not-in-lexical-layer", "query-or-fragment-specifier", "repository-root-escape"],
+    "resolver_statuses": ["ambiguous", "bare", "blocked", "missing", "resolved", "unsupported"],
+    "snapshot_diagnostics": ["file-limit", "snapshot-too-large", "unsupported-extension"]
+  },
+  "hard_stop_codes": ["file-limit", "input-too-large", "snapshot-too-large", "source-facts-incomplete", "token-limit", "unsupported-extension"],
+  "fixture": {
+    "description": "analyzeJsTsSnapshot over the seven in-memory files in interface-rfc.test.mjs; canonical JSON (object keys sorted at every level) of the whole result",
+    "output_sha256": "d7b4c2107e11dd82c79bd73bd4611c24796c01dd07d271a4d482ebf04f5f2d6b"
+  },
+  "commands": [
+    { "cmd": "node --test test/language-js-ts/interface-rfc.test.mjs", "exit": 0 },
+    { "cmd": "node scripts/run-next-nested-tests.mjs T04", "exit": 0 }
+  ],
+  "owned_files": [
+    "scanners/language/js-ts/INTERFACE_RFC.md",
+    "test/language-js-ts/interface-rfc.test.mjs",
+    "test/language-js-ts/interface-rfc.vocabulary.json"
+  ],
+  "not_owned": ["T01", "T02", "T11", "T17", "T20", "T23"]
+}
