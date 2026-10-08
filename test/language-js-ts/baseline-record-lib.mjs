@@ -361,8 +361,26 @@ export function commitVerdict(root, commit, env = process.env) {
   return { verdict: 'fail', message: `${found.reason}; set BASELINE_ALLOW_UNVERIFIED=1 to skip the pinned-commit checks explicitly` };
 }
 
-// A throw-away upstream with two commits and a depth-1 clone of the second one. The clone lacks the first (pinned) commit
-// the way a CI checkout lacks the real base commit, and `origin` can serve it, so the shallow path needs no network.
+// Ancestry needs history. A shallow checkout is deepened once (`git fetch --unshallow origin`) and the pinned commit must
+// then be an ancestor of HEAD. A deepening that fails is `fail`, never a skip, unless BASELINE_ALLOW_UNVERIFIED=1 turns it
+// into an explicit `unverified`. Comparing trees says nothing about how the pinned commit relates to HEAD.
+export function ancestryVerdict(root, commit, env = process.env) {
+  if (isShallow(root)) {
+    const args = ['fetch', '--no-tags', '--unshallow', 'origin'];
+    const res = git(root, args, { timeout: 600000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+    if (res.status !== 0 || isShallow(root)) {
+      const why = res.error ? res.error.message : res.status === 0 ? 'the checkout is still shallow afterwards' : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n')[0]}`;
+      const reason = `ancestry unavailable: the checkout is shallow and \`git ${args.join(' ')}\` failed (${why})`;
+      if (env.BASELINE_ALLOW_UNVERIFIED === '1') return { verdict: 'unverified', message: `BASELINE_ALLOW_UNVERIFIED=1, so the ancestry check was NOT run: ${reason}` };
+      return { verdict: 'fail', message: `${reason}; set BASELINE_ALLOW_UNVERIFIED=1 to skip the ancestry check explicitly` };
+    }
+  }
+  return isAncestor(root, commit) ? { verdict: 'ok' } : { verdict: 'fail', message: `${commit} is not an ancestor of HEAD` };
+}
+
+// A throw-away upstream with two commits on one branch, a side-branch commit that is not an ancestor of the branch head,
+// and a depth-1 clone of the branch head. The clone lacks the first (pinned) commit the way a CI checkout lacks the real
+// base commit, and `origin` can serve it, so the shallow path needs no network.
 export function depthOneCase(dir) {
   const ident = ['-c', 'user.name=baseline-test', '-c', 'user.email=baseline-test@example.invalid', '-c', 'commit.gpgsign=false'];
   const run = (cwd, ...args) => {
@@ -391,10 +409,17 @@ export function depthOneCase(dir) {
     sources: [entry('src/a.mjs'), entry('src/b.mjs')],
     tests: [{ ...entry('tests/a.test.mjs'), test_count: 1 }]
   };
+  const branch = run(upstream, 'rev-parse', '--abbrev-ref', 'HEAD');
+  run(upstream, 'checkout', '-q', '-b', 'side');
+  write('src/side.mjs', 'export const side = true;\n');
+  run(upstream, 'add', '.');
+  run(upstream, 'commit', '-q', '-m', 'side branch');
+  const sideCommit = run(upstream, 'rev-parse', 'HEAD');
+  run(upstream, 'checkout', '-q', branch);
   write('src/a.mjs', 'export const a = 100; // the tree moved on\n');
   run(upstream, 'commit', '-q', '-a', '-m', 'moved on');
   run(dir, 'clone', '-q', '--depth=1', `file://${upstream}`, 'checkout');
-  return { checkout: path.join(dir, 'checkout'), record };
+  return { checkout: path.join(dir, 'checkout'), record, sideCommit };
 }
 
 export function blobAtCommit(root, commit, rel) {

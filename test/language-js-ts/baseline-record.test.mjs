@@ -159,14 +159,11 @@ test('git: the base commit has the recorded tree and exactly the recorded source
   assert.equal(lib.blobAtCommit(root, record.base_commit, command('nested-runner').runner_script.path), command('nested-runner').runner_script.git_blob_sha1);
 });
 
-test('git: the base commit is an ancestor of the checked-out commit (a shallow checkout cannot show ancestry, so its tree is compared)', (t) => {
+test('git: the base commit is an ancestor of the checked-out commit (a shallow checkout is deepened first)', (t) => {
   if (!needCommit(t)) return;
-  if (lib.isShallow(root)) {
-    assert.equal(lib.treeAtCommit(root, record.base_commit), record.base_tree);
-    t.diagnostic('shallow checkout: ancestry is not verifiable, the recorded base tree was compared instead');
-    return;
-  }
-  assert.ok(lib.isAncestor(root, record.base_commit), `${record.base_commit} is not an ancestor of HEAD`);
+  const verdict = lib.ancestryVerdict(root, record.base_commit);
+  if (!needCommit(t, verdict)) return;
+  assert.equal(verdict.verdict, 'ok');
 });
 
 test('git: files extracted from the base commit reproduce every fixture hash', async (t) => {
@@ -272,6 +269,32 @@ test('negative: a pinned commit that cannot be fetched fails unless BASELINE_ALL
     assert.equal(needCommit({ skip: (message) => { skipped = message; } }, optOut), false);
     assert.match(skipped, /NOT run/);
   }
+});
+
+test('negative: a pinned commit that exists but is not an ancestor of HEAD fails, and a deepening that fails fails unless BASELINE_ALLOW_UNVERIFIED=1 is set', (t) => {
+  const side = lib.depthOneCase(tmpDir(t, 'baseline-record-anc-'));
+  assert.ok(lib.isShallow(side.checkout));
+  assert.equal(lib.commitVerdict(side.checkout, side.sideCommit, {}).verdict, 'ok', 'the side commit exists and can be fetched');
+  const unrelated = lib.ancestryVerdict(side.checkout, side.sideCommit, {});
+  assert.equal(unrelated.verdict, 'fail');
+  assert.match(unrelated.message, /is not an ancestor of HEAD/);
+  assert.throws(() => needCommit({ skip: () => assert.fail('a non-ancestor must not skip') }, unrelated), /is not an ancestor of HEAD/);
+
+  const real = lib.depthOneCase(tmpDir(t, 'baseline-record-anc-'));
+  assert.equal(lib.commitVerdict(real.checkout, real.record.base_commit, {}).verdict, 'ok');
+  assert.deepEqual(lib.ancestryVerdict(real.checkout, real.record.base_commit, {}), { verdict: 'ok' });
+  assert.equal(lib.isShallow(real.checkout), false, 'the shallow checkout was deepened');
+
+  const offline = lib.depthOneCase(tmpDir(t, 'baseline-record-anc-'));
+  assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', path.join(offline.checkout, 'no-such-upstream')], { cwd: offline.checkout }).status, 0);
+  const commit = offline.record.base_commit;
+  const failed = lib.ancestryVerdict(offline.checkout, commit, {});
+  assert.equal(failed.verdict, 'fail');
+  assert.match(failed.message, /ancestry unavailable/);
+  assert.equal(lib.ancestryVerdict(offline.checkout, commit, { BASELINE_ALLOW_UNVERIFIED: 'true' }).verdict, 'fail', 'only the value 1 opts out');
+  const optOut = lib.ancestryVerdict(offline.checkout, commit, { BASELINE_ALLOW_UNVERIFIED: '1' });
+  assert.equal(optOut.verdict, 'unverified');
+  assert.match(optOut.message, /NOT run/);
 });
 
 test('negative: a same-length tampered sha256, a wrong byte count or a wrong blob id fails the recomputation', (t) => {
