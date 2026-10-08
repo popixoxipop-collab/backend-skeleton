@@ -1,0 +1,152 @@
+{
+  "record": "sbf.project-graph.interface-rfc-record/1",
+  "task": "T02-02",
+  "rfc": "scanners/project-graph/INTERFACE_RFC.md",
+  "readme": "scanners/project-graph/README.md",
+  "schema_file": "scanners/project-graph/schemas/project-graph.draft-1.schema.json",
+  "schema_canonical_sha256": "6da90ebb72f6e02b682382ac800bf6a283bd2149eb7794d9f93925618b68f573",
+  "environment": { "os": "macOS", "node": "v24.19.0" },
+  "commands": [
+    {
+      "id": "probe-normal",
+      "command": "node test/project-graph/interface-rfc.probe.mjs normal",
+      "exit": 0,
+      "pinned": true,
+      "stdout_sha256": "2058d22a2f992b833c8468ed6fb21345a27f31ef4332cfd5b072f61f885800e7"
+    },
+    {
+      "id": "probe-negative",
+      "command": "node test/project-graph/interface-rfc.probe.mjs negative",
+      "exit": 0,
+      "pinned": true,
+      "stdout_sha256": "caa0e55e9abf5e2d78961aedda7b7bbea32304d8441a33657e79d5d64f32e36f"
+    },
+    {
+      "id": "probe-shadow",
+      "command": "node test/project-graph/interface-rfc.probe.mjs shadow",
+      "exit": 0,
+      "pinned": true,
+      "stdout_sha256": "1e1b41a11a8fc61706eeaf96e4001980942412361b4acaeee18d2162814ac43b"
+    },
+    {
+      "id": "probe-registered",
+      "command": "node test/project-graph/interface-rfc.probe.mjs registered",
+      "exit": 0,
+      "pinned": false,
+      "unpinned_reason": "the registry adapters belong to other tracks",
+      "stdout_sha256": "1c6ddc7a6ca6dce69377362c8e954d4dc1f0c6afdbbc1524b8b1cfebb31d8fe9"
+    },
+    {
+      "id": "node-test",
+      "command": "node --test test/project-graph/*.test.mjs",
+      "exit": 0,
+      "rechecked_by_test": false
+    },
+    {
+      "id": "nested-t02",
+      "command": "node scripts/run-next-nested-tests.mjs T02",
+      "exit": 0,
+      "rechecked_by_test": false
+    }
+  ],
+  "required_sections": [
+    "1. Status and scope",
+    "2. Inputs and outputs",
+    "3. Identity",
+    "4. Facet vocabulary",
+    "5. Unknown and partial semantics",
+    "6. File ownership",
+    "7. Evidence",
+    "8. Remaining limits"
+  ],
+  "exports": {
+    "index.mjs": [
+      "PROJECT_GRAPH_DRAFT",
+      "PROJECT_GRAPH_EXECUTION_ROOT",
+      "buildProjectGraph",
+      "buildProjectScanPlan",
+      "captureAdapterReadSetSnapshot",
+      "discoverProjectRoots",
+      "inferDetectionProjectRoot",
+      "portableProjectDiagnosticMessage",
+      "projectGraphExecutionRoot"
+    ],
+    "source-role.mjs": ["PROJECT_SOURCE_ROLES", "classifyProjectSourceRole", "groupProjectSourcesByRole"],
+    "registered.mjs": ["buildRegisteredProjectGraph", "buildRegisteredProjectScanPlan", "portableRegistryLoadErrors"],
+    "shadow.mjs": ["executeProjectScanPlan"]
+  },
+  "literals": {
+    "graph_schema": "sbf.project-graph/draft-1",
+    "shadow_schema": "sbf.project-scan-shadow/draft-1",
+    "facets": ["http"],
+    "project_kinds": ["aggregate", "ambiguous", "application", "unrecognized"],
+    "source_roles": ["active", "generated", "reference", "template", "vendor"],
+    "selection_reasons": ["no-first-class-adapter", "specificity-tie", "unique-highest-specificity"],
+    "marker_kinds": [
+      "dotnet-project",
+      "go-module",
+      "jvm-build",
+      "jvm-workspace",
+      "node-package",
+      "php-package",
+      "python-project",
+      "ruby-bundle",
+      "rust-package"
+    ],
+    "edge_kinds": ["contains", "local-package-dependency"],
+    "unresolved_kinds": [
+      "adapter-detect-error",
+      "adapter-read-set-error",
+      "ambiguous-local-package-dependency",
+      "ambiguous-local-package-name",
+      "directory-read",
+      "marker-read",
+      "out-of-scope-detection",
+      "package-metadata-read",
+      "selected-adapter-missing",
+      "unlocated-detection"
+    ],
+    "error_codes": [
+      "PROJECT_ADAPTER_UNAVAILABLE",
+      "PROJECT_GRAPH_ROOT_MISMATCH",
+      "PROJECT_GRAPH_STALE",
+      "PROJECT_MARKER_ESCAPE",
+      "PROJECT_PLAN_DRIFT",
+      "PROJECT_PLAN_INVALID",
+      "PROJECT_PLAN_STALE",
+      "PROJECT_READ_SET_ESCAPE",
+      "PROJECT_ROOT_ESCAPE"
+    ]
+  },
+  "negative_cases": [
+    "detect_error",
+    "duplicate_local_package",
+    "malformed_metadata",
+    "out_of_scope_detection",
+    "read_set_escape",
+    "specificity_tie",
+    "unlocated_detection"
+  ],
+  "shadow_failures": {
+    "adapter_unavailable": "PROJECT_ADAPTER_UNAVAILABLE",
+    "marker_drift": "PROJECT_GRAPH_STALE",
+    "marker_escape": "PROJECT_MARKER_ESCAPE",
+    "plan_stale": "PROJECT_PLAN_STALE",
+    "project_root_escape": "PROJECT_ROOT_ESCAPE",
+    "root_mismatch": "PROJECT_GRAPH_ROOT_MISMATCH",
+    "source_drift": "PROJECT_GRAPH_STALE",
+    "source_file_added": "PROJECT_GRAPH_STALE"
+  },
+  "owned_files": [
+    "scanners/project-graph/INTERFACE_RFC.md",
+    "scanners/project-graph/README.md",
+    "scanners/project-graph/schemas/project-graph.draft-1.schema.json",
+    "test/project-graph/interface-rfc.cases.mjs",
+    "test/project-graph/interface-rfc.check.mjs",
+    "test/project-graph/interface-rfc.fixtures.mjs",
+    "test/project-graph/interface-rfc.mutations.mjs",
+    "test/project-graph/interface-rfc.probe.mjs",
+    "test/project-graph/interface-rfc.record.json",
+    "test/project-graph/interface-rfc.test.mjs"
+  ]
+}
