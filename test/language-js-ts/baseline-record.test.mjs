@@ -126,6 +126,16 @@ test('live: every recorded test file has its recorded test count', (t) => {
   }
 });
 
+test('live: the recorded byte count, sha256 and blob id of every source and test file are recomputed from the checkout', (t) => {
+  if (!requireUnchangedTree(t)) return;
+  assert.deepEqual(lib.verifyRecord(record, { read: lib.liveReader(root), label: 'live' }), []);
+});
+
+test('git: the recorded byte count, sha256 and blob id are recomputed from the base commit blobs, runner script included', (t) => {
+  if (!requireHistory(t)) return;
+  assert.deepEqual(lib.verifyRecord(record, { read: lib.commitReader(root, record.base_commit), includeRunner: true, label: 'git' }), []);
+});
+
 test('git: the base commit has the recorded tree and exactly the recorded source and test files', (t) => {
   if (!requireHistory(t)) return;
   assert.equal(lib.treeAtCommit(root, record.base_commit), record.base_tree);
@@ -204,6 +214,53 @@ test('negative: a source or test blob that differs from the record counts as dri
   assert.equal(state.testsUnchanged, false);
   assert.ok(state.sourcesChanged.includes(bad.sources[0].path));
   assert.ok(state.testsChanged.includes(bad.tests[0].path));
+});
+
+test('negative: a same-length tampered sha256, a wrong byte count or a wrong blob id fails the recomputation', (t) => {
+  const flip = (hex) => `${hex.startsWith('0') ? '1' : '0'}${hex.slice(1)}`;
+  const runnerPath = command('nested-runner').runner_script.path;
+  // Synthetic file contents keep this test independent of the live tree, so it also runs after a deliberate change.
+  const files = new Map([...record.sources, ...record.tests, { path: runnerPath }].map((e, i) => [e.path, Buffer.from(`synthetic file ${i}\n`)]));
+  const read = (rel) => files.get(rel) ?? null;
+  const entryOf = (rel) => ({ bytes: files.get(rel).length, git_blob_sha1: lib.blobSha1(files.get(rel)), sha256: lib.sha256(files.get(rel)) });
+  const consistent = clone();
+  const consistentRunner = consistent.commands.find((c) => c.id === 'nested-runner').runner_script;
+  for (const e of [...consistent.sources, ...consistent.tests, consistentRunner]) Object.assign(e, entryOf(e.path));
+  const problemsOf = (r, includeRunner = false) => lib.verifyRecord(r, { read, includeRunner, label: 'synthetic' }).filter((p) => p.startsWith('synthetic:'));
+  assert.deepEqual(problemsOf(consistent, true), []);
+
+  const sha = structuredClone(consistent);
+  sha.sources[0].sha256 = flip(sha.sources[0].sha256);
+  assert.ok(problemsOf(sha).some((p) => p.includes(`${sha.sources[0].path} sha256`)), 'a tampered source sha256 of the same length must fail');
+
+  const size = structuredClone(consistent);
+  size.tests[0].bytes += 1;
+  assert.ok(problemsOf(size).some((p) => p.includes(`${size.tests[0].path} bytes`)), 'a wrong test byte count must fail');
+
+  const blob = structuredClone(consistent);
+  blob.tests[0].git_blob_sha1 = flip(blob.tests[0].git_blob_sha1);
+  assert.ok(problemsOf(blob).some((p) => p.includes(`${blob.tests[0].path} git_blob_sha1`)), 'a wrong blob id must fail');
+
+  const runner = structuredClone(consistent);
+  const script = runner.commands.find((c) => c.id === 'nested-runner').runner_script;
+  script.sha256 = flip(script.sha256);
+  assert.deepEqual(problemsOf(runner, false), [], 'the runner script is only recomputed when includeRunner is set');
+  assert.ok(problemsOf(runner, true).some((p) => p.includes(`${runnerPath} sha256`)), 'a tampered runner script sha256 must fail');
+
+  const missing = structuredClone(consistent);
+  missing.sources[0].path = `${record.source_dir}/not-recorded.mjs`;
+  assert.ok(problemsOf(missing).some((p) => p.includes('cannot read')));
+
+  if (live.sourcesUnchanged && live.testsUnchanged) {
+    const real = clone();
+    real.sources[0].sha256 = flip(real.sources[0].sha256);
+    real.tests[0].bytes += 1;
+    const found = lib.verifyRecord(real, { read: lib.liveReader(root), label: 'live' });
+    assert.ok(found.some((p) => p.includes(`${real.sources[0].path} sha256`)));
+    assert.ok(found.some((p) => p.includes(`${real.tests[0].path} bytes`)));
+  } else {
+    t.diagnostic('the live tree differs from the record, so only the synthetic half of this negative test ran');
+  }
 });
 
 test('negative: inconsistent counts, exit codes and commands are rejected', () => {

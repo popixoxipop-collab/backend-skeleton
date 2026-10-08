@@ -36,6 +36,36 @@ export function readRecord(root = REPO_ROOT) {
   return JSON.parse(fs.readFileSync(path.join(root, RECORD_FILE), 'utf8'));
 }
 
+export const liveReader = (root) => (rel) => {
+  try {
+    return fs.readFileSync(path.join(root, rel));
+  } catch {
+    return null;
+  }
+};
+
+export const commitReader = (root, commit) => (rel) => {
+  const res = spawnSync('git', ['cat-file', 'blob', `${commit}:${rel}`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+  return res.status === 0 ? res.stdout : null;
+};
+
+// bytes, git_blob_sha1 and sha256 are recomputed from the file content; a well-formed value is not evidence.
+function recomputeProblems(entries, read, label) {
+  const problems = [];
+  for (const e of entries) {
+    const buf = typeof e?.path === 'string' ? read(e.path) : null;
+    if (!Buffer.isBuffer(buf)) {
+      problems.push(`${label}: cannot read ${e?.path}`);
+      continue;
+    }
+    const actual = { bytes: buf.length, git_blob_sha1: blobSha1(buf), sha256: sha256(buf) };
+    for (const key of ['bytes', 'git_blob_sha1', 'sha256']) {
+      if (e[key] !== actual[key]) problems.push(`${label}: ${e.path} ${key} ${e[key]} != recomputed ${actual[key]}`);
+    }
+  }
+  return problems;
+}
+
 export function artifactDigest(fixtures) {
   return sha256(canonical(fixtures.map((f) => ({ id: f.id, output_sha256: f.output_sha256 }))));
 }
@@ -44,7 +74,10 @@ export function tapCommand(files) {
   return ['node', '--test', '--test-reporter=tap', ...files].join(' ');
 }
 
-export function verifyRecord(r) {
+// Without `files` only the record itself is checked. With `files = { read, includeRunner, label }` the size and both
+// digests of every pinned source and test file (and of the runner script when includeRunner is set) are recomputed
+// from read(path), which returns a Buffer or null.
+export function verifyRecord(r, files) {
   const problems = [];
   const bad = (message) => problems.push(message);
   const count = (n) => Number.isInteger(n) && n >= 0;
@@ -123,6 +156,14 @@ export function verifyRecord(r) {
   walk(r?.pins ?? {}, 'pins');
   walk((r?.fixtures ?? []).map((f) => f.origin_pin ?? {}), 'fixtures.origin_pin');
   for (const o of r?.ci_observations ?? []) if (o.head_sha !== r.base_commit) bad(`ci run ${o.run_id}: head_sha is not the base commit`);
+  if (files) {
+    const pinned = [...(Array.isArray(r?.sources) ? r.sources : []), ...(Array.isArray(r?.tests) ? r.tests : [])];
+    if (files.includeRunner) {
+      const script = (r?.commands ?? []).find((c) => c.id === 'nested-runner')?.runner_script;
+      if (script) pinned.push(script);
+    }
+    problems.push(...recomputeProblems(pinned, files.read, files.label ?? 'recompute'));
+  }
   return problems;
 }
 
