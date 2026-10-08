@@ -30,13 +30,16 @@ while (args.length) {
 	else if (a === '--write') flags.mode = 'write';
 	else if (a === '--keep') flags.keep = true;
 	else if (a === '--pins') flags.pins = true;
-	else if (a === '--only') flags.only = args.shift();
+	else if (a === '--only') flags.only = args.shift() ?? '';
 	else usage(`unknown argument: ${a}`);
 }
 
 const ormDir = path.join(HERE, orm);
 const scopePath = path.join(ormDir, 'SCOPE.json');
 const scope = JSON.parse(fs.readFileSync(scopePath, 'utf8'));
+const selected = scope.oracle.steps.filter((step) => flags.only === null || step.id === flags.only);
+if (flags.pins && flags.only !== null) usage('--only cannot be combined with --pins');
+if (!flags.pins && selected.length === 0) usage(flags.only === null ? 'the record lists no oracle steps' : `unknown step id ${JSON.stringify(flags.only)}; valid ids: ${scope.oracle.steps.map((step) => step.id).join(', ') || '(none)'}`);
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const lf = (text) => text.replace(/\r\n/g, '\n');
 const log = (message) => process.stderr.write(`${message}\n`);
@@ -184,8 +187,8 @@ const report = {
 	steps: [],
 };
 let failed = false;
-for (const step of scope.oracle.steps) {
-	if (flags.only && step.id !== flags.only) continue;
+const staged = [];
+for (const step of selected) {
 	let first;
 	let second;
 	try {
@@ -208,11 +211,7 @@ for (const step of scope.oracle.steps) {
 	if (first.exit_code !== step.expect_exit || !deterministic) failed = true;
 	const resultPath = path.join(ormDir, step.result_file);
 	if (flags.mode === 'write') {
-		if (first.exit_code === step.expect_exit && deterministic) {
-			fs.mkdirSync(path.dirname(resultPath), { recursive: true });
-			fs.writeFileSync(resultPath, first.content);
-			Object.assign(step, { exit_code: first.exit_code, output_sha256: entry.output_sha256, output_bytes: entry.output_bytes, runs: 2, deterministic: true });
-		}
+		staged.push({ step, resultPath, content: first.content, update: { exit_code: first.exit_code, output_sha256: entry.output_sha256, output_bytes: entry.output_bytes, runs: 2, deterministic: true } });
 	} else {
 		const frozen = fs.existsSync(resultPath) ? lf(fs.readFileSync(resultPath, 'utf8')) : null;
 		entry.frozen_match = frozen === first.content && step.output_sha256 === entry.output_sha256 && step.exit_code === first.exit_code;
@@ -221,7 +220,14 @@ for (const step of scope.oracle.steps) {
 	report.steps.push(entry);
 }
 
+// Result files and SCOPE.json are written only once every selected step has passed.
+if (flags.mode === 'write' && failed) log('a selected step failed: no result file and no SCOPE.json were written');
 if (flags.mode === 'write' && !failed) {
+	for (const { step, resultPath, content, update } of staged) {
+		fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+		fs.writeFileSync(resultPath, content);
+		Object.assign(step, update);
+	}
 	scope.oracle.environment = { node: process.version, npm: report.npm, platform: process.platform, arch: process.arch, installed, recorded_by: `adapters/persistence/js-orm-oracle.mjs ${orm} --write` };
 	saveScope();
 }
