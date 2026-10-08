@@ -1,0 +1,24 @@
+{
+    "facts": {
+        "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "hero_team_links(team_id,hero_id)"
+        ],
+        "tables": [
+            "hero_team_links"
+        ],
+        "unmodeled": [
+            "single-key-model-over-composite-primary-key"
+        ]
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

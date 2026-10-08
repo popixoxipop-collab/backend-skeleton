@@ -1,0 +1,28 @@
+{
+  "facts": {
+    "columns": [
+      "heroes.id",
+      "heroes.name",
+      "heroes.nickname",
+      "teams.id",
+      "teams.name"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "heroes(id)",
+      "teams(id)"
+    ],
+    "tables": [
+      "heroes",
+      "teams"
+    ],
+    "unmodeled": []
+  },
+  "oracle": "sqlalchemy-metadata",
+  "versions": {
+    "SQLAlchemy": "2.1.4",
+    "pydantic": "2.14.0",
+    "python": "3.14.8",
+    "sqlmodel": "0.0.48"
+  }
+}

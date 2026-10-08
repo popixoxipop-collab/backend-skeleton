@@ -1,0 +1,1406 @@
+{
+  "contract": "bskel.internal.persistence-orm-scope-dyn/0",
+  "target_id": "ORM-sqlalchemy-sqlmodel-01",
+  "orm": "sqlalchemy-sqlmodel",
+  "catalog": {
+    "id": "sqlalchemy-sqlmodel",
+    "state": "implemented-draft",
+    "ingestion": "legacy-adapter-bridge",
+    "producer": "python-fastapi",
+    "requires_live_verification": true,
+    "limitations": [
+      "current legacy bridge is SQLModel-oriented; SQLAlchemy general mapping is not claimed"
+    ]
+  },
+  "status": {
+    "support_completed": false,
+    "runtime_tested": false,
+    "evidence_level": "oracle-compared",
+    "statement": "Development target, not a completed support claim. The repository python-fastapi adapter bridge (legacy-adapter-bridge in the persistence catalog) is compared with the SQLAlchemy MetaData that SQLModel 0.0.48 builds on SQLAlchemy 2.1.4 when each fixture model module is imported offline, without any database connection. Constructs marked supported match that oracle for the listed facets on the listed fixtures at the pinned versions; every other construct is listed with how the bridge omits, mishandles or does not detect it. Nothing was run against a database or an application runtime."
+  },
+  "profile": {
+    "id": "sqlmodel-0.0.48-sqlalchemy-2.1.4-metadata-offline",
+    "platform": "Python 3.14.8 on darwin-arm64, offline MetaData introspection, no database connection; bridge reads table=True classes only; CI platform (Linux) not exercised",
+    "versions": [
+      "SQLAlchemy@2.1.4",
+      "pydantic@2.14.0",
+      "sqlmodel@0.0.48"
+    ],
+    "capabilities": [
+      "default-table-name-lowercase-class",
+      "explicit-tablename-single-primary-key"
+    ]
+  },
+  "pins": {
+    "checked_at": "2026-10-08T15:47:03Z",
+    "packages": [
+      {
+        "name": "sqlmodel",
+        "version": "0.0.48",
+        "role": "orm",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://pypi.org/pypi/sqlmodel/0.0.48/json | jq -r .info.version",
+          "exit_code": 0,
+          "output": "0.0.48",
+          "output_sha256": "40509c511df612943f16ffa1ee142e06568f534e2f10f390e53c4251d8668da6"
+        }
+      },
+      {
+        "name": "SQLAlchemy",
+        "version": "2.1.4",
+        "role": "orm-core",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://pypi.org/pypi/SQLAlchemy/2.1.4/json | jq -r .info.version",
+          "exit_code": 0,
+          "output": "2.1.4",
+          "output_sha256": "67b043df607258100936e6928d005eed6fcd168226fb8d58cd7297b77cfe6d42"
+        }
+      },
+      {
+        "name": "pydantic",
+        "version": "2.14.0",
+        "role": "model-validation",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://pypi.org/pypi/pydantic/2.14.0/json | jq -r .info.version",
+          "exit_code": 0,
+          "output": "2.14.0",
+          "output_sha256": "f82c8e606ebd09a45625de81f3b4aa58326f59c63a655ce4e2eab8dc7f48b566"
+        }
+      }
+    ],
+    "not_covered": [
+      {
+        "name": "SQLAlchemy",
+        "version": "2.0.54",
+        "dist_tag": "2.0-line",
+        "reason": "the 2.0 release line stays supported next to 2.1 and sqlmodel 0.0.48 still accepts it (SQLAlchemy>=2.0.14,<2.2.0); its MetaData behaviour was not exercised",
+        "registry_check": {
+          "command": "curl -fsS https://pypi.org/pypi/SQLAlchemy/json | jq -r '.releases | keys[]' | grep -E '^2\\.0\\.[0-9]+$' | sort -V | tail -1",
+          "exit_code": 0,
+          "output": "2.0.54",
+          "output_sha256": "f8154a4435579239a68728b8341b8e9965daa8b60cce933b5ceee94459bf96e5"
+        }
+      }
+    ]
+  },
+  "constructs": [
+    {
+      "id": "explicit-tablename-single-primary-key",
+      "category": "baseline",
+      "construct": "table=True class with a literal __tablename__ and one Field(primary_key=True)",
+      "orm_behavior": "The class becomes a Table named by __tablename__ whose primary key is that column (teams(id), heroes(id), invoices(id)).",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "tables",
+        "primary_keys"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "default-table-name-lowercase-class",
+      "category": "naming-strategy",
+      "construct": "table=True class without __tablename__",
+      "orm_behavior": "SQLModel names the table after the class lower-cased (hero, orderitem); the bridge infers the same name and marks the table as inferred.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "tables",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-default"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "declared-attr-table-name",
+      "category": "naming-strategy",
+      "construct": "@declared_attr __tablename__ on a shared base class",
+      "orm_behavior": "The table name is computed when the class is created (Hero becomes heros); the bridge falls back to the lower-cased class name (hero) and reports it as inferred, so the name it reports is wrong.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "wrong-value",
+      "facets": [
+        "tables",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-custom"
+      ],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-02"
+    },
+    {
+      "id": "non-primary-key-columns",
+      "category": "baseline",
+      "construct": "annotated fields that are not the primary key",
+      "orm_behavior": "Every annotated field becomes a column (heroes.name, heroes.secret_name, invoices.tenant_id); the bridge emits the primary-key column only.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "columns"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "tenant-scope",
+        "naming-default"
+      ],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-02"
+    },
+    {
+      "id": "composite-primary-key",
+      "category": "composite-key",
+      "construct": "two or more Field(primary_key=True) on one table",
+      "orm_behavior": "All flagged columns form one composite primary key (hero_team_links(team_id,hero_id)); the bridge keeps only the first flagged field.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "wrong-value",
+      "facets": [
+        "primary_keys"
+      ],
+      "cases": [
+        "composite-key"
+      ],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-02"
+    },
+    {
+      "id": "foreign-key",
+      "category": "relation",
+      "construct": "Field(foreign_key=\"teams.id\")",
+      "orm_behavior": "The column carries a foreign key to teams.id (heroes(team_id)->teams(id)); the bridge emits no relations.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "foreign_keys"
+      ],
+      "cases": [
+        "relation"
+      ],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-02"
+    },
+    {
+      "id": "tenant-session-filter",
+      "category": "tenant-scope",
+      "construct": "tenant filter added by a do_orm_execute listener with with_loader_criteria",
+      "orm_behavior": "Every ORM SELECT is rewritten at execution time to add tenant_id = CURRENT_TENANT; the schema only shows an ordinary indexed tenant_id column, and the oracle can only report that a listener exists (unmodeled token session-event:do_orm_execute).",
+      "support": "unsupported",
+      "implementation": "none",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "sqlalchemy-declarative-mapping",
+      "category": "declarative-mapping",
+      "construct": "DeclarativeBase / Mapped / mapped_column models without SQLModel",
+      "orm_behavior": "The classes map to tables (teams, heroes with a foreign key); the bridge looks for table=True classes only and detects no entity.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "not-detected",
+      "facets": [
+        "tables",
+        "primary_keys"
+      ],
+      "cases": [
+        "declarative-mapped"
+      ],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-02"
+    },
+    {
+      "id": "schema-version-change",
+      "category": "migration-drift",
+      "construct": "columns added or dropped, tables added between two model versions",
+      "orm_behavior": "The oracle snapshots differ by add-column, drop-column and create-table; the comparator sees the new table but no column change because the bridge emits no columns.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "changes"
+      ],
+      "cases": [
+        "drift"
+      ],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-02"
+    },
+    {
+      "id": "live-database-drift",
+      "category": "migration-drift",
+      "construct": "model metadata compared with a live PostgreSQL database",
+      "orm_behavior": "Not run: no database server was available, so no live schema was read.",
+      "support": "unsupported",
+      "implementation": "blocked",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [],
+      "planned_in": "ORM-sqlalchemy-sqlmodel-03"
+    }
+  ],
+  "cases": [
+    {
+      "id": "normal",
+      "category": "baseline",
+      "kind": "normal",
+      "purpose": "Two table=True classes with literal __tablename__ and one Field(primary_key=True) each, plus plain columns: the baseline the bridge is expected to reproduce.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/normal/models.py",
+            "sha256": "2ed1756a7509ed091ab1f627a5cb09854f15e760827088dc6b117ee78fd01cde",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "normal"
+      ],
+      "expected": {
+        "normal": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "composite-key",
+      "category": "composite-key",
+      "kind": "counterexample",
+      "purpose": "A link table whose primary key is two Field(primary_key=True) columns.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/composite-key/models.py",
+            "sha256": "a23f5f00d1b680ff703cb655e6df1d8fea0acc332e3d392621558db33677ef9c",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "composite-key"
+      ],
+      "expected": {
+        "composite-key": {
+          "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "tables": [
+            "hero_team_links"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "hero_team_links"
+          ],
+          "columns": [
+            "hero_team_links.team_id"
+          ],
+          "primary_keys": [
+            "hero_team_links(team_id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "provider_only": [
+            "hero_team_links(team_id)"
+          ]
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "diverges"
+    },
+    {
+      "id": "naming-default",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "table=True classes without __tablename__: SQLModel names the table after the lower-cased class.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-default/models.py",
+            "sha256": "f55d3641afd973660f93365d0e5b80a0ae47491a1cfb1d79a009792e3fb732ab",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-default"
+      ],
+      "expected": {
+        "naming-default": {
+          "columns": [
+            "hero.id",
+            "hero.name",
+            "orderitem.id",
+            "orderitem.sku"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "hero(id)",
+            "orderitem(id)"
+          ],
+          "tables": [
+            "hero",
+            "orderitem"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "hero",
+            "orderitem"
+          ],
+          "columns": [
+            "hero.id",
+            "orderitem.id"
+          ],
+          "primary_keys": [
+            "hero(id)",
+            "orderitem(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [
+          "hero",
+          "orderitem"
+        ],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "hero.name",
+            "orderitem.sku"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "naming-custom",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "A shared base whose @declared_attr __tablename__ pluralises the class name; the table name exists only after the code runs.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-custom/models.py",
+            "sha256": "22de9aa2da1b86ec48f6c45a6a3c8ad4ed61a96aed44ea05bbc9be390f6a1321",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-custom"
+      ],
+      "expected": {
+        "naming-custom": {
+          "columns": [
+            "heros.id",
+            "heros.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heros(id)"
+          ],
+          "tables": [
+            "heros"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "hero"
+          ],
+          "columns": [
+            "hero.id"
+          ],
+          "primary_keys": [
+            "hero(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [
+          "hero"
+        ],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "heros"
+          ],
+          "provider_only": [
+            "hero"
+          ]
+        },
+        "columns": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "heros.id",
+            "heros.name"
+          ],
+          "provider_only": [
+            "hero.id"
+          ]
+        },
+        "primary_keys": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "heros(id)"
+          ],
+          "provider_only": [
+            "hero(id)"
+          ]
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "diverges"
+    },
+    {
+      "id": "relation",
+      "category": "relation",
+      "kind": "counterexample",
+      "purpose": "A Field(foreign_key=\"teams.id\") column on heroes.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/relation/models.py",
+            "sha256": "97dea40f7f5b0d36250640c7e70c81e3641c124627f309bb4319d70a23a0bd9c",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "relation"
+      ],
+      "expected": {
+        "relation": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "heroes.name",
+            "heroes.team_id",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "tenant-scope",
+      "category": "tenant-scope",
+      "kind": "counterexample",
+      "purpose": "A tenant_id column plus a do_orm_execute session listener that adds a with_loader_criteria tenant filter to every SELECT; the isolation lives in the listener, not in the schema.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/tenant-scope/models.py",
+            "sha256": "701fe352c5b9bcedc37f7f18f1971de6683ad1ecf94e3189be9138ef23b5bcc3",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "tenant-scope"
+      ],
+      "expected": {
+        "tenant-scope": {
+          "columns": [
+            "invoices.id",
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "tables": [
+            "invoices"
+          ],
+          "unmodeled": [
+            "create-index",
+            "session-event:do_orm_execute"
+          ]
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "invoices"
+          ],
+          "columns": [
+            "invoices.id"
+          ],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "declarative-mapped",
+      "category": "declarative-mapping",
+      "kind": "counterexample",
+      "purpose": "Plain SQLAlchemy 2.0 DeclarativeBase / Mapped / mapped_column models without SQLModel.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/declarative-mapped/models.py",
+            "sha256": "9a008c02265403f589ba5289d1649d8ee50fad5eb10b367bf78e3dfb7e7f3491",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "declarative-mapped"
+      ],
+      "expected": {
+        "declarative-mapped": {
+          "columns": [
+            "heroes.id",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": false,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes",
+            "teams"
+          ],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes.id",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "not-detected"
+    },
+    {
+      "id": "drift",
+      "category": "migration-drift",
+      "kind": "counterexample",
+      "purpose": "A column replaced by another and a table added between two versions of the model module (what a rename looks like); compared in both directions.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/drift/v1/models.py",
+            "sha256": "a0ca4041321bbcbd24711a2824217a1c05ae2cffbf0c8e2db4f12eb4aefb6bc7",
+            "role": "model",
+            "group": "v1"
+          },
+          {
+            "path": "fixtures/drift/v2/models.py",
+            "sha256": "d51fd100a6b67a89307d83c7c263817e0b759b4a67b3b02bc4a0d989202df6d2",
+            "role": "model",
+            "group": "v2"
+          }
+        ]
+      },
+      "oracle_steps": [
+        "drift-v1",
+        "drift-v2"
+      ],
+      "expected": {
+        "drift-v1": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)"
+          ],
+          "tables": [
+            "heroes"
+          ],
+          "unmodeled": []
+        },
+        "drift-v2": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.nickname",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "legacy-adapter-bridge",
+        "invocation": "python-fastapi adapter scan + fromLegacyAdapterScan (temp repo: pyproject.toml, FastAPI main.py stub, fixture model file)",
+        "admitted": true,
+        "blocker": null,
+        "facts": null,
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": {
+          "call_expected_v2_observed_v1": {
+            "findings": [
+              "table-missing teams"
+            ],
+            "unknowns": []
+          },
+          "call_expected_v1_observed_v2": {
+            "findings": [],
+            "unknowns": []
+          },
+          "changes": [
+            "create-table teams"
+          ]
+        }
+      },
+      "agreement": {
+        "changes": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "add-column heroes.nickname",
+            "drop-column heroes.secret_name"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": [
+        "add-column heroes.nickname",
+        "create-table teams",
+        "drop-column heroes.secret_name"
+      ],
+      "outcome": "omits"
+    }
+  ],
+  "probes": {
+    "migration_plane": {
+      "status": "not-run",
+      "reason": "SQLAlchemy and SQLModel ship no migration layout; their companion tool Alembic writes Python revision scripts under alembic/versions/ and is not part of the pinned set, so none was installed or run. The repository migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only, and no Alembic output exists to probe it with."
+    },
+    "live_database": {
+      "status": "blocked",
+      "reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (comparing the models with a running database, scanners/db/introspect.mjs) were not run.",
+      "requires": "A reachable PostgreSQL service outside the scratch virtualenv, provisioned separately from this record.",
+      "affected": [
+        "live-database-drift"
+      ]
+    }
+  },
+  "oracle": {
+    "scope": "The SQLAlchemy MetaData that SQLModel 0.0.48 on SQLAlchemy 2.1.4 fills when oracle/introspect.py imports a fixture model module (tables, columns, primary keys, foreign keys), plus tokens for schema-affecting constructs outside those four facets (indexes, unique and check constraints, naming conventions, do_orm_execute session listeners). The drift case compares two such snapshots. No engine is created and no database is contacted.",
+    "environment": {
+      "runtime": {
+        "name": "python",
+        "version": "3.14.8"
+      },
+      "platform": "darwin",
+      "arch": "arm64",
+      "recorded_by": "a scratch script outside this change ran every argv below from this directory with $ORACLE_VENV/bin first on PATH ($ORACLE_VENV stands for the scratch virtualenv made by setup-venv); oracle steps ran twice with identical output; reproduce by running the argv and comparing output_sha256 (pip output varies by cache state and is stored only as evidence)"
+    },
+    "setup": [
+      {
+        "id": "setup-venv",
+        "role": "setup",
+        "argv": [
+          "python3.14",
+          "-m",
+          "venv",
+          "$ORACLE_VENV"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-venv.out",
+        "exit_code": 0,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_bytes": 0,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-pip-install",
+        "role": "setup",
+        "argv": [
+          "$ORACLE_VENV/bin/pip",
+          "install",
+          "--disable-pip-version-check",
+          "sqlmodel==0.0.48",
+          "SQLAlchemy==2.1.4",
+          "pydantic==2.14.0"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-pip-install.out",
+        "exit_code": 0,
+        "output_sha256": "6ce7fedb513cbd72860a3656e567622ca18b80d4fe8ec9484d938e1c2a5f9b22",
+        "output_bytes": 1737,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-pip-freeze",
+        "role": "setup",
+        "argv": [
+          "$ORACLE_VENV/bin/pip",
+          "freeze",
+          "--disable-pip-version-check"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-pip-freeze.out",
+        "exit_code": 0,
+        "output_sha256": "55c3a439f782de1ca2d62ffef48dbe6d48575ff4798893b2ddfa3fa71f23931b",
+        "output_bytes": 148,
+        "runs": 1,
+        "deterministic": null
+      }
+    ],
+    "steps": [
+      {
+        "id": "normal",
+        "case": "normal",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/normal/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/normal.out",
+        "exit_code": 0,
+        "output_sha256": "d472aeab7189d6a69dd6d153d2a4303a55ad5b9b5f8c5002caf8bb4c8078b95f",
+        "output_bytes": 472,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "composite-key",
+        "case": "composite-key",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/composite-key/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/composite-key.out",
+        "exit_code": 0,
+        "output_sha256": "1b5c2eb8853a319a5b99bfe784c1c7e8dcfdbdb66e4fdab9374df7037ebe1b39",
+        "output_bytes": 466,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-default",
+        "case": "naming-default",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/naming-default/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-default.out",
+        "exit_code": 0,
+        "output_sha256": "9906acc5b897926de313b384e19437f9bacfef08e7b6e7416eb06298256cab73",
+        "output_bytes": 451,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-custom",
+        "case": "naming-custom",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/naming-custom/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-custom.out",
+        "exit_code": 0,
+        "output_sha256": "99972bd50b4aefb7c52418f96e434c7b1618a2baf217106ea55ba7f8e021bcd8",
+        "output_bytes": 368,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "relation",
+        "case": "relation",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/relation/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/relation.out",
+        "exit_code": 0,
+        "output_sha256": "418aeb3e6655b73147a89039bf2734e73070b4b39ded73cac0225d0f2f788f79",
+        "output_bytes": 508,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "tenant-scope",
+        "case": "tenant-scope",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/tenant-scope/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/tenant-scope.out",
+        "exit_code": 0,
+        "output_sha256": "974d1f5dcffe96dae0808d41b24bf1ef56368f1a90e1f16b9e704e44e4e36263",
+        "output_bytes": 479,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "declarative-mapped",
+        "case": "declarative-mapped",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/declarative-mapped/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/declarative-mapped.out",
+        "exit_code": 0,
+        "output_sha256": "2779f988ed850c7312f04aef382cbcebc1956f6974115bfa413c2a8c63f19f63",
+        "output_bytes": 487,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v1",
+        "case": "drift",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/drift/v1/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v1.out",
+        "exit_code": 0,
+        "output_sha256": "80002612f6e0438068aa758caf3bafc7042fd0744a90caaddfd224f17c7b5eff",
+        "output_bytes": 400,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v2",
+        "case": "drift",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/drift/v2/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v2.out",
+        "exit_code": 0,
+        "output_sha256": "d039e5eb342ab3da25aa9c9e9ccb851eaa1b76f093109e518058fedec47882d5",
+        "output_bytes": 469,
+        "runs": 2,
+        "deterministic": true
+      }
+    ],
+    "blocked": [
+      {
+        "id": "live-database",
+        "reason": "No live database was available to the offline scratch install, so no oracle output from a running database was recorded.",
+        "affects": [
+          "live-database-drift"
+        ]
+      }
+    ]
+  },
+  "evidence_plan": {
+    "ORM-sqlalchemy-sqlmodel-02": {
+      "goal": "Make the bridge report what this record lists as planned instead of omitting or misreporting it: non-primary-key columns, composite primary keys, foreign keys, @declared_attr table names (or report them as unknown) and plain SQLAlchemy declarative classes.",
+      "constructs": [
+        "non-primary-key-columns",
+        "composite-primary-key",
+        "foreign-key",
+        "declared-attr-table-name",
+        "sqlalchemy-declarative-mapping",
+        "schema-version-change"
+      ],
+      "depends_on": [
+        "ORM-sqlalchemy-sqlmodel-01",
+        "T10-02"
+      ],
+      "blocked_by": [],
+      "exit_criteria": [
+        "Each construct planned in this step matches the recorded oracle or is reported as unknown or as a diagnostic; none is omitted silently or reported with a wrong value.",
+        "test/persistence-next/dyn-orm-scope.test.mjs recomputes the provider output from the committed fixtures and passes with those constructs promoted from planned.",
+        "The oracle results are re-recorded for sqlmodel 0.0.48 on SQLAlchemy 2.1.4 and are unchanged."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "The step stays offline: no database connection and no application run, so runtime-tested is not claimed."
+    },
+    "ORM-sqlalchemy-sqlmodel-03": {
+      "goal": "Cross-check the bridge against a live PostgreSQL database and the migration plane, then issue a limited certification for the pinned versions and profile only.",
+      "constructs": [
+        "live-database-drift"
+      ],
+      "depends_on": [
+        "ORM-sqlalchemy-sqlmodel-02"
+      ],
+      "blocked_by": [
+        "live-database"
+      ],
+      "exit_criteria": [
+        "A PostgreSQL service is provisioned and the models are compared with its introspected schema.",
+        "An Alembic-generated revision for the fixtures is probed against the migration scanner.",
+        "The certification names the exact pinned versions and profile and nothing broader."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "Runtime-tested may be claimed only for the checks this step actually runs against the database."
+    }
+  },
+  "limits": [
+    "provider.detected means the provider returned at least one entity; for the drift case it means both versions returned one.",
+    "Only the three direct pins are verified. Their dependencies (typing_extensions, annotated-types, pydantic_core, typing-inspection) were resolved at install time and are listed in the setup-pip-freeze output, not locked.",
+    "Recorded on the Python and platform named in oracle.environment; the CI platform (Linux, Node 22.x and 24.x for the checks) was not exercised for the oracle.",
+    "Releases under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+    "Nothing here ran against a database server or an application: the oracle imports model modules and reads MetaData, it does not call create_all or open an engine, so status.runtime_tested stays false.",
+    "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); Alembic was not installed.",
+    "The bridge is exercised through a temporary repository (pyproject.toml declaring fastapi and sqlmodel, a FastAPI main.py stub, the fixture model file); other project layouts may be detected differently.",
+    "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of a migration tool, and a column with the same name but a different type is not seen.",
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique constraints, validation and session behaviour are not."
+  ]
+}

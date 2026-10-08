@@ -1,0 +1,22 @@
+{
+  "facts": {
+    "columns": [
+      "acme_heroes.id",
+      "acme_heroes.name"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "acme_heroes(id)"
+    ],
+    "tables": [
+      "acme_heroes"
+    ],
+    "unmodeled": []
+  },
+  "oracle": "activerecord-sqlite3-memory",
+  "versions": {
+    "activerecord": "8.1.4",
+    "ruby": "4.0.7",
+    "sqlite3": "2.9.6"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "facts": {
+    "columns": [
+      "hero_team_links.hero_id",
+      "hero_team_links.joined_year",
+      "hero_team_links.team_id"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "hero_team_links(team_id,hero_id)"
+    ],
+    "tables": [
+      "hero_team_links"
+    ],
+    "unmodeled": []
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

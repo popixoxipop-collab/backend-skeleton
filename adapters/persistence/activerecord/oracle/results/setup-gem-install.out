@@ -1,0 +1,22 @@
+Successfully installed timeout-0.6.1
+Successfully installed uri-1.1.2
+Successfully installed concurrent-ruby-1.3.8
+Successfully installed tzinfo-2.0.6
+Successfully installed securerandom-0.4.1
+Building native extensions. This could take a while...
+Successfully installed prism-1.9.0
+Successfully installed drb-2.2.3
+Successfully installed minitest-6.0.6
+Successfully installed logger-1.7.0
+Building native extensions. This could take a while...
+Successfully installed json-3.0.2
+Successfully installed i18n-1.15.2
+Successfully installed connection_pool-3.0.2
+Building native extensions. This could take a while...
+Successfully installed bigdecimal-4.1.3
+Successfully installed base64-0.3.0
+Successfully installed activesupport-8.1.4
+Successfully installed activemodel-8.1.4
+Successfully installed activerecord-8.1.4
+Successfully installed sqlite3-2.9.6-arm64-darwin
+18 gems installed

@@ -1,0 +1,27 @@
+{
+  "facts": {
+    "columns": [
+      "invoices.id",
+      "invoices.tenant_id",
+      "invoices.total_cents"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "invoices(id)"
+    ],
+    "tables": [
+      "invoices"
+    ],
+    "unmodeled": [
+      "create-index",
+      "session-event:do_orm_execute"
+    ]
+  },
+  "oracle": "sqlalchemy-metadata",
+  "versions": {
+    "SQLAlchemy": "2.1.4",
+    "pydantic": "2.14.0",
+    "python": "3.14.8",
+    "sqlmodel": "0.0.48"
+  }
+}

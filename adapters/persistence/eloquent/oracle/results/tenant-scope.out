@@ -1,0 +1,25 @@
+{
+    "facts": {
+        "columns": [
+            "invoices.id",
+            "invoices.tenant_id",
+            "invoices.total_cents"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "invoices(id)"
+        ],
+        "tables": [
+            "invoices"
+        ],
+        "unmodeled": [
+            "create-index",
+            "global-scope"
+        ]
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

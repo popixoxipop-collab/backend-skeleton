@@ -1,0 +1,26 @@
+{
+  "facts": {
+    "columns": [
+      "invoices.id",
+      "invoices.tenant_id",
+      "invoices.total_cents"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "invoices(id)"
+    ],
+    "tables": [
+      "invoices"
+    ],
+    "unmodeled": [
+      "create-index",
+      "default-scope"
+    ]
+  },
+  "oracle": "activerecord-sqlite3-memory",
+  "versions": {
+    "activerecord": "8.1.4",
+    "ruby": "4.0.7",
+    "sqlite3": "2.9.6"
+  }
+}

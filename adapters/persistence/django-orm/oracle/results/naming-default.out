@@ -1,0 +1,25 @@
+{
+  "facts": {
+    "columns": [
+      "shop_hero.id",
+      "shop_hero.name",
+      "shop_orderitem.id",
+      "shop_orderitem.sku"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "shop_hero(id)",
+      "shop_orderitem(id)"
+    ],
+    "tables": [
+      "shop_hero",
+      "shop_orderitem"
+    ],
+    "unmodeled": []
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

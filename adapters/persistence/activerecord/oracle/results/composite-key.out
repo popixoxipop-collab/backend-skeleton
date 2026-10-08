@@ -1,0 +1,23 @@
+{
+  "facts": {
+    "columns": [
+      "hero_team_links.hero_id",
+      "hero_team_links.joined_year",
+      "hero_team_links.team_id"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "hero_team_links(team_id,hero_id)"
+    ],
+    "tables": [
+      "hero_team_links"
+    ],
+    "unmodeled": []
+  },
+  "oracle": "activerecord-sqlite3-memory",
+  "versions": {
+    "activerecord": "8.1.4",
+    "ruby": "4.0.7",
+    "sqlite3": "2.9.6"
+  }
+}

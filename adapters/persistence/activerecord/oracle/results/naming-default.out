@@ -1,0 +1,26 @@
+{
+  "facts": {
+    "columns": [
+      "heros.id",
+      "heros.name",
+      "order_items.id",
+      "order_items.sku"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "heros(id)",
+      "order_items(id)"
+    ],
+    "tables": [
+      "heros",
+      "order_items"
+    ],
+    "unmodeled": []
+  },
+  "oracle": "activerecord-sqlite3-memory",
+  "versions": {
+    "activerecord": "8.1.4",
+    "ruby": "4.0.7",
+    "sqlite3": "2.9.6"
+  }
+}

@@ -1,0 +1,25 @@
+{
+    "facts": {
+        "columns": [
+            "heroes.id",
+            "heroes.name",
+            "order_items.id",
+            "order_items.sku"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "heroes(id)",
+            "order_items(id)"
+        ],
+        "tables": [
+            "heroes",
+            "order_items"
+        ],
+        "unmodeled": []
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

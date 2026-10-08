@@ -1,0 +1,1212 @@
+{
+  "contract": "bskel.internal.persistence-orm-scope-dyn/0",
+  "target_id": "ORM-django-orm-01",
+  "orm": "django-orm",
+  "catalog": {
+    "id": "django-orm",
+    "state": "implemented-draft",
+    "ingestion": "t10-provider",
+    "producer": "django-source",
+    "requires_live_verification": true,
+    "limitations": [
+      "direct models.Model only; implicit app-label table and implicit id remain unknown"
+    ]
+  },
+  "status": {
+    "support_completed": false,
+    "runtime_tested": false,
+    "evidence_level": "oracle-compared",
+    "statement": "Development target, not a completed support claim. The repository Django provider (parseDjangoModels, ingestion t10-provider in the persistence catalog) is compared with the schema facts that Django 6.1.2 derives from the fixture model classes in an app registry configured without any database. Constructs marked supported match that oracle for the listed facets on the listed fixtures at the pinned version; every other construct is listed with how the provider omits, leaves unknown or mishandles it. Nothing was run against a database or an application runtime."
+  },
+  "profile": {
+    "id": "django-6.1.2-app-registry-offline",
+    "platform": "Python 3.14.8 on darwin-arm64, Django app registry with DATABASES empty, no database connection; provider reads models that extend models.Model directly; CI platform (Linux) not exercised",
+    "versions": [
+      "Django@6.1.2"
+    ],
+    "capabilities": [
+      "column-and-table-changes-between-versions",
+      "foreign-key-default-column",
+      "literal-db-table-explicit-primary-key"
+    ]
+  },
+  "pins": {
+    "checked_at": "2026-10-08T15:53:56Z",
+    "packages": [
+      {
+        "name": "Django",
+        "version": "6.1.2",
+        "role": "orm",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://pypi.org/pypi/Django/6.1.2/json | jq -r .info.version",
+          "exit_code": 0,
+          "output": "6.1.2",
+          "output_sha256": "b75f18e8d419570613f1ecc5ee15ccec95396e1d0150709abda44e2c00a31b30"
+        }
+      }
+    ],
+    "not_covered": [
+      {
+        "name": "Django",
+        "version": "5.2.18",
+        "dist_tag": "5.2-lts-line",
+        "reason": "the 5.2 long-term-support line is still maintained next to 6.1; its model metadata behaviour was not exercised",
+        "registry_check": {
+          "command": "curl -fsS https://pypi.org/pypi/Django/json | jq -r '.releases | keys[]' | grep -E '^5\\.2\\.[0-9]+$' | sort -V | tail -1",
+          "exit_code": 0,
+          "output": "5.2.18",
+          "output_sha256": "26889485a822d4bafe65c53385aef27a94cee09c9a2beac971ee0882466c9b04"
+        }
+      }
+    ]
+  },
+  "constructs": [
+    {
+      "id": "literal-db-table-explicit-primary-key",
+      "category": "baseline",
+      "construct": "models.Model subclass with Meta.db_table as a string literal and an explicit primary_key=True field",
+      "orm_behavior": "Django registers the class as the table named by db_table, with one column per concrete field and the flagged field as primary key (teams(id), heroes(id), invoices(id)); the provider reports the same tables, columns and primary keys.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "foreign-key-default-column",
+      "category": "relation",
+      "construct": "ForeignKey(Team, on_delete=CASCADE) with the default <field>_id column",
+      "orm_behavior": "The model gets a team_id column and a foreign key heroes(team_id)->teams(id); the provider reports the same foreign key.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "foreign_keys"
+      ],
+      "cases": [
+        "relation"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "column-and-table-changes-between-versions",
+      "category": "migration-drift",
+      "construct": "a column replaced by another and a table added between two versions of a models module",
+      "orm_behavior": "The two oracle snapshots differ by add-column, drop-column and create-table; the drift comparator, fed with the provider output of both versions, reports the same three changes in both directions.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "changes"
+      ],
+      "cases": [
+        "drift"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "implicit-app-label-table-name",
+      "category": "naming-strategy",
+      "construct": "model without Meta.db_table",
+      "orm_behavior": "Django names the table <app label>_<lower-cased class> (shop_hero, shop_orderitem); the app label comes from the app configuration, which the provider does not read, so it reports the table as unknown (django-table-unknown) and emits no columns or keys for it.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-default"
+      ],
+      "planned_in": "ORM-django-orm-02"
+    },
+    {
+      "id": "computed-db-table",
+      "category": "naming-strategy",
+      "construct": "Meta.db_table built from a module constant (TABLE_PREFIX + \"heroes\")",
+      "orm_behavior": "The table is acme_heroes after the concatenation; the provider reads string literals only, so it reports the table as unknown (django-table-unknown) and emits no columns or keys for it.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-custom"
+      ],
+      "planned_in": "ORM-django-orm-02"
+    },
+    {
+      "id": "composite-primary-key",
+      "category": "composite-key",
+      "construct": "pk = models.CompositePrimaryKey(\"team_id\", \"hero_id\")",
+      "orm_behavior": "Django 6.1.2 makes (team_id, hero_id) the primary key of hero_team_links; the provider keeps the table and its three columns, reports the primary key as unknown (django-primary-key-unknown, django-field-type-unsupported) and emits no primary key.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "primary_keys"
+      ],
+      "cases": [
+        "composite-key"
+      ],
+      "planned_in": "ORM-django-orm-02"
+    },
+    {
+      "id": "tenant-manager-filter",
+      "category": "tenant-scope",
+      "construct": "default manager whose get_queryset filters every query by the current tenant",
+      "orm_behavior": "Every query through objects is narrowed to tenant_id = CURRENT_TENANT when it runs; the schema only shows an ordinary indexed tenant_id column and the oracle can only report that a custom default manager exists (unmodeled token custom-default-manager); the provider has no manager model.",
+      "support": "unsupported",
+      "implementation": "none",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "live-database-drift",
+      "category": "migration-drift",
+      "construct": "model metadata compared with a live PostgreSQL database",
+      "orm_behavior": "Not run: no database server was available, so no live schema was read.",
+      "support": "unsupported",
+      "implementation": "blocked",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [],
+      "planned_in": "ORM-django-orm-03"
+    }
+  ],
+  "cases": [
+    {
+      "id": "normal",
+      "category": "baseline",
+      "kind": "normal",
+      "purpose": "Two models with Meta.db_table, an explicit BigAutoField primary key and plain columns: the baseline the provider is expected to reproduce.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/normal/models.py",
+            "sha256": "ee53ad0ab4c535155e19962bb5a4ac601dc55c0ce8af23fe75dab56af6ce198d",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "normal"
+      ],
+      "expected": {
+        "normal": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "match",
+          "matched": 5,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "agrees"
+    },
+    {
+      "id": "composite-key",
+      "category": "composite-key",
+      "kind": "counterexample",
+      "purpose": "A link model whose primary key is models.CompositePrimaryKey(\"team_id\", \"hero_id\"), the composite-key syntax Django 5.2 and later accept.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/composite-key/models.py",
+            "sha256": "1212432d06cef9d64a7a68742014b5a462343e01d546e9629354ec934a9ee96f",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "composite-key"
+      ],
+      "expected": {
+        "composite-key": {
+          "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "tables": [
+            "hero_team_links"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "hero_team_links"
+          ],
+          "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+          ],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "hero_team_links: primary key unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "django-field-type-unsupported",
+          "django-primary-key-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "match",
+          "matched": 3,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "naming-default",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "Models without Meta.db_table: Django names the table <app label>_<lower-cased class>.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-default/models.py",
+            "sha256": "29e77ffc77e4271c7cbaa556e814d80a5f0b4818ee1d7967762746687eb9eff2",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-default"
+      ],
+      "expected": {
+        "naming-default": {
+          "columns": [
+            "shop_hero.id",
+            "shop_hero.name",
+            "shop_orderitem.id",
+            "shop_orderitem.sku"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "shop_hero(id)",
+            "shop_orderitem(id)"
+          ],
+          "tables": [
+            "shop_hero",
+            "shop_orderitem"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "Hero: table unknown",
+          "OrderItem: table unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "django-table-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "shop_hero",
+            "shop_orderitem"
+          ],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "shop_hero.id",
+            "shop_hero.name",
+            "shop_orderitem.id",
+            "shop_orderitem.sku"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "shop_hero(id)",
+            "shop_orderitem(id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "naming-custom",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "Meta.db_table built from a module constant (TABLE_PREFIX + \"heroes\"), so the literal in the source is not the table name.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-custom/models.py",
+            "sha256": "4fc8a9d4b0ded213dbfbb6d6d26638afec4ad4705b111203db84c08fd4b7813b",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-custom"
+      ],
+      "expected": {
+        "naming-custom": {
+          "columns": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "acme_heroes(id)"
+          ],
+          "tables": [
+            "acme_heroes"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "Hero: table unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "django-table-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes"
+          ],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes(id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "relation",
+      "category": "relation",
+      "kind": "normal",
+      "purpose": "A ForeignKey(Team) on heroes with the default team_id column.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/relation/models.py",
+            "sha256": "e26db3e53c23ec351545ad44d1eeb33beb8e5e94f3fbc8d1c96a3ca515cd71a6",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "relation"
+      ],
+      "expected": {
+        "relation": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ]
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "match",
+          "matched": 5,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "agrees"
+    },
+    {
+      "id": "tenant-scope",
+      "category": "tenant-scope",
+      "kind": "counterexample",
+      "purpose": "A tenant_id column plus a default manager (TenantManager) whose get_queryset filters every query by the current tenant; the isolation lives in the manager, not in the schema.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/tenant-scope/models.py",
+            "sha256": "531e2702fe215f0e16a4fbbb62a6341199f4593482a911c150f80a322ff465d0",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "tenant-scope"
+      ],
+      "expected": {
+        "tenant-scope": {
+          "columns": [
+            "invoices.id",
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "tables": [
+            "invoices"
+          ],
+          "unmodeled": [
+            "create-index",
+            "custom-default-manager"
+          ]
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "invoices"
+          ],
+          "columns": [
+            "invoices.id",
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "match",
+          "matched": 3,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "agrees"
+    },
+    {
+      "id": "drift",
+      "category": "migration-drift",
+      "kind": "counterexample",
+      "purpose": "A column replaced by another and a table added between two versions of the models module (what a rename looks like); compared in both directions.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/drift/v1/models.py",
+            "sha256": "9b23e35962161bc577ef631fc535b5a1a69ee06f52007b262e9584e1bc0055b5",
+            "role": "model",
+            "group": "v1"
+          },
+          {
+            "path": "fixtures/drift/v2/models.py",
+            "sha256": "a31c83818ea38031ae059ef5118156bef8caa894b48f8310d720c6291d5b0932",
+            "role": "model",
+            "group": "v2"
+          }
+        ]
+      },
+      "oracle_steps": [
+        "drift-v1",
+        "drift-v2"
+      ],
+      "expected": {
+        "drift-v1": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)"
+          ],
+          "tables": [
+            "heroes"
+          ],
+          "unmodeled": []
+        },
+        "drift-v2": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.nickname",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseDjangoModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": null,
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": {
+          "call_expected_v2_observed_v1": {
+            "findings": [
+              "column-missing heroes.nickname",
+              "table-missing teams"
+            ],
+            "unknowns": []
+          },
+          "call_expected_v1_observed_v2": {
+            "findings": [
+              "column-missing heroes.secret_name"
+            ],
+            "unknowns": []
+          },
+          "changes": [
+            "add-column heroes.nickname",
+            "create-table teams",
+            "drop-column heroes.secret_name"
+          ]
+        }
+      },
+      "agreement": {
+        "changes": {
+          "result": "match",
+          "matched": 3,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": [
+        "add-column heroes.nickname",
+        "create-table teams",
+        "drop-column heroes.secret_name"
+      ],
+      "outcome": "agrees"
+    }
+  ],
+  "probes": {
+    "migration_plane": {
+      "status": "not-run",
+      "reason": "Django writes Python migration files under <app>/migrations/ with makemigrations; none was generated or run, and the repository migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only, so no Django output exists to probe it with."
+    },
+    "live_database": {
+      "status": "blocked",
+      "reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (comparing the models with a running database, scanners/db/introspect.mjs) were not run.",
+      "requires": "A reachable PostgreSQL service outside the scratch virtualenv, provisioned separately from this record.",
+      "affected": [
+        "live-database-drift"
+      ]
+    }
+  },
+  "oracle": {
+    "scope": "The schema facts (tables, columns, primary keys, foreign keys) that Django 6.1.2 derives from the model classes of one fixture models.py registered as the app \"shop\" by oracle/introspect.py, read from each model _meta, plus tokens for schema-affecting constructs outside those four facets (indexes, unique and check constraints, custom default managers). The drift case compares two such snapshots. DATABASES is empty: no connection, no migration and no query is run.",
+    "environment": {
+      "runtime": {
+        "name": "python",
+        "version": "3.14.8"
+      },
+      "platform": "darwin",
+      "arch": "arm64",
+      "recorded_by": "a scratch script outside this change ran every argv below from this directory with $ORACLE_VENV/bin first on PATH ($ORACLE_VENV stands for the scratch virtualenv made by setup-venv); oracle steps ran twice with identical output; reproduce by running the argv and comparing output_sha256 (pip output varies by cache state and is stored only as evidence)"
+    },
+    "setup": [
+      {
+        "id": "setup-venv",
+        "role": "setup",
+        "argv": [
+          "python3.14",
+          "-m",
+          "venv",
+          "$ORACLE_VENV"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-venv.out",
+        "exit_code": 0,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_bytes": 0,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-pip-install",
+        "role": "setup",
+        "argv": [
+          "$ORACLE_VENV/bin/pip",
+          "install",
+          "--disable-pip-version-check",
+          "Django==6.1.2"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-pip-install.out",
+        "exit_code": 0,
+        "output_sha256": "fab12189c2cad5499291840b77d348a234c28ca918b5df51aaa05fe16e367583",
+        "output_bytes": 595,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-pip-freeze",
+        "role": "setup",
+        "argv": [
+          "$ORACLE_VENV/bin/pip",
+          "freeze",
+          "--disable-pip-version-check"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-pip-freeze.out",
+        "exit_code": 0,
+        "output_sha256": "ee168d191133cae62b70700a0bbb146614013842ec4e483acb37c5e53aa2a962",
+        "output_bytes": 46,
+        "runs": 1,
+        "deterministic": null
+      }
+    ],
+    "steps": [
+      {
+        "id": "normal",
+        "case": "normal",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/normal/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/normal.out",
+        "exit_code": 0,
+        "output_sha256": "0bcd47f8307002749b7030b5d283003d8272cccdc9dfa922332031d94b6d5c7b",
+        "output_bytes": 416,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "composite-key",
+        "case": "composite-key",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/composite-key/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/composite-key.out",
+        "exit_code": 0,
+        "output_sha256": "6d61025aef9e0229c38c5be8ef0a87b1c601ae9b37ec81a0a7c30a592ce8064b",
+        "output_bytes": 410,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-default",
+        "case": "naming-default",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/naming-default/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-default.out",
+        "exit_code": 0,
+        "output_sha256": "cc2167d875ebc5bbbe100b2db7049bf15f3fc1c376f95d89173ed9dc2d41e65f",
+        "output_bytes": 435,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-custom",
+        "case": "naming-custom",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/naming-custom/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-custom.out",
+        "exit_code": 0,
+        "output_sha256": "02efb1cf7792bca632e96ef7967e2e017aff4cb6374bb721e54f5deee4939565",
+        "output_bytes": 336,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "relation",
+        "case": "relation",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/relation/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/relation.out",
+        "exit_code": 0,
+        "output_sha256": "6f11800f77349a003be8564f3df503bf478733cf047e33ba14ce6ed3c3b41516",
+        "output_bytes": 452,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "tenant-scope",
+        "case": "tenant-scope",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/tenant-scope/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/tenant-scope.out",
+        "exit_code": 0,
+        "output_sha256": "a64dcafe6b9cfef3c5620f6ffecf1bec7d541980091da3a2a03d906252efaef3",
+        "output_bytes": 417,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v1",
+        "case": "drift",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/drift/v1/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v1.out",
+        "exit_code": 0,
+        "output_sha256": "a5369813ec92e39903b5821ac65be2ec6e75beca707a55d50e0cc046945c3725",
+        "output_bytes": 344,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v2",
+        "case": "drift",
+        "role": "expected-schema",
+        "argv": [
+          "python",
+          "oracle/introspect.py",
+          "fixtures/drift/v2/models.py"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v2.out",
+        "exit_code": 0,
+        "output_sha256": "c9f74d19c137756fa1ad8b752d1b8b0662aedfccd00fe108755024fdb0cfb912",
+        "output_bytes": 413,
+        "runs": 2,
+        "deterministic": true
+      }
+    ],
+    "blocked": [
+      {
+        "id": "live-database",
+        "reason": "No live database was available to the offline scratch install, so no oracle output from a running database was recorded.",
+        "affects": [
+          "live-database-drift"
+        ]
+      }
+    ]
+  },
+  "evidence_plan": {
+    "ORM-django-orm-02": {
+      "goal": "Make the provider resolve, or keep as an explicit unknown with a diagnostic, what this record lists as planned: default app-label table names, computed Meta.db_table values and CompositePrimaryKey; model the tenant manager filter only as an unmodeled note.",
+      "constructs": [
+        "implicit-app-label-table-name",
+        "computed-db-table",
+        "composite-primary-key"
+      ],
+      "depends_on": [
+        "ORM-django-orm-01",
+        "T10-02"
+      ],
+      "blocked_by": [],
+      "exit_criteria": [
+        "Each construct planned in this step matches the recorded oracle or stays an explicit unknown with a diagnostic; none is dropped silently or reported with a wrong value.",
+        "test/persistence-next/dyn-orm-scope.test.mjs recomputes the provider output from the committed fixtures and passes with those constructs promoted from planned.",
+        "The oracle results are re-recorded for Django 6.1.2 and are unchanged."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "The step stays offline: no database connection and no application run, so runtime-tested is not claimed."
+    },
+    "ORM-django-orm-03": {
+      "goal": "Cross-check the provider against a live PostgreSQL database and the migration plane (makemigrations output for the fixtures), then issue a limited certification for the pinned version and profile only.",
+      "constructs": [
+        "live-database-drift"
+      ],
+      "depends_on": [
+        "ORM-django-orm-02"
+      ],
+      "blocked_by": [
+        "live-database"
+      ],
+      "exit_criteria": [
+        "A PostgreSQL service is provisioned and the models are compared with its introspected schema.",
+        "A Django-generated migration for the fixtures is probed against the migration scanner.",
+        "The certification names the exact pinned version and profile and nothing broader."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "Runtime-tested may be claimed only for the checks this step actually runs against the database."
+    }
+  },
+  "limits": [
+    "provider.detected means the provider returned at least one entity; for the drift case it means both versions returned one.",
+    "Only the direct pin is verified. Its dependencies (asgiref, sqlparse) were resolved at install time and are listed in the setup-pip-freeze output, not locked.",
+    "Recorded on the Python and platform named in oracle.environment; the CI platform (Linux, Node 22.x and 24.x for the checks) was not exercised for the oracle.",
+    "Releases under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+    "Nothing here ran against a database server or an application: the oracle configures settings with an empty DATABASES, calls django.setup() and reads model _meta, it runs no migration, no query and no manage.py command, so status.runtime_tested stays false.",
+    "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); Django makemigrations was not run.",
+    "Every fixture is registered as the app \"shop\"; another app label changes the default table names. The provider is given each models.py as plain source text and reads classes that extend models.Model directly; abstract bases, inheritance, proxy and swappable models are not compared.",
+    "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of makemigrations, and a column with the same name but a different type is not seen.",
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique and check constraints, validation, managers and signals are not. The oracle lists indexes, constraints and custom default managers as unmodeled tokens only."
+  ]
+}

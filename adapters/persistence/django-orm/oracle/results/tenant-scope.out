@@ -1,0 +1,25 @@
+{
+  "facts": {
+    "columns": [
+      "invoices.id",
+      "invoices.tenant_id",
+      "invoices.total_cents"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "invoices(id)"
+    ],
+    "tables": [
+      "invoices"
+    ],
+    "unmodeled": [
+      "create-index",
+      "custom-default-manager"
+    ]
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

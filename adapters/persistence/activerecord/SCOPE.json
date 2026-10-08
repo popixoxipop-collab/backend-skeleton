@@ -1,0 +1,1503 @@
+{
+  "contract": "bskel.internal.persistence-orm-scope-dyn/0",
+  "target_id": "ORM-activerecord-01",
+  "orm": "activerecord",
+  "catalog": {
+    "id": "active-record",
+    "state": "implemented-draft",
+    "ingestion": "t07-model-facts+direct-provider",
+    "producer": "t07-ruby-php",
+    "requires_live_verification": true,
+    "limitations": [
+      "implicit Rails inflection, STI and polymorphic targets remain unknown"
+    ]
+  },
+  "status": {
+    "support_completed": false,
+    "runtime_tested": false,
+    "evidence_level": "oracle-compared",
+    "statement": "Development target, not a completed support claim. The repository ActiveRecord provider (parseActiveRecordModels, ingestion t10-provider in the persistence catalog) is compared with the schema facts that ActiveRecord 8.1.4 reports for the same fixture models once each fixture db/schema.rb is loaded into an in-memory SQLite database. Constructs marked supported match that oracle for the listed facets on the listed fixtures at the pinned version; every other construct is listed with how the provider omits, leaves unknown or mishandles it. Nothing was run against a server database, a Rails application or a migration tool."
+  },
+  "profile": {
+    "id": "activerecord-8.1.4-sqlite3-memory-offline",
+    "platform": "Ruby 4.0.7 on darwin-arm64, in-memory SQLite database loaded from each fixture db/schema.rb, no server database; provider reads classes that extend ActiveRecord::Base or ApplicationRecord, one class per file; CI platform (Linux) not exercised",
+    "versions": [
+      "activerecord@8.1.4",
+      "sqlite3@2.9.6"
+    ],
+    "capabilities": [
+      "belongs-to-literal-class-and-foreign-key",
+      "literal-table-name-and-primary-key"
+    ]
+  },
+  "pins": {
+    "checked_at": "2026-10-08T15:59:47Z",
+    "packages": [
+      {
+        "name": "activerecord",
+        "version": "8.1.4",
+        "role": "orm",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://rubygems.org/api/v2/rubygems/activerecord/versions/8.1.4.json | jq -r .version",
+          "exit_code": 0,
+          "output": "8.1.4",
+          "output_sha256": "1e7ea159308e6783f602ccfe0e245648386db78bc7c01eaa2c54428d0ae91bc8"
+        }
+      },
+      {
+        "name": "sqlite3",
+        "version": "2.9.6",
+        "role": "driver",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://rubygems.org/api/v2/rubygems/sqlite3/versions/2.9.6.json | jq -r .version",
+          "exit_code": 0,
+          "output": "2.9.6",
+          "output_sha256": "b71bb0918d94a0b0a4979336b1f574869a12e53875232d3c55494ac7daf79097"
+        }
+      }
+    ],
+    "not_covered": [
+      {
+        "name": "activerecord",
+        "version": "8.0.5",
+        "dist_tag": "8.0-line",
+        "reason": "the previous minor line is still listed in the registry next to 8.1; its schema and model behaviour was not exercised",
+        "registry_check": {
+          "command": "curl -fsS https://rubygems.org/api/v1/versions/activerecord.json | jq -r '.[] | select(.prerelease==false) | .number' | grep -E '^8\\.0\\.[0-9]+$' | sort -V | tail -1",
+          "exit_code": 0,
+          "output": "8.0.5",
+          "output_sha256": "37b4f74321900273e092f5ff2287c5740de17be37ae0b5fdaa98677c2ab1020f"
+        }
+      }
+    ]
+  },
+  "constructs": [
+    {
+      "id": "literal-table-name-and-primary-key",
+      "category": "baseline",
+      "construct": "class extending ActiveRecord::Base with self.table_name and self.primary_key set to string or symbol literals",
+      "orm_behavior": "ActiveRecord maps the class to the named table and uses the named column as primary key (teams(id), heroes(id), invoices(id)); the provider reports the same tables and primary keys.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "tables",
+        "primary_keys"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "relation-convention",
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "belongs-to-literal-class-and-foreign-key",
+      "category": "relation",
+      "construct": "belongs_to :team, class_name: \"Team\", foreign_key: \"team_id\" where the target model has a literal table name and primary key",
+      "orm_behavior": "The schema carries the foreign key heroes(team_id)->teams(id); the provider reports the same foreign key.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "foreign_keys"
+      ],
+      "cases": [
+        "relation"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "columns-beyond-keys",
+      "category": "baseline",
+      "construct": "columns other than the primary key and literal belongs_to foreign keys",
+      "orm_behavior": "Every column of the table (heroes.name, heroes.secret_name, invoices.tenant_id) comes from the database schema, which the model class does not list; the provider reads model source only, emits the primary key and literal foreign key columns and never reads db/schema.rb, so the other columns are missing without a diagnostic.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "columns"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "relation-convention",
+        "tenant-scope"
+      ],
+      "planned_in": "ORM-activerecord-02"
+    },
+    {
+      "id": "inflected-table-name",
+      "category": "naming-strategy",
+      "construct": "model without self.table_name",
+      "orm_behavior": "ActiveRecord inflects the class name into the table name (Hero becomes heros, OrderItem becomes order_items); the provider deliberately does not reimplement inflection, so it reports the table as unknown (active-record-table-unknown, active-record-primary-key-unknown) and emits nothing for the model.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-default"
+      ],
+      "planned_in": "ORM-activerecord-02"
+    },
+    {
+      "id": "interpolated-table-name",
+      "category": "naming-strategy",
+      "construct": "self.table_name = \"#{TABLE_PREFIX}heroes\"",
+      "orm_behavior": "The table is acme_heroes once the string is evaluated; the provider accepts any double-quoted string without evaluating the interpolation and reports the table literally as #{TABLE_PREFIX}heroes, so the name it reports is wrong and the primary key and column are attached to that wrong name.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "wrong-value",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-custom"
+      ],
+      "planned_in": "ORM-activerecord-02"
+    },
+    {
+      "id": "composite-primary-key",
+      "category": "composite-key",
+      "construct": "self.primary_key = [:team_id, :hero_id] over a table created with primary_key: [\"team_id\", \"hero_id\"]",
+      "orm_behavior": "ActiveRecord reports the primary key hero_team_links(team_id,hero_id); the provider accepts a string or symbol key only, so it reports the primary key as unknown (active-record-primary-key-unknown) and emits the table without key and without columns.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "composite-key"
+      ],
+      "planned_in": "ORM-activerecord-02"
+    },
+    {
+      "id": "belongs-to-by-convention",
+      "category": "relation",
+      "construct": "belongs_to :team without class_name and foreign_key",
+      "orm_behavior": "ActiveRecord resolves Team and team_id by convention and the schema carries the foreign key heroes(team_id)->teams(id); the provider requires literal class_name and foreign_key, emits a diagnostic (active-record-relation-unresolved) and no relation.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "diagnostic",
+      "facets": [
+        "foreign_keys"
+      ],
+      "cases": [
+        "relation-convention"
+      ],
+      "planned_in": "ORM-activerecord-02"
+    },
+    {
+      "id": "tenant-default-scope",
+      "category": "tenant-scope",
+      "construct": "default_scope { where(tenant_id: Current.tenant_id) }",
+      "orm_behavior": "Every query on the model is narrowed to the current tenant when it runs; the schema only shows an ordinary indexed tenant_id column and the oracle can only report that a default scope exists (unmodeled token default-scope); the provider has no scope model.",
+      "support": "unsupported",
+      "implementation": "none",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "schema-version-change",
+      "category": "migration-drift",
+      "construct": "columns added or dropped, tables added between two versions of schema and models",
+      "orm_behavior": "The oracle snapshots differ by add-column, drop-column and create-table; the comparator sees the new table (create-table teams) but no column change because the provider emits no columns beyond the primary key.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "changes"
+      ],
+      "cases": [
+        "drift"
+      ],
+      "planned_in": "ORM-activerecord-02"
+    },
+    {
+      "id": "live-database-drift",
+      "category": "migration-drift",
+      "construct": "model metadata compared with a live PostgreSQL database",
+      "orm_behavior": "Not run: no database server was available, so no live schema was read.",
+      "support": "unsupported",
+      "implementation": "blocked",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [],
+      "planned_in": "ORM-activerecord-03"
+    }
+  ],
+  "cases": [
+    {
+      "id": "normal",
+      "category": "baseline",
+      "kind": "normal",
+      "purpose": "Two models with a literal self.table_name and self.primary_key and plain columns in db/schema.rb: the baseline the provider is expected to reproduce.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/normal/db/schema.rb",
+            "sha256": "758507d75c17501ccfe84d9400e36bbce44cf7f2934a2831b5ac69845ea8c639",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/normal/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/normal/app/models/hero.rb",
+            "sha256": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "normal"
+      ],
+      "expected": {
+        "normal": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "composite-key",
+      "category": "composite-key",
+      "kind": "counterexample",
+      "purpose": "A link table created with primary_key: [\"team_id\", \"hero_id\"] and a model that declares self.primary_key = [:team_id, :hero_id].",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/composite-key/db/schema.rb",
+            "sha256": "a5bf925da9b7a3a44425e1aa6ee6fa818a98f41093dfce9aff8e148c05e36f3b",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/composite-key/app/models/hero_team_link.rb",
+            "sha256": "2866243b73dd478f883a35c2251a41c4e825a529d057b26672739b6ca2e6b568",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "composite-key"
+      ],
+      "expected": {
+        "composite-key": {
+          "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "tables": [
+            "hero_team_links"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "hero_team_links"
+          ],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "hero_team_links: primary key unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "active-record-primary-key-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "naming-default",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "Models without self.table_name: ActiveRecord inflects the class name (Hero becomes heros, OrderItem becomes order_items).",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-default/db/schema.rb",
+            "sha256": "92688e36ab00d9703c4d488213a40045b3556c1e4bfa9161b9478faea3acc675",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/naming-default/app/models/hero.rb",
+            "sha256": "63608d8ff43a244a217a33ef70c3f2b24e1e5280d106a3e25c3d770d0d306927",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/naming-default/app/models/order_item.rb",
+            "sha256": "f1f15ed16a3496d84ebc99e7aa208dfe74374863355863e568e3b1dc10758951",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-default"
+      ],
+      "expected": {
+        "naming-default": {
+          "columns": [
+            "heros.id",
+            "heros.name",
+            "order_items.id",
+            "order_items.sku"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heros(id)",
+            "order_items(id)"
+          ],
+          "tables": [
+            "heros",
+            "order_items"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "Hero: table unknown",
+          "OrderItem: table unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "active-record-primary-key-unknown",
+          "active-record-table-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heros",
+            "order_items"
+          ],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heros.id",
+            "heros.name",
+            "order_items.id",
+            "order_items.sku"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heros(id)",
+            "order_items(id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "naming-custom",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "self.table_name set from an interpolated string (\"#{TABLE_PREFIX}heroes\"), so the literal in the source is not the table name.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-custom/db/schema.rb",
+            "sha256": "b06004f6d8cd36a0cbfd97f901cc0c5a07876d76182263c5010c5b0eff0e4c5d",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/naming-custom/app/models/hero.rb",
+            "sha256": "b23a7186eb34dd391c1fc1ae153994349dccfe8d0d67e77ce2497d1540416ca5",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-custom"
+      ],
+      "expected": {
+        "naming-custom": {
+          "columns": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "acme_heroes(id)"
+          ],
+          "tables": [
+            "acme_heroes"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "#{TABLE_PREFIX}heroes"
+          ],
+          "columns": [
+            "#{TABLE_PREFIX}heroes.id"
+          ],
+          "primary_keys": [
+            "#{TABLE_PREFIX}heroes(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes"
+          ],
+          "provider_only": [
+            "#{TABLE_PREFIX}heroes"
+          ]
+        },
+        "columns": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+          ],
+          "provider_only": [
+            "#{TABLE_PREFIX}heroes.id"
+          ]
+        },
+        "primary_keys": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes(id)"
+          ],
+          "provider_only": [
+            "#{TABLE_PREFIX}heroes(id)"
+          ]
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "diverges"
+    },
+    {
+      "id": "relation",
+      "category": "relation",
+      "kind": "normal",
+      "purpose": "belongs_to :team with literal class_name and foreign_key on a table that has the foreign key (add_foreign_key \"heroes\", \"teams\").",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/relation/db/schema.rb",
+            "sha256": "84b403ecef41d80969c06202632bbb3da37f2a038e67550d5b4edd897c80674e",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation/app/models/hero.rb",
+            "sha256": "faec6c7e60fb3f5c2208ca00d2cda2d308265a7d1a1fea44d55d643498e48630",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "relation"
+      ],
+      "expected": {
+        "relation": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "heroes.team_id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ]
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 3,
+          "oracle_only": [
+            "heroes.name",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "relation-convention",
+      "category": "relation",
+      "kind": "counterexample",
+      "purpose": "The same schema with a conventional belongs_to :team that names neither class nor foreign key.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/relation-convention/db/schema.rb",
+            "sha256": "84b403ecef41d80969c06202632bbb3da37f2a038e67550d5b4edd897c80674e",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation-convention/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation-convention/app/models/hero.rb",
+            "sha256": "f1684b19d4dc527f78b3fc195a3a7f286d8c92ed0965c4feee47a4409d1b3dc7",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "relation-convention"
+      ],
+      "expected": {
+        "relation-convention": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [
+          "active-record-relation-unresolved"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "heroes.name",
+            "heroes.team_id",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "tenant-scope",
+      "category": "tenant-scope",
+      "kind": "counterexample",
+      "purpose": "A tenant_id column plus default_scope { where(tenant_id: Current.tenant_id) }; the isolation lives in the scope, not in the schema.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/tenant-scope/db/schema.rb",
+            "sha256": "b054bc357dd8259f48bfd06b8c7f7c879698766ad9b450383db191f807624f74",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/tenant-scope/app/models/current.rb",
+            "sha256": "68bea9c7935cbaee89501a5dd5cc5605cfbdfaa1efab03b200e5af102c2ac82b",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/tenant-scope/app/models/invoice.rb",
+            "sha256": "e47b866ef8a35da3f4933b649cb3ce1e3415d2c01477a6ced6f066bd60657152",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "tenant-scope"
+      ],
+      "expected": {
+        "tenant-scope": {
+          "columns": [
+            "invoices.id",
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "tables": [
+            "invoices"
+          ],
+          "unmodeled": [
+            "create-index",
+            "default-scope"
+          ]
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "invoices"
+          ],
+          "columns": [
+            "invoices.id"
+          ],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "drift",
+      "category": "migration-drift",
+      "kind": "counterexample",
+      "purpose": "A column replaced by another and a table added between two versions of schema and models (what a rename looks like); compared in both directions.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/drift/v1/db/schema.rb",
+            "sha256": "0a5ab984afb7060910158d1c7b99a4a9b23d6acbb14fd5c789128da858fec7f3",
+            "role": "support",
+            "group": "v1"
+          },
+          {
+            "path": "fixtures/drift/v1/app/models/hero.rb",
+            "sha256": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703",
+            "role": "model",
+            "group": "v1"
+          },
+          {
+            "path": "fixtures/drift/v2/db/schema.rb",
+            "sha256": "2bdb0682cd55e0c9397d5107d710df2bf30d3b38b7dcac5e35fe8ea8586fddd8",
+            "role": "support",
+            "group": "v2"
+          },
+          {
+            "path": "fixtures/drift/v2/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730",
+            "role": "model",
+            "group": "v2"
+          },
+          {
+            "path": "fixtures/drift/v2/app/models/hero.rb",
+            "sha256": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703",
+            "role": "model",
+            "group": "v2"
+          }
+        ]
+      },
+      "oracle_steps": [
+        "drift-v1",
+        "drift-v2"
+      ],
+      "expected": {
+        "drift-v1": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)"
+          ],
+          "tables": [
+            "heroes"
+          ],
+          "unmodeled": []
+        },
+        "drift-v2": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.nickname",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t10-provider",
+        "invocation": "parseActiveRecordModels(<fixture model files>)",
+        "admitted": true,
+        "blocker": null,
+        "facts": null,
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": {
+          "call_expected_v2_observed_v1": {
+            "findings": [
+              "table-missing teams"
+            ],
+            "unknowns": []
+          },
+          "call_expected_v1_observed_v2": {
+            "findings": [],
+            "unknowns": []
+          },
+          "changes": [
+            "create-table teams"
+          ]
+        }
+      },
+      "agreement": {
+        "changes": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "add-column heroes.nickname",
+            "drop-column heroes.secret_name"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": [
+        "add-column heroes.nickname",
+        "create-table teams",
+        "drop-column heroes.secret_name"
+      ],
+      "outcome": "omits"
+    }
+  ],
+  "probes": {
+    "migration_plane": {
+      "status": "not-run",
+      "reason": "ActiveRecord keeps Ruby migration classes under db/migrate/ and a db/schema.rb dump; the fixtures hold only schema.rb files that the oracle loads, no db/migrate directory exists and no rails or rake task was run. The repository migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only, so no ActiveRecord migration output exists to probe it with."
+    },
+    "live_database": {
+      "status": "blocked",
+      "reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (comparing the models with a running database, scanners/db/introspect.mjs) were not run; the in-memory SQLite database is a stand-in for reading schema facts, not a live database check.",
+      "requires": "A reachable PostgreSQL service outside the scratch gem directory, provisioned separately from this record.",
+      "affected": [
+        "live-database-drift"
+      ]
+    }
+  },
+  "oracle": {
+    "scope": "The schema facts that ActiveRecord 8.1.4 reports for the model classes of one fixture directory: oracle/introspect.rb loads the fixture db/schema.rb into an in-memory SQLite database through ActiveRecord::Schema, requires the fixture app/models files and, for every concrete model class, reads table_name, column_names, primary_key and connection.foreign_keys, plus tokens for schema-affecting constructs outside those four facets (indexes, default scopes). Tables, columns and foreign keys therefore come from the fixture schema file and the database adapter, while the model classes decide the table name and the primary key. The drift case compares two such snapshots. No file or server database is opened and no model query is run.",
+    "environment": {
+      "runtime": {
+        "name": "ruby",
+        "version": "4.0.7"
+      },
+      "platform": "darwin",
+      "arch": "arm64",
+      "recorded_by": "a scratch script outside this change ran every argv below from this directory ($ORACLE_VENV stands for the scratch gem directory that GEM_HOME and GEM_PATH point at); oracle steps ran twice with identical output; reproduce by running the argv and comparing output_sha256 (gem output varies by cache state and is stored only as evidence)"
+    },
+    "setup": [
+      {
+        "id": "setup-gem-install",
+        "role": "setup",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "gem",
+          "install",
+          "--no-document",
+          "--install-dir",
+          "$ORACLE_VENV",
+          "activerecord:8.1.4",
+          "sqlite3:2.9.6"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-gem-install.out",
+        "exit_code": 0,
+        "output_sha256": "d2cb415f354b794600a5e45aff23db1d18c559fc8edef666be15704d3df33646",
+        "output_bytes": 884,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-gem-list",
+        "role": "setup",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "gem",
+          "list",
+          "--local"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-gem-list.out",
+        "exit_code": 0,
+        "output_sha256": "8f49784c5ab1ebb6188c7088e30dbee8dcbd80e7e75dd735ad480e8759094fd7",
+        "output_bytes": 1429,
+        "runs": 1,
+        "deterministic": null
+      }
+    ],
+    "steps": [
+      {
+        "id": "normal",
+        "case": "normal",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/normal"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/normal.out",
+        "exit_code": 0,
+        "output_sha256": "4e3b650b80a8e6ffcc245f8ade4d01436a5bf18714bee6a232cc511a1f9cffd4",
+        "output_bytes": 451,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "composite-key",
+        "case": "composite-key",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/composite-key"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/composite-key.out",
+        "exit_code": 0,
+        "output_sha256": "ddcc6072decaae8edbb642c4c5ce3ba791bdcd9377f75a1c657aa902d6768a48",
+        "output_bytes": 445,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-default",
+        "case": "naming-default",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/naming-default"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-default.out",
+        "exit_code": 0,
+        "output_sha256": "5c12054a24ffeecbe4cf1d76c54c5f359f4d01cce278d852c1b2e3e04335d85a",
+        "output_bytes": 442,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-custom",
+        "case": "naming-custom",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/naming-custom"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-custom.out",
+        "exit_code": 0,
+        "output_sha256": "b781d0b4dacb85bcb18e0df7cd8482246e19cd2308119e973ce153d899ca6e03",
+        "output_bytes": 371,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "relation",
+        "case": "relation",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/relation"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/relation.out",
+        "exit_code": 0,
+        "output_sha256": "ed3f7424ef4a6595bf7e7972ade081820341b86c5b48e77e8590eda6026e296e",
+        "output_bytes": 487,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "relation-convention",
+        "case": "relation-convention",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/relation-convention"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/relation-convention.out",
+        "exit_code": 0,
+        "output_sha256": "ed3f7424ef4a6595bf7e7972ade081820341b86c5b48e77e8590eda6026e296e",
+        "output_bytes": 487,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "tenant-scope",
+        "case": "tenant-scope",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/tenant-scope"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/tenant-scope.out",
+        "exit_code": 0,
+        "output_sha256": "8e4cc091a34229810e01cdc0d9240d39939246632bacdc977b93b5c346ae5eeb",
+        "output_bytes": 443,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v1",
+        "case": "drift",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/drift/v1"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v1.out",
+        "exit_code": 0,
+        "output_sha256": "0d7c2d5f9c40899f549dd5c62562ef0fc6f4562b0031c7f6b61b6978129f1d98",
+        "output_bytes": 379,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v2",
+        "case": "drift",
+        "role": "expected-schema",
+        "argv": [
+          "env",
+          "GEM_HOME=$ORACLE_VENV",
+          "GEM_PATH=$ORACLE_VENV",
+          "ruby",
+          "oracle/introspect.rb",
+          "fixtures/drift/v2"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v2.out",
+        "exit_code": 0,
+        "output_sha256": "955f9ba15309771a3c666fa1b59860066ac354b3a548080e1446f7c806e5946e",
+        "output_bytes": 448,
+        "runs": 2,
+        "deterministic": true
+      }
+    ],
+    "blocked": [
+      {
+        "id": "live-database",
+        "reason": "No live database server was available to the offline scratch install, so no oracle output from a running PostgreSQL was recorded.",
+        "affects": [
+          "live-database-drift"
+        ]
+      }
+    ]
+  },
+  "evidence_plan": {
+    "ORM-activerecord-02": {
+      "goal": "Make the provider report what this record lists as planned instead of omitting or misreporting it: columns from db/schema.rb, literal-only table names (an interpolated name must become an unknown, not a wrong value), composite primary keys, conventional belongs_to and column and table changes between versions; inflected table names stay unknown unless inflection is implemented and checked against the oracle.",
+      "constructs": [
+        "columns-beyond-keys",
+        "inflected-table-name",
+        "interpolated-table-name",
+        "composite-primary-key",
+        "belongs-to-by-convention",
+        "schema-version-change"
+      ],
+      "depends_on": [
+        "ORM-activerecord-01",
+        "T10-02"
+      ],
+      "blocked_by": [],
+      "exit_criteria": [
+        "Each construct planned in this step matches the recorded oracle or is reported as unknown or as a diagnostic; none is omitted silently or reported with a wrong value.",
+        "test/persistence-next/dyn-orm-scope.test.mjs recomputes the provider output from the committed fixtures and passes with those constructs promoted from planned.",
+        "The oracle results are re-recorded for activerecord 8.1.4 on sqlite3 2.9.6 and are unchanged."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "The step stays offline: no server database and no application run, so runtime-tested is not claimed."
+    },
+    "ORM-activerecord-03": {
+      "goal": "Cross-check the provider against a live PostgreSQL database and the migration plane (db/migrate classes for the fixtures), then issue a limited certification for the pinned versions and profile only.",
+      "constructs": [
+        "live-database-drift"
+      ],
+      "depends_on": [
+        "ORM-activerecord-02"
+      ],
+      "blocked_by": [
+        "live-database"
+      ],
+      "exit_criteria": [
+        "A PostgreSQL service is provisioned and the models are compared with its introspected schema.",
+        "A migration written for the fixtures is probed against the migration scanner.",
+        "The certification names the exact pinned versions and profile and nothing broader."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "Runtime-tested may be claimed only for the checks this step actually runs against the database."
+    }
+  },
+  "limits": [
+    "provider.detected means the provider returned at least one entity; for the drift case it means both versions returned one.",
+    "Only the two direct pins are verified. Their dependencies were resolved at install time and are listed in the setup-gem-list output, not locked.",
+    "Recorded on the Ruby and platform named in oracle.environment; the CI platform (Linux, Node 22.x and 24.x for the checks) was not exercised for the oracle.",
+    "Releases under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+    "Nothing here ran against a server database, a Rails application or a rake task: the oracle loads a schema file into an in-memory SQLite database and reads model metadata, it runs no model query and no migration, so status.runtime_tested stays false.",
+    "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); no db/migrate directory was used.",
+    "The fixture models extend ActiveRecord::Base directly, one class per file as the provider requires; ApplicationRecord, abstract bases, single table inheritance, concerns, table_name_prefix modules and engines are not compared.",
+    "The oracle reads columns, primary keys and foreign keys from the database that the fixture schema file creates; an ActiveRecord model class holds no column list, so a provider that reads model source alone cannot see them.",
+    "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of a migration tool, and a column with the same name but a different type is not seen.",
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique constraints, validations, scopes and callbacks are not. The oracle lists indexes and default scopes as unmodeled tokens only."
+  ]
+}

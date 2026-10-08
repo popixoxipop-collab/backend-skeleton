@@ -1,0 +1,26 @@
+{
+    "facts": {
+        "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+        ],
+        "tables": [
+            "heroes",
+            "teams"
+        ],
+        "unmodeled": []
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

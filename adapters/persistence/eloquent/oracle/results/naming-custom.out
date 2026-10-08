@@ -1,0 +1,21 @@
+{
+    "facts": {
+        "columns": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "acme_heroes(id)"
+        ],
+        "tables": [
+            "acme_heroes"
+        ],
+        "unmodeled": []
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}
