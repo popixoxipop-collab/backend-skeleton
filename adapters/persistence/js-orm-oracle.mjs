@@ -45,6 +45,9 @@ function saveScope() {
 	fs.writeFileSync(scopePath, `${JSON.stringify(scope, null, '\t')}\n`);
 }
 
+const stepEnvKeys = new Set(scope.oracle.steps.flatMap((step) => [step, ...(step.pre ?? [])].flatMap((item) => Object.keys(item.env ?? {}))));
+const inheritedEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !stepEnvKeys.has(key)));
+
 function exec(argv, { cwd, env = {}, timeout = 180000 }) {
 	const [head, ...rest] = argv;
 	const file = head === 'node' ? process.execPath : head.startsWith('node_modules/') ? path.join(cwd, head) : head;
@@ -54,7 +57,7 @@ function exec(argv, { cwd, env = {}, timeout = 180000 }) {
 		timeout,
 		stdio: ['ignore', 'pipe', 'pipe'],
 		maxBuffer: 64 * 1024 * 1024,
-		env: { ...process.env, CHECKPOINT_DISABLE: '1', PRISMA_HIDE_UPDATE_MESSAGE: '1', NO_COLOR: '1', ...env },
+		env: { ...inheritedEnv(), CHECKPOINT_DISABLE: '1', PRISMA_HIDE_UPDATE_MESSAGE: '1', NO_COLOR: '1', ...env },
 	});
 	return { status: result.status, signal: result.signal, stdout: result.stdout ?? '', stderr: result.stderr ?? '', error: result.error };
 }
@@ -77,14 +80,13 @@ function verifyPins() {
 	for (const item of scope.pins.not_covered ?? []) {
 		if (!item.dist_tag) continue;
 		const view = npmView(`${item.name}@${item.dist_tag}`);
-		log(`${item.name}@${item.dist_tag}: exit=${view.exit_code} output=${JSON.stringify(view.output)}`);
+		const ok = view.exit_code === 0 && view.output === item.version;
+		if (!ok) failed = true;
+		log(`${item.name}@${item.dist_tag}: exit=${view.exit_code} output=${JSON.stringify(view.output)} ${ok ? 'OK' : `MISMATCH (not_covered records ${item.version})`}`);
 		if (flags.mode === 'write') item.registry_check = { ...view, output_sha256: sha256(view.output) };
-		else if (view.output !== item.version) {
-			failed = true;
-			log(`  not_covered records ${item.version}`);
-		}
 	}
-	if (flags.mode === 'write') {
+	if (flags.mode === 'write' && failed) log('registry checks failed: SCOPE.json not written');
+	else if (flags.mode === 'write') {
 		scope.pins.checked_at = stamp;
 		saveScope();
 	}
@@ -144,7 +146,8 @@ function capture(part, step, stdout, stderr) {
 	if (part.kind === 'stderr') return part.first_line ? `${stderr.split('\n')[0]}\n` : stderr;
 	if (part.kind === 'file') {
 		const file = path.join(workdir, part.path);
-		return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `<missing file ${part.path}>\n`;
+		if (!fs.existsSync(file)) throw new Error(`step ${step.id}: expected output file ${part.path} was not produced`);
+		return fs.readFileSync(file, 'utf8');
 	}
 	if (part.kind === 'listing') {
 		const dir = path.join(workdir, part.path);
