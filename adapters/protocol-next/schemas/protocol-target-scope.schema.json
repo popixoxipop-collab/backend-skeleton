@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:protocol-target-scope:draft-1",
+  "title": "Protocol target scope record",
+  "description": "Machine-readable scope of one protocol target (GraphQL, AsyncAPI, WebSocket): what the adapter supports, what it does not, the counterexample fixtures, the pinned versions and the runtime/oracle range. A scope record never marks a target as supported.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "target", "plan_write_scope", "status", "verified_on", "adapter", "profile", "pins", "supported", "unsupported", "counterexamples", "fixture_corpus", "runtime_oracle", "pin_verification", "claims_not_made"],
+  "properties": {
+    "schema": { "const": "sbf.protocol-target-scope/1" },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "family", "title"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^PROTO-(graphql|asyncapi|websocket)-01$" },
+        "family": { "enum": ["graphql", "asyncapi", "websocket"] },
+        "title": { "type": "string", "minLength": 1 }
+      }
+    },
+    "plan_write_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared", "actual", "reason"],
+      "properties": {
+        "declared": { "type": "string", "minLength": 1 },
+        "actual": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "status": { "const": "scope-recorded" },
+    "verified_on": { "$ref": "#/$defs/date" },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry", "dependencies"],
+      "properties": {
+        "entry": { "type": "string", "minLength": 1 },
+        "dependencies": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "dialects", "scan_status", "versions"],
+      "properties": {
+        "inputs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "dialects": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "scan_status": { "const": "partial" },
+        "versions": { "type": "object", "minProperties": 1 }
+      }
+    },
+    "pins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["libraries", "documents", "tags", "absent_tags"],
+      "properties": {
+        "libraries": { "type": "array", "items": { "$ref": "#/$defs/library" } },
+        "documents": { "type": "array", "items": { "$ref": "#/$defs/document" } },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/tag" } },
+        "absent_tags": { "type": "array", "items": { "$ref": "#/$defs/absentTags" } }
+      }
+    },
+    "supported": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/supported" } },
+    "unsupported": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/unsupported" } },
+    "counterexamples": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fixture", "claim_ids", "control"],
+        "properties": {
+          "fixture": { "$ref": "#/$defs/id" },
+          "claim_ids": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/claimId" } },
+          "control": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] }
+        }
+      }
+    },
+    "fixture_corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "canonical_sha256", "cases", "flow_cases", "kinds"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "canonical_sha256": { "$ref": "#/$defs/sha256" },
+        "cases": { "type": "integer", "minimum": 1 },
+        "flow_cases": { "type": "integer", "minimum": 0 },
+        "kinds": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "integer", "minimum": 1 } }
+      }
+    },
+    "runtime_oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime_tested", "runtime", "oracle"],
+      "properties": {
+        "runtime_tested": { "const": false },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason", "blocked_by"],
+          "properties": {
+            "status": { "const": "BLOCKED" },
+            "reason": { "type": "string", "minLength": 1 },
+            "blocked_by": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "oracle": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "reason"],
+              "properties": { "status": { "const": "BLOCKED" }, "reason": { "type": "string", "minLength": 1 } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "kind", "evidence", "summary", "limits"],
+              "properties": {
+                "status": { "const": "RUN-static" },
+                "kind": { "type": "string", "minLength": 1 },
+                "evidence": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["path", "canonical_sha256", "generated_on", "tool", "packages"],
+                  "properties": {
+                    "path": { "type": "string", "minLength": 1 },
+                    "canonical_sha256": { "$ref": "#/$defs/sha256" },
+                    "generated_on": { "$ref": "#/$defs/date" },
+                    "tool": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["path", "lf_sha256"],
+                      "properties": { "path": { "type": "string", "minLength": 1 }, "lf_sha256": { "$ref": "#/$defs/sha256" } }
+                    },
+                    "packages": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["name", "version"],
+                        "properties": { "name": { "type": "string", "minLength": 1 }, "version": { "type": "string", "minLength": 1 } }
+                      }
+                    }
+                  }
+                },
+                "summary": { "type": "object", "minProperties": 1 },
+                "limits": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "pin_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "tool_lf_sha256", "run_on", "exit_code", "node", "checks"],
+      "properties": {
+        "tool": { "type": "string", "minLength": 1 },
+        "tool_lf_sha256": { "$ref": "#/$defs/sha256" },
+        "run_on": { "$ref": "#/$defs/date" },
+        "exit_code": { "type": "integer" },
+        "node": { "type": "string", "minLength": 1 },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pin", "status"],
+            "properties": { "pin": { "type": "string", "minLength": 1 }, "status": { "enum": ["ok", "FAIL"] } }
+          }
+        }
+      }
+    },
+    "claims_not_made": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },
+    "claimId": { "type": "string", "pattern": "^[SU]-[A-Z0-9]+(-[A-Z0-9]+)+$" },
+    "supported": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "fixtures"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^S-[A-Z0-9]+(-[A-Z0-9]+)+$" },
+        "statement": { "type": "string", "minLength": 1 },
+        "fixtures": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "unsupported": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "behavior", "statement", "fixtures"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^U-[A-Z0-9]+(-[A-Z0-9]+)+$" },
+        "behavior": { "enum": ["dropped", "misread", "accepted", "rejected", "blocked", "flagged", "not-detected", "not-discovered", "defaulted", "misleading", "not-modeled"] },
+        "statement": { "type": "string", "minLength": 1 },
+        "fixtures": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "version", "integrity", "published", "role", "selected", "recomputable_from"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+        "published": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "selected": { "type": "boolean" },
+        "why_not": { "type": "string", "minLength": 1 },
+        "recomputable_from": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] }
+      }
+    },
+    "document": {
+      "type": "object",
+      "required": ["id", "kind", "sha256", "bytes", "verify_with", "offline_recomputable"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["graphql-spec", "rfc"] },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "offline_recomputable": { "const": false },
+        "verify_with": { "type": "string", "minLength": 1 }
+      }
+    },
+    "tag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "repo", "tag", "commit", "selected"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "repo": { "type": "string", "pattern": "^https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "tag": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "release_name": { "type": "string", "minLength": 1 },
+        "published": { "type": "string", "minLength": 1 },
+        "selected": { "type": "boolean" },
+        "why_not": { "type": "string", "minLength": 1 }
+      }
+    },
+    "absentTags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "repo", "tags"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "repo": { "type": "string", "pattern": "^https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "tags": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

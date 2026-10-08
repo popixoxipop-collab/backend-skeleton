@@ -1,0 +1,1232 @@
+{
+  "schema": "sbf.protocol-target-fixtures/1",
+  "family": "websocket",
+  "generated_on": "2026-10-08",
+  "cases": [
+    {
+      "id": "ws-n01-json-manifest",
+      "kind": "normal",
+      "title": "JSON manifest with two connections, subprotocols and three messages",
+      "claim_ids": [
+        "S-WS-DIRECTION-VOCABULARY",
+        "S-WS-MANIFEST-RECORDS",
+        "S-WS-SERIALIZATION-ORDER-INDEPENDENT",
+        "U-WS-SUBPROTOCOL-RULES"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"version\": \"1\",\n  \"connections\": [\n    {\n      \"id\": \"orders-stream\",\n      \"endpoint\": \"wss://example.test/orders\",\n      \"subprotocols\": [\n        \"v2.orders\",\n        \"v1.orders\"\n      ]\n    },\n    {\n      \"id\": \"admin\",\n      \"endpoint\": \"wss://example.test/admin\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders-stream\",\n      \"name\": \"subscribe\",\n      \"direction\": \"client-to-server\",\n      \"schema_ref\": \"#/$defs/Subscribe\",\n      \"correlation_field\": \"order_id\"\n    },\n    {\n      \"connection_id\": \"orders-stream\",\n      \"name\": \"event\",\n      \"direction\": \"server-to-client\",\n      \"schema_ref\": \"#/$defs/Event\",\n      \"correlation_field\": \"order_id\"\n    },\n    {\n      \"connection_id\": \"admin\",\n      \"name\": \"ping\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "admin wss://example.test/admin []",
+            "orders-stream wss://example.test/orders [v1.orders,v2.orders]"
+          ],
+          "messages": [
+            "admin ping bidirectional - -",
+            "orders-stream event server-to-client #/$defs/Event order_id",
+            "orders-stream subscribe client-to-server #/$defs/Subscribe order_id"
+          ]
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-n02-yaml-manifest",
+      "kind": "normal",
+      "title": "The same manifest spelled as YAML",
+      "claim_ids": [
+        "S-WS-MANIFEST-RECORDS",
+        "S-WS-SERIALIZATION-ORDER-INDEPENDENT"
+      ],
+      "input": {
+        "file": "websocket.yaml",
+        "text": "version: '1'\nconnections:\n  - id: orders-stream\n    endpoint: wss://example.test/orders\n    subprotocols:\n      - v2.orders\n      - v1.orders\n  - id: admin\n    endpoint: wss://example.test/admin\nmessages:\n  - connection_id: orders-stream\n    name: subscribe\n    direction: client-to-server\n    schema_ref: '#/$defs/Subscribe'\n    correlation_field: order_id\n  - connection_id: orders-stream\n    name: event\n    direction: server-to-client\n    schema_ref: '#/$defs/Event'\n    correlation_field: order_id\n  - connection_id: admin\n    name: ping\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "admin wss://example.test/admin []",
+            "orders-stream wss://example.test/orders [v1.orders,v2.orders]"
+          ],
+          "messages": [
+            "admin ping bidirectional - -",
+            "orders-stream event server-to-client #/$defs/Event order_id",
+            "orders-stream subscribe client-to-server #/$defs/Subscribe order_id"
+          ]
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-n03-connection-only",
+      "kind": "normal",
+      "title": "Manifest with one connection and no messages",
+      "claim_ids": [
+        "S-WS-MANIFEST-RECORDS"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"wss://example.test/orders\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders wss://example.test/orders []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-n04-message-without-connection",
+      "kind": "normal",
+      "title": "Manifest with one message that names no connection",
+      "claim_ids": [
+        "S-WS-MANIFEST-RECORDS",
+        "U-WS-MANIFEST-ONLY"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"messages\": [\n    {\n      \"name\": \"heartbeat\",\n      \"direction\": \"bidirectional\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [],
+          "messages": [
+            "- heartbeat bidirectional - -"
+          ]
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c01-lifecycle-keys-ignored",
+      "kind": "counterexample",
+      "title": "Reconnect, heartbeat, close codes, state machine, ack, retry, idempotency and opcode keys",
+      "claim_ids": [
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED",
+        "U-WS-RETRY-IDEMPOTENCY",
+        "U-WS-RFC6455-WIRE",
+        "U-WS-STATE-MACHINE"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"version\": \"1\",\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"wss://example.test/orders\",\n      \"reconnect\": {\n        \"max_attempts\": 5,\n        \"backoff_ms\": 250\n      },\n      \"heartbeat_ms\": 15000,\n      \"close_codes\": [\n        1000,\n        1001\n      ],\n      \"state_machine\": {\n        \"initial\": \"connecting\",\n        \"transitions\": [\n          {\n            \"from\": \"connecting\",\n            \"to\": \"open\"\n          }\n        ]\n      }\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"subscribe\",\n      \"direction\": \"client-to-server\",\n      \"ack\": true,\n      \"retry\": {\n        \"max_attempts\": 3\n      },\n      \"idempotency_key\": \"order_id\",\n      \"opcode\": \"text\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders wss://example.test/orders []"
+          ],
+          "messages": [
+            "orders subscribe client-to-server - -"
+          ]
+        }
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-c01b-lifecycle-keys-absent",
+      "kind": "counterexample",
+      "title": "Control: the same manifest without any lifecycle key",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY",
+        "U-WS-STATE-MACHINE"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"version\": \"1\",\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"wss://example.test/orders\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"subscribe\",\n      \"direction\": \"client-to-server\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders wss://example.test/orders []"
+          ],
+          "messages": [
+            "orders subscribe client-to-server - -"
+          ]
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c02a-endpoint-http-scheme",
+      "kind": "counterexample",
+      "title": "Endpoint with an http scheme",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"http://example.test/orders\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders http://example.test/orders []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c02b-endpoint-fragment",
+      "kind": "counterexample",
+      "title": "Endpoint with a fragment",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"wss://example.test/orders#frag\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders wss://example.test/orders#frag []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c02c-endpoint-relative",
+      "kind": "counterexample",
+      "title": "Relative endpoint",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"/orders\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders /orders []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c02d-endpoint-empty-string",
+      "kind": "counterexample",
+      "title": "Empty endpoint string",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders  []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c03a-version-999",
+      "kind": "counterexample",
+      "title": "Manifest version 999",
+      "claim_ids": [
+        "U-WS-VERSION-NOT-VALIDATED"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"version\": \"999\",\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/999",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c03b-version-zero",
+      "kind": "counterexample",
+      "title": "Manifest version 0",
+      "claim_ids": [
+        "U-WS-VERSION-NOT-VALIDATED"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"version\": 0,\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c03c-version-absent",
+      "kind": "counterexample",
+      "title": "Manifest without a version",
+      "claim_ids": [
+        "U-WS-VERSION-NOT-VALIDATED"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c04-direction-defaults-to-bidirectional",
+      "kind": "counterexample",
+      "title": "Message without a direction",
+      "claim_ids": [
+        "U-WS-DIRECTION-DEFAULT"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"notice\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": [
+            "orders notice bidirectional - -"
+          ]
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c05a-unsupported-direction-skipped",
+      "kind": "counterexample",
+      "title": "One message with an unsupported direction next to a valid one",
+      "claim_ids": [
+        "S-WS-DIRECTION-VOCABULARY",
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"good\",\n      \"direction\": \"client-to-server\"\n    },\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"sideways\",\n      \"direction\": \"sideways\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [
+            {
+              "code": "WEBSOCKET_DIRECTION_UNSUPPORTED",
+              "message": "message sideways has unsupported direction \"sideways\""
+            }
+          ],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": [
+            "orders good client-to-server - -"
+          ]
+        }
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-c05b-only-unsupported-direction",
+      "kind": "counterexample",
+      "title": "Only an unsupported direction",
+      "claim_ids": [
+        "S-WS-DIRECTION-VOCABULARY"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"messages\": [\n    {\n      \"name\": \"sideways\",\n      \"direction\": \"sideways\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [
+            {
+              "code": "WEBSOCKET_DIRECTION_UNSUPPORTED",
+              "message": "message sideways has unsupported direction \"sideways\""
+            },
+            {
+              "code": "WEBSOCKET_MANIFEST_EMPTY",
+              "message": "manifest contains no connections or messages"
+            }
+          ],
+          "connections": [],
+          "messages": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-c05c-direction-control",
+      "kind": "control",
+      "title": "Control: the same two messages with supported directions",
+      "claim_ids": [
+        "S-WS-DIRECTION-VOCABULARY"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"good\",\n      \"direction\": \"client-to-server\"\n    },\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"sideways\",\n      \"direction\": \"server-to-client\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": [
+            "orders good client-to-server - -",
+            "orders sideways server-to-client - -"
+          ]
+        }
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c06-unresolved-connection",
+      "kind": "counterexample",
+      "title": "Message naming a connection the manifest does not declare",
+      "claim_ids": [
+        "U-WS-DIAGNOSTICS"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"ok\",\n      \"direction\": \"client-to-server\"\n    },\n    {\n      \"connection_id\": \"missing\",\n      \"name\": \"lost\",\n      \"direction\": \"server-to-client\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [
+            {
+              "code": "WEBSOCKET_CONNECTION_UNRESOLVED",
+              "message": "message lost references unknown connection \"missing\""
+            },
+            {
+              "code": "WEBSOCKET_MANIFEST_EMPTY",
+              "message": "manifest contains no connections or messages"
+            }
+          ],
+          "connections": [
+            "orders - []"
+          ],
+          "messages": [
+            "orders ok client-to-server - -"
+          ]
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c07-duplicate-connection-id",
+      "kind": "counterexample",
+      "title": "Two connections with one id",
+      "claim_ids": [
+        "U-WS-DIAGNOSTICS"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"wss://example.test/a\"\n    },\n    {\n      \"id\": \"orders\",\n      \"endpoint\": \"wss://example.test/b\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"ok\",\n      \"direction\": \"client-to-server\"\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [
+            {
+              "code": "WEBSOCKET_DUPLICATE_CONNECTION_ID",
+              "message": "duplicate connection id \"orders\""
+            },
+            {
+              "code": "WEBSOCKET_MANIFEST_EMPTY",
+              "message": "manifest contains no connections or messages"
+            }
+          ],
+          "connections": [
+            "orders wss://example.test/a []"
+          ],
+          "messages": [
+            "orders ok client-to-server - -"
+          ]
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-c08-source-code-not-discovered",
+      "kind": "counterexample",
+      "title": "JavaScript source using new WebSocket",
+      "claim_ids": [
+        "U-WS-MANIFEST-ONLY",
+        "U-WS-RFC6455-WIRE"
+      ],
+      "input": {
+        "file": "socket.js",
+        "text": "const socket = new WebSocket('wss://example.test/orders');\nsocket.onmessage = (event) => console.log(event.data);\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "structured protocol document must decode to an object: socket.js"
+      },
+      "manifest_schema_valid": null
+    },
+    {
+      "id": "ws-c09-malformed-entries-skipped-silently",
+      "kind": "counterexample",
+      "title": "Connection and message entries of the wrong shape",
+      "claim_ids": [
+        "U-WS-DIAGNOSTICS",
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"endpoint\": \"wss://example.test/no-id\"\n    },\n    {\n      \"id\": 7\n    },\n    \"orders\"\n  ],\n  \"messages\": [\n    {\n      \"direction\": \"client-to-server\"\n    },\n    {\n      \"name\": 42\n    },\n    null\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [
+            {
+              "code": "WEBSOCKET_MANIFEST_EMPTY",
+              "message": "manifest contains no connections or messages"
+            }
+          ],
+          "connections": [],
+          "messages": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-c10-subprotocol-order-and-uniqueness",
+      "kind": "counterexample",
+      "title": "Unsorted, non-string and duplicate subprotocols",
+      "claim_ids": [
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED",
+        "U-WS-SUBPROTOCOL-RULES"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\",\n      \"subprotocols\": [\n        \"b\",\n        \"a\",\n        7,\n        \"a\"\n      ]\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [],
+          "connections": [
+            "orders - [7,a,a,b]"
+          ],
+          "messages": []
+        }
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-x01-empty-object",
+      "kind": "negative",
+      "title": "Empty JSON object",
+      "claim_ids": [
+        "S-WS-BLOCKED-AND-ERRORS",
+        "U-WS-MANIFEST-ONLY"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{}"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "bskel-websocket-manifest/1",
+          "adapter": "websocket-manifest",
+          "warnings": [
+            {
+              "code": "WEBSOCKET_MANIFEST_EMPTY",
+              "message": "manifest contains no connections or messages"
+            }
+          ],
+          "connections": [],
+          "messages": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "manifest_schema_valid": true
+    },
+    {
+      "id": "ws-x02-top-level-array",
+      "kind": "negative",
+      "title": "Top-level array",
+      "claim_ids": [
+        "S-WS-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "[]"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "structured protocol document must decode to an object: websocket.json"
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-x03-invalid-json",
+      "kind": "negative",
+      "title": "Truncated JSON",
+      "claim_ids": [
+        "S-WS-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\"connections\": ["
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "invalid JSON protocol document websocket.json: "
+      },
+      "manifest_schema_valid": null
+    },
+    {
+      "id": "ws-x04-remote-ref-denied",
+      "kind": "negative",
+      "title": "Remote $ref as schema_ref",
+      "claim_ids": [
+        "S-WS-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "websocket.json",
+        "text": "{\n  \"connections\": [\n    {\n      \"id\": \"orders\"\n    }\n  ],\n  \"messages\": [\n    {\n      \"connection_id\": \"orders\",\n      \"name\": \"event\",\n      \"direction\": \"server-to-client\",\n      \"schema_ref\": {\n        \"$ref\": \"https://example.test/event.json\"\n      }\n    }\n  ]\n}\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "remote $ref is disabled by default at #/messages/0/schema_ref/$ref"
+      },
+      "manifest_schema_valid": false
+    },
+    {
+      "id": "ws-x05-scalar-document",
+      "kind": "negative",
+      "title": "Plain text document",
+      "claim_ids": [
+        "S-WS-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "websocket.yaml",
+        "text": "just a sentence\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "structured protocol document must decode to an object: websocket.yaml"
+      },
+      "manifest_schema_valid": false
+    }
+  ],
+  "equivalences": [
+    {
+      "id": "ws-eq-lifecycle-keys",
+      "kind": "planes",
+      "cases": [
+        "ws-c01-lifecycle-keys-ignored",
+        "ws-c01b-lifecycle-keys-absent"
+      ],
+      "reason": "lifecycle, retry and opcode keys do not reach the contract"
+    },
+    {
+      "id": "ws-eq-serialization",
+      "kind": "projection",
+      "cases": [
+        "ws-n01-json-manifest",
+        "ws-n02-yaml-manifest"
+      ],
+      "reason": "JSON and YAML spellings of one manifest give one projection"
+    }
+  ],
+  "contrasts": [
+    {
+      "id": "ws-ct-unsupported-direction",
+      "cases": [
+        "ws-c05a-unsupported-direction-skipped",
+        "ws-c05c-direction-control"
+      ],
+      "differ_in": [
+        "messages"
+      ]
+    }
+  ],
+  "determinism": [
+    {
+      "id": "ws-det-n01",
+      "base_case": "ws-n01-json-manifest",
+      "transforms": [
+        "crlf",
+        "no-final-newline",
+        "reverse-json-keys",
+        "reverse-arrays"
+      ]
+    },
+    {
+      "id": "ws-det-n02",
+      "base_case": "ws-n02-yaml-manifest",
+      "transforms": [
+        "crlf",
+        "no-final-newline",
+        "yaml-to-json",
+        "yaml-to-json+reverse-arrays"
+      ]
+    }
+  ],
+  "flow_cases": [
+    {
+      "id": "ws-f01-connect-then-subscribe-ordering",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "connect",
+          "action": {
+            "plane": "connections",
+            "match": {
+              "id": "orders-stream"
+            }
+          }
+        },
+        {
+          "id": "subscribe",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "subscribe"
+            }
+          },
+          "after": [
+            "connect"
+          ]
+        }
+      ],
+      "title": "Connect then subscribe ordering is an explicit step declaration",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "connect",
+            "plane": "connections",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          },
+          {
+            "id": "subscribe",
+            "plane": "messages",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [
+              "connect"
+            ],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [
+            {
+              "before": "connect",
+              "after": "subscribe",
+              "provenance": "explicit-after"
+            }
+          ],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": []
+      }
+    },
+    {
+      "id": "ws-f02-message-step-without-connection-step",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "subscribe",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "subscribe"
+            }
+          }
+        }
+      ],
+      "title": "A message step is accepted without any connection step",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "subscribe",
+            "plane": "messages",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": []
+      }
+    },
+    {
+      "id": "ws-f03-server-push-ordered-before-request",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "event",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "event"
+            }
+          }
+        },
+        {
+          "id": "subscribe",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "subscribe"
+            }
+          },
+          "after": [
+            "event"
+          ]
+        }
+      ],
+      "title": "A server push ordered before the client request is accepted",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "event",
+            "plane": "messages",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          },
+          {
+            "id": "subscribe",
+            "plane": "messages",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [
+              "event"
+            ],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [
+            {
+              "before": "event",
+              "after": "subscribe",
+              "provenance": "explicit-after"
+            }
+          ],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": []
+      }
+    },
+    {
+      "id": "ws-f04-retry-and-idempotency-on-server-push",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "event",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "event"
+            }
+          },
+          "retry": {
+            "max_attempts": 4,
+            "backoff_ms": 50
+          },
+          "idempotency": {
+            "key_ref": "payload.request_id"
+          }
+        }
+      ],
+      "title": "Retry and idempotency are accepted on a server push",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "event",
+            "plane": "messages",
+            "retry": {
+              "max_attempts": 4,
+              "backoff_ms": 50
+            },
+            "idempotency": {
+              "key_ref": "payload.request_id",
+              "required": true
+            },
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": []
+      }
+    },
+    {
+      "id": "ws-f05-lifecycle-fields-dropped",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "subscribe",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "subscribe"
+            }
+          },
+          "state": "open",
+          "reconnect": {
+            "max_attempts": 5
+          },
+          "close_code": 1001,
+          "ack": true
+        }
+      ],
+      "title": "state, reconnect, close_code and ack step fields are silently dropped",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY",
+        "U-WS-STATE-MACHINE"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "subscribe",
+            "plane": "messages",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": [
+          "ack",
+          "close_code",
+          "reconnect",
+          "state"
+        ],
+        "digest_equal_without_dropped": true
+      }
+    },
+    {
+      "id": "ws-f06-reconnect-retry-on-connection-step",
+      "scan_case": "ws-c01-lifecycle-keys-ignored",
+      "family": "websocket",
+      "contrast": {
+        "scan_case": "ws-c01b-lifecycle-keys-absent"
+      },
+      "steps": [
+        {
+          "id": "connect",
+          "action": {
+            "plane": "connections",
+            "match": {
+              "id": "orders"
+            }
+          },
+          "retry": {
+            "max_attempts": 5,
+            "backoff_ms": 250
+          }
+        }
+      ],
+      "title": "A reconnect retry on a connection step is independent of the manifest reconnect key",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "connect",
+            "plane": "connections",
+            "retry": {
+              "max_attempts": 5,
+              "backoff_ms": 250
+            },
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": [],
+        "contrast_projection_equal": true
+      }
+    },
+    {
+      "id": "ws-f07-ordering-cycle-rejected",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "connect",
+          "action": {
+            "plane": "connections",
+            "match": {
+              "id": "orders-stream"
+            }
+          },
+          "after": [
+            "subscribe"
+          ]
+        },
+        {
+          "id": "subscribe",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "subscribe"
+            }
+          },
+          "after": [
+            "connect"
+          ]
+        }
+      ],
+      "title": "A cyclic ordering is rejected",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "expect": {
+        "outcome": "rejected",
+        "error": "protocol flow ordering contains a cycle at step connect"
+      }
+    },
+    {
+      "id": "ws-f08-backoff-negative-rejected",
+      "scan_case": "ws-n01-json-manifest",
+      "family": "websocket",
+      "steps": [
+        {
+          "id": "subscribe",
+          "action": {
+            "plane": "messages",
+            "match": {
+              "name": "subscribe"
+            }
+          },
+          "retry": {
+            "max_attempts": 2,
+            "backoff_ms": -1
+          }
+        }
+      ],
+      "title": "A negative retry backoff is rejected",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY"
+      ],
+      "expect": {
+        "outcome": "rejected",
+        "error": "step subscribe retry.backoff_ms must be >= 0"
+      }
+    }
+  ]
+}

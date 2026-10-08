@@ -1,0 +1,578 @@
+{
+  "schema": "sbf.protocol-target-scope/1",
+  "target": {
+    "id": "PROTO-graphql-01",
+    "family": "graphql",
+    "title": "GraphQL SDL and introspection importer"
+  },
+  "plan_write_scope": {
+    "declared": "adapters/protocol/graphql/**",
+    "actual": [
+      "adapters/protocol-next/targets/graphql/**",
+      "adapters/protocol-next/schemas/protocol-target-scope.schema.json",
+      "test/protocol-next/**"
+    ],
+    "reason": "The directory adapters/protocol/ does not exist; the T18 protocol suite owns adapters/protocol-next/** (implementation, records) and test/protocol-next/** (tests, fixtures)."
+  },
+  "status": "scope-recorded",
+  "verified_on": "2026-10-08",
+  "adapter": {
+    "entry": "adapters/protocol-next/scanners/protocol-loaders.mjs#loadProtocolArtifact",
+    "dependencies": [
+      "yaml"
+    ]
+  },
+  "profile": {
+    "inputs": [
+      "SDL documents (.graphql, .gql, .graphqls)",
+      "introspection result JSON ({\"data\":{\"__schema\":...}} or {\"__schema\":...})"
+    ],
+    "dialects": [
+      "graphql-introspection-json",
+      "graphql-sdl"
+    ],
+    "scan_status": "partial",
+    "versions": {
+      "importer_spec_edition": "UNKNOWN: SDL carries no edition and the importer implements no edition grammar; the editions below are references for the recorded claims, not importer properties",
+      "reference_editions": [
+        "October2021",
+        "September2025"
+      ],
+      "reference_libraries": [
+        "graphql 16.14.2",
+        "graphql 17.0.2"
+      ],
+      "edition_to_library_mapping": "UNKNOWN: the graphql-js documentation declares no specification edition for either release",
+      "edition_dependent_syntax": "the token oneOf occurs 0 times in the October2021 Type System section and 10 times in the September2025 one; both library versions accept it, and the importer ignores it like any directive"
+    }
+  },
+  "pins": {
+    "libraries": [
+      {
+        "id": "lib-graphql-16.14.2",
+        "name": "graphql",
+        "version": "16.14.2",
+        "integrity": "sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==",
+        "published": "2026-06-09T09:08:23.122Z",
+        "role": "reference library of the static oracle run",
+        "selected": true,
+        "recomputable_from": "test/protocol-next/fixtures/targets/oracle-locks/gql16.lock.json"
+      },
+      {
+        "id": "lib-graphql-17.0.2",
+        "name": "graphql",
+        "version": "17.0.2",
+        "integrity": "sha512-FRWbddMxfkjiB7z+aQDWIR+E34xo9I8c9mtK2RPv8PmMzKRvrdsreHL/Ui/TmwHJfhHChEtsFPyMHKI+xuarQQ==",
+        "published": "2026-07-03T06:28:49.985Z",
+        "role": "reference library of the static oracle run",
+        "selected": true,
+        "recomputable_from": "test/protocol-next/fixtures/targets/oracle-locks/gql17.lock.json"
+      },
+      {
+        "id": "lib-yaml-2.9.0",
+        "name": "yaml",
+        "version": "2.9.0",
+        "integrity": "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==",
+        "published": "2026-05-11T10:16:24.045Z",
+        "role": "importer runtime dependency (YAML and JSON document decoding), version from the root lock",
+        "selected": true,
+        "recomputable_from": "package-lock.json"
+      }
+    ],
+    "documents": [
+      {
+        "id": "doc-graphql-spec-october2021",
+        "edition": "October2021",
+        "tag": "October2021",
+        "commit": "51337a9b820e296fa7d03ae77d534cb4b247c201",
+        "commit_date": "2021-10-27",
+        "blob": "d164550ccc0f8a4b592f396d09924d2865f28853",
+        "sha256": "fa2bd4600883bf365116b8fad7900ca9d9bbabde687f097a98a799a40f2cd98c",
+        "bytes": 70894,
+        "one_of_mentions": 0,
+        "kind": "graphql-spec",
+        "repo": "https://github.com/graphql/graphql-spec",
+        "path": "spec/Section 3 -- Type System.md",
+        "offline_recomputable": false,
+        "verify_with": "test/protocol-next/tools/verify-target-pins.mjs"
+      },
+      {
+        "id": "doc-graphql-spec-september2025",
+        "edition": "September2025",
+        "tag": "September2025",
+        "commit": "89d93ebbe05db06787646d76a696ead8de117b2b",
+        "commit_date": "2025-09-04",
+        "blob": "44760852ccf7971cdd65f0d824343e4f7b828e0e",
+        "sha256": "5456b4674b8079eb5651f1d682025453f6aa4f1d3aa8cdab35332947139ca843",
+        "bytes": 81291,
+        "one_of_mentions": 10,
+        "kind": "graphql-spec",
+        "repo": "https://github.com/graphql/graphql-spec",
+        "path": "spec/Section 3 -- Type System.md",
+        "offline_recomputable": false,
+        "verify_with": "test/protocol-next/tools/verify-target-pins.mjs"
+      }
+    ],
+    "tags": [],
+    "absent_tags": []
+  },
+  "supported": [
+    {
+      "id": "S-GQL-SDL-DECLARATIONS",
+      "statement": "SDL documents (.graphql, .gql, .graphqls) yield one record per type, interface, input, enum, union and scalar declaration, with kind, name, file and line.",
+      "fixtures": [
+        "gql-n01-sdl-explicit-roots",
+        "gql-n02-sdl-implicit-roots"
+      ]
+    },
+    {
+      "id": "S-GQL-SDL-FIELDS",
+      "statement": "Field declarations of object, interface and input types are recorded, with the type text kept verbatim on one line (it is not canonicalized).",
+      "fixtures": [
+        "gql-n01-sdl-explicit-roots",
+        "gql-n02-sdl-implicit-roots",
+        "gql-c13-type-text-not-canonicalized"
+      ]
+    },
+    {
+      "id": "S-GQL-SDL-ROOT-OPERATIONS",
+      "statement": "Root operations come from an explicit schema definition (schema { query: X }) or from the implicit Query, Mutation and Subscription types; every root field is one operation record.",
+      "fixtures": [
+        "gql-n01-sdl-explicit-roots",
+        "gql-n02-sdl-implicit-roots",
+        "gql-c03b-schema-definition-without-directive"
+      ]
+    },
+    {
+      "id": "S-GQL-COMMENTS-MASKED",
+      "statement": "Line comments, block strings and single-line description strings are masked before declarations are read, so declarations written inside them are not recorded.",
+      "fixtures": [
+        "gql-n03-sdl-comments-and-strings-masked"
+      ]
+    },
+    {
+      "id": "S-GQL-INTROSPECTION",
+      "statement": "Introspection JSON, either {\"data\":{\"__schema\":...}} or {\"__schema\":...}, yields type, field and root-operation records including field arguments with default values; the introspection kind names (object, input_object) are kept as they are.",
+      "fixtures": [
+        "gql-n04-introspection-data-wrapper",
+        "gql-n05-introspection-bare-schema",
+        "gql-c07b-introspection-arguments-kept"
+      ]
+    },
+    {
+      "id": "S-GQL-BLOCKED-ON-NO-DECLARATIONS",
+      "statement": "A document without any type declaration (empty, comment-only, or executable operations only) is blocked with GRAPHQL_TYPES_NOT_FOUND and cannot produce a protocol contract; introspection input that is not valid JSON or has no __schema raises an error.",
+      "fixtures": [
+        "gql-x01-empty-document",
+        "gql-x02-comment-only-document",
+        "gql-x04-introspection-without-schema",
+        "gql-x05-introspection-invalid-json",
+        "gql-x06-executable-operation-document"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U-GQL-SPEC-EDITION",
+      "behavior": "not-detected",
+      "statement": "No GraphQL specification edition is detected, enforced or recorded: SDL carries no edition, the importer implements no edition grammar, and edition-dependent syntax (@oneOf: the token oneOf occurs 0 times in the October 2021 Type System section and 10 times in the September 2025 one) is ignored like any other directive. The edition pinned in SCOPE.json is the reference for these claims, not an importer property.",
+      "fixtures": [
+        "gql-c11-oneof-input-edition-dependent",
+        "gql-n01-sdl-explicit-roots"
+      ]
+    },
+    {
+      "id": "U-GQL-DIRECTIVES",
+      "behavior": "dropped",
+      "statement": "Directive definitions and usages are not recorded: adding or removing them leaves the contract unchanged, and a directive written on the schema definition hides its root operations.",
+      "fixtures": [
+        "gql-c02-directives-not-recorded",
+        "gql-c02b-directives-stripped",
+        "gql-c03-schema-definition-with-directive",
+        "gql-c03b-schema-definition-without-directive",
+        "gql-c01-federation-subgraph"
+      ]
+    },
+    {
+      "id": "U-GQL-FEDERATION",
+      "behavior": "dropped",
+      "statement": "No federation semantics: @key, @link, @shareable, entity resolution, the _entities and _service fields and Federation 1 extend type are read as plain declarations; nothing marks a subgraph, an entity or a key.",
+      "fixtures": [
+        "gql-c01-federation-subgraph",
+        "gql-c01b-federation-v1-extend-type"
+      ]
+    },
+    {
+      "id": "U-GQL-TYPE-EXTENSIONS",
+      "behavior": "misread",
+      "statement": "extend type is recorded as a second, plain type declaration; it is indistinguishable from a duplicate definition and is not merged into the extended type.",
+      "fixtures": [
+        "gql-c06-extend-type",
+        "gql-c09c-duplicate-type-definition"
+      ]
+    },
+    {
+      "id": "U-GQL-SDL-ARGUMENTS",
+      "behavior": "dropped",
+      "statement": "Field arguments and their default values are not recorded for SDL input (they are for introspection input), so operation signatures from SDL carry no arguments.",
+      "fixtures": [
+        "gql-c07-sdl-arguments-dropped",
+        "gql-c07c-sdl-arguments-removed",
+        "gql-c07b-introspection-arguments-kept"
+      ]
+    },
+    {
+      "id": "U-GQL-TYPE-RELATIONS",
+      "behavior": "dropped",
+      "statement": "implements clauses, union member lists and enum values are not recorded.",
+      "fixtures": [
+        "gql-c12-implements-union-enum-members",
+        "gql-c12b-members-replaced"
+      ]
+    },
+    {
+      "id": "U-GQL-MULTILINE-DECLARATIONS",
+      "behavior": "misread",
+      "statement": "The scanner is line oriented: a declaration whose opening brace is not on the declaration line is recorded without fields and operations, and nested list types are truncated (the field type [[Int]] is read as [[Int]).",
+      "fixtures": [
+        "gql-c04-brace-on-next-line",
+        "gql-c04b-brace-on-same-line",
+        "gql-c05-nested-list-type",
+        "gql-c05b-single-list-type"
+      ]
+    },
+    {
+      "id": "U-GQL-SCHEMA-VALIDATION",
+      "behavior": "accepted",
+      "statement": "No schema validation: undefined type references, duplicate type definitions, two schema definitions and an interface used as the query root are accepted without a warning.",
+      "fixtures": [
+        "gql-c09a-two-schema-definitions",
+        "gql-c09b-undefined-type-reference",
+        "gql-c09c-duplicate-type-definition",
+        "gql-c10-interface-named-as-root"
+      ]
+    },
+    {
+      "id": "U-GQL-RESOLVERS",
+      "behavior": "rejected",
+      "statement": "Resolver source code is not an input: a JavaScript resolver module is rejected as an undecodable document, and no resolver wiring or resolver behaviour is extracted from anywhere.",
+      "fixtures": [
+        "gql-x03-resolver-source-is-not-an-input"
+      ]
+    },
+    {
+      "id": "U-GQL-EXECUTABLE-DOCUMENTS",
+      "behavior": "blocked",
+      "statement": "Executable documents (operations and fragments) are not schema inputs; they are blocked like an empty document.",
+      "fixtures": [
+        "gql-x06-executable-operation-document"
+      ]
+    }
+  ],
+  "counterexamples": [
+    {
+      "fixture": "gql-c01-federation-subgraph",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES",
+        "U-GQL-FEDERATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c01b-federation-v1-extend-type",
+      "claim_ids": [
+        "U-GQL-FEDERATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c02-directives-not-recorded",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c02b-directives-stripped",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES"
+      ],
+      "control": "gql-c02-directives-not-recorded"
+    },
+    {
+      "fixture": "gql-c03-schema-definition-with-directive",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES"
+      ],
+      "control": "gql-c03b-schema-definition-without-directive"
+    },
+    {
+      "fixture": "gql-c03b-schema-definition-without-directive",
+      "claim_ids": [
+        "S-GQL-SDL-ROOT-OPERATIONS",
+        "U-GQL-DIRECTIVES"
+      ],
+      "control": "gql-c03-schema-definition-with-directive"
+    },
+    {
+      "fixture": "gql-c04-brace-on-next-line",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "control": "gql-c04b-brace-on-same-line"
+    },
+    {
+      "fixture": "gql-c04b-brace-on-same-line",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "control": "gql-c04-brace-on-next-line"
+    },
+    {
+      "fixture": "gql-c05-nested-list-type",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "control": "gql-c05b-single-list-type"
+    },
+    {
+      "fixture": "gql-c05b-single-list-type",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "control": "gql-c05-nested-list-type"
+    },
+    {
+      "fixture": "gql-c06-extend-type",
+      "claim_ids": [
+        "U-GQL-TYPE-EXTENSIONS"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c07-sdl-arguments-dropped",
+      "claim_ids": [
+        "U-GQL-SDL-ARGUMENTS"
+      ],
+      "control": "gql-c07b-introspection-arguments-kept"
+    },
+    {
+      "fixture": "gql-c07c-sdl-arguments-removed",
+      "claim_ids": [
+        "U-GQL-SDL-ARGUMENTS"
+      ],
+      "control": "gql-c07-sdl-arguments-dropped"
+    },
+    {
+      "fixture": "gql-c07b-introspection-arguments-kept",
+      "claim_ids": [
+        "S-GQL-INTROSPECTION",
+        "U-GQL-SDL-ARGUMENTS"
+      ],
+      "control": "gql-c07-sdl-arguments-dropped"
+    },
+    {
+      "fixture": "gql-c09a-two-schema-definitions",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c09b-undefined-type-reference",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c09c-duplicate-type-definition",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION",
+        "U-GQL-TYPE-EXTENSIONS"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c10-interface-named-as-root",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c11-oneof-input-edition-dependent",
+      "claim_ids": [
+        "U-GQL-SPEC-EDITION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c12-implements-union-enum-members",
+      "claim_ids": [
+        "U-GQL-TYPE-RELATIONS"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "gql-c12b-members-replaced",
+      "claim_ids": [
+        "U-GQL-TYPE-RELATIONS"
+      ],
+      "control": "gql-c12-implements-union-enum-members"
+    },
+    {
+      "fixture": "gql-c13-type-text-not-canonicalized",
+      "claim_ids": [
+        "S-GQL-SDL-FIELDS"
+      ],
+      "control": null
+    }
+  ],
+  "fixture_corpus": {
+    "path": "test/protocol-next/fixtures/targets/graphql.fixtures.json",
+    "canonical_sha256": "9b2190f36405b8d43b33cde335f738bf695ac21291f06866eeabf27766907efe",
+    "cases": 33,
+    "flow_cases": 0,
+    "kinds": {
+      "normal": 5,
+      "counterexample": 22,
+      "negative": 6
+    }
+  },
+  "runtime_oracle": {
+    "runtime_tested": false,
+    "runtime": {
+      "status": "BLOCKED",
+      "reason": "No GraphQL server, gateway or federation subgraph is started or queried, and no resolver is executed. The isolated runtime oracle (T18-05) is itself blocked on the T16 runtime plane (adapters/protocol-next/docs/T18_TO_T16_PROTOCOL_ORACLE_HANDOFF.md), so no Runtime-tested claim exists.",
+      "blocked_by": [
+        "T18-05",
+        "T16"
+      ]
+    },
+    "oracle": {
+      "status": "RUN-static",
+      "kind": "static declaration and acceptance comparison against graphql-js (no server executed)",
+      "evidence": {
+        "path": "test/protocol-next/fixtures/targets/graphql.oracle.json",
+        "canonical_sha256": "3dd22310097c06a36a160b0a8b92f0c5b30def705a1283ff934807270e7bbb3d",
+        "generated_on": "2026-10-08",
+        "tool": {
+          "path": "test/protocol-next/tools/target-oracle.mjs",
+          "lf_sha256": "31e545befb6e889ff4c1ed311c0b8c8ae9930a5d79c8e9c0e708e444fbf8bad4"
+        },
+        "packages": [
+          {
+            "name": "graphql",
+            "version": "16.14.2"
+          },
+          {
+            "name": "graphql",
+            "version": "17.0.2"
+          }
+        ]
+      },
+      "summary": {
+        "compared": 32,
+        "agree_on_acceptance": 27,
+        "adapter_accepts_oracle_rejects": [
+          "gql-c01b-federation-v1-extend-type",
+          "gql-c09a-two-schema-definitions",
+          "gql-c09b-undefined-type-reference",
+          "gql-c09c-duplicate-type-definition",
+          "gql-c10-interface-named-as-root"
+        ],
+        "with_divergent_categories": [
+          "gql-c01-federation-subgraph",
+          "gql-c03-schema-definition-with-directive",
+          "gql-c04-brace-on-next-line",
+          "gql-c05-nested-list-type",
+          "gql-c06-extend-type",
+          "gql-c07-sdl-arguments-dropped",
+          "gql-c11-oneof-input-edition-dependent",
+          "gql-n01-sdl-explicit-roots",
+          "gql-n02-sdl-implicit-roots",
+          "gql-n04-introspection-data-wrapper",
+          "gql-n05-introspection-bare-schema"
+        ]
+      },
+      "limits": [
+        "Compares declaration lists (types, fields, root operations) and whether the document is accepted; it executes no server and no resolver.",
+        "graphql-js is a validator of GraphQL documents, not an independent conformance suite for the importer; the run covers this corpus only.",
+        "Argument default values are excluded from the comparison because graphql-js 16 and 17 expose them differently.",
+        "Versions 16.14.2 and 17.0.2 agreed on every compared case, so the run says nothing about version dependent behavior."
+      ]
+    }
+  },
+  "pin_verification": {
+    "tool": "test/protocol-next/tools/verify-target-pins.mjs",
+    "tool_lf_sha256": "eff6fefc390e0f3d0da5027c21153ce053d433574fc74837cc7b0222f34f13ab",
+    "run_on": "2026-10-08",
+    "exit_code": 0,
+    "node": "v24.19.0",
+    "checks": [
+      {
+        "pin": "lib-graphql-16.14.2 integrity",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-graphql-16.14.2 published",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-graphql-17.0.2 integrity",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-graphql-17.0.2 published",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-yaml-2.9.0 integrity",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-yaml-2.9.0 published",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-october2021 tag",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-october2021 file",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-october2021 git blob",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-october2021 oneOf mentions",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-september2025 tag",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-september2025 file",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-september2025 git blob",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-graphql-spec-september2025 oneOf mentions",
+        "status": "ok"
+      }
+    ]
+  },
+  "claims_not_made": [
+    "No GraphQL specification edition is claimed for the importer: the pinned editions are references for the recorded claims, not an importer property, and no mapping from a graphql-js release to an edition is documented (UNKNOWN).",
+    "No claim for federation, directives, type extensions, SDL arguments, implements, union and enum members, multi-line declarations, schema validation, resolvers or executable documents (see the unsupported list).",
+    "Not Runtime-tested: nothing was executed against a GraphQL server.",
+    "The static oracle run is not an independent conformance claim for the importer."
+  ]
+}

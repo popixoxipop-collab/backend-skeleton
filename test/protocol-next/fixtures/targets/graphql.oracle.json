@@ -1,0 +1,1785 @@
+{
+  "schema": "sbf.protocol-target-oracle-evidence/1",
+  "family": "graphql",
+  "generated_on": "2026-10-08",
+  "claim": "Static comparison of the real protocol importer with an independent reference implementation. This is not runtime evidence and not certification.",
+  "runtime_tested": false,
+  "environment": {
+    "node": "v24.19.0",
+    "npm": "11.17.0",
+    "platform": "darwin-arm64"
+  },
+  "tool": {
+    "path": "test/protocol-next/tools/target-oracle.mjs",
+    "lf_sha256": "31e545befb6e889ff4c1ed311c0b8c8ae9930a5d79c8e9c0e708e444fbf8bad4"
+  },
+  "helpers": {
+    "path": "test/protocol-next/_target-helpers.mjs",
+    "lf_sha256": "cd6383f7bccf3e912b7ccb4f9da3138969571787e99e60aa8bb53ef3616c1122"
+  },
+  "fixtures": {
+    "path": "test/protocol-next/fixtures/targets/graphql.fixtures.json",
+    "compared_case_ids": [
+      "gql-c01-federation-subgraph",
+      "gql-c01b-federation-v1-extend-type",
+      "gql-c02-directives-not-recorded",
+      "gql-c02b-directives-stripped",
+      "gql-c03-schema-definition-with-directive",
+      "gql-c03b-schema-definition-without-directive",
+      "gql-c04-brace-on-next-line",
+      "gql-c04b-brace-on-same-line",
+      "gql-c05-nested-list-type",
+      "gql-c05b-single-list-type",
+      "gql-c06-extend-type",
+      "gql-c07-sdl-arguments-dropped",
+      "gql-c07b-introspection-arguments-kept",
+      "gql-c07c-sdl-arguments-removed",
+      "gql-c09a-two-schema-definitions",
+      "gql-c09b-undefined-type-reference",
+      "gql-c09c-duplicate-type-definition",
+      "gql-c10-interface-named-as-root",
+      "gql-c11-oneof-input-edition-dependent",
+      "gql-c12-implements-union-enum-members",
+      "gql-c12b-members-replaced",
+      "gql-c13-type-text-not-canonicalized",
+      "gql-n01-sdl-explicit-roots",
+      "gql-n02-sdl-implicit-roots",
+      "gql-n03-sdl-comments-and-strings-masked",
+      "gql-n04-introspection-data-wrapper",
+      "gql-n05-introspection-bare-schema",
+      "gql-x01-empty-document",
+      "gql-x02-comment-only-document",
+      "gql-x04-introspection-without-schema",
+      "gql-x05-introspection-invalid-json",
+      "gql-x06-executable-operation-document"
+    ],
+    "compared_inputs_sha256": "2397d9588ef1dac7fddc1776e6ad1b7fd80660b0baad038f7a688ffddb0a3b7e"
+  },
+  "oracle_packages": [
+    {
+      "group": "gql16",
+      "install": {
+        "performed_by_tool": true,
+        "command": "npm install --ignore-scripts --no-audit --no-fund --save-exact graphql@16.14.2",
+        "exit_code": 0
+      },
+      "lockfile": {
+        "path": "test/protocol-next/fixtures/targets/oracle-locks/gql16.lock.json",
+        "lf_sha256": "04d12c7e5374dc26d19493cc2894af3ccc08afdd75dd30e052c8839039627276"
+      },
+      "packages": [
+        {
+          "name": "graphql",
+          "version": "16.14.2",
+          "integrity": "sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA=="
+        }
+      ]
+    },
+    {
+      "group": "gql17",
+      "install": {
+        "performed_by_tool": true,
+        "command": "npm install --ignore-scripts --no-audit --no-fund --save-exact graphql@17.0.2",
+        "exit_code": 0
+      },
+      "lockfile": {
+        "path": "test/protocol-next/fixtures/targets/oracle-locks/gql17.lock.json",
+        "lf_sha256": "da22d6a11a7e79d8b4c2ebe6dd88208a5406b68fad2d3c3291567d25b80dfa1a"
+      },
+      "packages": [
+        {
+          "name": "graphql",
+          "version": "17.0.2",
+          "integrity": "sha512-FRWbddMxfkjiB7z+aQDWIR+E34xo9I8c9mtK2RPv8PmMzKRvrdsreHL/Ui/TmwHJfhHChEtsFPyMHKI+xuarQQ=="
+        }
+      ]
+    }
+  ],
+  "normalization": [
+    "introspection kinds object and input_object are mapped to type and input",
+    "whitespace inside type references is removed",
+    "built-in scalars (Boolean, Float, ID, Int, String) and double-underscore meta types are excluded on both sides",
+    "argument default values are excluded (graphql-js 16 exposes defaultValue, graphql-js 17 deprecates it in favour of default.literal)",
+    "schemas holds a root list only when the document has an explicit schema definition or is an introspection result"
+  ],
+  "results": {
+    "gql-n01-sdl-explicit-roots": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [
+            "query=RootQuery mutation=RootMutation"
+          ],
+          "types": [
+            "enum Status",
+            "input OrderInput",
+            "interface Node",
+            "scalar DateTime",
+            "type Order",
+            "type RootMutation",
+            "type RootQuery",
+            "union SearchResult"
+          ],
+          "fields": [
+            "Node.id: ID!",
+            "Order.id: ID!",
+            "Order.total: Float",
+            "OrderInput.total: Float!",
+            "RootMutation.createOrder(input: OrderInput!): Order",
+            "RootQuery.order(id: ID!, verbose: Boolean): Order",
+            "RootQuery.orders: [Order!]!"
+          ],
+          "operations": [
+            "mutation RootMutation.createOrder(input: OrderInput!): Order",
+            "query RootQuery.order(id: ID!, verbose: Boolean): Order",
+            "query RootQuery.orders: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [
+              "Status: CLOSED,OPEN"
+            ],
+            "implements": [
+              "Order implements Node"
+            ],
+            "union_members": [
+              "SearchResult = Order"
+            ]
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [
+              "RootMutation.createOrder: Order",
+              "RootQuery.order: Order"
+            ],
+            "only_oracle": [
+              "RootMutation.createOrder(input: OrderInput!): Order",
+              "RootQuery.order(id: ID!, verbose: Boolean): Order"
+            ]
+          },
+          "operations": {
+            "only_adapter": [
+              "mutation RootMutation.createOrder: Order",
+              "query RootQuery.order: Order"
+            ],
+            "only_oracle": [
+              "mutation RootMutation.createOrder(input: OrderInput!): Order",
+              "query RootQuery.order(id: ID!, verbose: Boolean): Order"
+            ]
+          }
+        }
+      }
+    },
+    "gql-n02-sdl-implicit-roots": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Mutation",
+            "type Query",
+            "type Subscription"
+          ],
+          "fields": [
+            "Mutation.reset(confirm: Boolean!): Boolean",
+            "Query.ping: String",
+            "Subscription.ticks: Int"
+          ],
+          "operations": [
+            "mutation Mutation.reset(confirm: Boolean!): Boolean",
+            "query Query.ping: String",
+            "subscription Subscription.ticks: Int"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [
+              "Mutation.reset: Boolean"
+            ],
+            "only_oracle": [
+              "Mutation.reset(confirm: Boolean!): Boolean"
+            ]
+          },
+          "operations": {
+            "only_adapter": [
+              "mutation Mutation.reset: Boolean"
+            ],
+            "only_oracle": [
+              "mutation Mutation.reset(confirm: Boolean!): Boolean"
+            ]
+          }
+        }
+      }
+    },
+    "gql-n03-sdl-comments-and-strings-masked": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.ping: String"
+          ],
+          "operations": [
+            "query Query.ping: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-n04-introspection-data-wrapper": {
+      "oracle": {
+        "input_kind": "introspection",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [
+            "query=Query mutation=Mutation"
+          ],
+          "types": [
+            "enum Status",
+            "input OrderInput",
+            "type Mutation",
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Mutation.createOrder(input: OrderInput!): Order",
+            "Order.id: ID!",
+            "Order.total: Float",
+            "OrderInput.total: Float!",
+            "Query.order(id: ID!, verbose: Boolean): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "mutation Mutation.createOrder(input: OrderInput!): Order",
+            "query Query.order(id: ID!, verbose: Boolean): Order",
+            "query Query.orders: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [
+              "Status: CLOSED,OPEN"
+            ],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [],
+            "only_oracle": [
+              "OrderInput.total: Float!"
+            ]
+          }
+        }
+      }
+    },
+    "gql-n05-introspection-bare-schema": {
+      "oracle": {
+        "input_kind": "introspection",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [
+            "query=Query mutation=Mutation"
+          ],
+          "types": [
+            "enum Status",
+            "input OrderInput",
+            "type Mutation",
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Mutation.createOrder(input: OrderInput!): Order",
+            "Order.id: ID!",
+            "Order.total: Float",
+            "OrderInput.total: Float!",
+            "Query.order(id: ID!, verbose: Boolean): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "mutation Mutation.createOrder(input: OrderInput!): Order",
+            "query Query.order(id: ID!, verbose: Boolean): Order",
+            "query Query.orders: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [
+              "Status: CLOSED,OPEN"
+            ],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [],
+            "only_oracle": [
+              "OrderInput.total: Float!"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c01-federation-subgraph": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "scalar _Any",
+            "type Product",
+            "type Query",
+            "type _Service",
+            "union _Entity"
+          ],
+          "fields": [
+            "Product.id: ID!",
+            "Product.name: String",
+            "Query._entities(representations: [_Any!]!): [_Entity]!",
+            "Query._service: _Service!",
+            "Query.product(id: ID!): Product",
+            "_Service.sdl: String"
+          ],
+          "operations": [
+            "query Query._entities(representations: [_Any!]!): [_Entity]!",
+            "query Query._service: _Service!",
+            "query Query.product(id: ID!): Product"
+          ],
+          "unrepresented": {
+            "directive_definitions": [
+              "@key",
+              "@link",
+              "@shareable"
+            ],
+            "directive_usages": [
+              "@key on Product",
+              "@link on schema",
+              "@shareable on Product.name"
+            ],
+            "enum_values": [],
+            "implements": [],
+            "union_members": [
+              "_Entity = Product"
+            ]
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [
+              "Query._entities: [_Entity]!",
+              "Query.product: Product"
+            ],
+            "only_oracle": [
+              "Query._entities(representations: [_Any!]!): [_Entity]!",
+              "Query.product(id: ID!): Product"
+            ]
+          },
+          "operations": {
+            "only_adapter": [
+              "query Query._entities: [_Entity]!",
+              "query Query.product: Product"
+            ],
+            "only_oracle": [
+              "query Query._entities(representations: [_Any!]!): [_Entity]!",
+              "query Query.product(id: ID!): Product"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c01b-federation-v1-extend-type": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Unknown directive \"@key\".",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Unknown directive \"@key\".",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c02-directives-not-recorded": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.legacy: String",
+            "Query.open: String",
+            "Query.secret: String"
+          ],
+          "operations": [
+            "query Query.legacy: String",
+            "query Query.open: String",
+            "query Query.secret: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [
+              "@auth"
+            ],
+            "directive_usages": [
+              "@auth on Query.secret",
+              "@deprecated on Query.legacy"
+            ],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c02b-directives-stripped": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.legacy: String",
+            "Query.open: String",
+            "Query.secret: String"
+          ],
+          "operations": [
+            "query Query.legacy: String",
+            "query Query.open: String",
+            "query Query.secret: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c03-schema-definition-with-directive": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [
+            "query=RootQuery"
+          ],
+          "types": [
+            "type RootQuery"
+          ],
+          "fields": [
+            "RootQuery.ping: String"
+          ],
+          "operations": [
+            "query RootQuery.ping: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [
+              "@tag"
+            ],
+            "directive_usages": [
+              "@tag on schema"
+            ],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "schemas",
+          "operations"
+        ],
+        "diff": {
+          "schemas": {
+            "only_adapter": [],
+            "only_oracle": [
+              "query=RootQuery"
+            ]
+          },
+          "operations": {
+            "only_adapter": [],
+            "only_oracle": [
+              "query RootQuery.ping: String"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c03b-schema-definition-without-directive": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [
+            "query=RootQuery"
+          ],
+          "types": [
+            "type RootQuery"
+          ],
+          "fields": [
+            "RootQuery.ping: String"
+          ],
+          "operations": [
+            "query RootQuery.ping: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [
+              "@tag"
+            ],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c04-brace-on-next-line": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.ping: String"
+          ],
+          "operations": [
+            "query Query.ping: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [],
+            "only_oracle": [
+              "Query.ping: String"
+            ]
+          },
+          "operations": {
+            "only_adapter": [],
+            "only_oracle": [
+              "query Query.ping: String"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c04b-brace-on-same-line": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.ping: String"
+          ],
+          "operations": [
+            "query Query.ping: String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c05-nested-list-type": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.grid: [[Int]]",
+            "Query.matrix: [[Int!]!]!"
+          ],
+          "operations": [
+            "query Query.grid: [[Int]]",
+            "query Query.matrix: [[Int!]!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [
+              "Query.grid: [[Int]",
+              "Query.matrix: [[Int!]!"
+            ],
+            "only_oracle": [
+              "Query.grid: [[Int]]",
+              "Query.matrix: [[Int!]!]!"
+            ]
+          },
+          "operations": {
+            "only_adapter": [
+              "query Query.grid: [[Int]",
+              "query Query.matrix: [[Int!]!"
+            ],
+            "only_oracle": [
+              "query Query.grid: [[Int]]",
+              "query Query.matrix: [[Int!]!]!"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c05b-single-list-type": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.grid: [Int]",
+            "Query.matrix: [Int!]!"
+          ],
+          "operations": [
+            "query Query.grid: [Int]",
+            "query Query.matrix: [Int!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c06-extend-type": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.a: String",
+            "Query.b: Int"
+          ],
+          "operations": [
+            "query Query.a: String",
+            "query Query.b: Int"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "types"
+        ],
+        "diff": {
+          "types": {
+            "only_adapter": [
+              "type Query"
+            ],
+            "only_oracle": []
+          }
+        }
+      }
+    },
+    "gql-c07-sdl-arguments-dropped": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.order(id: ID!, verbose: Boolean): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "query Query.order(id: ID!, verbose: Boolean): Order",
+            "query Query.orders: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [
+              "Query.order: Order"
+            ],
+            "only_oracle": [
+              "Query.order(id: ID!, verbose: Boolean): Order"
+            ]
+          },
+          "operations": {
+            "only_adapter": [
+              "query Query.order: Order"
+            ],
+            "only_oracle": [
+              "query Query.order(id: ID!, verbose: Boolean): Order"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c07c-sdl-arguments-removed": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.order: Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "query Query.order: Order",
+            "query Query.orders: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c07b-introspection-arguments-kept": {
+      "oracle": {
+        "input_kind": "introspection",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [
+            "query=Query"
+          ],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.order(id: ID!, verbose: Boolean): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "query Query.order(id: ID!, verbose: Boolean): Order",
+            "query Query.orders: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c09a-two-schema-definitions": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Must provide only one schema definition.",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Must provide only one schema definition.",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c09b-undefined-type-reference": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Unknown type \"Missing\".",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Unknown type \"Missing\".",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c09c-duplicate-type-definition": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "There can be only one type named \"Query\".",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "There can be only one type named \"Query\".",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c10-interface-named-as-root": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [
+              "Query root type must be Object type, it cannot be Query."
+            ],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [
+              "Query root type must be Object type, it cannot be Query."
+            ],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c11-oneof-input-edition-dependent": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "input Choice",
+            "type Query"
+          ],
+          "fields": [
+            "Choice.a: Int",
+            "Choice.b: String",
+            "Query.pick(choice: Choice!): String"
+          ],
+          "operations": [
+            "query Query.pick(choice: Choice!): String"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [
+              "@oneOf on Choice"
+            ],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "fields",
+          "operations"
+        ],
+        "diff": {
+          "fields": {
+            "only_adapter": [
+              "Query.pick: String"
+            ],
+            "only_oracle": [
+              "Query.pick(choice: Choice!): String"
+            ]
+          },
+          "operations": {
+            "only_adapter": [
+              "query Query.pick: String"
+            ],
+            "only_oracle": [
+              "query Query.pick(choice: Choice!): String"
+            ]
+          }
+        }
+      }
+    },
+    "gql-c12-implements-union-enum-members": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "enum Status",
+            "interface Node",
+            "type Customer",
+            "type Order",
+            "type Query",
+            "union SearchResult"
+          ],
+          "fields": [
+            "Customer.id: ID!",
+            "Node.id: ID!",
+            "Order.id: ID!",
+            "Query.node: Node",
+            "Query.search: SearchResult",
+            "Query.status: Status"
+          ],
+          "operations": [
+            "query Query.node: Node",
+            "query Query.search: SearchResult",
+            "query Query.status: Status"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [
+              "Status: CLOSED,OPEN"
+            ],
+            "implements": [
+              "Customer implements Node",
+              "Order implements Node"
+            ],
+            "union_members": [
+              "SearchResult = Customer | Order"
+            ]
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c12b-members-replaced": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "enum Status",
+            "interface Node",
+            "type Customer",
+            "type Order",
+            "type Query",
+            "union SearchResult"
+          ],
+          "fields": [
+            "Customer.id: ID!",
+            "Node.id: ID!",
+            "Order.id: ID!",
+            "Query.node: Node",
+            "Query.search: SearchResult",
+            "Query.status: Status"
+          ],
+          "operations": [
+            "query Query.node: Node",
+            "query Query.search: SearchResult",
+            "query Query.status: Status"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [
+              "Status: PENDING"
+            ],
+            "implements": [],
+            "union_members": [
+              "SearchResult = Customer"
+            ]
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-c13-type-text-not-canonicalized": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "valid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          },
+          "17.0.2": {
+            "build": "ok",
+            "error": null,
+            "validation_errors": [],
+            "valid": true
+          }
+        },
+        "structure": {
+          "schemas": [],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.spaced: [Order!]!",
+            "Query.tight: [Order!]!"
+          ],
+          "operations": [
+            "query Query.spaced: [Order!]!",
+            "query Query.tight: [Order!]!"
+          ],
+          "unrepresented": {
+            "directive_definitions": [],
+            "directive_usages": [],
+            "enum_values": [],
+            "implements": [],
+            "union_members": []
+          }
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-x01-empty-document": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Syntax Error: Unexpected <EOF>.",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Syntax Error: Unexpected <EOF>.",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "blocked",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-x02-comment-only-document": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Syntax Error: Unexpected <EOF>.",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Syntax Error: Unexpected <EOF>.",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "blocked",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-x04-introspection-without-schema": {
+      "oracle": {
+        "input_kind": "introspection",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Invalid or incomplete introspection result. Ensure that you are passing \"data\" property of introspection response and no \"errors\" was returned alongside: { data: { hello: \"world\" } }.",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Invalid or incomplete introspection result. Ensure that you are passing \"data\" property of introspection response and no \"errors\" was returned alongside: { data: { hello: \"world\" } }.",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "error",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-x05-introspection-invalid-json": {
+      "oracle": {
+        "input_kind": "introspection",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Expected property name or '}' in JSON at position 14 (line 1 column 15)",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Expected property name or '}' in JSON at position 14 (line 1 column 15)",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "error",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    },
+    "gql-x06-executable-operation-document": {
+      "oracle": {
+        "input_kind": "sdl",
+        "verdict": "invalid",
+        "versions_agree": true,
+        "versions": {
+          "16.14.2": {
+            "build": "error",
+            "error": "Unknown type \"ID\".",
+            "validation_errors": [],
+            "valid": false
+          },
+          "17.0.2": {
+            "build": "error",
+            "error": "Unknown type \"ID\".",
+            "validation_errors": [],
+            "valid": false
+          }
+        },
+        "structure": null
+      },
+      "comparison": {
+        "adapter_verdict": "blocked",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "diff": {}
+      }
+    }
+  },
+  "summary": {
+    "compared": 32,
+    "agree_on_acceptance": 27,
+    "adapter_accepts_oracle_rejects": [
+      "gql-c01b-federation-v1-extend-type",
+      "gql-c09a-two-schema-definitions",
+      "gql-c09b-undefined-type-reference",
+      "gql-c09c-duplicate-type-definition",
+      "gql-c10-interface-named-as-root"
+    ],
+    "with_divergent_categories": [
+      "gql-c01-federation-subgraph",
+      "gql-c03-schema-definition-with-directive",
+      "gql-c04-brace-on-next-line",
+      "gql-c05-nested-list-type",
+      "gql-c06-extend-type",
+      "gql-c07-sdl-arguments-dropped",
+      "gql-c11-oneof-input-edition-dependent",
+      "gql-n01-sdl-explicit-roots",
+      "gql-n02-sdl-implicit-roots",
+      "gql-n04-introspection-data-wrapper",
+      "gql-n05-introspection-bare-schema"
+    ]
+  }
+}
