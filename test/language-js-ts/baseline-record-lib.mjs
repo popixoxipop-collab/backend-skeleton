@@ -349,7 +349,7 @@ export function pinnedCommit(root, commit) {
   const args = ['fetch', '--no-tags', ...(isShallow(root) ? ['--depth=1'] : []), 'origin', commit];
   const res = git(root, args, { timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
   if (res.status === 0 && hasCommit(root, commit)) return { ok: true, via: 'fetch' };
-  const why = res.error ? res.error.message : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n').pop()}`;
+  const why = res.error ? res.error.message : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n')[0]}`;
   return { ok: false, reason: `pinned commit unavailable: ${commit} is not in this checkout and \`git ${args.join(' ')}\` failed (${why})` };
 }
 
