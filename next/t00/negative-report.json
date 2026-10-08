@@ -1,0 +1,150 @@
+{
+  "schema": "bskel.t00-negative-report/1",
+  "task_id": "T00-01",
+  "generator": "node next/t00/make-negative-report.mjs --write",
+  "lock_sha256": "40b3fa35c01894ccc3cd9c6a34b87095ab39f6793a79dd68f902b672584aeb3d",
+  "observation_sha256": "dc27a82fcc9b14801382b65b4c1da552b92b46ecf1f8adaf620bf7a29ac71a84",
+  "cases": [
+    {
+      "id": "accept-recorded-observation",
+      "mutation": "none (control)",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK 3 repositories verified",
+      "stdout_sha256": "c6d78745d01575651db5d210afa2beafc84c9d7b7f147474a58d3e10e7547d3e"
+    },
+    {
+      "id": "unknown-dirty-state-in-checkout-mode",
+      "mutation": "none; the GitHub observation is checked without --remote",
+      "command": "node next/t00/verify-baseline.mjs <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DIRTY_STATE_UNKNOWN"
+      ],
+      "stdout_first_line": "FAIL DIRTY_STATE_UNKNOWN bskel dirty state is null, not false",
+      "stdout_sha256": "55fe75e917b8720f95f99bf0d86425a34017048ba98e6ce06424d05ed117b844"
+    },
+    {
+      "id": "dirty-checkout",
+      "mutation": "observation: bskel dirty set to true",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DIRTY_CHECKOUT"
+      ],
+      "stdout_first_line": "FAIL DIRTY_CHECKOUT bskel work tree has uncommitted or untracked changes",
+      "stdout_sha256": "1b3f4064d6daf41af3af7330632a7ff87c7f8827a14d11ac0a2334c6b37a80d1"
+    },
+    {
+      "id": "missing-repository-observation",
+      "mutation": "observation: becoder entry removed",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MISSING_REPOSITORY_OBSERVATION"
+      ],
+      "stdout_first_line": "FAIL MISSING_REPOSITORY_OBSERVATION becoder no observation for popixoxipop-collab/backend-decoder",
+      "stdout_sha256": "46159fb0d50aa8a17b8775218642d9fa3ccb10c7573ce77d42bbe6316d9a49a9"
+    },
+    {
+      "id": "default-branch-mismatch",
+      "mutation": "observation: beval default_branch set to develop",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DEFAULT_BRANCH_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL DEFAULT_BRANCH_MISMATCH beval locked main, observed develop",
+      "stdout_sha256": "a7ca7b9587571c3ad54037b066a0d9c7c0b19e264b9e7afd67d5543bfc0aacc6"
+    },
+    {
+      "id": "head-sha-mismatch",
+      "mutation": "observation: becoder head_sha first hex digit changed",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "HEAD_SHA_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL HEAD_SHA_MISMATCH becoder locked ebfff2205244f4866655476a828f05b9bf971cff, observed 0bfff2205244f4866655476a828f05b9bf971cff",
+      "stdout_sha256": "bc6fb8533c660a1d8a0cb83b0366ff38a64ba037c5e64dd4644545ec4d12d0b5"
+    },
+    {
+      "id": "missing-artifact",
+      "mutation": "observation: bskel package-lock.json removed",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MISSING_ARTIFACT"
+      ],
+      "stdout_first_line": "FAIL MISSING_ARTIFACT bskel package-lock.json",
+      "stdout_sha256": "0932d28a1f1329f6de205f06c76b426b787e41a3bca17f712cefab13a8888b68"
+    },
+    {
+      "id": "artifact-blob-mismatch",
+      "mutation": "observation: bskel ci.yml blob first hex digit changed",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "ARTIFACT_BLOB_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL ARTIFACT_BLOB_MISMATCH bskel .github/workflows/ci.yml: locked f5eb9ae44634d337b583c887d4c9de7971afdc72, observed 05eb9ae44634d337b583c887d4c9de7971afdc72",
+      "stdout_sha256": "1a1d9c2a5786dea6acf6cf11896755951cb20d9f4bb335ecfb30d4b25ddf9397"
+    },
+    {
+      "id": "recorded-observation-hash-changed",
+      "mutation": "lock: capture.observation_sha256 first hex digit changed",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "OBSERVATION_HASH_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL OBSERVATION_HASH_MISMATCH - lock.capture.observation_sha256 is not the canonical sha256 of the observation",
+      "stdout_sha256": "1ac43f9c918cc49e7820d74dc97929d2ac3387d9175f7876eb24ed40919959bc"
+    },
+    {
+      "id": "ci-success-claimed-for-a-failing-head",
+      "mutation": "lock: beval ci_on_exact_head.all_success set to true",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL DERIVED_FACT_MISMATCH beval ci_on_exact_head does not match the observation",
+      "stdout_sha256": "af2a00a1e8a531396ad7ce6f08685481c2f0c4f292845e05688240315a622706"
+    },
+    {
+      "id": "package-version-claim-changed",
+      "mutation": "lock: becoder package.version set to 9.9.9",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL DERIVED_FACT_MISMATCH becoder package does not match the observation",
+      "stdout_sha256": "06dcf6d63cfd0eec7c35edc7cfbf27ec0e04b3ed35e13816bdaaf053ee84acbd"
+    },
+    {
+      "id": "observation-edited-after-capture",
+      "mutation": "observation: becoder head_sha changed, lock untouched",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH",
+        "HEAD_SHA_MISMATCH",
+        "OBSERVATION_HASH_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL HEAD_SHA_MISMATCH becoder locked ebfff2205244f4866655476a828f05b9bf971cff, observed 0bfff2205244f4866655476a828f05b9bf971cff",
+      "stdout_sha256": "29bbf6534d170f14b9e33c879c29d25846d8cb41c1b94875f14a31dad7e212b2"
+    },
+    {
+      "id": "usage-error",
+      "mutation": "no arguments",
+      "command": "node next/t00/verify-baseline.mjs",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

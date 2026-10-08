@@ -1,0 +1,68 @@
+# T00-01 baseline lock
+
+Pins the three repositories of the integration baseline (bskel is public; becoder and beval are private) and ships a
+verifier that recomputes every fact the pin states. The heads, blob SHAs and CI results live in `baseline.lock.json`
+and are not repeated here, so this page cannot drift from them.
+
+| File | Role |
+|---|---|
+| `capture-observation.mjs` | Read-only live capture through an authenticated `gh` (needs read access to all three repositories). |
+| `fixtures/observation.json` | The captured observation; the verifier's input and the source of every derived fact. |
+| `build-lock.mjs` | Derives `baseline.lock.json` from an observation; the `limits` sentences are carried over by hand. |
+| `baseline.lock.json` | The lock: heads, artifact blob SHAs, package facts, exact-head CI results, inventory pins, limits. |
+| `verify-baseline.mjs` | Verifier and CLI. |
+| `make-negative-report.mjs`, `negative-report.json` | Real CLI runs on mutated copies (exit code, error codes, stdout hash); `--check` recomputes them. |
+
+## Commands
+
+```
+node next/t00/verify-baseline.mjs --remote --record next/t00/baseline.lock.json next/t00/fixtures/observation.json
+node next/t00/verify-baseline.mjs next/t00/baseline.lock.json --checkout bskel=<dir> --checkout becoder=<dir> --checkout beval=<dir>
+node next/t00/make-negative-report.mjs --check
+node --test test/t00-baseline.test.mjs
+```
+
+Exit code 0 means verified, 2 means verification errors (one `FAIL <code> <role> <detail>` line each), 1 means usage
+or unreadable input. The first command prints `OK 3 repositories verified`. Without `--remote` the same observation
+fails with `DIRTY_STATE_UNKNOWN`, because a GitHub observation has no work tree.
+
+## Error codes
+
+| Code | Raised when |
+|---|---|
+| `MISSING_REPOSITORY_OBSERVATION` | the observation has no entry for a locked role |
+| `DIRTY_CHECKOUT` | the work tree has uncommitted or untracked changes |
+| `DIRTY_STATE_UNKNOWN` | cleanliness was not observed (null) and `--remote` is not given |
+| `DEFAULT_BRANCH_MISMATCH` | the observed branch is not the locked default branch |
+| `HEAD_SHA_MISMATCH` | the observed head is not the locked head |
+| `MISSING_ARTIFACT` | a locked artifact (package.json, package-lock.json, ci.yml) is absent |
+| `ARTIFACT_BLOB_MISMATCH` | an artifact's git blob SHA differs from the lock |
+| `OBSERVATION_HASH_MISMATCH` | `--record`: the lock's observation hash is not the canonical sha256 of the observation |
+| `DERIVED_FACT_MISMATCH` | `--record`: a fact in the lock is not what the observation derives |
+
+## What a pass means
+
+The lock is the output of `build-lock.mjs` for exactly this observation, and the observation matches the lock. The
+test also recomputes the bskel facts from git objects (head commit, artifact blobs, package scripts, inventory file
+and pins, pin ancestry and distance) and fails if those objects cannot be obtained. It does not prove that GitHub
+still reports the same facts: a lock committed to main is always behind the main that contains it, and the becoder and
+beval facts can only be re-checked by running the capture again from a session that can read those repositories.
+The `limits` in the lock state what else is not covered, including the exact-head CI failures of bskel and beval.
+
+## Re-baselining
+
+1. `node next/t00/capture-observation.mjs next/t00/fixtures/observation.json`
+2. `node next/t00/build-lock.mjs next/t00/fixtures/observation.json next/t00/baseline.lock.json next/t00/baseline.lock.json`
+3. Review `limits` against the new facts, then `node next/t00/make-negative-report.mjs --write`.
+4. `node --test test/t00-baseline.test.mjs`
+
+The inventory file `release/next/compatibility-inventory.json` is owned by T23 and is not edited here; the lock only
+records how far each of its pins is behind the observed head.
+
+## Provenance of the earlier lock
+
+The scale-plan lock this work follows is blob `e506b744e7ec8c06ba3262b20d74082fe13d03d9` at commit
+`14583a4c4024affcd1a1cea234a30464de203707` on the coordination branch `scale/T00/bootstrap-baseline` (schema
+`bskel.scale-baseline-lock/1`, epoch 7, captured 2026-09-25 at bskel `5472a8b82655840d1d3ce76cb926987376e37ca6`,
+becoder `37ffb1d8fab6a1e4485fb6b12515d5416963bc48`, beval `882b185655f9166cda4a64b5b49a6eab477f2410`). It is recorded
+for provenance only; that branch may be deleted, so nothing here depends on it.
