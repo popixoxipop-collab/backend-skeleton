@@ -49,8 +49,12 @@ export const commitReader = (root, commit) => (rel) => {
   return res.status === 0 ? res.stdout : null;
 };
 
+const DIGEST_KEYS = ['bytes', 'git_blob_sha1', 'sha256'];
+
+export const digestsOf = (buf) => ({ bytes: buf.length, git_blob_sha1: blobSha1(buf), sha256: sha256(buf) });
+
 // bytes, git_blob_sha1 and sha256 are recomputed from the file content; a well-formed value is not evidence.
-function recomputeProblems(entries, read, label) {
+export function recomputeProblems(entries, read, label) {
   const problems = [];
   for (const e of entries) {
     const buf = typeof e?.path === 'string' ? read(e.path) : null;
@@ -58,12 +62,25 @@ function recomputeProblems(entries, read, label) {
       problems.push(`${label}: cannot read ${e?.path}`);
       continue;
     }
-    const actual = { bytes: buf.length, git_blob_sha1: blobSha1(buf), sha256: sha256(buf) };
-    for (const key of ['bytes', 'git_blob_sha1', 'sha256']) {
+    const actual = digestsOf(buf);
+    for (const key of DIGEST_KEYS) {
       if (e[key] !== actual[key]) problems.push(`${label}: ${e.path} ${key} ${e[key]} != recomputed ${actual[key]}`);
     }
   }
   return problems;
+}
+
+// One record entry against one file. Both content hashes describe the same file, so a record that disagrees with the
+// file in exactly one hash (or in the size alone) is a damaged entry, never a moved tree. Only a file that matches
+// neither hash is "drift", and only the pinned commit can arbitrate drift.
+export function classifyEntry(entry, buf) {
+  if (!Buffer.isBuffer(buf)) return { state: 'missing', detail: `${entry?.path} cannot be read` };
+  const actual = digestsOf(buf);
+  const wrong = DIGEST_KEYS.filter((k) => entry?.[k] !== actual[k]);
+  if (wrong.length === 0) return { state: 'fresh' };
+  if (wrong.includes('git_blob_sha1') && wrong.includes('sha256')) return { state: 'drift', detail: `${entry.path} differs from the record` };
+  const agree = DIGEST_KEYS.filter((k) => !wrong.includes(k)).join(' and ');
+  return { state: 'corrupt', detail: `${entry?.path}: the record's ${wrong.join(' and ')} disagree with the file while its ${agree} agree` };
 }
 
 export function artifactDigest(fixtures) {
@@ -297,31 +314,87 @@ function listFiles(root, rel) {
   return out.sort();
 }
 
-// The record is a baseline of base_commit: live replays are only meaningful while the tree still equals it.
-export function liveTreeState(record, root = REPO_ROOT) {
-  const blob = (rel) => (fs.existsSync(path.join(root, rel)) ? fileEntry(root, rel).git_blob_sha1 : null);
-  const drifted = (group) => group.filter((e) => blob(e.path) !== e.git_blob_sha1).map((e) => e.path);
-  const recordedSources = new Set(record.sources.map((e) => e.path));
-  const recordedTests = new Set(record.tests.map((e) => e.path));
-  const extraSources = listFiles(root, record.source_dir).filter((p) => !p.endsWith('.md') && p !== RECORD_FILE && !recordedSources.has(p));
-  const extraTests = listFiles(root, record.test_dir).filter((p) => !recordedTests.has(p) && !OWN_FILES.includes(p));
-  const sourcesChanged = [...drifted(record.sources), ...extraSources];
-  const testsChanged = [...drifted(record.tests), ...extraTests];
-  return { sourcesUnchanged: sourcesChanged.length === 0, testsUnchanged: testsChanged.length === 0, sourcesChanged, testsChanged };
+// The record is a baseline of base_commit. Every pinned file is compared with the live file by size, sha256 and blob id
+// (never by the record's own blob id alone): `corrupt` entries are damage and must fail the caller, `moved` files mean
+// the tree has left the baseline (live replays are skipped and the pinned commit decides), `fresh` means all agree.
+export function classifyLive(record, root = REPO_ROOT) {
+  const read = liveReader(root);
+  const states = [...record.sources, ...record.tests].map((e) => ({ path: e.path, ...classifyEntry(e, read(e.path)) }));
+  const recorded = new Set(states.map((s) => s.path));
+  const extras = [
+    ...listFiles(root, record.source_dir).filter((p) => !p.endsWith('.md') && p !== RECORD_FILE && !recorded.has(p)),
+    ...listFiles(root, record.test_dir).filter((p) => !recorded.has(p) && !OWN_FILES.includes(p))
+  ];
+  const corrupt = states.filter((s) => s.state === 'corrupt').map((s) => s.detail);
+  const moved = [...states.filter((s) => s.state === 'drift' || s.state === 'missing').map((s) => s.path), ...extras];
+  return { corrupt, moved, fresh: corrupt.length === 0 && moved.length === 0 };
 }
 
 function git(root, args, options = {}) {
   return spawnSync('git', args, { cwd: root, encoding: 'utf8', ...options });
 }
 
-export function historyState(root, commit) {
+export const isShallow = (root) => git(root, ['rev-parse', '--is-shallow-repository']).stdout?.trim() === 'true';
+
+const hasCommit = (root, commit) => git(root, ['cat-file', '-e', `${commit}^{commit}`]).status === 0;
+
+// The pinned commit is read from the checkout. A checkout that lacks it gets one fetch of exactly that commit
+// (--depth=1 only when the checkout is already shallow, so a full clone never becomes shallow).
+export function pinnedCommit(root, commit) {
   const inside = git(root, ['rev-parse', '--is-inside-work-tree']);
-  if (inside.error || inside.status !== 0 || inside.stdout.trim() !== 'true') return { kind: 'no-git', note: 'not inside a git work tree, or git is unavailable' };
-  if (git(root, ['cat-file', '-e', `${commit}^{commit}`]).status === 0) return { kind: 'present' };
-  const shallow = git(root, ['rev-parse', '--is-shallow-repository']).stdout.trim() === 'true';
-  return shallow
-    ? { kind: 'shallow', note: `shallow checkout does not contain baseline commit ${commit}` }
-    : { kind: 'missing', note: `baseline commit ${commit} is not in this repository's history` };
+  if (inside.error || inside.status !== 0 || inside.stdout.trim() !== 'true') {
+    return { ok: false, reason: `pinned commit unavailable: ${root} is not a git work tree, or git is not installed` };
+  }
+  if (hasCommit(root, commit)) return { ok: true, via: 'checkout' };
+  const args = ['fetch', '--no-tags', ...(isShallow(root) ? ['--depth=1'] : []), 'origin', commit];
+  const res = git(root, args, { timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+  if (res.status === 0 && hasCommit(root, commit)) return { ok: true, via: 'fetch' };
+  const why = res.error ? res.error.message : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n').pop()}`;
+  return { ok: false, reason: `pinned commit unavailable: ${commit} is not in this checkout and \`git ${args.join(' ')}\` failed (${why})` };
+}
+
+// Unavailable means `fail`, never a silent skip; only BASELINE_ALLOW_UNVERIFIED=1 turns it into an explicit `unverified`.
+export function commitVerdict(root, commit, env = process.env) {
+  const found = pinnedCommit(root, commit);
+  if (found.ok) return { verdict: 'ok', via: found.via };
+  if (env.BASELINE_ALLOW_UNVERIFIED === '1') return { verdict: 'unverified', message: `BASELINE_ALLOW_UNVERIFIED=1, so the pinned-commit checks were NOT run: ${found.reason}` };
+  return { verdict: 'fail', message: `${found.reason}; set BASELINE_ALLOW_UNVERIFIED=1 to skip the pinned-commit checks explicitly` };
+}
+
+// A throw-away upstream with two commits and a depth-1 clone of the second one. The clone lacks the first (pinned) commit
+// the way a CI checkout lacks the real base commit, and `origin` can serve it, so the shallow path needs no network.
+export function depthOneCase(dir) {
+  const ident = ['-c', 'user.name=baseline-test', '-c', 'user.email=baseline-test@example.invalid', '-c', 'commit.gpgsign=false'];
+  const run = (cwd, ...args) => {
+    const res = git(cwd, [...ident, ...args]);
+    if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
+    return res.stdout.trim();
+  };
+  const upstream = path.join(dir, 'upstream');
+  const write = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(upstream, rel)), { recursive: true });
+    fs.writeFileSync(path.join(upstream, rel), text);
+  };
+  fs.mkdirSync(upstream, { recursive: true });
+  run(upstream, 'init', '-q');
+  run(upstream, 'config', 'uploadpack.allowAnySHA1InWant', 'true');
+  write('src/a.mjs', 'export const a = 1;\n');
+  write('src/b.mjs', 'export const b = 2;\n');
+  write('tests/a.test.mjs', "import '../src/a.mjs';\n");
+  run(upstream, 'add', '.');
+  run(upstream, 'commit', '-q', '-m', 'pinned baseline');
+  const entry = (rel) => ({ path: rel, ...digestsOf(fs.readFileSync(path.join(upstream, rel))) });
+  const record = {
+    base_commit: run(upstream, 'rev-parse', 'HEAD'),
+    source_dir: 'src',
+    test_dir: 'tests',
+    sources: [entry('src/a.mjs'), entry('src/b.mjs')],
+    tests: [{ ...entry('tests/a.test.mjs'), test_count: 1 }]
+  };
+  write('src/a.mjs', 'export const a = 100; // the tree moved on\n');
+  run(upstream, 'commit', '-q', '-a', '-m', 'moved on');
+  run(dir, 'clone', '-q', '--depth=1', `file://${upstream}`, 'checkout');
+  return { checkout: path.join(dir, 'checkout'), record };
 }
 
 export function blobAtCommit(root, commit, rel) {

@@ -8,32 +8,42 @@ import { spawnSync } from 'node:child_process';
 import { SUITES, inspectSuite } from '../../scripts/run-next-nested-tests.mjs';
 import * as lib from './baseline-record-lib.mjs';
 
-// BASELINE.json is a record of base_commit. The checks form a ladder: the record is always verified against
-// itself; it is replayed against the live tree only while that tree still equals the recorded blobs; the
-// pinned-commit checks need the commit in the checkout (a shallow checkout skips them with a message).
+// BASELINE.json is a record of base_commit. The record is always verified against itself. Each pinned file is then
+// compared with the live file by size, sha256 and blob id: all agree (fresh), exactly one hash or only the size
+// disagrees (corrupt: the test fails), or neither hash agrees (the tree moved on: live replays are skipped). The
+// pinned commit decides every case, so it is mandatory: a checkout that lacks it fetches it once, and the git: tests
+// fail with "pinned commit unavailable" when that is impossible unless BASELINE_ALLOW_UNVERIFIED=1 skips them aloud.
 
 const root = lib.REPO_ROOT;
 const record = lib.readRecord(root);
-const live = lib.liveTreeState(record, root);
-const history = lib.historyState(root, record.base_commit);
+const tree = lib.classifyLive(record, root);
 const suite = SUITES.find((s) => s.id === record.suite_id);
 const testPaths = record.tests.map((e) => e.path);
 const sourcePaths = record.sources.map((e) => e.path);
 const command = (id) => record.commands.find((c) => c.id === id);
 const clone = () => structuredClone(record);
+const flip = (hex) => `${hex.startsWith('0') ? '1' : '0'}${hex.slice(1)}`;
+const tmpDir = (t, prefix) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+};
 
-function requireUnchangedTree(t) {
-  if (live.sourcesUnchanged && live.testsUnchanged) return true;
-  const drift = [...live.sourcesChanged, ...live.testsChanged].join(', ');
-  t.skip(`the live tree no longer equals the baseline (${drift}); the record is history, so the live replay is skipped and the pinned-commit checks apply`);
+function requireFresh(t) {
+  if (tree.corrupt.length > 0) assert.fail(`the record disagrees with the live files: ${tree.corrupt.join('; ')}`);
+  if (tree.fresh) return true;
+  t.skip(`the live tree no longer equals the baseline (${tree.moved.join(', ')}); the live replay is skipped and the pinned commit decides`);
   return false;
 }
 
-function requireHistory(t) {
-  if (history.kind === 'present') return true;
-  if (history.kind === 'missing') assert.fail(history.note);
-  t.skip(`${history.note}; the pinned-commit checks need a full clone`);
-  return false;
+let cachedVerdict;
+function needCommit(t, verdict = (cachedVerdict ??= lib.commitVerdict(root, record.base_commit))) {
+  if (verdict.verdict === 'fail') assert.fail(verdict.message);
+  if (verdict.verdict === 'unverified') {
+    t.skip(verdict.message);
+    return false;
+  }
+  return true;
 }
 
 function extractBase(t, extra = []) {
@@ -77,7 +87,7 @@ test('baseline record does not mark unsupported or unknown input as supported', 
 });
 
 test('live: the nested runner collects exactly the recorded test files plus this record test', (t) => {
-  if (!requireUnchangedTree(t)) return;
+  if (!requireFresh(t)) return;
   const inspected = inspectSuite(suite, root);
   assert.equal(inspected.status, 'READY');
   const collected = inspected.tests.map((p) => path.relative(root, p).split(path.sep).join('/'));
@@ -88,7 +98,7 @@ test('live: the nested runner collects exactly the recorded test files plus this
 });
 
 test('live: fixture origins cite real lines of the recorded test files', (t) => {
-  if (!requireUnchangedTree(t)) return;
+  if (!requireFresh(t)) return;
   let cited = 0;
   for (const f of record.fixtures) {
     const m = /^(\S+\.mjs):(\d+) \((.+)\)$/.exec(f.origin);
@@ -102,13 +112,13 @@ test('live: fixture origins cite real lines of the recorded test files', (t) => 
 });
 
 test('live: replaying every fixture reproduces the recorded output hashes and summaries', async (t) => {
-  if (!requireUnchangedTree(t)) return;
+  if (!requireFresh(t)) return;
   const modules = await lib.loadModules(path.join(root, record.source_dir));
   assert.deepEqual(lib.replayProblems(record, lib.replay(record, modules)), []);
 });
 
 test('live: the recorded test command reproduces its exit code and counts', (t) => {
-  if (!requireUnchangedTree(t)) return;
+  if (!requireFresh(t)) return;
   const recorded = command('direct-tap');
   assert.equal(recorded.command, lib.tapCommand(testPaths));
   const run = lib.runTapTests(root, testPaths);
@@ -117,7 +127,7 @@ test('live: the recorded test command reproduces its exit code and counts', (t) 
 });
 
 test('live: every recorded test file has its recorded test count', (t) => {
-  if (!requireUnchangedTree(t)) return;
+  if (!requireFresh(t)) return;
   for (const entry of record.tests) {
     const run = lib.runTapTests(root, [entry.path]);
     assert.equal(run.exit_code, 0, `${entry.path} failed`);
@@ -126,18 +136,19 @@ test('live: every recorded test file has its recorded test count', (t) => {
   }
 });
 
-test('live: the recorded byte count, sha256 and blob id of every source and test file are recomputed from the checkout', (t) => {
-  if (!requireUnchangedTree(t)) return;
-  assert.deepEqual(lib.verifyRecord(record, { read: lib.liveReader(root), label: 'live' }), []);
+test('live: the recorded byte count, sha256 and blob id of every pinned file agree with the checkout or the file has moved on entirely', (t) => {
+  assert.deepEqual(tree.corrupt, []);
+  if (tree.fresh) assert.deepEqual(lib.recomputeProblems([...record.sources, ...record.tests], lib.liveReader(root), 'live'), []);
+  else t.diagnostic(`moved since the baseline: ${tree.moved.join(', ')}; the pinned commit decides`);
 });
 
 test('git: the recorded byte count, sha256 and blob id are recomputed from the base commit blobs, runner script included', (t) => {
-  if (!requireHistory(t)) return;
+  if (!needCommit(t)) return;
   assert.deepEqual(lib.verifyRecord(record, { read: lib.commitReader(root, record.base_commit), includeRunner: true, label: 'git' }), []);
 });
 
 test('git: the base commit has the recorded tree and exactly the recorded source and test files', (t) => {
-  if (!requireHistory(t)) return;
+  if (!needCommit(t)) return;
   assert.equal(lib.treeAtCommit(root, record.base_commit), record.base_tree);
   for (const e of [...record.sources, ...record.tests]) {
     assert.equal(lib.blobAtCommit(root, record.base_commit, e.path), e.git_blob_sha1, `${e.path} differs at ${record.base_commit}`);
@@ -148,20 +159,25 @@ test('git: the base commit has the recorded tree and exactly the recorded source
   assert.equal(lib.blobAtCommit(root, record.base_commit, command('nested-runner').runner_script.path), command('nested-runner').runner_script.git_blob_sha1);
 });
 
-test('git: the base commit is an ancestor of the checked-out commit', (t) => {
-  if (!requireHistory(t)) return;
+test('git: the base commit is an ancestor of the checked-out commit (a shallow checkout cannot show ancestry, so its tree is compared)', (t) => {
+  if (!needCommit(t)) return;
+  if (lib.isShallow(root)) {
+    assert.equal(lib.treeAtCommit(root, record.base_commit), record.base_tree);
+    t.diagnostic('shallow checkout: ancestry is not verifiable, the recorded base tree was compared instead');
+    return;
+  }
   assert.ok(lib.isAncestor(root, record.base_commit), `${record.base_commit} is not an ancestor of HEAD`);
 });
 
 test('git: files extracted from the base commit reproduce every fixture hash', async (t) => {
-  if (!requireHistory(t)) return;
+  if (!needCommit(t)) return;
   const dir = extractBase(t);
   const modules = await lib.loadModules(path.join(dir, record.source_dir));
   assert.deepEqual(lib.replayProblems(record, lib.replay(record, modules)), []);
 });
 
 test('git: both recorded commands reproduce their exit codes and counts on the base commit files', (t) => {
-  if (!requireHistory(t)) return;
+  if (!needCommit(t)) return;
   const dir = extractBase(t, [lib.RUNNER_SCRIPT]);
   const direct = lib.runTapTests(dir, testPaths);
   assert.equal(direct.exit_code, command('direct-tap').exit_code);
@@ -205,19 +221,60 @@ test('negative: a tampered fixture input fails the input hash and the pinned blo
   assert.ok(lib.verifyRecord(pinned).some((p) => p.startsWith(`${withPin.id}: input bytes are not the pinned blob`)));
 });
 
-test('negative: a source or test blob that differs from the record counts as drift', () => {
-  const bad = clone();
-  bad.sources[0].git_blob_sha1 = '0'.repeat(40);
-  bad.tests[0].git_blob_sha1 = '1'.repeat(40);
-  const state = lib.liveTreeState(bad, root);
-  assert.equal(state.sourcesUnchanged, false);
-  assert.equal(state.testsUnchanged, false);
-  assert.ok(state.sourcesChanged.includes(bad.sources[0].path));
-  assert.ok(state.testsChanged.includes(bad.tests[0].path));
+test('negative: in a depth-1 clone the unmodified record passes once the pinned commit is fetched', (t) => {
+  const c = lib.depthOneCase(tmpDir(t, 'baseline-record-d1-'));
+  const commit = c.record.base_commit;
+  assert.ok(lib.isShallow(c.checkout));
+  assert.notEqual(spawnSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: c.checkout }).status, 0, 'the clone must lack the pinned commit');
+  const verdict = lib.commitVerdict(c.checkout, commit, {});
+  assert.deepEqual([verdict.verdict, verdict.via], ['ok', 'fetch']);
+  const found = lib.classifyLive(c.record, c.checkout);
+  assert.deepEqual([found.corrupt, found.moved], [[], ['src/a.mjs']]);
+  assert.deepEqual(lib.recomputeProblems([...c.record.sources, ...c.record.tests], lib.commitReader(c.checkout, commit), 'git'), []);
+});
+
+test('negative: a zeroed blob id alone, a changed sha256 alone or a changed byte count alone fails in a depth-1 clone', (t) => {
+  const c = lib.depthOneCase(tmpDir(t, 'baseline-record-d1-'));
+  assert.equal(lib.commitVerdict(c.checkout, c.record.base_commit, {}).verdict, 'ok');
+  const read = lib.commitReader(c.checkout, c.record.base_commit);
+  const damage = {
+    'blob id alone': (e) => { e.git_blob_sha1 = '0'.repeat(40); },
+    'sha256 alone': (e) => { e.sha256 = flip(e.sha256); },
+    'byte count alone': (e) => { e.bytes += 1; }
+  };
+  for (const [name, change] of Object.entries(damage)) {
+    const onFresh = structuredClone(c.record);
+    change(onFresh.sources[1]);
+    assert.equal(lib.classifyLive(onFresh, c.checkout).corrupt.length, 1, `${name}: a file that is fresh in the checkout makes the record corrupt`);
+    const onMoved = structuredClone(c.record);
+    change(onMoved.sources[0]);
+    assert.deepEqual(lib.classifyLive(onMoved, c.checkout).corrupt, [], `${name}: a moved file is left to the pinned commit`);
+    assert.equal(lib.recomputeProblems(onMoved.sources, read, 'git').length, 1, `${name}: the pinned commit rejects the damaged entry`);
+  }
+  fs.writeFileSync(path.join(c.checkout, 'src/b.mjs'), 'export const b = 3;\n');
+  const sameSize = lib.classifyLive(c.record, c.checkout);
+  assert.deepEqual([sameSize.corrupt, sameSize.moved], [[], ['src/a.mjs', 'src/b.mjs']], 'a same-size edit changes both hashes, so it is drift');
+});
+
+test('negative: a pinned commit that cannot be fetched fails unless BASELINE_ALLOW_UNVERIFIED=1 is set', (t) => {
+  const plain = tmpDir(t, 'baseline-record-nogit-');
+  const noOrigin = tmpDir(t, 'baseline-record-norigin-');
+  assert.equal(spawnSync('git', ['init', '-q', noOrigin]).status, 0);
+  for (const dir of [plain, noOrigin]) {
+    const verdict = lib.commitVerdict(dir, record.base_commit, {});
+    assert.equal(verdict.verdict, 'fail');
+    assert.match(verdict.message, /pinned commit unavailable/);
+    assert.throws(() => needCommit({ skip: () => assert.fail('an unavailable commit must not skip') }, verdict), /pinned commit unavailable/);
+    assert.equal(lib.commitVerdict(dir, record.base_commit, { BASELINE_ALLOW_UNVERIFIED: 'true' }).verdict, 'fail', 'only the value 1 opts out');
+    const optOut = lib.commitVerdict(dir, record.base_commit, { BASELINE_ALLOW_UNVERIFIED: '1' });
+    assert.equal(optOut.verdict, 'unverified');
+    let skipped = '';
+    assert.equal(needCommit({ skip: (message) => { skipped = message; } }, optOut), false);
+    assert.match(skipped, /NOT run/);
+  }
 });
 
 test('negative: a same-length tampered sha256, a wrong byte count or a wrong blob id fails the recomputation', (t) => {
-  const flip = (hex) => `${hex.startsWith('0') ? '1' : '0'}${hex.slice(1)}`;
   const runnerPath = command('nested-runner').runner_script.path;
   // Synthetic file contents keep this test independent of the live tree, so it also runs after a deliberate change.
   const files = new Map([...record.sources, ...record.tests, { path: runnerPath }].map((e, i) => [e.path, Buffer.from(`synthetic file ${i}\n`)]));
@@ -251,13 +308,16 @@ test('negative: a same-length tampered sha256, a wrong byte count or a wrong blo
   missing.sources[0].path = `${record.source_dir}/not-recorded.mjs`;
   assert.ok(problemsOf(missing).some((p) => p.includes('cannot read')));
 
-  if (live.sourcesUnchanged && live.testsUnchanged) {
+  if (tree.fresh) {
     const real = clone();
     real.sources[0].sha256 = flip(real.sources[0].sha256);
     real.tests[0].bytes += 1;
-    const found = lib.verifyRecord(real, { read: lib.liveReader(root), label: 'live' });
+    const found = lib.recomputeProblems([...real.sources, ...real.tests], lib.liveReader(root), 'live');
     assert.ok(found.some((p) => p.includes(`${real.sources[0].path} sha256`)));
     assert.ok(found.some((p) => p.includes(`${real.tests[0].path} bytes`)));
+    const zeroed = clone();
+    zeroed.sources[0].git_blob_sha1 = '0'.repeat(40);
+    assert.equal(lib.classifyLive(zeroed, root).corrupt.length, 1, 'a zeroed blob id on a fresh checkout is corruption, not drift');
   } else {
     t.diagnostic('the live tree differs from the record, so only the synthetic half of this negative test ran');
   }
@@ -301,13 +361,4 @@ test('negative: a malformed commit, a missing negative fixture and a supported-l
   const noLimits = clone();
   noLimits.limits = [];
   assert.ok(lib.verifyRecord(noLimits).some((p) => p.includes('limits must record')));
-});
-
-test('negative: a commit that is not in the history is never reported as present', (t) => {
-  assert.notEqual(lib.historyState(root, '0'.repeat(40)).kind, 'present');
-  if (spawnSync('git', ['--version']).status !== 0) return t.skip('git is not available');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'baseline-record-git-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  assert.equal(spawnSync('git', ['init', '-q', dir]).status, 0);
-  assert.equal(lib.historyState(dir, record.base_commit).kind, 'missing');
 });
