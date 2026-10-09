@@ -7,6 +7,29 @@
 // and library that produced them. No file or network database is opened.
 ini_set('display_errors', 'stderr');
 error_reporting(E_ALL);
+
+// sha256 of this script and of every file the fixture argument names (the file, or every file under a directory), keyed by the path as given.
+function input_digests(string $script, string $target): array
+{
+    $names = [$script];
+    if (is_dir($target)) {
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file->isFile()) {
+                $names[] = $file->getPathname();
+            }
+        }
+    } else {
+        $names[] = $target;
+    }
+    $digests = [];
+    foreach ($names as $name) {
+        $digests[$name] = hash_file('sha256', $name);
+    }
+    ksort($digests, SORT_STRING);
+    return $digests;
+}
+
+$consumed = input_digests($argv[0], $argv[1]); // before the fixture is loaded
 require $argv[2];
 
 use Illuminate\Database\Capsule\Manager as DB;
@@ -76,6 +99,7 @@ $list = function (array $items): array {
 };
 $result = [
     'facts' => ['columns' => $list($columns), 'foreign_keys' => $list($foreignKeys), 'primary_keys' => $list($primaryKeys), 'tables' => $list($tables), 'unmodeled' => $list($unmodeled)],
+    'inputs' => $consumed,
     'oracle' => 'eloquent-sqlite-memory',
     'versions' => ['illuminate/database' => ltrim(\Composer\InstalledVersions::getPrettyVersion('illuminate/database'), 'v'), 'php' => PHP_VERSION],
 ];

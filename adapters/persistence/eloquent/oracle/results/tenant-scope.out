@@ -17,6 +17,12 @@
             "global-scope"
         ]
     },
+    "inputs": {
+        "fixtures/tenant-scope/app/Models/Invoice.php": "c560f095063805e54d9a2581ea0c82db9152f3c26a9bec9079e2978c5b445105",
+        "fixtures/tenant-scope/app/Models/Scopes/TenantScope.php": "62dde338359d6d3038c2e32a32a8fd46c3387662e715e38be4829e8c59494441",
+        "fixtures/tenant-scope/database/schema.php": "2a875b39ca39450839460395cc72d1551896a4a58e791f8da82d28879641b480",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
     "oracle": "eloquent-sqlite-memory",
     "versions": {
         "illuminate/database": "13.35.0",

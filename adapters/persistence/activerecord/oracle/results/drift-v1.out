@@ -14,6 +14,11 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/drift/v1/app/models/hero.rb": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703",
+    "fixtures/drift/v1/db/schema.rb": "0a5ab984afb7060910158d1c7b99a4a9b23d6acbb14fd5c789128da858fec7f3",
+    "oracle/introspect.rb": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+  },
   "oracle": "activerecord-sqlite3-memory",
   "versions": {
     "activerecord": "8.1.4",

@@ -32,7 +32,7 @@
     ]
   },
   "pins": {
-    "checked_at": "2026-10-08T15:47:03Z",
+    "checked_at": "2026-10-09T00:18:17Z",
     "packages": [
       {
         "name": "sqlmodel",
@@ -1111,8 +1111,8 @@
         ],
         "result_file": "oracle/results/setup-pip-install.out",
         "exit_code": 0,
-        "output_sha256": "6ce7fedb513cbd72860a3656e567622ca18b80d4fe8ec9484d938e1c2a5f9b22",
-        "output_bytes": 1737,
+        "output_sha256": "cb041c348217c4183689d0a8d784308d549bea6754c903cf5c86ade5fd427274",
+        "output_bytes": 1585,
         "runs": 1,
         "deterministic": null
       },
@@ -1143,6 +1143,22 @@
         "id": "normal",
         "case": "normal",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/normal/models.py",
+            "sha256": "2ed1756a7509ed091ab1f627a5cb09854f15e760827088dc6b117ee78fd01cde"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1156,8 +1172,8 @@
         ],
         "result_file": "oracle/results/normal.out",
         "exit_code": 0,
-        "output_sha256": "d472aeab7189d6a69dd6d153d2a4303a55ad5b9b5f8c5002caf8bb4c8078b95f",
-        "output_bytes": 472,
+        "output_sha256": "144d37f6dc8ef3f436d729dc448d6a75ad09b7f070d929990584b2217b7c8dc7",
+        "output_bytes": 687,
         "runs": 2,
         "deterministic": true
       },
@@ -1165,6 +1181,22 @@
         "id": "composite-key",
         "case": "composite-key",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/composite-key/models.py",
+            "sha256": "a23f5f00d1b680ff703cb655e6df1d8fea0acc332e3d392621558db33677ef9c"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1178,8 +1210,8 @@
         ],
         "result_file": "oracle/results/composite-key.out",
         "exit_code": 0,
-        "output_sha256": "1b5c2eb8853a319a5b99bfe784c1c7e8dcfdbdb66e4fdab9374df7037ebe1b39",
-        "output_bytes": 466,
+        "output_sha256": "bb84072d5099953462c96c5858227c5fea6911963254f874303f0a8ed6dde59b",
+        "output_bytes": 688,
         "runs": 2,
         "deterministic": true
       },
@@ -1187,6 +1219,22 @@
         "id": "naming-default",
         "case": "naming-default",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-default/models.py",
+            "sha256": "f55d3641afd973660f93365d0e5b80a0ae47491a1cfb1d79a009792e3fb732ab"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1200,8 +1248,8 @@
         ],
         "result_file": "oracle/results/naming-default.out",
         "exit_code": 0,
-        "output_sha256": "9906acc5b897926de313b384e19437f9bacfef08e7b6e7416eb06298256cab73",
-        "output_bytes": 451,
+        "output_sha256": "2e34dc534c7c9abab9551d62ecab2293020eb990d9fba29ec6aa72b834412889",
+        "output_bytes": 674,
         "runs": 2,
         "deterministic": true
       },
@@ -1209,6 +1257,22 @@
         "id": "naming-custom",
         "case": "naming-custom",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-custom/models.py",
+            "sha256": "22de9aa2da1b86ec48f6c45a6a3c8ad4ed61a96aed44ea05bbc9be390f6a1321"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1222,8 +1286,8 @@
         ],
         "result_file": "oracle/results/naming-custom.out",
         "exit_code": 0,
-        "output_sha256": "99972bd50b4aefb7c52418f96e434c7b1618a2baf217106ea55ba7f8e021bcd8",
-        "output_bytes": 368,
+        "output_sha256": "369343978b8b2c042f51225b7aef211c4a322d0c1b88706fe062e1c3d542066f",
+        "output_bytes": 590,
         "runs": 2,
         "deterministic": true
       },
@@ -1231,6 +1295,22 @@
         "id": "relation",
         "case": "relation",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation/models.py",
+            "sha256": "97dea40f7f5b0d36250640c7e70c81e3641c124627f309bb4319d70a23a0bd9c"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1244,8 +1324,8 @@
         ],
         "result_file": "oracle/results/relation.out",
         "exit_code": 0,
-        "output_sha256": "418aeb3e6655b73147a89039bf2734e73070b4b39ded73cac0225d0f2f788f79",
-        "output_bytes": 508,
+        "output_sha256": "0b7a30dd288ae7f84949a7cebd8d451718cb5b3ce57c1b24a4e741391b366a24",
+        "output_bytes": 725,
         "runs": 2,
         "deterministic": true
       },
@@ -1253,6 +1333,22 @@
         "id": "tenant-scope",
         "case": "tenant-scope",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/tenant-scope/models.py",
+            "sha256": "701fe352c5b9bcedc37f7f18f1971de6683ad1ecf94e3189be9138ef23b5bcc3"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1266,8 +1362,8 @@
         ],
         "result_file": "oracle/results/tenant-scope.out",
         "exit_code": 0,
-        "output_sha256": "974d1f5dcffe96dae0808d41b24bf1ef56368f1a90e1f16b9e704e44e4e36263",
-        "output_bytes": 479,
+        "output_sha256": "516a1f6344329020aba5e65d3055a66f813a597bf64e79508780232e8f5e3071",
+        "output_bytes": 700,
         "runs": 2,
         "deterministic": true
       },
@@ -1275,6 +1371,22 @@
         "id": "declarative-mapped",
         "case": "declarative-mapped",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/declarative-mapped/models.py",
+            "sha256": "9a008c02265403f589ba5289d1649d8ee50fad5eb10b367bf78e3dfb7e7f3491"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1288,8 +1400,8 @@
         ],
         "result_file": "oracle/results/declarative-mapped.out",
         "exit_code": 0,
-        "output_sha256": "2779f988ed850c7312f04aef382cbcebc1956f6974115bfa413c2a8c63f19f63",
-        "output_bytes": 487,
+        "output_sha256": "acffa34d66595b2b1e27c67289ff04475462847dc8777a44e15d7d07ca5e5273",
+        "output_bytes": 714,
         "runs": 2,
         "deterministic": true
       },
@@ -1297,6 +1409,22 @@
         "id": "drift-v1",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v1/models.py",
+            "sha256": "a0ca4041321bbcbd24711a2824217a1c05ae2cffbf0c8e2db4f12eb4aefb6bc7"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1310,8 +1438,8 @@
         ],
         "result_file": "oracle/results/drift-v1.out",
         "exit_code": 0,
-        "output_sha256": "80002612f6e0438068aa758caf3bafc7042fd0744a90caaddfd224f17c7b5eff",
-        "output_bytes": 400,
+        "output_sha256": "d0d3097227c1ac15cfa98e09e751194164c2d8c5c2a8a7a4ee530bc84689119b",
+        "output_bytes": 617,
         "runs": 2,
         "deterministic": true
       },
@@ -1319,6 +1447,22 @@
         "id": "drift-v2",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v2/models.py",
+            "sha256": "d51fd100a6b67a89307d83c7c263817e0b759b4a67b3b02bc4a0d989202df6d2"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+          }
+        ],
+        "tool_versions": {
+          "SQLAlchemy": "2.1.4",
+          "pydantic": "2.14.0",
+          "python": "3.14.8",
+          "sqlmodel": "0.0.48"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1332,8 +1476,8 @@
         ],
         "result_file": "oracle/results/drift-v2.out",
         "exit_code": 0,
-        "output_sha256": "d039e5eb342ab3da25aa9c9e9ccb851eaa1b76f093109e518058fedec47882d5",
-        "output_bytes": 469,
+        "output_sha256": "0c8575f1b718a4b76f20381d2205814d7748a92a4b7df4b6b3add5f9fec19623",
+        "output_bytes": 686,
         "runs": 2,
         "deterministic": true
       }
@@ -1401,6 +1545,7 @@
     "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); Alembic was not installed.",
     "The bridge is exercised through a temporary repository (pyproject.toml declaring fastapi and sqlmodel, a FastAPI main.py stub, the fixture model file); other project layouts may be detected differently.",
     "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of a migration tool, and a column with the same name but a different type is not seen.",
-    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique constraints, validation and session behaviour are not."
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique constraints, validation and session behaviour are not.",
+    "Each oracle result file is frozen output of one real run and is bound by sha256 to the files that produced it: the oracle script prints the digests of itself and of every fixture file it read, and the checker recomputes them from the repository, so a fixture or script edited without re-running the oracle is rejected. That binding does not prove the file was produced by running the command. Only running it again does, which the checker does when ORM_SCOPE_ORACLE_SQLALCHEMY_SQLMODEL names the pinned toolchain; otherwise each step is reported unverified (install transcripts always are) and no case counts as reproduced agreement."
   ]
 }

@@ -20,6 +20,10 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/relation/models.py": "97dea40f7f5b0d36250640c7e70c81e3641c124627f309bb4319d70a23a0bd9c",
+    "oracle/introspect.py": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+  },
   "oracle": "sqlalchemy-metadata",
   "versions": {
     "SQLAlchemy": "2.1.4",

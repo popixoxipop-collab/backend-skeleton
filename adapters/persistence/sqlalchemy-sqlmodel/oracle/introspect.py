@@ -4,9 +4,11 @@ Imports one fixture models module and prints, as JSON on stdout, the physical sc
 (tables, columns, primary keys, foreign keys) of every SQLAlchemy MetaData that module fills,
 plus the versions of the libraries that produced them. No database connection is opened.
 """
+import hashlib
 import importlib.metadata as metadata
 import importlib.util
 import json
+import os
 import platform
 import sys
 
@@ -15,6 +17,15 @@ from sqlalchemy.orm import Session
 from sqlmodel import SQLModel
 
 sys.dont_write_bytecode = True  # keep the committed fixture directories free of __pycache__
+
+
+def digests(*names):
+    """sha256 of every file this run consumes (this script and the fixture file), keyed by its path relative to the working directory."""
+    found = {}
+    for name in names:
+        with open(name, "rb") as handle:
+            found[os.path.relpath(name).replace(os.sep, "/")] = hashlib.sha256(handle.read()).hexdigest()
+    return found
 
 
 def load(path):
@@ -69,8 +80,10 @@ def facts(metas):
 
 
 def main(path):
+    consumed = digests(__file__, path)  # before the fixture is imported
     module = load(path)
     result = {
+        "inputs": consumed,
         "oracle": "sqlalchemy-metadata",
         "versions": {
             "python": platform.python_version(),

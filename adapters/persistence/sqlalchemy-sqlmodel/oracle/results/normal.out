@@ -18,6 +18,10 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/normal/models.py": "2ed1756a7509ed091ab1f627a5cb09854f15e760827088dc6b117ee78fd01cde",
+    "oracle/introspect.py": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+  },
   "oracle": "sqlalchemy-metadata",
   "versions": {
     "SQLAlchemy": "2.1.4",

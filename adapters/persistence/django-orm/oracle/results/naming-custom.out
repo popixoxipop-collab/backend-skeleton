@@ -13,6 +13,10 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/naming-custom/models.py": "4fc8a9d4b0ded213dbfbb6d6d26638afec4ad4705b111203db84c08fd4b7813b",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
   "oracle": "django-app-registry",
   "versions": {
     "Django": "6.1.2",

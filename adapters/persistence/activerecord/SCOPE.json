@@ -31,7 +31,7 @@
     ]
   },
   "pins": {
-    "checked_at": "2026-10-08T15:59:47Z",
+    "checked_at": "2026-10-09T00:28:42Z",
     "packages": [
       {
         "name": "activerecord",
@@ -1212,6 +1212,29 @@
         "id": "normal",
         "case": "normal",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/normal/app/models/hero.rb",
+            "sha256": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703"
+          },
+          {
+            "path": "fixtures/normal/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730"
+          },
+          {
+            "path": "fixtures/normal/db/schema.rb",
+            "sha256": "758507d75c17501ccfe84d9400e36bbce44cf7f2934a2831b5ac69845ea8c639"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1228,8 +1251,8 @@
         ],
         "result_file": "oracle/results/normal.out",
         "exit_code": 0,
-        "output_sha256": "4e3b650b80a8e6ffcc245f8ade4d01436a5bf18714bee6a232cc511a1f9cffd4",
-        "output_bytes": 451,
+        "output_sha256": "e42c77b897d5ea08aae29ae5eebf20bb72516b3214d99f84cc00d76f2e04a79e",
+        "output_bytes": 889,
         "runs": 2,
         "deterministic": true
       },
@@ -1237,6 +1260,25 @@
         "id": "composite-key",
         "case": "composite-key",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/composite-key/app/models/hero_team_link.rb",
+            "sha256": "2866243b73dd478f883a35c2251a41c4e825a529d057b26672739b6ca2e6b568"
+          },
+          {
+            "path": "fixtures/composite-key/db/schema.rb",
+            "sha256": "a5bf925da9b7a3a44425e1aa6ee6fa818a98f41093dfce9aff8e148c05e36f3b"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1253,8 +1295,8 @@
         ],
         "result_file": "oracle/results/composite-key.out",
         "exit_code": 0,
-        "output_sha256": "ddcc6072decaae8edbb642c4c5ce3ba791bdcd9377f75a1c657aa902d6768a48",
-        "output_bytes": 445,
+        "output_sha256": "c4e67ff796fe440e0516adfe1d40bb0a0fbaf3cb77e3ccff42a9ec6c1416c85c",
+        "output_bytes": 797,
         "runs": 2,
         "deterministic": true
       },
@@ -1262,6 +1304,29 @@
         "id": "naming-default",
         "case": "naming-default",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-default/app/models/hero.rb",
+            "sha256": "63608d8ff43a244a217a33ef70c3f2b24e1e5280d106a3e25c3d770d0d306927"
+          },
+          {
+            "path": "fixtures/naming-default/app/models/order_item.rb",
+            "sha256": "f1f15ed16a3496d84ebc99e7aa208dfe74374863355863e568e3b1dc10758951"
+          },
+          {
+            "path": "fixtures/naming-default/db/schema.rb",
+            "sha256": "92688e36ab00d9703c4d488213a40045b3556c1e4bfa9161b9478faea3acc675"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1278,8 +1343,8 @@
         ],
         "result_file": "oracle/results/naming-default.out",
         "exit_code": 0,
-        "output_sha256": "5c12054a24ffeecbe4cf1d76c54c5f359f4d01cce278d852c1b2e3e04335d85a",
-        "output_bytes": 442,
+        "output_sha256": "0fb73240e6b0533fbd7ff51a246b3a6b9390761f6780e02c3fad0d1320d46a2b",
+        "output_bytes": 910,
         "runs": 2,
         "deterministic": true
       },
@@ -1287,6 +1352,25 @@
         "id": "naming-custom",
         "case": "naming-custom",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-custom/app/models/hero.rb",
+            "sha256": "b23a7186eb34dd391c1fc1ae153994349dccfe8d0d67e77ce2497d1540416ca5"
+          },
+          {
+            "path": "fixtures/naming-custom/db/schema.rb",
+            "sha256": "b06004f6d8cd36a0cbfd97f901cc0c5a07876d76182263c5010c5b0eff0e4c5d"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1303,8 +1387,8 @@
         ],
         "result_file": "oracle/results/naming-custom.out",
         "exit_code": 0,
-        "output_sha256": "b781d0b4dacb85bcb18e0df7cd8482246e19cd2308119e973ce153d899ca6e03",
-        "output_bytes": 371,
+        "output_sha256": "a300e29c226e8de3051d0e34757a159ee05a79bd48205345b5dd857f294430c4",
+        "output_bytes": 713,
         "runs": 2,
         "deterministic": true
       },
@@ -1312,6 +1396,29 @@
         "id": "relation",
         "case": "relation",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation/app/models/hero.rb",
+            "sha256": "faec6c7e60fb3f5c2208ca00d2cda2d308265a7d1a1fea44d55d643498e48630"
+          },
+          {
+            "path": "fixtures/relation/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730"
+          },
+          {
+            "path": "fixtures/relation/db/schema.rb",
+            "sha256": "84b403ecef41d80969c06202632bbb3da37f2a038e67550d5b4edd897c80674e"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1328,8 +1435,8 @@
         ],
         "result_file": "oracle/results/relation.out",
         "exit_code": 0,
-        "output_sha256": "ed3f7424ef4a6595bf7e7972ade081820341b86c5b48e77e8590eda6026e296e",
-        "output_bytes": 487,
+        "output_sha256": "0e0bbe7ee62289154628047ed6accb2210174414e8225cb3a3b7072b85e1206c",
+        "output_bytes": 931,
         "runs": 2,
         "deterministic": true
       },
@@ -1337,6 +1444,29 @@
         "id": "relation-convention",
         "case": "relation-convention",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation-convention/app/models/hero.rb",
+            "sha256": "f1684b19d4dc527f78b3fc195a3a7f286d8c92ed0965c4feee47a4409d1b3dc7"
+          },
+          {
+            "path": "fixtures/relation-convention/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730"
+          },
+          {
+            "path": "fixtures/relation-convention/db/schema.rb",
+            "sha256": "84b403ecef41d80969c06202632bbb3da37f2a038e67550d5b4edd897c80674e"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1353,8 +1483,8 @@
         ],
         "result_file": "oracle/results/relation-convention.out",
         "exit_code": 0,
-        "output_sha256": "ed3f7424ef4a6595bf7e7972ade081820341b86c5b48e77e8590eda6026e296e",
-        "output_bytes": 487,
+        "output_sha256": "e37d13038fae395714ae84e7e9617de0091184c2ef502164c3171b037c1a5015",
+        "output_bytes": 964,
         "runs": 2,
         "deterministic": true
       },
@@ -1362,6 +1492,29 @@
         "id": "tenant-scope",
         "case": "tenant-scope",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/tenant-scope/app/models/current.rb",
+            "sha256": "68bea9c7935cbaee89501a5dd5cc5605cfbdfaa1efab03b200e5af102c2ac82b"
+          },
+          {
+            "path": "fixtures/tenant-scope/app/models/invoice.rb",
+            "sha256": "e47b866ef8a35da3f4933b649cb3ce1e3415d2c01477a6ced6f066bd60657152"
+          },
+          {
+            "path": "fixtures/tenant-scope/db/schema.rb",
+            "sha256": "b054bc357dd8259f48bfd06b8c7f7c879698766ad9b450383db191f807624f74"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1378,8 +1531,8 @@
         ],
         "result_file": "oracle/results/tenant-scope.out",
         "exit_code": 0,
-        "output_sha256": "8e4cc091a34229810e01cdc0d9240d39939246632bacdc977b93b5c346ae5eeb",
-        "output_bytes": 443,
+        "output_sha256": "9f003ea8905326697e8b10c3e9ae2af2775d7d6fc62d32d0b1d55e27b4f3cf5b",
+        "output_bytes": 905,
         "runs": 2,
         "deterministic": true
       },
@@ -1387,6 +1540,25 @@
         "id": "drift-v1",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v1/app/models/hero.rb",
+            "sha256": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703"
+          },
+          {
+            "path": "fixtures/drift/v1/db/schema.rb",
+            "sha256": "0a5ab984afb7060910158d1c7b99a4a9b23d6acbb14fd5c789128da858fec7f3"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1403,8 +1575,8 @@
         ],
         "result_file": "oracle/results/drift-v1.out",
         "exit_code": 0,
-        "output_sha256": "0d7c2d5f9c40899f549dd5c62562ef0fc6f4562b0031c7f6b61b6978129f1d98",
-        "output_bytes": 379,
+        "output_sha256": "450adc0a6ea17bbff092dab404da3b12a474139726862b0ecbee0281b4d67b6c",
+        "output_bytes": 711,
         "runs": 2,
         "deterministic": true
       },
@@ -1412,6 +1584,29 @@
         "id": "drift-v2",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v2/app/models/hero.rb",
+            "sha256": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703"
+          },
+          {
+            "path": "fixtures/drift/v2/app/models/team.rb",
+            "sha256": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730"
+          },
+          {
+            "path": "fixtures/drift/v2/db/schema.rb",
+            "sha256": "2bdb0682cd55e0c9397d5107d710df2bf30d3b38b7dcac5e35fe8ea8586fddd8"
+          },
+          {
+            "path": "oracle/introspect.rb",
+            "sha256": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+          }
+        ],
+        "tool_versions": {
+          "activerecord": "8.1.4",
+          "ruby": "4.0.7",
+          "sqlite3": "2.9.6"
+        },
         "argv": [
           "env",
           "GEM_HOME=$ORACLE_VENV",
@@ -1428,8 +1623,8 @@
         ],
         "result_file": "oracle/results/drift-v2.out",
         "exit_code": 0,
-        "output_sha256": "955f9ba15309771a3c666fa1b59860066ac354b3a548080e1446f7c806e5946e",
-        "output_bytes": 448,
+        "output_sha256": "8add09bca16412429911df39d5b4d812279483f0ebc55cddb259180ca4a1c393",
+        "output_bytes": 892,
         "runs": 2,
         "deterministic": true
       }
@@ -1498,6 +1693,7 @@
     "The fixture models extend ActiveRecord::Base directly, one class per file as the provider requires; ApplicationRecord, abstract bases, single table inheritance, concerns, table_name_prefix modules and engines are not compared.",
     "The oracle reads columns, primary keys and foreign keys from the database that the fixture schema file creates; an ActiveRecord model class holds no column list, so a provider that reads model source alone cannot see them.",
     "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of a migration tool, and a column with the same name but a different type is not seen.",
-    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique constraints, validations, scopes and callbacks are not. The oracle lists indexes and default scopes as unmodeled tokens only."
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique constraints, validations, scopes and callbacks are not. The oracle lists indexes and default scopes as unmodeled tokens only.",
+    "Each oracle result file is frozen output of one real run and is bound by sha256 to the files that produced it: the oracle script prints the digests of itself and of every fixture file it read, and the checker recomputes them from the repository, so a fixture or script edited without re-running the oracle is rejected. That binding does not prove the file was produced by running the command. Only running it again does, which the checker does when ORM_SCOPE_ORACLE_ACTIVERECORD names the pinned toolchain; otherwise each step is reported unverified (install transcripts always are) and no case counts as reproduced agreement."
   ]
 }

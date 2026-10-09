@@ -14,6 +14,10 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/drift/v1/models.py": "9b23e35962161bc577ef631fc535b5a1a69ee06f52007b262e9584e1bc0055b5",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
   "oracle": "django-app-registry",
   "versions": {
     "Django": "6.1.2",

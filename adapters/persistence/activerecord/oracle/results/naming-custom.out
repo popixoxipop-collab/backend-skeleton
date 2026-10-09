@@ -13,6 +13,11 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/naming-custom/app/models/hero.rb": "b23a7186eb34dd391c1fc1ae153994349dccfe8d0d67e77ce2497d1540416ca5",
+    "fixtures/naming-custom/db/schema.rb": "b06004f6d8cd36a0cbfd97f901cc0c5a07876d76182263c5010c5b0eff0e4c5d",
+    "oracle/introspect.rb": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+  },
   "oracle": "activerecord-sqlite3-memory",
   "versions": {
     "activerecord": "8.1.4",

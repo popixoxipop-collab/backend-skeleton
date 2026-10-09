@@ -20,6 +20,10 @@
     ],
     "unmodeled": []
   },
+  "inputs": {
+    "fixtures/relation/models.py": "e26db3e53c23ec351545ad44d1eeb33beb8e5e94f3fbc8d1c96a3ca515cd71a6",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
   "oracle": "django-app-registry",
   "versions": {
     "Django": "6.1.2",

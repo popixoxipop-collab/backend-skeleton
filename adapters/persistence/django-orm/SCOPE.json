@@ -31,7 +31,7 @@
     ]
   },
   "pins": {
-    "checked_at": "2026-10-08T15:53:56Z",
+    "checked_at": "2026-10-09T00:26:04Z",
     "packages": [
       {
         "name": "Django",
@@ -942,8 +942,8 @@
         ],
         "result_file": "oracle/results/setup-pip-install.out",
         "exit_code": 0,
-        "output_sha256": "fab12189c2cad5499291840b77d348a234c28ca918b5df51aaa05fe16e367583",
-        "output_bytes": 595,
+        "output_sha256": "417c0124100c51b9fc22179b4df330296cfa45c1f53b23d6c9431ca0d414fb88",
+        "output_bytes": 743,
         "runs": 1,
         "deterministic": null
       },
@@ -974,6 +974,20 @@
         "id": "normal",
         "case": "normal",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/normal/models.py",
+            "sha256": "ee53ad0ab4c535155e19962bb5a4ac601dc55c0ce8af23fe75dab56af6ce198d"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -987,8 +1001,8 @@
         ],
         "result_file": "oracle/results/normal.out",
         "exit_code": 0,
-        "output_sha256": "0bcd47f8307002749b7030b5d283003d8272cccdc9dfa922332031d94b6d5c7b",
-        "output_bytes": 416,
+        "output_sha256": "efa50fc31073d909ba67c9c69c23eb5783695f5289fc119e29558d720cf9b8f9",
+        "output_bytes": 631,
         "runs": 2,
         "deterministic": true
       },
@@ -996,6 +1010,20 @@
         "id": "composite-key",
         "case": "composite-key",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/composite-key/models.py",
+            "sha256": "1212432d06cef9d64a7a68742014b5a462343e01d546e9629354ec934a9ee96f"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1009,8 +1037,8 @@
         ],
         "result_file": "oracle/results/composite-key.out",
         "exit_code": 0,
-        "output_sha256": "6d61025aef9e0229c38c5be8ef0a87b1c601ae9b37ec81a0a7c30a592ce8064b",
-        "output_bytes": 410,
+        "output_sha256": "2333cc7c4b1d366e3afd4072ca9758c2b56a3a25cd742920dc1068082b965201",
+        "output_bytes": 632,
         "runs": 2,
         "deterministic": true
       },
@@ -1018,6 +1046,20 @@
         "id": "naming-default",
         "case": "naming-default",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-default/models.py",
+            "sha256": "29e77ffc77e4271c7cbaa556e814d80a5f0b4818ee1d7967762746687eb9eff2"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1031,8 +1073,8 @@
         ],
         "result_file": "oracle/results/naming-default.out",
         "exit_code": 0,
-        "output_sha256": "cc2167d875ebc5bbbe100b2db7049bf15f3fc1c376f95d89173ed9dc2d41e65f",
-        "output_bytes": 435,
+        "output_sha256": "cf12b197d77957deb7c546b38c97939f5c00d4ca88b60e3c575c5151ad2fcf58",
+        "output_bytes": 658,
         "runs": 2,
         "deterministic": true
       },
@@ -1040,6 +1082,20 @@
         "id": "naming-custom",
         "case": "naming-custom",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-custom/models.py",
+            "sha256": "4fc8a9d4b0ded213dbfbb6d6d26638afec4ad4705b111203db84c08fd4b7813b"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1053,8 +1109,8 @@
         ],
         "result_file": "oracle/results/naming-custom.out",
         "exit_code": 0,
-        "output_sha256": "02efb1cf7792bca632e96ef7967e2e017aff4cb6374bb721e54f5deee4939565",
-        "output_bytes": 336,
+        "output_sha256": "05cafe496432e9274d3a08e344f94ee9f94f4dd28c7b74380caf0a28b095139f",
+        "output_bytes": 558,
         "runs": 2,
         "deterministic": true
       },
@@ -1062,6 +1118,20 @@
         "id": "relation",
         "case": "relation",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation/models.py",
+            "sha256": "e26db3e53c23ec351545ad44d1eeb33beb8e5e94f3fbc8d1c96a3ca515cd71a6"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1075,8 +1145,8 @@
         ],
         "result_file": "oracle/results/relation.out",
         "exit_code": 0,
-        "output_sha256": "6f11800f77349a003be8564f3df503bf478733cf047e33ba14ce6ed3c3b41516",
-        "output_bytes": 452,
+        "output_sha256": "5da3b78114a30f57226fa66defa5eec670de991501ec4b1e8f26235eecef46be",
+        "output_bytes": 669,
         "runs": 2,
         "deterministic": true
       },
@@ -1084,6 +1154,20 @@
         "id": "tenant-scope",
         "case": "tenant-scope",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/tenant-scope/models.py",
+            "sha256": "531e2702fe215f0e16a4fbbb62a6341199f4593482a911c150f80a322ff465d0"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1097,8 +1181,8 @@
         ],
         "result_file": "oracle/results/tenant-scope.out",
         "exit_code": 0,
-        "output_sha256": "a64dcafe6b9cfef3c5620f6ffecf1bec7d541980091da3a2a03d906252efaef3",
-        "output_bytes": 417,
+        "output_sha256": "7df9d44814d214ea3e0b03144133e1eee1e78e132b701b8d1bbb9c7d55a7fe32",
+        "output_bytes": 638,
         "runs": 2,
         "deterministic": true
       },
@@ -1106,6 +1190,20 @@
         "id": "drift-v1",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v1/models.py",
+            "sha256": "9b23e35962161bc577ef631fc535b5a1a69ee06f52007b262e9584e1bc0055b5"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1119,8 +1217,8 @@
         ],
         "result_file": "oracle/results/drift-v1.out",
         "exit_code": 0,
-        "output_sha256": "a5369813ec92e39903b5821ac65be2ec6e75beca707a55d50e0cc046945c3725",
-        "output_bytes": 344,
+        "output_sha256": "735ef728233e82acfc85dbcf85a1d36798497cac5c8e178b541ef45ce0b62433",
+        "output_bytes": 561,
         "runs": 2,
         "deterministic": true
       },
@@ -1128,6 +1226,20 @@
         "id": "drift-v2",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v2/models.py",
+            "sha256": "a31c83818ea38031ae059ef5118156bef8caa894b48f8310d720c6291d5b0932"
+          },
+          {
+            "path": "oracle/introspect.py",
+            "sha256": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+          }
+        ],
+        "tool_versions": {
+          "Django": "6.1.2",
+          "python": "3.14.8"
+        },
         "argv": [
           "python",
           "oracle/introspect.py",
@@ -1141,8 +1253,8 @@
         ],
         "result_file": "oracle/results/drift-v2.out",
         "exit_code": 0,
-        "output_sha256": "c9f74d19c137756fa1ad8b752d1b8b0662aedfccd00fe108755024fdb0cfb912",
-        "output_bytes": 413,
+        "output_sha256": "2759636f3df4d5f41184701d7b0570180890599da593400d71b83c1434870c47",
+        "output_bytes": 630,
         "runs": 2,
         "deterministic": true
       }
@@ -1207,6 +1319,7 @@
     "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); Django makemigrations was not run.",
     "Every fixture is registered as the app \"shop\"; another app label changes the default table names. The provider is given each models.py as plain source text and reads classes that extend models.Model directly; abstract bases, inheritance, proxy and swappable models are not compared.",
     "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of makemigrations, and a column with the same name but a different type is not seen.",
-    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique and check constraints, validation, managers and signals are not. The oracle lists indexes, constraints and custom default managers as unmodeled tokens only."
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, unique and check constraints, validation, managers and signals are not. The oracle lists indexes, constraints and custom default managers as unmodeled tokens only.",
+    "Each oracle result file is frozen output of one real run and is bound by sha256 to the files that produced it: the oracle script prints the digests of itself and of every fixture file it read, and the checker recomputes them from the repository, so a fixture or script edited without re-running the oracle is rejected. That binding does not prove the file was produced by running the command. Only running it again does, which the checker does when ORM_SCOPE_ORACLE_DJANGO_ORM names the pinned toolchain; otherwise each step is reported unverified (install transcripts always are) and no case counts as reproduced agreement."
   ]
 }

@@ -31,7 +31,7 @@
     ]
   },
   "pins": {
-    "checked_at": "2026-10-08T16:08:29Z",
+    "checked_at": "2026-10-09T00:32:38Z",
     "packages": [
       {
         "name": "illuminate/database",
@@ -1323,6 +1323,28 @@
         "id": "normal",
         "case": "normal",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/normal/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511"
+          },
+          {
+            "path": "fixtures/normal/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/normal/database/schema.php",
+            "sha256": "1cf7b0cbe76972a1a2df67c55fb33efb7ede8c6b921361e78bbdadcc0b5fe583"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1337,8 +1359,8 @@
         ],
         "result_file": "oracle/results/normal.out",
         "exit_code": 0,
-        "output_sha256": "ac7c3c8d84e7d9f58e1d2c991e9f01d468b0c6fe80ffb91397994995bbc37c38",
-        "output_bytes": 534,
+        "output_sha256": "8fda3d8755afa0fb812560f61579babac09e1dd3b4e7daf55fdcef21b08ae752",
+        "output_bytes": 1002,
         "runs": 2,
         "deterministic": true
       },
@@ -1346,6 +1368,24 @@
         "id": "composite-key",
         "case": "composite-key",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/composite-key/app/Models/HeroTeamLink.php",
+            "sha256": "8f8e8950b0faf676398bb39dfbf505657dc3421d3017373eeb5866dbc74e2f3f"
+          },
+          {
+            "path": "fixtures/composite-key/database/schema.php",
+            "sha256": "ca26d0507c0246262bed32a3eec088b3e0d515527bd50f9b86087c74ea6db1f5"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1360,8 +1400,8 @@
         ],
         "result_file": "oracle/results/composite-key.out",
         "exit_code": 0,
-        "output_sha256": "1459d4a52e60f219f9b73e09ea9f6963446e31927a063e8fc905bddce4288ecf",
-        "output_bytes": 571,
+        "output_sha256": "668c0e939f8c56ac3ec63127c77cea26b7758d9fc6840916b4fb1285061a796c",
+        "output_bytes": 946,
         "runs": 2,
         "deterministic": true
       },
@@ -1369,6 +1409,28 @@
         "id": "naming-default",
         "case": "naming-default",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-default/app/Models/Hero.php",
+            "sha256": "74a515248f726d879fe25972eb11406b977730cd8850853736ef2faa888fecd5"
+          },
+          {
+            "path": "fixtures/naming-default/app/Models/OrderItem.php",
+            "sha256": "64232445eff80e38177961e9540bd815b40728f82312e6a6cccb545ce48b6faf"
+          },
+          {
+            "path": "fixtures/naming-default/database/schema.php",
+            "sha256": "763b76fd772b1da81185d79072c9c94a61c705b3ccacac7ee294f5909d88143d"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1383,8 +1445,8 @@
         ],
         "result_file": "oracle/results/naming-default.out",
         "exit_code": 0,
-        "output_sha256": "96c4d8574197429af368a5bce00f8a539cd633d14f0edf17938b6df1a609e127",
-        "output_bytes": 523,
+        "output_sha256": "ed53b68f49b07945286252fb5f3837cc86d4a47bc786547fe4b20c46ac0cbe2e",
+        "output_bytes": 1020,
         "runs": 2,
         "deterministic": true
       },
@@ -1392,6 +1454,24 @@
         "id": "naming-custom",
         "case": "naming-custom",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-custom/app/Models/Hero.php",
+            "sha256": "0cc90cd96ac83a1b627adc68b6659dedbd57f4cb2eca731a90f7f342e6677933"
+          },
+          {
+            "path": "fixtures/naming-custom/database/schema.php",
+            "sha256": "7666dc0508f3d14ea2465633e8136410004253afe1010bc52222645faeb02260"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1406,8 +1486,8 @@
         ],
         "result_file": "oracle/results/naming-custom.out",
         "exit_code": 0,
-        "output_sha256": "fd971d2b0a8f570143fac3c450d7776103737bb861e9b0cf70c8b22c12e1e40d",
-        "output_bytes": 424,
+        "output_sha256": "a231499565834ed2f2da74400e73a12322b51be877f6ab7db733d35a50b69025",
+        "output_bytes": 791,
         "runs": 2,
         "deterministic": true
       },
@@ -1415,6 +1495,28 @@
         "id": "relation",
         "case": "relation",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation/app/Models/Hero.php",
+            "sha256": "4cd7754bdc92ee9d7d8d9f04a93647e6a6fc3e3be932cacea2d1de76b64b9ee9"
+          },
+          {
+            "path": "fixtures/relation/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/relation/database/schema.php",
+            "sha256": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1429,8 +1531,8 @@
         ],
         "result_file": "oracle/results/relation.out",
         "exit_code": 0,
-        "output_sha256": "1c209527f8d4a2d78d181f0c61f1cae240cfc74ba1e5d735b806d203e337cebf",
-        "output_bytes": 580,
+        "output_sha256": "84a1a536cc8e97216df409909b884eeca7045654fe344213f03d6503a934aee8",
+        "output_bytes": 1054,
         "runs": 2,
         "deterministic": true
       },
@@ -1438,6 +1540,28 @@
         "id": "relation-convention",
         "case": "relation-convention",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation-convention/app/Models/Hero.php",
+            "sha256": "91622645b4a8d62128b7d579bf5ff32697e180594e2fc1497329ec422d7eab1e"
+          },
+          {
+            "path": "fixtures/relation-convention/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/relation-convention/database/schema.php",
+            "sha256": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1452,8 +1576,8 @@
         ],
         "result_file": "oracle/results/relation-convention.out",
         "exit_code": 0,
-        "output_sha256": "1c209527f8d4a2d78d181f0c61f1cae240cfc74ba1e5d735b806d203e337cebf",
-        "output_bytes": 580,
+        "output_sha256": "74d968c4608e6d0c41972c29716aba6930d48aaed470c2042ec5bfb350e4a4c8",
+        "output_bytes": 1087,
         "runs": 2,
         "deterministic": true
       },
@@ -1461,6 +1585,28 @@
         "id": "tenant-scope",
         "case": "tenant-scope",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/tenant-scope/app/Models/Invoice.php",
+            "sha256": "c560f095063805e54d9a2581ea0c82db9152f3c26a9bec9079e2978c5b445105"
+          },
+          {
+            "path": "fixtures/tenant-scope/app/Models/Scopes/TenantScope.php",
+            "sha256": "62dde338359d6d3038c2e32a32a8fd46c3387662e715e38be4829e8c59494441"
+          },
+          {
+            "path": "fixtures/tenant-scope/database/schema.php",
+            "sha256": "2a875b39ca39450839460395cc72d1551896a4a58e791f8da82d28879641b480"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1475,8 +1621,8 @@
         ],
         "result_file": "oracle/results/tenant-scope.out",
         "exit_code": 0,
-        "output_sha256": "d9b22ee5bf3196250896c48fdf6a664aea5c7cfdc4853fd3ac9b9598fe70a544",
-        "output_bytes": 517,
+        "output_sha256": "2e6e49a9baa9d195f6c5843153176eb1cf1367f8d86abbbaf83d1f47e5681e3c",
+        "output_bytes": 1020,
         "runs": 2,
         "deterministic": true
       },
@@ -1484,6 +1630,24 @@
         "id": "drift-v1",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v1/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511"
+          },
+          {
+            "path": "fixtures/drift/v1/database/schema.php",
+            "sha256": "d318d9ffcb520f544df92b17f6d419c25e5d1fbb267717b842f504f29ed3f72f"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1498,8 +1662,8 @@
         ],
         "result_file": "oracle/results/drift-v1.out",
         "exit_code": 0,
-        "output_sha256": "f59c0b3eb76877ffa6951de8976f1cb1eef37f9e946765b2a7295d65ba226991",
-        "output_bytes": 438,
+        "output_sha256": "e6fbffabac25391bcd3d9b0e8204ed948291ca420c4514cc8cb763bd24b5db8f",
+        "output_bytes": 795,
         "runs": 2,
         "deterministic": true
       },
@@ -1507,6 +1671,28 @@
         "id": "drift-v2",
         "case": "drift",
         "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v2/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511"
+          },
+          {
+            "path": "fixtures/drift/v2/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/drift/v2/database/schema.php",
+            "sha256": "a6aad78165d572615bacea881e4ef8cba42a5b76602bc3a382eb62691ce752fd"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
         "argv": [
           "php",
           "oracle/introspect.php",
@@ -1521,8 +1707,8 @@
         ],
         "result_file": "oracle/results/drift-v2.out",
         "exit_code": 0,
-        "output_sha256": "a1b9b4b36c94ceb83f5d82f952245989f645f39bedf772b0eb733c23ab92481b",
-        "output_bytes": 531,
+        "output_sha256": "dc3da284d14ed04babceee7c4e43ab19fe36656301c5dc981a8ea226099bf470",
+        "output_bytes": 1005,
         "runs": 2,
         "deterministic": true
       }
@@ -1590,6 +1776,7 @@
     "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); no database/migrations directory was used.",
     "The oracle reports primary keys from the SQLite schema, not the key name a model declares; a model names one key column, so a composite primary key is visible only in the schema and through the unmodeled token single-key-model-over-composite-primary-key.",
     "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of a migration tool, and a column with the same name but a different type is not seen.",
-    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, casts, fillable lists, accessors, events and scopes are not. The oracle lists indexes and global scopes as unmodeled tokens only."
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, casts, fillable lists, accessors, events and scopes are not. The oracle lists indexes and global scopes as unmodeled tokens only.",
+    "Each oracle result file is frozen output of one real run and is bound by sha256 to the files that produced it: the oracle script prints the digests of itself and of every fixture file it read, and the checker recomputes them from the repository, so a fixture or script edited without re-running the oracle is rejected. That binding does not prove the file was produced by running the command. Only running it again does, which the checker does when ORM_SCOPE_ORACLE_ELOQUENT names the pinned toolchain; otherwise each step is reported unverified (install transcripts always are) and no case counts as reproduced agreement."
   ]
 }

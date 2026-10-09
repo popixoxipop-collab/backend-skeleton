@@ -4,6 +4,7 @@ Registers one fixture models.py as the app "shop" in a Django app registry confi
 on stdout, the physical schema facts (tables, columns, primary keys, foreign keys) Django derives from the model classes,
 plus the versions of the libraries that produced them. No database connection is opened.
 """
+import hashlib
 import importlib.metadata as metadata
 import json
 import os
@@ -15,6 +16,15 @@ import django
 from django.conf import settings
 
 sys.dont_write_bytecode = True  # keep the committed fixture directories free of __pycache__
+
+
+def digests(*names):
+    """sha256 of every file this run consumes (this script and the fixture file), keyed by its path relative to the working directory."""
+    found = {}
+    for name in names:
+        with open(name, "rb") as handle:
+            found[os.path.relpath(name).replace(os.sep, "/")] = hashlib.sha256(handle.read()).hexdigest()
+    return found
 
 
 def configure(path):
@@ -63,8 +73,10 @@ def facts():
 
 
 def main(path):
+    consumed = digests(__file__, path)  # before the fixture is imported
     configure(path)
     result = {
+        "inputs": consumed,
         "oracle": "django-app-registry",
         "versions": {"python": platform.python_version(), "Django": metadata.version("Django")},
         "facts": facts(),

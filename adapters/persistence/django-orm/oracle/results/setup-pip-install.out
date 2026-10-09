@@ -1,12 +1,13 @@
 Collecting Django==6.1.2
-  Using cached django-6.1.2-py3-none-any.whl.metadata (3.9 kB)
+  Downloading django-6.1.2-py3-none-any.whl.metadata (3.9 kB)
 Collecting asgiref>=3.9.1 (from Django==6.1.2)
-  Using cached asgiref-3.12.1-py3-none-any.whl.metadata (9.4 kB)
+  Downloading asgiref-3.12.1-py3-none-any.whl.metadata (9.4 kB)
 Collecting sqlparse>=0.5.0 (from Django==6.1.2)
-  Using cached sqlparse-0.6.0-py3-none-any.whl.metadata (6.0 kB)
-Using cached django-6.1.2-py3-none-any.whl (8.4 MB)
-Using cached asgiref-3.12.1-py3-none-any.whl (25 kB)
-Using cached sqlparse-0.6.0-py3-none-any.whl (50 kB)
+  Downloading sqlparse-0.6.0-py3-none-any.whl.metadata (6.0 kB)
+Downloading django-6.1.2-py3-none-any.whl (8.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.4/8.4 MB 13.5 MB/s  0:00:00
+Downloading asgiref-3.12.1-py3-none-any.whl (25 kB)
+Downloading sqlparse-0.6.0-py3-none-any.whl (50 kB)
 Installing collected packages: sqlparse, asgiref, Django
 
 Successfully installed Django-6.1.2 asgiref-3.12.1 sqlparse-0.6.0
