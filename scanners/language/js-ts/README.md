@@ -34,9 +34,9 @@ It does **not** resolve package exports or tsconfig aliases, execute package hoo
 
 Coordinates are exact for the **source string supplied to this API**. If a caller extracts a `<script>` fragment from a Svelte/HTML container, these line/byte coordinates are fragment-relative unless the container parser supplies host-file offset/provenance. T04 does not duplicate Legacy A's Svelte parser or claim host-container coordinates.
 
-Legacy A PR #63 contributes differential counterexamples only in this lane: comments, strings and regexes must stay inert; unterminated block comments/regexes are surfaced as lexical uncertainty and their trailing text is never promoted to module facts; syntax damage must never become a syntax-valid claim; source coordinates must remain explicit. Project IDs and game/runtime meaning remain owned by T02/T17/T18.
+Legacy A (the open, unmerged draft pull request 63; head commit `4e2e15e200eb965d4107acf59db21583d2657ea1`, with the cited commits pinned in `BASELINE.json`) contributes differential counterexamples only in this lane: comments, strings and regexes must stay inert; unterminated block comments/regexes are surfaced as lexical uncertainty and their trailing text is never promoted to module facts; syntax damage must never become a syntax-valid claim; source coordinates must remain explicit. Project IDs and game/runtime meaning remain owned by T02/T17/T18.
 
-Issue #119 contributes an Express detector counterexample only: T04 preserves `import express, { Router } from 'express'` bindings as lexical facts, while T11 owns interpreting `express.Router()` as framework detector evidence.
+The Express handoff (issue 119, closed as completed on 2026-09-27; an issue has no commit, so `BASELINE.json` pins its state and timestamps) contributes an Express detector counterexample only: T04 preserves `import express, { Router } from 'express'` bindings as lexical facts, while T11 owns interpreting `express.Router()` as framework detector evidence.
 
 ## Parser dependency decision boundary
 
@@ -44,11 +44,15 @@ The repository root still has no approved parser dependency for T04. `backend-co
 
 Before any package/lock change, T20/T23 approval is required for the exact parser package/version range, install/runtime trust boundary, package-size/build effect, supported source modes, execution permissions, and rollback path. T04 will not install Tree-sitter/TypeScript/compiler plugins or modify `package.json` / `package-lock.json` on this branch.
 
-The current common comparison shape records `syntaxValidated` only. It has **no semantic-validation claim**: type resolution/type-checker correctness, framework meaning, and runtime behavior are outside #73. A future semantic capability requires a separately reviewed contract/evidence decision; it must not be inferred from `complete: true`, a parser process exiting 0, or `syntaxValidated: true`.
+The current common comparison shape records `syntaxValidated` only. It has **no semantic-validation claim**: type resolution/type-checker correctness, framework meaning, and runtime behavior are outside this slice (the closed, unmerged draft pull request 73, head commit `1e2d037dedc5ba035248e4d67255c2850973afe8`, is not a contract). A future semantic capability requires a separately reviewed contract/evidence decision; it must not be inferred from `complete: true`, a parser process exiting 0, or `syntaxValidated: true`.
+
+## Baseline record
+
+`BASELINE.json` (schema `bskel.track-baseline-record/1`, provisional) fixes the behavior of this slice at one exact revision: base commit `9985dd9a51d2acf516fd38e27282c6a4398e16d0` (the origin/main head that the pull request adding the record was based on), the SHA-256 and Git blob id of every source and test file, the commands that were run with their exit codes and test counts, 27 fixtures (7 normal, 20 negative) with the SHA-256 of each full API result, the pinned Legacy A and issue evidence, and the remaining limits. `test/language-js-ts/baseline-record.test.mjs` recomputes the byte count, SHA-256 and Git blob id of every pinned source and test file and compares all three with the record. Against the checkout, a file that matches all three is fresh; a file whose hashes disagree in only one place, or whose size alone disagrees, fails the test as a damaged record; a file that matches neither hash means the tree has moved on, so the live replays are skipped and the pinned commit decides. The base commit is mandatory: it is read from the checkout, fetched once with `git fetch --no-tags --depth=1 origin <commit>` when a shallow checkout lacks it, and the `git:` tests fail with `pinned commit unavailable` when that is impossible, unless `BASELINE_ALLOW_UNVERIFIED=1` skips them explicitly. A shallow checkout is deepened once with `git fetch --no-tags --unshallow origin` and the base commit must then be an ancestor of `HEAD`; a failed deepening fails the test unless the same variable skips it explicitly. The two Legacy A fixture files are pinned by repository, commit, path and blob id, and the test resolves them in the repository they name: each repository is fetched once with `git fetch --no-tags --depth=1 <repository url> <commits>`, using the credentials of the checkout (its URL-scoped `http.*.extraheader` entries, else `GITHUB_TOKEN` or `GH_TOKEN` for the GitHub server only, else none), and every `<commit>:<path>` must have the recorded blob id (an unavailable fetch fails unless the same variable skips it explicitly; a blob that differs always fails). The other Legacy A commit ids carry no file, so the limit `legacy-a-commits-declared-not-verified` lists them as declared and not resolved. The test also replays the fixtures and the recorded commands and rejects tampered records, including a changed hash or byte count of the same length. It is a baseline and not a support claim: `syntaxValidated` is false in every recorded output, and the limits list what is unsupported, unknown or not recorded.
 
 ## Test
 
-T04-owned tests live only under the nested ownership path. On `main` the nested-next CI job runs them centrally as the `T04 language-js-ts` step (`.github/workflows/ci.yml:132-133`, `node scripts/run-next-nested-tests.mjs T04`). The explicit command below still works for a direct local run:
+T04-owned tests live only under the nested ownership path. On `main` the nested-next CI job runs them centrally as the `T04 language-js-ts` step (`.github/workflows/ci.yml` lines 132-133 at commit `9985dd9a51d2acf516fd38e27282c6a4398e16d0`, `node scripts/run-next-nested-tests.mjs T04`). The explicit command below still works for a direct local run:
 
 ```bash
 node --test \
@@ -56,7 +60,8 @@ node --test \
   test/language-js-ts/module-resolver.test.mjs \
   test/language-js-ts/snapshot-graph.test.mjs \
   test/language-js-ts/backend-comparison.test.mjs \
-  test/language-js-ts/legacy-a-regressions.test.mjs
+  test/language-js-ts/legacy-a-regressions.test.mjs \
+  test/language-js-ts/baseline-record.test.mjs
 ```
 
 No root test shim, package script, workflow, registry, stable schema, or lockfile change is owned by T04.
