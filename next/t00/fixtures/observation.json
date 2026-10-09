@@ -1,0 +1,511 @@
+{
+  "schema": "bskel.t00-observation/1",
+  "observed_at": "2026-10-09T00:06:59.322Z",
+  "source": "GitHub REST API through an authenticated gh CLI, read-only",
+  "tooling": {
+    "node": "v24.19.0",
+    "gh": "gh version 2.87.2 (2026-02-20)"
+  },
+  "routes": [
+    "repos/{repo}",
+    "repos/{repo}/commits/{default_branch}",
+    "repos/{repo}/git/trees/{head_sha}?recursive=1",
+    "repos/{repo}/git/blobs/{package_json_blob}",
+    "repos/{repo}/actions/runs?head_sha={head_sha}&per_page=100&page={n} (every page until total_count runs are held; total_count and the page count are kept as ci_runs_total_count and ci_runs_pages)",
+    "repos/{repo}/actions/runs/{run_id}/jobs?per_page=100&page={n} (every page; only for runs that did not succeed)",
+    "repos/{bskel}/contents/release/next/compatibility-inventory.json?ref={bskel_head_sha}",
+    "repos/{repo}/compare/{pinned_sha}...{head_sha}?per_page=1 (status and counts only are kept)"
+  ],
+  "repositories": [
+    {
+      "role": "bskel",
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "visibility": "public",
+      "default_branch": "main",
+      "head_sha": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "head_committed_at": "2026-10-03T01:27:55Z",
+      "dirty": null,
+      "dirty_note": "remote GitHub observation: there is no work tree, so cleanliness is not observed",
+      "artifacts": [
+        {
+          "path": "package.json",
+          "git_blob_sha": "6fb97db43b6a4a04069749be4f6fc960f26cd7b8"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "34da67575f01e97724c4b5ee944b67ae4435e003"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "f5eb9ae44634d337b583c887d4c9de7971afdc72"
+        }
+      ],
+      "package": {
+        "name": "backend-skeleton",
+        "version": "1.9.0",
+        "node_engine": ">=18",
+        "script_names": [
+          "test",
+          "test:all-smoke",
+          "test:cross-feature-fk",
+          "test:db-erd",
+          "test:db-introspect",
+          "test:ddl-apply",
+          "test:historical-replay",
+          "test:java-ast",
+          "test:java-compile",
+          "test:java-integration",
+          "test:oracle-corpus",
+          "test:pack",
+          "test:pattern-db",
+          "test:python-import",
+          "test:python-integration",
+          "test:rails-integration",
+          "test:registry-coverage",
+          "test:shadow-validation",
+          "test:spring-initializr-canary",
+          "test:typescript-compile"
+        ],
+        "scripts_sha256": "694aa25973d73d268d0d30359624536c6e97e4b212ecd21c4c47b4d26e6d6ab1"
+      },
+      "ci_runs_total_count": 7,
+      "ci_runs_pages": 1,
+      "ci_runs_on_exact_head": [
+        {
+          "run_id": 37086190872,
+          "workflow": "CI",
+          "event": "push",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-03T01:27:58Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37112259688,
+          "workflow": "CI",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-03T09:12:23Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37193470645,
+          "workflow": "CI",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-04T09:51:10Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37297085449,
+          "workflow": "CI",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-05T10:31:07Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37449406978,
+          "workflow": "CI",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-06T10:22:58Z",
+          "failed_jobs": [
+            {
+              "name": "test (24.x)",
+              "conclusion": "failure",
+              "failed_steps": [],
+              "unfinished_steps": [
+                "run tests",
+                "report Team-IZ-Backend-gated skip count",
+                "Post Run actions/setup-java@v4",
+                "Post Run actions/setup-node@v4",
+                "Post Run actions/checkout@v4"
+              ]
+            }
+          ]
+        },
+        {
+          "run_id": 37606591565,
+          "workflow": "CI",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-07T10:19:09Z",
+          "failed_jobs": [
+            {
+              "name": "python-integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:python-integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37764833541,
+          "workflow": "CI",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-08T10:38:47Z",
+          "failed_jobs": [
+            {
+              "name": "python-integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:python-integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "role": "becoder",
+      "repo": "popixoxipop-collab/backend-decoder",
+      "visibility": "private",
+      "default_branch": "main",
+      "head_sha": "ebfff2205244f4866655476a828f05b9bf971cff",
+      "head_committed_at": "2026-09-30T23:22:07Z",
+      "dirty": null,
+      "dirty_note": "remote GitHub observation: there is no work tree, so cleanliness is not observed",
+      "artifacts": [
+        {
+          "path": "package.json",
+          "git_blob_sha": "af0c49943a77b62cb3a70ce4acdeebe32d249663"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "043a1fe96bd338fe81909be195519b8cf402d66a"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "0b8b708c698a46345275121f40e1a659e05cc14e"
+        }
+      ],
+      "package": {
+        "name": "backend-decoder",
+        "version": "0.5.0",
+        "node_engine": ">=18",
+        "script_names": [
+          "test",
+          "test:compatibility",
+          "test:compatibility-webgame",
+          "test:corpus",
+          "test:e2e-agent",
+          "test:e2e-mcp-server",
+          "test:e2e-static-html",
+          "test:e2e-webgame",
+          "test:pack"
+        ],
+        "scripts_sha256": "a9648a6788e80e08b22f654dd91bfe35f0bb0db137ec25bf6d41d91978ff8c58"
+      },
+      "ci_runs_total_count": 2,
+      "ci_runs_pages": 1,
+      "ci_runs_on_exact_head": [
+        {
+          "run_id": 36790716447,
+          "workflow": "CI",
+          "event": "push",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-09-30T23:22:10Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37296926337,
+          "workflow": "Contract compatibility",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-05T10:29:42Z",
+          "failed_jobs": []
+        }
+      ]
+    },
+    {
+      "role": "beval",
+      "repo": "popixoxipop-collab/Backend-evaluation",
+      "visibility": "private",
+      "default_branch": "main",
+      "head_sha": "60aa59b41d9ab2beed8790d08319aa9454e14e13",
+      "head_committed_at": "2026-10-03T15:34:21Z",
+      "dirty": null,
+      "dirty_note": "remote GitHub observation: there is no work tree, so cleanliness is not observed",
+      "artifacts": [
+        {
+          "path": "package.json",
+          "git_blob_sha": "333361eef50c4a73fce96cd431c49a86a2c00256"
+        },
+        {
+          "path": "package-lock.json",
+          "git_blob_sha": "a83092968a5833883ac74c5e3aad5c80f117d006"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "git_blob_sha": "2e1818a9a99f15dea02bd2d6d80e889bf566d5bf"
+        }
+      ],
+      "package": {
+        "name": "backend-evaluator",
+        "version": "0.1.0",
+        "node_engine": ">=20",
+        "script_names": [
+          "benchmark:webgame-repair-aggregate",
+          "check",
+          "check:binding",
+          "check:corpus",
+          "check:release-schema",
+          "db:down",
+          "db:up",
+          "harness:ab-fastapi-crud-ping",
+          "harness:ab-live",
+          "test",
+          "test:fastapi-oracles-live",
+          "test:harness-ab",
+          "test:harness-nvidia-live",
+          "test:integration",
+          "test:jev-live",
+          "test:next-runtime",
+          "test:pack",
+          "test:release-rehearsal",
+          "test:spring-oracles-live",
+          "test:v07-mutation-live",
+          "test:webgame-repair-game-fixtures-live",
+          "test:webgame-repair-live",
+          "test:webgame-repair-minimax-live",
+          "test:webgame-repair-nvidia-live",
+          "test:webgame-repair-typesafe-live"
+        ],
+        "scripts_sha256": "6cc5866010d14ea7fbfc7ac5912eae6f92a0fe267563ff804831ccd2b4fab694"
+      },
+      "ci_runs_total_count": 9,
+      "ci_runs_pages": 1,
+      "ci_runs_on_exact_head": [
+        {
+          "run_id": 37133715603,
+          "workflow": "ci",
+          "event": "push",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "created_at": "2026-10-03T15:34:23Z",
+          "failed_jobs": [
+            {
+              "name": "unit (22)",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "next-runtime (24)",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "unit (20)",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "next-runtime (20)",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "unit (24)",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "next-runtime (22)",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "integration",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            },
+            {
+              "name": "attest-t20-vm",
+              "conclusion": "cancelled",
+              "failed_steps": [],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37133733426,
+          "workflow": "Alienware recovery",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-03T15:34:42Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37141845682,
+          "workflow": "Alienware recovery",
+          "event": "workflow_dispatch",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-03T17:48:11Z",
+          "failed_jobs": []
+        },
+        {
+          "run_id": 37154274661,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-03T21:12:13Z",
+          "failed_jobs": [
+            {
+              "name": "integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37235761061,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-04T21:21:26Z",
+          "failed_jobs": [
+            {
+              "name": "integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37391736859,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-06T00:01:24Z",
+          "failed_jobs": [
+            {
+              "name": "integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37541881405,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-06T22:38:43Z",
+          "failed_jobs": [
+            {
+              "name": "integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37700011602,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-07T23:03:34Z",
+          "failed_jobs": [
+            {
+              "name": "integration",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm run test:integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37858752098,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-08T23:19:06Z",
+          "failed_jobs": [
+            {
+              "name": "unit (20)",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm test"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "inventory": {
+    "source": {
+      "repo": "popixoxipop-collab/backend-skeleton",
+      "path": "release/next/compatibility-inventory.json",
+      "ref": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "git_blob_sha": "1f8d8fb5dbf6bc7f61801914a085de38fc10aa7f",
+      "pin_field": "coordination_baseline.repositories.<role>"
+    },
+    "pins": [
+      {
+        "role": "bskel",
+        "pinned_sha": "1cdd848a5aa97ff558c0574da70fedb899131ff7",
+        "compare_status": "ahead",
+        "head_ahead_by": 101,
+        "head_behind_by": 0
+      },
+      {
+        "role": "becoder",
+        "pinned_sha": "0f0abcea1337335fc44b943932ad3c5f3fbaad6c",
+        "compare_status": "ahead",
+        "head_ahead_by": 8,
+        "head_behind_by": 0
+      },
+      {
+        "role": "beval",
+        "pinned_sha": "020668cdc2f5a836e78dfe05fd845ea58769a0e9",
+        "compare_status": "ahead",
+        "head_ahead_by": 48,
+        "head_behind_by": 0
+      }
+    ]
+  }
+}
