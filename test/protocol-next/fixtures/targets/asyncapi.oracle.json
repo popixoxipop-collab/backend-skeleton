@@ -11,7 +11,7 @@
   },
   "tool": {
     "path": "test/protocol-next/tools/target-oracle.mjs",
-    "lf_sha256": "459cf9739ee21b026d0fcea37f29ffb684b8d7e3358c295cb2461d3c6dc4d4f3"
+    "lf_sha256": "a56d62fe67b77ef26221a41613cffe17adb24ec2769860d59c27599ca6920d1e"
   },
   "helpers": {
     "path": "test/protocol-next/_target-helpers.mjs",

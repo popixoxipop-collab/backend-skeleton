@@ -82,12 +82,40 @@ function physicalPath(target) {
     missing.unshift(path.basename(existing));
     existing = path.dirname(existing);
   }
-  return path.join(fs.realpathSync(existing), ...missing);
+  try {
+    return path.join(fs.realpathSync.native(existing), ...missing);
+  } catch (error) {
+    if (error.code === 'ENOENT') throw new Error(existing + ' is a dangling symbolic link');
+    throw error;
+  }
+}
+
+function withinRepository(physical) {
+  const relative = path.relative(fs.realpathSync.native(REPO_ROOT), physical);
+  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
 }
 
 export function isInsideRepository(candidate) {
-  const relative = path.relative(fs.realpathSync(REPO_ROOT), physicalPath(candidate));
-  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
+  return withinRepository(physicalPath(candidate));
+}
+
+function assertOutsideRepository(candidate) {
+  const physical = physicalPath(candidate);
+  if (withinRepository(physical)) {
+    throw new Error(candidate + ' resolves inside the repository (' + physical + '): oracle packages are installed and loaded from scratch space only');
+  }
+}
+
+function groupDirectory(group, oracleDir) {
+  const groupDir = path.join(oracleDir, group.dir);
+  const children = new Set(['package.json', 'package-lock.json', 'node_modules', path.join('node_modules', '.package-lock.json')]);
+  for (const pkg of group.packages) {
+    const segments = pkg.name.split('/');
+    for (let depth = 1; depth <= segments.length; depth += 1) children.add(path.join('node_modules', ...segments.slice(0, depth)));
+  }
+  assertOutsideRepository(groupDir);
+  for (const child of children) assertOutsideRepository(path.join(groupDir, child));
+  return groupDir;
 }
 
 function run(command, args, cwd) {
@@ -95,8 +123,7 @@ function run(command, args, cwd) {
   return { command: [command, ...args].join(' '), exit_code: result.status, stderr_tail: String(result.stderr ?? '').trim().split('\n').slice(-3).join('\n') };
 }
 
-function prepareGroup(group, oracleDir, install) {
-  const groupDir = path.join(oracleDir, group.dir);
+function prepareGroup(group, groupDir, install) {
   let installRecord = { performed_by_tool: false };
   if (install) {
     fs.mkdirSync(groupDir, { recursive: true });
@@ -110,17 +137,21 @@ function prepareGroup(group, oracleDir, install) {
   if (!fs.existsSync(lockPath)) throw new Error('missing package-lock.json in ' + groupDir + ' (run with --install)');
   const lockText = fs.readFileSync(lockPath, 'utf8');
   const lock = JSON.parse(lockText);
-  const vendoredLock = LOCK_DIR + '/' + group.dir + '.lock.json';
-  fs.mkdirSync(path.dirname(repoPath(vendoredLock)), { recursive: true });
-  fs.writeFileSync(repoPath(vendoredLock), lockText.replace(/\r\n/g, '\n'));
   const packages = group.packages.map((pkg) => {
-    const installed = JSON.parse(fs.readFileSync(path.join(groupDir, 'node_modules', ...pkg.name.split('/'), 'package.json'), 'utf8'));
+    const installedPath = path.join(groupDir, 'node_modules', ...pkg.name.split('/'), 'package.json');
+    if (!fs.existsSync(installedPath)) throw new Error(pkg.name + ' is not installed in ' + groupDir + ' (run with --install)');
+    const installed = JSON.parse(fs.readFileSync(installedPath, 'utf8'));
     if (installed.version !== pkg.version) throw new Error(pkg.name + ' resolved to ' + installed.version + ', expected the pin ' + pkg.version);
-    const locked = lock.packages?.['node_modules/' + pkg.name] ?? {};
-    return { name: pkg.name, version: installed.version, integrity: locked.integrity ?? null };
+    const locked = lock.packages?.['node_modules/' + pkg.name];
+    if (locked?.version !== pkg.version || typeof locked.integrity !== 'string' || !locked.integrity.startsWith('sha512-')) {
+      throw new Error('package-lock.json in ' + groupDir + ' does not lock ' + pkg.name + '@' + pkg.version + ' with a sha512 integrity');
+    }
+    return { name: pkg.name, version: installed.version, integrity: locked.integrity };
   });
+  const vendoredLock = LOCK_DIR + '/' + group.dir + '.lock.json';
   return {
     groupDir,
+    lockText: lockText.replace(/\r\n/g, '\n'),
     record: {
       group: group.dir,
       install: installRecord,
@@ -128,6 +159,14 @@ function prepareGroup(group, oracleDir, install) {
       packages,
     },
   };
+}
+
+function publishLocks(groups) {
+  for (const group of groups) {
+    const target = repoPath(group.record.lockfile.path);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, group.lockText);
+  }
 }
 
 function graphqlInputKind(caseDef) {
@@ -327,7 +366,9 @@ async function main() {
   const files = targetFiles(args.family);
   const fixtures = readJson(files.fixtures);
   const cases = comparedCases(fixtures);
-  const groups = ORACLE_PINS[args.family].map((group) => prepareGroup(group, args.oracleDir, args.install));
+  const pinned = ORACLE_PINS[args.family];
+  const groupDirs = pinned.map((group) => groupDirectory(group, args.oracleDir));
+  const groups = pinned.map((group, index) => prepareGroup(group, groupDirs[index], args.install));
 
   const oracleResults = args.family === 'graphql' ? runGraphqlOracle(cases, groups) : await runAsyncapiOracle(cases, groups);
   const results = {};
@@ -359,6 +400,7 @@ async function main() {
       with_divergent_categories: ids.filter((id) => results[id].comparison.divergent_categories.length > 0).sort(),
     },
   };
+  publishLocks(groups);
   fs.writeFileSync(repoPath(files.oracle), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify({ wrote: files.oracle, ...evidence.summary }));
 }

@@ -455,11 +455,11 @@
       "kind": "static declaration and acceptance comparison against graphql-js (no server executed)",
       "evidence": {
         "path": "test/protocol-next/fixtures/targets/graphql.oracle.json",
-        "canonical_sha256": "bc85e4ccfd9455d0db757351d5f0fbd3bb6781d859104f21cba4aa8386841f11",
+        "canonical_sha256": "405b2529ffdb9fb192c711cd0b8826eedf0c58f2637a50fa4e9c311313a95a0a",
         "generated_on": "2026-10-09",
         "tool": {
           "path": "test/protocol-next/tools/target-oracle.mjs",
-          "lf_sha256": "459cf9739ee21b026d0fcea37f29ffb684b8d7e3358c295cb2461d3c6dc4d4f3"
+          "lf_sha256": "a56d62fe67b77ef26221a41613cffe17adb24ec2769860d59c27599ca6920d1e"
         },
         "packages": [
           {
