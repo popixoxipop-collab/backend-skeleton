@@ -84,6 +84,33 @@ is not called, the outcome of the `would-deny` decision is recorded as failed wi
 recorded as executed. In enforce mode an ungranted name is refused before it is resolved. In both modes a host answer other than
 `{ connected: true }` is a failed outcome with `NOT_CONNECTED` and an error for the caller.
 
+## Values the caller owns
+
+Some requests carry a value that the caller still holds and can change while the gate waits: the argument list of a spawn, the bytes of
+a write, the environment object, the manifest, the `timers` object. The gate copies each of them once, when the call is entered and
+before its first await, and uses only the copy afterwards: for the check, for the audit record and for the call to the host. A change
+made while the gate waits for the executable lookup or for the canonical path therefore changes neither what was checked nor what is
+done.
+
+- Spawn arguments are read once, element by element, into a frozen copy. A list of at most 1024 strings of at most 65536 characters
+  each, without a NUL, is accepted. A value that is not an array, a longer list, a hole, an element that is not such a string and a list
+  that cannot be read (a getter that throws, a revoked proxy) are refused as `INVALID_ARGUMENT`, which is recorded like any other
+  refusal. `argc`, `args_sha256` and the list handed to `host.spawn` all come from that copy.
+- Bytes to write are copied. A string is encoded as UTF-8 and counted in bytes; a `Uint8Array` (a `Buffer`, a resizable view) is copied.
+  Bytes that cannot be read any more (a detached buffer, a revoked proxy) are refused as `INVALID_ARGUMENT`, never written as an empty
+  file.
+- The environment object of a spawn is read once, one read per allowed name, and only the approved copy reaches the host.
+- The manifest is compiled at construction into a normalised, deep-frozen copy, so editing the object that was passed in changes neither
+  the digest nor a decision.
+- `setTimeout` and `clearTimeout` of the `timers` option are bound when the gate is built. Replacing them on the caller's object later does
+  not switch the wall limit off.
+- Captured child output is copied as it arrives, so a host that reuses its chunk buffer cannot change what the caller gets.
+- `audit()` returns a new array of frozen entries and `report()` a frozen object, so editing a returned value does not change the log.
+
+Not covered by a copy: the `host` object and what it returns are trusted and are used as they are when called (see the residual risks).
+A getter that throws on the object passed to `invoke()`, or on the environment object of `readEnv`, is the caller's own error: it
+propagates before any decision is written, so nothing is allowed and nothing is recorded.
+
 ## Limits
 
 Enforced by the gate: `wall_ms` (the child is killed and the result says so), `stdout_bytes` and
@@ -94,7 +121,7 @@ of timers whose delays add up to the limit: the child is killed when the last on
 clears the link that is armed at that moment. Each link is armed when the previous one fires, so the real time is the limit plus the
 scheduling delay of every link. The manifest validator accepts any positive safe integer as `wall_ms` and was not changed. The gate takes an
 optional `timers` object (`setTimeout` and `clearTimeout`, default the runtime ones; anything else is `INVALID_GATE_TIMERS`) so that the
-chain can be tested with timers that do not wait.
+chain can be tested with timers that do not wait. The gate binds the two functions when it is built.
 
 Reported as `unsupported` because an in-process gate cannot enforce them: `cpu_ms`, `memory_bytes`,
 `pids` and `scratch_bytes`. They stay in the manifest and in its digest, and an operating-system layer
@@ -114,7 +141,7 @@ concurrent requests cannot overrun the log: under concurrency a lookup can still
 write, connect, listen, spawn, secret, device) never starts without its outcome slot. A full log lets nothing through, and an
 `AUDIT_FULL` refusal is itself not recorded when no slot is left. `maxAuditEntries` is at least 2.
 
-`verifyAuditLog(entries, { manifestDigest, expectedEntries, expectedHeadSha256, inFlight })` recomputes the chain and reports
+`verifyAuditLog(entries, { manifestDigest, expectedEntries, expectedHeadSha256, expectedMode, inFlight })` recomputes the chain and reports
 tampering, truncation, a wrong head, a wrong seed, orphan outcomes, a missing outcome (`AUDIT_OUTCOME_MISSING`) and a repeated one
 (`AUDIT_OUTCOME_DUPLICATE`): every `allow` or `would-deny` decision except an environment read must be followed by its outcome, and by
 exactly one; a second outcome entry for the same decision is reported whether it agrees with the first or not. `inFlight` lists the decision numbers the caller
@@ -134,9 +161,21 @@ write that pair, a sweep of more than 5000 requests against several hosts checks
 is evidence, not a proof that the table is complete), and the verifier is run on the cross product of operations, decisions and reasons
 and accepts exactly the table.
 
+One gate fixes its mode, its manifest and its contract when it is built, so the verifier binds the whole log to them. The manifest digest
+seeds the chain (a log of another manifest breaks at its first entry) and every entry carries the contract. The mode is a field of every
+entry, decision or outcome. The log is bound to `expectedMode` when the caller passes one (`gate.verifyAudit()` passes the gate's own
+mode) and otherwise to the mode of the first entry that names a valid one. An entry of the other mode is `AUDIT_MODE_CHANGED`, so a
+re-chained log in which an `enforce` decision is followed by a `shadow` one does not verify, even when both are environment reads that
+owe no outcome. An `expectedMode` that is neither `enforce` nor `shadow` is `AUDIT_EXPECTED_MODE_INVALID`. A log whose entries all name
+another mode than the one the caller knows the gate ran in is consistent with itself, so only the expectation can reject it. The time of
+an entry must be a safe integer, which is all the gate promises of its clock (it refuses any other value with `INVALID_GATE_CLOCK`). Its
+direction is deliberately not bound: a wall clock can step backwards, and the log of an honest gate must still verify. No entry carries a
+gate identity or a version, and `maxAuditEntries` is not recorded in the log, so neither of them is bound.
+
 The verifier does not look at targets (paths, addresses, ports, executables), at the fields of an outcome entry (`ok`, error codes, exit
 codes), or at whether a decision agrees with the manifest: it is given the manifest digest, not the manifest. A re-chained log that
-changes only those is accepted.
+changes only those is accepted. It reads `entries` as plain data (a parsed log): entries that are accessors or proxies, or that change
+between two reads, are not defended against.
 
 The log proves consistency of what the gate recorded; it does not prove that the gate ran, and it is not signed.
 
@@ -146,7 +185,7 @@ The log proves consistency of what the gate recorded; it does not prove that the
   opens without following a final symbolic link, which closes the swap of the last component, but a swap
   of a parent directory between check and open is not prevented by this module.
 - The host binding is trusted. A host that ignores the pinned address, the pinned file or the approved
-  environment defeats the gate.
+  environment defeats the gate. The gate looks the host's methods up when it calls them and does not copy what they return.
 - A started child can use any syscall, local socket, container socket or device the operating system
   allows. The gate does not see them.
 - DNS: answers are pinned per request; a name that is rebound afterwards is not re-checked for traffic
@@ -179,9 +218,17 @@ The log proves consistency of what the gate recorded; it does not prove that the
   of 4,194,305 links), the kill at the last link and not before, clearing of the armed link, refused timers. No real timer is awaited.
 - `test/trust-next/enforcement-gate-decisions.test.mjs`: the table of decision shapes against the real gate (a driver per pair, a
   sweep of requests) and against the verifier (cross product of operations, decisions and reasons), outcome ownership and order.
+- `test/trust-next/enforcement-gate-snapshots.test.mjs`: the values the caller owns. Spawn arguments and environment edited while the
+  executable is resolved; holes, getters and revoked proxies in the argument list and its limits; write bytes edited, resized or detached
+  while the path is canonicalised; timers replaced after construction; a host that reuses its output chunk; a manifest edited after
+  construction; the values `audit()` returns.
+- `test/trust-next/enforcement-gate-binding.test.mjs`: what a log is bound to. The mode (changed at every entry, decision or outcome, in
+  both directions; entries of two real gates; `expectedMode`) and the time (a safe integer, direction not bound).
 - `test/trust-next/enforcement-audit-forge.mjs`: helper, not a test. An independent re-implementation of the audit chain, used to
   recompute the gate's hashes and to re-chain an edited log so that only the content checks can reject it.
 - `test/trust-next/enforcement-gate-real.test.mjs`: real symbolic links, loopback sockets (including an IPv6 `::1` listener where the
   machine has one) and child processes behind the gate, including positive controls.
 - `test/trust-next/enforcement-gate-mutations.json`: executable mutants for the trust negative vectors,
-  run by `test/conformance-next/product-mutation-runner.mjs`.
+  run by `test/conformance-next/product-mutation-runner.mjs`. `test/trust-next/enforcement-gate-mutations.test.mjs` guards the catalog:
+  every anchor occurs once, vectors and test files exist, the file is byte-exact, and the catalog covers the values the caller owns and
+  the properties the verifier binds a log to. A campaign result is a local run, not an attestation.

@@ -74,3 +74,10 @@ test('the catalog exercises every operation the gate mediates', () => {
     assert.ok(text.includes(part), `no mutant for ${part}`);
   }
 });
+
+test('the catalog covers the values a caller keeps hold of and the properties the verifier binds a log to', () => {
+  const text = JSON.stringify(catalog.mutants.map((mutant) => mutant.id));
+  for (const part of ['SPAWN-ARGS', 'SPAWN-ENV', 'WRITE-BYTES', 'TIMERS', 'OUTPUT-CHUNK', 'AUDIT-RETURNS', 'AUDIT-ENTRY-NOT-FROZEN', 'MODE-BINDING', 'EXPECTED-MODE', 'AUDIT-TIME']) {
+    assert.ok(text.includes(part), `no mutant for ${part}`);
+  }
+});
