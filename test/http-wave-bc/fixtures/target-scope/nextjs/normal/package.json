@@ -1,0 +1,9 @@
+{
+  "name": "nextjs-normal",
+  "private": true,
+  "dependencies": {
+    "next": "16.4.0-canary.45",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

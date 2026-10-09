@@ -1,0 +1,1 @@
+{ "name": "bskel-fastify-counterexample", "private": true, "type": "module", "dependencies": { "fastify": "5.12.5" } }

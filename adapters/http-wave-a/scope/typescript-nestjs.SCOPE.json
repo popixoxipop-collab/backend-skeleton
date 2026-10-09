@@ -1,0 +1,950 @@
+{
+  "schema": "bskel.http-target-scope/1",
+  "item": "HTTP-typescript-nestjs-01",
+  "target": "HTTP-typescript-nestjs",
+  "track": "T12",
+  "recordDate": "2026-10-09",
+  "claim": {
+    "registrationAloneIsSupport": false,
+    "published": "blocked-upstream",
+    "scope": "Nothing is published as supported for NestJS. The T12 leaf is a candidate, unregistered projector over T04 facts, not a production default and not runtime-tested. supported[] lists the profile's in-scope decorator constructs together with the routes the live Nest app serves for them; the projector itself could not be run on this source (conformance BLOCKED), so registration alone does not make any construct supported.",
+    "registration": {
+      "profileId": "typescript-nestjs",
+      "state": "candidate",
+      "registration": "unregistered",
+      "productionDefault": false,
+      "runtimeTested": false,
+      "t19Review": "NOT_REVIEWED",
+      "supportedSyntax": [
+        "Nest decorators proven imported from @nestjs/common",
+        "literal @Controller() or @Controller(\"...\")",
+        "literal @Get/@Post/@Put/@Patch/@Delete/@Head/@Options method decorators"
+      ],
+      "versionPin": {
+        "repo": "nestjs/typescript-starter",
+        "ref": "a122dea65cd0610ee205d7765ed46f9d73629141",
+        "framework": "12.0.1",
+        "evidence": "package-lock.json blob 4d3c17bdd69d3106d48517bbeadaf728119a8f44"
+      },
+      "profilePin": "12.0.1"
+    },
+    "runtimeTested": {
+      "frameworkOracleRun": true,
+      "scannerVsRuntimeCompared": false,
+      "scope": "@nestjs/core, @nestjs/common and @nestjs/platform-express 12.0.1 loaded from sources compiled by typescript 6.0.3 (tsc, exit 0) and probed over an ephemeral 127.0.0.1 port on Node v24.19.0, darwin-arm64. The in-repo projector was not compared with it: conformance is BLOCKED.",
+      "notRun": [
+        "Projector output against the runtime (BLOCKED: no producer of bskel.internal.js-ts-structure/0 facts exists in the repo)",
+        "NestJS versions other than 12.0.1 and non-Express platform adapters",
+        "The upstream nestjs/typescript-starter pin itself (its build, tests and the @nestjs/observe module were not run)",
+        "DTO, request-body and response schemas",
+        "Node 22 for the oracle (oracle ran on v24.19.0 only)"
+      ]
+    }
+  },
+  "scanner": {
+    "runner": "typescript-nestjs",
+    "module": "adapters/http-wave-a/nestjs.mjs",
+    "emitsUnknownMarkers": true
+  },
+  "supported": [
+    {
+      "id": "S1",
+      "construct": "Bare @Controller() with a literal verb decorator path: @Get('health')",
+      "emits": [
+        "GET /health"
+      ]
+    },
+    {
+      "id": "S2",
+      "construct": "Literal @Controller('users') with bare @Get() and @Post() verb decorators",
+      "emits": [
+        "GET /users",
+        "POST /users"
+      ]
+    },
+    {
+      "id": "S3",
+      "construct": "Literal @Controller('users') with parameterised literal verb paths: @Get(':id'), @Delete(':id')",
+      "emits": [
+        "GET /users/:id",
+        "DELETE /users/:id"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U1",
+      "construct": "Controller class built by a factory function with a non-literal @Controller(path)",
+      "reason": "A non-literal controller path is a profile unknown (NESTJS_CONTROLLER_PATH_UNKNOWN); a decorated class inside a function is not a top-level controller declaration.",
+      "mustCatch": [
+        "M1"
+      ]
+    },
+    {
+      "id": "U2",
+      "construct": "Guards, interceptors and auth semantics (@UseGuards)",
+      "reason": "Listed as an unknown condition of the profile; routes behind a guard are projected without the guard.",
+      "mustCatch": [
+        "M2"
+      ]
+    },
+    {
+      "id": "U3",
+      "construct": "Non-literal decorator arguments (template literal with a substitution)",
+      "reason": "Reported as NESTJS_METHOD_PATH_UNKNOWN and never emitted.",
+      "mustCatch": [
+        "M3"
+      ]
+    },
+    {
+      "id": "U4",
+      "construct": "Global prefix and versioning (app.setGlobalPrefix)",
+      "reason": "Listed as an unknown condition of the profile; the prefix lives in bootstrap code, not on the decorators the profile reads.",
+      "mustCatch": [
+        "M4"
+      ]
+    },
+    {
+      "id": "U5",
+      "construct": "Module-level route prefix via RouterModule.register",
+      "reason": "Not named in the profile's unknown conditions: a projector that reads decorators alone would place the controller at its unprefixed path.",
+      "mustCatch": [
+        "M5"
+      ]
+    },
+    {
+      "id": "U6",
+      "construct": "DTO, request/response schemas, runtime metadata and synthesized operation identity",
+      "reason": "Listed as unknown conditions of the profile and never modelled.",
+      "mustCatch": []
+    },
+    {
+      "id": "U7",
+      "construct": "NestJS versions other than 12.0.1, non-Express platform adapters, other TypeScript versions",
+      "reason": "Not installed and not run.",
+      "mustCatch": []
+    }
+  ],
+  "mustCatch": [
+    {
+      "id": "M1",
+      "category": "dynamic-route-factory",
+      "construct": "Controller class created by a function and registered in a module: controllers: [crudController('widgets')]",
+      "counterexample": {
+        "file": "src/app.module.ts",
+        "contains": "crudController('widgets')"
+      },
+      "truth": [
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "POST /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /widgets",
+        "POST /widgets"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "Both factory routes are served; a projector must emit them or report the controller path as unknown."
+    },
+    {
+      "id": "M2",
+      "category": "middleware-auth",
+      "construct": "Controller-level guard: @UseGuards(TokenGuard) over @Controller('secure')",
+      "counterexample": {
+        "file": "src/secure.controller.ts",
+        "contains": "@UseGuards(TokenGuard)"
+      },
+      "truth": [
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /secure/data",
+          "auth": "token",
+          "status": 200
+        },
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /secure/data",
+          "auth": "anon",
+          "status": 401
+        }
+      ],
+      "scannerShould": [
+        "GET /secure/data"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The guard turns the same route into 401 without a token; an emitted route must not be read as an open route."
+    },
+    {
+      "id": "M3",
+      "category": "generated-routes",
+      "construct": "Verb path built from a template literal with a substitution: @Get(`item/${KIND}`)",
+      "counterexample": {
+        "file": "src/generated.controller.ts",
+        "contains": "@Get(`item/${KIND}`)"
+      },
+      "truth": [
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /gen/item/alpha",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /gen/item/alpha"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The route is served; a projector must report the non-literal argument as unknown instead of dropping the route."
+    },
+    {
+      "id": "M4",
+      "category": "deployment-prefix",
+      "construct": "Global prefix decided at start-up by the environment: app.setGlobalPrefix(process.env.API_BASE ?? 'svc')",
+      "counterexample": {
+        "file": "src/main.ts",
+        "contains": "app.setGlobalPrefix(process.env.API_BASE ?? 'svc')"
+      },
+      "truth": [
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /open",
+          "exists": true
+        },
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /svc/open",
+          "exists": false
+        },
+        {
+          "scenario": "nestjs-counterexample-prefixed",
+          "route": "GET /svc/open",
+          "exists": true
+        },
+        {
+          "scenario": "nestjs-counterexample-prefixed",
+          "route": "GET /open",
+          "exists": false
+        },
+        {
+          "scenario": "nestjs-counterexample-prefixed-env-v2",
+          "route": "GET /v2/open",
+          "exists": true
+        },
+        {
+          "scenario": "nestjs-counterexample-prefixed-env-v2",
+          "route": "GET /svc/open",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /svc/open"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The same controller is served at /open without the call and at /svc/open or /v2/open with it, so the decorators alone cannot decide the path."
+    },
+    {
+      "id": "M5",
+      "category": "router-prefix-mount",
+      "construct": "Module-level prefix: RouterModule.register([{ path: 'admin', module: AdminModule }])",
+      "counterexample": {
+        "file": "src/app.module.ts",
+        "contains": "RouterModule.register([{ path: 'admin', module: AdminModule }])"
+      },
+      "truth": [
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /admin/reports",
+          "exists": true
+        },
+        {
+          "scenario": "nestjs-counterexample",
+          "route": "GET /reports",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /admin/reports"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The controller declares only reports; it is served solely under the module prefix set in a different file."
+    }
+  ],
+  "framework": {
+    "name": "@nestjs/core",
+    "version": "12.0.1",
+    "registry": "npm",
+    "packages": [
+      {
+        "name": "@nestjs/common",
+        "version": "12.0.1",
+        "integrity": "sha512-v0zTaRCTV2K2xSnb3GnJoQKtaR6VxouJtm+P2gpr5w61dlXeWpXl1WVknCSzUqx2QwTV10tBkHETxvQvkf2Exg==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/@nestjs/common",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "@nestjs/core",
+        "version": "12.0.1",
+        "integrity": "sha512-rU6tAi8vDdyzHgN0iW0J4UJvziroOqzHqzlqL7phOSPizaXVEePfv+OUOsdJEOh0Qd14mslc3udOheLrAEcZow==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/@nestjs/core",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "@nestjs/platform-express",
+        "version": "12.0.1",
+        "integrity": "sha512-nF8bRgROptMyixYBfiJUAsjj2o9k13zxAjUKYaqHTPk8mTSd+gk7hXz6NykXNrfHWmMEYC9RttQlMUdMHNTbuA==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/@nestjs/platform-express",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "@types/node",
+        "version": "24.13.3",
+        "integrity": "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/@types/node",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "devDependencies"
+        }
+      },
+      {
+        "name": "reflect-metadata",
+        "version": "0.2.2",
+        "integrity": "sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/reflect-metadata",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "rxjs",
+        "version": "7.8.2",
+        "integrity": "sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/rxjs",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "typescript",
+        "version": "6.0.3",
+        "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "lockKey": "node_modules/typescript",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+          "section": "devDependencies"
+        }
+      }
+    ],
+    "unverifiedRanges": [
+      "NestJS versions other than 12.0.1 (the pin matches the profile; no range claim)",
+      "Non-Express platform adapters (@nestjs/platform-fastify)",
+      "TypeScript versions other than 6.0.3 (the version in the upstream starter lock)",
+      "Node 22 (oracle run on v24.19.0 only)"
+    ]
+  },
+  "fixtures": {
+    "normal": {
+      "dir": "test/http-wave-a/fixtures/target-scope/nestjs/normal",
+      "scenario": "nestjs-normal",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "788d6fe08d5620c48fdf7dc6b759074d0797424432d95329c908fe6c01d8e360",
+          "bytes": 227
+        },
+        {
+          "path": "src/app.module.ts",
+          "sha256": "e6b2701583643d289725d1cac9a99de020982c2e2b1c5b7ac115f426374845f9",
+          "bytes": 246
+        },
+        {
+          "path": "src/health.controller.ts",
+          "sha256": "1a363b407fb12f7f17ba068e210e51a2258a05d4f0996a10eb47e44dd3687beb",
+          "bytes": 158
+        },
+        {
+          "path": "src/main.ts",
+          "sha256": "e63664357348cc6eb295c3b81dd9471fa76fe5ae7b49f13701e9a13cc9b4522e",
+          "bytes": 214
+        },
+        {
+          "path": "src/users.controller.ts",
+          "sha256": "00fd04014d4856bd5b906f9721d85b016af1cbc920cafe3d15786519298c70c3",
+          "bytes": 381
+        }
+      ]
+    },
+    "counterexample": {
+      "dir": "test/http-wave-a/fixtures/target-scope/nestjs/counterexample",
+      "scenario": "nestjs-counterexample",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "7367f7639e8ce6a3545f5025949648c552d65d95150b0a957c314a8c420b3962",
+          "bytes": 235
+        },
+        {
+          "path": "src/admin.module.ts",
+          "sha256": "13b357b2f56fa591e088d6d2b5a3a62874e09228983aad93447a77e260279e47",
+          "bytes": 231
+        },
+        {
+          "path": "src/app.module.ts",
+          "sha256": "4318c0f6ac029d41533c1482f6f502de055b840d300b44ba170b42d84588e4eb",
+          "bytes": 599
+        },
+        {
+          "path": "src/crud.controller.ts",
+          "sha256": "32204ae432058403f3ff5d49c9a631677b6e1868dba28171761e068c6a2f4638",
+          "bytes": 300
+        },
+        {
+          "path": "src/generated.controller.ts",
+          "sha256": "907c7b7e43077040e0d7b3841019b2505e747a6e2aaaf3824687efbbf35077ef",
+          "bytes": 195
+        },
+        {
+          "path": "src/main.ts",
+          "sha256": "afce8693474cabaea671ceac0e97601b58ba59b45529539cf4638e88d346df0d",
+          "bytes": 429
+        },
+        {
+          "path": "src/open.controller.ts",
+          "sha256": "470e7f967a4ecba19c6a0bcd7f52a416561db6f1c77126e1517fe16de3a17621",
+          "bytes": 146
+        },
+        {
+          "path": "src/secure.controller.ts",
+          "sha256": "afecdbe18215dca04c8aec8cf278d3e5482db98951674872b459d8ac922ada7a",
+          "bytes": 496
+        }
+      ]
+    }
+  },
+  "evidenceFiles": [
+    {
+      "role": "oracle-script",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/oracle.mjs",
+      "sha256": "0702ec441a34a609f4775bfcaf7287c39238fba91e75a4dc952c586b4d87259b",
+      "bytes": 5671
+    },
+    {
+      "role": "oracle-output",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/oracle-output.json",
+      "sha256": "c8402fa988e7c240ae4ecfcffa0562d831e19cef97a216a43073119a85f7ad9a",
+      "bytes": 4380
+    },
+    {
+      "role": "lock",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+      "sha256": "15921b14da657914330dd56e2b7efa14c158677a2fb07b64233eda9d3e11945d",
+      "bytes": 49460
+    },
+    {
+      "role": "manifest",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/package.json",
+      "sha256": "2bb2040a0787b128c3eaab8fbf56e3d9dc5c4dfafdcf36aecffc14d9fc28f5b9",
+      "bytes": 543
+    },
+    {
+      "role": "compiler-config",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/tsconfig.json",
+      "sha256": "aed21b24c22cc62399089f587518d7849415f2e22094bd2a6c9eae2cbab31e61",
+      "bytes": 437
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_nestjs_common_12.0.1.json",
+      "sha256": "5c6d9c609504e1f6745927d674f10e20cb816506fdc0f8aea2b534857fd98826",
+      "bytes": 173
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_nestjs_core_12.0.1.json",
+      "sha256": "4462a4aee5d4076648def97fb7af2b1ee5d8e0fb5188f226dd764ab2b9749fda",
+      "bytes": 171
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_nestjs_platform-express_12.0.1.json",
+      "sha256": "65066345fe1099d7d663e640e73a7cc3665a69f3f2eed6b248aac3140eae87d4",
+      "bytes": 183
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_types_node_24.13.3.json",
+      "sha256": "953f24fbca83e3feaf469cecb5ac783bd7fcfd10d249a7ec227728e44c7c76ab",
+      "bytes": 171
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-reflect-metadata_0.2.2.json",
+      "sha256": "3a6aa0ba9c8b0c35969e1e07adfe2c84d635e9d9759c5d75972e81d46f345464",
+      "bytes": 174
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-rxjs_7.8.2.json",
+      "sha256": "e1a7f750964c7d833820950fa97dab99b247987ce536ebc9aa23ab9c02cccc21",
+      "bytes": 162
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/nestjs/registry-typescript_6.0.3.json",
+      "sha256": "809f138c425d7c5f3d938dfe88f30296156f4abef11d60421cc4da06de9a90ec",
+      "bytes": 168
+    }
+  ],
+  "oracle": {
+    "kind": "real @nestjs 12.0.1 (compiled by typescript 6.0.3) served over a loopback HTTP port; HTTP status per candidate request",
+    "script": "test/http-wave-a/fixtures/target-scope/nestjs/oracle.mjs",
+    "output": "test/http-wave-a/fixtures/target-scope/nestjs/oracle-output.json",
+    "runIds": [
+      "oracle-1",
+      "oracle-2"
+    ],
+    "candidateSetLimit": "The probes cover an authored candidate list per scenario, so a served route that is not on the list is not discovered. \"Exists\" means a status other than 404 or 405.",
+    "buildArgv": [
+      "node_modules/.bin/tsc",
+      "-p",
+      "tsconfig.json"
+    ]
+  },
+  "runs": [
+    {
+      "id": "registry-_nestjs_common_12.0.1",
+      "argv": [
+        "npm",
+        "view",
+        "@nestjs/common@12.0.1",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @nestjs/common@12.0.1 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:55Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_nestjs_common_12.0.1.json",
+        "sha256": "5c6d9c609504e1f6745927d674f10e20cb816506fdc0f8aea2b534857fd98826",
+        "bytes": 173
+      }
+    },
+    {
+      "id": "registry-_nestjs_core_12.0.1",
+      "argv": [
+        "npm",
+        "view",
+        "@nestjs/core@12.0.1",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @nestjs/core@12.0.1 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:56Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_nestjs_core_12.0.1.json",
+        "sha256": "4462a4aee5d4076648def97fb7af2b1ee5d8e0fb5188f226dd764ab2b9749fda",
+        "bytes": 171
+      }
+    },
+    {
+      "id": "registry-_nestjs_platform-express_12.0.1",
+      "argv": [
+        "npm",
+        "view",
+        "@nestjs/platform-express@12.0.1",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @nestjs/platform-express@12.0.1 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:56Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_nestjs_platform-express_12.0.1.json",
+        "sha256": "65066345fe1099d7d663e640e73a7cc3665a69f3f2eed6b248aac3140eae87d4",
+        "bytes": 183
+      }
+    },
+    {
+      "id": "registry-reflect-metadata_0.2.2",
+      "argv": [
+        "npm",
+        "view",
+        "reflect-metadata@0.2.2",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view reflect-metadata@0.2.2 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:56Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-reflect-metadata_0.2.2.json",
+        "sha256": "3a6aa0ba9c8b0c35969e1e07adfe2c84d635e9d9759c5d75972e81d46f345464",
+        "bytes": 174
+      }
+    },
+    {
+      "id": "registry-rxjs_7.8.2",
+      "argv": [
+        "npm",
+        "view",
+        "rxjs@7.8.2",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view rxjs@7.8.2 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:57Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-rxjs_7.8.2.json",
+        "sha256": "e1a7f750964c7d833820950fa97dab99b247987ce536ebc9aa23ab9c02cccc21",
+        "bytes": 162
+      }
+    },
+    {
+      "id": "registry-_types_node_24.13.3",
+      "argv": [
+        "npm",
+        "view",
+        "@types/node@24.13.3",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @types/node@24.13.3 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:58Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-_types_node_24.13.3.json",
+        "sha256": "953f24fbca83e3feaf469cecb5ac783bd7fcfd10d249a7ec227728e44c7c76ab",
+        "bytes": 171
+      }
+    },
+    {
+      "id": "registry-typescript_6.0.3",
+      "argv": [
+        "npm",
+        "view",
+        "typescript@6.0.3",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view typescript@6.0.3 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:58Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/registry-typescript_6.0.3.json",
+        "sha256": "809f138c425d7c5f3d938dfe88f30296156f4abef11d60421cc4da06de9a90ec",
+        "bytes": 168
+      }
+    },
+    {
+      "id": "install-1",
+      "argv": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm install --package-lock-only --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:31:04Z",
+      "inputsSha256": "1fedd054951782ed13783eb5b9a98751118cd81095b012bc4f971f82ce286f63",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "sha256": "15921b14da657914330dd56e2b7efa14c158677a2fb07b64233eda9d3e11945d",
+        "bytes": 49460
+      }
+    },
+    {
+      "id": "install-2",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm ci --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:31:05Z",
+      "inputsSha256": "a86fb028f6c77144135be5c4f007d689c4bb49de61fbea14a3001bb997a88b42",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/package-lock.json",
+        "sha256": "15921b14da657914330dd56e2b7efa14c158677a2fb07b64233eda9d3e11945d",
+        "bytes": 49460
+      }
+    },
+    {
+      "id": "build-1",
+      "argv": [
+        "node_modules/.bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "command": "node_modules/.bin/tsc -p tsconfig.json",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:31:06Z",
+      "inputsSha256": "a86fb028f6c77144135be5c4f007d689c4bb49de61fbea14a3001bb997a88b42",
+      "output": {
+        "kind": "stdout",
+        "file": null,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "id": "oracle-1",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:31:07Z",
+      "inputsSha256": "a86fb028f6c77144135be5c4f007d689c4bb49de61fbea14a3001bb997a88b42",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/oracle-output.json",
+        "sha256": "c8402fa988e7c240ae4ecfcffa0562d831e19cef97a216a43073119a85f7ad9a",
+        "bytes": 4380
+      }
+    },
+    {
+      "id": "build-2",
+      "argv": [
+        "node_modules/.bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "command": "node_modules/.bin/tsc -p tsconfig.json",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:31:07Z",
+      "inputsSha256": "a86fb028f6c77144135be5c4f007d689c4bb49de61fbea14a3001bb997a88b42",
+      "output": {
+        "kind": "stdout",
+        "file": null,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "id": "oracle-2",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-a/fixtures/target-scope/nestjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:31:08Z",
+      "inputsSha256": "a86fb028f6c77144135be5c4f007d689c4bb49de61fbea14a3001bb997a88b42",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/nestjs/oracle-output.json",
+        "sha256": "c8402fa988e7c240ae4ecfcffa0562d831e19cef97a216a43073119a85f7ad9a",
+        "bytes": 4380
+      }
+    }
+  ],
+  "runEnv": {
+    "policy": "cleared-environment",
+    "variables": {
+      "PATH": "<node-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "LANG": "C",
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "npm_config_update_notifier": "false"
+    },
+    "platformInjected": [
+      "__CF_USER_TEXT_ENCODING"
+    ]
+  },
+  "conformance": {
+    "status": "BLOCKED",
+    "method": "No projector output exists for a real Nest source tree. Each check below is recomputed from the repo on every verification; if a producer of the structure facts appears or the profile scope changes, the BLOCKED record fails and must be rewritten as a RUN record.",
+    "code": "NESTJS_STRUCTURE_FACT_PRODUCER_MISSING",
+    "reason": "The NestJS leaf only projects T04 facts (bskel.internal.js-ts-source-facts/0 plus bskel.internal.js-ts-structure/0). Nothing in this repo produces the structure facts: the only non-test source files naming that contract are the two consumers (adapters/http-wave-a/nestjs.mjs and fastify.mjs), and the NestJS test writes the fact literal by hand. Source-to-route output for a real Nest app cannot be produced, so no scanner-vs-runtime comparison exists; the oracle run only fixes the routes the projector must reproduce.",
+    "oracleConfirmedNormal": [
+      "DELETE /users/:id",
+      "GET /health",
+      "GET /users",
+      "GET /users/:id",
+      "POST /users"
+    ],
+    "checks": [
+      {
+        "kind": "fact-contract-files",
+        "target": "bskel.internal.js-ts-structure/0",
+        "expect": "adapters/http-wave-a/fastify.mjs,adapters/http-wave-a/nestjs.mjs"
+      },
+      {
+        "kind": "supported-syntax-count",
+        "target": "typescript-nestjs",
+        "expect": "3"
+      }
+    ]
+  },
+  "limits": [
+    {
+      "id": "candidate-list",
+      "status": "UNKNOWN",
+      "text": "The oracle probes a candidate list over a loopback port; it does not enumerate the routes the app serves."
+    },
+    {
+      "id": "fixture-scope",
+      "status": "UNSUPPORTED",
+      "text": "The fixtures are compiled with experimentalDecorators and emitDecoratorMetadata like the upstream starter; no dependency injection, DTO validation or non-Express adapter is exercised."
+    },
+    {
+      "id": "no-ci-replay",
+      "status": "NOT_RECORDED",
+      "text": "CI does not replay the recorded framework runs or the TypeScript build; it recomputes every hash and pin, re-reads the profile and checks the blocked facts against the repo."
+    },
+    {
+      "id": "single-platform",
+      "status": "NOT_RECORDED",
+      "text": "Every recorded run used one platform and one Node version (v24.19.0, darwin-arm64); the verifier requires them to be identical across runs. Other platforms and Node versions were not run."
+    },
+    {
+      "id": "not-run",
+      "status": "NOT_RECORDED",
+      "text": "Not run: Projector output against the runtime (BLOCKED: no producer of bskel.internal.js-ts-structure/0 facts exists in the repo); NestJS versions other than 12.0.1 and non-Express platform adapters; The upstream nestjs/typescript-starter pin itself (its build, tests and the @nestjs/observe module were not run); DTO, request-body and response schemas; Node 22 for the oracle (oracle ran on v24.19.0 only)."
+    },
+    {
+      "id": "conformance-blocked",
+      "status": "BLOCKED",
+      "text": "NESTJS_STRUCTURE_FACT_PRODUCER_MISSING: The NestJS leaf only projects T04 facts (bskel.internal.js-ts-source-facts/0 plus bskel.internal.js-ts-structure/0). Nothing in this repo produces the structure facts: the only non-test source files naming that contract are the two consumers (adapters/http-wave-a/nestjs.mjs and fastify.mjs), and the NestJS test writes the fact literal by hand. Source-to-route output for a real Nest app cannot be produced, so no scanner-vs-runtime comparison exists; the oracle run only fixes the routes the projector must reproduce."
+    }
+  ],
+  "seal": {
+    "algorithm": "sha256 over canonical JSON (object keys sorted, no whitespace)",
+    "covers": "every field of this record except seal",
+    "sha256": "66b83d39425ebbb59a88e57197bbaa3aff59199778547c31c04aa4bdc1f6ff76",
+    "notRecomputed": [
+      "The framework runs themselves (npm view, npm install, npm ci, build, oracle) are not replayed: exit codes, timestamps and the Node and platform strings are taken from the record. CI re-derives each run's argv, input hashes and output hashes, the lock, the registry answers and the oracle output.",
+      "Prose (constructs, reasons, notes, limit texts) is covered by the seal against silent edits but is not recomputed; the facts it states are checked through the fields they cite.",
+      "The live npm registry and the upstream example commits are not queried in CI; the registry files are the recorded answers of the registry steps."
+    ]
+  }
+}

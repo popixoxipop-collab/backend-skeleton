@@ -1,0 +1,974 @@
+{
+  "schema": "bskel.http-target-scope/1",
+  "item": "HTTP-typescript-nextjs-01",
+  "target": "HTTP-typescript-nextjs",
+  "track": "T13",
+  "recordDate": "2026-10-09",
+  "claim": {
+    "registrationAloneIsSupport": false,
+    "published": "synthetic-only-hold",
+    "scope": "Next.js App Router route handlers (app/**/route.ts) with explicitly exported HTTP method functions, simple [param] segments and route groups, under a literal basePath from next.config. Verification basis is synthetic-only, the profile state is STATIC_EVIDENCE_GREEN and promotion is held (HOLD_T19_T23); api.operations, api.request-shape, resource.fetch and codegen.handles are all false. Catalog registration does not make any construct outside supported[] supported.",
+    "registration": {
+      "adapterId": "typescript-nextjs",
+      "contract": "sbf.adapter/2",
+      "specificity": 56,
+      "verificationBasis": "synthetic-only",
+      "capabilities": {
+        "api.operations": false,
+        "api.request-shape": false,
+        "resource.fetch": false,
+        "codegen.handles": false
+      },
+      "profileState": "STATIC_EVIDENCE_GREEN",
+      "promotionState": "HOLD_T19_T23",
+      "profilePin": "16.4.0-canary.45"
+    },
+    "runtimeTested": {
+      "frameworkOracleRun": true,
+      "scannerVsRuntimeCompared": true,
+      "scope": "next 16.4.0-canary.45 (react and react-dom 19.3.0): the real `next build` (Turbopack) ran on a work copy of each committed fixture and the resulting production server was started programmatically on an ephemeral 127.0.0.1 port and probed with fetch, on Node v24.19.0, darwin-arm64. The live scanner output was compared route by route with the returned statuses.",
+      "notRun": [
+        "Next.js versions other than 16.4.0-canary.45 (a canary build; no stable release was run)",
+        "Node 22 for the oracle (oracle ran on v24.19.0 only)",
+        "the next CLI start command, next dev, standalone output and the edge runtime (the production server was started through the programmatic API)",
+        "webpack builds (Turbopack default only)",
+        "Pages Router pages, middleware.ts (the fixtures use the Next 16 proxy.ts), i18n, parallel and intercepting routes",
+        "authentication enforcement beyond the single proxy.ts matcher probe"
+      ]
+    }
+  },
+  "scanner": {
+    "runner": "typescript-nextjs",
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "emitsUnknownMarkers": true
+  },
+  "supported": [
+    {
+      "id": "S1",
+      "construct": "App Router route.ts with directly exported method functions (export function GET/POST) under a literal basePath: app/api/{health,ping,users}/route.ts with basePath /portal",
+      "emits": [
+        "GET /portal/api/health",
+        "GET /portal/api/ping",
+        "POST /portal/api/ping",
+        "GET /portal/api/users",
+        "POST /portal/api/users"
+      ]
+    },
+    {
+      "id": "S2",
+      "construct": "Simple [param] segment: app/api/users/[id]/route.ts is reported as /portal/api/users/{id} for each exported method",
+      "emits": [
+        "GET /portal/api/users/{id}",
+        "DELETE /portal/api/users/{id}"
+      ]
+    },
+    {
+      "id": "S3",
+      "construct": "Route group (admin): the group folder is dropped from the URL, app/(admin)/admin/stats/route.ts is /portal/admin/stats",
+      "emits": [
+        "GET /portal/admin/stats"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U1",
+      "construct": "Route handlers whose methods are produced by a factory call (export const { GET, POST } = createHandlers(...))",
+      "reason": "Only directly exported method functions are read; the file is reported as exporting no directly supported HTTP method and nothing is emitted for it.",
+      "mustCatch": [
+        "M1"
+      ]
+    },
+    {
+      "id": "U2",
+      "construct": "Authentication and authorization semantics of proxy.ts (and middleware.ts) matchers",
+      "reason": "Neither file is read or reported; routes behind a matcher are emitted without any guard information.",
+      "mustCatch": [
+        "M2"
+      ]
+    },
+    {
+      "id": "U3",
+      "construct": "Metadata and generated routes (sitemap, robots, manifest, icons, opengraph-image)",
+      "reason": "Only route.ts files are read; a served /sitemap.xml produced by app/sitemap.ts is neither emitted nor reported.",
+      "mustCatch": [
+        "M3"
+      ]
+    },
+    {
+      "id": "U4",
+      "construct": "basePath decided from the environment or any non-literal expression",
+      "reason": "The literal part of the expression is used as the prefix without a warning, so the emitted prefix is right only for the deployment that matches it.",
+      "mustCatch": [
+        "M4"
+      ]
+    },
+    {
+      "id": "U5",
+      "construct": "next.config rewrites, redirects and headers",
+      "reason": "The configuration is read for basePath only; routes reachable through a rewrite are neither emitted nor reported.",
+      "mustCatch": [
+        "M5"
+      ]
+    },
+    {
+      "id": "U6",
+      "construct": "Catch-all and optional catch-all segments ([...path], [[...path]])",
+      "reason": "Reported as unknown (catch-all-segment) and not emitted.",
+      "mustCatch": [
+        "M6"
+      ]
+    },
+    {
+      "id": "U7",
+      "construct": "Pages Router API routes (pages/api/*.ts)",
+      "reason": "Reported as detected but not emitted, because the methods depend on handler control flow.",
+      "mustCatch": [
+        "M7"
+      ]
+    },
+    {
+      "id": "U8",
+      "construct": "Framework-generated HEAD and OPTIONS responses",
+      "reason": "Only explicitly exported methods are emitted; the oracle answers HEAD and OPTIONS on a GET-only route (probed on /portal/api/health) and the scanner states that it does not synthesize them.",
+      "mustCatch": []
+    },
+    {
+      "id": "U9",
+      "construct": "Next.js versions other than 16.4.0-canary.45, Node versions other than v24.19.0, webpack, standalone output, edge runtime, i18n, parallel and intercepting routes",
+      "reason": "Not installed and not run.",
+      "mustCatch": []
+    }
+  ],
+  "mustCatch": [
+    {
+      "id": "M1",
+      "category": "dynamic-route-factory",
+      "construct": "Route methods produced by a factory function: export const { GET, POST } = createHandlers('items')",
+      "counterexample": {
+        "file": "app/api/items/route.ts",
+        "contains": "export const { GET, POST } = createHandlers('items');"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/api/items",
+          "status": 200
+        },
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "POST /portal/api/items",
+          "status": 201
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/api/items",
+        "POST /portal/api/items"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "app/api/items/route\\.ts exports no directly supported HTTP method",
+      "expected": "left-unknown",
+      "note": "Both factory routes are served (200 and 201). The scanner emits neither and reports that the file exports no directly supported method, so the gap is visible in its output."
+    },
+    {
+      "id": "M2",
+      "category": "middleware-auth",
+      "construct": "proxy.ts guard with a matcher: export const config = { matcher: '/api/secure/:path*' } returns 401 without the x-token header",
+      "counterexample": {
+        "file": "proxy.ts",
+        "contains": "matcher: '/api/secure/:path*'"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/api/secure/data",
+          "auth": "token",
+          "status": 200
+        },
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/api/secure/data",
+          "auth": "anon",
+          "status": 401
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/api/secure/data"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "caught",
+      "note": "Only the route is caught. The guard is neither modelled nor reported (no unknown mentions proxy.ts, api.operations=false), so an emitted route must not be read as an open route."
+    },
+    {
+      "id": "M3",
+      "category": "generated-routes",
+      "construct": "Generated metadata route: app/sitemap.ts serves /sitemap.xml",
+      "counterexample": {
+        "file": "app/sitemap.ts",
+        "contains": "export default function sitemap()"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/sitemap.xml",
+          "exists": true
+        },
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /sitemap.xml",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/sitemap.xml"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "The generated route is served under the basePath; the scanner emits nothing for it and reports nothing about metadata routes."
+    },
+    {
+      "id": "M4",
+      "category": "deployment-prefix",
+      "construct": "basePath decided by the environment: basePath: '/portal' + tenant, with tenant = process.env.TENANT ?? ''",
+      "counterexample": {
+        "file": "next.config.mjs",
+        "contains": "basePath: '/portal' + tenant"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/api/open",
+          "exists": true
+        },
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /api/open",
+          "exists": false
+        },
+        {
+          "scenario": "nextjs-counterexample-tenant-eu",
+          "route": "GET /portal-eu/api/open",
+          "exists": true
+        },
+        {
+          "scenario": "nextjs-counterexample-tenant-eu",
+          "route": "GET /portal/api/open",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/api/open",
+        "GET /portal-eu/api/open"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "The served prefix is /portal by default and /portal-eu when TENANT=-eu (then /portal/api/open answers 404). The scanner emits only the literal /portal prefix and does not mark it unknown, so under TENANT=-eu its route is wrong with no warning."
+    },
+    {
+      "id": "M5",
+      "category": "config-driven",
+      "construct": "Route reachable through a rewrite: rewrites() maps /v1/:path* to /api/:path*",
+      "counterexample": {
+        "file": "next.config.mjs",
+        "contains": "source: '/v1/:path*'"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/v1/open",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/v1/open"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "The rewritten URL is served; the scanner emits and reports nothing about rewrites."
+    },
+    {
+      "id": "M6",
+      "category": "dynamic-segment",
+      "construct": "Catch-all segment: app/api/files/[...path]/route.ts",
+      "counterexample": {
+        "file": "app/api/files/[...path]/route.ts",
+        "contains": "export async function GET"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/api/files/{...path}",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/api/files/{...path}"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "app/api/files/\\[\\.\\.\\.path\\]/route\\.ts uses catch-all-segment",
+      "expected": "left-unknown",
+      "note": "The catch-all is served (probed with /portal/api/files/a/b); the scanner emits nothing and reports the catch-all segment as unknown."
+    },
+    {
+      "id": "M7",
+      "category": "multi-method",
+      "construct": "Pages Router API route that answers every method: pages/api/legacy.ts",
+      "counterexample": {
+        "file": "pages/api/legacy.ts",
+        "contains": "export default function handler"
+      },
+      "truth": [
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "GET /portal/api/legacy",
+          "status": 200
+        },
+        {
+          "scenario": "nextjs-counterexample",
+          "route": "POST /portal/api/legacy",
+          "status": 200
+        }
+      ],
+      "scannerShould": [
+        "GET /portal/api/legacy",
+        "POST /portal/api/legacy"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "Pages API files were detected but are not emitted",
+      "expected": "left-unknown",
+      "note": "Both methods answer 200; the scanner detects the Pages API file and reports that it is not emitted."
+    }
+  ],
+  "framework": {
+    "name": "next",
+    "version": "16.4.0-canary.45",
+    "registry": "npm",
+    "packages": [
+      {
+        "name": "@types/node",
+        "version": "22.20.5",
+        "integrity": "sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/@types/node",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "devDependencies"
+        }
+      },
+      {
+        "name": "@types/react",
+        "version": "19.3.0",
+        "integrity": "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/@types/react",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "devDependencies"
+        }
+      },
+      {
+        "name": "@types/react-dom",
+        "version": "19.3.0",
+        "integrity": "sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/@types/react-dom",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "devDependencies"
+        }
+      },
+      {
+        "name": "next",
+        "version": "16.4.0-canary.45",
+        "integrity": "sha512-sad4AgATEjlW1YPu/0kIU9WGxF3IjuvL+wBJ/l5OysgbultMkruUNyUHhDo+j5aiZqFAVZArlNNn7RRMJlOnHQ==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/next",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "react",
+        "version": "19.3.0",
+        "integrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/react",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "react-dom",
+        "version": "19.3.0",
+        "integrity": "sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/react-dom",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "typescript",
+        "version": "5.9.3",
+        "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "lockKey": "node_modules/typescript",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+          "section": "devDependencies"
+        }
+      }
+    ],
+    "unverifiedRanges": [
+      "Next.js versions other than 16.4.0-canary.45 (one exact canary exercised; no range claim)",
+      "Node 22 (oracle run on v24.19.0 only)",
+      "Webpack builds and the edge runtime"
+    ]
+  },
+  "fixtures": {
+    "normal": {
+      "dir": "test/http-wave-bc/fixtures/target-scope/nextjs/normal",
+      "scenario": "nextjs-normal",
+      "files": [
+        {
+          "path": "app/(admin)/admin/stats/route.ts",
+          "sha256": "d2915645e08e8131385ca1cc4113e41c7438dbef7f69736248080eb1754f8a57",
+          "bytes": 64
+        },
+        {
+          "path": "app/api/health/route.ts",
+          "sha256": "91f2e5b3192844dc77cfef839f6b4507776757443f19ed2697fbbc9874a53be4",
+          "bytes": 64
+        },
+        {
+          "path": "app/api/ping/route.ts",
+          "sha256": "6aa845d404a7f6d788eb7390c1415d4bf04670ec8dcd26e6c8c4e362c834bd16",
+          "bytes": 114
+        },
+        {
+          "path": "app/api/users/[id]/route.ts",
+          "sha256": "28af4aea26e6cf51e34879d290f9d8446b1ed8209b625deec47ca9a794db61cf",
+          "bytes": 314
+        },
+        {
+          "path": "app/api/users/route.ts",
+          "sha256": "eb0eecac0cde426de4af8685babec6b6ea4878fc4ff73b6e009c2f4abf9401cb",
+          "bytes": 229
+        },
+        {
+          "path": "next.config.mjs",
+          "sha256": "c5571902dea415d021b6972aa0a25a49154a2a0970ac376dbdff8576f1cda330",
+          "bytes": 40
+        },
+        {
+          "path": "package.json",
+          "sha256": "251204176192a75f4968b354c72d85962ecd7c3bec7fe264e661c47e7d044ff6",
+          "bytes": 155
+        }
+      ]
+    },
+    "counterexample": {
+      "dir": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample",
+      "scenario": "nextjs-counterexample",
+      "files": [
+        {
+          "path": "app/api/files/[...path]/route.ts",
+          "sha256": "4e1ad76014510aed2cb8f6e687c12f71abec35403702fe33a23f8b0a872cb62d",
+          "bytes": 183
+        },
+        {
+          "path": "app/api/items/route.ts",
+          "sha256": "b56cdabde4ffc04ccc8b41ad9eef7fb228289a75f3c06cc7c88ed8fd42af49c8",
+          "bytes": 111
+        },
+        {
+          "path": "app/api/open/route.ts",
+          "sha256": "6d5cb9a3c7adfcfdd3c5de711dedd584e29536f25a3780fe9273827125e5b6cd",
+          "bytes": 66
+        },
+        {
+          "path": "app/api/secure/data/route.ts",
+          "sha256": "16f0369b7aa60c5762307d8eae9d6b28f754a944f920a3028a167e43c4884940",
+          "bytes": 68
+        },
+        {
+          "path": "app/sitemap.ts",
+          "sha256": "ea41b4314a733e7fcfee2165e7eedd0197b5328a01eda06394f778df1e4a607b",
+          "bytes": 150
+        },
+        {
+          "path": "lib/handlers.ts",
+          "sha256": "d61079e7b5a7dd04ce8c0afd17fcd44e387b07dc6e2fc8e146faf487e45814f7",
+          "bytes": 190
+        },
+        {
+          "path": "next.config.mjs",
+          "sha256": "155eaf7dd6aff3082d757dfa9d8d5ee6dde6fb2428acc1b75756de37ca691eed",
+          "bytes": 307
+        },
+        {
+          "path": "package.json",
+          "sha256": "fcab530fc67235a211d87f56382172d6c360204fa37c4377e813cd4317a60bf6",
+          "bytes": 163
+        },
+        {
+          "path": "pages/api/legacy.ts",
+          "sha256": "ba0fa6592b62938c1a2c3b5842e54d902b4139db72f50cbdfc559a83017f2d2c",
+          "bytes": 207
+        },
+        {
+          "path": "proxy.ts",
+          "sha256": "e1687b627e518888946b863c536b4e1c54418f146ed378d411c4dafbc91e91d6",
+          "bytes": 326
+        }
+      ]
+    }
+  },
+  "evidenceFiles": [
+    {
+      "role": "oracle-script",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle.mjs",
+      "sha256": "b36aae3d53c26045da591ee9624e5f43e8f945ba43d7f9367d154d159d2c63e1",
+      "bytes": 9347
+    },
+    {
+      "role": "oracle-output",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle-output.json",
+      "sha256": "6696b9dccd711c606914e6e7e8b7730cdf59ad56cdf5a0f79210f9ea7d245052",
+      "bytes": 6364
+    },
+    {
+      "role": "lock",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+      "sha256": "871beb67936fcd5115b4055fdd393f08c746a4032495cc6e1ebd5e2ac143e7fb",
+      "bytes": 34517
+    },
+    {
+      "role": "manifest",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+      "sha256": "1961867cae46aff6fb81279243572325fe8376a44c66b27807c7832cd270b41f",
+      "bytes": 315
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_node_22.20.5.json",
+      "sha256": "cdf2bf6d5feb78833074ce2b4911475830bad9e40b5c97336ae850f2a271a881",
+      "bytes": 171
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_react-dom_19.3.0.json",
+      "sha256": "aed9f1fa93d250c5681f41afd1e5feb48ea9295f5e0e24b034d1cc22237c5e39",
+      "bytes": 175
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_react_19.3.0.json",
+      "sha256": "3c91001d17806f9bba36fc490485eb6f7c6492ae16fe8645486b391b28237e37",
+      "bytes": 171
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-next_16.4.0-canary.45.json",
+      "sha256": "8bbfa2d68b8284418bf2cb0d60b035cbbb42cc8315f1757844b41c030f41a66b",
+      "bytes": 173
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-react-dom_19.3.0.json",
+      "sha256": "ef306acc8c71485f74115b089d666817c55b70bf0bdacdb8c505f64c1e5715fb",
+      "bytes": 168
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-react_19.3.0.json",
+      "sha256": "627a344f9800cac4e84386cd86ca65f3b8d2bbaeff2a3fbf6141e4caff136d8c",
+      "bytes": 164
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-typescript_5.9.3.json",
+      "sha256": "46cbd7f43f23e3a67f4931608efffb6375741fb8a095c619ff69f75283a19c87",
+      "bytes": 168
+    }
+  ],
+  "oracle": {
+    "kind": "real next 16.4.0-canary.45: next build of each fixture, then the production server on a loopback ephemeral port; HTTP status per candidate request",
+    "script": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle.mjs",
+    "output": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle-output.json",
+    "runIds": [
+      "oracle-1",
+      "oracle-2"
+    ],
+    "candidateSetLimit": "The oracle probes an authored candidate list per scenario over a loopback port; it cannot discover a served route that is not on the list. \"Exists\" means a status other than 404 or 405."
+  },
+  "runs": [
+    {
+      "id": "registry-next_16.4.0-canary.45",
+      "argv": [
+        "npm",
+        "view",
+        "next@16.4.0-canary.45",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view next@16.4.0-canary.45 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:56Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-next_16.4.0-canary.45.json",
+        "sha256": "8bbfa2d68b8284418bf2cb0d60b035cbbb42cc8315f1757844b41c030f41a66b",
+        "bytes": 173
+      }
+    },
+    {
+      "id": "registry-react_19.3.0",
+      "argv": [
+        "npm",
+        "view",
+        "react@19.3.0",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view react@19.3.0 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:56Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-react_19.3.0.json",
+        "sha256": "627a344f9800cac4e84386cd86ca65f3b8d2bbaeff2a3fbf6141e4caff136d8c",
+        "bytes": 164
+      }
+    },
+    {
+      "id": "registry-react-dom_19.3.0",
+      "argv": [
+        "npm",
+        "view",
+        "react-dom@19.3.0",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view react-dom@19.3.0 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:57Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-react-dom_19.3.0.json",
+        "sha256": "ef306acc8c71485f74115b089d666817c55b70bf0bdacdb8c505f64c1e5715fb",
+        "bytes": 168
+      }
+    },
+    {
+      "id": "registry-_types_node_22.20.5",
+      "argv": [
+        "npm",
+        "view",
+        "@types/node@22.20.5",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @types/node@22.20.5 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:58Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_node_22.20.5.json",
+        "sha256": "cdf2bf6d5feb78833074ce2b4911475830bad9e40b5c97336ae850f2a271a881",
+        "bytes": 171
+      }
+    },
+    {
+      "id": "registry-_types_react_19.3.0",
+      "argv": [
+        "npm",
+        "view",
+        "@types/react@19.3.0",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @types/react@19.3.0 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:58Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_react_19.3.0.json",
+        "sha256": "3c91001d17806f9bba36fc490485eb6f7c6492ae16fe8645486b391b28237e37",
+        "bytes": 171
+      }
+    },
+    {
+      "id": "registry-_types_react-dom_19.3.0",
+      "argv": [
+        "npm",
+        "view",
+        "@types/react-dom@19.3.0",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @types/react-dom@19.3.0 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:58Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_react-dom_19.3.0.json",
+        "sha256": "aed9f1fa93d250c5681f41afd1e5feb48ea9295f5e0e24b034d1cc22237c5e39",
+        "bytes": 175
+      }
+    },
+    {
+      "id": "registry-typescript_5.9.3",
+      "argv": [
+        "npm",
+        "view",
+        "typescript@5.9.3",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view typescript@5.9.3 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:35:59Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-typescript_5.9.3.json",
+        "sha256": "46cbd7f43f23e3a67f4931608efffb6375741fb8a095c619ff69f75283a19c87",
+        "bytes": 168
+      }
+    },
+    {
+      "id": "install-1",
+      "argv": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm install --package-lock-only --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:36:02Z",
+      "inputsSha256": "9c320887911bb498c85ef6c5d9f6c845890aef83907519ec4d7b0e1e0578910d",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "sha256": "871beb67936fcd5115b4055fdd393f08c746a4032495cc6e1ebd5e2ac143e7fb",
+        "bytes": 34517
+      }
+    },
+    {
+      "id": "install-2",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm ci --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:36:07Z",
+      "inputsSha256": "23ad1c3c9a5e53fda04172ebaee89cbacc5fde66ce41a1a4b70a16d6ef0ca732",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+        "sha256": "871beb67936fcd5115b4055fdd393f08c746a4032495cc6e1ebd5e2ac143e7fb",
+        "bytes": 34517
+      }
+    },
+    {
+      "id": "oracle-1",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:36:21Z",
+      "inputsSha256": "23ad1c3c9a5e53fda04172ebaee89cbacc5fde66ce41a1a4b70a16d6ef0ca732",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle-output.json",
+        "sha256": "6696b9dccd711c606914e6e7e8b7730cdf59ad56cdf5a0f79210f9ea7d245052",
+        "bytes": 6364
+      }
+    },
+    {
+      "id": "oracle-2",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/nextjs",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:36:34Z",
+      "inputsSha256": "23ad1c3c9a5e53fda04172ebaee89cbacc5fde66ce41a1a4b70a16d6ef0ca732",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle-output.json",
+        "sha256": "6696b9dccd711c606914e6e7e8b7730cdf59ad56cdf5a0f79210f9ea7d245052",
+        "bytes": 6364
+      }
+    }
+  ],
+  "runEnv": {
+    "policy": "cleared-environment",
+    "variables": {
+      "PATH": "<node-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "LANG": "C",
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "npm_config_update_notifier": "false"
+    },
+    "platformInjected": [
+      "__CF_USER_TEXT_ENCODING"
+    ]
+  },
+  "conformance": {
+    "status": "RUN",
+    "method": "The in-repo scanner module runs live on each committed fixture directory (twice, for determinism). Each endpoint is canonicalised to \"VERB /path\" and looked up in the oracle output: a probe answering 404 or 405 makes it a false route. A must-catch is \"caught\" when every scannerShould route is emitted, \"left-unknown\" when a matching scanNotes entry is reported, else \"silent-miss\"; every unknownMarker must also still be reported.",
+    "emitted": {
+      "normal": [
+        "DELETE /portal/api/users/{id}",
+        "GET /portal/admin/stats",
+        "GET /portal/api/health",
+        "GET /portal/api/ping",
+        "GET /portal/api/users",
+        "GET /portal/api/users/{id}",
+        "POST /portal/api/ping",
+        "POST /portal/api/users"
+      ],
+      "counterexample": [
+        "GET /portal/api/open",
+        "GET /portal/api/secure/data"
+      ]
+    },
+    "falseRoutes": {
+      "normal": [],
+      "counterexample": []
+    },
+    "verdictCounts": {
+      "caught": 1,
+      "left-unknown": 3,
+      "silent-miss": 3
+    }
+  },
+  "limits": [
+    {
+      "id": "candidate-list",
+      "status": "UNKNOWN",
+      "text": "The oracle probes a candidate list over a loopback port; it does not enumerate the routes the app serves."
+    },
+    {
+      "id": "fixture-scope",
+      "status": "UNSUPPORTED",
+      "text": "Fixtures are TypeScript App Router handlers plus one Pages API file; other Next.js features (middleware.ts, i18n, parallel and intercepting routes, standalone output, edge runtime) are outside this record."
+    },
+    {
+      "id": "promotion-held",
+      "status": "BLOCKED",
+      "text": "Promotion stays held (HOLD_T19_T23) and this record does not change it."
+    },
+    {
+      "id": "no-ci-replay",
+      "status": "NOT_RECORDED",
+      "text": "CI does not replay the recorded framework runs or the Next.js build; it recomputes every hash and pin and re-runs the in-repo scanner on the committed fixtures."
+    },
+    {
+      "id": "single-platform",
+      "status": "NOT_RECORDED",
+      "text": "Every recorded run used one platform and one Node version (v24.19.0, darwin-arm64); the verifier requires them to be identical across runs. Other platforms and Node versions were not run."
+    },
+    {
+      "id": "not-run",
+      "status": "NOT_RECORDED",
+      "text": "Not run: Next.js versions other than 16.4.0-canary.45 (a canary build; no stable release was run); Node 22 for the oracle (oracle ran on v24.19.0 only); the next CLI start command, next dev, standalone output and the edge runtime (the production server was started through the programmatic API); webpack builds (Turbopack default only); Pages Router pages, middleware.ts (the fixtures use the Next 16 proxy.ts), i18n, parallel and intercepting routes; authentication enforcement beyond the single proxy.ts matcher probe."
+    }
+  ],
+  "seal": {
+    "algorithm": "sha256 over canonical JSON (object keys sorted, no whitespace)",
+    "covers": "every field of this record except seal",
+    "sha256": "e9b7f94b5bc6a1d8ea5ed9952e63b2ef4e37391dd454a4188fcaea99743ba48e",
+    "notRecomputed": [
+      "The framework runs themselves (npm view, npm install, npm ci, build, oracle) are not replayed: exit codes, timestamps and the Node and platform strings are taken from the record. CI re-derives each run's argv, input hashes and output hashes, the lock, the registry answers and the oracle output.",
+      "Prose (constructs, reasons, notes, limit texts) is covered by the seal against silent edits but is not recomputed; the facts it states are checked through the fields they cite.",
+      "The live npm registry and the upstream example commits are not queried in CI; the registry files are the recorded answers of the registry steps."
+    ]
+  }
+}

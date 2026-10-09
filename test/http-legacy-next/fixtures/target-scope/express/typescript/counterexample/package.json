@@ -1,0 +1,7 @@
+{
+  "name": "fixture-ts-express-counterexample",
+  "private": true,
+  "dependencies": {
+    "express": "4.22.3"
+  }
+}

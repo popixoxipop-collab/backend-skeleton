@@ -1,0 +1,319 @@
+{
+ "schema": "bskel.http-scope-oracle/2",
+ "command": [
+  "node",
+  "oracle.mjs"
+ ],
+ "startEnv": [
+  "HOME",
+  "LANG",
+  "NEXT_TELEMETRY_DISABLED",
+  "PATH",
+  "__CF_USER_TEXT_ENCODING",
+  "npm_config_update_notifier"
+ ],
+ "lock": {
+  "file": "package-lock.json",
+  "sha256": "fbf433c4e22faf82b26ea85c37f0cfe90cb46d4b87e8fdc0b97e3440b9fdcd13",
+  "packages": 1,
+  "installed": 1
+ },
+ "framework": {
+  "name": "hono",
+  "version": "4.13.9"
+ },
+ "scenarios": [
+  {
+   "id": "hono-normal",
+   "fixture": "normal",
+   "fixtureDigest": "1d62a7bde9b5aa14fd25fa6cf77433fd7f11002b60f7d78bfca45e8d7ab04a80",
+   "env": {},
+   "registered": [
+    "DELETE /api/v1/sessions/:sid",
+    "GET /api/v1/status",
+    "GET /health",
+    "GET /users",
+    "GET /users/:id",
+    "POST /users"
+   ],
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/health",
+     "sample": "/health",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 201
+    },
+    {
+     "method": "GET",
+     "route": "/users/:id",
+     "sample": "/users/7",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/status",
+     "sample": "/api/v1/status",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "DELETE",
+     "route": "/api/v1/sessions/:sid",
+     "sample": "/api/v1/sessions/s1",
+     "auth": "token",
+     "status": 204
+    },
+    {
+     "method": "GET",
+     "route": "/status",
+     "sample": "/status",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/v1/status",
+     "sample": "/v1/status",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "PUT",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "hono-counterexample",
+   "fixture": "counterexample",
+   "fixtureDigest": "1357fb9931ac99f544687b5729a46cb149c45a173b2b136f6f41a0f3af24b9b8",
+   "env": {},
+   "registered": [
+    "ALL /any",
+    "ALL /legacy/*",
+    "ALL /secret/*",
+    "GET /a1",
+    "GET /a2",
+    "GET /chain",
+    "GET /gen/alpha",
+    "GET /gen/beta",
+    "GET /open",
+    "GET /orgs/:org/list",
+    "GET /secret/data",
+    "GET /svc/ping",
+    "GET /widgets",
+    "POST /chain",
+    "POST /widgets"
+   ],
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/open",
+     "sample": "/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secret/data",
+     "sample": "/secret/data",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secret/data",
+     "sample": "/secret/data",
+     "auth": "anon",
+     "status": 401
+    },
+    {
+     "method": "GET",
+     "route": "/gen/alpha",
+     "sample": "/gen/alpha",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/gen/beta",
+     "sample": "/gen/beta",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 201
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "POST",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/ping",
+     "sample": "/ping",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/orgs/:org/list",
+     "sample": "/orgs/acme/list",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/list",
+     "sample": "/list",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/chain",
+     "sample": "/chain",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/chain",
+     "sample": "/chain",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/a1",
+     "sample": "/a1",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/a2",
+     "sample": "/a2",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/legacy/old",
+     "sample": "/legacy/old",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/old",
+     "sample": "/old",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "hono-counterexample-env-v2",
+   "fixture": "counterexample",
+   "fixtureDigest": "1357fb9931ac99f544687b5729a46cb149c45a173b2b136f6f41a0f3af24b9b8",
+   "env": {
+    "API_BASE": "/v2"
+   },
+   "registered": [
+    "ALL /any",
+    "ALL /legacy/*",
+    "ALL /secret/*",
+    "GET /a1",
+    "GET /a2",
+    "GET /chain",
+    "GET /gen/alpha",
+    "GET /gen/beta",
+    "GET /open",
+    "GET /orgs/:org/list",
+    "GET /secret/data",
+    "GET /v2/ping",
+    "GET /widgets",
+    "POST /chain",
+    "POST /widgets"
+   ],
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/v2/ping",
+     "sample": "/v2/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  }
+ ]
+}

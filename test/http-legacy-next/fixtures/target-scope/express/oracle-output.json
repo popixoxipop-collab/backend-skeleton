@@ -1,0 +1,555 @@
+{
+ "schema": "bskel.http-scope-oracle/2",
+ "command": [
+  "node",
+  "oracle.mjs"
+ ],
+ "startEnv": [
+  "HOME",
+  "LANG",
+  "NEXT_TELEMETRY_DISABLED",
+  "PATH",
+  "__CF_USER_TEXT_ENCODING",
+  "npm_config_update_notifier"
+ ],
+ "lock": {
+  "file": "package-lock.json",
+  "sha256": "9b5d8c9df90741eeed2faa8ca75feb58cc526e4bcde60479dbf5ce35ab7a5dd9",
+  "packages": 82,
+  "installed": 82
+ },
+ "framework": {
+  "name": "express",
+  "version": "4.22.3"
+ },
+ "scenarios": [
+  {
+   "id": "ts-normal",
+   "fixture": "typescript/normal",
+   "fixtureDigest": "e17029730e871f150a0aae8541b2050cc1803ac75df3f0f7c392eb9618412a35",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/api/health",
+     "sample": "/api/health",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/users",
+     "sample": "/api/v1/users",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/users/:id",
+     "sample": "/api/v1/users/7",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/api/v1/users",
+     "sample": "/api/v1/users",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/orders/search",
+     "sample": "/api/v1/orders/search",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/orders/:orderId",
+     "sample": "/api/v1/orders/9",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "DELETE",
+     "route": "/api/v1/users/:id",
+     "sample": "/api/v1/users/7",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/orders",
+     "sample": "/api/v1/orders",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/v1/users",
+     "sample": "/v1/users",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/api/v1/users/:id",
+     "sample": "/api/v1/users/7",
+     "auth": "anon",
+     "status": 401
+    }
+   ]
+  },
+  {
+   "id": "ts-counterexample",
+   "fixture": "typescript/counterexample",
+   "fixtureDigest": "43b5fcaffe2a29d22d0e3dc7fa6658958b1637e0998c45c29c7edfd7068f0a86",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/open",
+     "sample": "/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secret",
+     "sample": "/secret",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secret",
+     "sample": "/secret",
+     "auth": "anon",
+     "status": 401
+    },
+    {
+     "method": "GET",
+     "route": "/gen/alpha",
+     "sample": "/gen/alpha",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/gen/beta",
+     "sample": "/gen/beta",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/chain",
+     "sample": "/chain",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/chain",
+     "sample": "/chain",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/a1",
+     "sample": "/a1",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/a2",
+     "sample": "/a2",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/inline",
+     "sample": "/inline",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/status",
+     "sample": "/api/status",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/status",
+     "sample": "/status",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/legacy/old",
+     "sample": "/legacy/old",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/old",
+     "sample": "/old",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "POST",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/ping",
+     "sample": "/ping",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "ts-counterexample-env-v2",
+   "fixture": "typescript/counterexample",
+   "fixtureDigest": "43b5fcaffe2a29d22d0e3dc7fa6658958b1637e0998c45c29c7edfd7068f0a86",
+   "env": {
+    "API_BASE": "/v2"
+   },
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/v2/ping",
+     "sample": "/v2/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "js-normal",
+   "fixture": "javascript/normal",
+   "fixtureDigest": "d25568c249c9146842da1f49281f0e16cfea9e03effd6c024e07ab84dc6e4f73",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/api/ping",
+     "sample": "/api/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/user/list",
+     "sample": "/api/user/list",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/user/:userUid",
+     "sample": "/api/user/abc",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "PATCH",
+     "route": "/api/user/:userUid",
+     "sample": "/api/user/abc",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/order/search",
+     "sample": "/api/order/search",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/order/:orderId",
+     "sample": "/api/order/9",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "DELETE",
+     "route": "/api/user/:userUid",
+     "sample": "/api/user/abc",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/ping",
+     "sample": "/ping",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/user/list",
+     "sample": "/user/list",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/api/user/:userUid",
+     "sample": "/api/user/abc",
+     "auth": "anon",
+     "status": 401
+    }
+   ]
+  },
+  {
+   "id": "js-counterexample",
+   "fixture": "javascript/counterexample",
+   "fixtureDigest": "7fabf1117bd0c294687818fd7e726a510cc9530c2c13a2bbd256f479590e1fda",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/open",
+     "sample": "/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secret",
+     "sample": "/secret",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secret",
+     "sample": "/secret",
+     "auth": "anon",
+     "status": 401
+    },
+    {
+     "method": "GET",
+     "route": "/gen/alpha",
+     "sample": "/gen/alpha",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/gen/beta",
+     "sample": "/gen/beta",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/chain",
+     "sample": "/chain",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/chain",
+     "sample": "/chain",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/a1",
+     "sample": "/a1",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/a2",
+     "sample": "/a2",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/inline",
+     "sample": "/inline",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/api/status",
+     "sample": "/api/status",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/status",
+     "sample": "/status",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/legacy/old",
+     "sample": "/legacy/old",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/old",
+     "sample": "/old",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "POST",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/ping",
+     "sample": "/ping",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "js-counterexample-env-v2",
+   "fixture": "javascript/counterexample",
+   "fixtureDigest": "7fabf1117bd0c294687818fd7e726a510cc9530c2c13a2bbd256f479590e1fda",
+   "env": {
+    "API_BASE": "/v2"
+   },
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/v2/ping",
+     "sample": "/v2/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  }
+ ]
+}

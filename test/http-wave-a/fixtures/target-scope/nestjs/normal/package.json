@@ -1,0 +1,1 @@
+{ "name": "bskel-nestjs-normal", "private": true, "type": "module", "dependencies": { "@nestjs/common": "12.0.1", "@nestjs/core": "12.0.1", "@nestjs/platform-express": "12.0.1", "reflect-metadata": "0.2.2", "rxjs": "7.8.2" } }
