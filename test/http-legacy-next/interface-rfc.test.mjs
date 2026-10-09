@@ -10,7 +10,7 @@ import { ADAPTERS } from '../../scanners/registry.mjs';
 import * as lib from './baseline-record-lib.mjs';
 
 // T11-02: vocabulary vs code and RFC vs vocabulary are both recomputed, so drift on either side fails; the negatives edit copies of both.
-// Lists are compared as exact sets and every key list with every emitted object of that kind; an empty sample fails instead of passing.
+// Lists are compared as exact sets and every key list with every emitted object of that kind; an empty sample fails instead of passing. Each documented lookup also runs with hostile keys (Object.prototype names, wrong types).
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..'); const DIR = 'adapters/http-legacy-next';
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const [rfc, vocab] = [read(`${DIR}/INTERFACE_RFC.md`), JSON.parse(read('test/http-legacy-next/interface-rfc.vocabulary.json'))];
@@ -50,7 +50,7 @@ function sourceProblems(v, extraSources = [], from = emitted) {
   const shaped = new Set(); const under = (p, q) => p === q || p.startsWith(`${q}/`);
   const shape = (name, objects) => { shaped.add(name); if (!objects.length) out.push(`output_keys.${name}: no emitted sample, so nothing was compared`); objects.forEach((o) => eq(`output_keys.${name}`, v.output_keys[name], Object.keys(o))); };
   eq('adapter ids', Object.keys(v.adapters), IDS);
-  eq('vocabulary keys (each is compared with the code below; open fields are never listed as closed sets)', sorted(['schema', 'adapters', 'schemas', 'foreign_schemas', 'foreign_keys', 'exports', 'imports', 'modes', 'checkout_error_code', 'checkout_conditional_keys', 'sparse_supported_adapters', 'diff_kinds', 'open_fields', 'cutover_gates', 'output_keys', 'input_keys', 'projector', 'registry_only_keys', 'owned_files', 'ownership']), sorted(Object.keys(v)));
+  eq('vocabulary keys (each is compared with the code below; open fields are never listed as closed sets)', sorted(['schema', 'adapters', 'schemas', 'foreign_schemas', 'foreign_keys', 'exports', 'imports', 'modes', 'checkout_error_code', 'checkout_conditional_keys', 'sparse_supported_adapters', 'diff_kinds', 'open_fields', 'inherited_names', 'cutover_gates', 'output_keys', 'input_keys', 'projector', 'registry_only_keys', 'owned_files', 'ownership']), sorted(Object.keys(v)));
   eq('vocabulary schema and nested groups', ['bskel.t11-interface-vocabulary/1', ['bridge', 'shadow', 'checkout'], ['input', 'output']], [v.schema, Object.keys(v.modes), Object.keys(v.projector)]);
   for (const id of IDS) { eq(`${id} registry descriptor`, v.adapters[id], pick(adapterOf(id))); eq(`${id} baseline descriptor`, v.adapters[id], pick(BASELINES[id].descriptor)); eq(`${id} contract`, v.schemas.descriptor, adapterOf(id).contract); }
   for (const [m, names] of Object.entries(v.exports)) eq(`${m}.mjs exports`, sorted(names), sorted(Object.keys(mods[m])));
@@ -69,6 +69,9 @@ function sourceProblems(v, extraSources = [], from = emitted) {
   })));
   for (const e of all) for (const f of v.open_fields) if (e.snapshot[f] !== null && typeof e.snapshot[f] !== 'string') out.push(`open field ${f} is neither a string nor null`);
   eq('open fields', sorted(v.open_fields), sorted(Object.entries(first.snapshot).filter(([k, x]) => !['schema', 'adapter'].includes(k) && !Array.isArray(x)).map(([k]) => k)));
+  const proto = Object.getOwnPropertyNames(Object.prototype); // RFC section 2: names that are no key of the table but that legacyHttpBaseline answers
+  const listed = Array.isArray(v.inherited_names) ? v.inherited_names : [];
+  eq('inherited_names (not empty; each an Object.prototype property, no own key of the table, answered by legacyHttpBaseline)', [true, listed], [listed.length > 0, listed.filter((n) => proto.includes(n) && !Object.hasOwn(BASELINES, n) && legacyHttpBaseline(n) !== null)]);
   eq('bridge mode', v.modes.bridge, first.bridge.mode); eq('shadow mode', v.modes.shadow, first.shadow.mode); eq('diff kinds', sorted(v.diff_kinds), sorted(new Set(cmp.diffs.map((d) => d.kind))));
   eq('diff kinds in parity.mjs', sorted(v.diff_kinds), sorted(new Set([...read(`${DIR}/parity.mjs`).matchAll(/kind: '([a-z-]+)'/g)].map((m) => m[1]))));
   eq('input_keys (the options object of every exported function that takes one)', v.input_keys, Object.fromEntries(srcs.flatMap((t) => [...t.matchAll(/export function (\w+)\(\{([^}]*)\}/g)].map((m) => [m[1], m[2].split(',').map((k) => k.replace(/=.*/s, '').trim()).filter(Boolean)]))));
@@ -116,7 +119,7 @@ function rfcProblems(text, v) {
   for (const [, mod, cell] of text.split('\n').filter((l) => /^\| `[\w-]+\.mjs` \|/.test(l)).map((l) => l.split('|').map((c) => c.trim()))) (fns[mod.replace(/`|\.mjs/g, '')] ??= []).push(...cell.match(/\w+/g));
   if (!isDeepStrictEqual(sorted(Object.keys(fns)), sorted(Object.keys(v.exports)))) out.push('the modules of the function table differ from the vocabulary');
   for (const [m, names] of Object.entries(v.exports)) if (!isDeepStrictEqual(sorted(names.filter((n) => /^[a-z]/.test(n))), sorted(fns[m] ?? []))) out.push(`function table of ${m}.mjs differs from the vocabulary`);
-  const ids = [...Object.keys(v.adapters), ...Object.values(v.schemas), ...v.foreign_schemas, ...Object.entries(v.exports).flatMap(([m, ns]) => [`${m}.mjs`, ...ns]), ...Object.values(v.modes).flat(), ...Object.values(v.checkout_conditional_keys).flat(), v.checkout_error_code, ...v.diff_kinds, ...v.open_fields, ...v.owned_files, ...v.ownership.flatMap((o) => o.paths)];
+  const ids = [...Object.keys(v.adapters), ...Object.values(v.schemas), ...v.foreign_schemas, ...Object.entries(v.exports).flatMap(([m, ns]) => [`${m}.mjs`, ...ns]), ...Object.values(v.modes).flat(), ...Object.values(v.checkout_conditional_keys).flat(), v.checkout_error_code, ...v.diff_kinds, ...v.open_fields, ...v.inherited_names, ...v.owned_files, ...v.ownership.flatMap((o) => o.paths)];
   for (const id of ids) if (!words.has(id)) out.push(`RFC does not name ${id}`);
   const strings = (x) => (typeof x === 'string' ? [x] : x && typeof x === 'object' ? Object.values(x).flatMap(strings) : []);
   const ident = (w) => /^(?:[a-z]+[A-Z]\w*|[a-z]+_\w+|[A-Z][A-Z0-9]*_\w+)$/.test(w); // camelCase, snake_case or CONSTANT_CASE
@@ -170,7 +173,7 @@ test('T11-02 the identity, unknown and partial rules stated in the RFC hold on r
   assert.deepEqual(compare(snapshot, structuredClone(snapshot)), { equal: true, diffs: [], truncated: false });
   const wide = Object.fromEntries(Array.from({ length: 150 }, (_, i) => [`k${i}`, 1]));
   assert.deepEqual([undefined, 1000].map((maxDiffs) => compare(wide, {}, { maxDiffs }).diffs.length), [100, 150]);
-  for (const bad of [0, 1001, 1.5]) for (const call of [() => compare({}, {}, { maxDiffs: bad }), () => mods['checkout-completeness'].inspectLegacyCorpusCheckout({ repoRoot: ROOT, adapterId: 'ruby-rails', maxMissing: bad })]) assert.throws(call, RangeError);
+  for (const bad of [0, -1, 1001, 1.5, NaN, Infinity, null, '5', true, [5]]) for (const call of [() => compare({}, {}, { maxDiffs: bad }), () => mods['checkout-completeness'].inspectLegacyCorpusCheckout({ repoRoot: ROOT, adapterId: 'ruby-rails', maxMissing: bad })]) assert.throws(call, RangeError);
   const { unsupported, widest } = checkouts;
   assert.deepEqual([unsupported.complete, unsupported.missing_count, widest.missing_count, 'missing_paths_truncated' in widest], [false, null, 2, false]);
   assert.deepEqual(Object.values(outcomes).map((o) => o.assert_threw?.code ?? null), [null, null, code, code, code, code], 'the assert throws for every incomplete checkout');
@@ -185,11 +188,57 @@ test('T11-02 the identity, unknown and partial rules stated in the RFC hold on r
   assert.throws(() => shadowOf('java-spring', { ...answer(snapshot), projector_contract: 'other/0' }), /projector contract mismatch/);
 });
 
+test('T11-02 the lookups the RFC documents hold for hostile keys, and the inherited baseline names are pinned as a known limit', () => {
+  const { report, root } = emitted['java-spring']; const adapter = adapterOf('java-spring'); const bare = { schema: report.schema };
+  const names = Object.getOwnPropertyNames(Object.prototype); const asId = { toString: () => 'java-spring' };
+  const odd = [...names, '', 5, null, undefined, [], {}, ['java-spring'], asId, 'JAVA-SPRING', 'java-spring ', 'generic-grep'];
+  const checks = ten(vocab, true).checks; const gated = (c) => () => evaluate({ adapterId: 'ruby-rails', checks: c });
+  // Section 2: legacyHttpBaseline is a plain property read. The inherited names answer; that is a known limit, and the T11-03 fix (an own lookup) has to change this block and section 2 together.
+  assert.deepEqual(IDS.map((id) => [Object.hasOwn(BASELINES, id), legacyHttpBaseline(id) === BASELINES[id]]), IDS.map(() => [true, true]));
+  assert.deepEqual(names.map((n) => [Object.hasOwn(BASELINES, n), legacyHttpBaseline(n) === BASELINES[n], legacyHttpBaseline(n) === null]), names.map(() => [false, true, false]));
+  assert.deepEqual([['java-spring'], asId].map((k) => legacyHttpBaseline(k) === BASELINES['java-spring']), [true, true]);
+  assert.deepEqual(['', 5, null, undefined, [], {}, Symbol('x'), 'JAVA-SPRING', 'java-spring ', 'generic-grep'].map((k) => legacyHttpBaseline(k)), Array(10).fill(null));
+  // Sections 2, 4 and 6: the other id checks compare exactly, with no inherited name and no coercion; the Symbol fails while the message is built.
+  for (const x of odd) for (const call of [() => snapshotLegacyHttpAdapter({ ...adapter, id: x }), () => bridgeLegacyHttpScan({ adapter: { ...adapter, id: x }, report })]) assert.throws(call, /is not one of T11's five legacy HTTP adapters/, String(x));
+  for (const x of odd) assert.throws(() => evaluate({ adapterId: x, checks }), /adapterId must be one of T11 legacy adapters/, String(x));
+  assert.throws(() => snapshotLegacyHttpAdapter({ ...adapter, id: Symbol('x') }), TypeError);
+  for (const x of [['java-spring'], asId, 'JAVA-SPRING', 0, '']) assert.throws(() => bridgeLegacyHttpScan({ adapter, report: { ...report, adapter: x } }), /does not match descriptor "java-spring"/, String(x));
+  for (const x of [null, undefined, 'str', [], {}, { schema: [report.schema] }, { schema: report.schema.toUpperCase() }]) for (const call of [() => summarizeLegacyHttpReport(x), () => bridgeLegacyHttpScan({ adapter, report: x }), () => snapshotOf(x), () => digestOf(x)]) assert.throws(call, /sbf\.scan-report\/2/, String(x));
+  // Section 6: gates are own properties, an unknown check is an own enumerable string key, and checks is an object.
+  assert.throws(gated(Object.create(checks)), /must be boolean/);
+  assert.throws(gated(Object.assign(JSON.parse('{"__proto__":true}'), checks)), /unknown T11 cutover checks: __proto__/);
+  assert.deepEqual([Object.defineProperty({ ...checks }, 'hidden', { value: true }), { ...checks, [Symbol('extra')]: true }].map((c) => gated(c)().ready_for_t00_integration), [true, true]);
+  for (const x of [null, [], 'checks', 5, undefined]) assert.throws(gated(x), /checks must be an object/, String(x));
+  // Section 5, checkout: adapterId is any non-empty string (echoed, never checked against the five ids); maxMissing defaults to 50.
+  const inspect = mods['checkout-completeness'].inspectLegacyCorpusCheckout; const odds = ['generic-grep', 'constructor', '__proto__'];
+  for (const x of ['', 5, null, undefined, [], {}, ['ruby-rails'], Symbol('x')]) assert.throws(() => inspect({ repoRoot: ROOT, adapterId: x }), /adapterId is required/, String(x));
+  assert.deepEqual(odds.map((a) => [outcome(a, { files: PY }).inspect, outcome(a, { files: PY, sparse: ['app'] }).inspect].map((i) => [i.adapter_id, i.mode])), odds.map((a) => [[a, 'full-working-tree'], [a, 'sparse-unsupported-adapter']]));
+  const many = outcome('python-fastapi', { files: { ...PY, ...Object.fromEntries(Array.from({ length: 52 }, (_, i) => [`tests/t${i}.py`, 'x\n'])) }, sparse: ['app'] }).inspect;
+  assert.deepEqual([many.missing_count, many.missing_paths.length, many.missing_paths_truncated], [54, 50, true]);
+  // Section 4 and 3, parity: root is optional and strict, roots come in pairs, the diff walk reads own enumerable string keys.
+  const mini = { ...bare, related_modules: [{ module: 'm', controllers: [{ className: 'C', file: '/abs/root/C.java', endpoints: [] }] }] }; const fileOf = (r, o) => snapshotOf(r, o).modules[0].controllers[0].file;
+  assert.deepEqual([undefined, '/abs/root'].map((r) => fileOf(mini, { root: r })), ['/abs/root/C.java', 'C.java']);
+  for (const x of [null, '', 5, [], ['/abs/root'], {}]) assert.throws(() => fileOf(mini, { root: x }), /root must be a non-empty string/, String(x));
+  assert.throws(() => fileOf({ ...mini, related_modules: [{ module: 'm', controllers: [{ className: 'C', file: 'C.java', endpoints: [] }] }] }, { root: '/abs/root' }), /is not an absolute path/);
+  assert.throws(() => mods.parity.compareLegacyHttpReports(mini, mini, { expectedRoot: '/abs/root' }), /must be given together/);
+  assert.throws(() => mods.parity.compareLegacyHttpReports(mini, mini, { expectedRoot: null, actualRoot: null }), /root must be a non-empty string/);
+  const own = JSON.parse('{"__proto__":1,"constructor":1,"toString":1}'); const kinds = (a, b) => compare(a, b).diffs.map((d) => `${d.path} ${d.kind}`);
+  const unseen = [Object.create({ inherited: 1 }), Object.defineProperty({ [Symbol('s')]: 1 }, 'hidden', { value: 1 })]; // an inherited, a non-enumerable and a Symbol key
+  assert.deepEqual([kinds({}, own), kinds(own, {}), unseen.map((x) => compare({}, x).equal)], [['__proto__ unexpected', 'constructor unexpected', 'toString unexpected'], ['__proto__ missing', 'constructor missing', 'toString missing'], [true, true]]);
+  // Section 5, absent: undefined and null only. false, 0 and '' are values and stay; a shadow comparison refuses a null maxDiffs like the others.
+  const blank = (x) => ({ ...bare, verdict: x, confidence: x, api_surface_source: x, adapter: x, path_prefix_signals: x, related_modules: x, files_read: x });
+  assert.deepEqual([undefined, null].map((x) => [snapshotOf(blank(x)), summarizeLegacyHttpReport(blank(x))]), [undefined, null].map(() => [snapshotOf(bare), summarizeLegacyHttpReport(bare)]));
+  const kept = snapshotOf({ ...bare, verdict: 0, confidence: '', api_surface_source: false, related_modules: [{ module: '', entities: [{ className: '', table: 0, idFieldIsUuid: false }], enums: [{ name: 'E', constants: 'AB' }] }] });
+  assert.deepEqual([kept.verdict, kept.confidence, kept.api_surface_source, kept.modules[0].module, kept.modules[0].entities[0].className, kept.modules[0].entities[0].table, kept.modules[0].entities[0].idFieldIsUuid, kept.modules[0].enums[0].constants], [0, '', false, '', '', 0, false, []]);
+  const shadowWith = (maxDiffs) => () => mods['shadow-projection'].runLegacyHttpShadowProjection({ adapter, report, projector: (i) => answer(i.legacy_semantic_snapshot), projectorId: 'rfc-test', projectorContract: 'rfc-test/0', root, maxDiffs });
+  assert.equal(shadowWith(undefined)().parity.equal, true); assert.throws(shadowWith(null), RangeError);
+});
+
 test('T11-02 negative: edited copies of the RFC and the vocabulary make the same checks fail', () => {
   const rfcBad = (edit, v = vocab) => rfcProblems(edit(rfc), v).join('\n');
   const srcBad = (edit, ...rest) => { const v = structuredClone(vocab); edit(v); return sourceProblems(v, ...rest).join('\n'); };
   const cases = (bad, rows) => rows.forEach(([edit, pattern]) => assert.match(bad(edit), pattern, String(edit)));
-  for (const id of ['ownership-scope-not-clean', 'sparse-unsupported-adapter', 'array-length', 'sbf.http-legacy-bridge/1', 'compareLegacyHttpReports', 'T11_CORPUS_CHECKOUT_INCOMPLETE', 'missing_paths_truncated', 'contract_hash']) assert.match(rfcBad((t) => t.replaceAll(id, 'REDACTED')), /RFC does not name|differs from the vocabulary/, id);
+  for (const id of ['ownership-scope-not-clean', 'sparse-unsupported-adapter', 'array-length', 'sbf.http-legacy-bridge/1', 'compareLegacyHttpReports', 'T11_CORPUS_CHECKOUT_INCOMPLETE', 'missing_paths_truncated', 'contract_hash', 'hasOwnProperty', '__proto__']) assert.match(rfcBad((t) => t.replaceAll(id, 'REDACTED')), /RFC does not name|differs from the vocabulary/, id);
   assert.equal(rfcProblems(`${rfc.trimEnd()} \`sbf.invented/1\` \`made-up-not-clean\` \`ghost.mjs\` \`adapters/ghost\``, vocab).length, 4);
   const n = rfc.trimEnd().split('\n').length;
   assert.deepEqual([120, 121].map((total) => rfcProblems(rfc.trimEnd() + '\nx'.repeat(total - n), vocab).includes('RFC exceeds 120 lines')), [false, true], 'the cap counts lines, not the final newline');
@@ -207,7 +256,7 @@ test('T11-02 negative: edited copies of the RFC and the vocabulary make the same
     [(t) => `${t.trimEnd()} bridgeEverything`, /unlisted identifier bridgeEverything/]
   ]);
   const vocabBad = (edit) => { const v = structuredClone(vocab); edit(v); return rfcProblems(rfc, v).join('\n'); };
-  cases(vocabBad, [[(v) => v.foreign_keys.push('ghost_key'), /RFC does not name ghost_key/], [(v) => v.input_keys.bridgeLegacyHttpScan.push('x'), /key list bridgeLegacyHttpScan/], [(v) => { v.ownership[0].t11 = 'read'; }, /ownership table/], [(v) => v.projector.input.reverse(), /key list projector input/],
+  cases(vocabBad, [[(v) => v.foreign_keys.push('ghost_key'), /RFC does not name ghost_key/], [(v) => v.inherited_names.push('isPrototypeOf'), /RFC does not name isPrototypeOf/], [(v) => v.input_keys.bridgeLegacyHttpScan.push('x'), /key list bridgeLegacyHttpScan/], [(v) => { v.ownership[0].t11 = 'read'; }, /ownership table/], [(v) => v.projector.input.reverse(), /key list projector input/],
     [(v) => { delete v.adapters['ruby-rails'].capabilities['codegen.handles']; }, /capability columns of ruby-rails/]]);
   cases(srcBad, [
     [(v) => { v.adapters['java-spring'].capabilities['api.operations'] = false; }, /java-spring registry descriptor/],
@@ -227,6 +276,9 @@ test('T11-02 negative: edited copies of the RFC and the vocabulary make the same
     [(v) => v.projector.output.push('notes'), /keys a projector result must carry/],
     [(v) => v.registry_only_keys.pop(), /registry keys/],
     [(v) => v.open_fields.pop(), /open fields/],
+    [(v) => v.inherited_names.push('ghost'), /inherited_names/],
+    [(v) => v.inherited_names.push('java-spring'), /inherited_names/],
+    [(v) => { v.inherited_names = []; }, /inherited_names/],
     [(v) => v.diff_kinds.pop(), /diff kinds/],
     [(v) => v.owned_files.push('ghost.mjs'), /modules with exports/],
     [(v) => v.foreign_keys.push('verdict'), /verdict must not appear/],

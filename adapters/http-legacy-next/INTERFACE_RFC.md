@@ -1,11 +1,9 @@
 # T11 legacy HTTP bridge: interface RFC
 
-Status: draft, shadow only. T11 is not declared complete and nothing here is active by default.
-Scope: the five legacy HTTP adapters and the six modules in `adapters/http-legacy-next`.
+Status: draft, shadow only. T11 is not declared complete and nothing here is active by default. Scope: the five legacy HTTP adapters and the six modules in `adapters/http-legacy-next`.
 Companions: `INTEGRATION.md` (handoff narrative and commands), `BASELINE.json` (behaviour pinned by T11-01),
 `test/http-legacy-next/interface-rfc.vocabulary.json` (every identifier used here) and
-`test/http-legacy-next/interface-rfc.test.mjs`, which fails when this text, the vocabulary or the code drift apart.
-Backticked words and the tables are machine checked, so keep them literal.
+`test/http-legacy-next/interface-rfc.test.mjs`, which fails when this text, the vocabulary or the code drift apart. Backticked words and the tables are machine checked, so keep them literal.
 
 ## 1. Purpose and non-goals
 
@@ -16,8 +14,9 @@ table (`baselines.mjs`). It emits no contracts/next artifact, imports no T01 or 
 
 ## 2. Adapters in scope
 
-Exactly the five rows below. `legacyHttpBaseline` returns `{fixture, descriptor, inventory}`, or `null` for any other id
-(`generic-grep` included); `snapshotLegacyHttpAdapter` and `bridgeLegacyHttpScan` throw for it. The `adapter` argument is the registry's
+Exactly the five rows below. `legacyHttpBaseline` returns `{fixture, descriptor, inventory}` for them and `null` for every other string that is not an inherited property name (`generic-grep` included). It is a plain property read, not a membership test:
+every inherited name of `Object.prototype` (`constructor`, `toString`, `hasOwnProperty`, `valueOf`, `__proto__`, ...) returns the inherited value, and a key that coerces to an id (an array holding one id) returns that entry. This is a known limit of the unmodified
+code that T11-03 must fix with an own lookup; until then check an id against `LEGACY_HTTP_ADAPTER_IDS`. `snapshotLegacyHttpAdapter` and `bridgeLegacyHttpScan` compare the id exactly, without coercion, and throw for every other value. The `adapter` argument is the registry's
 legacy `sbf.adapter/2` record; T11 never copies its `detect`, `scan`, `introspectRoutes`, `listReadSet` or `diagnostics` (section 3 lists
 the keys it does copy). The four capability columns are legacy booleans (section 5).
 
@@ -33,13 +32,13 @@ the keys it does copy). The four capability columns are legacy booleans (section
 
 | module | function | input | output |
 | --- | --- | --- | --- |
-| `baselines.mjs` | `legacyHttpBaseline` | adapter id | entry or `null` |
+| `baselines.mjs` | `legacyHttpBaseline` | adapter id | entry, `null`, or an inherited value (section 2) |
 | `bridge.mjs` | `snapshotLegacyHttpAdapter` | registry record | `{contract, id, title, specificity, confidence, verificationBasis, capabilities}`, a detached copy |
 | `bridge.mjs` | `bridgeLegacyHttpScan` | `{adapter, report}` | `{schema, mode, source_adapter, source_scan_schema, legacy_report}` |
 | `bridge.mjs` | `summarizeLegacyHttpReport` | `report` | `{modules, moduleCount, controllerCount, entityCount, enumCount, dtoCount, endpointCount, filesReadCount}` |
-| `parity.mjs` | `legacyHttpSemanticSnapshot` | `report`, absolute `root` | `{schema, adapter, confidence, api_surface_source, verdict, path_prefix_signals, modules, files_read}` |
-| `parity.mjs` | `legacyHttpSemanticDigest` | snapshot, or `report` with `root` | sha256 hex of key sorted JSON |
-| `parity.mjs` | `compareLegacyHttpSemanticSnapshots`, `compareLegacyHttpReports` | two snapshots, or two reports with both roots | `{equal, diffs, truncated}` |
+| `parity.mjs` | `legacyHttpSemanticSnapshot` | `report`, optional absolute `root` | `{schema, adapter, confidence, api_surface_source, verdict, path_prefix_signals, modules, files_read}` |
+| `parity.mjs` | `legacyHttpSemanticDigest` | snapshot, or `report` with optional `root` | sha256 hex of key sorted JSON |
+| `parity.mjs` | `compareLegacyHttpSemanticSnapshots`, `compareLegacyHttpReports` | two snapshots, or two reports with both roots or none | `{equal, diffs, truncated}` |
 | `shadow-projection.mjs` | `runLegacyHttpShadowProjection` | `{adapter, report, projector, projectorId, projectorContract, maxDiffs, root}` | `{schema, mode, adapter_id, projector_id, projector_contract, authoritative_source, legacy_semantic_sha256, projected_semantic_sha256, parity, promotion_allowed, notes}` |
 | `cutover-readiness.mjs` | `evaluateLegacyHttpCutoverReadiness` | `{adapterId, checks}` | `{schema, adapter_id, checks, ready_for_t00_integration, apply_allowed, blockers, notes}` |
 | `checkout-completeness.mjs` | `inspectLegacyCorpusCheckout`, `assertLegacyCorpusCheckoutComplete` | `{repoRoot, adapterId, maxMissing}` | `{complete, mode, git_head, project_root, adapter_id, expected_tracked_read_files, materialized_read_files, missing_count, missing_paths}` and the conditional keys of section 5 |
@@ -59,36 +58,38 @@ it gets a deep frozen `{bridge, legacy_semantic_snapshot}` and returns `{project
 
 ## 4. Identity
 
-- Adapter: `id` is one of the five above. A report is accepted only when `report.adapter` equals the descriptor id (the error shows
+- Adapter: `id` is one of the five above, compared exactly. A report is accepted only when `report.adapter` equals the descriptor id (the error shows
   `(missing)` for a report without one). The snapshot repeats `adapter`; the shadow result carries `adapter_id`.
 - Report: only `sbf.scan-report/2` is accepted and recorded as `source_scan_schema`; any other schema is refused.
 - Endpoint: legacy output has no stable operation identity. An endpoint is addressed by its position (module, controller, endpoint
   index in report order) plus `method`, `verb`, `path`, `operationId`, `file`; `operationId` is passed through, never synthesized.
-- Location: with an absolute `root` every `file` becomes a POSIX path relative to it; a relative root or a file outside it throws.
+- Location: with `root` every `file` becomes a POSIX path relative to it. `root` is a non-empty absolute string: `undefined` leaves the files as scanned; `null`, an empty string, any other type, a relative `root`, a relative `file` and a file outside the root throw.
 - Digest: `legacyHttpSemanticDigest` and the two `*_semantic_sha256` fields are regression keys for one snapshot schema (equal for
   a snapshot and for its report with `root`), not identities. T11 never emits `sbf.contract-ref/1`, `sbf.artifact-ref/1` or
   `sbf.identity-envelope/1`, and a digest must not be stored as a `contract_hash`. T01 owns those; T00 wires them in after section 6.
 
 ## 5. Unknown, partial and unsupported
 
-- Absent is unknown, never defaulted: a missing scalar snapshot field is `null` and a missing list is `[]`; a missing report section counts as 0 in the summary.
-- `verdict`, `confidence` and `api_surface_source` are open fields, copied as emitted (string or `null`); consumers pass unknown values through.
+- Absent means `undefined` or `null` in scan data, and only that: a missing scalar snapshot field is `null`, a missing list is `[]` (so is an enum `constants` that is not an array) and a missing report section counts as 0 in the summary; `false`, `0` and `''` are values
+  that a scalar field keeps. A present value of another type is outside this contract (nothing validates or repairs it). Options differ: for `root`, `maxDiffs` and `maxMissing` only `undefined` is absent and `null` throws.
+- `verdict`, `confidence` and `api_surface_source` are open fields, copied as emitted and `null` when absent (the five fixtures emit a string or `null`); consumers pass unknown values through.
   The vocabulary lists the fields, never their observed values.
 - Capability booleans are legacy truth values: `false` means no claim, `true` is that adapter's own claim; neither is certified. T03 maps
   `false` to `unsupported` and `true` to `supported` only through its legacy bridge; T11 imports nothing from T03.
-- Partial: a comparison stops collecting at `maxDiffs` differences (integer 1 to 1000, default 100) and returns `truncated: true`, also when there
-  are exactly `maxDiffs`: it means "the cap was reached", not "more exist". `equal` means zero differences. Diff kinds: `type`, `array-length`, `unexpected`, `missing`, `value`.
+- Partial: a comparison (the shadow shell's too) stops collecting at `maxDiffs` differences (an integer from 1 to 1000; `undefined` selects the default 100, every other value, `null` and strings included, throws RangeError) and returns `truncated: true`, also when there
+  are exactly `maxDiffs`: it means "the cap was reached", not "more exist". `equal` means zero differences. Diff kinds: `type`, `array-length`, `unexpected`, `missing`, `value`. `unexpected` and `missing` look at own enumerable string keys only: an own `constructor` or `__proto__` key counts, an inherited name does not.
 - Checkout modes: `full-working-tree`, `sparse-readset-verified` (only `ruby-rails` and `python-fastapi`) and `sparse-unsupported-adapter`, where
-  `missing_count` is `null`: completeness is unknown and counts as incomplete. `maxMissing` (integer 1 to 1000) caps `missing_paths`; the assert throws code `T11_CORPUS_CHECKOUT_INCOMPLETE`.
+  `missing_count` is `null`: completeness is unknown and counts as incomplete. `maxMissing` (an integer from 1 to 1000, default 50 for `undefined` only) caps `missing_paths`; the assert throws code `T11_CORPUS_CHECKOUT_INCOMPLETE`.
+  `adapterId` is any non-empty string, echoed as `adapter_id` and not checked against the five ids: a full working tree is `full-working-tree` whatever it is, and a sparse one is `sparse-unsupported-adapter` for every id but those two (`generic-grep`, `constructor` and `__proto__` included).
   Conditional keys: `sparse-unsupported-adapter` adds `reason`; `sparse-readset-verified` adds `missing_paths_truncated` (always `true`) only when
   `missing_count` exceeds the listed `missing_paths`, and leaves it out otherwise.
 - Modes `compatibility-only` (bridge) and `shadow-only` (shadow) are not support claims; `promotion_allowed` and `apply_allowed` are always false.
 
 ## 6. Cutover readiness
 
-`evaluateLegacyHttpCutoverReadiness` needs `adapterId` (one of the five) and all ten checks as booleans; a missing, non-boolean or unknown
-check throws TypeError. `ready_for_t00_integration` is true only when every check is true and `blockers` follow the gate order. The
-checks are fed by hand; T11 verifies none of them (limits are recorded in `BASELINE.json`).
+`evaluateLegacyHttpCutoverReadiness` needs `adapterId` (one of the five, compared exactly) and all ten checks as booleans in an object (not `null` or an array); a missing, non-boolean or unknown check throws TypeError. The gates are read as own properties,
+so an inherited gate counts as missing; an unknown check is an own enumerable string key (an own `__proto__` from `JSON.parse` included), and non-enumerable or Symbol keys are not looked at. `ready_for_t00_integration` is true only when every check is true and `blockers`
+follow the gate order. The checks are fed by hand; T11 verifies none of them (limits are recorded in `BASELINE.json`).
 
 | # | gate | blocker |
 | --- | --- | --- |

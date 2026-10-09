@@ -148,6 +148,13 @@
   "confidence",
   "api_surface_source"
  ],
+ "inherited_names": [
+  "constructor",
+  "toString",
+  "hasOwnProperty",
+  "valueOf",
+  "__proto__"
+ ],
  "cutover_gates": [
   {
    "gate": "ownership_scope_clean",
