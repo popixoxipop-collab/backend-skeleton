@@ -4,7 +4,7 @@
   "rfc": "scanners/project-graph/INTERFACE_RFC.md",
   "readme": "scanners/project-graph/README.md",
   "schema_file": "scanners/project-graph/schemas/project-graph.draft-1.schema.json",
-  "schema_canonical_sha256": "6809d8eccc1a9fa1dd9b6f5ded80bddb68b0dfaddb6ee020d1008117906ec2ee",
+  "schema_canonical_sha256": "c90483e5a6d603b472f453cb5f76b6e7db0b70faf1d188d05a7e44aa875a2b2d",
   "environment": { "os": "macOS", "node": "v24.19.0" },
   "commands": [
     {
@@ -33,7 +33,7 @@
       "command": "node test/project-graph/interface-rfc.probe.mjs options",
       "exit": 0,
       "pinned": true,
-      "stdout_sha256": "c1e49606b0c4810c16790f9fb1897bcd3eb99ca0887161c9c2962749f68611f5"
+      "stdout_sha256": "911bc3ef180ccc377466355a0fb93962b1053c3467be0c0f2cfd6d893ccbfd43"
     },
     {
       "id": "probe-registered",

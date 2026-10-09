@@ -1,10 +1,13 @@
 // Edits that the draft graph schema must reject. Not a test file: interface-rfc.test.mjs applies each
 // edit to a clone of a real graph, checks that the unedited clone passes, then expects a validation
 // error whose `keyword` is the one named here, so an edit cannot fail for an unrelated reason.
-// `base` is the real graph the edit applies to: normal, tie (specificity_tie) or duplicate
-// (duplicate_local_package).
+// `base` is the real graph the edit applies to: normal, tie (specificity_tie), duplicate
+// (duplicate_local_package) or scope (out_of_scope_detection).
+// An entry can also name the node whose keyword must give the error (`node`, the place of the node in the
+// schema file), because two nodes can give one keyword for one value and the edit would still fail with the
+// keyword of the other node. The test then drops that one keyword and expects the entry to fail.
 const project = (graph, root) => graph.projects.find((p) => p.root === root);
-const edit = (name, base, keyword, mutate) => ({ name, base, keyword, mutate });
+const edit = (name, base, keyword, mutate, pin = {}) => ({ name, base, keyword, mutate, ...pin });
 const sha = (char, count) => `sha256:${char.repeat(count)}`;
 
 export const REJECTED_MUTATIONS = [
@@ -59,4 +62,47 @@ export const REJECTED_MUTATIONS = [
     entry.project_ids = [entry.project_ids[0]];
   }),
   edit('registry load error without a message', 'normal', 'required', (g) => { g.registry_load_errors = [{ file: 'x.mjs' }]; }),
+  // Ids and names that must not be empty (RFC section 2.6). The plan code tests the selected and the fallback adapter
+  // for truthiness, so an empty id there would drop the project from the plan without a trace.
+  edit('application with an empty selected adapter', 'normal', 'minLength', (g) => { project(g, 'services/api').facets.http.selected_adapter = ''; },
+    { node: '$defs/httpFacet/allOf/0/then/properties/selected_adapter' }),
+  edit('aggregate with an empty selected adapter', 'normal', 'minLength', (g) => { project(g, '.').facets.http.selected_adapter = ''; },
+    { node: '$defs/httpFacet/properties/selected_adapter' }),
+  edit('tie with an empty adapter id', 'tie', 'minLength', (g) => { g.projects[0].facets.http.ambiguous_adapter_ids[0] = ''; },
+    { node: '$defs/httpFacet/properties/ambiguous_adapter_ids/items' }),
+  edit('candidate with an empty adapter id', 'normal', 'minLength', (g) => { project(g, 'services/api').facets.http.candidates[0].adapter_id = ''; },
+    { node: '$defs/candidate/properties/adapter_id' }),
+  edit('package name that is empty', 'normal', 'minLength', (g) => { project(g, 'services/api').local_package.name = ''; },
+    { node: '$defs/localPackage/properties/name' }),
+  edit('out-of-scope detection with an empty root', 'scope', 'minLength', (g) => {
+    g.unresolved.find((u) => u.kind === 'out-of-scope-detection').detected_root = '';
+  }, { node: '$defs/unresolved/oneOf/5/properties/detected_root' }),
+  edit('registry load error with an empty file name', 'normal', 'minLength', (g) => { g.registry_load_errors = [{ file: '', message: 'm' }]; },
+    { node: 'properties/registry_load_errors/items/properties/file' }),
+];
+
+// The edits above that name a node, each with the values that are allowed there. `of` is the name of the edit it
+// belongs to. The unedited graph passes, and so does the edited one: a non-empty value, and `null` where null is
+// allowed today.
+const accept = (name, of, base, mutate) => ({ name, of, base, mutate });
+export const ACCEPTED_EDITS = [
+  accept('application with a one-character selected adapter', 'application with an empty selected adapter', 'normal',
+    (g) => { project(g, 'services/api').facets.http.selected_adapter = 'x'; }),
+  accept('aggregate with no selected adapter', 'aggregate with an empty selected adapter', 'normal',
+    (g) => { project(g, '.').facets.http.selected_adapter = null; }),
+  accept('tie with a one-character adapter id', 'tie with an empty adapter id', 'tie',
+    (g) => { g.projects[0].facets.http.ambiguous_adapter_ids[0] = 'x'; }),
+  accept('candidate with a one-character adapter id', 'candidate with an empty adapter id', 'normal',
+    (g) => { project(g, 'services/api').facets.http.candidates[0].adapter_id = 'x'; }),
+  accept('one-character package name', 'package name that is empty', 'normal',
+    (g) => { project(g, 'services/api').local_package.name = 'x'; }),
+  accept('package without a name', 'package name that is empty', 'normal',
+    (g) => { project(g, 'services/api').local_package.name = null; }),
+  accept('out-of-scope detection at the repository root', 'out-of-scope detection with an empty root', 'scope',
+    (g) => { g.unresolved.find((u) => u.kind === 'out-of-scope-detection').detected_root = '.'; }),
+  accept('out-of-scope detection above the repository', 'out-of-scope detection with an empty root', 'scope',
+    (g) => { g.unresolved.find((u) => u.kind === 'out-of-scope-detection').detected_root = '../x'; }),
+  // The message is free text and stays allowed to be empty.
+  accept('registry load error with a file name and an empty message', 'registry load error with an empty file name', 'normal',
+    (g) => { g.registry_load_errors = [{ file: 'x.mjs', message: '' }]; }),
 ];

@@ -362,9 +362,9 @@ function packageMetadata() {
       dependencies: { 'val-null': null, 'val-number': 1, 'val-object': { nested: 'x' }, 'val-array': [], '': '1', Zed: '1', 'a-lower': '1', 10: '1', 9: '1' },
       devDependencies: { Zed: '2' },
     }),
-    // Workspace patterns are not de-duplicated. Only strings are kept, and `packages` of an object is
-    // read only when it is an array.
-    'workspaces-array/package.json': named('wsa', { workspaces: ['pkg/b', 'pkg/a', 'pkg/a', 7, null, { x: 1 }, ['y']] }),
+    // Workspace patterns are not de-duplicated. Only strings are kept, an empty one included, and `packages`
+    // of an object is read only when it is an array.
+    'workspaces-array/package.json': named('wsa', { workspaces: ['pkg/b', 'pkg/a', 'pkg/a', 7, null, { x: 1 }, ['y'], ''] }),
     'workspaces-packages-text/package.json': named('wsp', { workspaces: { packages: 'apps/*' } }),
     'workspaces-nohoist/package.json': named('wsn', { workspaces: { nohoist: ['z'], packages: ['q'] } }),
     'rewritten-package/package.json': named('before'),
@@ -977,8 +977,9 @@ const nonStringAdapterFields = () => build({ 'app/package.json': '{}' }, {
 });
 
 // The empty id is selected as `''`, which is falsy, so the read set is never captured although `listReadSet` is valid.
-const emptyAdapterId = () => build({ 'app/package.json': '{}' }, {
-  adapters: [bare('', { detect: inDirs('app'), listReadSet: () => ['package.json'] })],
+// In `tie` it ties with another adapter and is listed in `ambiguous_adapter_ids`, the one other place where an id is copied.
+const emptyAdapterId = () => build({ 'app/package.json': '{}', 'tie/package.json': '{}' }, {
+  adapters: [bare('', { detect: inDirs('app', 'tie'), listReadSet: () => ['package.json'] }), bare('mate', { detect: inDirs('tie') })],
 });
 const missingAdapterId = () => build({ 'app/package.json': '{}' }, { adapters: [{ detect: inDirs('app'), specificity: 5 }] });
 const numericAdapterId = () => build({ 'app/package.json': '{}' }, { adapters: [bare(7, { detect: inDirs('app') })] });

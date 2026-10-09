@@ -13,16 +13,16 @@ import * as indexModule from '../../scanners/project-graph/index.mjs';
 import * as registeredModule from '../../scanners/project-graph/registered.mjs';
 import * as shadowModule from '../../scanners/project-graph/shadow.mjs';
 import * as sourceRoleModule from '../../scanners/project-graph/source-role.mjs';
-import { ADAPTERS, LOAD_ERRORS } from '../../scanners/registry.mjs';
+import { ADAPTERS, LOAD_ERRORS, loadAdapters } from '../../scanners/registry.mjs';
 import { malformedCalls, negativeCases, normalCase, optionCases, registeredCase } from './interface-rfc.cases.mjs';
 import {
-  acceptanceProblems, checkLiterals, defaultMarkerProblems, extractSourceLiterals, kindTagProblems,
-  markerArgumentProblems, missingFragments, missingFromText, optionCaseListProblems, optionTagProblems,
-  rejectionProblems, schemaLiteralHits, schemaUnresolvedFields, schemaVocabulary, sectionLines,
-  sectionProblems, tableRows,
+  acceptanceProblems, checkLiterals, defaultMarkerProblems, emptyStringProblems, extractSourceLiterals, kindTagProblems,
+  markerArgumentProblems, missingFragments, missingFromText, mutationProblems, optionCaseListProblems, optionTagProblems,
+  rejectionProblems, schemaLiteralHits, schemaStringPositions, schemaUnresolvedFields, schemaVocabulary, sectionLines,
+  sectionProblems, stringLeaves, stringPositionProblems, tableRows,
 } from './interface-rfc.check.mjs';
 import { canon, cleanup, fixture } from './interface-rfc.fixtures.mjs';
-import { REJECTED_MUTATIONS } from './interface-rfc.mutations.mjs';
+import { ACCEPTED_EDITS, REJECTED_MUTATIONS } from './interface-rfc.mutations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -337,12 +337,14 @@ describe('RFC claims against the probes', () => {
   });
 });
 
-let compiled = null;
-function validate(doc) {
-  compiled ??= new Ajv2020({ allErrors: true, strict: true }).compile(schema);
-  return compiled(doc) ? [] : [...compiled.errors];
+// A validator for a schema document: `[]` when the graph passes, else the Ajv errors.
+function validatorFor(doc) {
+  const compiled = new Ajv2020({ allErrors: true, strict: true }).compile(doc);
+  return (graph) => (compiled(graph) ? [] : [...compiled.errors]);
 }
-const BASES = { normal: 'normal', tie: 'specificity_tie', duplicate: 'duplicate_local_package' };
+let validator = null;
+const validate = (doc) => (validator ??= validatorFor(schema))(doc);
+const BASES = { normal: 'normal', tie: 'specificity_tie', duplicate: 'duplicate_local_package', scope: 'out_of_scope_detection' };
 
 describe('draft graph schema', () => {
   it('compiles in strict mode and has the recorded canonical hash', () => {
@@ -370,13 +372,37 @@ describe('draft graph schema', () => {
 
   for (const m of REJECTED_MUTATIONS) {
     it(`rejects: ${m.name}`, () => {
-      const graph = clone(graphs()[BASES[m.base]]);
-      assert.deepEqual(validate(graph), [], 'the unedited graph must pass first');
-      m.mutate(graph);
-      const keywords = validate(graph).map((e) => e.keyword);
-      assert.ok(keywords.includes(m.keyword), `expected a "${m.keyword}" error, got ${JSON.stringify(keywords)}`);
+      assert.deepEqual(mutationProblems(validate, graphs()[BASES[m.base]], m), []);
     });
   }
+
+  // An empty string is refused at a place that names it, and what is allowed there still passes (RFC section 2.6).
+  for (const t of ACCEPTED_EDITS) {
+    it(`accepts: ${t.name}`, () => {
+      const graph = clone(graphs()[BASES[t.base]]);
+      assert.deepEqual(validate(graph), [], 'the unedited graph must pass first');
+      t.mutate(graph);
+      assert.deepEqual(validate(graph), []);
+    });
+  }
+
+  it('gives every edit that names a schema node an allowed twin, and every twin an edit', () => {
+    const pinned = REJECTED_MUTATIONS.filter((m) => m.node);
+    assert.ok(pinned.length >= 7);
+    for (const m of pinned) assert.ok(ACCEPTED_EDITS.some((t) => t.of === m.name), `${m.name} has no allowed twin`);
+    for (const t of ACCEPTED_EDITS) assert.ok(pinned.some((m) => m.name === t.of && m.base === t.base), `${t.name} belongs to no edit with a node and the same base`);
+    assert.equal(new Set(ACCEPTED_EDITS.map((t) => t.name)).size, ACCEPTED_EDITS.length);
+  });
+
+  it('fails each edit that names a node when the keyword of that node is dropped', () => {
+    for (const m of REJECTED_MUTATIONS.filter((e) => e.node)) {
+      const edited = clone(schema);
+      const holder = m.node.split('/').reduce((at, key) => at[key], edited);
+      assert.ok(m.keyword in holder, `${m.name}: ${m.node} has no "${m.keyword}"`);
+      delete holder[m.keyword];
+      assert.notDeepEqual(mutationProblems(validatorFor(edited), graphs()[BASES[m.base]], m), [], `${m.name}: nothing fails without ${m.node}/${m.keyword}`);
+    }
+  });
 });
 
 // ---- RFC section 2.5: options and values the caller supplies -------------------------------------------
@@ -716,6 +742,7 @@ const ACCEPTED = {
       '`dependency_names` holds the keys of `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies`, whatever their values are (an empty key included), sorted by code unit and de-duplicated.',
       'A field counts only when it is a plain object: a string, a number, `null` or an array adds nothing, and no other field is read (`bundledDependencies`, `peerDependenciesMeta`, `overrides`).',
       '`workspace_patterns` holds the string entries of a `workspaces` array, or of `workspaces.packages` when `workspaces` is not an array and `packages` is one, sorted by code unit and not de-duplicated.',
+      'An empty string among them is kept and the schema accepts it (section 2.6).',
       'JSON of another shape (`null`, `[]`, a number) gives a readable `local_package` with those defaults',
       'An empty file, a file that starts with a byte-order mark, and invalid JSON record `package-metadata-read` and leave `local_package` `null`. The name format is not checked',
       'Dependency names are the union of `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies`',
@@ -741,7 +768,7 @@ const ACCEPTED = {
       for (const root of ['dependency-types', 'dependency-other-fields']) assert.deepEqual(pkg(root).dependency_names, [], root);
       assert.deepEqual(pkg('dependency-values').dependency_names,
         ['', '10', '9', 'Zed', 'a-lower', 'val-array', 'val-null', 'val-number', 'val-object']);
-      assert.deepEqual(pkg('workspaces-array').workspace_patterns, ['pkg/a', 'pkg/a', 'pkg/b']);
+      assert.deepEqual(pkg('workspaces-array').workspace_patterns, ['', 'pkg/a', 'pkg/a', 'pkg/b']);
       assert.deepEqual(['workspaces-packages-text', 'workspaces-nohoist'].map((root) => pkg(root).workspace_patterns), [[], ['q']]);
       assert.deepEqual(edgesOf(graph, 'local-package-dependency').map((e) => [e[1], e[2], e[3]]),
         ['dep-a', 'dep-b', 'dep-c', 'dep-d'].map((dep) => ['project:dependency-fields', `project:${dep}`, dep]));
@@ -1116,12 +1143,19 @@ const UNCHECKED = {
     },
   },
   empty_adapter_id: {
-    says: ["an empty id is selected as `''` while `selection_reason` says `no-first-class-adapter` (its read set is never captured)"],
+    says: [
+      "an empty id is selected as `''` while `selection_reason` says `no-first-class-adapter` (its read set is never captured)",
+      "An empty id that ties with another adapter is copied as `''` into `ambiguous_adapter_ids` as well, and the schema rejects it there (`minLength`).",
+    ],
     check({ graph }) {
       const { http, kind, read_set: readSet } = project(graph, 'app');
       assert.deepEqual([http.selected, http.reason, http.candidates.map((c) => c.adapter_id), kind], ['', 'no-first-class-adapter', [''], 'unrecognized']);
       // The adapter lists a file that exists, and still no read set is captured (and nothing is reported).
       assert.deepEqual([readSet, graph.unresolved], [null, []]);
+      // Tied with another adapter, the empty id is listed among the tied ids, which is the one other place where an id is copied.
+      const tie = project(graph, 'tie');
+      assert.deepEqual([tie.http.ambiguous, tie.http.candidates.map((c) => c.adapter_id), tie.http.reason, tie.http.selected, tie.kind],
+        [['', 'mate'], ['', 'mate'], 'specificity-tie', null, 'ambiguous']);
     },
   },
   numeric_adapter_id: {
@@ -1775,6 +1809,219 @@ describe('RFC tables against the schema, the record and the probes', () => {
   });
 });
 
+// ---- RFC section 2.6: strings that must not be empty ------------------------------------------------------------------
+// The table of section 2.6 is checked against the positions that the schema file itself declares (a walk over the
+// schema), and against the validator: the empty string is put in place of each string of the real graphs in turn.
+describe('strings that must not be empty (RFC section 2.6)', () => {
+  const table = () => tableRows(sectionLines(rfc, '### 2.6'));
+  const pathsOf = (row) => [...row[1].matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  const optionGraphs = (...groups) => Object.fromEntries(groups.flatMap((group) => Object.entries(options()[group])
+    .filter(([, built]) => built.graph).map(([name, built]) => [`${group}: ${name}`, built.graph])));
+  // The graphs that the empty string is put into: every real graph, every accepted option case and one graph with load errors.
+  const realGraphs = () => ({
+    ...graphs(),
+    ...optionGraphs('accepted'),
+    'registry load errors': {
+      ...graphs().normal,
+      registry_load_errors: registeredModule.portableRegistryLoadErrors([
+        { file: '/srv/adapters/zeta.mjs', message: 'failed to load: /srv/adapters/zeta.mjs' }, { file: '/srv/adapters/alpha.mjs', message: '' },
+      ]),
+    },
+  });
+  // Graphs built with an adapter whose id is '': a caller can pass one, the registry cannot load one (see below).
+  let emptyIds = null;
+  const emptyIdGraphs = () => {
+    if (emptyIds) return emptyIds;
+    const repoRoot = fixture({ 'app/package.json': '{}', 'other/package.json': '{}' });
+    const build = (detect) => indexModule.buildProjectGraph({ repoRoot, adapters: [{ id: '', detect }] });
+    return (emptyIds = {
+      'detect throws an error without text': build(() => { throw new Error(''); }),
+      'detect names no directory': build(() => true),
+      'detect names the repository for a project below it': build((dir) => (path.basename(dir) === 'app' ? repoRoot : null)),
+      'detect names a directory below the project': build((dir) => (path.basename(dir) === 'app' ? null : path.join(dir, 'app'))),
+    });
+  };
+
+  it('the table lists every position at which the schema takes a string, once, with the verdict the schema gives', () => {
+    const { positions, open } = schemaStringPositions(schema);
+    assert.deepEqual(stringPositionProblems(positions, table()), []);
+    assert.deepEqual(open, ['projects[].facets.http.candidates[].capabilities']);
+    // The schema lets the empty string through only where an adapter, a package or an error supplies free text.
+    assert.deepEqual(Object.keys(positions).filter((at) => positions[at] === 'accepted'), sorted([
+      'notes[]', 'projects[].facets.http.candidates[].confidence', 'projects[].facets.http.candidates[].title',
+      'projects[].facets.http.candidates[].verification_basis', 'projects[].local_package.dependency_names[]',
+      'projects[].local_package.workspace_patterns[]', 'registry_load_errors[].message', 'unresolved[].message',
+    ]));
+  });
+
+  it('an empty string put in place of each string of the real graphs is refused or accepted as the schema walk says', () => {
+    const all = realGraphs();
+    assert.ok(Object.keys(all).length >= 40, `only ${Object.keys(all).length} graphs`);
+    assert.deepEqual(emptyStringProblems(validate, all, schemaStringPositions(schema)), []);
+  });
+
+  it('the plan drops an application whose selected adapter is empty and a project whose fallback adapter is empty (section 2.3)', () => {
+    const graph = clone(graphs().normal);
+    const items = () => indexModule.buildProjectScanPlan(graph, { includeFallback: true }).map((i) => [i.project_root, i.adapter_id, i.mode]);
+    assert.deepEqual(items(), [['backend-java', 'java-spring', 'first-class'], ['packages/shared', 'generic-grep', 'fallback'], ['services/api', 'javascript-express', 'first-class']]);
+    project(graph, 'services/api').facets.http.selected_adapter = '';
+    assert.deepEqual(items().map((item) => item[0]), ['backend-java', 'packages/shared']);
+    project(graph, 'packages/shared').fallback_adapter = '';
+    assert.deepEqual(items(), [['backend-java', 'java-spring', 'first-class']]);
+  });
+
+  it('the builder copies an empty adapter id but never selects it: the project has no first-class adapter and no read set', () => {
+    const { graph } = options().unchecked.empty_adapter_id;
+    const app = project(graph, 'app');
+    assert.deepEqual([app.kind, app.facets.http.selected_adapter, app.facets.http.selection_reason, app.selected_adapter_read_set], ['unrecognized', '', 'no-first-class-adapter', null]);
+    assert.deepEqual(project(graph, 'tie').facets.http.ambiguous_adapter_ids, ['', 'mate']);
+    const built = { ...graphs(), ...optionGraphs('accepted', 'unchecked'), ...emptyIdGraphs() };
+    for (const [name, g] of Object.entries(built)) {
+      for (const p of g.projects) {
+        if (p.facets.http.selection_reason === 'unique-highest-specificity') assert.ok(p.facets.http.selected_adapter, `${name}: ${p.root}`);
+        if (p.selected_adapter_read_set) assert.ok(p.selected_adapter_read_set.adapter_id, `${name}: ${p.root}`);
+      }
+    }
+  });
+
+  it('the builder writes the empty string at the positions the table marks Yes or Only, and at no other', () => {
+    const { open } = schemaStringPositions(schema);
+    const emptyAt = (graph) => stringLeaves(graph, open).filter(({ holder, key }) => holder[key] === '').map(({ at }) => at);
+    const built = { ...graphs(), ...optionGraphs('accepted', 'unchecked'), ...emptyIdGraphs() };
+    const written = sorted([...new Set(Object.values(built).flatMap(emptyAt))]);
+    assert.deepEqual(written, [
+      'projects[].facets.http.ambiguous_adapter_ids[]', 'projects[].facets.http.candidates[].adapter_id',
+      'projects[].facets.http.candidates[].confidence', 'projects[].facets.http.candidates[].title',
+      'projects[].facets.http.candidates[].verification_basis', 'projects[].facets.http.selected_adapter', 'projects[].fallback_adapter',
+      'projects[].local_package.dependency_names[]', 'projects[].local_package.workspace_patterns[]',
+      'projects[].nested_detections[].adapter_id', 'unresolved[].adapter_id', 'unresolved[].message',
+    ]);
+    const may = table().filter((row) => /^(Yes|Only)\b/.test(row[3])).flatMap(pathsOf);
+    assert.deepEqual(written.filter((at) => !may.includes(at)), []);
+    // The entries that carry an empty id, the detection below a project, and the message of an error without text.
+    const emptyId = emptyIdGraphs();
+    const kinds = (g) => sorted([...new Set(g.unresolved.filter((u) => u.adapter_id === '').map((u) => u.kind))]);
+    assert.deepEqual(Object.values(emptyId).slice(0, 3).map(kinds), [['adapter-detect-error'], ['unlocated-detection'], ['out-of-scope-detection']]);
+    assert.deepEqual(emptyId['detect throws an error without text'].unresolved.map((u) => u.message), ['', '', '']);
+    assert.deepEqual(emptyId['detect names a directory below the project'].projects.flatMap((p) => p.nested_detections),
+      [{ adapter_id: '', detected_root: 'app' }, { adapter_id: '', detected_root: 'other/app' }]);
+    assert.deepEqual(emptyId['detect names the repository for a project below it'].unresolved.map((u) => u.detected_root), ['.']);
+  });
+
+  it('no registered adapter has an empty id, and the file name of a registry error is empty only for a path that ends in a separator', async () => {
+    const adapter = (id) => `export const adapter = { contract: 'sbf.adapter/2', id: ${JSON.stringify(id)} };`;
+    const adaptersDir = path.join(fixture({ 'a/.mjs': adapter(''), 'a/blank.mjs': adapter(''), 'a/broken.mjs': 'export const adapter = ;' }), 'a');
+    const { adapters, errors } = await loadAdapters({ adaptersDir });
+    assert.deepEqual(adapters, []);
+    assert.deepEqual(errors.map((e) => path.basename(e.file)), ['blank.mjs', 'broken.mjs']);
+    assert.equal(errors[0].message, 'adapter.id "" must equal its filename "blank"');
+    assert.match(errors[1].message, /^failed to load: /);
+    assert.deepEqual(registeredModule.portableRegistryLoadErrors(errors).map((e) => e.file), ['blank.mjs', 'broken.mjs']);
+    assert.deepEqual(registeredModule.portableRegistryLoadErrors([{ file: '/a/x.mjs' }, { file: 'adapters/', message: 'm' }]),
+      [{ file: '', message: 'm' }, { file: 'x.mjs', message: '' }]);
+    const loaded = { ...clone(graphs().normal), registry_load_errors: registeredModule.portableRegistryLoadErrors([{ file: 'adapters/', message: 'm' }]) };
+    assert.ok(validate(loaded).some((e) => e.keyword === 'minLength' && e.instancePath === '/registry_load_errors/0/file'));
+  });
+
+  it('the schema does not compare the ids of one project with each other (limit 19)', () => {
+    // Three graphs edited by hand so that the ids of one project disagree. The schema accepts all of them, and the plan
+    // follows the selected id as it stands. Nothing here compares the ids: this only pins what the RFC says is not checked.
+    const edited = (base, edit) => {
+      const graph = clone(graphs()[BASES[base]]);
+      edit(graph);
+      return graph;
+    };
+    const unknownSelected = edited('normal', (g) => { project(g, 'services/api').facets.http.selected_adapter = 'ghost'; });
+    const unknownReadSet = edited('normal', (g) => { project(g, 'services/api').selected_adapter_read_set.adapter_id = 'ghost'; });
+    const unknownTied = edited('tie', (g) => { g.projects[0].facets.http.ambiguous_adapter_ids = ['ghost-a', 'ghost-b']; });
+    const candidateIds = (graph, root) => project(graph, root).facets.http.candidates.map((c) => c.adapter_id);
+    assert.deepEqual(candidateIds(unknownSelected, 'services/api'), ['javascript-express']);
+    assert.deepEqual(candidateIds(unknownReadSet, 'services/api'), ['javascript-express']);
+    assert.deepEqual(candidateIds(unknownTied, '.'), ['a-http', 'b-http']);
+    for (const graph of [unknownSelected, unknownReadSet, unknownTied]) assert.deepEqual(validate(graph), []);
+    assert.deepEqual(indexModule.buildProjectScanPlan(unknownSelected).map((i) => [i.project_root, i.adapter_id]), [['backend-java', 'java-spring'], ['services/api', 'ghost']]);
+  });
+
+  it('the checks of this section can fail', () => {
+    // The table check reports a wrong verdict, a position that is missing, one that is invented, one listed twice and a cell it cannot read.
+    const found = { 'a.b': 'rejected', 'a.c': 'accepted' };
+    const row = (value, paths, empty) => [value, paths, empty, 'No'];
+    const ok = [row('x', '`a.b`', 'rejected (`minLength`)'), row('y', '`a.c`', 'accepted')];
+    assert.deepEqual(stringPositionProblems(found, ok), []);
+    assert.deepEqual(stringPositionProblems(found, [row('x', '`a.b`', 'accepted'), ok[1]]), ['a.b: the schema says rejected and the table says accepted']);
+    assert.deepEqual(stringPositionProblems(found, [ok[0]]), ['a.c takes a string in the schema and is not in the table']);
+    assert.deepEqual(stringPositionProblems(found, [row('x', '`a.b`, `a.d`', 'rejected'), ok[1]]), ['a.d is in the table and takes no string in the schema']);
+    assert.deepEqual(stringPositionProblems(found, [ok[0], row('y', '`a.b`, `a.c`', 'accepted')]),
+      ['a.b is listed twice', 'a.b: the schema says rejected and the table says accepted']);
+    assert.deepEqual(stringPositionProblems(found, [row('x', '`a.b`', 'maybe'), ok[1]]),
+      ['x: the cell for the empty string does not start with rejected or accepted', 'a.b: the schema says rejected and the table says undefined']);
+    // The walk stops at a schema keyword it cannot read, and at a reference to itself, instead of skipping them.
+    const walkOf = (edit) => { const doc = clone(schema); edit(doc); return () => schemaStringPositions(doc); };
+    assert.throws(walkOf((d) => { d.properties.notes.items.anyOf = []; }), /does not read the schema keyword "anyOf" \(at notes\[\]\)/);
+    assert.throws(walkOf((d) => { d.properties.notes.items.additionalProperties = { type: 'string' }; }), /does not read additionalProperties at notes\[\]/);
+    assert.throws(walkOf((d) => { d.$defs.digest = { $ref: '#/$defs/digest' }; d.properties.files_read.items = { $ref: '#/$defs/digest' }; }), /refers to itself/);
+    // Dropping the keyword of any edit that names a node changes the walk, so the table then disagrees with the schema.
+    // The two nodes of the selected adapter hold the same rule twice: without one of them the position reads 'mixed'.
+    const WHERE = {
+      'application with an empty selected adapter': ['projects[].facets.http.selected_adapter', 'mixed'],
+      'aggregate with an empty selected adapter': ['projects[].facets.http.selected_adapter', 'mixed'],
+      'tie with an empty adapter id': ['projects[].facets.http.ambiguous_adapter_ids[]', 'accepted'],
+      'candidate with an empty adapter id': ['projects[].facets.http.candidates[].adapter_id', 'accepted'],
+      'package name that is empty': ['projects[].local_package.name', 'accepted'],
+      'out-of-scope detection with an empty root': ['unresolved[].detected_root', 'accepted'],
+      'registry load error with an empty file name': ['registry_load_errors[].file', 'accepted'],
+    };
+    const pinned = REJECTED_MUTATIONS.filter((m) => m.node);
+    assert.deepEqual(sorted(Object.keys(WHERE)), sorted(pinned.map((m) => m.name)));
+    for (const m of pinned) {
+      const damaged = clone(schema);
+      delete m.node.split('/').reduce((at, key) => at[key], damaged)[m.keyword];
+      const [at, state] = WHERE[m.name];
+      assert.deepEqual(stringPositionProblems(schemaStringPositions(damaged).positions, table()), [`${at}: the schema says ${state} and the table says rejected`], m.name);
+      // A validator without the keyword accepts the empty string at the position unless the other node still refuses it.
+      const problems = emptyStringProblems(validatorFor(damaged), realGraphs(), schemaStringPositions(schema));
+      assert.deepEqual(problems.filter((p) => p.startsWith(`${at}:`)).length > 0, state === 'accepted', m.name);
+      assert.deepEqual(problems.filter((p) => !p.startsWith(`${at}:`)), [], m.name);
+    }
+    // A validator that accepts everything, one that rejects everything, and a walk that lists too much or too little.
+    const positions = schemaStringPositions(schema);
+    const accepting = emptyStringProblems(() => [], realGraphs(), positions);
+    assert.ok(accepting.length > 30 && accepting.every((p) => p.includes('an empty string passes in')), accepting.slice(0, 3).join('; '));
+    assert.ok(emptyStringProblems(() => [{ keyword: 'type' }], realGraphs(), positions).every((p) => /is not valid before|no real graph holds/.test(p)));
+    const one = { normal: graphs().normal };
+    assert.ok(emptyStringProblems(validate, one, { open: positions.open, positions: { ...positions.positions, 'zz.extra': 'rejected' } }).includes('no real graph holds a string at zz.extra'));
+    const less = Object.fromEntries(Object.entries(positions.positions).filter(([at]) => at !== 'schema'));
+    assert.ok(emptyStringProblems(validate, one, { open: positions.open, positions: less }).includes('schema holds a string in normal and the schema walk lists no such position'));
+  });
+
+  it('the RFC statements about empty strings are present once, and a reworded or removed one is reported', () => {
+    const says = [
+      "so a value of `''` counts as none: an `application` whose `selected_adapter` is `''` yields no item",
+      'yields no `fallback` item, in both cases without any sign in the plan.',
+      "The builder never combines a `selected_adapter` of `''` with `unique-highest-specificity`",
+      'A graph that was edited or built by hand can hold the combination, and the schema rejects it (section 2.6).',
+      'tests the same two fields the same way at the time of writing',
+      'and lets the empty string through only where the builder copies free text.',
+      'A string of spaces is not empty: nothing here trims.',
+      'The schema is stricter than the builder on purpose, because a graph can also come from a file, another tool or an edit.',
+      'Every rule of this section looks at one value at a time.',
+      'That the ids of one project agree with each other is not checked (limit 19).',
+      'a `selected_adapter_read_set` whose `adapter_id` is not the selected adapter, and `ambiguous_adapter_ids` that name an id no candidate carries all validate',
+      'The builder cannot write such a graph: the selected id, the tied ids and the read set all come from the same candidates.',
+      '`buildProjectScanPlan` then plans for the id as written.',
+      'it checks none of the relations, and this RFC adds no checker.',
+    ];
+    const flat = rfc.replace(/\s+/g, ' ');
+    for (const fragment of says) {
+      assert.ok(fragment.length >= 15, `"${fragment}" is too short to pin a statement`);
+      assert.equal(flat.split(fragment).length - 1, 1, `"${fragment}" must occur exactly once`);
+      assert.deepEqual(missingFragments(flat, [fragment]), []);
+      assert.deepEqual(missingFragments(flat.replace(fragment, ''), [fragment]), [fragment]);
+      assert.deepEqual(missingFragments(flat.replace(fragment, `${fragment.slice(0, -1)}!${fragment.slice(-1)}`), [fragment]), [fragment]);
+    }
+  });
+});
+
 describe('file ownership', () => {
   it('section 6 gives T02 edit rights over its own two directories and nothing else', () => {
     const editing = tableRows(sectionLines(rfc, '## 6.')).filter((row) => /^edits\b/.test(row[2]));
@@ -1922,6 +2169,11 @@ describe('the option checks can fail', () => {
     ['no first segment that starts with two dots', ['dotdot_names'], (d) => { d.$defs.relPath.pattern = '^(?!/)(?!\\.\\.)(?!(?:[\\s\\S]*/)?\\.\\.(?:/|$))[\\s\\S]+$'; }],
     ['a detected root that is a repo-relative path without .. segments', ['detect_values'],
       (d) => { unresolvedVariant(d, 'out-of-scope-detection').properties.detected_root = { $ref: '#/$defs/relPath' }; }],
+    ['a detected root of two characters or more (the repository itself is `.`)', ['detect_values'],
+      (d) => { unresolvedVariant(d, 'out-of-scope-detection').properties.detected_root.minLength = 2; }],
+    // `null` stays valid where it is valid today: a package without a name, and a project without a selected adapter.
+    ['a package name that is never null', ['package_metadata'], (d) => { d.$defs.localPackage.properties.name = { type: 'string', minLength: 1 }; }],
+    ['a selected adapter that is never null', ['no_adapters'], (d) => { d.$defs.httpFacet.properties.selected_adapter = { type: 'string', minLength: 1 }; }],
     ['at least two projects', ['empty_repository'], (d) => { d.properties.projects.minItems = 2; }],
     ['at least one file read', ['empty_repository'], (d) => { d.properties.files_read.minItems = 1; }],
     ['another schema id', recorded.accepted, (d) => { d.properties.schema.const = 'sbf.project-graph/draft-2'; }],
@@ -1944,12 +2196,14 @@ describe('the option checks can fail', () => {
     }],
     ['no minLength anywhere', ['empty_adapter_id', 'empty_fallback_adapter_id'], (d) => dropEverywhere(d, 'minLength')],
     // Without its minLength the empty id also fails for other keywords only, so that case is reported too.
+    // The edit loosens every node that holds the id of a candidate: the candidate, `selected_adapter` (two nodes) and the tied ids.
     ['an adapter id of any type', ['empty_adapter_id', 'numeric_adapter_id'], (d) => {
       const facet = d.$defs.httpFacet;
       d.$defs.candidate.properties.adapter_id = {};
       d.$defs.candidate.properties.title = {};
       facet.properties.selected_adapter = {};
       facet.allOf[0].then.properties.selected_adapter = {};
+      facet.properties.ambiguous_adapter_ids.items = {};
     }],
     // The id of a fallback adapter is checked by `fallback_adapter` of the project, not by the candidate rules above.
     ['a fallback adapter id that may be empty', ['empty_fallback_adapter_id'], (d) => { delete d.$defs.project.properties.fallback_adapter.minLength; }],

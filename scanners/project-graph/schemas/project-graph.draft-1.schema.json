@@ -20,7 +20,14 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["file", "message"],
-        "properties": { "file": { "type": "string" }, "message": { "type": "string" } }
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The base name of the registry file that failed to load. The registry records the joined path of a .mjs file, so the base name is not empty; see ../INTERFACE_RFC.md section 2.6."
+          },
+          "message": { "type": "string" }
+        }
       }
     }
   },
@@ -73,14 +80,18 @@
       "required": ["candidates", "selected_adapter", "selection_reason", "ambiguous_adapter_ids"],
       "properties": {
         "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
-        "selected_adapter": { "type": ["string", "null"] },
+        "selected_adapter": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The id of the selected first-class adapter, or null. A non-null value is a non-empty string, as for a candidate adapter_id: buildProjectScanPlan() tests this field for truthiness, so an empty string would drop the application from the plan. See ../INTERFACE_RFC.md section 2.6."
+        },
         "selection_reason": { "enum": ["unique-highest-specificity", "specificity-tie", "no-first-class-adapter"] },
-        "ambiguous_adapter_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+        "ambiguous_adapter_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
       },
       "allOf": [
         {
           "if": { "properties": { "selection_reason": { "const": "unique-highest-specificity" } }, "required": ["selection_reason"] },
-          "then": { "properties": { "selected_adapter": { "type": "string" }, "ambiguous_adapter_ids": { "type": "array", "maxItems": 0 }, "candidates": { "type": "array", "minItems": 1 } } }
+          "then": { "properties": { "selected_adapter": { "type": "string", "minLength": 1 }, "ambiguous_adapter_ids": { "type": "array", "maxItems": 0 }, "candidates": { "type": "array", "minItems": 1 } } }
         },
         {
           "if": { "properties": { "selection_reason": { "const": "specificity-tie" } }, "required": ["selection_reason"] },
@@ -115,7 +126,11 @@
       "additionalProperties": false,
       "required": ["name", "private", "dependency_names", "workspace_patterns", "evidence"],
       "properties": {
-        "name": { "type": ["string", "null"] },
+        "name": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The name field of package.json, or null when the field is absent, not a string or empty. A non-null value is a non-empty string, because the edge builder skips a falsy name. See ../INTERFACE_RFC.md section 2.6."
+        },
         "private": { "type": "boolean" },
         "dependency_names": { "type": "array", "items": { "type": "string" } },
         "workspace_patterns": { "type": "array", "items": { "type": "string" } },
@@ -263,7 +278,11 @@
             "kind": { "const": "out-of-scope-detection" },
             "project_root": { "$ref": "#/$defs/relPath" },
             "adapter_id": { "type": "string", "minLength": 1 },
-            "detected_root": { "type": "string" },
+            "detected_root": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The detected root relative to the repo root, as posixRel() writes it. Unlike a relPath it can leave the repo with a .. segment, so it is not a relPath. It is never empty: the builder writes . for the repo root itself. See ../INTERFACE_RFC.md section 2.6."
+            },
             "message": { "type": "string" }
           }
         }

@@ -256,3 +256,126 @@ export function rejectionProblems(validate, graphs, keywords) {
     return got.includes(keywords[name]) ? [] : [`${name}: the schema rejects it for ${got.join(', ')} and not for ${keywords[name]}`];
   });
 }
+
+// Applies one rejection edit to a copy of a real graph and returns what is wrong with the edit ([] when it
+// works): the unedited graph must pass first, and the edit must give an error of the keyword it names and,
+// where it names a schema node (`node`, written `$defs/httpFacet/properties/selected_adapter`), an error of that
+// node, because two nodes can report one keyword for one value. Ajv writes the `schemaPath` of an error in a
+// definition that it did not inline relative to that definition (`#/properties/selected_adapter/minLength`), and in
+// full for one that it inlined (`#/$defs/candidate/properties/adapter_id/minLength`), so both spellings count.
+export function mutationProblems(validate, graph, { keyword, node, mutate }) {
+  const copy = JSON.parse(JSON.stringify(graph));
+  if (validate(copy).length) return ['the unedited graph must pass first'];
+  mutate(copy);
+  const errors = validate(copy);
+  const paths = node === undefined ? null : [`#/${node}/${keyword}`, `#/${node.replace(/^\$defs\/[^/]+\//, '')}/${keyword}`];
+  if (errors.some((error) => error.keyword === keyword && (!paths || paths.includes(error.schemaPath)))) return [];
+  return [`expected a "${keyword}" error${paths ? ` at ${paths[0]}` : ''}, got ${JSON.stringify(errors.map((error) => `${error.keyword} at ${error.schemaPath}`))}`];
+}
+
+// ---- Strings that may be empty and strings that may not (RFC section 2.6) -----------------------------
+// The schema keywords the walk below reads or can pass over. Any other keyword stops the walk with an error,
+// so a constraint that it cannot read is not skipped by mistake.
+const WALKED_KEYWORDS = new Set([
+  '$schema', '$id', '$defs', '$ref', 'title', 'description', 'examples', 'type', 'const', 'enum', 'pattern', 'minLength',
+  'properties', 'required', 'additionalProperties', 'items', 'uniqueItems', 'minItems', 'maxItems', 'allOf', 'oneOf', 'if', 'then',
+]);
+
+// The data paths at which the schema takes a string (`projects[].facets.http.selected_adapter`, `[]` is an
+// array element) and whether the empty string passes there: 'rejected', 'accepted', or 'mixed' where the
+// nodes that describe one path disagree. A branch of `allOf`, `oneOf` or `then` describes the same path as
+// its parent, and `if` only chooses the branch. `open` lists the objects that have no `properties`: their
+// strings are free-form.
+export function schemaStringPositions(doc) {
+  const verdicts = new Map();
+  const open = new Set();
+  const walk = (node, at, via) => {
+    for (const key of Object.keys(node)) {
+      if (!WALKED_KEYWORDS.has(key)) throw new Error(`the walk does not read the schema keyword "${key}" (at ${at || 'the root'})`);
+    }
+    if (node.additionalProperties !== undefined && node.additionalProperties !== false) throw new Error(`the walk does not read additionalProperties at ${at}`);
+    if (node.$ref) {
+      if (via.includes(node.$ref)) throw new Error(`${node.$ref} refers to itself`);
+      walk(node.$ref.slice(2).split('/').reduce((target, key) => target[key], doc), at, [...via, node.$ref]);
+    }
+    const takesString = node.const !== undefined ? typeof node.const === 'string'
+      : node.enum ? node.enum.some((value) => typeof value === 'string')
+        : [].concat(node.type ?? []).includes('string');
+    if (takesString) {
+      const refuses = node.const !== undefined ? node.const !== ''
+        : node.enum ? !node.enum.includes('')
+          : (node.minLength ?? 0) > 0 || (node.pattern !== undefined && !new RegExp(node.pattern, 'u').test(''));
+      verdicts.set(at, [...(verdicts.get(at) ?? []), refuses]);
+    }
+    for (const [key, child] of Object.entries(node.properties ?? {})) walk(child, at ? `${at}.${key}` : key, via);
+    if (node.items) walk(node.items, `${at}[]`, via);
+    for (const child of [...(node.allOf ?? []), ...(node.oneOf ?? []), ...(node.then ? [node.then] : [])]) walk(child, at, via);
+    if (node.type === 'object' && !node.properties) open.add(at);
+  };
+  walk(doc, '', []);
+  const state = (list) => (list.every(Boolean) ? 'rejected' : list.some(Boolean) ? 'mixed' : 'accepted');
+  return {
+    positions: Object.fromEntries([...verdicts].sort(([a], [b]) => (a < b ? -1 : 1)).map(([at, list]) => [at, state(list)])),
+    open: [...open].sort(),
+  };
+}
+
+// Section 2.6 names the data paths of a row in its second cell, in backticks, and starts the third cell with
+// `rejected` or `accepted`. The table must list the positions of the walk, each once, in the state it finds.
+export function stringPositionProblems(positions, rows) {
+  const stated = new Map();
+  const problems = [];
+  for (const [value, paths, empty] of rows) {
+    const state = empty.match(/^(rejected|accepted)\b/)?.[1];
+    if (!state) problems.push(`${value}: the cell for the empty string does not start with rejected or accepted`);
+    for (const [, at] of paths.matchAll(/`([^`]+)`/g)) {
+      if (stated.has(at)) problems.push(`${at} is listed twice`);
+      stated.set(at, state);
+    }
+  }
+  return [
+    ...problems,
+    ...Object.keys(positions).filter((at) => !stated.has(at)).map((at) => `${at} takes a string in the schema and is not in the table`),
+    ...[...stated.keys()].filter((at) => !(at in positions)).map((at) => `${at} is in the table and takes no string in the schema`),
+    ...Object.entries(positions).filter(([at, state]) => stated.has(at) && stated.get(at) !== state)
+      .map(([at, state]) => `${at}: the schema says ${state} and the table says ${stated.get(at)}`),
+  ];
+}
+
+// The strings of a graph, each with its data path, the free-form `open` objects left out.
+export function stringLeaves(value, open, at = '', found = []) {
+  for (const [key, child] of Object.entries(value)) {
+    const here = Array.isArray(value) ? `${at}[]` : at ? `${at}.${key}` : key;
+    if (open.some((free) => here === free || here.startsWith(`${free}.`) || here.startsWith(`${free}[`))) continue;
+    if (typeof child === 'string') found.push({ at: here, holder: value, key });
+    else if (child && typeof child === 'object') stringLeaves(child, open, here, found);
+  }
+  return found;
+}
+
+// Puts the empty string in place of each string of each real graph in turn and compares the verdict of the
+// validator with the walk: a position the walk calls 'rejected' must fail, an 'accepted' one must pass. Every
+// position of the walk has to be met in some graph, so a string that no case produces is reported, not assumed.
+export function emptyStringProblems(validate, graphs, { positions, open }) {
+  const problems = new Set();
+  const met = new Set();
+  for (const [name, original] of Object.entries(graphs)) {
+    const graph = JSON.parse(JSON.stringify(original));
+    if (validate(graph).length) {
+      problems.add(`${name}: the graph is not valid before an empty string is put in`);
+      continue;
+    }
+    for (const { at, holder, key } of stringLeaves(graph, open)) {
+      const kept = holder[key];
+      holder[key] = '';
+      const passes = validate(graph).length === 0;
+      holder[key] = kept;
+      met.add(at);
+      const state = positions[at];
+      if (state === undefined) problems.add(`${at} holds a string in ${name} and the schema walk lists no such position`);
+      else if (state === 'mixed' || passes !== (state === 'accepted')) problems.add(`${at}: an empty string ${passes ? 'passes' : 'fails'} in ${name} and the schema walk says ${state}`);
+    }
+  }
+  for (const at of Object.keys(positions)) if (!met.has(at)) problems.add(`no real graph holds a string at ${at}`);
+  return [...problems];
+}
