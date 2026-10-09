@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadRecords, verifyRecord, sealOf, repoRoot } from '../../adapters/http-legacy-next/scope/verify.mjs';
+import { loadRecords, verifyRecord, sealOf, sha256, repoRoot } from '../../adapters/http-legacy-next/scope/verify.mjs';
 
 const loaded = loadRecords();
 const byItem = Object.fromEntries(loaded.map(({ record }) => [record.item, record]));
@@ -94,6 +94,35 @@ const CASES = [
   ['required must-catch category dropped', NX, (r) => { r.mustCatch = r.mustCatch.filter((m) => m.category !== 'generated-routes'); }, /mustCatch lacks category generated-routes/],
   ['BLOCKED check expectation edited', FY, (r) => { r.conformance.checks[0].expect = 'tampered'; }, /blocked check/],
   ['BLOCKED record claims a scanner verdict', FY, (r) => { r.mustCatch[0].expected = 'caught'; }, /BLOCKED conformance cannot carry scanner verdicts/],
+  // declarations a record makes about what the verifier imports, runs or reads must equal the thing itself, not merely exist
+  ['scanner module repointed to another existing file', TS, (r) => { r.scanner.module = 'scanners/adapters/javascript-express.mjs'; }, /scanner\.module .* is not the module runner typescript-express imports/],
+  ['unknown-marker flag flipped', TS, (r) => { r.scanner.emitsUnknownMarkers = true; }, /scanner\.emitsUnknownMarkers is true/],
+  ['target renamed', NX, (r) => { r.target = 'HTTP-node-koa'; }, /do not name runner typescript-nextjs/],
+  ['track changed', NX, (r) => { r.track = 'T12'; }, /track T12, but runner typescript-nextjs belongs to T13/],
+  ['build command replaced, recorded runs rewritten to match', TS, (r) => { const argv = ['node_modules/.bin/tsc', '--help']; r.oracle.buildArgv = argv; for (const s of r.runs.filter((x) => x.id.startsWith('build-'))) Object.assign(s, { argv, command: argv.join(' ') }); }, /oracle\.buildArgv/],
+  ['lock pointer moved to another existing lock', NX, (r) => { r.framework.packages[0].lockFile = byItem[TS].evidenceFiles.find((f) => f.role === 'lock').path; }, /are not the oracle directory's/],
+  ['manifest pointer moved to another existing package.json', NX, (r) => { r.framework.packages[0].declared.file = byItem[TS].evidenceFiles.find((f) => f.role === 'manifest').path; }, /are not the oracle directory's/],
+  ['pin read from another lock entry', TS, (r) => { r.framework.packages[0].lockKey = 'node_modules/typescript'; }, /lockKey node_modules\/typescript is not node_modules\/@types\/express/],
+  ['lock entry resolved from another registry host', NX, (r) => over(r.evidenceFiles.find((f) => f.role === 'lock').path, (b) => Buffer.from(b.toString().replace('https://registry.npmjs.org/', 'https://registry.example.test/'))), /does not resolve from https:\/\/registry\.npmjs\.org\//],
+  ['profile pin matched to a package of another name', 'HTTP-node-koa-01', (r) => { r.framework.packages.find((p) => p.name === '@koa/router').name = 'koa-router'; }, /profile pins @koa\/router@15\.7\.0, which is not among/],
+  ['lock evidence listed twice', TS, (r) => { r.evidenceFiles.push({ ...r.evidenceFiles.find((f) => f.role === 'lock') }); }, /evidenceFiles are not exactly/],
+  ['compiler-config evidence dropped', TS, (r) => { r.evidenceFiles = r.evidenceFiles.filter((f) => f.role !== 'compiler-config'); }, /evidenceFiles are not exactly/],
+  ['oracle script replaced by another existing file', TS, (r) => { r.oracle.script = r.evidenceFiles.find((f) => f.role === 'manifest').path; }, /oracle\.script .* are not .*oracle\.mjs/],
+  ['conformance claimed BLOCKED on a scanner runner', TS, (r) => { const { emitted, falseRoutes, verdictCounts, ...c } = r.conformance; r.conformance = { ...c, status: 'BLOCKED', code: 'X', reason: c.method, oracleConfirmedNormal: [], checks: [{ kind: 'k', target: 't', expect: 'e' }] }; }, /conformance is BLOCKED, but runner typescript-express runs a scanner/],
+  ['fixture directory with the right name in the wrong place', FY, (r) => { const real = r.fixtures.normal.dir, moved = real.replace('/fastify/', '/fastify-copy/'); r.fixtures.normal.dir = moved; return (p) => disk(p.startsWith(moved) ? real + p.slice(moved.length) : p); }, /oracle scenario fastify-normal ran normal, the record points at/],
+  ['truth taken from the other Express record\'s scenario', TS, (r) => { r.mustCatch[0].truth[0].scenario = 'js-counterexample'; }, /does not run this record's fixtures/],
+  ['BLOCKED code edited', FY, (r) => { r.conformance.code = 'UPSTREAM_FACT_MISSING'; }, /BLOCKED code UPSTREAM_FACT_MISSING is not the one runner node-fastify/],
+  ['BLOCKED check dropped', FY, (r) => { r.conformance.checks.pop(); }, /BLOCKED checks .* are not exactly/],
+  ['range query edited, recorded run rewritten to match', FY, (r) => { const s = step(r, 'registry-range'); r.framework.rangeQuery = s.argv[2] = 'fastify@^5.0.0'; s.command = s.argv.join(' '); }, /blocked check range-listing/],
+  ['range listing repointed', FY, (r) => { r.conformance.checks[2].target = r.evidenceFiles.find((f) => f.role === 'lock').path; }, /blocked check range-listing/],
+  ['projection target swapped', FY, (r) => { r.conformance.checks[0].target = 'projectNestJsFacts'; }, /blocked check projection projectNestJsFacts/],
+  ['profile target swapped', FY, (r) => { r.conformance.checks[1].target = 'typescript-nestjs'; }, /blocked check supported-syntax-count typescript-nestjs/],
+  ['oracle read another version of a pinned package, recorded hashes rewritten to match', NX, (r) => {
+    const out = Buffer.from(disk(r.oracle.output).toString().replace('"react": "19.3.0"', '"react": "19.3.1"'));
+    for (const o of [r.evidenceFiles.find((f) => f.role === 'oracle-output'), step(r, 'oracle-1').output, step(r, 'oracle-2').output]) o.sha256 = sha256(out);
+    return over(r.oracle.output, () => out);
+  }, /oracle ran react@19\.3\.1, which is not the pinned version/],
+  ['fact contract swapped for one no file mentions', 'HTTP-typescript-nestjs-01', (r) => { Object.assign(r.conformance.checks[0], { target: 'bskel.internal.no-such-contract/0', expect: '' }); }, /blocked check fact-contract-files/],
 ];
 for (const [label, item, mutate, expected, reseal = true] of CASES) {
   test(`tamper is reported: ${label}`, async () => {
