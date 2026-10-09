@@ -69,8 +69,8 @@ it gets a deep frozen `{bridge, legacy_semantic_snapshot}` and returns `{project
   The vocabulary lists the fields, never their observed values.
 - Capability booleans are legacy truth values: `false` means no claim, `true` is that adapter's own claim; neither is certified. T03 maps
   `false` to `unsupported` and `true` to `supported` only through its legacy bridge; T11 imports nothing from T03.
-- Partial: a comparison with more than `maxDiffs` differences (integer 1 to 1000, default 100) returns `truncated: true`; `equal` means zero
-  differences. Diff kinds: `type`, `array-length`, `unexpected`, `missing`, `value`.
+- Partial: a comparison stops collecting at `maxDiffs` differences (integer 1 to 1000, default 100) and returns `truncated: true`, also when there
+  are exactly `maxDiffs`: it means "the cap was reached", not "more exist". `equal` means zero differences. Diff kinds: `type`, `array-length`, `unexpected`, `missing`, `value`.
 - Checkout modes: `full-working-tree`, `sparse-readset-verified` (only `ruby-rails` and `python-fastapi`) and `sparse-unsupported-adapter`, where
   `missing_count` is `null`: completeness is unknown and counts as incomplete. `maxMissing` (integer 1 to 1000) caps `missing_paths`; the assert throws code `T11_CORPUS_CHECKOUT_INCOMPLETE`.
 - Modes `compatibility-only` (bridge) and `shadow-only` (shadow) are not support claims; `promotion_allowed` and `apply_allowed` are always false.

@@ -20,10 +20,10 @@ const inScratch = async (name, fn) => {
   try { await fn(dir); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 };
 
-// A live tree equal to the record needs no history. Once it moved, the pinned commit decides: it is fetched when absent
-// (--depth=1 in a shallow checkout), its absence fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into a diagnostic.
+// The pinned commit is always required, also while the live tree equals the record: matching file hashes say nothing about
+// base_commit, base_tree, ancestry or the archived commands. It is fetched when absent (--depth=1 in a shallow checkout), its
+// absence fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into a diagnostic.
 function pinnedAvailable(t) {
-  if (live.fresh && !lib.hasCommit(REPO_ROOT, record.base_commit)) return t.diagnostic('live tree equals the record, so the pinned commit is not needed') ?? false;
   const v = lib.commitVerdict(REPO_ROOT, record.base_commit);
   if (v.verdict === 'fail') assert.fail(v.message);
   if (v.verdict === 'unverified') t.diagnostic(v.message);
@@ -134,6 +134,20 @@ test('T11-01 negative: recomputation catches same-length edits that a format che
   bad[2].deterministic = false;
   assert.equal(lib.replayProblems(record, bad).length, 3);
 });
+
+test('T11-01 negative: a re-sealed record with an invented base commit and tree fails in a shallow checkout although every live hash matches', (t) => inScratch('forged', async (dir) => {
+  const checkout = lib.forgedCheckout(dir);
+  const forged = lib.readRecord(checkout);
+  assert.deepEqual(lib.verifyRecord(forged), [], 'the forgery is well-formed and sealed, so only the pinned commit can refuse it');
+  assert.equal(lib.isShallow(checkout), true);
+  if (!lib.classifyLive(forged, checkout).fresh) return t.diagnostic('live tree moved: this case needs live hashes that match the record');
+  const refused = await lib.runPinnedCheck(checkout);
+  assert.notEqual(refused.exit_code, 0);
+  assert.match(refused.stdout, /pinned commit unavailable/);
+  const allowed = await lib.runPinnedCheck(checkout, { BASELINE_ALLOW_UNVERIFIED: '1' });
+  assert.equal(allowed.exit_code, 0);
+  assert.match(allowed.stdout, /pinned-commit checks were NOT run/);
+}));
 
 test('T11-01 negative: a depth-1 checkout fetches the pinned commit, and an unfetchable one fails unless explicitly allowed', () => inScratch('depth1', (dir) => {
   const { checkout, record: small } = lib.depthOneCase(dir);

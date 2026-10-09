@@ -94,7 +94,7 @@ test('T11-02 the identity, unknown and partial rules stated in the RFC hold on r
   assert.equal(digestOf(report, { root }), digestOf(snapshot));
   assert.throws(() => snapshotOf(report, { root: 'relative' }), /root must be an absolute path/);
   for (const e of Object.values(emitted)) assert.deepEqual(e.snapshot.modules.flatMap((m) => m.controllers.flatMap((c) => c.endpoints.map((x) => x.operationId))), e.report.related_modules.flatMap((m) => m.controllers.flatMap((c) => c.endpoints.map((x) => x.operationId ?? null))));
-  assert.deepEqual(((c) => [c.equal, c.truncated, c.diffs.length])(compare({ a: 1, b: 1 }, { a: 2, b: 2 }, { maxDiffs: 1 })), [false, true, 1]);
+  assert.deepEqual([[{ a: 1 }, { a: 2 }, 2], [{ a: 1 }, { a: 2 }, 1], [{ a: 1, b: 1 }, { a: 2, b: 2 }, 1]].map(([x, y, maxDiffs]) => ((c) => [c.equal, c.truncated, c.diffs.length])(compare(x, y, { maxDiffs }))), [[false, false, 1], [false, true, 1], [false, true, 1]], 'truncated means the cap was reached, also at exactly maxDiffs');
   assert.deepEqual(compare(snapshot, structuredClone(snapshot)), { equal: true, diffs: [], truncated: false });
   for (const bad of [0, 1001, 1.5]) assert.throws(() => compare({}, {}, { maxDiffs: bad }), RangeError);
   assert.deepEqual([shadow.promotion_allowed, shadow.authoritative_source, Object.isFrozen(shadow)], [false, vocab.schemas.scan_report, true]);

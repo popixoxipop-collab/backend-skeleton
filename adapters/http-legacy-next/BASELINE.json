@@ -7,7 +7,7 @@
   "title": "Baseline pack of the five legacy HTTP adapters and their compatibility modules",
   "base_commit": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
   "base_tree": "4b8e12754342e11dd6f64976bd4a159c9b56d289",
-  "base_commit_note": "origin/main when the record was made. Replays run on the live tree while every pinned file equals this record, and otherwise on an export of this commit.",
+  "base_commit_note": "origin/main when the record was made. The pinned-commit checks always run (the commit is fetched when absent): tree id, file lists, blobs, and an export of it that reproduces the commands and replays. Live replays run only while every pinned file equals this record.",
   "fixture_origin_note": "Scan fixtures are the five in-repo fixture trees pinned under inputs. Every other fixture cites the existing test it restates, or is authored for this record; checkout fixtures are rebuilt in a throw-away git repository with a fixed identity and dates.",
   "observed_on": "2026-10-09",
   "environment": {
@@ -1424,7 +1424,7 @@
   "artifact_digest": {
     "algorithm": "sha256",
     "covers": "canonical JSON of this whole record except artifact_digest.value, so prose (limits and their statuses, fixture classes and origins, notes, CI observations) is bound too",
-    "value": "eab1eb3692b76097d436f49cf032a262e97f204206e98aad15d8b15315724aea"
+    "value": "0fc813e64ac721566eb0493600d47719b6ebb86ea009d9773e94dabc34d5bbc6"
   },
   "ci_observations": [
     {

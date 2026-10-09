@@ -457,15 +457,16 @@ export function commitVerdict(root, commit, env = process.env) {
   return { verdict: 'fail', message: `${found.reason}; set BASELINE_ALLOW_UNVERIFIED=1 to skip the pinned-commit checks explicitly` };
 }
 
+const IDENT = ['-c', 'user.name=baseline-test', '-c', 'user.email=baseline-test@example.invalid', '-c', 'commit.gpgsign=false'];
+function run(cwd, ...args) {
+  const res = git(cwd, [...IDENT, ...args]);
+  if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
+  return res.stdout.trim();
+}
+
 // A throw-away upstream with two commits and a depth-1 clone of the second one. The clone lacks the first (pinned) commit
 // the way a CI checkout lacks the real base commit, and `origin` can serve it, so the shallow path needs no network.
 export function depthOneCase(dir) {
-  const ident = ['-c', 'user.name=baseline-test', '-c', 'user.email=baseline-test@example.invalid', '-c', 'commit.gpgsign=false'];
-  const run = (cwd, ...args) => {
-    const res = git(cwd, [...ident, ...args]);
-    if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
-    return res.stdout.trim();
-  };
   const upstream = path.join(dir, 'upstream');
   const write = (rel, text) => {
     fs.mkdirSync(path.dirname(path.join(upstream, rel)), { recursive: true });
@@ -499,6 +500,26 @@ export function depthOneCase(dir) {
   return { checkout: path.join(dir, 'checkout'), record };
 }
 
+// What the pinned commit exists to refuse: a well-formed, re-sealed record whose base_commit and base_tree are invented while
+// every live hash matches. The working tree is copied into a throw-away upstream and cloned with --depth=1, so the checkout
+// lacks the commit the record names and `origin` cannot serve an invented one.
+export function forgedCheckout(dir) {
+  const upstream = path.join(dir, 'upstream');
+  const skip = [path.join(REPO_ROOT, '.git'), path.join(REPO_ROOT, 'node_modules')];
+  fs.cpSync(REPO_ROOT, upstream, { recursive: true, verbatimSymlinks: true, filter: (src) => !skip.includes(src) });
+  run(upstream, 'init', '-q');
+  run(upstream, 'add', '-A');
+  run(upstream, 'commit', '-q', '-m', 'copy of the working tree');
+  run(dir, 'clone', '-q', '--depth=1', `file://${upstream}`, 'checkout');
+  const checkout = path.join(dir, 'checkout');
+  const real = readRecord(checkout);
+  const invent = (text) => text.replaceAll(real.base_commit, 'a'.repeat(40)).replaceAll(real.base_tree, 'b'.repeat(40));
+  const forged = JSON.parse(invent(JSON.stringify(real)));
+  forged.artifact_digest.value = artifactDigest(forged);
+  fs.writeFileSync(path.join(checkout, RECORD_FILE), `${JSON.stringify(forged, null, 2)}\n`);
+  return checkout;
+}
+
 export function revParse(root, spec) {
   const res = git(root, ['rev-parse', spec]);
   return res.status === 0 ? res.stdout.trim() : null;
@@ -523,8 +544,8 @@ export function extractTree(root, commit, dest) {
 
 // The recorded commands, run as child processes (concurrently when awaited together). NODE_TEST_CONTEXT is removed so a
 // child `node --test` is a top-level run, not a reporter of the test process that started it.
-function runNode(root, args) {
-  const env = { ...process.env };
+function runNode(root, args, extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv };
   delete env.NODE_TEST_CONTEXT;
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, { cwd: root, env });
@@ -535,10 +556,12 @@ function runNode(root, args) {
     child.on('close', (code) => {
       const result = {};
       for (const m of stdout.matchAll(/^(?:ℹ|#) (tests|suites|pass|fail|cancelled|skipped|todo) (\d+)$/gm)) result[m[1]] = Number(m[2]);
-      resolve({ exit_code: code, stdout_first_line: stdout.split('\n')[0], result });
+      resolve({ exit_code: code, stdout, stdout_first_line: stdout.split('\n')[0], result });
     });
   });
 }
 
 export const runNestedRunner = (root, suiteId) => runNode(root, [RUNNER_SCRIPT, suiteId]);
 export const runTapTests = (root, files) => runNode(root, ['--test', '--test-reporter=tap', ...files]);
+// Only the pinned-commit test of this record, as a top-level run in `root`; the override is off unless the caller sets it.
+export const runPinnedCheck = (root, env = {}) => runNode(root, ['--test', '--test-reporter=tap', '--test-name-pattern=the pinned commit has the recorded tree', OWN_TESTS[0]], { BASELINE_ALLOW_UNVERIFIED: '', ...env });
