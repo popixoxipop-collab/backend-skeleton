@@ -69,11 +69,25 @@ function parseArgs(argv) {
   }
   if (!ORACLE_PINS[args.family]) throw new Error('--family must be one of ' + Object.keys(ORACLE_PINS).join(', '));
   if (!args.oracleDir || !path.isAbsolute(args.oracleDir)) throw new Error('--oracle-dir must be an absolute path');
-  const relative = path.relative(REPO_ROOT, args.oracleDir);
-  if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+  if (isInsideRepository(args.oracleDir)) {
     throw new Error('--oracle-dir must be outside the repository: third-party packages are installed in scratch space only');
   }
   return args;
+}
+
+function physicalPath(target) {
+  let existing = path.resolve(target);
+  const missing = [];
+  while (!fs.lstatSync(existing, { throwIfNoEntry: false })) {
+    missing.unshift(path.basename(existing));
+    existing = path.dirname(existing);
+  }
+  return path.join(fs.realpathSync(existing), ...missing);
+}
+
+export function isInsideRepository(candidate) {
+  const relative = path.relative(fs.realpathSync(REPO_ROOT), physicalPath(candidate));
+  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
 }
 
 function run(command, args, cwd) {

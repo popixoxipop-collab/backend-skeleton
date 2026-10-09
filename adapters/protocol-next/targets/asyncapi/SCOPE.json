@@ -465,11 +465,11 @@
       "kind": "static acceptance and element count comparison against the official AsyncAPI parser (no broker executed)",
       "evidence": {
         "path": "test/protocol-next/fixtures/targets/asyncapi.oracle.json",
-        "canonical_sha256": "efd87ab6274325595a13dc10bbeed5c6427d3efb6e5fac92115a39c1cf5df6e4",
-        "generated_on": "2026-10-08",
+        "canonical_sha256": "c2cd9a9c87c009c1b8063867c94c57ca3510d8788886cfa10ebc0d4d69db5ba6",
+        "generated_on": "2026-10-09",
         "tool": {
           "path": "test/protocol-next/tools/target-oracle.mjs",
-          "lf_sha256": "31e545befb6e889ff4c1ed311c0b8c8ae9930a5d79c8e9c0e708e444fbf8bad4"
+          "lf_sha256": "459cf9739ee21b026d0fcea37f29ffb684b8d7e3358c295cb2461d3c6dc4d4f3"
         },
         "packages": [
           {

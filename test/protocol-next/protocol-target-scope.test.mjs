@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { TARGET_FAMILIES, canonicalSha256, lfSha256, loadTarget, readJson, readText, repoPath } from './_target-helpers.mjs';
+import { REPO_ROOT, TARGET_FAMILIES, canonicalSha256, lfSha256, loadTarget, readJson, readText, repoPath } from './_target-helpers.mjs';
+import { isInsideRepository } from './tools/target-oracle.mjs';
 
 const validate = new Ajv2020({ allErrors: true, strict: true }).compile(readJson('adapters/protocol-next/schemas/protocol-target-scope.schema.json'));
 const rootLock = readJson('package-lock.json');
@@ -191,6 +195,45 @@ for (const family of TARGET_FAMILIES) {
     for (const item of scope.claims_not_made) assert.ok(readmeText.includes(item), 'claims not made: ' + item.slice(0, 40));
   });
 }
+
+test('oracle tool refuses an --oracle-dir inside the repository, including names that begin with two dots and symlinks', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'oracle-dir-guard-'));
+  try {
+    const link = path.join(scratch, 'link-to-repo');
+    fs.symlinkSync(REPO_ROOT, link, 'dir');
+    const inside = [
+      REPO_ROOT,
+      path.join(REPO_ROOT, 'oracle'),
+      path.join(REPO_ROOT, '..oracle'),
+      path.join(REPO_ROOT, '..oracle', 'gql16'),
+      path.join(REPO_ROOT, 'a', '..b', 'c'),
+      link,
+      path.join(link, 'child'),
+      path.join(link, '..oracle'),
+    ];
+    const outside = [path.dirname(REPO_ROOT), path.join(path.dirname(REPO_ROOT), 'oracle'), path.join(path.dirname(REPO_ROOT), path.basename(REPO_ROOT) + '..x'), path.join(scratch, 'oracle')];
+    for (const candidate of inside) assert.equal(isInsideRepository(candidate), true, 'inside: ' + candidate);
+    for (const candidate of outside) assert.equal(isInsideRepository(candidate), false, 'outside: ' + candidate);
+
+    const tool = repoPath('test/protocol-next/tools/target-oracle.mjs');
+    const run = (dir) => spawnSync(process.execPath, [tool, '--family', 'graphql', '--oracle-dir', dir], { encoding: 'utf8' });
+    for (const dir of [path.join(REPO_ROOT, '..oracle-guard-probe'), path.join(link, '..oracle-guard-probe')]) {
+      const refused = run(dir);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr, /--oracle-dir must be outside the repository/);
+      assert.equal(fs.existsSync(path.join(REPO_ROOT, '..oracle-guard-probe')), false, 'nothing was created in the repository');
+    }
+    const outsideDir = path.join(scratch, 'not-created');
+    const passed = run(outsideDir);
+    assert.notEqual(passed.status, 0);
+    assert.doesNotMatch(passed.stderr, /must be outside the repository/);
+    assert.match(passed.stderr, /missing package-lock\.json/);
+    assert.equal(fs.existsSync(outsideDir), false, 'without --install the tool creates nothing');
+    assert.equal(fs.existsSync(path.join(REPO_ROOT, '..oracle-guard-probe')), false);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+});
 
 test('every schema mutation was applied to at least one target record', () => {
   assert.deepEqual(Object.keys(MUTATIONS).filter((name) => !exercised.has(name)), []);
