@@ -375,10 +375,15 @@ function fakeGitHub({ runs, jobsByRun }) {
   return { read, calls };
 }
 
+// `total` runs, newest first, ids 1..total; the run with id `failingId` (0: none) failed.
+function manyRuns(total, failingId = 0) {
+  const stamp = (id) => new Date(Date.UTC(2026, 0, 1, 0, 0, id)).toISOString().replace('.000Z', 'Z');
+  return Array.from({ length: total }, (_, i) => { const id = total - i; return { id, name: 'CI', event: 'schedule', status: 'completed', conclusion: id === failingId ? 'failure' : 'success', created_at: stamp(id) }; });
+}
+
 test('a head with more than 100 runs is read page by page, so an old failure on the last page is not lost', () => {
   const total = 230;
-  const stamp = (id) => new Date(Date.UTC(2026, 0, 1, 0, 0, id)).toISOString().replace('.000Z', 'Z');
-  const runs = Array.from({ length: total }, (_, i) => { const id = total - i; return { id, name: 'CI', event: 'schedule', status: 'completed', conclusion: id === 1 ? 'failure' : 'success', created_at: stamp(id) }; });
+  const runs = manyRuns(total, 1);
   const jobs = Array.from({ length: 120 }, (_, i) => ({ id: i + 1, name: `job-${i + 1}`, conclusion: i === 114 ? 'failure' : 'success', steps: i === 114 ? [{ name: 'Run it', conclusion: 'failure' }] : [] }));
   const api = fakeGitHub({ runs, jobsByRun: { 1: jobs } });
   const r = captureRepo({ role: 'bskel', repo: 'o/r' }, api.read);
@@ -412,6 +417,35 @@ test('a list the API cannot serve completely fails the capture instead of record
   assert.throws(() => ghList('r', 'items', () => ({ total_count: 150, items: ids(100) })), /an id repeats/);
   assert.throws(() => ghList('r', 'items', serve(ids(100), { claimed: 90 })), /total_count is 90/);
   assert.throws(() => ghList('r', 'items', () => ({ items: [] })), /no items array or total_count/);
+
+  // One of 101 items is deleted after page 1 was read: page 2 comes back empty and reports the new total of 100, which
+  // equals the 100 items already held. Without the pin from page 1 this short list was accepted as complete.
+  const changes = (all, laterTotal) => (route) => (/[?&]page=1(&|$)/.test(route)
+    ? { total_count: all.length, items: all.slice(0, 100) }
+    : { total_count: laterTotal, items: all.slice(100, laterTotal) });
+  assert.throws(() => ghList('r', 'items', changes(ids(101), 100)), /total_count changed from 101 on page 1 to 100 on page 2/);
+  assert.throws(() => ghList('r', 'items', changes(ids(101), 102)), /total_count changed from 101 on page 1 to 102 on page 2/);
+  assert.deepEqual(ghList('r', 'items', changes(ids(101), 101)), { items: ids(101), total: 101, pages: 2 });
+});
+
+test('a run or job list whose total changes between its pages fails the capture instead of recording the shorter list', () => {
+  const repo = { role: 'bskel', repo: 'o/r' };
+  const jobs = Array.from({ length: 101 }, (_, i) => ({ id: i + 1, name: `job-${i + 1}`, conclusion: 'success', steps: [] }));
+  const control = fakeGitHub({ runs: manyRuns(101, 1), jobsByRun: { 1: jobs } });
+  const ok = captureRepo(repo, control.read);
+  assert.deepEqual([ok.ci_runs_total_count, ok.ci_runs_pages, ok.ci_runs_on_exact_head.length], [101, 2, 101]);
+
+  // Runs: the 101st run is deleted after page 1 was read, so page 2 is empty and reports a total of 100.
+  const runsApi = fakeGitHub({ runs: manyRuns(101, 1), jobsByRun: { 1: jobs } });
+  const runsRead = (route) => (route === runsRoute(2) ? { total_count: 100, workflow_runs: [] } : runsApi.read(route));
+  assert.throws(() => captureRepo(repo, runsRead), /actions\/runs\?head_sha=a{40}: total_count changed from 101 on page 1 to 100 on page 2/);
+  assert.deepEqual(runsApi.calls.filter((c) => c.includes('/actions/')), [runsRoute(1)], 'the capture stops at the page that disagrees');
+
+  // Jobs of a failed run: the same rule on the second list route the capture reads.
+  const jobsApi = fakeGitHub({ runs: manyRuns(101, 1), jobsByRun: { 1: jobs } });
+  const jobsPage2 = 'repos/o/r/actions/runs/1/jobs?per_page=100&page=2';
+  const jobsRead = (route) => (route === jobsPage2 ? { total_count: 100, jobs: [] } : jobsApi.read(route));
+  assert.throws(() => captureRepo(repo, jobsRead), /actions\/runs\/1\/jobs: total_count changed from 101 on page 1 to 100 on page 2/);
 });
 
 // A throwaway repository holding the three locked artifact files; the lock file lives beside it, outside the work tree.

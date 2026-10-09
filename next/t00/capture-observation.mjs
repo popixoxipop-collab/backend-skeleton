@@ -15,18 +15,23 @@ const gh = (route) => JSON.parse(execFileSync('gh', ['api', route], { encoding: 
 
 export const SEARCH_CAP = 1000; // a head_sha search serves at most 1000 runs
 
-// Every item of a list route: pages are read until total_count items are held. A list the API cannot serve completely
-// is an error, never a shorter list, because a missing old run could turn a failing head into "all success".
+// Every item of a list route: pages are read until total_count items are held. The total_count of the first page is
+// pinned and every later page must report the same number, so a run added or deleted while the pages are read fails the
+// capture. A list the API cannot serve completely is an error, never a shorter list, because a missing old run could turn
+// a failing head into "all success".
 export function ghList(route, key, read = gh, cap = Infinity) {
   const items = [];
+  let total;
   for (let page = 1; ; page += 1) {
     const res = read(`${route}${route.includes('?') ? '&' : '?'}per_page=${RUNS_PAGE_SIZE}&page=${page}`);
     if (!Array.isArray(res[key]) || !Number.isInteger(res.total_count)) throw new Error(`${route}: page ${page} has no ${key} array or total_count`);
+    if (page === 1) total = res.total_count;
+    else if (res.total_count !== total) throw new Error(`${route}: total_count changed from ${total} on page 1 to ${res.total_count} on page ${page}, so the list changed while it was read; capture again`);
     items.push(...res[key]);
     if (new Set(items.map((x) => x.id)).size !== items.length) throw new Error(`${route}: an id repeats across pages, so the list changed while it was read; capture again`);
-    if (items.length === res.total_count) return { items, total: res.total_count, pages: page };
-    if (items.length > res.total_count) throw new Error(`${route}: read ${items.length} ${key} but total_count is ${res.total_count}; capture again`);
-    if (res[key].length === 0 || items.length >= cap) throw new Error(`${route}: read ${items.length} of ${res.total_count} ${key} and the API serves no more, so the list cannot be recorded completely`);
+    if (items.length === total) return { items, total, pages: page };
+    if (items.length > total) throw new Error(`${route}: read ${items.length} ${key} but total_count is ${total}; capture again`);
+    if (res[key].length === 0 || items.length >= cap) throw new Error(`${route}: read ${items.length} of ${total} ${key} and the API serves no more, so the list cannot be recorded completely`);
   }
 }
 

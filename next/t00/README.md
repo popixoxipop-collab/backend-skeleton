@@ -6,7 +6,7 @@ and are not repeated here, so this page cannot drift from them.
 
 | File | Role |
 |---|---|
-| `capture-observation.mjs` | Read-only live capture through an authenticated `gh` (needs read access to all three repositories). Runs and jobs are read page by page (100 per page) until GitHub's `total_count` is reached, and the count and page number are recorded; a list the API cannot serve completely (a head search serves at most 1000 runs) or that changes while it is read fails the capture instead of recording fewer runs. |
+| `capture-observation.mjs` | Read-only live capture through an authenticated `gh` (needs read access to all three repositories). Runs and jobs are read page by page (100 per page) until GitHub's `total_count` is reached, and the count and page number are recorded; the `total_count` of the first page is pinned and every later page must report the same number, so a list that changes while it is read fails the capture. A list the API cannot serve completely (a head search serves at most 1000 runs) also fails it instead of recording fewer runs. |
 | `fixtures/observation.json` | The captured observation; the verifier's input and the source of every derived fact. |
 | `build-lock.mjs` | CLI that writes `baseline.lock.json` from an observation with `deriveLock` of `verify-baseline.mjs`, the function `--record` re-derives the lock with; the `limits` sentences are carried over by hand. |
 | `baseline.lock.json` | The lock: heads, artifact blob SHAs, package facts, exact-head CI results, inventory pins, limits. |
