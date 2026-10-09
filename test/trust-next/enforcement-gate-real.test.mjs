@@ -105,7 +105,7 @@ test('the host opens files without following a final symbolic link, so a late sw
 
 test('real loopback sockets: a granted connection works; ungranted ports, resolved loopback names and wide listeners never open', posix, async () => {
   const connections = { count: 0 };
-  const canary = net.createServer((socket) => { connections.count += 1; socket.destroy(); });
+  const canary = net.createServer((socket) => { connections.count += 1; socket.on('error', () => {}); socket.destroy(); });
   await new Promise((resolve, reject) => { canary.once('error', reject); canary.listen({ host: '127.0.0.1', port: 0 }, resolve); });
   const canaryPort = canary.address().port;
   const granted = await freePort();
@@ -131,6 +131,21 @@ test('real loopback sockets: a granted connection works; ungranted ports, resolv
   } finally {
     await new Promise((resolve) => canary.close(resolve));
   }
+});
+
+test('the real host survives many rapid connect and close rounds against a server that writes at once: no reset escapes', posix, async () => {
+  const host = createRealHost({ root: scratch.root });
+  const port = await freePort();
+  const server = await host.listen({ host: '127.0.0.1', port });
+  try {
+    assert.equal(server.port, port);
+    for (let round = 0; round < 100; round += 1) {
+      assert.deepEqual(await host.connect({ host: '127.0.0.1', address: '127.0.0.1', port }), { connected: true, address: '127.0.0.1', port });
+    }
+  } finally {
+    await server.close();
+  }
+  await assert.rejects(host.connect({ host: '127.0.0.1', address: '127.0.0.1', port }), (error) => error.code === 'ECONNREFUSED');
 });
 
 test('a child receives only the approved environment: an ambient NODE_OPTIONS preload does not run (with a positive control)', posix, async () => {

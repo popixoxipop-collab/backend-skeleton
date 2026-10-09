@@ -152,16 +152,34 @@ export function createRealHost({ root, executables = {}, dns = {}, secrets = {} 
       if (address !== '127.0.0.1' && address !== '::1') return { connected: false, address, port };
       await new Promise((resolve, reject) => {
         const socket = net.connect({ host: address, port });
-        socket.once('connect', () => { socket.destroy(); resolve(); });
-        socket.once('error', reject);
+        let established = false;
+        // End the connection gracefully and read what the peer sends, so that unread data never turns the close into a reset.
+        socket.once('connect', () => { established = true; socket.end(); });
+        // Before the handshake an error is the answer. After it, a reset only means that the peer closed first.
+        socket.on('error', (error) => { if (!established) reject(error); });
+        socket.once('close', () => (established ? resolve() : reject(new Error('closed before the connection was established'))));
+        socket.resume();
       });
       return { connected: true, address, port };
     },
     async listen({ host, port }) {
       calls.push({ method: 'listen', host, port });
-      const server = net.createServer((socket) => socket.end('bskel'));
+      const sockets = new Set();
+      const server = net.createServer((socket) => {
+        // Every accepted socket has an error listener: a peer that closes first can reset the connection.
+        sockets.add(socket);
+        socket.on('error', () => {});
+        socket.once('close', () => sockets.delete(socket));
+        socket.end('bskel');
+      });
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen({ host, port }, resolve); });
-      return { port: server.address().port, close: () => new Promise((resolve) => server.close(resolve)) };
+      return {
+        port: server.address().port,
+        close: () => new Promise((resolve) => {
+          server.close(() => resolve());
+          for (const socket of sockets) socket.destroy();
+        }),
+      };
     },
     async resolveExecutable(basename) {
       calls.push({ method: 'resolveExecutable', basename });
