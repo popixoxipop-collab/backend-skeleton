@@ -6,7 +6,7 @@ and are not repeated here, so this page cannot drift from them.
 
 | File | Role |
 |---|---|
-| `capture-observation.mjs` | Read-only live capture through an authenticated `gh` (needs read access to all three repositories). |
+| `capture-observation.mjs` | Read-only live capture through an authenticated `gh` (needs read access to all three repositories). Runs and jobs are read page by page (100 per page) until GitHub's `total_count` is reached, and the count and page number are recorded; a list the API cannot serve completely (a head search serves at most 1000 runs) or that changes while it is read fails the capture instead of recording fewer runs. |
 | `fixtures/observation.json` | The captured observation; the verifier's input and the source of every derived fact. |
 | `build-lock.mjs` | Derives `baseline.lock.json` from an observation; the `limits` sentences are carried over by hand. |
 | `baseline.lock.json` | The lock: heads, artifact blob SHAs, package facts, exact-head CI results, inventory pins, limits. |
@@ -31,6 +31,8 @@ fails with `DIRTY_STATE_UNKNOWN`, because a GitHub observation has no work tree.
 | Code | Raised when |
 |---|---|
 | `MISSING_REPOSITORY_OBSERVATION` | the observation has no entry for a locked role |
+| `REPOSITORY_SET_MISMATCH` | the set is fixed by the verifier, not by the files: the lock must pin bskel, becoder and beval once each under their repository names; the observation must not hold a repeated, renamed or unknown repository |
+| `MALFORMED_RECORD` | a lock or observation entry lacks a field the comparison reads (default branch, head SHA, artifact blob SHAs), or the lock's required artifacts are not exactly package.json, package-lock.json and .github/workflows/ci.yml |
 | `DIRTY_CHECKOUT` | the work tree has uncommitted or untracked changes |
 | `DIRTY_STATE_UNKNOWN` | cleanliness was not observed (null) and `--remote` is not given |
 | `DEFAULT_BRANCH_MISMATCH` | the observed branch is not the locked default branch |
@@ -38,7 +40,8 @@ fails with `DIRTY_STATE_UNKNOWN`, because a GitHub observation has no work tree.
 | `MISSING_ARTIFACT` | a locked artifact (package.json, package-lock.json, ci.yml) is absent |
 | `ARTIFACT_BLOB_MISMATCH` | an artifact's git blob SHA differs from the lock |
 | `OBSERVATION_HASH_MISMATCH` | `--record`: the lock's observation hash is not the canonical sha256 of the observation |
-| `DERIVED_FACT_MISMATCH` | `--record`: a fact in the lock is not what the observation derives |
+| `DERIVED_FACT_MISMATCH` | `--record`: a fact in the lock is not what the observation derives, including the list of repositories |
+| `CI_RUNS_INCOMPLETE` | `--record`: GitHub's run count for the head (`ci_runs_total_count`) or the number of pages read (`ci_runs_pages`) is absent or does not match the runs the observation lists |
 
 ## What a pass means
 
@@ -47,6 +50,7 @@ test also recomputes the bskel facts from git objects (head commit, artifact blo
 and pins, pin ancestry and distance) and fails if those objects cannot be obtained. It does not prove that GitHub
 still reports the same facts: a lock committed to main is always behind the main that contains it, and the becoder and
 beval facts can only be re-checked by running the capture again from a session that can read those repositories.
+The recorded run count and page number catch an observation that lost runs after the capture. An observation edited consistently (runs, count, pages, observation hash and lock all together) cannot be told from a real one offline; only a new capture from GitHub refutes it.
 The `limits` in the lock state what else is not covered, including the exact-head CI failures of bskel and beval.
 
 ## Re-baselining

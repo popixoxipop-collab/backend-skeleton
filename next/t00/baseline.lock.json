@@ -215,7 +215,7 @@
         }
       ],
       "ci_on_exact_head": {
-        "runs_total": 8,
+        "runs_total": 9,
         "all_success": false,
         "not_success": [
           {
@@ -365,6 +365,24 @@
                 "unfinished_steps": []
               }
             ]
+          },
+          {
+            "run_id": 37858752098,
+            "workflow": "ci",
+            "event": "schedule",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-10-08T23:19:06Z",
+            "failed_jobs": [
+              {
+                "name": "unit (20)",
+                "conclusion": "failure",
+                "failed_steps": [
+                  "Run npm test"
+                ],
+                "unfinished_steps": []
+              }
+            ]
           }
         ]
       }
@@ -403,9 +421,9 @@
     ]
   },
   "capture": {
-    "observed_at": "2026-10-08T15:31:47.281Z",
+    "observed_at": "2026-10-09T00:06:59.322Z",
     "observation_file": "next/t00/fixtures/observation.json",
-    "observation_sha256": "dc27a82fcc9b14801382b65b4c1da552b92b46ecf1f8adaf620bf7a29ac71a84",
+    "observation_sha256": "34c05aef3215334c9369e7cbb7a1f544dec0cb8a6c1917dd1d692461924a4403",
     "observation_sha256_method": "sha256 of canonical JSON (object keys sorted, no whitespace), so line endings do not change it",
     "commands": [
       "node next/t00/capture-observation.mjs next/t00/fixtures/observation.json"
@@ -416,7 +434,7 @@
     "A lock committed to main is always behind the main that contains it: the bskel head_sha is the main head before this change and later merges move main past it. verify-baseline reports that drift as HEAD_SHA_MISMATCH; re-baselining is a new capture, not an edit of this file.",
     "CI facts are historical: they describe the workflow runs that existed for the exact head SHA at observed_at. all_success is derived from those runs and is false when there are none; a skipped, cancelled or unfinished run is never counted as success.",
     "bskel exact-head CI: the push run and three scheduled runs succeeded. The scheduled run of 2026-10-06 failed in job test (24.x) with no step concluded as failure (the step run tests has no recorded conclusion), and its job log returned HTTP 404 on 2026-10-09 (manual check), so the cause is unknown. The scheduled runs of 2026-10-07 and 2026-10-08 failed only in job python-integration (step Run npm run test:python-integration), the failure PR 248 repairs; PR 248 was not merged at observed_at.",
-    "beval exact-head CI: the push run concluded cancelled (all 8 of its jobs cancelled) and five scheduled runs failed only in job integration (step Run npm run test:integration). The only successful runs on this head are two manual dispatches of the workflow Alienware recovery. There is no successful push or scheduled CI run for this head.",
+    "beval exact-head CI: the push run concluded cancelled (all 8 of its jobs cancelled) and six scheduled runs failed: five only in job integration (step Run npm run test:integration) and the newest, created 2026-10-08T23:19:06Z, only in job unit (20) (step Run npm test). The only successful runs on this head are two manual dispatches of the workflow Alienware recovery. There is no successful push or scheduled CI run for this head.",
     "becoder exact-head CI: the push run and the scheduled Contract compatibility run succeeded; they are the only runs recorded for this head.",
     "Inventory pins: release/next/compatibility-inventory.json is owned by T23 and also carries per-head CI-run evidence, so this change does not edit it. The lock records how far each pinned commit is behind the observed head (inventory_pins); only the bskel relation can be recomputed from git in CI.",
     "No repository test suite is executed by this record. The exact-head CI runs are the only execution evidence and are taken as recorded; package.json scripts are identified by name and a canonical sha256, and the lockfile and workflow by git blob SHA, without examining their content.",

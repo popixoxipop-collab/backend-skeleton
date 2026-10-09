@@ -2,8 +2,8 @@
   "schema": "bskel.t00-negative-report/1",
   "task_id": "T00-01",
   "generator": "node next/t00/make-negative-report.mjs --write",
-  "lock_sha256": "40b3fa35c01894ccc3cd9c6a34b87095ab39f6793a79dd68f902b672584aeb3d",
-  "observation_sha256": "dc27a82fcc9b14801382b65b4c1da552b92b46ecf1f8adaf620bf7a29ac71a84",
+  "lock_sha256": "b040fedbd343ac18d3b1982c9337e4191e388b45795fa026024244eff7f5c176",
+  "observation_sha256": "34c05aef3215334c9369e7cbb7a1f544dec0cb8a6c1917dd1d692461924a4403",
   "cases": [
     {
       "id": "accept-recorded-observation",
@@ -136,6 +136,106 @@
       ],
       "stdout_first_line": "FAIL HEAD_SHA_MISMATCH becoder locked ebfff2205244f4866655476a828f05b9bf971cff, observed 0bfff2205244f4866655476a828f05b9bf971cff",
       "stdout_sha256": "29bbf6534d170f14b9e33c879c29d25846d8cb41c1b94875f14a31dad7e212b2"
+    },
+    {
+      "id": "lock-drops-a-required-repository",
+      "mutation": "lock: beval entry removed, observation untouched",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH",
+        "REPOSITORY_SET_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL REPOSITORY_SET_MISMATCH beval the lock pins beval 0 times, expected once",
+      "stdout_sha256": "86b8b0c4161e4964ec85a2940f467699aa0b3b219dfd1fd2366a982d72461616"
+    },
+    {
+      "id": "lock-and-observation-consistently-drop-a-repository",
+      "mutation": "lock and observation: beval removed (repositories and inventory pins), lock pins and observation hash recomputed",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "REPOSITORY_SET_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL REPOSITORY_SET_MISMATCH beval the lock pins beval 0 times, expected once",
+      "stdout_sha256": "27792b4699dd9c4907b6cb7aff57636bcc1ae1203cbcd27ca9fe5db13bc86c8d"
+    },
+    {
+      "id": "lock-repository-renamed",
+      "mutation": "lock: beval repo set to someone-else/Backend-evaluation",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "REPOSITORY_SET_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL REPOSITORY_SET_MISMATCH beval the lock pins beval as \"someone-else/Backend-evaluation\", expected popixoxipop-collab/Backend-evaluation",
+      "stdout_sha256": "7a5bad297339a980d7df040b221c4d27b66cf6afb8e57a44e1c0338433d6c45d"
+    },
+    {
+      "id": "observation-adds-an-unknown-repository",
+      "mutation": "observation: a fourth entry with role gamma added",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "REPOSITORY_SET_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL REPOSITORY_SET_MISMATCH gamma the observation holds \"gamma\", which is not part of the baseline",
+      "stdout_sha256": "348bc3fd971f766a3ddec45f55d5b61402ccd4ab0d1d9e3a29cba24d2f798854"
+    },
+    {
+      "id": "ci-runs-truncated-lock-and-hash-rebuilt",
+      "mutation": "observation: the failed bskel runs removed (as if only some pages were read), lock CI facts and observation hash recomputed to match",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "CI_RUNS_INCOMPLETE"
+      ],
+      "stdout_first_line": "FAIL CI_RUNS_INCOMPLETE bskel the capture recorded 7 runs read in 1 page(s); the observation lists 4 runs, which take 1 page(s)",
+      "stdout_sha256": "97c20cf9726f71f6f587fa018f5efa6121c3717c30830c5ac4121409a557f501"
+    },
+    {
+      "id": "observation-without-a-run-count",
+      "mutation": "observation: becoder ci_runs_total_count removed, observation hash recomputed",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "CI_RUNS_INCOMPLETE"
+      ],
+      "stdout_first_line": "FAIL CI_RUNS_INCOMPLETE becoder the capture recorded null runs read in 1 page(s); the observation lists 2 runs, which take 1 page(s)",
+      "stdout_sha256": "8f9bfde290dd4596ac7f1ac1c5f74ff5291fb00c69d980728a3da1a1c34caab3"
+    },
+    {
+      "id": "observation-page-count-inconsistent",
+      "mutation": "observation: beval ci_runs_pages set to 2 for 8 runs, observation hash recomputed",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "CI_RUNS_INCOMPLETE"
+      ],
+      "stdout_first_line": "FAIL CI_RUNS_INCOMPLETE beval the capture recorded 9 runs read in 2 page(s); the observation lists 9 runs, which take 1 page(s)",
+      "stdout_sha256": "b7bbc47f37351b2761aa620ac83b8d63f74cb19efdc5483be76499def78a5dff"
+    },
+    {
+      "id": "lock-and-observation-both-lack-a-head-sha",
+      "mutation": "lock and observation: bskel head_sha removed from both",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock: head_sha is not 40 hex digits",
+      "stdout_sha256": "6b05fae21146485321f61431c370dc12d89cb7808c3d2e8ac8d96a85b692e298"
+    },
+    {
+      "id": "lock-empties-the-required-artifacts",
+      "mutation": "lock: bskel required_artifacts set to an empty list",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock: required_artifacts lists [], expected exactly [package.json,package-lock.json,.github/workflows/ci.yml]",
+      "stdout_sha256": "286ee786f980fe6f7addaa4938fac441e2937520b74068592d1db39cf25d4dad"
     },
     {
       "id": "usage-error",

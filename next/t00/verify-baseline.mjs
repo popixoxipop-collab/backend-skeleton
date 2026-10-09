@@ -6,11 +6,20 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const BASELINE_CODES = [
-  'MISSING_REPOSITORY_OBSERVATION', 'DIRTY_CHECKOUT', 'DIRTY_STATE_UNKNOWN', 'DEFAULT_BRANCH_MISMATCH',
-  'HEAD_SHA_MISMATCH', 'MISSING_ARTIFACT', 'ARTIFACT_BLOB_MISMATCH',
+// The baseline is exactly these repositories. The set is fixed here and not read from the lock or the observation, so a
+// file that dropped, repeated, renamed or added a repository cannot verify the rest.
+export const REQUIRED_REPOSITORIES = [
+  { role: 'bskel', repo: 'popixoxipop-collab/backend-skeleton' },
+  { role: 'becoder', repo: 'popixoxipop-collab/backend-decoder' },
+  { role: 'beval', repo: 'popixoxipop-collab/Backend-evaluation' },
 ];
-export const RECORD_CODES = ['OBSERVATION_HASH_MISMATCH', 'DERIVED_FACT_MISMATCH'];
+export const REQUIRED_ARTIFACT_PATHS = ['package.json', 'package-lock.json', '.github/workflows/ci.yml'];
+export const RUNS_PAGE_SIZE = 100; // GitHub caps per_page at 100
+export const BASELINE_CODES = [
+  'MISSING_REPOSITORY_OBSERVATION', 'REPOSITORY_SET_MISMATCH', 'MALFORMED_RECORD', 'DIRTY_CHECKOUT', 'DIRTY_STATE_UNKNOWN',
+  'DEFAULT_BRANCH_MISMATCH', 'HEAD_SHA_MISMATCH', 'MISSING_ARTIFACT', 'ARTIFACT_BLOB_MISMATCH',
+];
+export const RECORD_CODES = ['OBSERVATION_HASH_MISMATCH', 'DERIVED_FACT_MISMATCH', 'CI_RUNS_INCOMPLETE'];
 
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -40,8 +49,53 @@ export function deriveLockRepository(o) {
 const err = (code, role, detail) => ({ code, role, detail });
 const find = (list, key, value) => (list ?? []).find((x) => x[key] === value);
 
-export function verifyBaseline(lock, observation, { remote = false } = {}) {
+// The lock pins each required repository once under its required name; the observation holds none twice or unknown.
+// An observation that lacks a locked role is reported as MISSING_REPOSITORY_OBSERVATION below, not here.
+function repositorySetErrors(lock, observation) {
   const errors = [];
+  const bad = (role, detail) => errors.push(err('REPOSITORY_SET_MISMATCH', role, detail));
+  for (const want of REQUIRED_REPOSITORIES) {
+    const pinned = lock.repositories.filter((r) => r.role === want.role);
+    if (pinned.length !== 1) bad(want.role, `the lock pins ${want.role} ${pinned.length} times, expected once`);
+    else if (pinned[0].repo !== want.repo) bad(want.role, `the lock pins ${want.role} as ${JSON.stringify(pinned[0].repo)}, expected ${want.repo}`);
+    const seen = observation.repositories.filter((r) => r.role === want.role);
+    if (seen.length > 1) bad(want.role, `the observation holds ${want.role} ${seen.length} times`);
+    else if (seen.length === 1 && seen[0].repo !== undefined && seen[0].repo !== want.repo) bad(want.role, `the observation has ${want.role} as ${JSON.stringify(seen[0].repo)}, expected ${want.repo}`);
+  }
+  for (const [what, list] of [['lock', lock.repositories], ['observation', observation.repositories]]) {
+    for (const r of list) {
+      if (!REQUIRED_REPOSITORIES.some((want) => want.role === r.role)) bad(String(r.role), `the ${what} holds ${JSON.stringify(r.role)}, which is not part of the baseline`);
+    }
+  }
+  return errors;
+}
+
+// Every field the comparison reads must be present and well formed on both sides: two records that both lack a field
+// would otherwise compare equal (undefined === undefined), and a lock whose artifact list was emptied would check nothing.
+const SHA = /^[0-9a-f]{40}$/;
+function shapeErrors(lock, observation) {
+  const errors = [];
+  const bad = (role, detail) => errors.push(err('MALFORMED_RECORD', String(role), detail));
+  const blobs = (what, role, list) => {
+    if (!Array.isArray(list)) { bad(role, `${what}: the artifact list is missing`); return; }
+    for (const a of list) if (typeof a?.path !== 'string' || !SHA.test(a?.git_blob_sha ?? '')) bad(role, `${what}: artifact ${JSON.stringify(a?.path)} has no 40-hex git_blob_sha`);
+  };
+  for (const [what, list] of [['lock', lock.repositories], ['observation', observation.repositories]]) {
+    for (const r of list) {
+      if (typeof r.default_branch !== 'string' || r.default_branch === '') bad(r.role, `${what}: default_branch is missing`);
+      if (!SHA.test(r.head_sha ?? '')) bad(r.role, `${what}: head_sha is not 40 hex digits`);
+      blobs(what, r.role, what === 'lock' ? r.required_artifacts : r.artifacts);
+    }
+  }
+  for (const r of lock.repositories) {
+    const paths = Array.isArray(r.required_artifacts) ? r.required_artifacts.map((a) => a?.path) : [];
+    if (canonicalJson([...paths].sort()) !== canonicalJson([...REQUIRED_ARTIFACT_PATHS].sort())) bad(r.role, `lock: required_artifacts lists [${paths}], expected exactly [${REQUIRED_ARTIFACT_PATHS}]`);
+  }
+  return errors;
+}
+
+export function verifyBaseline(lock, observation, { remote = false } = {}) {
+  const errors = [...repositorySetErrors(lock, observation), ...shapeErrors(lock, observation)];
   for (const repo of lock.repositories) {
     const o = find(observation.repositories, 'role', repo.role);
     if (!o) { errors.push(err('MISSING_REPOSITORY_OBSERVATION', repo.role, `no observation for ${repo.repo}`)); continue; }
@@ -63,9 +117,18 @@ export function verifyLockRecord(lock, observation) {
   if (lock.capture?.observation_sha256 !== canonicalSha256(observation)) {
     errors.push(err('OBSERVATION_HASH_MISMATCH', '-', 'lock.capture.observation_sha256 is not the canonical sha256 of the observation'));
   }
-  for (const repo of lock.repositories) {
-    const o = find(observation.repositories, 'role', repo.role);
-    if (!o) continue;
+  const roles = (doc) => doc.repositories.map((r) => r.role).sort();
+  if (canonicalJson(roles(lock)) !== canonicalJson(roles(observation))) {
+    errors.push(err('DERIVED_FACT_MISMATCH', '-', `repositories: the lock pins [${roles(lock)}], the observation holds [${roles(observation)}]`));
+  }
+  for (const o of observation.repositories) {
+    const listed = o.ci_runs_on_exact_head ?? [];
+    const pages = Math.max(1, Math.ceil(listed.length / RUNS_PAGE_SIZE));
+    if (o.ci_runs_total_count !== listed.length || o.ci_runs_pages !== pages) {
+      errors.push(err('CI_RUNS_INCOMPLETE', o.role, `the capture recorded ${JSON.stringify(o.ci_runs_total_count ?? null)} runs read in ${JSON.stringify(o.ci_runs_pages ?? null)} page(s); the observation lists ${listed.length} runs, which take ${pages} page(s)`));
+    }
+    const repo = find(lock.repositories, 'role', o.role);
+    if (!repo) continue; // the role lists differ, reported above
     const want = deriveLockRepository(o);
     for (const key of Object.keys(want)) {
       if (canonicalJson(repo[key]) !== canonicalJson(want[key])) errors.push(err('DERIVED_FACT_MISMATCH', repo.role, `${key} does not match the observation`));
@@ -77,7 +140,10 @@ export function verifyLockRecord(lock, observation) {
   return { ok: errors.length === 0, errors };
 }
 
-const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+// GIT_DIR, GIT_WORK_TREE and friends (set when a hook runs the tests) would redirect `git -C <dir>` to another repository;
+// --untracked-files=all keeps a user's status.showUntrackedFiles setting from hiding stray files.
+export const cleanGitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: cleanGitEnv() }).trim();
 
 // default_branch here is the checked-out branch (a detached HEAD reads "HEAD"), so a mismatch means "not on the locked branch".
 export function observeCheckout(dir, paths) {
@@ -88,7 +154,7 @@ export function observeCheckout(dir, paths) {
   return {
     default_branch: git(dir, 'rev-parse', '--abbrev-ref', 'HEAD'),
     head_sha: git(dir, 'rev-parse', 'HEAD'),
-    dirty: git(dir, 'status', '--porcelain').length > 0,
+    dirty: git(dir, 'status', '--porcelain', '--untracked-files=all').length > 0,
     artifacts,
   };
 }
@@ -118,8 +184,10 @@ export function runCli(argv) {
   }
   let lock;
   let observation;
+  const needRepositories = (doc, what) => { if (!Array.isArray(doc?.repositories)) throw new Error(`${what} has no repositories array`); };
   try {
     lock = JSON.parse(fs.readFileSync(opts.files[0], 'utf8'));
+    needRepositories(lock, 'the lock');
     if (checkoutMode) {
       observation = { repositories: opts.checkouts.map((spec) => {
         const [role, dir] = spec.split(/=(.*)/s);
@@ -129,6 +197,7 @@ export function runCli(argv) {
       }) };
     } else {
       observation = JSON.parse(fs.readFileSync(opts.files[1], 'utf8'));
+      needRepositories(observation, 'the observation');
     }
   } catch (e) {
     return usage(`cannot read input: ${e.message}`);

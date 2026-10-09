@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { canonicalSha256 } from './verify-baseline.mjs';
+import { canonicalSha256, deriveLockRepository } from './verify-baseline.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(here, 'verify-baseline.mjs');
@@ -30,6 +30,15 @@ export const CASES = [
   { id: 'ci-success-claimed-for-a-failing-head', mutation: 'lock: beval ci_on_exact_head.all_success set to true', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH'], mutate: (l) => { pick(l, 'beval').ci_on_exact_head.all_success = true; } },
   { id: 'package-version-claim-changed', mutation: 'lock: becoder package.version set to 9.9.9', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH'], mutate: (l) => { pick(l, 'becoder').package.version = '9.9.9'; } },
   { id: 'observation-edited-after-capture', mutation: 'observation: becoder head_sha changed, lock untouched', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH', 'HEAD_SHA_MISMATCH', 'OBSERVATION_HASH_MISMATCH'], mutate: (l, o) => { const r = pick(o, 'becoder'); r.head_sha = flip(r.head_sha); } },
+  { id: 'lock-drops-a-required-repository', mutation: 'lock: beval entry removed, observation untouched', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH', 'REPOSITORY_SET_MISMATCH'], mutate: (l) => { l.repositories = l.repositories.filter((r) => r.role !== 'beval'); } },
+  { id: 'lock-and-observation-consistently-drop-a-repository', mutation: 'lock and observation: beval removed (repositories and inventory pins), lock pins and observation hash recomputed', flags: RECORD, exit: 2, codes: ['REPOSITORY_SET_MISMATCH'], mutate: (l, o) => { for (const doc of [l, o]) doc.repositories = doc.repositories.filter((r) => r.role !== 'beval'); o.inventory.pins = o.inventory.pins.filter((p) => p.role !== 'beval'); l.inventory_pins = structuredClone(o.inventory); l.capture.observation_sha256 = canonicalSha256(o); } },
+  { id: 'lock-repository-renamed', mutation: 'lock: beval repo set to someone-else/Backend-evaluation', flags: ['--remote'], exit: 2, codes: ['REPOSITORY_SET_MISMATCH'], mutate: (l) => { pick(l, 'beval').repo = 'someone-else/Backend-evaluation'; } },
+  { id: 'observation-adds-an-unknown-repository', mutation: 'observation: a fourth entry with role gamma added', flags: ['--remote'], exit: 2, codes: ['REPOSITORY_SET_MISMATCH'], mutate: (l, o) => { o.repositories.push({ ...structuredClone(pick(o, 'bskel')), role: 'gamma' }); } },
+  { id: 'ci-runs-truncated-lock-and-hash-rebuilt', mutation: 'observation: the failed bskel runs removed (as if only some pages were read), lock CI facts and observation hash recomputed to match', flags: RECORD, exit: 2, codes: ['CI_RUNS_INCOMPLETE'], mutate: (l, o) => { const r = pick(o, 'bskel'); r.ci_runs_on_exact_head = r.ci_runs_on_exact_head.filter((x) => x.conclusion === 'success'); Object.assign(pick(l, 'bskel'), deriveLockRepository(r)); l.capture.observation_sha256 = canonicalSha256(o); } },
+  { id: 'observation-without-a-run-count', mutation: 'observation: becoder ci_runs_total_count removed, observation hash recomputed', flags: RECORD, exit: 2, codes: ['CI_RUNS_INCOMPLETE'], mutate: (l, o) => { delete pick(o, 'becoder').ci_runs_total_count; l.capture.observation_sha256 = canonicalSha256(o); } },
+  { id: 'observation-page-count-inconsistent', mutation: 'observation: beval ci_runs_pages set to 2 for 8 runs, observation hash recomputed', flags: RECORD, exit: 2, codes: ['CI_RUNS_INCOMPLETE'], mutate: (l, o) => { pick(o, 'beval').ci_runs_pages = 2; l.capture.observation_sha256 = canonicalSha256(o); } },
+  { id: 'lock-and-observation-both-lack-a-head-sha', mutation: 'lock and observation: bskel head_sha removed from both', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => { delete pick(l, 'bskel').head_sha; delete pick(o, 'bskel').head_sha; } },
+  { id: 'lock-empties-the-required-artifacts', mutation: 'lock: bskel required_artifacts set to an empty list', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l) => { pick(l, 'bskel').required_artifacts = []; } },
   { id: 'usage-error', mutation: 'no arguments', flags: [], noFiles: true, exit: 1, codes: [], mutate() {} },
 ];
 
@@ -41,7 +50,7 @@ function runCase(c, lock0, obs0, dir) {
   const obsFile = path.join(dir, 'observation.json');
   fs.writeFileSync(lockFile, JSON.stringify(lock));
   fs.writeFileSync(obsFile, JSON.stringify(obs));
-  const res = spawnSync(process.execPath, [CLI, ...(c.noFiles ? [] : [...c.flags, lockFile, obsFile])], { encoding: 'utf8' });
+  const res = spawnSync(process.execPath, [CLI, ...(c.noFiles ? [] : [...c.flags, lockFile, obsFile])], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
   const lines = res.stdout.split('\n').filter(Boolean);
   const codes = [...new Set(lines.filter((l) => l.startsWith('FAIL ')).map((l) => l.split(' ')[1]))].sort();
   if (res.status !== c.exit || JSON.stringify(codes) !== JSON.stringify(c.codes)) {

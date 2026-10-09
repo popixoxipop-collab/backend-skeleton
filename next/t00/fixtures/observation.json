@@ -1,6 +1,6 @@
 {
   "schema": "bskel.t00-observation/1",
-  "observed_at": "2026-10-08T15:31:47.281Z",
+  "observed_at": "2026-10-09T00:06:59.322Z",
   "source": "GitHub REST API through an authenticated gh CLI, read-only",
   "tooling": {
     "node": "v24.19.0",
@@ -11,8 +11,8 @@
     "repos/{repo}/commits/{default_branch}",
     "repos/{repo}/git/trees/{head_sha}?recursive=1",
     "repos/{repo}/git/blobs/{package_json_blob}",
-    "repos/{repo}/actions/runs?head_sha={head_sha}&per_page=100",
-    "repos/{repo}/actions/runs/{run_id}/jobs?per_page=100 (only for runs that did not succeed)",
+    "repos/{repo}/actions/runs?head_sha={head_sha}&per_page=100&page={n} (every page until total_count runs are held; total_count and the page count are kept as ci_runs_total_count and ci_runs_pages)",
+    "repos/{repo}/actions/runs/{run_id}/jobs?per_page=100&page={n} (every page; only for runs that did not succeed)",
     "repos/{bskel}/contents/release/next/compatibility-inventory.json?ref={bskel_head_sha}",
     "repos/{repo}/compare/{pinned_sha}...{head_sha}?per_page=1 (status and counts only are kept)"
   ],
@@ -68,6 +68,8 @@
         ],
         "scripts_sha256": "694aa25973d73d268d0d30359624536c6e97e4b212ecd21c4c47b4d26e6d6ab1"
       },
+      "ci_runs_total_count": 7,
+      "ci_runs_pages": 1,
       "ci_runs_on_exact_head": [
         {
           "run_id": 37086190872,
@@ -205,6 +207,8 @@
         ],
         "scripts_sha256": "a9648a6788e80e08b22f654dd91bfe35f0bb0db137ec25bf6d41d91978ff8c58"
       },
+      "ci_runs_total_count": 2,
+      "ci_runs_pages": 1,
       "ci_runs_on_exact_head": [
         {
           "run_id": 36790716447,
@@ -282,6 +286,8 @@
         ],
         "scripts_sha256": "6cc5866010d14ea7fbfc7ac5912eae6f92a0fe267563ff804831ccd2b4fab694"
       },
+      "ci_runs_total_count": 9,
+      "ci_runs_pages": 1,
       "ci_runs_on_exact_head": [
         {
           "run_id": 37133715603,
@@ -444,6 +450,24 @@
               "conclusion": "failure",
               "failed_steps": [
                 "Run npm run test:integration"
+              ],
+              "unfinished_steps": []
+            }
+          ]
+        },
+        {
+          "run_id": 37858752098,
+          "workflow": "ci",
+          "event": "schedule",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-10-08T23:19:06Z",
+          "failed_jobs": [
+            {
+              "name": "unit (20)",
+              "conclusion": "failure",
+              "failed_steps": [
+                "Run npm test"
               ],
               "unfinished_steps": []
             }

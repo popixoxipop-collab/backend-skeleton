@@ -5,32 +5,46 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { canonicalSha256 } from './verify-baseline.mjs';
+import { REQUIRED_ARTIFACT_PATHS, REQUIRED_REPOSITORIES, RUNS_PAGE_SIZE, canonicalSha256 } from './verify-baseline.mjs';
 
-export const REPOS = [
-  { role: 'bskel', repo: 'popixoxipop-collab/backend-skeleton' },
-  { role: 'becoder', repo: 'popixoxipop-collab/backend-decoder' },
-  { role: 'beval', repo: 'popixoxipop-collab/Backend-evaluation' },
-];
-export const ARTIFACT_PATHS = ['package.json', 'package-lock.json', '.github/workflows/ci.yml'];
+export const REPOS = REQUIRED_REPOSITORIES;
+export const ARTIFACT_PATHS = REQUIRED_ARTIFACT_PATHS;
 const FAILING = new Set(['failure', 'cancelled', 'timed_out', 'startup_failure', 'action_required']);
 
 const gh = (route) => JSON.parse(execFileSync('gh', ['api', route], { encoding: 'utf8', maxBuffer: 1 << 28 }));
 
-export function captureRepo({ role, repo }) {
-  const meta = gh(`repos/${repo}`);
+export const SEARCH_CAP = 1000; // a head_sha search serves at most 1000 runs
+
+// Every item of a list route: pages are read until total_count items are held. A list the API cannot serve completely
+// is an error, never a shorter list, because a missing old run could turn a failing head into "all success".
+export function ghList(route, key, read = gh, cap = Infinity) {
+  const items = [];
+  for (let page = 1; ; page += 1) {
+    const res = read(`${route}${route.includes('?') ? '&' : '?'}per_page=${RUNS_PAGE_SIZE}&page=${page}`);
+    if (!Array.isArray(res[key]) || !Number.isInteger(res.total_count)) throw new Error(`${route}: page ${page} has no ${key} array or total_count`);
+    items.push(...res[key]);
+    if (new Set(items.map((x) => x.id)).size !== items.length) throw new Error(`${route}: an id repeats across pages, so the list changed while it was read; capture again`);
+    if (items.length === res.total_count) return { items, total: res.total_count, pages: page };
+    if (items.length > res.total_count) throw new Error(`${route}: read ${items.length} ${key} but total_count is ${res.total_count}; capture again`);
+    if (res[key].length === 0 || items.length >= cap) throw new Error(`${route}: read ${items.length} of ${res.total_count} ${key} and the API serves no more, so the list cannot be recorded completely`);
+  }
+}
+
+export function captureRepo({ role, repo }, read = gh) {
+  const meta = read(`repos/${repo}`);
   const branch = meta.default_branch;
-  const head = gh(`repos/${repo}/commits/${branch}`);
-  const tree = gh(`repos/${repo}/git/trees/${head.sha}?recursive=1`);
+  const head = read(`repos/${repo}/commits/${branch}`);
+  const tree = read(`repos/${repo}/git/trees/${head.sha}?recursive=1`);
   if (tree.truncated) throw new Error(`${repo}: git tree response is truncated, cannot resolve artifact blobs`);
   const artifacts = ARTIFACT_PATHS.map((p) => {
     const entry = tree.tree.find((e) => e.path === p && e.type === 'blob');
     if (!entry) throw new Error(`${repo}: ${p} is not in the tree of ${head.sha}`);
     return { path: p, git_blob_sha: entry.sha };
   });
-  const pkgBlob = gh(`repos/${repo}/git/blobs/${artifacts[0].git_blob_sha}`);
+  const pkgBlob = read(`repos/${repo}/git/blobs/${artifacts[0].git_blob_sha}`);
   const pkg = JSON.parse(Buffer.from(pkgBlob.content, 'base64').toString('utf8'));
-  const runs = gh(`repos/${repo}/actions/runs?head_sha=${head.sha}&per_page=100`).workflow_runs
+  const { items: allRuns, total: runsTotal, pages: runsPages } = ghList(`repos/${repo}/actions/runs?head_sha=${head.sha}`, 'workflow_runs', read, SEARCH_CAP);
+  const runs = allRuns
     .map((r) => ({
       run_id: r.id,
       workflow: r.name,
@@ -39,7 +53,7 @@ export function captureRepo({ role, repo }) {
       conclusion: r.conclusion,
       created_at: r.created_at,
       failed_jobs: FAILING.has(r.conclusion)
-        ? gh(`repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`).jobs
+        ? ghList(`repos/${repo}/actions/runs/${r.id}/jobs`, 'jobs', read).items
             .filter((j) => FAILING.has(j.conclusion))
             .map((j) => ({
               name: j.name,
@@ -67,6 +81,8 @@ export function captureRepo({ role, repo }) {
       script_names: Object.keys(pkg.scripts ?? {}).sort(),
       scripts_sha256: canonicalSha256(pkg.scripts ?? {}),
     },
+    ci_runs_total_count: runsTotal,
+    ci_runs_pages: runsPages,
     ci_runs_on_exact_head: runs,
   };
 }
@@ -88,7 +104,7 @@ export function captureInventory(repositories) {
 }
 
 export function captureObservation(repos = REPOS, now = new Date()) {
-  const repositories = repos.map(captureRepo);
+  const repositories = repos.map((spec) => captureRepo(spec));
   return {
     schema: 'bskel.t00-observation/1',
     observed_at: now.toISOString(),
@@ -99,8 +115,8 @@ export function captureObservation(repos = REPOS, now = new Date()) {
       'repos/{repo}/commits/{default_branch}',
       'repos/{repo}/git/trees/{head_sha}?recursive=1',
       'repos/{repo}/git/blobs/{package_json_blob}',
-      'repos/{repo}/actions/runs?head_sha={head_sha}&per_page=100',
-      'repos/{repo}/actions/runs/{run_id}/jobs?per_page=100 (only for runs that did not succeed)',
+      'repos/{repo}/actions/runs?head_sha={head_sha}&per_page=100&page={n} (every page until total_count runs are held; total_count and the page count are kept as ci_runs_total_count and ci_runs_pages)',
+      'repos/{repo}/actions/runs/{run_id}/jobs?per_page=100&page={n} (every page; only for runs that did not succeed)',
       `repos/{bskel}/contents/${INVENTORY_PATH}?ref={bskel_head_sha}`,
       'repos/{repo}/compare/{pinned_sha}...{head_sha}?per_page=1 (status and counts only are kept)',
     ],
