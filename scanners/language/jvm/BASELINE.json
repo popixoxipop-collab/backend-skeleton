@@ -2082,7 +2082,7 @@
     }
   ],
   "artifact_digest": {
-    "value": "9dd8f596075585f96813cfb0ebc853d78988baa36530fedf3f12555686bc2ac8"
+    "value": "0e9691e6da437961a70af8d269a5ea6d4f5380cb6a4186898998dd4618fbdd32"
   },
   "ci_observations": [],
   "limits": [
@@ -2206,7 +2206,7 @@
   "verification": {
     "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value are recomputed by baseline-record.test.mjs and never read back from the record.",
     "levels": [
-      "always: the record is well formed and any single tampered hash, size, test count, exit code, expected value, limit status (artifact_digest binds every limit id to its status) or commit id is reported",
+      "always: the record is well formed and any edit that is not re-sealed is reported, because artifact_digest is a SHA-256 over the canonical serialization of the whole record except its own value (fixture calls, expected values, classes and origins, limit statements, statuses and fixture lists, hashes, sizes, counts, exit codes, commit ids and every other field)",
       "live files: size, sha256 and blob id are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, which skips the live replays while the pinned commit decides",
       "pinned commit: the base commit is fetched once when absent and the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
       "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",
@@ -2215,7 +2215,8 @@
     ],
     "not_recomputed": [
       "ci_observations: read once from the CI API (gh api, read-only) and kept for traceability; no test re-reads them",
-      "environment: describes the machine this record was generated on"
+      "environment: describes the machine this record was generated on",
+      "artifact_digest: tamper evidence, not proof. An edit that is not re-sealed is reported, but whoever edits and re-seals passes it, so the recomputations above are the independent check. Fixture output hashes are recomputed from the calls; limit statements, limit fixture lists, fixture classes and origins are prose that nothing derives from the code and that only the digest binds; a swap between two calls whose outputs are identical is invisible to the replay and is caught only by the digest"
     ]
   }
 }

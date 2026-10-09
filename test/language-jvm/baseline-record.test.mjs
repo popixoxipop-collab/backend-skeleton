@@ -17,17 +17,15 @@ const computed = await L.replay(record, ROOT);
 const paths = (...roles) => record.files.filter((f) => roles.includes(f.role)).map((f) => f.path);
 const env = (value) => ({ BASELINE_ALLOW_UNVERIFIED: value });
 const damage = (e, key) => ({ ...e, [key]: key === 'bytes' ? e.bytes + 1 : L.flip(e[key]) });
-const tampered = (mutate) => {
-	const r = structuredClone(record);
-	mutate(r);
-	return r;
-};
+const tampered = (mutate) => { const r = structuredClone(record); mutate(r); return r; };
 const mentions = (list, text) => assert.ok(list.some((p) => p.includes(text)), `no problem mentions "${text}": ${list.join(' | ')}`);
 const shallowCopy = () => L.depthOneCase(L.tmpDir('jvm-depth1-'));
 
-test('the record is well formed and consistent with itself', () => {
+test('the record is well formed and consistent with itself, and Kotlin/Ktor and the real JVM run stay BLOCKED', () => {
 	assert.deepEqual(L.verifyRecord(record), []);
 	assert.ok(record.fixtures.some((f) => f.class === 'normal') && record.fixtures.some((f) => f.class === 'negative'));
+	const status = (id) => record.limits.find((l) => l.id === id)?.status;
+	assert.deepEqual(['kotlin-ktor-blocked', 'real-javaparser-jdk-run-blocked'].map(status), ['BLOCKED', 'BLOCKED']);
 });
 
 test('live: pinned files and replayed fixtures equal the record (damage fails, drift skips)', (t) => {
@@ -63,17 +61,24 @@ test('commands: both recorded commands, the per-file counts and every fixture re
 	assert.deepEqual(L.replayProblems(record, await L.replay(record, dir)), []);
 });
 
-test('limits: Kotlin/Ktor and the real JVM run stay BLOCKED', () => {
-	const status = (id) => record.limits.find((l) => l.id === id)?.status;
-	assert.deepEqual(['kotlin-ktor-blocked', 'real-javaparser-jdk-run-blocked'].map(status), ['BLOCKED', 'BLOCKED']);
-});
-
-test('negative: flipping the status of any single limit to another allowed status is reported', () => {
-	for (const [i, limit] of record.limits.entries()) {
-		for (const status of L.LIMIT_STATUSES.filter((s) => s !== limit.status)) {
-			mentions(L.verifyRecord(tampered((r) => { r.limits[i].status = status; })), 'artifact_digest');
-		}
-	}
+test('negative: an edit that is not re-sealed is reported through artifact_digest (swapped calls, limit text, limit fixtures, expect, class, status)', () => {
+	const [a, b] = ['neg-unterminated-string-no-diagnostic', 'neg-unterminated-body-no-diagnostic'].map((id) => record.fixtures.findIndex((f) => f.id === id));
+	assert.equal(record.fixtures[a].output_sha256, record.fixtures[b].output_sha256);
+	assert.notDeepEqual(record.fixtures[a].call, record.fixtures[b].call);
+	const limit = record.limits.findIndex((l) => l.fixtures?.length > 1);
+	const statuses = record.limits.flatMap((l, i) => L.LIMIT_STATUSES.filter((s) => s !== l.status).map((s) => (r) => { r.limits[i].status = s; }));
+	const edits = [
+		(r) => { [r.fixtures[a].call, r.fixtures[b].call] = [r.fixtures[b].call, r.fixtures[a].call]; },
+		(r) => { r.limits[limit].statement += ' (edited)'; },
+		(r) => { r.limits[limit].fixtures.pop(); },
+		(r) => { r.fixtures[a].expect[0][1] = 'edited'; },
+		(r) => { r.fixtures[a].class = 'normal'; },
+		(r) => { r.artifact_digest.note = 'edited'; },
+		(r) => { r.title += ' (edited)'; },
+		(r) => { r.verification.levels[0] += ' (edited)'; },
+		...statuses
+	];
+	for (const edit of edits) mentions(L.verifyRecord(tampered(edit)), 'artifact_digest');
 });
 
 test('limits: the layer is mentioned outside its directories only by the recorded files (git grep at the base commit)', (t) => {
@@ -123,8 +128,7 @@ test('negative: an unrecorded file or a changed file moves the tree away from th
 
 test('depth-1 clone: the pinned commit is fetched, its blobs are recomputed, ancestry is deepened', () => {
 	const { checkout, record: rec } = shallowCopy();
-	assert.equal(L.isShallow(checkout), true);
-	assert.equal(L.commitVerdict(checkout, rec.base_commit).verdict, 'ok');
+	assert.deepEqual([L.isShallow(checkout), L.commitVerdict(checkout, rec.base_commit).verdict], [true, 'ok']);
 	const read = L.commitReader(checkout, rec.base_commit);
 	assert.deepEqual(L.recomputeProblems(rec.files, read, 'depth-1'), []);
 	for (const key of ['bytes', 'git_blob_sha1', 'sha256']) mentions(L.recomputeProblems([damage(rec.files[0], key), ...rec.files.slice(1)], read, 'depth-1'), `${key} `);
@@ -134,16 +138,12 @@ test('depth-1 clone: the pinned commit is fetched, its blobs are recomputed, anc
 
 test('negative: an unavailable commit, a non-ancestor and a failed deepening fail unless the opt-out is exactly 1', () => {
 	const { checkout, sideCommit } = shallowCopy();
-	const absent = 'f'.repeat(40);
-	assert.equal(L.commitVerdict(checkout, absent, env('')).verdict, 'fail');
-	assert.equal(L.commitVerdict(checkout, absent, env('true')).verdict, 'fail');
-	assert.equal(L.commitVerdict(checkout, absent, env('1')).verdict, 'unverified');
+	const verdicts = (call) => ['', 'true', '1'].map((v) => call(env(v)).verdict);
+	assert.deepEqual(verdicts((e) => L.commitVerdict(checkout, 'f'.repeat(40), e)), ['fail', 'fail', 'unverified']);
 	assert.equal(L.commitVerdict(checkout, sideCommit).verdict, 'ok');
 	assert.equal(L.ancestryVerdict(checkout, sideCommit, env('')).verdict, 'fail');
 	const broken = shallowCopy();
 	spawnSync('git', ['remote', 'set-url', 'origin', 'file:///nonexistent'], { cwd: broken.checkout });
 	assert.equal(L.commitVerdict(broken.checkout, broken.record.base_commit, env('')).verdict, 'fail');
-	assert.equal(L.ancestryVerdict(broken.checkout, broken.record.base_commit, env('')).verdict, 'fail');
-	assert.equal(L.ancestryVerdict(broken.checkout, broken.record.base_commit, env('true')).verdict, 'fail');
-	assert.equal(L.ancestryVerdict(broken.checkout, broken.record.base_commit, env('1')).verdict, 'unverified');
+	assert.deepEqual(verdicts((e) => L.ancestryVerdict(broken.checkout, broken.record.base_commit, e)), ['fail', 'fail', 'unverified']);
 });
