@@ -249,3 +249,23 @@ What is verified, and what is not:
   cannot both be materialized. The guard is not reliable there; this is a known limit.
 
 The semantic digest remains regression-only and never substitutes for exact ContractRef identity.
+
+## Baseline record (T11-01)
+
+`BASELINE.json` (schema `bskel.track-baseline-record/2`, provisional) fixes what the five legacy adapters and the six modules did at
+one exact commit (`base_commit`). It pins by size, SHA-256 and Git blob id every T11 source and test, the stable scanner files they run
+(the static import closure plus every adapter the registry loads), the five fixture trees, the nested runner script and `package-lock.json`.
+It records the two commands that were run (`node scripts/run-next-nested-tests.mjs T11` and the direct `node --test` run) with exit codes
+and counts, the pinned normal and negative fixtures with the SHA-256 of each full result, and the remaining limits with their statuses.
+It is a baseline, not a support claim: nothing in it is marked supported.
+
+`test/http-legacy-next/baseline-record.test.mjs` recomputes instead of reading back: file sizes and digests (from the checkout and from
+the blobs of the pinned commit), per-file and total test counts, both commands (re-run in an export of the base commit), every fixture
+output and expected summary, and that the nested runner collects the recorded files. A damaged record fails. A tree that has moved on
+skips the live replays and the pinned commit decides; the commit is fetched once when a shallow checkout lacks it, and an unavailable
+commit fails unless `BASELINE_ALLOW_UNVERIFIED=1` skips those checks visibly.
+
+Not recomputed: `ci_observations`, `environment` (only the lock file is), the limit statements and fixture lists, the fixture classes,
+counterexample texts, title and notes. `artifact_digest` is a SHA-256 over the whole record except its own value, and the test fixes
+each limit id to its status, so an edit to any of those fields is visible unless it is re-sealed. The seal is tamper evidence, not
+proof. A change to a pinned file means the record must be regenerated on purpose.

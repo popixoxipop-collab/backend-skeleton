@@ -1,0 +1,351 @@
+{
+ "schema": "bskel.t11-interface-vocabulary/1",
+ "adapters": {
+  "java-spring": {
+   "specificity": 100,
+   "confidence": "high",
+   "verificationBasis": "production-repo",
+   "capabilities": {
+    "api.operations": true,
+    "api.request-shape": true,
+    "resource.fetch": true,
+    "codegen.handles": true
+   }
+  },
+  "ruby-rails": {
+   "specificity": 95,
+   "confidence": "high",
+   "verificationBasis": "production-repo",
+   "capabilities": {
+    "api.operations": true,
+    "api.request-shape": false,
+    "resource.fetch": false,
+    "codegen.handles": false
+   }
+  },
+  "python-fastapi": {
+   "specificity": 90,
+   "confidence": "high",
+   "verificationBasis": "official-reference",
+   "capabilities": {
+    "api.operations": false,
+    "api.request-shape": false,
+    "resource.fetch": true,
+    "codegen.handles": true
+   }
+  },
+  "typescript-express": {
+   "specificity": 85,
+   "confidence": "high",
+   "verificationBasis": "community-sample",
+   "capabilities": {
+    "api.operations": false,
+    "api.request-shape": false,
+    "resource.fetch": true,
+    "codegen.handles": true
+   }
+  },
+  "javascript-express": {
+   "specificity": 80,
+   "confidence": "high",
+   "verificationBasis": "community-sample",
+   "capabilities": {
+    "api.operations": false,
+    "api.request-shape": false,
+    "resource.fetch": false,
+    "codegen.handles": false
+   }
+  }
+ },
+ "schemas": {
+  "descriptor": "sbf.adapter/2",
+  "scan_report": "sbf.scan-report/2",
+  "bridge": "sbf.http-legacy-bridge/1",
+  "semantic_snapshot": "sbf.http-legacy-semantic-snapshot/1",
+  "shadow_projection": "bskel.internal.t11-shadow-projection/0",
+  "cutover_readiness": "bskel.internal.t11-cutover-readiness/0"
+ },
+ "foreign_schemas": [
+  "sbf.contract-ref/1",
+  "sbf.artifact-ref/1",
+  "sbf.identity-envelope/1"
+ ],
+ "exports": {
+  "baselines": [
+   "LEGACY_HTTP_ADAPTER_IDS",
+   "LEGACY_HTTP_BASELINES",
+   "legacyHttpBaseline"
+  ],
+  "bridge": [
+   "LEGACY_HTTP_BRIDGE_SCHEMA",
+   "bridgeLegacyHttpScan",
+   "snapshotLegacyHttpAdapter",
+   "summarizeLegacyHttpReport"
+  ],
+  "parity": [
+   "LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA",
+   "compareLegacyHttpReports",
+   "compareLegacyHttpSemanticSnapshots",
+   "legacyHttpSemanticDigest",
+   "legacyHttpSemanticSnapshot"
+  ],
+  "shadow-projection": [
+   "T11_SHADOW_PROJECTION_SCHEMA",
+   "runLegacyHttpShadowProjection"
+  ],
+  "cutover-readiness": [
+   "T11_CUTOVER_READINESS_SCHEMA",
+   "evaluateLegacyHttpCutoverReadiness"
+  ],
+  "checkout-completeness": [
+   "assertLegacyCorpusCheckoutComplete",
+   "inspectLegacyCorpusCheckout"
+  ]
+ },
+ "imports": [
+  "./baselines.mjs",
+  "./bridge.mjs",
+  "./parity.mjs",
+  "node:child_process",
+  "node:crypto",
+  "node:fs",
+  "node:path"
+ ],
+ "modes": {
+  "bridge": "compatibility-only",
+  "shadow": "shadow-only",
+  "checkout": [
+   "full-working-tree",
+   "sparse-unsupported-adapter",
+   "sparse-readset-verified"
+  ]
+ },
+ "checkout_error_code": "T11_CORPUS_CHECKOUT_INCOMPLETE",
+ "sparse_supported_adapters": [
+  "ruby-rails",
+  "python-fastapi"
+ ],
+ "diff_kinds": [
+  "type",
+  "array-length",
+  "unexpected",
+  "missing",
+  "value"
+ ],
+ "open_fields": [
+  "verdict",
+  "confidence",
+  "api_surface_source"
+ ],
+ "cutover_gates": [
+  {
+   "gate": "ownership_scope_clean",
+   "blocker": "ownership-scope-not-clean"
+  },
+  {
+   "gate": "legacy_baseline_pinned",
+   "blocker": "legacy-baseline-not-pinned"
+  },
+  {
+   "gate": "lossless_bridge_verified",
+   "blocker": "lossless-bridge-not-verified"
+  },
+  {
+   "gate": "semantic_parity_verified",
+   "blocker": "semantic-parity-not-verified"
+  },
+  {
+   "gate": "pinned_corpus_verified",
+   "blocker": "pinned-corpus-not-verified"
+  },
+  {
+   "gate": "exact_head_ci_green",
+   "blocker": "exact-head-ci-not-green"
+  },
+  {
+   "gate": "identity_interface_frozen",
+   "blocker": "identity-interface-not-frozen"
+  },
+  {
+   "gate": "capability_interface_frozen",
+   "blocker": "capability-interface-not-frozen"
+  },
+  {
+   "gate": "independent_review_accepted",
+   "blocker": "independent-review-not-accepted"
+  },
+  {
+   "gate": "nested_test_discovery_integrated",
+   "blocker": "nested-test-discovery-not-integrated"
+  }
+ ],
+ "output_keys": {
+  "baseline_entry": [
+   "fixture",
+   "descriptor",
+   "inventory"
+  ],
+  "bridge": [
+   "schema",
+   "mode",
+   "source_adapter",
+   "source_scan_schema",
+   "legacy_report"
+  ],
+  "report_summary": [
+   "modules",
+   "moduleCount",
+   "controllerCount",
+   "entityCount",
+   "enumCount",
+   "dtoCount",
+   "endpointCount",
+   "filesReadCount"
+  ],
+  "semantic_snapshot": [
+   "schema",
+   "adapter",
+   "confidence",
+   "api_surface_source",
+   "verdict",
+   "path_prefix_signals",
+   "modules",
+   "files_read"
+  ],
+  "snapshot_module": [
+   "module",
+   "controllers",
+   "entities",
+   "enums",
+   "dtos"
+  ],
+  "snapshot_controller": [
+   "className",
+   "basePath",
+   "file",
+   "endpoints"
+  ],
+  "endpoint": [
+   "method",
+   "verb",
+   "path",
+   "operationId",
+   "file"
+  ],
+  "compare": [
+   "equal",
+   "diffs",
+   "truncated"
+  ],
+  "diff": [
+   "path",
+   "kind",
+   "expected",
+   "actual"
+  ],
+  "shadow_projection": [
+   "schema",
+   "mode",
+   "adapter_id",
+   "projector_id",
+   "projector_contract",
+   "authoritative_source",
+   "legacy_semantic_sha256",
+   "projected_semantic_sha256",
+   "parity",
+   "promotion_allowed",
+   "notes"
+  ],
+  "cutover_readiness": [
+   "schema",
+   "adapter_id",
+   "checks",
+   "ready_for_t00_integration",
+   "apply_allowed",
+   "blockers",
+   "notes"
+  ],
+  "checkout": [
+   "complete",
+   "mode",
+   "git_head",
+   "project_root",
+   "adapter_id",
+   "expected_tracked_read_files",
+   "materialized_read_files",
+   "missing_count",
+   "missing_paths"
+  ]
+ },
+ "owned_files": [
+  "BASELINE.json",
+  "INTEGRATION.md",
+  "INTERFACE_RFC.md",
+  "baselines.mjs",
+  "bridge.mjs",
+  "checkout-completeness.mjs",
+  "cutover-readiness.mjs",
+  "parity.mjs",
+  "shadow-projection.mjs"
+ ],
+ "ownership": [
+  {
+   "paths": [
+    "adapters/http-legacy-next",
+    "test/http-legacy-next"
+   ],
+   "owner": "T11",
+   "t11": "edit"
+  },
+  {
+   "paths": [
+    "test/fixtures"
+   ],
+   "owner": "stable scanner",
+   "t11": "read only, pinned by BASELINE.json"
+  },
+  {
+   "paths": [
+    "scanners/index.mjs",
+    "scanners/registry.mjs",
+    "scanners/text-util.mjs",
+    "scanners/adapters"
+   ],
+   "owner": "stable scanner",
+   "t11": "call from tests, never edit; pinned by BASELINE.json"
+  },
+  {
+   "paths": [
+    "contracts/next",
+    "schemas/next"
+   ],
+   "owner": "T01",
+   "t11": "none, no import"
+  },
+  {
+   "paths": [
+    "scanners/capability-next"
+   ],
+   "owner": "T03",
+   "t11": "none, no import"
+  },
+  {
+   "paths": [
+    "release/next"
+   ],
+   "owner": "T23",
+   "t11": "none"
+  },
+  {
+   "paths": [
+    "scripts/run-next-nested-tests.mjs",
+    ".github/workflows",
+    "package.json",
+    "CATALOG.md",
+    "DECISIONS.md"
+   ],
+   "owner": "T00",
+   "t11": "read only (inspectSuite), never edit"
+  }
+ ]
+}
