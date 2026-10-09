@@ -110,7 +110,7 @@
     },
     {
       "id": "direct-tap",
-      "command": "node --test --test-reporter=tap test/language-js-ts/backend-comparison.test.mjs test/language-js-ts/legacy-a-regressions.test.mjs test/language-js-ts/module-resolver.test.mjs test/language-js-ts/snapshot-graph.test.mjs test/language-js-ts/source-facts.test.mjs",
+      "command": "node --test test/language-js-ts/backend-comparison.test.mjs test/language-js-ts/legacy-a-regressions.test.mjs test/language-js-ts/module-resolver.test.mjs test/language-js-ts/snapshot-graph.test.mjs test/language-js-ts/source-facts.test.mjs",
       "cwd": "repository root",
       "revision": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
       "tree": "exact export of the base commit (git archive), no working-tree changes",

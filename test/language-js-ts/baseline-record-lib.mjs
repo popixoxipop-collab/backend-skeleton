@@ -91,7 +91,7 @@ export function artifactDigest(fixtures) {
 }
 
 export function tapCommand(files) {
-  return ['node', '--test', '--test-reporter=tap', ...files].join(' ');
+  return ['node', '--test', ...files].join(' ');
 }
 
 // Without `files` only the record itself is checked. With `files = { read, includeRunner, label }` the size and both
@@ -429,14 +429,23 @@ export function declaredUnverifiedCommits(r) {
 // (2) GITHUB_TOKEN or GH_TOKEN, sent only to the origin of GITHUB_SERVER_URL (default https://github.com), else (3) none, so a
 // public repository is fetched unauthenticated exactly as before. They travel in GIT_CONFIG_* variables (git 2.31 or newer),
 // never on a command line.
+function originOf(text) {
+  try {
+    const { origin } = new URL(text);
+    return origin === 'null' ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
 export function fetchCredentials(root, url, env = process.env) {
   const res = git(root, ['config', '--local', '--includes', '-z', '--get-regexp', '^http\\..*extraheader$']);
   const entries = res.status === 0 ? res.stdout.split('\0').filter((e) => e.includes('\n')).map((e) => [e.slice(0, e.indexOf('\n')), e.slice(e.indexOf('\n') + 1)]) : [];
   const config = entries.filter(([key]) => /^http\..+\.extraheader$/.test(key));
   if (config.length > 0) return { source: 'checkout', config };
   const token = env.GITHUB_TOKEN || env.GH_TOKEN;
-  const origin = new URL(env.GITHUB_SERVER_URL || 'https://github.com').origin;
-  if (token && URL.canParse(url) && new URL(url).origin === origin) {
+  const origin = originOf(env.GITHUB_SERVER_URL || 'https://github.com');
+  if (token && origin && originOf(url) === origin) {
     return { source: 'token', config: [[`http.${origin}/.extraheader`, `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`]] };
   }
   return { source: 'none', config: [] };
@@ -601,8 +610,8 @@ export function runNestedRunner(root, suiteId) {
 export function runTapTests(root, files) {
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const res = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const res = spawnSync(process.execPath, ['--test', ...files], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const result = {};
-  for (const m of (res.stdout ?? '').matchAll(/^# (tests|suites|pass|fail|cancelled|skipped|todo) (\d+)$/gm)) result[m[1]] = Number(m[2]);
+  for (const m of (res.stdout ?? '').matchAll(/^(?:ℹ|#) (tests|suites|pass|fail|cancelled|skipped|todo) (\d+)$/gm)) result[m[1]] = Number(m[2]);
   return { exit_code: res.status, result };
 }

@@ -26,9 +26,12 @@ const sourcePaths = record.sources.map((e) => e.path);
 const command = (id) => record.commands.find((c) => c.id === id);
 const clone = () => structuredClone(record);
 const flip = (hex) => `${hex.startsWith('0') ? '1' : '0'}${hex.slice(1)}`;
-const tmpDir = (t, prefix) => {
+// t.after needs Node 18.13 and the declared floor is 18, so temporary directories are removed when the process exits.
+const removeAtExit = [];
+process.on('exit', () => removeAtExit.forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));
+const tmpDir = (prefix) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  removeAtExit.push(dir);
   return dir;
 };
 
@@ -49,9 +52,8 @@ function needCommit(t, verdict = (cachedVerdict ??= lib.commitVerdict(root, reco
   return true;
 }
 
-function extractBase(t, extra = []) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'baseline-record-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+function extractBase(extra = []) {
+  const dir = tmpDir('baseline-record-');
   lib.extractCommit(root, record.base_commit, [...sourcePaths, ...testPaths, ...extra], dir);
   return dir;
 }
@@ -189,14 +191,14 @@ test('pinned commits that no blob pin resolves are labelled declared-not-verifie
 
 test('git: files extracted from the base commit reproduce every fixture hash', async (t) => {
   if (!needCommit(t)) return;
-  const dir = extractBase(t);
+  const dir = extractBase();
   const modules = await lib.loadModules(path.join(dir, record.source_dir));
   assert.deepEqual(lib.replayProblems(record, lib.replay(record, modules)), []);
 });
 
 test('git: both recorded commands reproduce their exit codes and counts on the base commit files', (t) => {
   if (!needCommit(t)) return;
-  const dir = extractBase(t, [lib.RUNNER_SCRIPT]);
+  const dir = extractBase([lib.RUNNER_SCRIPT]);
   const direct = lib.runTapTests(dir, testPaths);
   assert.equal(direct.exit_code, command('direct-tap').exit_code);
   assert.deepEqual(direct.result, command('direct-tap').result);
@@ -239,8 +241,8 @@ test('negative: a tampered fixture input fails the input hash and the pinned blo
   assert.ok(lib.verifyRecord(pinned).some((p) => p.startsWith(`${withPin.id}: input bytes are not the pinned blob`)));
 });
 
-test('negative: in a depth-1 clone the unmodified record passes once the pinned commit is fetched', (t) => {
-  const c = lib.depthOneCase(tmpDir(t, 'baseline-record-d1-'));
+test('negative: in a depth-1 clone the unmodified record passes once the pinned commit is fetched', () => {
+  const c = lib.depthOneCase(tmpDir('baseline-record-d1-'));
   const commit = c.record.base_commit;
   assert.ok(lib.isShallow(c.checkout));
   assert.notEqual(spawnSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: c.checkout }).status, 0, 'the clone must lack the pinned commit');
@@ -251,8 +253,8 @@ test('negative: in a depth-1 clone the unmodified record passes once the pinned 
   assert.deepEqual(lib.recomputeProblems([...c.record.sources, ...c.record.tests], lib.commitReader(c.checkout, commit), 'git'), []);
 });
 
-test('negative: a zeroed blob id alone, a changed sha256 alone or a changed byte count alone fails in a depth-1 clone', (t) => {
-  const c = lib.depthOneCase(tmpDir(t, 'baseline-record-d1-'));
+test('negative: a zeroed blob id alone, a changed sha256 alone or a changed byte count alone fails in a depth-1 clone', () => {
+  const c = lib.depthOneCase(tmpDir('baseline-record-d1-'));
   assert.equal(lib.commitVerdict(c.checkout, c.record.base_commit, {}).verdict, 'ok');
   const read = lib.commitReader(c.checkout, c.record.base_commit);
   const damage = {
@@ -274,9 +276,9 @@ test('negative: a zeroed blob id alone, a changed sha256 alone or a changed byte
   assert.deepEqual([sameSize.corrupt, sameSize.moved], [[], ['src/a.mjs', 'src/b.mjs']], 'a same-size edit changes both hashes, so it is drift');
 });
 
-test('negative: a pinned commit that cannot be fetched fails unless BASELINE_ALLOW_UNVERIFIED=1 is set', (t) => {
-  const plain = tmpDir(t, 'baseline-record-nogit-');
-  const noOrigin = tmpDir(t, 'baseline-record-norigin-');
+test('negative: a pinned commit that cannot be fetched fails unless BASELINE_ALLOW_UNVERIFIED=1 is set', () => {
+  const plain = tmpDir('baseline-record-nogit-');
+  const noOrigin = tmpDir('baseline-record-norigin-');
   assert.equal(spawnSync('git', ['init', '-q', noOrigin]).status, 0);
   for (const dir of [plain, noOrigin]) {
     const verdict = lib.commitVerdict(dir, record.base_commit, {});
@@ -292,8 +294,8 @@ test('negative: a pinned commit that cannot be fetched fails unless BASELINE_ALL
   }
 });
 
-test('negative: a pinned commit that exists but is not an ancestor of HEAD fails, and a deepening that fails fails unless BASELINE_ALLOW_UNVERIFIED=1 is set', (t) => {
-  const side = lib.depthOneCase(tmpDir(t, 'baseline-record-anc-'));
+test('negative: a pinned commit that exists but is not an ancestor of HEAD fails, and a deepening that fails fails unless BASELINE_ALLOW_UNVERIFIED=1 is set', () => {
+  const side = lib.depthOneCase(tmpDir('baseline-record-anc-'));
   assert.ok(lib.isShallow(side.checkout));
   assert.equal(lib.commitVerdict(side.checkout, side.sideCommit, {}).verdict, 'ok', 'the side commit exists and can be fetched');
   const unrelated = lib.ancestryVerdict(side.checkout, side.sideCommit, {});
@@ -301,12 +303,12 @@ test('negative: a pinned commit that exists but is not an ancestor of HEAD fails
   assert.match(unrelated.message, /is not an ancestor of HEAD/);
   assert.throws(() => needCommit({ skip: () => assert.fail('a non-ancestor must not skip') }, unrelated), /is not an ancestor of HEAD/);
 
-  const real = lib.depthOneCase(tmpDir(t, 'baseline-record-anc-'));
+  const real = lib.depthOneCase(tmpDir('baseline-record-anc-'));
   assert.equal(lib.commitVerdict(real.checkout, real.record.base_commit, {}).verdict, 'ok');
   assert.deepEqual(lib.ancestryVerdict(real.checkout, real.record.base_commit, {}), { verdict: 'ok' });
   assert.equal(lib.isShallow(real.checkout), false, 'the shallow checkout was deepened');
 
-  const offline = lib.depthOneCase(tmpDir(t, 'baseline-record-anc-'));
+  const offline = lib.depthOneCase(tmpDir('baseline-record-anc-'));
   assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', path.join(offline.checkout, 'no-such-upstream')], { cwd: offline.checkout }).status, 0);
   const commit = offline.record.base_commit;
   const failed = lib.ancestryVerdict(offline.checkout, commit, {});
@@ -337,8 +339,8 @@ test('negative: a pin that is not the cited commit, or a declared commit missing
   for (const bad of [unlisted, dropped]) assert.ok(lib.verifyRecord(bad).some((p) => p.includes(`limit ${lib.DECLARED_LIMIT} must list exactly`)));
 });
 
-test('negative: an external pin must have its blob in the named repository; a wrong path or blob fails, an unfetchable pin fails unless BASELINE_ALLOW_UNVERIFIED=1', (t) => {
-  const dir = tmpDir(t, 'baseline-record-pin-');
+test('negative: an external pin must have its blob in the named repository; a wrong path or blob fails, an unfetchable pin fails unless BASELINE_ALLOW_UNVERIFIED=1', () => {
+  const dir = tmpDir('baseline-record-pin-');
   const up = lib.pinUpstream(dir);
   const verdict = (patch, env = {}, url = up.url) => lib.externalPinVerdict({ fixtures: [{ id: 'X', origin_pin: { ...up.pin, ...patch } }] }, { env, urlFor: () => url });
   assert.deepEqual(verdict({}), { verdict: 'ok', resolved: 1 });
@@ -377,8 +379,8 @@ const gitRepo = (dir, name, ...config) => {
   return repo;
 };
 
-test('credentials: the pin fetch takes the checkout http extraheader, else a token for the server origin only, else none', (t) => {
-  const dir = tmpDir(t, 'baseline-record-auth-');
+test('credentials: the pin fetch takes the checkout http extraheader, else a token for the server origin only, else none', () => {
+  const dir = tmpDir('baseline-record-auth-');
   const url = 'https://github.com/owner/repo.git';
   const scoped = ['http.https://github.com/.extraheader', 'AUTHORIZATION: basic Y2hlY2tvdXQ='];
   const withHeader = gitRepo(dir, 'with-header', scoped);
@@ -404,47 +406,52 @@ test('credentials: the pin fetch takes the checkout http extraheader, else a tok
 // spawnSync blocks this process, so the server that records the Authorization header of every request lives in a child.
 const RECORDING_SERVER = "const http = require('node:http'), fs = require('node:fs'); http.createServer((q, s) => { fs.appendFileSync(process.argv[1], JSON.stringify(q.headers.authorization ?? null) + '\\n'); s.writeHead(404); s.end(); }).listen(0, '127.0.0.1', function () { console.log(this.address().port); });";
 
-test('credentials on the wire: the pin fetch sends the credentials only to the server they are scoped to and never prints them', async (t) => {
-  for (const key of ['NO_PROXY', 'no_proxy']) {
-    const was = process.env[key];
-    process.env[key] = '127.0.0.1';
-    t.after(() => (was === undefined ? delete process.env[key] : (process.env[key] = was)));
-  }
-  const dir = tmpDir(t, 'baseline-record-wire-');
+test('credentials on the wire: the pin fetch sends the credentials only to the server they are scoped to and never prints them', async () => {
+  const proxyKeys = ['NO_PROXY', 'no_proxy'];
+  const saved = proxyKeys.map((key) => [key, process.env[key]]);
+  for (const key of proxyKeys) process.env[key] = '127.0.0.1';
+  const dir = tmpDir('baseline-record-wire-');
   const log = path.join(dir, 'authorization.log');
   const server = spawn(process.execPath, ['-e', RECORDING_SERVER, log], { stdio: ['ignore', 'pipe', 'inherit'] });
-  t.after(() => server.kill());
-  const port = await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.stdout.once('data', (chunk) => resolve(Number(String(chunk).trim())));
-  });
-  const origin = `http://127.0.0.1:${port}`;
-  const pin = { repository: 'owner/repo', commit: 'a'.repeat(40), path: 'docs/a.txt', git_blob_sha1: 'b'.repeat(40) };
-  let n = 0;
-  const attempt = (config, env) => {
-    fs.rmSync(log, { force: true });
-    const repo = gitRepo(dir, `checkout-${n++}`, ...config);
-    const verdict = lib.externalPinVerdict({ fixtures: [{ id: 'X', origin_pin: pin }] }, { root: repo, env, urlFor: () => `${origin}/owner/repo.git` });
-    const headers = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : [];
-    assert.ok(headers.length > 0, 'the server was reached');
-    assert.equal(verdict.verdict, 'fail', 'the server has no repository, so the fetch fails and is reported');
-    assert.match(verdict.message, /external pin unavailable/);
-    return { headers, message: verdict.message };
-  };
-  const everyRequest = (found, expected) => assert.deepEqual([...new Set(found.headers)], [expected]);
+  try {
+    const port = await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.stdout.once('data', (chunk) => resolve(Number(String(chunk).trim())));
+    });
+    const origin = `http://127.0.0.1:${port}`;
+    const pin = { repository: 'owner/repo', commit: 'a'.repeat(40), path: 'docs/a.txt', git_blob_sha1: 'b'.repeat(40) };
+    let n = 0;
+    const attempt = (config, env) => {
+      fs.rmSync(log, { force: true });
+      const repo = gitRepo(dir, `checkout-${n++}`, ...config);
+      const verdict = lib.externalPinVerdict({ fixtures: [{ id: 'X', origin_pin: pin }] }, { root: repo, env, urlFor: () => `${origin}/owner/repo.git` });
+      const headers = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : [];
+      assert.ok(headers.length > 0, 'the server was reached');
+      assert.equal(verdict.verdict, 'fail', 'the server has no repository, so the fetch fails and is reported');
+      assert.match(verdict.message, /external pin unavailable/);
+      return { headers, message: verdict.message };
+    };
+    const everyRequest = (found, expected) => assert.deepEqual([...new Set(found.headers)], [expected]);
 
-  const fromCheckout = attempt([[`http.${origin}/.extraheader`, 'AUTHORIZATION: basic c2VjcmV0']], {});
-  everyRequest(fromCheckout, 'basic c2VjcmV0');
-  assert.ok(!fromCheckout.message.includes('c2VjcmV0'), 'the credential is never printed');
+    const fromCheckout = attempt([[`http.${origin}/.extraheader`, 'AUTHORIZATION: basic c2VjcmV0']], {});
+    everyRequest(fromCheckout, 'basic c2VjcmV0');
+    assert.ok(!fromCheckout.message.includes('c2VjcmV0'), 'the credential is never printed');
 
-  const encoded = Buffer.from('x-access-token:ghs_TESTTOKEN0123').toString('base64');
-  const fromToken = attempt([], { GITHUB_TOKEN: 'ghs_TESTTOKEN0123', GITHUB_SERVER_URL: origin });
-  everyRequest(fromToken, `basic ${encoded}`);
-  assert.ok(!fromToken.message.includes('ghs_TESTTOKEN0123') && !fromToken.message.includes(encoded), 'the token is never printed');
+    const encoded = Buffer.from('x-access-token:ghs_TESTTOKEN0123').toString('base64');
+    const fromToken = attempt([], { GITHUB_TOKEN: 'ghs_TESTTOKEN0123', GITHUB_SERVER_URL: origin });
+    everyRequest(fromToken, `basic ${encoded}`);
+    assert.ok(!fromToken.message.includes('ghs_TESTTOKEN0123') && !fromToken.message.includes(encoded), 'the token is never printed');
 
-  everyRequest(attempt([['http.https://github.com/.extraheader', 'AUTHORIZATION: basic b3RoZXI=']], {}), null);
-  everyRequest(attempt([], { GITHUB_TOKEN: 'ghs_TESTTOKEN0123' }), null);
-  everyRequest(attempt([], {}), null);
+    everyRequest(attempt([['http.https://github.com/.extraheader', 'AUTHORIZATION: basic b3RoZXI=']], {}), null);
+    everyRequest(attempt([], { GITHUB_TOKEN: 'ghs_TESTTOKEN0123' }), null);
+    everyRequest(attempt([], {}), null);
+  } finally {
+    server.kill();
+    for (const [key, was] of saved) {
+      if (was === undefined) delete process.env[key];
+      else process.env[key] = was;
+    }
+  }
 });
 
 test('negative: a same-length tampered sha256, a wrong byte count or a wrong blob id fails the recomputation', (t) => {
