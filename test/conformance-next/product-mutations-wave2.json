@@ -1,0 +1,310 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT2-INVALIDATION-IGNORES-DELETED-FILES",
+      "vector_id": "NEG-CACHE-02",
+      "critical": false,
+      "file": "lib/scan-scheduler-next/invalidation.mjs",
+      "find": "const changed = new Set([...added, ...deleted, ...modified]);",
+      "replace": "const changed = new Set([...added, ...modified]);",
+      "test_files": [
+        "test/perf-next/t21-file-index-invalidation.test.mjs"
+      ],
+      "invariant": "A deleted file is part of the changed set, so its dependents are invalidated; added and deleted files both participate in invalidation."
+    },
+    {
+      "id": "PMUT2-CACHE-KEY-IGNORES-PARSER-DIGEST",
+      "vector_id": "NEG-CACHE-03",
+      "critical": true,
+      "file": "lib/scan-scheduler-next/cache-key.mjs",
+      "find": "parser_digest: requireDigest('parserDigest', parserDigest),",
+      "replace": "parser_digest: (requireDigest('parserDigest', parserDigest), 'fixed'),",
+      "test_files": [
+        "test/perf-next/t21-cache-key.test.mjs"
+      ],
+      "invariant": "The parser/grammar digest is part of the scan cache-key material, so a parser revision changes the key."
+    },
+    {
+      "id": "PMUT2-CACHE-KEY-IGNORES-ADAPTER-DIGEST",
+      "vector_id": "NEG-CACHE-04",
+      "critical": true,
+      "file": "lib/scan-scheduler-next/cache-key.mjs",
+      "find": "adapter_digest: requireDigest('adapterDigest', adapterDigest),",
+      "replace": "adapter_digest: (requireDigest('adapterDigest', adapterDigest), 'fixed'),",
+      "test_files": [
+        "test/perf-next/t21-cache-key.test.mjs"
+      ],
+      "invariant": "The adapter implementation digest is part of the scan cache-key material, so an adapter change changes the key."
+    },
+    {
+      "id": "PMUT2-INVALIDATION-STOPS-AT-DIRECT-DEPENDENTS",
+      "vector_id": "NEG-CACHE-05",
+      "critical": true,
+      "file": "lib/scan-scheduler-next/invalidation.mjs",
+      "find": "queue.push(dependent);",
+      "replace": "void dependent;",
+      "test_files": [
+        "test/perf-next/t21-file-index-invalidation.test.mjs"
+      ],
+      "invariant": "A change invalidates transitive dependents through the dependency edges, not only direct dependents, even when the dependent leaf bytes are unchanged."
+    },
+    {
+      "id": "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+      "vector_id": "NEG-CACHE-06",
+      "critical": true,
+      "file": "lib/artifact-store-next/store.mjs",
+      "find": "if (data.length !== ref.size || sha256(data) !== ref.digest) {",
+      "replace": "if (data.length !== ref.size) {",
+      "test_files": [
+        "test/perf-next/t21-artifact-store.test.mjs",
+        "test/perf-next/t21-cache-runtime.test.mjs",
+        "test/perf-next/t21-project-cache.test.mjs",
+        "test/perf-next/t21-artifact-gc.test.mjs",
+        "test/perf-next/t21-legacy-cache-equivalence.test.mjs",
+        "test/conformance-next/product-wave2-invariants.test.mjs"
+      ],
+      "invariant": "Stored artifact bytes are re-hashed on read; same-size corrupted bytes are refused."
+    },
+    {
+      "id": "PMUT2-RUNTIME-SOURCE-ARTIFACT-UNBOUND",
+      "vector_id": "NEG-RUN-03",
+      "critical": true,
+      "file": "contracts/reconciliation-next/evidence-binding.mjs",
+      "find": "if (runtime.value.sourceArtifactDigest !== source.value.artifactRef.byte_sha256) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/reconciliation-next/evidence-binding.test.mjs"
+      ],
+      "invariant": "Runtime evidence stays bound to the exact source artifact digest it was produced against; a swapped source artifact is a conflict."
+    },
+    {
+      "id": "PMUT2-CASE-REVISION-UNBOUND",
+      "vector_id": "NEG-RUN-04",
+      "critical": true,
+      "file": "contracts/reconciliation-next/evidence-binding.mjs",
+      "find": "if (normalizedBinding.case_revision_hash !== runtime.caseRevisionHash) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/reconciliation-next/evidence-binding.test.mjs"
+      ],
+      "invariant": "A run binding records the case revision hash it ran against; a changed case catalog revision is a mismatch, not a silent rewrite of the historical run."
+    },
+    {
+      "id": "PMUT2-RUNTIME-BINDING-HASH-UNCHECKED",
+      "vector_id": "NEG-RUN-05",
+      "critical": true,
+      "file": "contracts/reconciliation-next/evidence-binding.mjs",
+      "find": "if (actualBindingHash !== runtime.bindingHash) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/reconciliation-next/evidence-binding.test.mjs"
+      ],
+      "invariant": "The recomputed runtime binding hash must equal the declared binding hash; changed binding bytes require a new run binding."
+    },
+    {
+      "id": "PMUT2-PROFILE-APPROVAL-UNBOUND",
+      "vector_id": "NEG-ID-06",
+      "critical": true,
+      "file": "contracts/reconciliation-next/evidence-binding.mjs",
+      "find": "if (normalizedBinding.oracle_profile_approval_hash !== runtime.profileApprovalHash) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/reconciliation-next/evidence-binding.test.mjs"
+      ],
+      "invariant": "The oracle profile approval hash stays part of the trusted execution identity of a run binding."
+    },
+    {
+      "id": "PMUT2-NODE-OPTIONS-INHERITABLE",
+      "vector_id": "NEG-TRUST-01",
+      "critical": true,
+      "file": "lib/trust-next/permission-manifest.mjs",
+      "find": "'NODE_OPTIONS', ",
+      "replace": "'NODE_OPTIONS_REMOVED_BY_MUTANT', ",
+      "test_files": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "invariant": "Code-loading environment variables such as NODE_OPTIONS cannot be inherited from the host into an analysis environment, so target initializers cannot be preloaded."
+    },
+    {
+      "id": "PMUT2-NETWORK-HOST-CHECK-DROPPED",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/permission-manifest.mjs",
+      "find": "manifest.network.allow.some((rule) => rule.host === normalized && rule.ports.includes(port))",
+      "replace": "manifest.network.allow.some((rule) => rule.ports.includes(port))",
+      "test_files": [
+        "test/trust-next/permission-manifest.test.mjs"
+      ],
+      "invariant": "A connect decision requires the exact allowlisted host as well as an allowlisted port."
+    },
+    {
+      "id": "PMUT2-CLASSPATH-INHERITABLE",
+      "vector_id": "NEG-TRUST-05",
+      "critical": true,
+      "file": "lib/trust-next/permission-manifest.mjs",
+      "find": "'BASH_ENV', 'CLASSPATH', ",
+      "replace": "'BASH_ENV', ",
+      "test_files": [
+        "test/trust-next/permission-manifest.test.mjs",
+        "test/conformance-next/product-wave2-invariants.test.mjs"
+      ],
+      "invariant": "CLASSPATH, which would load annotation processors and other executable extensions, cannot be inherited from the host."
+    },
+    {
+      "id": "PMUT2-WORKER-OUTPUT-LIMIT-UNREPORTED",
+      "vector_id": "NEG-TRUST-07",
+      "critical": false,
+      "file": "scanners/language/native-server/runner.mjs",
+      "find": "if (child.error.code === 'ENOBUFS') {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/language-native-server/native-server.test.mjs",
+        "test/language-native-server/package.test.mjs"
+      ],
+      "invariant": "A worker that overflows the output buffer is reported with the explicit WORKER_OUTPUT_LIMIT diagnostic rather than a generic failure or a silent success."
+    },
+    {
+      "id": "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/permission-manifest.mjs",
+      "find": "  if (path.posix.isAbsolute(value) || /^[A-Za-z]:\\//.test(value)) return null;\n  const parts = value.split('/');\n  if (parts.some((part) => part === '..' || part === '')) return null;",
+      "replace": "  if (/^[A-Za-z]:\\//.test(value)) return null;\n  const parts = value.split('/');\n  if (parts.some((part) => part === '..')) return null;",
+      "test_files": [
+        "test/trust-next/permission-manifest.test.mjs",
+        "test/conformance-next/product-wave2-invariants.test.mjs"
+      ],
+      "invariant": "Permission roots are repository-relative; an absolute host path such as a Docker socket cannot be named as a readable or writable root."
+    },
+    {
+      "id": "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+      "vector_id": "NEG-ROUTE-03",
+      "critical": true,
+      "file": "scanners/language/native-server/rust.mjs",
+      "find": "if (stack.has(name)) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/language-native-server/native-server.test.mjs",
+        "test/language-native-server/package.test.mjs"
+      ],
+      "invariant": "Axum router nesting cycles terminate with a RUST_AXUM_NEST_CYCLE diagnostic instead of expanding forever."
+    },
+    {
+      "id": "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+      "vector_id": "NEG-ROUTE-03",
+      "critical": true,
+      "file": "scanners/adapters/typescript-express.mjs",
+      "find": "if (seen.has(node)) return [];",
+      "replace": "if (false) return [];",
+      "test_files": [
+        "test/express-shared.test.mjs",
+        "test/typescript-express-cli.test.mjs"
+      ],
+      "invariant": "TypeScript Express mount-prefix chains stop at a revisited router instead of recursing through a cycle.",
+      "timeout_ms": 120000
+    },
+    {
+      "id": "PMUT2-NEXTJS-CATCH-ALL-INVENTED-AS-LITERAL",
+      "vector_id": "NEG-ROUTE-05",
+      "critical": true,
+      "file": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+      "find": "if (segment.includes('[...') || segment.includes('[[...')) return {",
+      "replace": "if (false) return {",
+      "test_files": [
+        "test/http-wave-bc/typescript-nextjs.test.mjs"
+      ],
+      "invariant": "Next.js catch-all segments are reported as unknown instead of being converted into an invented literal path."
+    },
+    {
+      "id": "PMUT2-PROTOCOL-REMOTE-REF-ALLOWED",
+      "vector_id": "NEG-SCHEMA-02",
+      "critical": false,
+      "file": "adapters/protocol-next/scanners/protocol-loaders.mjs",
+      "find": "if (key === '$ref' && typeof item === 'string' && /^https?:\\/\\//i.test(item)) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/protocol-next/protocol-loaders.test.mjs"
+      ],
+      "invariant": "Remote http(s) $ref values in structured protocol documents are rejected rather than accepted for later fetching."
+    },
+    {
+      "id": "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+      "vector_id": "NEG-SCHEMA-03",
+      "critical": true,
+      "file": "adapters/protocol-next/scanners/protocol-loaders.mjs",
+      "find": "if (depth > maxDepth)",
+      "replace": "if (false)",
+      "test_files": [
+        "test/protocol-next/protocol-loaders.test.mjs",
+        "test/protocol-next/protocol-contract.test.mjs",
+        "test/protocol-next/protocol-conformance.test.mjs",
+        "test/protocol-next/protocol-flow.test.mjs",
+        "test/conformance-next/product-wave2-invariants.test.mjs"
+      ],
+      "invariant": "Structured protocol document nesting is bounded by maxDepth; this covers the document depth budget, not $ref cycle resolution."
+    },
+    {
+      "id": "PMUT2-STALE-PREIMAGE-ACCEPTED",
+      "vector_id": "NEG-GEN-03",
+      "critical": true,
+      "file": "lib/patch-transactions.mjs",
+      "find": "if (freshKindPlan.preimage.region_hash !== txn.preimage.region_hash) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/patch-transactions.test.mjs"
+      ],
+      "invariant": "A patch transaction whose recorded preimage no longer matches the current file region is refused as stale."
+    },
+    {
+      "id": "PMUT2-INFRA-CONFLICT-NOT-BLOCKING",
+      "vector_id": "NEG-GEN-04",
+      "critical": true,
+      "file": "handles/_engine.mjs",
+      "find": "const infraHasConflict = infraPlans.some((u) => u.action === 'conflict');",
+      "replace": "const infraHasConflict = false;",
+      "test_files": [
+        "test/handles-engine.test.mjs",
+        "test/handles-cli.test.mjs"
+      ],
+      "invariant": "One conflicting generated infra file blocks the whole infra set, so a partial infra tree is not applied; this does not cover failures during the write itself.",
+      "timeout_ms": 120000
+    },
+    {
+      "id": "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+      "vector_id": "NEG-RELEASE-01",
+      "critical": true,
+      "file": "release/next/release-policy.mjs",
+      "find": "|| verifier.head_sha !== heads?.[spec.role]",
+      "replace": "|| false",
+      "test_files": [
+        "release/next/test/release-policy.test.mjs",
+        "release/next/test/release-policy-cli-path.test.mjs",
+        "release/next/test/release-policy-cli.test.mjs",
+        "release/next/test/release-policy-evidence-ref.test.mjs",
+        "release/next/test/release-policy-github.test.mjs",
+        "release/next/test/release-policy-online.test.mjs",
+        "release/next/test/release-policy-waiver.test.mjs"
+      ],
+      "invariant": "A passing check recorded for an older head sha is refused when the release head differs."
+    },
+    {
+      "id": "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED",
+      "vector_id": "NEG-RELEASE-05",
+      "critical": true,
+      "file": "release/next/release-policy.mjs",
+      "find": "|| verifier.rollback_restored_previous !== true",
+      "replace": "|| false",
+      "test_files": [
+        "release/next/test/release-policy.test.mjs",
+        "release/next/test/release-policy-cli-path.test.mjs",
+        "release/next/test/release-policy-cli.test.mjs",
+        "release/next/test/release-policy-evidence-ref.test.mjs",
+        "release/next/test/release-policy-github.test.mjs",
+        "release/next/test/release-policy-online.test.mjs",
+        "release/next/test/release-policy-waiver.test.mjs"
+      ],
+      "invariant": "A rollback rehearsal that did not restore the previous artifact is refused as release evidence."
+    }
+  ]
+}

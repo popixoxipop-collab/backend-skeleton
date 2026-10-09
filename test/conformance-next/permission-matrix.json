@@ -1,0 +1,272 @@
+{
+  "contract": "sbf.qa-permission-matrix/1",
+  "subject": "lib/trust-next/permission-manifest.mjs: validatePermissionManifest, compilePermissionPolicy, selectApprovedEnvironment, diffPermissionManifests",
+  "layer": "policy-decision",
+  "layer_note": "Each cell states what the declarative policy decides for one permission kind in one grant state. It is a decision matrix, not proof that any runtime enforces the decision; runtime_enforcement stays not-evaluated here and is exercised by the enforcement gate tests under test/trust-next (T20-03/T20-04) where that change is present.",
+  "case_semantics": "normal = a request or manifest that must be accepted/allowed in this cell; negative = a request or manifest that must be refused/denied/flagged in this cell.",
+  "cells": [
+    {
+      "id": "PM-FS-READ-GRANTED", "permission": "filesystem.read", "manifest_field": "read_roots", "grant_state": "granted-roots",
+      "vector_ids": ["NEG-TRUST-02"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["src", "docs/public"] },
+      "normal": [
+        { "check": "decision", "decision": "canRead", "args": ["src/a/b.js"], "expect": true },
+        { "check": "decision", "decision": "canRead", "args": ["docs/public/readme.md"], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canRead", "args": ["lib/a.js"], "expect": false, "why": "outside every granted root" },
+        { "check": "decision", "decision": "canRead", "args": ["src/../secrets/key"], "expect": false, "why": "lexical traversal out of a granted root" },
+        { "check": "decision", "decision": "canRead", "args": ["/etc/passwd"], "expect": false, "why": "absolute host path" },
+        { "check": "decision", "decision": "canRead", "args": ["srcx/a.js"], "expect": false, "why": "sibling that merely shares the root prefix" },
+        { "check": "decision", "decision": "canWrite", "args": ["src/a.js"], "expect": false, "why": "a read grant never implies a write grant" }
+      ]
+    },
+    {
+      "id": "PM-FS-READ-DEFAULT", "permission": "filesystem.read", "manifest_field": "read_roots", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-02"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1" }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canRead", "args": ["src/a.js"], "expect": false, "why": "no read root granted" },
+        { "check": "decision", "decision": "canRead", "args": ["."], "expect": false, "why": "the repository root is not granted by omission" }
+      ]
+    },
+    {
+      "id": "PM-FS-WRITE-GRANTED", "permission": "filesystem.write", "manifest_field": "write_roots", "grant_state": "granted-roots",
+      "vector_ids": ["NEG-TRUST-02"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "write_roots": ["out"] },
+      "normal": [
+        { "check": "decision", "decision": "canWrite", "args": ["out/report.json"], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canWrite", "args": ["src/a.js"], "expect": false, "why": "outside the write root" },
+        { "check": "decision", "decision": "canWrite", "args": ["out/../src/a.js"], "expect": false, "why": "lexical traversal out of the write root" },
+        { "check": "decision", "decision": "canRead", "args": ["out/report.json"], "expect": false, "why": "a write grant never implies a read grant" }
+      ]
+    },
+    {
+      "id": "PM-FS-WRITE-DEFAULT", "permission": "filesystem.write", "manifest_field": "write_roots", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-02"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["src"] },
+      "normal": [
+        { "check": "decision", "decision": "canRead", "args": ["src/a.js"], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canWrite", "args": ["src/a.js"], "expect": false, "why": "read-only manifests grant no write" }
+      ]
+    },
+    {
+      "id": "PM-FS-ROOT-SYNTAX", "permission": "filesystem.roots", "manifest_field": "read_roots", "grant_state": "manifest-validation",
+      "vector_ids": ["NEG-TRUST-02", "NEG-TRUST-08"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["."], "write_roots": ["out/tmp"] }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["/var/run/docker.sock"] }, "expect_ok": false, "expect_codes": ["INVALID_PERMISSION_ROOT"], "why": "absolute host path" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "write_roots": ["../outside"] }, "expect_ok": false, "expect_codes": ["INVALID_PERMISSION_ROOT"], "why": "parent traversal" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["a//b"] }, "expect_ok": false, "expect_codes": ["INVALID_PERMISSION_ROOT"], "why": "empty path segment" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["C:/Windows"] }, "expect_ok": false, "expect_codes": ["INVALID_PERMISSION_ROOT"], "why": "drive-letter path" }
+      ]
+    },
+    {
+      "id": "PM-NET-CONNECT-ALLOWLIST", "permission": "network.connect", "manifest_field": "network", "grant_state": "allowlist",
+      "vector_ids": ["NEG-TRUST-03"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "allowlist", "allow": [{ "host": "api.example.test", "ports": [443] }] } },
+      "normal": [
+        { "check": "decision", "decision": "canConnect", "args": ["api.example.test", 443], "expect": true },
+        { "check": "decision", "decision": "canConnect", "args": ["API.EXAMPLE.TEST", 443], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canConnect", "args": ["api.example.test", 80], "expect": false, "why": "port not granted" },
+        { "check": "decision", "decision": "canConnect", "args": ["evil.example.test", 443], "expect": false, "why": "host not granted although the port is" },
+        { "check": "decision", "decision": "canConnect", "args": ["api.example.test.evil.test", 443], "expect": false, "why": "suffix-confusion host" },
+        { "check": "decision", "decision": "canConnect", "args": ["api.example.test", "443"], "expect": false, "why": "port must be an integer" }
+      ]
+    },
+    {
+      "id": "PM-NET-CONNECT-DEFAULT", "permission": "network.connect", "manifest_field": "network", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-03"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "deny" } }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canConnect", "args": ["api.example.test", 443], "expect": false, "why": "network is deny by default" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "deny", "allow": [{ "host": "api.example.test", "ports": [443] }] } }, "expect_ok": false, "expect_codes": ["DENY_WITH_ALLOWLIST"], "why": "deny mode cannot carry endpoints" }
+      ]
+    },
+    {
+      "id": "PM-NET-CONNECT-SYNTAX", "permission": "network.connect", "manifest_field": "network", "grant_state": "manifest-validation",
+      "vector_ids": ["NEG-TRUST-03"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "allowlist", "allow": [{ "host": "127.0.0.1", "ports": [5432] }] } }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "allowlist", "allow": [{ "host": "*.example.test", "ports": [443] }] } }, "expect_ok": false, "expect_codes": ["INVALID_NETWORK_HOST"], "why": "wildcard host" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "allowlist", "allow": [{ "host": "https://api.example.test", "ports": [443] }] } }, "expect_ok": false, "expect_codes": ["INVALID_NETWORK_HOST"], "why": "URL instead of host" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "network": { "mode": "allowlist", "allow": [{ "host": "api.example.test", "ports": [0] }] } }, "expect_ok": false, "expect_codes": ["INVALID_NETWORK_PORTS"], "why": "port out of range" }
+      ]
+    },
+    {
+      "id": "PM-NET-LISTEN-LOOPBACK", "permission": "network.listen", "manifest_field": "listen", "grant_state": "loopback-allowlist",
+      "vector_ids": ["NEG-TRUST-03"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "listen": { "mode": "allowlist", "allow": [{ "host": "127.0.0.1", "ports": [8080] }] } },
+      "normal": [
+        { "check": "decision", "decision": "canListen", "args": ["127.0.0.1", 8080], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canListen", "args": ["0.0.0.0", 8080], "expect": false, "why": "wildcard bind address" },
+        { "check": "decision", "decision": "canListen", "args": ["127.0.0.1", 8081], "expect": false, "why": "port not granted" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "listen": { "mode": "allowlist", "allow": [{ "host": "0.0.0.0", "ports": [8080] }] } }, "expect_ok": false, "expect_codes": ["INVALID_LISTEN_HOST"], "why": "non-loopback listen grant cannot be declared" }
+      ]
+    },
+    {
+      "id": "PM-NET-LISTEN-DEFAULT", "permission": "network.listen", "manifest_field": "listen", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-03"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "listen": { "mode": "deny" } }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canListen", "args": ["127.0.0.1", 8080], "expect": false, "why": "listening is deny by default" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "listen": { "mode": "allowlist", "allow": [] } }, "expect_ok": false, "expect_codes": ["EMPTY_LISTEN_ALLOWLIST"], "why": "an allowlist grant needs at least one endpoint" }
+      ]
+    },
+    {
+      "id": "PM-PROC-ARGV-ALLOWLIST", "permission": "process.execute", "manifest_field": "process", "grant_state": "argv-allowlist",
+      "vector_ids": ["NEG-TRUST-01", "NEG-TRUST-08"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "process": { "mode": "argv-allowlist", "executables": ["node"], "max_children": 1 } },
+      "normal": [
+        { "check": "decision", "decision": "canExecute", "args": ["node"], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canExecute", "args": ["bash"], "expect": false, "why": "executable not granted" },
+        { "check": "decision", "decision": "canExecute", "args": ["/usr/bin/node"], "expect": false, "why": "paths are never executable names" },
+        { "check": "decision", "decision": "canExecute", "args": ["node; rm -rf /"], "expect": false, "why": "shell fragment" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "process": { "mode": "argv-allowlist", "executables": ["/bin/sh"] } }, "expect_ok": false, "expect_codes": ["INVALID_EXECUTABLE"], "why": "a path cannot be granted" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "process": { "mode": "argv-allowlist", "executables": ["node"], "max_children": 0 } }, "expect_ok": false, "expect_codes": ["EMPTY_PROCESS_CAPACITY"], "why": "an executable grant needs child capacity" }
+      ]
+    },
+    {
+      "id": "PM-PROC-DEFAULT", "permission": "process.execute", "manifest_field": "process", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-01", "NEG-TRUST-08"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "process": { "mode": "deny" } }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canExecute", "args": ["node"], "expect": false, "why": "process execution is deny by default" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "process": { "mode": "deny", "executables": ["node"] } }, "expect_ok": false, "expect_codes": ["DENY_WITH_PROCESS_ALLOWLIST"], "why": "deny mode cannot carry executable grants" }
+      ]
+    },
+    {
+      "id": "PM-ENV-ALLOWLIST", "permission": "environment.read", "manifest_field": "environment", "grant_state": "allowlist",
+      "vector_ids": ["NEG-TRUST-01", "NEG-TRUST-04", "NEG-TRUST-05"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "environment": { "allow": ["CI", "LANG"] } },
+      "normal": [
+        { "check": "decision", "decision": "canReadEnv", "args": ["CI"], "expect": true },
+        { "check": "env-selection", "ambient": { "CI": "1", "LANG": "C.UTF-8", "HOME": "/Users/example", "TOKEN": "secret" }, "expect": { "CI": "1", "LANG": "C.UTF-8" } }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canReadEnv", "args": ["HOME"], "expect": false, "why": "name not granted" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "environment": { "allow": ["NODE_OPTIONS"] } }, "expect_ok": false, "expect_codes": ["FORBIDDEN_ENV_NAME"], "why": "code-loading variable cannot be inherited" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "environment": { "allow": ["TOKEN=secret"] } }, "expect_ok": false, "expect_codes": ["INVALID_ENV_NAME"], "why": "a value cannot ride in the allowlist" },
+        { "check": "env-selection-throws", "ambient": { "CI": "a\u0000b" }, "expect_code": "INVALID_ENV_VALUE", "why": "NUL byte in an approved value" }
+      ]
+    },
+    {
+      "id": "PM-ENV-DEFAULT", "permission": "environment.read", "manifest_field": "environment", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-04"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "env-selection", "ambient": { "CI": "1" }, "expect": {} }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canReadEnv", "args": ["CI"], "expect": false, "why": "no environment name is inherited by default" },
+        { "check": "decision", "decision": "canReadEnv", "args": ["PATH"], "expect": false, "why": "PATH is not inherited by default" }
+      ]
+    },
+    {
+      "id": "PM-SECRET-REFS", "permission": "secret.use", "manifest_field": "secret_refs", "grant_state": "opaque-refs",
+      "vector_ids": ["NEG-TRUST-04"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "secret_refs": ["db.password"] },
+      "normal": [
+        { "check": "decision", "decision": "canUseSecret", "args": ["db.password"], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canUseSecret", "args": ["other.password"], "expect": false, "why": "reference not granted" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "secret_refs": ["../secret"] }, "expect_ok": false, "expect_codes": ["INVALID_SECRET_REF"], "why": "a path is not an opaque reference" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "secret_refs": ["TOKEN=hunter2"] }, "expect_ok": false, "expect_codes": ["INVALID_SECRET_REF"], "why": "a secret value cannot ride in the manifest" }
+      ]
+    },
+    {
+      "id": "PM-DEVICE-ALLOWLIST", "permission": "device.use", "manifest_field": "devices", "grant_state": "allowlist",
+      "vector_ids": ["NEG-TRUST-08"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "devices": { "mode": "allowlist", "allow": ["gpu"] } },
+      "normal": [
+        { "check": "decision", "decision": "canUseDevice", "args": ["gpu"], "expect": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canUseDevice", "args": ["camera"], "expect": false, "why": "device class not granted" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "devices": { "mode": "allowlist", "allow": ["kvm"] } }, "expect_ok": false, "expect_codes": ["INVALID_DEVICE_CLASS"], "why": "unknown device class" }
+      ]
+    },
+    {
+      "id": "PM-DEVICE-DEFAULT", "permission": "device.use", "manifest_field": "devices", "grant_state": "omitted-default-deny",
+      "vector_ids": ["NEG-TRUST-08"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "devices": { "mode": "deny" } }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "decision", "decision": "canUseDevice", "args": ["gpu"], "expect": false, "why": "devices are deny by default" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "devices": { "mode": "deny", "allow": ["gpu"] } }, "expect_ok": false, "expect_codes": ["DENY_WITH_DEVICE_ALLOWLIST"], "why": "deny mode cannot carry device grants" }
+      ]
+    },
+    {
+      "id": "PM-LIMITS", "permission": "resource.limits", "manifest_field": "limits", "grant_state": "manifest-validation",
+      "vector_ids": ["NEG-TRUST-06", "NEG-TRUST-07"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "limits": { "wall_ms": 1000, "stdout_bytes": 4096 } },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "limits": { "wall_ms": 1000, "stdout_bytes": 4096 } }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "limits": { "wall_ms": 0 } }, "expect_ok": false, "expect_codes": ["INVALID_RESOURCE_LIMIT"], "why": "zero limit" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "limits": { "stdout_bytes": 1.5 } }, "expect_ok": false, "expect_codes": ["INVALID_RESOURCE_LIMIT"], "why": "non-integer limit" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "limits": { "wall_ms": "1000" } }, "expect_ok": false, "expect_codes": ["INVALID_RESOURCE_LIMIT"], "why": "string limit" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "limits": { "gpu_seconds": 5 } }, "expect_ok": false, "why": "unknown limit key" }
+      ]
+    },
+    {
+      "id": "PM-EXPANSION", "permission": "manifest.update", "manifest_field": "read_roots", "grant_state": "before-after-diff",
+      "vector_ids": ["NEG-TRUST-02", "NEG-TRUST-03"],
+      "manifest": { "schema": "bskel.trust-permissions/1", "read_roots": ["src"] },
+      "normal": [
+        { "check": "expansion", "before": { "schema": "bskel.trust-permissions/1", "read_roots": ["src", "lib"] }, "after": { "schema": "bskel.trust-permissions/1", "read_roots": ["src"] }, "expect_expanded": false },
+        { "check": "expansion", "before": { "schema": "bskel.trust-permissions/1", "read_roots": ["src"] }, "after": { "schema": "bskel.trust-permissions/1", "read_roots": ["src"] }, "expect_expanded": false }
+      ],
+      "negative": [
+        { "check": "expansion", "before": { "schema": "bskel.trust-permissions/1", "read_roots": ["src"] }, "after": { "schema": "bskel.trust-permissions/1", "read_roots": ["src", "lib"] }, "expect_expanded": true, "why": "new read root needs external approval" },
+        { "check": "expansion", "before": { "schema": "bskel.trust-permissions/1" }, "after": { "schema": "bskel.trust-permissions/1", "network": { "mode": "allowlist", "allow": [{ "host": "api.example.test", "ports": [443] }] } }, "expect_expanded": true, "why": "new network endpoint needs external approval" },
+        { "check": "expansion", "before": { "schema": "bskel.trust-permissions/1", "limits": { "wall_ms": 1000 } }, "after": { "schema": "bskel.trust-permissions/1", "limits": { "wall_ms": 2000 } }, "expect_expanded": true, "why": "a larger limit is an expansion" }
+      ]
+    },
+    {
+      "id": "PM-SCHEMA", "permission": "manifest.schema", "manifest_field": "schema", "grant_state": "manifest-validation",
+      "vector_ids": ["NEG-TRUST-08"],
+      "manifest": { "schema": "bskel.trust-permissions/1" },
+      "normal": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1" }, "expect_ok": true }
+      ],
+      "negative": [
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/2" }, "expect_ok": false, "expect_codes": ["UNSUPPORTED_PERMISSION_SCHEMA"], "why": "unknown schema revision" },
+        { "check": "manifest", "manifest": { "schema": "bskel.trust-permissions/1", "root_access": true }, "expect_ok": false, "why": "unknown top-level key" },
+        { "check": "manifest", "manifest": "not-an-object", "expect_ok": false, "expect_codes": ["INVALID_PERMISSION_MANIFEST"], "why": "not a plain object" }
+      ]
+    }
+  ]
+}
