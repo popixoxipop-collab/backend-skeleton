@@ -1,0 +1,2 @@
+585fb82bf15053c42cf52e67c2f1b54a032dca384759315fd6678ab1870d1d72  django-6.1.1-py3-none-any.whl
+f1409d698967aaf82d5d98d76b549c8fba8bd92ebd0d83d24454508f72168dc2  djangorestframework-3.18.1-py3-none-any.whl

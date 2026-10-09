@@ -1,0 +1,246 @@
+{
+ "fixtures": {
+  "counterexamples/app-level-decorator": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": []
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "router-variable-not-locally-declared",
+       "where": "app:6"
+      }
+     ],
+     "routes": []
+    }
+   }
+  },
+  "counterexamples/deployment-prefix": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/ping"
+      }
+     ]
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:12"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/ping"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/dynamic-route-factory": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": []
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:18"
+      }
+     ],
+     "routes": []
+    }
+   }
+  },
+  "counterexamples/generated-routes": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/ping"
+      }
+     ]
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:12"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/ping"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/middleware-auth": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/private/data"
+      }
+     ]
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:19"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/private/data"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/mount-subapp": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": []
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "router-variable-not-locally-declared",
+       "where": "app:7"
+      }
+     ],
+     "routes": []
+    }
+   }
+  },
+  "counterexamples/root-route-trailing-slash": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/items"
+      }
+     ]
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:12"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/items"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/router-prefix": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [
+      {
+       "code": "include_router-prefix",
+       "prefix": "/api/v1",
+       "where": "app.py:0"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/items/{item_id}"
+      }
+     ]
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:12"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/items/{item_id}"
+      }
+     ]
+    }
+   }
+  },
+  "normal": {
+   "layers": {
+    "legacy-adapter": {
+     "detected": true,
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/items/{item_id}"
+      },
+      {
+       "method": "POST",
+       "path": "/items/create"
+      }
+     ]
+    },
+    "t06-fastapi-shadow": {
+     "flags": [
+      {
+       "code": "include-router-mount-not-composed",
+       "where": "app:17"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/items/{item_id}"
+      },
+      {
+       "method": "POST",
+       "path": "/items/create"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "layers": [
+  "legacy-adapter",
+  "t06-fastapi-shadow"
+ ],
+ "schema": "bskel.internal.python-scope-static-run/0",
+ "target": "fastapi"
+}

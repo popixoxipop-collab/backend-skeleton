@@ -1,0 +1,730 @@
+{
+  "schema": "bskel.internal.python-http-scope-record/0",
+  "item": "HTTP-python-django-01",
+  "framework": "django",
+  "track": "T12",
+  "claims": {
+    "supported": false,
+    "runtime_tested": false,
+    "extraction": "partial-static",
+    "statement": "Scope record, not a support claim. Static extraction is partial: the T06 Django URL shadow reports URLConf paths without methods and the T12 DRF leaf is blocked-upstream-fact-gap (it emits no HTTP route). Only caught entries were exact; unsupported_gap entries are known silent omissions. Nothing here is Runtime-tested. Any later support statement is limited to the scope.supported entries, to the layers named in them, to the pinned framework version and to the registration state recorded here."
+  },
+  "runtime_tested": {
+    "status": "BLOCKED",
+    "reason": "Runtime-tested needs a request-level verifier (T16 / beval in the audit plan) that serves requests against a pinned install; none was run. This package only read the framework route table at import time, so every runtime or request claim stays BLOCKED."
+  },
+  "evidence_level": "oracle-compared",
+  "registration": {
+    "source": "adapters/http-wave-a/django-drf.mjs",
+    "entry": {
+      "id": "python-django",
+      "state": "blocked-upstream-fact-gap",
+      "registration": "unregistered",
+      "productionDefault": false,
+      "runtimeTested": false,
+      "t19Review": "NOT_REVIEWED"
+    }
+  },
+  "layers": [
+    {
+      "id": "t06-django-shadow",
+      "source": "scanners/language/python/django-shadow.mjs",
+      "role": "T06 AST URL shadow (buildDjangoUrlShadow); registrations carry paths but no HTTP methods"
+    },
+    {
+      "id": "t12-django-drf-leaf",
+      "source": "adapters/http-wave-a/django-drf.mjs",
+      "role": "T12 leaf (state blocked-upstream-fact-gap): keeps observations, emits no routes, records DRF_ACTION_METHOD_FACT_MISSING"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "normal",
+      "role": "normal",
+      "files": {
+        "api_urls.py": "a4d2c84147dafca67a61e33bd8d73650f989471a76f371313e0a610540f9cb75",
+        "settings.py": "0632e86bccf33446d5ad322ac497f47e2d3ee46ce4346c1f85345e16950f4e1c",
+        "urls.py": "15e407a72f156a4c9e9abf73d6a25511dffa5551afbe5338791eaec870d83d6d",
+        "views.py": "1d3224cfc8a31209b70032a23165c889f2c7989898c2cc7d7d7d847dc8163034"
+      }
+    },
+    {
+      "id": "counterexamples/deployment-prefix",
+      "role": "counterexample",
+      "files": {
+        "settings.py": "09a0551db953c01129ada915f6f1286557a2c5734fcbbdb36c56bd6cdc386de2",
+        "urls.py": "1aeaa6051fe6e65b2651fb9a390dbd25dc2a6eec0be6500ba3f6a2f6afec22f9",
+        "views.py": "3caa4b0c7d949d243b9a1e57df1f87b6748cb0c8f96bd5f40ee745bf4fb01459"
+      }
+    },
+    {
+      "id": "counterexamples/dynamic-route-factory",
+      "role": "counterexample",
+      "files": {
+        "settings.py": "0632e86bccf33446d5ad322ac497f47e2d3ee46ce4346c1f85345e16950f4e1c",
+        "urls.py": "dbf3d59fc86dc076fcc8576d1258c5ae2d6b4275618e18d9ec8888c567500050",
+        "views.py": "58443daefdefd8b9eb48844b8ad15a60e0965c1e3f3028e9bdd6be98f466044a"
+      }
+    },
+    {
+      "id": "counterexamples/generated-admin",
+      "role": "counterexample",
+      "files": {
+        "settings.py": "2a5d881010e93739cc04ec2882ac6462e74f8b3422cd411c7b3ddd5edc98b805",
+        "urls.py": "95d25f0cea7a09260f514e2967bb507d0126a4b932b16f9a73d74d848d244720",
+        "views.py": "3caa4b0c7d949d243b9a1e57df1f87b6748cb0c8f96bd5f40ee745bf4fb01459"
+      }
+    },
+    {
+      "id": "counterexamples/generated-drf-router",
+      "role": "counterexample",
+      "files": {
+        "settings.py": "9669d6ca52561bb0ccc6b95103495f8c768c5f04a724eacb11c058da7904c6ae",
+        "urls.py": "6e39afc697fa8d63235c4dd4e37da6abb737b7d7e7c05af6f84c2fa1844b4dc1",
+        "views.py": "10615111c9038433d2e755d4eac6f617a044a5dfec8fc4babbda7a9a74b8d80f"
+      }
+    },
+    {
+      "id": "counterexamples/middleware-auth",
+      "role": "counterexample",
+      "files": {
+        "settings.py": "673f22ee34fc589e6bb088044a1096c99bdd096aafe20989084febde6d6e8ee7",
+        "urls.py": "e80075aabb39a33e3bdeec52f1af2074b9a1f91ca37aeb43e9e42dd470697804",
+        "views.py": "147bdd36cb1d35f148788c753af03e04010da96c4802c7583c066438b6b57fd1"
+      }
+    },
+    {
+      "id": "counterexamples/router-prefix",
+      "role": "counterexample",
+      "files": {
+        "api_urls.py": "1aeaa6051fe6e65b2651fb9a390dbd25dc2a6eec0be6500ba3f6a2f6afec22f9",
+        "settings.py": "0632e86bccf33446d5ad322ac497f47e2d3ee46ce4346c1f85345e16950f4e1c",
+        "urls.py": "0dd97dfaf1d00ec2f29f1cba2b09c52eca47a09e3a2522e486ff5394c5587048",
+        "views.py": "3caa4b0c7d949d243b9a1e57df1f87b6748cb0c8f96bd5f40ee745bf4fb01459"
+      }
+    }
+  ],
+  "must_catch": [
+    {
+      "id": "normal-literal-routes",
+      "construct": "literal path()/re_path() patterns, a converter path and include(\"module\") with a literal prefix (the supported baseline for the T06 shadow)",
+      "fixture": "normal",
+      "minimal_counterexample": "urls.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "- /^legacy/(?P<slug>[-\\w]+)/$",
+          "- /api/ping/",
+          "- /health/",
+          "- /items/<int:pk>/"
+        ],
+        "generated": []
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /^legacy/(?P<slug>[-\\w]+)/$",
+            "- /api/ping/",
+            "- /health/",
+            "- /items/<int:pk>/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING"
+          ],
+          "covering_flags": [
+            {
+              "code": "DRF_ACTION_METHOD_FACT_MISSING",
+              "covers": "blanket: the leaf is blocked-upstream-fact-gap and emits no HTTP route for any input; it says so with this unknown on every fixture (profile state, not a per-construct detection)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dynamic-route-factory",
+      "construct": "urlpatterns built by a list comprehension over a name list with a view factory",
+      "fixture": "counterexamples/dynamic-route-factory",
+      "minimal_counterexample": "urls.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "- /alpha/",
+          "- /beta/"
+        ],
+        "generated": []
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /alpha/",
+            "- /beta/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "urlpatterns-dynamic"
+          ],
+          "covering_flags": [
+            {
+              "code": "urlpatterns-dynamic",
+              "covers": "raised for the urlpatterns assignment that is not a literal list"
+            }
+          ]
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /alpha/",
+            "- /beta/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING",
+            "T06_DJANGO_UNKNOWN:urlpatterns-dynamic"
+          ],
+          "covering_flags": [
+            {
+              "code": "T06_DJANGO_UNKNOWN:urlpatterns-dynamic",
+              "covers": "the leaf forwards the T06 urlpatterns-dynamic unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "router-prefix",
+      "construct": "include() under a prefix held in a module constant instead of a literal",
+      "fixture": "counterexamples/router-prefix",
+      "minimal_counterexample": "urls.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "- /api/v1/ping/"
+        ],
+        "generated": []
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /api/v1/ping/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "route-pattern-not-literal"
+          ],
+          "covering_flags": [
+            {
+              "code": "route-pattern-not-literal",
+              "covers": "raised for the path(API_PREFIX, include(...)) pattern whose prefix is not a literal"
+            }
+          ]
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /api/v1/ping/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING",
+            "T06_DJANGO_UNKNOWN:route-pattern-not-literal"
+          ],
+          "covering_flags": [
+            {
+              "code": "T06_DJANGO_UNKNOWN:route-pattern-not-literal",
+              "covers": "the leaf forwards the T06 route-pattern-not-literal unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "middleware-auth",
+      "construct": "login_required(view) wrapping a view inside urlpatterns",
+      "fixture": "counterexamples/middleware-auth",
+      "minimal_counterexample": "urls.py",
+      "rule": "oracle-blind",
+      "blind_property": "who may call /private/ (login_required)",
+      "expected": {
+        "routes": [
+          "- /private/",
+          "- /public/"
+        ],
+        "generated": []
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /private/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "view-call-not-statically-classifiable"
+          ],
+          "covering_flags": [
+            {
+              "code": "view-call-not-statically-classifiable",
+              "covers": "raised for the path(\"private/\", login_required(...)) pattern whose view is a call; the route is left out"
+            }
+          ]
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /private/",
+            "- /public/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING",
+            "T06_DJANGO_UNKNOWN:view-call-not-statically-classifiable"
+          ],
+          "covering_flags": [
+            {
+              "code": "T06_DJANGO_UNKNOWN:view-call-not-statically-classifiable",
+              "covers": "the leaf forwards the T06 view-call-not-statically-classifiable unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "generated-admin",
+      "construct": "django.contrib.admin URLs (admin.site.urls) that expand into many framework-generated routes",
+      "fixture": "counterexamples/generated-admin",
+      "minimal_counterexample": "urls.py",
+      "rule": "catch-generated",
+      "expected": {
+        "routes": [
+          "- /ping/"
+        ],
+        "generated": [
+          "- /admin/",
+          "- /admin/(?P<url>.*)$",
+          "- /admin/^(?P<app_label>auth)/$",
+          "- /admin/auth/group/",
+          "- /admin/auth/group/<path:object_id>/",
+          "- /admin/auth/group/<path:object_id>/change/",
+          "- /admin/auth/group/<path:object_id>/delete/",
+          "- /admin/auth/group/<path:object_id>/history/",
+          "- /admin/auth/group/add/",
+          "- /admin/auth/user/",
+          "- /admin/auth/user/<id>/password/",
+          "- /admin/auth/user/<path:object_id>/",
+          "- /admin/auth/user/<path:object_id>/change/",
+          "- /admin/auth/user/<path:object_id>/delete/",
+          "- /admin/auth/user/<path:object_id>/history/",
+          "- /admin/auth/user/add/",
+          "- /admin/autocomplete/",
+          "- /admin/jsi18n/",
+          "- /admin/login/",
+          "- /admin/logout/",
+          "- /admin/password_change/",
+          "- /admin/password_change/done/",
+          "- /admin/r/<path:content_type_id>/<path:object_id>/"
+        ]
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "omitted-unflagged",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 22,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /ping/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 23,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING"
+          ],
+          "covering_flags": [
+            {
+              "code": "DRF_ACTION_METHOD_FACT_MISSING",
+              "covers": "blanket: the leaf is blocked-upstream-fact-gap and emits no HTTP route for any input; it says so with this unknown on every fixture (profile state, not a per-construct detection)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "generated-drf-router",
+      "construct": "DRF SimpleRouter().register(...) with path(\"api/\", include(router.urls)): the patterns exist only after router expansion",
+      "fixture": "counterexamples/generated-drf-router",
+      "minimal_counterexample": "urls.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "- /api/^items/$",
+          "- /api/^items/(?P<pk>[^/.]+)/$"
+        ],
+        "generated": []
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /api/^items/$",
+            "- /api/^items/(?P<pk>[^/.]+)/$"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "include-target-not-literal-module"
+          ],
+          "covering_flags": [
+            {
+              "code": "include-target-not-literal-module",
+              "covers": "raised for include(router.urls), whose target is not a literal module"
+            }
+          ]
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /api/^items/$",
+            "- /api/^items/(?P<pk>[^/.]+)/$"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING",
+            "T06_DJANGO_UNKNOWN:include-target-not-literal-module"
+          ],
+          "covering_flags": [
+            {
+              "code": "T06_DJANGO_UNKNOWN:include-target-not-literal-module",
+              "covers": "the leaf forwards the T06 include-target-not-literal-module unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "deployment-prefix",
+      "construct": "FORCE_SCRIPT_NAME=\"/svc\" (script prefix applied outside the URLconf)",
+      "fixture": "counterexamples/deployment-prefix",
+      "minimal_counterexample": "urls.py",
+      "rule": "oracle-blind",
+      "blind_property": "script prefix /svc (FORCE_SCRIPT_NAME)",
+      "expected": {
+        "routes": [
+          "- /ping/"
+        ],
+        "generated": []
+      },
+      "layers": {
+        "t06-django-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-django-drf-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "- /ping/"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 0,
+          "flags": [
+            "DRF_ACTION_METHOD_FACT_MISSING"
+          ],
+          "covering_flags": [
+            {
+              "code": "DRF_ACTION_METHOD_FACT_MISSING",
+              "covers": "blanket: the leaf is blocked-upstream-fact-gap and emits no HTTP route for any input; it says so with this unknown on every fixture (profile state, not a per-construct detection)"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "scope": {
+    "supported": [
+      "normal-literal-routes@t06-django-shadow"
+    ],
+    "unknown_flagged": [
+      "deployment-prefix@t12-django-drf-leaf",
+      "dynamic-route-factory@t06-django-shadow",
+      "dynamic-route-factory@t12-django-drf-leaf",
+      "generated-admin@t12-django-drf-leaf",
+      "generated-drf-router@t06-django-shadow",
+      "generated-drf-router@t12-django-drf-leaf",
+      "middleware-auth@t06-django-shadow",
+      "middleware-auth@t12-django-drf-leaf",
+      "normal-literal-routes@t12-django-drf-leaf",
+      "router-prefix@t06-django-shadow",
+      "router-prefix@t12-django-drf-leaf"
+    ],
+    "unsupported_gap": [
+      "generated-admin@t06-django-shadow"
+    ],
+    "unassessed": [],
+    "oracle_blind": [
+      "deployment-prefix",
+      "middleware-auth"
+    ]
+  },
+  "conformance": {
+    "status": "COMPARED",
+    "layers": [
+      "t06-django-shadow",
+      "t12-django-drf-leaf"
+    ],
+    "compared_fixtures": 7
+  },
+  "pin": {
+    "python": "3.12.13",
+    "packages": [
+      {
+        "pypi": "django",
+        "role": "framework",
+        "version": "6.1.1",
+        "wheel": "django-6.1.1-py3-none-any.whl",
+        "wheel_sha256": "585fb82bf15053c42cf52e67c2f1b54a032dca384759315fd6678ab1870d1d72",
+        "registry_sha256": "585fb82bf15053c42cf52e67c2f1b54a032dca384759315fd6678ab1870d1d72",
+        "released_after_pin_not_covered": [
+          "6.1.2",
+          "6.0.9",
+          "5.2.18"
+        ]
+      },
+      {
+        "pypi": "djangorestframework",
+        "role": "companion",
+        "version": "3.18.1",
+        "wheel": "djangorestframework-3.18.1-py3-none-any.whl",
+        "wheel_sha256": "f1409d698967aaf82d5d98d76b549c8fba8bd92ebd0d83d24454508f72168dc2",
+        "registry_sha256": "f1409d698967aaf82d5d98d76b549c8fba8bd92ebd0d83d24454508f72168dc2",
+        "released_after_pin_not_covered": [
+          "3.18.2",
+          "3.18.3"
+        ]
+      }
+    ],
+    "installed": [
+      "asgiref==3.12.1",
+      "Django==6.1.1",
+      "djangorestframework==3.18.1",
+      "pip==26.1.2",
+      "sqlparse==0.6.0"
+    ],
+    "registry": {
+      "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+      "extract_sha256": "e1553668bccac7b8f47bfe1d9da369de7b8ab68fee96deeef4f91d7e3c7710c4"
+    },
+    "existing_profile_pin": {
+      "source": "adapters/http-wave-a/django-drf.mjs DJANGO_DRF_PROFILE.versionPin",
+      "value": {
+        "repo": "encode/rest-framework-tutorial",
+        "ref": "0f26fc15db5c39f22af1fef488cbb7c1bd65eb43",
+        "framework": "Django 6.1.1 / djangorestframework 3.18.1"
+      },
+      "check_command": "profile-ref-check"
+    }
+  },
+  "oracle_tool": {
+    "path": "adapters/http-wave-a/python-scope/oracle.py",
+    "sha256": "bb61a5ae49f6d737d8ff7f32579eda826bef488ec11db94329ca066d157b87d6"
+  },
+  "oracle_range": {
+    "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
+    "platform": {
+      "implementation": "cpython",
+      "machine": "arm64",
+      "system": "Darwin",
+      "version": "3.12.13"
+    },
+    "can_verify": [
+      "which paths and methods the framework registers after importing the fixture (non-generated pairs)",
+      "which routes the framework generates itself (docs, openapi, static, admin) and their paths",
+      "prefix composition, mounts and include flattening exactly as the framework computes them",
+      "trailing-slash and converter spelling of the registered path"
+    ],
+    "cannot_verify": [
+      "request handling: middleware execution, authentication outcomes, redirects, status codes or response bodies",
+      "deployment prefix behaviour (root_path, APPLICATION_ROOT, FORCE_SCRIPT_NAME, reverse-proxy rewriting)",
+      "any framework version or Python version other than the pinned ones",
+      "routes registered after import (at request time) or by code the fixture does not execute",
+      "HTTP methods: a Django URLConf declares none, so pairs use method \"-\""
+    ]
+  },
+  "executed_commands": [
+    {
+      "id": "registry-django",
+      "command": "curl -fsS https://pypi.org/pypi/django/json",
+      "exit_code": 0,
+      "stdout_sha256": "2bf83c7336b9599b9572e064d5d6b0049fbec7697699815184c32efc642e0aa9",
+      "stdout_bytes": 625924,
+      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+    },
+    {
+      "id": "registry-djangorestframework",
+      "command": "curl -fsS https://pypi.org/pypi/djangorestframework/json",
+      "exit_code": 0,
+      "stdout_sha256": "5dda81718c300e6d34a7fde65f89812b8c44dd92360a4d9c766e2761269c2a3c",
+      "stdout_bytes": 202151,
+      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+    },
+    {
+      "id": "venv",
+      "command": "python3.12 -m venv $VENV",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "install",
+      "command": "python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: -q django==6.1.1 djangorestframework==3.18.1",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "freeze",
+      "command": "python -m pip freeze --all",
+      "exit_code": 0,
+      "stdout_sha256": "2b50ec9bdcc14a69a277bff996bcdb7d95ab538a0acd11fe9a76d9cbf4c0fe25",
+      "stdout_bytes": 86,
+      "stored_as": "results/environment.txt"
+    },
+    {
+      "id": "wheel",
+      "command": "python -m pip download --no-deps --no-cache-dir --only-binary=:all: --disable-pip-version-check -d wheels -q django==6.1.1 djangorestframework==3.18.1",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "wheel-digest",
+      "command": "shasum -a 256 django-6.1.1-py3-none-any.whl djangorestframework-3.18.1-py3-none-any.whl",
+      "exit_code": 0,
+      "stdout_sha256": "a99edf906048b2e6dc99d1de5f79aacf89f727d26b4d32e87e47aa4824133857",
+      "stdout_bytes": 206,
+      "stored_as": "results/wheel-digest.txt"
+    },
+    {
+      "id": "oracle-1",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py django adapters/http-wave-a/python-django/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "4d37e815866fd1ee78f63a06f30ebe5e1d9208c632b000bd5c94b01a028b8ac0",
+      "stdout_bytes": 4466,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "oracle-2",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py django adapters/http-wave-a/python-django/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "4d37e815866fd1ee78f63a06f30ebe5e1d9208c632b000bd5c94b01a028b8ac0",
+      "stdout_bytes": 4466,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "static-1",
+      "command": "node adapters/http-wave-a/python-scope/static-runner.mjs django adapters/http-wave-a/python-django/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "af3e24c663115ec1d52990d6a3940ed31274681a5d6e16cc9b9297e0031d191b",
+      "stdout_bytes": 3968,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "static-2",
+      "command": "node adapters/http-wave-a/python-scope/static-runner.mjs django adapters/http-wave-a/python-django/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "af3e24c663115ec1d52990d6a3940ed31274681a5d6e16cc9b9297e0031d191b",
+      "stdout_bytes": 3968,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "static-py312",
+      "command": "BSKEL_PYTHON=python3.12 node adapters/http-wave-a/python-scope/static-runner.mjs django adapters/http-wave-a/python-django/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "af3e24c663115ec1d52990d6a3940ed31274681a5d6e16cc9b9297e0031d191b",
+      "stdout_bytes": 3968,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "profile-ref-check",
+      "command": "gh api repos/encode/rest-framework-tutorial/commits/0f26fc15db5c39f22af1fef488cbb7c1bd65eb43 --jq .sha",
+      "exit_code": 0,
+      "stdout_sha256": "2a089019c7f12d7c92d05bc7c35277981d79546f142ea1f41a4e2569a6cc1018",
+      "stdout_bytes": 41,
+      "stdout_inline": "0f26fc15db5c39f22af1fef488cbb7c1bd65eb43\n"
+    }
+  ],
+  "limits": [
+    "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
+    "HEAD and OPTIONS are dropped on both sides. A scanner pair whose method is null compares as \"-\" and is reported as unresolved when the oracle has a real method for that path, never as an exact match.",
+    "An outcome of flagged means the named flag is present in the layer output for that fixture and the covers text says why it applies; it is not proof the layer understood the construct. A flag that also fires on exact fixtures is not counted as covering unless the missed construct is the one it names.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. Only the in-repo static scanners are re-run live, which needs python3 on PATH (a missing python3 fails the verification, it is never skipped).",
+    "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "A Django URLConf declares no HTTP methods, so every pair uses method \"-\" on both sides; per-method behaviour is not covered by this record.",
+    "The T12 leaf emits no routes for any input; its covering flags are the profile-level blanket unknown or the forwarded T06 unknown, so a flagged outcome for the leaf says \"blocked\", not \"understood\".",
+    "oracle.py groups django.contrib.admin and rest_framework callbacks as generated (the admin paths in generated-admin); routes a DRF router expands from a user ViewSet are ordinary routes in the oracle (their callbacks carry the user module).",
+    "Pins follow the T12 profile versionPin.framework string (checked against pin.packages by the verifier); later releases exist and are listed as not covered."
+  ],
+  "plan": [
+    "HTTP-python-django-02: turn each unsupported_gap entry (admin-generated routes, silently absent patterns) into caught or flagged and promote the DRF action-to-method facts the leaf is waiting for (T06-owned).",
+    "HTTP-python-django-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
+  ],
+  "record_digest": "2bcd04141f9b52ddaf980ce80837a3dffa0e531e6a656599661e7839b3b3bb97"
+}

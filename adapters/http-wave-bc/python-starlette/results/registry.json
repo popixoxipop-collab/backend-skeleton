@@ -1,0 +1,19 @@
+{
+ "source": "PyPI JSON API https://pypi.org/pypi/<project>/json",
+ "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+ "projects": {
+  "starlette": {
+   "info_version": "1.7.0",
+   "requires_python": ">=3.10",
+   "pinned": {
+    "version": "1.7.0",
+    "filename": "starlette-1.7.0-py3-none-any.whl",
+    "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+    "size": 78980,
+    "upload_time_iso_8601": "2026-09-23T07:30:24.567239Z",
+    "yanked": false
+   },
+   "released_after_pin": []
+  }
+ }
+}

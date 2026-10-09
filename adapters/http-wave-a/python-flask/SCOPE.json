@@ -1,0 +1,654 @@
+{
+  "schema": "bskel.internal.python-http-scope-record/0",
+  "item": "HTTP-python-flask-01",
+  "framework": "flask",
+  "track": "T12",
+  "claims": {
+    "supported": false,
+    "runtime_tested": false,
+    "extraction": "partial-static",
+    "statement": "Scope record, not a support claim. Static extraction is partial: only entries whose outcome is caught were observed extracted exactly on the recorded fixtures; the unsupported_gap entries are known silent omissions or wrong paths. A profile or catalog registration does not change this. Any later support statement is limited to the scope.supported entries, to the layers named in them, to the pinned framework version and to the registration state recorded here."
+  },
+  "runtime_tested": {
+    "status": "BLOCKED",
+    "reason": "Runtime-tested needs a request-level verifier (T16 / beval in the audit plan) that serves requests against a pinned install; none was run. This package only read the framework route table at import time, so every runtime or request claim stays BLOCKED."
+  },
+  "evidence_level": "oracle-compared",
+  "registration": {
+    "source": "adapters/http-wave-a/flask.mjs",
+    "entry": {
+      "id": "python-flask",
+      "state": "candidate",
+      "registration": "unregistered",
+      "productionDefault": false,
+      "runtimeTested": false,
+      "t19Review": "NOT_REVIEWED"
+    }
+  },
+  "layers": [
+    {
+      "id": "t06-flask-shadow",
+      "source": "scanners/language/python/flask-shadow.mjs",
+      "role": "T06 AST route shadow (buildFlaskRouteShadow) over the Python project facts"
+    },
+    {
+      "id": "t12-flask-leaf",
+      "source": "adapters/http-wave-a/flask.mjs",
+      "role": "T12 leaf projection of the T06 shadow into explicit-method routes plus unknowns"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "normal",
+      "role": "normal",
+      "files": {
+        "app.py": "2149ef5cbf9ba6ae81b7de592d5e9d007ba652a5483147e87bb0875415d87b68"
+      }
+    },
+    {
+      "id": "counterexamples/default-methods",
+      "role": "counterexample",
+      "files": {
+        "app.py": "4b109ae3b0f3542f43eedf0bb8583ac19ca83339587d22ac036e6af65d4df34f"
+      }
+    },
+    {
+      "id": "counterexamples/deployment-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "e0a1f9f4f3f209bbcf7539204ee57d1f3f2783d0a66cdf1efe4ceb169fefaf42"
+      }
+    },
+    {
+      "id": "counterexamples/dynamic-route-factory",
+      "role": "counterexample",
+      "files": {
+        "app.py": "ef4ca16bc852f2403d2c6e1d5a6a6947b6fd79fbf2a622b739c41d7472a7eeb3"
+      }
+    },
+    {
+      "id": "counterexamples/generated-routes",
+      "role": "counterexample",
+      "files": {
+        "app.py": "dc526028389c8adcafa87364c8151152ba155688d6c58e991073931a74e2c2f1"
+      }
+    },
+    {
+      "id": "counterexamples/imperative-registration",
+      "role": "counterexample",
+      "files": {
+        "app.py": "4e3c979cf1d375b85d8e8e66c46701eaa4346c58aedec94ffa8deed10e4d45b4"
+      }
+    },
+    {
+      "id": "counterexamples/middleware-auth",
+      "role": "counterexample",
+      "files": {
+        "app.py": "d722540dd77a9bb17602a423291b31f93a8480e9409675689fcde0b2140fb94b"
+      }
+    },
+    {
+      "id": "counterexamples/router-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "a486a676729a8fd36bfcb41c49c76f4bac260fefff9f067014c180d4630e86d3"
+      }
+    }
+  ],
+  "must_catch": [
+    {
+      "id": "normal-literal-routes",
+      "construct": "literal @app.route/@app.get/@blueprint decorators: literal paths, a literal methods list, a Blueprint with a literal url_prefix and an int converter (the supported baseline)",
+      "fixture": "normal",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "DELETE /items/<int:item_id>",
+          "GET /health",
+          "GET /items/<int:item_id>",
+          "POST /api/items"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [
+            "registration-limitation"
+          ],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "dynamic-route-factory",
+      "construct": "routes whose paths come from a loop or factory call at import time (dynamic route factory)",
+      "fixture": "counterexamples/dynamic-route-factory",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /alpha",
+          "GET /beta"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /alpha",
+            "GET /beta"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /alpha",
+            "GET /beta"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "imperative-registration",
+      "construct": "routes registered with app.add_url_rule(...) instead of a decorator",
+      "fixture": "counterexamples/imperative-registration",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "router-prefix",
+      "construct": "Blueprint url_prefix overridden by register_blueprint(url_prefix=...) (router prefix composition)",
+      "fixture": "counterexamples/router-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /v2/ping"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "flagged",
+          "class": "wrong",
+          "missed": [
+            "GET /v2/ping"
+          ],
+          "extra": [
+            "GET /api/ping"
+          ],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [
+            "registration-limitation"
+          ],
+          "covering_flags": [
+            {
+              "code": "registration-limitation",
+              "text_includes": "url_prefix",
+              "covers": "names the register_blueprint(url_prefix=...) override this fixture uses; the shadow reports the Blueprint prefix and says the override is not composed"
+            }
+          ]
+        },
+        "t12-flask-leaf": {
+          "outcome": "wrong-unflagged",
+          "class": "wrong",
+          "missed": [
+            "GET /v2/ping"
+          ],
+          "extra": [
+            "GET /api/ping"
+          ],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "default-methods",
+      "construct": "@app.route without methods= (framework default method semantics)",
+      "fixture": "counterexamples/default-methods",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "left-unknown",
+          "class": "method-unresolved",
+          "missed": [],
+          "extra": [],
+          "unresolved": [
+            "- /ping"
+          ],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [
+            "FLASK_METHOD_SEMANTICS_UNRESOLVED"
+          ],
+          "covering_flags": [
+            {
+              "code": "FLASK_METHOD_SEMANTICS_UNRESOLVED",
+              "covers": "the leaf emits no route for a @route with default methods and records the unknown instead of guessing GET"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "middleware-auth",
+      "construct": "authentication enforced by an @app.before_request hook; the route table is identical with or without it",
+      "fixture": "counterexamples/middleware-auth",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "who may call /private (before_request token check)",
+      "expected": {
+        "routes": [
+          "GET /private",
+          "GET /public"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "generated-routes",
+      "construct": "framework-generated static-file routes (static_url_path and a Blueprint static_folder add routes no decorator declares)",
+      "fixture": "counterexamples/generated-routes",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-generated",
+      "expected": {
+        "routes": [
+          "GET /admin/"
+        ],
+        "generated": [
+          "GET /admin/admin_static/<path:filename>",
+          "GET /assets/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "omitted-unflagged",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 2,
+          "flags": [
+            "registration-limitation"
+          ],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "omitted-unflagged",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 2,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "deployment-prefix",
+      "construct": "application mounted under /svc by DispatcherMiddleware with APPLICATION_ROOT set; the app route table never contains the prefix",
+      "fixture": "counterexamples/deployment-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "external path prefix /svc (DispatcherMiddleware mount and APPLICATION_ROOT)",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /static/<path:filename>"
+        ]
+      },
+      "layers": {
+        "t06-flask-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t12-flask-leaf": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 1,
+          "flags": [],
+          "covering_flags": []
+        }
+      }
+    }
+  ],
+  "scope": {
+    "supported": [
+      "normal-literal-routes@t06-flask-shadow",
+      "normal-literal-routes@t12-flask-leaf"
+    ],
+    "unknown_flagged": [
+      "default-methods@t06-flask-shadow",
+      "default-methods@t12-flask-leaf",
+      "router-prefix@t06-flask-shadow"
+    ],
+    "unsupported_gap": [
+      "dynamic-route-factory@t06-flask-shadow",
+      "dynamic-route-factory@t12-flask-leaf",
+      "generated-routes@t06-flask-shadow",
+      "generated-routes@t12-flask-leaf",
+      "imperative-registration@t06-flask-shadow",
+      "imperative-registration@t12-flask-leaf",
+      "router-prefix@t12-flask-leaf"
+    ],
+    "unassessed": [],
+    "oracle_blind": [
+      "deployment-prefix",
+      "middleware-auth"
+    ]
+  },
+  "conformance": {
+    "status": "COMPARED",
+    "layers": [
+      "t06-flask-shadow",
+      "t12-flask-leaf"
+    ],
+    "compared_fixtures": 8
+  },
+  "pin": {
+    "python": "3.12.13",
+    "packages": [
+      {
+        "pypi": "flask",
+        "role": "framework",
+        "version": "3.1.3",
+        "wheel": "flask-3.1.3-py3-none-any.whl",
+        "wheel_sha256": "f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c",
+        "registry_sha256": "f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c",
+        "released_after_pin_not_covered": []
+      }
+    ],
+    "installed": [
+      "blinker==1.9.0",
+      "click==8.5.0",
+      "Flask==3.1.3",
+      "itsdangerous==2.2.0",
+      "Jinja2==3.1.6",
+      "MarkupSafe==3.0.4",
+      "pip==26.1.2",
+      "Werkzeug==3.1.9"
+    ],
+    "registry": {
+      "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+      "extract_sha256": "506428cf9c21d2c634644a338ee2826b9d04d9f10a3ff5dd1c882a9a91e9d48f"
+    },
+    "existing_profile_pin": {
+      "source": "adapters/http-wave-a/flask.mjs FLASK_PROFILE.versionPin",
+      "value": {
+        "repo": "pallets/flask",
+        "path": "examples/tutorial",
+        "ref": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+        "framework": null
+      },
+      "check_command": "profile-ref-check"
+    }
+  },
+  "oracle_tool": {
+    "path": "adapters/http-wave-a/python-scope/oracle.py",
+    "sha256": "bb61a5ae49f6d737d8ff7f32579eda826bef488ec11db94329ca066d157b87d6"
+  },
+  "oracle_range": {
+    "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
+    "platform": {
+      "implementation": "cpython",
+      "machine": "arm64",
+      "system": "Darwin",
+      "version": "3.12.13"
+    },
+    "can_verify": [
+      "which paths and methods the framework registers after importing the fixture (non-generated pairs)",
+      "which routes the framework generates itself (docs, openapi, static, admin) and their paths",
+      "prefix composition, mounts and include flattening exactly as the framework computes them",
+      "trailing-slash and converter spelling of the registered path"
+    ],
+    "cannot_verify": [
+      "request handling: middleware execution, authentication outcomes, redirects, status codes or response bodies",
+      "deployment prefix behaviour (root_path, APPLICATION_ROOT, FORCE_SCRIPT_NAME, reverse-proxy rewriting)",
+      "any framework version or Python version other than the pinned ones",
+      "routes registered after import (at request time) or by code the fixture does not execute"
+    ]
+  },
+  "executed_commands": [
+    {
+      "id": "registry-flask",
+      "command": "curl -fsS https://pypi.org/pypi/flask/json",
+      "exit_code": 0,
+      "stdout_sha256": "2bebc9ab169de02f525a8460feaedbb6f32960eb9125800d9afb83cd10c25a80",
+      "stdout_bytes": 88766,
+      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+    },
+    {
+      "id": "venv",
+      "command": "python3.12 -m venv $VENV",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "install",
+      "command": "python -m pip install --disable-pip-version-check --only-binary=:all: -q flask==3.1.3",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "freeze",
+      "command": "python -m pip freeze --all",
+      "exit_code": 0,
+      "stdout_sha256": "1a6bd4baa668796ef509402ba239a10632b9fb9643dd54f0f774b0a49bdc55c8",
+      "stdout_bytes": 121,
+      "stored_as": "results/environment.txt"
+    },
+    {
+      "id": "wheel",
+      "command": "python -m pip download --no-deps --only-binary=:all: --disable-pip-version-check -d wheels -q flask==3.1.3",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "wheel-digest",
+      "command": "shasum -a 256 flask-3.1.3-py3-none-any.whl",
+      "exit_code": 0,
+      "stdout_sha256": "f71edaa8b5a3ee6de4f6360bbb03dc0ccea6cd8203a4866fa8ef042b5735154c",
+      "stdout_bytes": 95,
+      "stored_as": "results/wheel-digest.txt"
+    },
+    {
+      "id": "oracle-1",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py flask adapters/http-wave-a/python-flask/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "9bf895d9edaeee1082fcac7ac9d096e8d869209207ce1639b4db06a24aaf075a",
+      "stdout_bytes": 4476,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "oracle-2",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py flask adapters/http-wave-a/python-flask/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "9bf895d9edaeee1082fcac7ac9d096e8d869209207ce1639b4db06a24aaf075a",
+      "stdout_bytes": 4476,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "static-1",
+      "command": "node adapters/http-wave-a/python-scope/static-runner.mjs flask adapters/http-wave-a/python-flask/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "04a43f17c1ff4e41af8a2d68bb1fde51a923645b904020554baf6773bf0e22cd",
+      "stdout_bytes": 3797,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "static-2",
+      "command": "node adapters/http-wave-a/python-scope/static-runner.mjs flask adapters/http-wave-a/python-flask/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "04a43f17c1ff4e41af8a2d68bb1fde51a923645b904020554baf6773bf0e22cd",
+      "stdout_bytes": 3797,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "static-py312",
+      "command": "BSKEL_PYTHON=python3.12 node adapters/http-wave-a/python-scope/static-runner.mjs flask adapters/http-wave-a/python-flask/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "04a43f17c1ff4e41af8a2d68bb1fde51a923645b904020554baf6773bf0e22cd",
+      "stdout_bytes": 3797,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "profile-ref-check",
+      "command": "gh api repos/pallets/flask/commits/d73fa1cdcbd8b1465c151db8924ba58b1dd14e35 --jq .sha",
+      "exit_code": 0,
+      "stdout_sha256": "64d952b3f9fa50b942d3519109153f11db6067e06480a49f74e053d3d2f3d649",
+      "stdout_bytes": 41,
+      "stdout_inline": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35\n"
+    }
+  ],
+  "limits": [
+    "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
+    "HEAD and OPTIONS are dropped on both sides. A scanner pair whose method is null compares as \"-\" and is reported as unresolved when the oracle has a real method for that path, never as an exact match.",
+    "An outcome of flagged means the named flag is present in the layer output for that fixture and the covers text says why it applies; it is not proof the layer understood the construct. A flag that also fires on exact fixtures is not counted as covering unless the missed construct is the one it names.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. Only the in-repo static scanners are re-run live, which needs python3 on PATH (a missing python3 fails the verification, it is never skipped).",
+    "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "The T06 registration-limitation flag also fires on exact fixtures that register a Blueprint; it is counted as covering only for the url_prefix override fixture, where its text names url_prefix.",
+    "The pallets/flask examples/tutorial ref in FLASK_PROFILE.versionPin is a historical real-repo comparison pin whose framework version is null in the profile; it is not what was run here and no claim is made for it."
+  ],
+  "plan": [
+    "HTTP-python-flask-02: turn each unsupported_gap entry (dynamic route factory, add_url_rule, blueprint prefix override in the leaf, generated static routes) into caught or flagged, using the fixtures in this record as the regression corpus.",
+    "HTTP-python-flask-03: Runtime-tested stays BLOCKED until a request-level verifier exists; the pinned install and fixtures here are its starting point."
+  ],
+  "record_digest": "9aca236368b517d5376db552448028fb7acd9475412f85fbc2fa588a373ff64a"
+}

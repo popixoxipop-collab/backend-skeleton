@@ -1,0 +1,1311 @@
+{
+ "fixtures": {
+  "counterexamples/deployment-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "render_oauth2_redirect",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handle_schema_path_not_found",
+     "path": "/schema/{path:str}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/{path:str}"
+    }
+   ]
+  },
+  "counterexamples/dynamic-route-factory": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handler",
+     "path": "/alpha"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/alpha"
+    },
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handler",
+     "path": "/beta"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/beta"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "render_oauth2_redirect",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handle_schema_path_not_found",
+     "path": "/schema/{path:str}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/{path:str}"
+    }
+   ]
+  },
+  "counterexamples/generated-routes": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "render_oauth2_redirect",
+     "path": "/docs/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/docs/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handle_schema_path_not_found",
+     "path": "/docs/{path:str}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/docs/{path:str}"
+    },
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/ping"
+    }
+   ]
+  },
+  "counterexamples/middleware-auth": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "private",
+     "path": "/private"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/private"
+    },
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "public",
+     "path": "/public"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/public"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "render_oauth2_redirect",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handle_schema_path_not_found",
+     "path": "/schema/{path:str}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/{path:str}"
+    }
+   ]
+  },
+  "counterexamples/router-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "ping",
+     "path": "/svc/api/v1/ping"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/api/v1/ping"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "render_oauth2_redirect",
+     "path": "/svc/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/svc/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handle_schema_path_not_found",
+     "path": "/svc/schema/{path:str}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/svc/schema/{path:str}"
+    }
+   ]
+  },
+  "normal": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/api/items"
+    },
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "POST"
+     ],
+     "name": "create_item",
+     "path": "/api/items"
+    },
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "health",
+     "path": "/health"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/health"
+    },
+    {
+     "generated": false,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "read_item",
+     "path": "/items/{item_id:int}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/items/{item_id:int}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/elements"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "render_oauth2_redirect",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/oauth2-redirect.html"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yaml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/openapi.yml"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/rapidoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/swagger"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handle_schema_path_not_found",
+     "path": "/schema/{path:str}"
+    },
+    {
+     "generated": true,
+     "kind": "HTTPRoute",
+     "methods": [
+      "OPTIONS"
+     ],
+     "name": "options_handler",
+     "path": "/schema/{path:str}"
+    }
+   ]
+  }
+ },
+ "framework": {
+  "name": "litestar",
+  "version": "2.24.0"
+ },
+ "oracle": "framework-route-table",
+ "python": {
+  "implementation": "cpython",
+  "machine": "arm64",
+  "system": "Darwin",
+  "version": "3.12.13"
+ }
+}

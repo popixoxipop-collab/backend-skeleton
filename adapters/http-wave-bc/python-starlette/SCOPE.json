@@ -1,0 +1,317 @@
+{
+  "schema": "bskel.internal.python-http-scope-record/0",
+  "item": "HTTP-python-starlette-01",
+  "framework": "starlette",
+  "track": "T13",
+  "claims": {
+    "supported": false,
+    "runtime_tested": false,
+    "extraction": "none",
+    "statement": "Scope-only record. No scanner layer or adapter exists for Starlette: the catalog entry is a registration, not support, and nothing is claimed as extracted. The must-catch entries and their oracle baselines are what a future scanner must produce or leave unknown. No support statement may be issued from this record."
+  },
+  "runtime_tested": {
+    "status": "BLOCKED",
+    "reason": "Runtime-tested needs a request-level verifier (T16 / beval in the audit plan) that serves requests against a pinned install; none was run. This package only read the framework route table at import time, so every runtime or request claim stays BLOCKED."
+  },
+  "evidence_level": "scope-and-oracle-baseline",
+  "registration": {
+    "source": "adapters/http-wave-bc/catalog.mjs",
+    "entry": {
+      "id": "python-starlette",
+      "wave": "B",
+      "languageTrack": "T06",
+      "runtime": "python",
+      "scope": "Starlette Route/Mount declarations"
+    }
+  },
+  "layers": [],
+  "fixtures": [
+    {
+      "id": "normal",
+      "role": "normal",
+      "files": {
+        "app.py": "4b378a736a9f0a0a45e5b636c1f7fbb83d3fa8efb5dfa16d406122f51af69967"
+      }
+    },
+    {
+      "id": "counterexamples/deployment-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "c0ffb45657fe58c08ef8d56f1e2191435a954dc5081a4a60d90dae4e4dac598d"
+      }
+    },
+    {
+      "id": "counterexamples/dynamic-route-factory",
+      "role": "counterexample",
+      "files": {
+        "app.py": "0fccc00cb3e4e769ec5233df971c7c031cacb200427a659cd703d3eeb24888d7"
+      }
+    },
+    {
+      "id": "counterexamples/generated-routes",
+      "role": "counterexample",
+      "files": {
+        "app.py": "ef0560e0c4057f3be4f8f2b763a112f4f6b4b6ff3650bc0374cbf039bdd4e2dc"
+      }
+    },
+    {
+      "id": "counterexamples/middleware-auth",
+      "role": "counterexample",
+      "files": {
+        "app.py": "55a7accd3b79cb9884710896908e019f3dde1d9cdefa9eecf64a2f6698ba6de5"
+      }
+    },
+    {
+      "id": "counterexamples/router-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "c717c4266c82b4247d01b5f6e7a5166b53d934ac2412ef5c8cb8f39653d6f656"
+      }
+    }
+  ],
+  "must_catch": [
+    {
+      "id": "normal-literal-routes",
+      "construct": "Route(path, endpoint, methods=[...]) with a typed path parameter and a Mount(\"/api\", routes=[...]) in Starlette(routes=[...]) (the baseline a future scanner must extract)",
+      "fixture": "normal",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "DELETE /items/{item_id:int}",
+          "GET /api/ping",
+          "GET /health",
+          "GET /items/{item_id:int}"
+        ],
+        "generated": []
+      },
+      "layers": {}
+    },
+    {
+      "id": "dynamic-route-factory",
+      "construct": "Route objects built by a comprehension over a name list with an endpoint factory",
+      "fixture": "counterexamples/dynamic-route-factory",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /alpha",
+          "GET /beta"
+        ],
+        "generated": []
+      },
+      "layers": {}
+    },
+    {
+      "id": "router-prefix",
+      "construct": "nested Mount(\"/api\") -> Mount(\"/v1\") -> Route(\"/ping\")",
+      "fixture": "counterexamples/router-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /api/v1/ping"
+        ],
+        "generated": []
+      },
+      "layers": {}
+    },
+    {
+      "id": "middleware-auth",
+      "construct": "AuthenticationMiddleware plus @requires(\"authenticated\") on one endpoint",
+      "fixture": "counterexamples/middleware-auth",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "who may call /private (@requires and AuthenticationMiddleware)",
+      "expected": {
+        "routes": [
+          "GET /private",
+          "GET /public"
+        ],
+        "generated": []
+      },
+      "layers": {}
+    },
+    {
+      "id": "generated-routes",
+      "construct": "Mount(\"/static\", app=StaticFiles(...)): a mount of a framework-provided ASGI app; the route table shows only the prefix and no methods",
+      "fixture": "counterexamples/generated-routes",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-generated",
+      "expected": {
+        "routes": [
+          "- /static",
+          "GET /ping"
+        ],
+        "generated": []
+      },
+      "layers": {}
+    },
+    {
+      "id": "deployment-prefix",
+      "construct": "uvicorn root_path=\"/svc\" passed at server start, outside the application object",
+      "fixture": "counterexamples/deployment-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "root_path /svc (server-level prefix)",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": []
+      },
+      "layers": {}
+    }
+  ],
+  "scope": {
+    "supported": [],
+    "unknown_flagged": [],
+    "unsupported_gap": [],
+    "unassessed": [
+      "deployment-prefix",
+      "dynamic-route-factory",
+      "generated-routes",
+      "middleware-auth",
+      "normal-literal-routes",
+      "router-prefix"
+    ],
+    "oracle_blind": [
+      "deployment-prefix",
+      "middleware-auth"
+    ]
+  },
+  "conformance": {
+    "status": "BLOCKED",
+    "reason": "No Starlette scanner layer or adapter exists: adapters/http-wave-bc/catalog.mjs only admits the target (id python-starlette) and the static runner has no layer for it, so there is no static output to compare. Only oracle baselines are stored; the comparison is BLOCKED until an extraction layer exists."
+  },
+  "pin": {
+    "python": "3.12.13",
+    "packages": [
+      {
+        "pypi": "starlette",
+        "role": "framework",
+        "version": "1.7.0",
+        "wheel": "starlette-1.7.0-py3-none-any.whl",
+        "wheel_sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+        "registry_sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+        "released_after_pin_not_covered": []
+      }
+    ],
+    "installed": [
+      "anyio==4.15.1",
+      "idna==3.20",
+      "pip==26.1.2",
+      "starlette==1.7.0",
+      "typing_extensions==4.16.0"
+    ],
+    "registry": {
+      "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+      "extract_sha256": "4681faef66bf3463867cbd245ce350ce7419b2dd8d9e5fe6028333ab13dfbd8d"
+    },
+    "existing_profile_pin": null
+  },
+  "oracle_tool": {
+    "path": "adapters/http-wave-a/python-scope/oracle.py",
+    "sha256": "bb61a5ae49f6d737d8ff7f32579eda826bef488ec11db94329ca066d157b87d6"
+  },
+  "oracle_range": {
+    "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
+    "platform": {
+      "implementation": "cpython",
+      "machine": "arm64",
+      "system": "Darwin",
+      "version": "3.12.13"
+    },
+    "can_verify": [
+      "which paths and methods the framework registers after importing the fixture (non-generated pairs)",
+      "which routes the framework generates itself (docs, openapi, static, admin) and their paths",
+      "prefix composition, mounts and include flattening exactly as the framework computes them",
+      "trailing-slash and converter spelling of the registered path"
+    ],
+    "cannot_verify": [
+      "request handling: middleware execution, authentication outcomes, redirects, status codes or response bodies",
+      "deployment prefix behaviour (root_path, APPLICATION_ROOT, FORCE_SCRIPT_NAME, reverse-proxy rewriting)",
+      "any framework version or Python version other than the pinned ones",
+      "routes registered after import (at request time) or by code the fixture does not execute"
+    ]
+  },
+  "executed_commands": [
+    {
+      "id": "registry-starlette",
+      "command": "curl -fsS https://pypi.org/pypi/starlette/json",
+      "exit_code": 0,
+      "stdout_sha256": "efa27d0ed98bc0f5ae5bd9ede971a34dabdcf5559506e33115cfe5aa308598d3",
+      "stdout_bytes": 240787,
+      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+    },
+    {
+      "id": "venv",
+      "command": "python3.12 -m venv $VENV",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "install",
+      "command": "python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: -q starlette==1.7.0",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "freeze",
+      "command": "python -m pip freeze --all",
+      "exit_code": 0,
+      "stdout_sha256": "bb32101d7a6edb49acd0c1aa128302819a83503fbce7ec001d5be8eadc1c5e11",
+      "stdout_bytes": 80,
+      "stored_as": "results/environment.txt"
+    },
+    {
+      "id": "wheel",
+      "command": "python -m pip download --no-deps --no-cache-dir --only-binary=:all: --disable-pip-version-check -d wheels -q starlette==1.7.0",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "wheel-digest",
+      "command": "shasum -a 256 starlette-1.7.0-py3-none-any.whl",
+      "exit_code": 0,
+      "stdout_sha256": "70d441823e6bc32b11438f2f1ef591513bcadfb36b086ec9c6f318e20fffa7d2",
+      "stdout_bytes": 99,
+      "stored_as": "results/wheel-digest.txt"
+    },
+    {
+      "id": "oracle-1",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py starlette adapters/http-wave-bc/python-starlette/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "2f5f79a8d7d076211cdfb7eae2716fc611084481d4538574f742addf0599b809",
+      "stdout_bytes": 2601,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "oracle-2",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py starlette adapters/http-wave-bc/python-starlette/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "2f5f79a8d7d076211cdfb7eae2716fc611084481d4538574f742addf0599b809",
+      "stdout_bytes": 2601,
+      "stored_as": "results/oracle.json"
+    }
+  ],
+  "limits": [
+    "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
+    "HEAD and OPTIONS are dropped from the stored expected pairs. A method the framework does not report is stored as \"-\"; a future scanner pair with a null method compares as \"-\" and counts as unresolved, never as an exact match.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails when a scanner or adapter file named after the framework appears (adapter-appeared), so this record cannot outlive a new adapter unnoticed.",
+    "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "Mount of a non-route ASGI app (StaticFiles) appears in the oracle as a row with methods unknown (method \"-\"); a future scanner must keep it as unknown-method instead of inventing methods."
+  ],
+  "plan": [
+    "HTTP-python-starlette-02 (not started): T06 needs Route/Mount/decorator facts and a T13 adapter before any static comparison; the expected pairs stored per must-catch entry are the acceptance baseline. Until then the target stays unsupported.",
+    "HTTP-python-starlette-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
+  ],
+  "record_digest": "82bf4482e49e1e959dac3a0d4ab999de81ded2a1cad7a2d93ecb8b56140928a9"
+}

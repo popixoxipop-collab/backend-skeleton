@@ -1,0 +1,54 @@
+{
+ "source": "PyPI JSON API https://pypi.org/pypi/<project>/json",
+ "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+ "projects": {
+  "django": {
+   "info_version": "6.1.2",
+   "requires_python": ">=3.12",
+   "pinned": {
+    "version": "6.1.1",
+    "filename": "django-6.1.1-py3-none-any.whl",
+    "sha256": "585fb82bf15053c42cf52e67c2f1b54a032dca384759315fd6678ab1870d1d72",
+    "size": 8419512,
+    "upload_time_iso_8601": "2026-09-02T17:20:39.153093Z",
+    "yanked": false
+   },
+   "released_after_pin": [
+    {
+     "version": "6.1.2",
+     "upload_time_iso_8601": "2026-10-06T12:53:17.381365Z"
+    },
+    {
+     "version": "6.0.9",
+     "upload_time_iso_8601": "2026-10-06T12:57:52.649734Z"
+    },
+    {
+     "version": "5.2.18",
+     "upload_time_iso_8601": "2026-10-06T13:01:04.413659Z"
+    }
+   ]
+  },
+  "djangorestframework": {
+   "info_version": "3.18.3",
+   "requires_python": ">=3.10",
+   "pinned": {
+    "version": "3.18.1",
+    "filename": "djangorestframework-3.18.1-py3-none-any.whl",
+    "sha256": "f1409d698967aaf82d5d98d76b549c8fba8bd92ebd0d83d24454508f72168dc2",
+    "size": 901373,
+    "upload_time_iso_8601": "2026-09-07T18:04:06.237570Z",
+    "yanked": false
+   },
+   "released_after_pin": [
+    {
+     "version": "3.18.2",
+     "upload_time_iso_8601": "2026-10-06T20:42:13.411517Z"
+    },
+    {
+     "version": "3.18.3",
+     "upload_time_iso_8601": "2026-10-06T21:33:49.917036Z"
+    }
+   ]
+  }
+ }
+}

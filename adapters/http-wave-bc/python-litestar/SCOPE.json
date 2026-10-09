@@ -1,0 +1,400 @@
+{
+  "schema": "bskel.internal.python-http-scope-record/0",
+  "item": "HTTP-python-litestar-01",
+  "framework": "litestar",
+  "track": "T13",
+  "claims": {
+    "supported": false,
+    "runtime_tested": false,
+    "extraction": "none",
+    "statement": "Scope-only record. No scanner layer or adapter exists for Litestar: the catalog entry is a registration, not support, and nothing is claimed as extracted. The must-catch entries and their oracle baselines are what a future scanner must produce or leave unknown. No support statement may be issued from this record."
+  },
+  "runtime_tested": {
+    "status": "BLOCKED",
+    "reason": "Runtime-tested needs a request-level verifier (T16 / beval in the audit plan) that serves requests against a pinned install; none was run. This package only read the framework route table at import time, so every runtime or request claim stays BLOCKED."
+  },
+  "evidence_level": "scope-and-oracle-baseline",
+  "registration": {
+    "source": "adapters/http-wave-bc/catalog.mjs",
+    "entry": {
+      "id": "python-litestar",
+      "wave": "B",
+      "languageTrack": "T06",
+      "runtime": "python",
+      "scope": "Litestar decorated routes/controllers"
+    }
+  },
+  "layers": [],
+  "fixtures": [
+    {
+      "id": "normal",
+      "role": "normal",
+      "files": {
+        "app.py": "5d43c0d77b324fb2e2f41da3fe9b155ab29b174db3f165b373f15be197578da8"
+      }
+    },
+    {
+      "id": "counterexamples/deployment-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "2df8888a13ededd5612993ab76fd8cc4adc2e83c0a0540f931d31255a9c788ec"
+      }
+    },
+    {
+      "id": "counterexamples/dynamic-route-factory",
+      "role": "counterexample",
+      "files": {
+        "app.py": "94a9da468b41f083c1bc6a7d8cea6cd433626180af173a8c2412f3850557a19f"
+      }
+    },
+    {
+      "id": "counterexamples/generated-routes",
+      "role": "counterexample",
+      "files": {
+        "app.py": "9b2f6b831dcfd29593a92ad44d7f3bdbca6f95711a7c08f3aaac0256ef56e420"
+      }
+    },
+    {
+      "id": "counterexamples/middleware-auth",
+      "role": "counterexample",
+      "files": {
+        "app.py": "16cb51f4ae67d3f92c73726983410219048a855094b63d74780f7b99e3c3eec3"
+      }
+    },
+    {
+      "id": "counterexamples/router-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "42ae2d4e30117384f338256f2b39a70fd725cb65171492061ea9ff32ac91a263"
+      }
+    }
+  ],
+  "must_catch": [
+    {
+      "id": "normal-literal-routes",
+      "construct": "@get/@post handlers with a typed path parameter, Router(path=\"/api\", route_handlers=[...]) and Litestar(route_handlers=[...]) (the baseline a future scanner must extract)",
+      "fixture": "normal",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /health",
+          "GET /items/{item_id:int}",
+          "POST /api/items"
+        ],
+        "generated": [
+          "GET /schema",
+          "GET /schema/elements",
+          "GET /schema/oauth2-redirect.html",
+          "GET /schema/openapi.json",
+          "GET /schema/openapi.yaml",
+          "GET /schema/openapi.yml",
+          "GET /schema/rapidoc",
+          "GET /schema/redoc",
+          "GET /schema/swagger",
+          "GET /schema/{path:str}"
+        ]
+      },
+      "layers": {}
+    },
+    {
+      "id": "dynamic-route-factory",
+      "construct": "handlers produced by a factory that applies @get(f\"/{name}\") in a comprehension",
+      "fixture": "counterexamples/dynamic-route-factory",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /alpha",
+          "GET /beta"
+        ],
+        "generated": [
+          "GET /schema",
+          "GET /schema/elements",
+          "GET /schema/oauth2-redirect.html",
+          "GET /schema/openapi.json",
+          "GET /schema/openapi.yaml",
+          "GET /schema/openapi.yml",
+          "GET /schema/rapidoc",
+          "GET /schema/redoc",
+          "GET /schema/swagger",
+          "GET /schema/{path:str}"
+        ]
+      },
+      "layers": {}
+    },
+    {
+      "id": "router-prefix",
+      "construct": "Router(path=\"/api\") containing Router(path=\"/v1\"), registered on Litestar(path=\"/svc\")",
+      "fixture": "counterexamples/router-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /svc/api/v1/ping"
+        ],
+        "generated": [
+          "GET /svc/schema",
+          "GET /svc/schema/elements",
+          "GET /svc/schema/oauth2-redirect.html",
+          "GET /svc/schema/openapi.json",
+          "GET /svc/schema/openapi.yaml",
+          "GET /svc/schema/openapi.yml",
+          "GET /svc/schema/rapidoc",
+          "GET /svc/schema/redoc",
+          "GET /svc/schema/swagger",
+          "GET /svc/schema/{path:str}"
+        ]
+      },
+      "layers": {}
+    },
+    {
+      "id": "middleware-auth",
+      "construct": "guards=[require_token] on one handler",
+      "fixture": "counterexamples/middleware-auth",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "who may call /private (guards)",
+      "expected": {
+        "routes": [
+          "GET /private",
+          "GET /public"
+        ],
+        "generated": [
+          "GET /schema",
+          "GET /schema/elements",
+          "GET /schema/oauth2-redirect.html",
+          "GET /schema/openapi.json",
+          "GET /schema/openapi.yaml",
+          "GET /schema/openapi.yml",
+          "GET /schema/rapidoc",
+          "GET /schema/redoc",
+          "GET /schema/swagger",
+          "GET /schema/{path:str}"
+        ]
+      },
+      "layers": {}
+    },
+    {
+      "id": "generated-routes",
+      "construct": "OpenAPI and schema routes Litestar adds itself (OpenAPIConfig(path=\"/docs\")); no decorator in the fixture declares them",
+      "fixture": "counterexamples/generated-routes",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-generated",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/elements",
+          "GET /docs/oauth2-redirect.html",
+          "GET /docs/openapi.json",
+          "GET /docs/openapi.yaml",
+          "GET /docs/openapi.yml",
+          "GET /docs/rapidoc",
+          "GET /docs/redoc",
+          "GET /docs/swagger",
+          "GET /docs/{path:str}"
+        ]
+      },
+      "layers": {}
+    },
+    {
+      "id": "deployment-prefix",
+      "construct": "uvicorn root_path=\"/svc\" passed at server start, outside the application object",
+      "fixture": "counterexamples/deployment-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "root_path /svc (server-level prefix)",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /schema",
+          "GET /schema/elements",
+          "GET /schema/oauth2-redirect.html",
+          "GET /schema/openapi.json",
+          "GET /schema/openapi.yaml",
+          "GET /schema/openapi.yml",
+          "GET /schema/rapidoc",
+          "GET /schema/redoc",
+          "GET /schema/swagger",
+          "GET /schema/{path:str}"
+        ]
+      },
+      "layers": {}
+    }
+  ],
+  "scope": {
+    "supported": [],
+    "unknown_flagged": [],
+    "unsupported_gap": [],
+    "unassessed": [
+      "deployment-prefix",
+      "dynamic-route-factory",
+      "generated-routes",
+      "middleware-auth",
+      "normal-literal-routes",
+      "router-prefix"
+    ],
+    "oracle_blind": [
+      "deployment-prefix",
+      "middleware-auth"
+    ]
+  },
+  "conformance": {
+    "status": "BLOCKED",
+    "reason": "No Litestar scanner layer or adapter exists: adapters/http-wave-bc/catalog.mjs only admits the target (id python-litestar) and the static runner has no layer for it, so there is no static output to compare. Only oracle baselines are stored; the comparison is BLOCKED until an extraction layer exists."
+  },
+  "pin": {
+    "python": "3.12.13",
+    "packages": [
+      {
+        "pypi": "litestar",
+        "role": "framework",
+        "version": "2.24.0",
+        "wheel": "litestar-2.24.0-py3-none-any.whl",
+        "wheel_sha256": "0ef13630173ea147847363f03f0459877ab14a572e68b2af7a25796055513a31",
+        "registry_sha256": "0ef13630173ea147847363f03f0459877ab14a572e68b2af7a25796055513a31",
+        "released_after_pin_not_covered": []
+      }
+    ],
+    "installed": [
+      "anyio==4.15.1",
+      "certifi==2026.7.22",
+      "click==8.5.0",
+      "Faker==40.41.0",
+      "h11==0.16.0",
+      "httpcore==1.0.9",
+      "httpx==0.28.1",
+      "idna==3.20",
+      "litestar==2.24.0",
+      "litestar-htmx==0.5.0",
+      "markdown-it-py==4.2.0",
+      "mdurl==0.1.2",
+      "msgspec==0.22.0",
+      "multidict==7.0.0",
+      "multipart==2.0.1",
+      "pip==26.1.2",
+      "polyfactory==3.3.0",
+      "Pygments==2.21.0",
+      "PyYAML==6.0.3",
+      "rich==15.0.0",
+      "rich-click==1.9.9",
+      "sniffio==1.3.1",
+      "typing_extensions==4.16.0"
+    ],
+    "registry": {
+      "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+      "extract_sha256": "01bdf3bbbe8633949dc17ff839044a3cbfb5c404707fc9a89c4e72ee7b4356d2"
+    },
+    "existing_profile_pin": null
+  },
+  "oracle_tool": {
+    "path": "adapters/http-wave-a/python-scope/oracle.py",
+    "sha256": "bb61a5ae49f6d737d8ff7f32579eda826bef488ec11db94329ca066d157b87d6"
+  },
+  "oracle_range": {
+    "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
+    "platform": {
+      "implementation": "cpython",
+      "machine": "arm64",
+      "system": "Darwin",
+      "version": "3.12.13"
+    },
+    "can_verify": [
+      "which paths and methods the framework registers after importing the fixture (non-generated pairs)",
+      "which routes the framework generates itself (docs, openapi, static, admin) and their paths",
+      "prefix composition, mounts and include flattening exactly as the framework computes them",
+      "trailing-slash and converter spelling of the registered path"
+    ],
+    "cannot_verify": [
+      "request handling: middleware execution, authentication outcomes, redirects, status codes or response bodies",
+      "deployment prefix behaviour (root_path, APPLICATION_ROOT, FORCE_SCRIPT_NAME, reverse-proxy rewriting)",
+      "any framework version or Python version other than the pinned ones",
+      "routes registered after import (at request time) or by code the fixture does not execute",
+      "the automatic OPTIONS handlers Litestar adds (dropped from the comparison)"
+    ]
+  },
+  "executed_commands": [
+    {
+      "id": "registry-litestar",
+      "command": "curl -fsS https://pypi.org/pypi/litestar/json",
+      "exit_code": 0,
+      "stdout_sha256": "bac801a97c693962e5273eff3a49e4c4efd2fd02ba8345e2da1446129e634033",
+      "stdout_bytes": 128485,
+      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+    },
+    {
+      "id": "venv",
+      "command": "python3.12 -m venv $VENV",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "install",
+      "command": "python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: -q litestar==2.24.0",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "freeze",
+      "command": "python -m pip freeze --all",
+      "exit_code": 0,
+      "stdout_sha256": "97d16a6cdd3c0ddaf6e6083134d90b901ec2003ecb1c11cabade6ec0cf10cb1d",
+      "stdout_bytes": 371,
+      "stored_as": "results/environment.txt"
+    },
+    {
+      "id": "wheel",
+      "command": "python -m pip download --no-deps --no-cache-dir --only-binary=:all: --disable-pip-version-check -d wheels -q litestar==2.24.0",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "wheel-digest",
+      "command": "shasum -a 256 litestar-2.24.0-py3-none-any.whl",
+      "exit_code": 0,
+      "stdout_sha256": "ef95cfed738a6ea9c02f12a64e3d84d5e5b62d7283865cfa0c1d4ef1b14f94e9",
+      "stdout_bytes": 99,
+      "stored_as": "results/wheel-digest.txt"
+    },
+    {
+      "id": "oracle-1",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py litestar adapters/http-wave-bc/python-litestar/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "5e36c083b38c2a15d63d762a770520dcc71fd9e8c4153bb9b3fff3af06b11b9d",
+      "stdout_bytes": 23986,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "oracle-2",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py litestar adapters/http-wave-bc/python-litestar/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "5e36c083b38c2a15d63d762a770520dcc71fd9e8c4153bb9b3fff3af06b11b9d",
+      "stdout_bytes": 23986,
+      "stored_as": "results/oracle.json"
+    }
+  ],
+  "limits": [
+    "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
+    "HEAD and OPTIONS are dropped from the stored expected pairs. A method the framework does not report is stored as \"-\"; a future scanner pair with a null method compares as \"-\" and counts as unresolved, never as an exact match.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails when a scanner or adapter file named after the framework appears (adapter-appeared), so this record cannot outlive a new adapter unnoticed.",
+    "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "Litestar adds its own docs and schema handlers to every application (the same set of generated GET pairs in every fixture) and an automatic OPTIONS handler per path; oracle.py marks them generated and the comparison drops OPTIONS, so a future scanner is held to the non-generated pairs, plus the generated ones only for the generated-routes entry."
+  ],
+  "plan": [
+    "HTTP-python-litestar-02 (not started): T06 needs decorator/Router/Controller facts and a T13 adapter before any static comparison; the expected pairs stored per must-catch entry are the acceptance baseline. Until then the target stays unsupported.",
+    "HTTP-python-litestar-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
+  ],
+  "record_digest": "274672080ca8a907ae13a8f279c968fcbafa25e222cc539aff99acb29a634908"
+}

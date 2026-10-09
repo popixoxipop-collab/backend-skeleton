@@ -1,0 +1,19 @@
+{
+ "source": "PyPI JSON API https://pypi.org/pypi/<project>/json",
+ "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+ "projects": {
+  "flask": {
+   "info_version": "3.1.3",
+   "requires_python": ">=3.9",
+   "pinned": {
+    "version": "3.1.3",
+    "filename": "flask-3.1.3-py3-none-any.whl",
+    "sha256": "f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c",
+    "size": 103424,
+    "upload_time_iso_8601": "2026-02-19T05:00:56.027585Z",
+    "yanked": false
+   },
+   "released_after_pin": []
+  }
+ }
+}

@@ -1,0 +1,19 @@
+{
+ "source": "PyPI JSON API https://pypi.org/pypi/<project>/json",
+ "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+ "projects": {
+  "fastapi": {
+   "info_version": "0.143.0",
+   "requires_python": ">=3.10",
+   "pinned": {
+    "version": "0.143.0",
+    "filename": "fastapi-0.143.0-py3-none-any.whl",
+    "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+    "size": 144665,
+    "upload_time_iso_8601": "2026-10-08T12:29:44.853354Z",
+    "yanked": false
+   },
+   "released_after_pin": []
+  }
+ }
+}

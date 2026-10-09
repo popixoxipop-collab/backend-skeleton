@@ -1,0 +1,5 @@
+SECRET_KEY = "scope-record"
+ROOT_URLCONF = "urls"
+INSTALLED_APPS = []
+FORCE_SCRIPT_NAME = "/svc"
+DATABASES = {}

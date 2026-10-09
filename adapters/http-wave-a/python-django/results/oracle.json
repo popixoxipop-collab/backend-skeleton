@@ -1,0 +1,208 @@
+{
+ "fixtures": {
+  "counterexamples/deployment-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/ping/",
+     "regex": false,
+     "view": "views.ping",
+     "viewset_actions": null
+    }
+   ]
+  },
+  "counterexamples/dynamic-route-factory": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/alpha/",
+     "regex": false,
+     "view": "views.make_view.<locals>.view",
+     "viewset_actions": null
+    },
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/beta/",
+     "regex": false,
+     "view": "views.make_view.<locals>.view",
+     "viewset_actions": null
+    }
+   ]
+  },
+  "counterexamples/generated-admin": {
+   "error": null,
+   "generated_groups": [
+    {
+     "count": 23,
+     "group": "django.contrib.admin",
+     "paths_sorted": [
+      "/admin/",
+      "/admin/(?P<url>.*)$",
+      "/admin/^(?P<app_label>auth)/$",
+      "/admin/auth/group/",
+      "/admin/auth/group/<path:object_id>/",
+      "/admin/auth/group/<path:object_id>/change/",
+      "/admin/auth/group/<path:object_id>/delete/",
+      "/admin/auth/group/<path:object_id>/history/",
+      "/admin/auth/group/add/",
+      "/admin/auth/user/",
+      "/admin/auth/user/<id>/password/",
+      "/admin/auth/user/<path:object_id>/",
+      "/admin/auth/user/<path:object_id>/change/",
+      "/admin/auth/user/<path:object_id>/delete/",
+      "/admin/auth/user/<path:object_id>/history/",
+      "/admin/auth/user/add/",
+      "/admin/autocomplete/",
+      "/admin/jsi18n/",
+      "/admin/login/",
+      "/admin/logout/",
+      "/admin/password_change/",
+      "/admin/password_change/done/",
+      "/admin/r/<path:content_type_id>/<path:object_id>/"
+     ]
+    }
+   ],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/ping/",
+     "regex": false,
+     "view": "views.ping",
+     "viewset_actions": null
+    }
+   ]
+  },
+  "counterexamples/generated-drf-router": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": "item-list",
+     "path": "/api/^items/$",
+     "regex": true,
+     "view": "views.ItemViewSet",
+     "viewset_actions": [
+      "get"
+     ]
+    },
+    {
+     "generated": false,
+     "methods": null,
+     "name": "item-detail",
+     "path": "/api/^items/(?P<pk>[^/.]+)/$",
+     "regex": true,
+     "view": "views.ItemViewSet",
+     "viewset_actions": [
+      "get"
+     ]
+    }
+   ]
+  },
+  "counterexamples/middleware-auth": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/private/",
+     "regex": false,
+     "view": "views.private",
+     "viewset_actions": null
+    },
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/public/",
+     "regex": false,
+     "view": "views.public",
+     "viewset_actions": null
+    }
+   ]
+  },
+  "counterexamples/router-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/api/v1/ping/",
+     "regex": false,
+     "view": "views.ping",
+     "viewset_actions": null
+    }
+   ]
+  },
+  "normal": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/^legacy/(?P<slug>[-\\w]+)/$",
+     "regex": true,
+     "view": "views.legacy",
+     "viewset_actions": null
+    },
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/api/ping/",
+     "regex": false,
+     "view": "views.health",
+     "viewset_actions": null
+    },
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/health/",
+     "regex": false,
+     "view": "views.health",
+     "viewset_actions": null
+    },
+    {
+     "generated": false,
+     "methods": null,
+     "name": null,
+     "path": "/items/<int:pk>/",
+     "regex": false,
+     "view": "views.item",
+     "viewset_actions": null
+    }
+   ]
+  }
+ },
+ "framework": {
+  "name": "django",
+  "version": "6.1.1"
+ },
+ "oracle": "framework-route-table",
+ "python": {
+  "implementation": "cpython",
+  "machine": "arm64",
+  "system": "Darwin",
+  "version": "3.12.13"
+ }
+}
