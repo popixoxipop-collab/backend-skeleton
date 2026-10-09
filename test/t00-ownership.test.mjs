@@ -17,6 +17,7 @@ import { BACKLOG_SCHEMA, planProblems, serializeSnapshot, snapshotDifferences, s
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const listFiles = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? listFiles(path.join(dir, e.name)) : e.isFile() ? [path.join(dir, e.name)] : []));
 const sources = await loadSources(ROOT);
 const map = JSON.parse(read(FILES.map));
 const ctx = mapContext(sources);
@@ -63,7 +64,7 @@ test('the checker CLI accepts the map and the T00 files of this checkout and ref
   const ok = cli('map');
   assert.equal(ok.status, 0, ok.stdout + ok.stderr);
   assert.match(ok.stdout, new RegExp(`^OK ownership map verified: ${map.tracks.length} tracks, ${mapCounts(map).scopes} scopes, ${map.reserved_hot_paths.length} reserved paths`));
-  const own = fs.readdirSync(path.join(ROOT, 'next/t00'), { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => path.relative(ROOT, path.join(e.parentPath, e.name)));
+  const own = listFiles(path.join(ROOT, 'next/t00')).map((f) => path.relative(ROOT, f));
   assert.equal(cli('paths', '--track', 'T00', ...own, ...map.tracks.find((t) => t.track === 'T00').extra_scopes).status, 0);
   const bad = cli('paths', '--track', 'T00', 'package.json', 'contracts/next/a.json');
   assert.equal(bad.status, 2);
@@ -232,7 +233,7 @@ test('the RFC and the README name every file and every code of this track, and t
   const rows = [...rfc.matchAll(/^\| `([A-Z_]+)` \|/gm)].map((m) => m[1]);
   assert.deepEqual([...rows].sort(), [...OWNERSHIP_CODES, 'PLAN_SNAPSHOT_STALE'].sort());
   for (const h of map.reserved_hot_paths) assert.ok(rfc.includes(`\`${h.path}\``), `the RFC lists ${h.repository} ${h.path}`);
-  const owned = fs.readdirSync(path.join(ROOT, 'next/t00'), { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => path.relative(path.join(ROOT, 'next/t00'), path.join(e.parentPath, e.name)));
+  const owned = listFiles(path.join(ROOT, 'next/t00')).map((f) => path.relative(path.join(ROOT, 'next/t00'), f));
   for (const file of ['ownership.mjs', 'snapshot-plan.mjs', 'build-ownership-map.mjs', 'check-ownership.mjs', 'recorded-runs.mjs', 'make-ownership-report.mjs', 'ownership-map.json', 'ownership-report.json', 'fixtures/plan-write-scopes.json', 'fixtures/ownership-rules.json', 'INTERFACE_RFC.md']) {
     assert.ok(owned.includes(file), `${file} exists`);
     assert.ok(readme.includes(`\`${file}\``), `the README names ${file}`);
