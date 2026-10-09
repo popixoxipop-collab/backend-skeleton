@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Snapshot of the write scopes in the scale plan backlog: the one part of the plan that says which track may write where.
 // The plan folder is in no repository, so the committed snapshot is the copy that the ownership map is derived from and
-// checked against. `--check` recomputes the snapshot from a backlog file and compares it with the committed one; that is
-// a maintainer step (CI has no backlog), and the snapshot's own shape and derived facts are checked on every test run.
+// checked against. `--check` recomputes the snapshot from a backlog file, validates the committed one on its own and
+// compares the two; that is a maintainer step (CI has no backlog), and the snapshot's own shape and derived facts are
+// checked on every test run.
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -92,21 +93,37 @@ export function serializeSnapshot(snap) {
   return `${JSON.stringify(head, null, 2).slice(0, -2)},\n  "tasks": [\n${tasks.map((t) => `    ${JSON.stringify(t)}`).join(',\n')}\n  ]\n}\n`;
 }
 
+// A task listed twice stays two entries here: the lists are grouped by id with every entry kept, never collapsed to one.
+const tasksById = (tasks) => {
+  const groups = new Map();
+  for (const t of tasks) groups.set(t?.id, [...(groups.get(t?.id) ?? []), canonicalJson(t)]);
+  return groups;
+};
+
+// What differs between a committed snapshot and the one generated from the backlog; [] only when the two are equal.
 export function snapshotDifferences(committed, fresh) {
   const out = [];
   if (!isObject(committed)) return ['the committed snapshot is not an object'];
   for (const key of ['schema', 'task_id', 'generator']) if (committed[key] !== fresh[key]) out.push(`${key} differs`);
   for (const key of Object.keys(fresh.source)) if (canonicalJson(committed.source?.[key]) !== canonicalJson(fresh.source[key])) out.push(`source.${key} differs (backlog ${fresh.source[key]}, snapshot ${committed.source?.[key]})`);
-  const have = new Map((Array.isArray(committed.tasks) ? committed.tasks : []).map((t) => [t?.id, canonicalJson(t)]));
-  const want = new Map(fresh.tasks.map((t) => [t.id, canonicalJson(t)]));
-  for (const [id, text] of want) if (!have.has(id)) out.push(`task ${id} is missing from the snapshot`); else if (have.get(id) !== text) out.push(`task ${id} differs`);
-  for (const id of have.keys()) if (!want.has(id)) out.push(`task ${id} is not in the backlog`);
+  if (Array.isArray(committed.tasks)) {
+    const have = tasksById(committed.tasks);
+    const want = tasksById(fresh.tasks);
+    for (const [id, wanted] of want) {
+      const held = have.get(id) ?? [];
+      if (held.length === 0) out.push(`task ${id} is missing from the snapshot`);
+      else if (held.length !== wanted.length) out.push(`task ${id} appears ${held.length} times in the snapshot but ${wanted.length} in the backlog`);
+      else if (held.some((text, i) => text !== wanted[i])) out.push(`task ${id} differs`);
+    }
+    for (const id of have.keys()) if (!want.has(id)) out.push(`task ${id} is not in the backlog`);
+  } else out.push('tasks is not an array');
+  if (out.length === 0 && canonicalJson(committed) !== canonicalJson(fresh)) out.push('the snapshot has a member the generator does not write, or lists the tasks in another order');
   return out;
 }
 
 const USAGE = `usage: node next/t00/snapshot-plan.mjs <backlog.json> <out.json>
        node next/t00/snapshot-plan.mjs --check <backlog.json> [<snapshot.json>]
-exit codes: 0 written or equal, 2 the snapshot differs from the backlog, 1 usage or unreadable input`;
+exit codes: 0 written or equal, 2 the snapshot differs from the backlog or is not a valid snapshot, 1 usage or unreadable input`;
 
 export function runCli(argv) {
   const check = argv[0] === '--check';
@@ -131,10 +148,13 @@ export function runCli(argv) {
     console.log(`wrote ${files[1]}: ${fresh.tasks.length} tasks from ${fresh.source.bytes} bytes, sha256 ${fresh.source.sha256}`);
     return 0;
   }
+  const invalid = planProblems(committed);
   const differences = snapshotDifferences(committed, fresh);
+  for (const p of invalid) console.log(`FAIL PLAN_SNAPSHOT_STALE snapshot is not valid: ${p}`);
   for (const d of differences) console.log(`FAIL PLAN_SNAPSHOT_STALE snapshot ${d}`);
-  if (differences.length === 0) console.log(`OK the snapshot equals the backlog: ${fresh.tasks.length} tasks, sha256 ${fresh.source.sha256}`);
-  return differences.length === 0 ? 0 : 2;
+  if (invalid.length > 0 || differences.length > 0) return 2;
+  console.log(`OK the snapshot is valid and equals the backlog: ${fresh.tasks.length} tasks, sha256 ${fresh.source.sha256}`);
+  return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {

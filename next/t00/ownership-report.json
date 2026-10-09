@@ -12,7 +12,7 @@
       "check-ownership.mjs": "444fbbb1504a13f6a3c418a82fa16f344186ee95d0f1d3c42dd0a557eb42090d",
       "ownership.mjs": "6a11e2a26a012e9bb45ef5d20941f659f640be39cfff3ca1637d7bec4e116360",
       "build-ownership-map.mjs": "65d2037bf25d76ec7622c43313c2c8bc467b4d052bb0e19e852ce4a79d39412a",
-      "snapshot-plan.mjs": "05c8f4de77ad24926d4552fb21824876007e8beacfe1068de2855393d53ea928"
+      "snapshot-plan.mjs": "c608d4239312bbf025cd26672979ce8c817e38baab016103196d1cbc3be09299"
     }
   },
   "cases": [

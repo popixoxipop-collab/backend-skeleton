@@ -20,7 +20,10 @@ map differs from it in any member, extra or missing.
 
 ## 2. Identity
 
-- Track: `Tnn`, one repository role per track (`bskel`, `becoder` or `beval`). Task ids are `Tnn-nn`.
+- Track: `Tnn`, one repository role per track (`bskel`, `becoder` or `beval`).
+- Task id: a non-empty string, unique in the snapshot, in one of two forms: `Tnn-nn` (`T05-01`, which starts with the track of
+  the task) and `FAMILY-slug-nn` (`GAME-godot-01`, `HTTP-csharp-aspnet-core-01`, whose track is a field only). `nn` is two
+  digits, `FAMILY` upper-case letters and `slug` words of lower-case letters and digits joined by `-`.
 - Scope: a repository-relative path with forward slashes, either one file or a directory written with a trailing `/**`.
   A segment uses only `[A-Za-z0-9._@+-]`: no other glob, no `.` or `..`, no empty segment, no backslash.
 - Two scopes collide when one covers the other. Case is ignored in that comparison, because macOS and Windows treat `A` and
@@ -41,8 +44,7 @@ map differs from it in any member, extra or missing.
 
 - An unknown track, an unknown path, an invalid path and a path that matches only when case is ignored all fail. A fact the
   gate cannot judge is never reported as met.
-- `paths` first verifies the whole map against its inputs. A stale map fails there with `MAP_NOT_DERIVED` before any path
-  is judged.
+- `paths` first verifies the whole map against its inputs; a stale map fails with `MAP_NOT_DERIVED` before any path is judged.
 - A part of the context that is not given is not checked: the function `checkMap` skips the plan, suite and existence checks
   when its caller passes no plan, suites or `pathExists`. The CLI passes all three and its `OK` line names the checks run.
 - Files of becoder and beval are not in this checkout. Whether their reserved files exist is judged against the artifacts
@@ -86,7 +88,7 @@ on stdout. `--repo-dir <dir>` checks another checkout and imports (runs) that ch
 | `PATH_RESERVED_HOT` | the path is a reserved hot path or lies inside one |
 | `PATH_CASE_MISMATCH` | the path matches a scope or reserved path only when case is ignored |
 | `PATH_UNOWNED` | the path lies inside no scope and no reserved path |
-| `PLAN_SNAPSHOT_STALE` | printed by `snapshot-plan.mjs --check`: the snapshot differs from the backlog |
+| `PLAN_SNAPSHOT_STALE` | printed by `snapshot-plan.mjs --check`: the snapshot differs from the backlog or is not valid on its own |
 
 ## 7. Reserved hot paths
 
@@ -100,20 +102,18 @@ on stdout. `--repo-dir <dir>` checks another checkout and imports (runs) that ch
 1. Before the push run `paths --track Tnn --git-diff <merge-base> HEAD`. Exit 0 means every changed path is the track's own.
 2. A change that has to touch a reserved path or another track's path is a stated exception. Name the path and the reason
    in the pull request body and leave the edit to the coordinator. The gate has no override.
-3. A change to `SUITES` (a hot file), to a plan write scope or to `test/t00-*.test.mjs` makes the committed map stale. Run
-   `build-ownership-map.mjs` and `make-ownership-report.mjs --write` and commit both with the change; the map test in
-   `test/t00-ownership.test.mjs` fails until then.
+3. A change to `SUITES` (a hot file), to a plan write scope or to `test/t00-*.test.mjs` makes the committed map stale: run
+   `build-ownership-map.mjs` and `make-ownership-report.mjs --write` and commit both; the map test fails until then.
 
 ## 9. Limits
 
 - The plan folder and the hot-path list of the playbook are in no repository. The snapshot and the rules file are their
   committed copies, and `snapshot-plan.mjs --check` against the backlog is a maintainer step, not a CI step.
-- The map is coupled to the live `SUITES` list and the `test/t00-*.test.mjs` list of this checkout.
-- Private-repository facts come from the lock and are not recomputable in CI.
-- The task files live in `next/t00/`; the coordination branch keeps its maps in `integration/scale/`, not synchronized.
+- The map is coupled to the live `SUITES` list and the `test/t00-*.test.mjs` list of this checkout. Private-repository
+  facts come from the lock and are not recomputable in CI.
 
 ## 10. Provenance
 
 Earlier maps are on the coordination branch `scale/T00/bootstrap-baseline` under `integration/scale/` (commit
-`7b517e7a3a566eca80f680f01687a946a4b32461`). They were read and not copied; nothing here depends on them and CI does not
-fetch that commit.
+`7b517e7a3a566eca80f680f01687a946a4b32461`). They were read and not copied, and are not synchronized with `next/t00/`;
+nothing here depends on them and CI does not fetch that commit.

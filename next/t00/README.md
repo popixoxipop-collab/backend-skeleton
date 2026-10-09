@@ -79,7 +79,7 @@ Which track may write which path in which repository, and the gate that checks i
 | File | Role |
 |---|---|
 | `ownership.mjs` | Pure model: scope grammar, collisions, path classification and the code lists `MAP_CODES` and `PATH_CODES`. |
-| `snapshot-plan.mjs` | Snapshots the write scopes of the plan backlog; `--check` compares a backlog with the committed snapshot. |
+| `snapshot-plan.mjs` | Snapshots the write scopes of the plan backlog; `--check` validates the committed snapshot and compares it with a backlog. |
 | `build-ownership-map.mjs` | Derives `ownership-map.json` from its inputs and writes it only if every check passed. |
 | `check-ownership.mjs` | CLI: `map` verifies the committed map, `paths` verifies that given paths or a git diff belong to one track only. |
 | `recorded-runs.mjs` | Spawns the real CLI once per case and records the exit code, the error codes and a hash of stdout. |

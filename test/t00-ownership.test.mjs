@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,7 @@ import { OWNERSHIP_CODES } from '../next/t00/check-ownership.mjs';
 import { buildReport, CASES, REPORT_FILE, verifyReport } from '../next/t00/make-ownership-report.mjs';
 import { checkMap, checkPaths, classifyPath, formatError, MAP_CODES, normalizePath, PATH_CODES, scopesOverlap } from '../next/t00/ownership.mjs';
 import { diffReports } from '../next/t00/recorded-runs.mjs';
-import { planProblems, serializeSnapshot, snapshotDifferences, snapshotPlan } from '../next/t00/snapshot-plan.mjs';
+import { BACKLOG_SCHEMA, planProblems, serializeSnapshot, snapshotDifferences, snapshotPlan } from '../next/t00/snapshot-plan.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -20,6 +21,8 @@ const sources = await loadSources(ROOT);
 const map = JSON.parse(read(FILES.map));
 const ctx = mapContext(sources);
 const cli = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'next/t00/check-ownership.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
+const snapshotCli = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'next/t00/snapshot-plan.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
+const TINY_BACKLOG = { schema: BACKLOG_SCHEMA, tasks: [{ id: 'T01-01', track: 'T01', repository: 'bskel', write_scope: ['next/t01/**'] }, { id: 'T02-01', track: 'T02', repository: 'bskel', write_scope: ['next/t02/**'] }] };
 const probe = (scope) => (scope.endsWith('/**') ? `${scope.slice(0, -3)}/probe.txt` : scope);
 const codes = (errors) => [...new Set(errors.map((e) => e.code))].sort();
 
@@ -121,22 +124,85 @@ test('the plan snapshot: shape, one-task-per-line round trip, and every kind of 
   const snap = JSON.parse(text);
   assert.deepEqual(planProblems(snap), []);
   assert.equal(serializeSnapshot(snap), text);
-  const backlog = { schema: 'bskel.scale-backlog/1', tasks: [{ id: 'T01-01', track: 'T01', repository: 'bskel', write_scope: ['next/t01/**'] }, { id: 'T02-01', track: 'T02', repository: 'bskel', write_scope: ['next/t02/**'] }] };
-  const fresh = snapshotPlan(Buffer.from(JSON.stringify(backlog)));
+  const fresh = snapshotPlan(Buffer.from(JSON.stringify(TINY_BACKLOG)));
   assert.deepEqual(snapshotDifferences(structuredClone(fresh), fresh), []);
   const changes = [
     (s) => { s.tasks[0].write_scope.push('x/**'); },
     (s) => { s.tasks.pop(); },
     (s) => { s.tasks.push({ id: 'T03-01', track: 'T03', repository: 'bskel', write_scope: [] }); },
+    (s) => { s.tasks.push(structuredClone(s.tasks[0])); },
+    (s) => { s.tasks.reverse(); },
+    (s) => { s.tasks = {}; },
+    (s) => { s.note = 'a member the generator does not write'; },
+    (s) => { s.source.note = 'a member the generator does not write'; },
     (s) => { s.source.sha256 = '0'.repeat(64); },
   ];
   for (const change of changes) {
     const edited = structuredClone(fresh);
     change(edited);
-    assert.notDeepEqual(snapshotDifferences(edited, fresh), []);
+    assert.notDeepEqual(snapshotDifferences(edited, fresh), [], String(change));
   }
-  assert.throws(() => snapshotPlan(Buffer.from('{"schema":"bskel.scale-backlog/1","tasks":[{"id":"T01-01"}]}')), /lacks a string id/);
+  assert.throws(() => snapshotPlan(Buffer.from(`{"schema":"${BACKLOG_SCHEMA}","tasks":[{"id":"T01-01"}]}`)), /lacks a string id/);
   assert.match(planProblems({ ...fresh, tasks: [{ ...fresh.tasks[0], write_scope: ['a/*/b'] }, fresh.tasks[1]] })[0], /write scope/);
+});
+
+test('snapshot-plan --check reports a task listed twice and a snapshot that is invalid on its own, and accepts the equal one', () => {
+  const bytes = Buffer.from(JSON.stringify(TINY_BACKLOG));
+  const fresh = snapshotPlan(bytes);
+  const [first] = fresh.tasks;
+  const doubled = structuredClone(fresh);
+  doubled.tasks.push(structuredClone(first));
+  assert.equal(doubled.source.task_count, fresh.tasks.length, 'the count stays as the backlog has it');
+  assert.ok(snapshotDifferences(doubled, fresh).some((d) => d.startsWith(`task ${first.id} appears `)), 'the comparison counts every entry');
+  assert.ok(planProblems(doubled).some((p) => p === `task id ${first.id} appears more than once`));
+  assert.ok(planProblems(doubled).some((p) => p.startsWith('source.task_count is ')));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't00-snapshot-plan-'));
+  try {
+    const put = (name, content) => {
+      const file = path.join(dir, name);
+      fs.writeFileSync(file, content);
+      return file;
+    };
+    const backlog = put('backlog.json', bytes);
+    const equal = snapshotCli('--check', backlog, put('equal.json', serializeSnapshot(fresh)));
+    assert.equal(equal.status, 0, equal.stdout + equal.stderr);
+    assert.equal(equal.stdout, `OK the snapshot is valid and equals the backlog: ${fresh.tasks.length} tasks, sha256 ${fresh.source.sha256}\n`);
+    const twice = snapshotCli('--check', backlog, put('doubled.json', serializeSnapshot(doubled)));
+    assert.equal(twice.status, 2, twice.stdout + twice.stderr);
+    const lines = twice.stdout.split('\n').filter(Boolean);
+    assert.ok(lines.every((l) => l.startsWith('FAIL PLAN_SNAPSHOT_STALE snapshot ')), twice.stdout);
+    assert.ok(lines.some((l) => l.includes(`is not valid: task id ${first.id} appears more than once`)), twice.stdout);
+    assert.ok(lines.some((l) => l.includes(`task ${first.id} appears `) && l.includes(' times in the snapshot but ')), twice.stdout);
+    const array = snapshotCli('--check', backlog, put('array.json', '[]'));
+    assert.equal(array.status, 2, array.stdout + array.stderr);
+    assert.ok(array.stdout.includes('is not valid: the plan snapshot is not an object'), array.stdout);
+    const missing = snapshotCli('--check', backlog, path.join(dir, 'absent.json'));
+    assert.deepEqual([missing.status, missing.stdout], [1, '']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the RFC documents the task id forms of the plan snapshot, and every id of the snapshot has exactly one of them', () => {
+  const rfc = read('next/t00/INTERFACE_RFC.md');
+  const snap = JSON.parse(read(FILES.plan));
+  const forms = { 'Tnn-nn': /^T[0-9]{2}-[0-9]{2}$/, 'FAMILY-slug-nn': /^[A-Z]+(?:-[a-z0-9]+)+-[0-9]{2}$/ };
+  const bullet = /^- Task id:.*(?:\n {2}.*)*/m.exec(rfc)?.[0] ?? '';
+  const tokens = [...bullet.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  assert.deepEqual(tokens.filter((x) => /-nn$/.test(x)), Object.keys(forms), 'the RFC names exactly the forms of this test');
+  const examples = tokens.filter((x) => /-[0-9]{2}$/.test(x));
+  const ids = snap.tasks.map((t) => t.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of ids) assert.equal(Object.values(forms).filter((re) => re.test(id)).length, 1, `${id} has exactly one documented form`);
+  for (const [name, re] of Object.entries(forms)) {
+    assert.ok(ids.some((id) => re.test(id)), `an id of the snapshot has the form ${name}`);
+    assert.ok(examples.some((e) => re.test(e)), `the RFC gives an example of ${name}`);
+  }
+  for (const e of examples) assert.ok(ids.includes(e), `the example ${e} is an id of the snapshot`);
+  for (const t of snap.tasks.filter((x) => forms['Tnn-nn'].test(x.id))) assert.equal(t.id.slice(0, 3), t.track, `${t.id} starts with its track`);
+  const withId = (id) => snapshotPlan(Buffer.from(JSON.stringify({ ...TINY_BACKLOG, tasks: [{ ...TINY_BACKLOG.tasks[0], id }] })));
+  assert.doesNotThrow(() => withId('an id outside both forms'), 'the snapshot gate demands a non-empty string and no more');
+  assert.throws(() => withId(''), /lacks a string id/);
 });
 
 test('the recorded runs equal a fresh recording of the real CLI, and they exercise every code and every exit code', async () => {
