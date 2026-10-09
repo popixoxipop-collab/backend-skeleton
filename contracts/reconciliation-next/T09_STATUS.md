@@ -1,25 +1,28 @@
 # T09 implementation status / handoff
 
 - Branch: `scale/T09/reconciliation-next-foundation` (original working branch)
-- PR: #83 (closed without merge; the T09 bytes reached `main` through PR #147, merge commit
-  `bb18182c54a3a8f682ed2d1a6bac26749fcf267e`)
-- Status: **on `main` through PR #147; shadow diagnostics only; shared vocabulary not frozen**
+- Pull request: the original draft was PR 83 (closed without merge); the T09 bytes reached `main` through
+  PR 147, merge commit `bb18182c54a3a8f682ed2d1a6bac26749fcf267e`
+- Status: **on `main` through PR 147; shadow diagnostics only; shared vocabulary not frozen**
 
 This file records T09-local implementation state. It is not a release certificate and does not mark
 T00/T01/T03/T16/T19 tasks accepted.
 
-> Update (checked against `main` at `ad24e0d8`, 2026-10-03): the status above and the CI discovery
-> paragraph near the end were stale. Wording below that says "draft branch", "this PR" or "this
-> branch" describes the history of PR #83 and is kept as written. Current facts: the T09 files are on
-> `main`; the focused suite has 113 tests; the nested-next CI job runs it as the
-> `T09 reconciliation-next` step (`.github/workflows/ci.yml:142-143`). Nothing here promotes any
-> capability; the output stays shadow diagnostics and advisory readiness only.
+> Update (checked against `main` at `02e7d05e71bdb64d94c16e1adf7cbe38626ee58a`, 2026-10-09): the status
+> above and the CI discovery paragraph near the end were stale. Wording below that says "draft branch",
+> "this PR" or "this branch" describes the history of the original draft and is kept as written. Current
+> facts: the T09 files are on `main`; the focused suite has 113 tests in seven files; the `nested-next` CI
+> job runs it as the `T09 reconciliation-next` step (`node scripts/run-next-nested-tests.mjs T09`).
+> T09-01 is recorded in `BASELINE.json`: file hashes, the commands with their exit codes, normal and
+> negative fixtures and the remaining limits at that commit, checked by `baseline-record.test.mjs` (see
+> the README). Nothing here promotes any capability; the output stays shadow diagnostics and advisory
+> readiness only.
 
 ## Task mapping
 
 | T09 slice | Branch state | Evidence in this PR | Remaining dependency |
 |---|---|---|---|
-| T09-01 existing reconciliation audit | implemented | README audit findings + legacy integration tests | reviewer confirmation |
+| T09-01 existing reconciliation audit | implemented; behaviour and failure cases pinned at an exact revision | README audit findings, legacy integration tests and `BASELINE.json` (hashes, commands with exit codes, fixtures, limits) | reviewer confirmation; the CI observation in the record is traceability only |
 | T09-02 field authority / reconciliation rules | implemented as `0-draft` | `decision-graph.mjs` | T01/T03 shared Claim/Capability names |
 | T09-03 method/path/operation reconciliation projection | implemented | matched/adopted/drift/missing/ambiguous/unresolved tests | shared interface freeze |
 | T09-04 schema/security context | implemented | raw schema presence, root security, duplicate OpenAPI ID audit | runtime auth semantics remain T16 |
@@ -161,14 +164,14 @@ This branch does not edit:
 - `bin/bskel.mjs`,
 - `package.json` or lockfiles.
 
-The 113 focused T09 tests (count at `main` `ad24e0d8`) live entirely under `test/reconciliation-next/**`.
-The shared root `npm test` (`node --test test/*.test.mjs`) still does not discover them. The out-of-lease
-root shim was removed at commit `92ee509c0654ef1d235851d4abe61cf74bb5c65d`. The shared-owner change
-request on T00 PR #65 asked central CI to include `test/reconciliation-next/*.test.mjs` without granting
-T09 a root/shared-file lease; on `main` the nested-next job now does that, running
-`node scripts/run-next-nested-tests.mjs T09` as the `T09 reconciliation-next` step
-(`.github/workflows/ci.yml:142-143`), so the earlier "BLOCKED for integration" condition on CI discovery
-no longer applies. Root `npm test` green still does not certify the nested suite; the nested-next job does.
+The 113 focused T09 tests (count at `02e7d05e71bdb64d94c16e1adf7cbe38626ee58a`, seven files) live entirely
+under `test/reconciliation-next/**`. The shared root `npm test` (`node --test test/*.test.mjs`) still does
+not discover them. A shared-owner change request on a T00 pull request asked central CI to include
+`test/reconciliation-next/*.test.mjs` without granting T09 a root/shared-file lease; on `main` the
+`nested-next` job now does that, running `node scripts/run-next-nested-tests.mjs T09` as the
+`T09 reconciliation-next` step of `.github/workflows/ci.yml`, so the earlier "BLOCKED for integration"
+condition on CI discovery no longer applies. Root `npm test` green still does not certify the nested suite;
+the `nested-next` job does.
 
 ## Merge / promotion rule
 
@@ -176,8 +179,8 @@ Do not mark this PR ready solely because tests are green. Before shared use:
 
 1. latest-head generic CI must be green,
 2. central CI/shared-owner discovery must actually execute the nested T09 suite (satisfied on `main`:
-   the `T09 reconciliation-next` nested-next step runs it, 113 tests at `ad24e0d8`; items 1, 3 and 4
-   were not re-evaluated by this update),
+   the `T09 reconciliation-next` nested-next step runs it, 113 tests at
+   `02e7d05e71bdb64d94c16e1adf7cbe38626ee58a`; items 1, 3 and 4 were not re-evaluated by this update),
 3. T01/T03 must review the local vocabulary and either adopt or map it,
 4. T16 must review the runtime observation boundary,
 5. stable writers remain unchanged until an integration PR explicitly enables a next path.
