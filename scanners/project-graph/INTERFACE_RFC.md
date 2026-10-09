@@ -108,7 +108,8 @@ project when that declares a name. [probe: options `package_owners`]
 ### 2.3 Plan item
 
 `buildProjectScanPlan` returns `{project_id, project_root, adapter_id, mode}` items sorted by
-`project_root`, then `adapter_id`. `mode` is `first-class` or `fallback`.
+`project_root`, then `adapter_id`. `mode` is `first-class` or `fallback`. It only labels how the item came into
+the plan: the shadow run copies it into `scans[]` and never acts on it (section 2.4).
 
 1. A project whose `project_role` is not `active` is skipped unless `includeNonActive` is set. It stays
    visible in the graph.
@@ -150,29 +151,38 @@ this test does not read that file.
 `executeProjectScanPlan` returns `{schema, graph_schema, terms, scans[], notes}` where each
 `scans[]` item is `{project_id, project_root, adapter_id, mode, report}` and `report` is the unchanged
 legacy `sbf.scan-report/2` produced by `runScan` for that project root with only the planned adapter,
-`includeDb: false`, `dbSchema: null` and `runtimeRoutes: false`. The nested scan runs on the project's own
-directory: for each planned project the planned adapter's `detect` and `scan` are called once with the
-absolute project root (the repository itself for `.`), no other adapter of `adapters` is called,
-`introspectRoutes` is never called, and the report has an `unknowns` entry that starts with `DB not scanned`
-and neither a `db_schema` nor a `runtime_introspection` key. `notes` holds three fixed prose strings. [probe: shadow]
-[probe: options `shadow_options`]
+`includeDb: false`, `dbSchema: null` and `runtimeRoutes: false`. `mode` is copied from the plan item and
+changes nothing in the scan: the report is an inventory (`verdict` `inventory`) when `terms` is empty and a
+scored report otherwise, for a `first-class` item and for a `fallback` item alike (section 5.3). The nested scan
+runs on the project's own directory: for each planned project the planned adapter's `detect` and `scan` are
+called once with the absolute project root (the repository itself for `.`), no other adapter of `adapters` is
+called, `introspectRoutes` is never called, and the report has an `unknowns` entry that starts with
+`DB not scanned` and neither a `db_schema` nor a `runtime_introspection` key. `notes` holds three fixed prose
+strings. [probe: shadow] [probe: options `shadow_options`]
 
 Its options. A falsy `repoRoot` is `TypeError: repoRoot is required`, and a graph that is not draft-1 is
 `TypeError: expected sbf.project-graph/draft-1`; `null` in place of the options object is a Node `TypeError`. A
 truthy `repoRoot` that is not a string (`5`) is a Node `TypeError` too. A missing graph, `null`, and a graph with another
 `schema` are the draft-1 error as well, even when they have no `projects` list.
 `terms` (default `[]`) is returned as a copy and handed to every nested scan. It has to be an array: `null`, a
-string or a `Set` makes the nested scan throw, and that comes back as `PROJECT_PLAN_STALE` (section 5.3) although
-nothing is stale. With no planned project there is no nested scan, and `terms` is only spread into the returned
-list: a string gives a list of its characters, a `Set` a list of its members, and `null` or a number is a Node
-`TypeError`. `rgAvailable` (default `true`) is handed to it too and comes back as the report's
-`rg_available` as given, not turned into a boolean; a falsy value (`false`, `0`, `null`) adds the `ripgrep` entry
-to the report's `unknowns`. `adapters` (default the registry's `ADAPTERS`) is looked up by `id`: two entries
-with one id throw a plain `Error` with no `code` before any project is verified, whether or not the plan uses
-them. It need not be an array, any iterable of adapters works (a `Set`), and `null` is a Node `TypeError`.
+non-empty string, a `Set` (an empty one too) or a number makes the nested scan throw, and that comes back as
+`PROJECT_PLAN_STALE` (section 5.3) although nothing is stale. `null` throws whatever the scan reports; the others
+throw only when the scan has a text with an ASCII letter or digit to score, such as a module name. An empty string
+has length 0: the scan runs it as an inventory and the returned `terms` is `[]`. With no planned project there is
+no nested scan, and `terms` is only spread into the returned list: a string gives a list of its characters, a
+`Set` a list of its members, and `null` or a number is a Node `TypeError`. The spread also follows every nested
+scan that did not throw, so when the scan has nothing to score, a string or a `Set` returns a report and a number
+fails with that `TypeError` instead of `PROJECT_PLAN_STALE`. `rgAvailable` (default `true`) is handed to it too
+and comes back as the report's `rg_available` as given, not turned into a boolean; a falsy value (`false`, `0`,
+`null`) adds the `ripgrep` entry to the report's `unknowns`. `adapters` (default the registry's `ADAPTERS`) is
+looked up by `id`: two entries with one id throw a plain `Error` with no `code` before any project is verified,
+whether or not the plan uses them. It need not be an array, any iterable of adapters works (a `Set`), and `null`
+is a Node `TypeError`.
 `includeFallback` (default off) adds the `fallback` items of section 2.3, so a project that only the
-fallback recognizes is then scanned in `fallback` mode. It takes no `includeNonActive`: that key, like any
-other key that is not listed, is ignored, so non-active roots are never scanned in shadow mode.
+fallback recognizes is then scanned in `fallback` mode. Only an active project that has no selected adapter and
+has a `fallback_adapter` gets one, and an `aggregate` project never does. A project without an item is not
+scanned and not verified, and nothing in the result lists it (section 5.3). It takes no `includeNonActive`: that
+key, like any other key that is not listed, is ignored, so non-active roots are never scanned in shadow mode.
 [probe: options `shadow_options`]
 
 The graph and `repoRoot` are matched as follows. The root a live graph captured and `repoRoot` are compared as
@@ -181,16 +191,18 @@ and a symbolic link to it does not (`PROJECT_GRAPH_ROOT_MISMATCH`). A draft-1 gr
 is not an array is a Node `TypeError`, raised after the duplicate-id check and before any project is verified, and
 one with an empty `projects` array returns an empty `scans`. [probe: options `shadow_options`]
 
-Before each project it re-hashes every marker and, when the graph carries a read set for that project,
+Before each planned project it re-hashes every marker and, when the graph carries a read set for that project,
 re-captures the selected adapter's read set and compares the adapter id and the fingerprint. A changed, added or
 removed file fails, and so do an adapter that no longer lists a read set, a read set recorded under another
 adapter id and a listing that throws. A project with no read set (`selected_adapter_read_set` `null`) skips that
-check and keeps the marker check, and a project entry with no `markers` key has nothing to re-hash. The projects
-are verified one after the other, each just before its own scan, so a project that has gone stale late in the
-plan fails after the earlier projects have been scanned. Any failure throws and **no partial `scans` list
-is returned** (all-or-nothing, fail closed). A graph that went through `JSON.stringify` and `JSON.parse`
-executes on an equivalent checkout; the root-mismatch check only applies to a live graph that still
-carries the execution-root symbol. [probe: shadow] [probe: options `shadow_options`]
+check and keeps the marker check, and a project entry with no `markers` key has nothing to re-hash. The builder
+captures a read set only for a selected adapter, so in a graph it wrote a `fallback` item has none: its markers
+are re-hashed and its source files are not checked. A project that is not in the plan is not verified at all, its
+markers included. The projects are verified one after the other, each just before its own scan, so a project
+that has gone stale late in the plan fails after the earlier projects have been scanned. Any failure throws and
+**no partial `scans` list is returned** (all-or-nothing, fail closed). A graph that went through
+`JSON.stringify` and `JSON.parse` executes on an equivalent checkout; the root-mismatch check only applies to a
+live graph that still carries the execution-root symbol. [probe: shadow] [probe: options `shadow_options`]
 
 ### 2.5 Options and input the builder does not check
 
@@ -410,9 +422,9 @@ marker rules come in the same order. [probe: options `walk_order`]
 
 | State | Meaning | Do not conclude |
 |---|---|---|
-| `kind: ambiguous`, `selection_reason: specificity-tie` | two or more first-class adapters tie; nothing is selected and nothing is planned, even with `includeFallback` | that any tied adapter owns the project |
-| `selection_reason: no-first-class-adapter` | no registered adapter recognized the root. `fallback_adapter` may name a low-confidence inventory fallback | that the project has no HTTP surface, or that the fallback supports it |
-| `kind: aggregate` | has child project roots and no adapter of its own; never gets a fallback plan item | that the children are scanned by the parent |
+| `kind: ambiguous`, `selection_reason: specificity-tie` | two or more first-class adapters tie; nothing is selected, and in a graph the builder wrote nothing is planned, even with `includeFallback` (section 2.3) | that any tied adapter owns the project |
+| `selection_reason: no-first-class-adapter` | no first-class adapter recognized the root. `fallback_adapter` may name a fallback adapter, which only a plan made with `includeFallback` uses (section 2.3) | that the project has no HTTP surface, that the fallback supports it, or that a scan of it is an inventory: that depends on `terms` (section 5.3) |
+| `kind: aggregate` | has child project roots and no selected adapter. It may carry a `fallback_adapter`, but never gets a fallback plan item | that the children are scanned by the parent |
 | `nested_detections` | an adapter that recurses found a project below this root, so the parent is not selected. One entry per adapter, the first match in that adapter's own traversal | that this is the list of children. Use `child_project_roots` and each child's own facet. [probe: normal, repo root] |
 | `selected_adapter_read_set: null` with a selected adapter | source freshness is **unattested**: the adapter has no `listReadSet`, or capture failed. Shadow mode still re-hashes markers and skips the source check [probe: shadow `unattested_graph`] | that the sources are fresh. [probe: normal `backend-java`, negative `read_set_escape`] |
 | `local_package: null` | no readable Node package facts: no `node-package` marker, or a `package-metadata-read` entry exists. `local_package.name: null` means readable but unnamed | that the project has no packages in other ecosystems |
@@ -438,7 +450,7 @@ column does not list is absent, and `stale_kind` is `adapter-read-set` exactly i
 | `PROJECT_GRAPH_STALE` with `stale_kind: adapter-read-set` | the selected adapter's read set differs from the recorded one: a changed, added or removed file, an adapter that no longer lists a read set (`actual_fingerprint` is then `null` and `actual_files` empty), or a read set recorded under another adapter id | `project_id`, `adapter_id`, `expected_fingerprint`, `actual_fingerprint`, `expected_files`, `actual_files` | `source_drift`, `source_file_added`, `source_file_removed`, `read_set_not_recaptured`, `read_set_adapter_changed` |
 | `PROJECT_GRAPH_STALE` with `stale_kind: adapter-read-set` | the read set could not be recaptured: the listing threw, or a path leaves the project (`PROJECT_READ_SET_ESCAPE`) | `project_id`, `adapter_id`, `cause` (the original error), and no fingerprints | `read_set_capture_error`, `read_set_capture_escape` |
 | `PROJECT_ADAPTER_UNAVAILABLE` | the planned adapter id is not in `adapters` | none | `adapter_unavailable` |
-| `PROJECT_PLAN_STALE` | legacy `runScan` threw for the planned adapter, for example `detect()` no longer matches, or `terms` is not an array (section 2.4) | `project_id`, `adapter_id`, `cause` (the original error) | `plan_stale` |
+| `PROJECT_PLAN_STALE` | legacy `runScan` threw for the planned adapter, for example `detect()` no longer matches, or `terms` is `null` or a non-array that the scan has to score (section 2.4) | `project_id`, `adapter_id`, `cause` (the original error) | `plan_stale` |
 | `PROJECT_PLAN_INVALID` | a planned project id is missing from the graph | none | none: no probe reaches it, the plan is derived from the same graph inside the call [source] |
 | `PROJECT_PLAN_DRIFT` | the report names a different adapter than planned | none | none: no probe reaches it, `runScan` receives only the planned adapter [source] |
 
@@ -446,9 +458,23 @@ column does not list is absent, and `stale_kind` is `adapter-read-set` exactly i
 project or repository. At graph build time it surfaces only as an `adapter-read-set-error` entry (the
 code is not copied into the entry); at shadow time it is wrapped in a `PROJECT_GRAPH_STALE` error.
 
-A project that has no selected adapter is never reported as scanned. A `fallback` plan item is labeled
-`mode: fallback` and its report is inventory-only; T02 passes adapter `confidence` and
-`verification_basis` through as declared and never upgrades them.
+A project that has no selected adapter is scanned only as a `fallback` item. That takes `includeFallback` and a
+project that is active, has a `fallback_adapter` and is not an `aggregate` (section 2.3); in a graph the builder
+wrote, that is an `unrecognized` project. Every other project without a selected adapter is not scanned and not
+verified, and nothing in the result lists it: a project that is missing from `scans` was not scanned, which is
+not the same as a scan that found nothing.
+
+`mode: fallback` says only how the item came into the plan. The nested scan is the same `runScan` call as for a
+`first-class` item and its report is that call's unchanged output, so whether the report is an inventory depends
+on `terms` and on nothing else. With an empty `terms` it is one: `verdict` is `inventory`, `collisions` is empty,
+the modules carry no `score` or `evidence`, and the first `unknowns` entry says that nothing was scored. With a
+non-empty `terms` every module is scored, `related_modules` lists the modules with a positive `score`, and
+`verdict` is `greenfield`, `adjacent` or `collision`, as for a `first-class` item. Do not read `mode: fallback` as
+"inventory only".
+
+T02 passes adapter `confidence` and `verification_basis` through as declared and never upgrades them: for a
+first-class candidate the graph records both (section 4); for a fallback adapter the graph records only its id,
+and the report carries the adapter's `confidence` as declared and has no `verification_basis`.
 
 ## 6. File ownership
 
@@ -519,6 +545,7 @@ change the identity of the same document.
 | normal | probe `shadow` field `ok`, `serialized_graph_ok`, `graph_without_markers_ok` | a successful shadow run, the same run from a serialized graph, and the same run from a graph whose projects carry no `markers` key |
 | normal | probe `shadow` field `unattested_graph` | a graph built with an adapter that has no `listReadSet`: a changed source file passes the check and a changed marker fails it |
 | normal | probe `options`, group `accepted` | the options and caller-supplied values of section 2.5 that the builder takes and the schema accepts: custom marker kinds, the default marker file names, an `async` marker rule, empty marker rules, adapter field defaults, `null` and odd values, fallback adapters (one with no `id` included), the order in which adapters are asked, what an adapter is called with and when, `detect()` return values and failures, read-set shapes, package metadata and package owners, odd, `..`-prefixed and role-bearing directory names, names that every object has as properties, ignored directories, the walk order, nested projects, short project roots, repository root forms, a missing or file `repoRoot`, no adapters, an empty repository, a vanished marker file, an adapter removed during the build, the order of `unresolved` across all four stages, option keys the builder ignores, the two plan options and the registered plan variant, the options of `executeProjectScanPlan` (what the nested scan is given and calls, `terms`, `rgAvailable`, `adapters`, `repoRoot` forms, graph shapes, a project that goes stale after an earlier one was scanned), and `discoverProjectRoots` called with an empty path, no marker rules and non-string paths |
+| normal | the fallback tests in `test/project-graph/interface-rfc.test.mjs` | a repository in which a fallback adapter with a fixed scan result (not the registry's `generic-grep`) alone recognizes the project `solo`, next to a first-class application, an `aggregate` that also has a fallback adapter, an ambiguous pair and a reference-role example: the plan and the shadow run with `includeFallback` off and on and with an empty, a matching, an adjacent and a non-matching `terms`; values of `terms` that are not arrays; the freshness checks of a `fallback` item; `confidence` and `verification_basis` in the graph and in the report |
 | negative | probe `negative` | `specificity_tie`, `duplicate_local_package`, `unlocated_detection`, `out_of_scope_detection`, `detect_error`, `malformed_metadata`, `read_set_escape` |
 | negative | probe `options`, group `unchecked` | inputs the builder takes without checking and the schema rejects: non-string marker kinds, non-string adapter text fields, an empty (alone and tied with another adapter), a numeric and a missing adapter id, duplicate adapter ids in a tie, and an empty and a numeric id on a fallback adapter |
 | negative | probe `options`, group `malformed` | calls that throw (including `null` in place of the options object), with the class of the error and, for the builder's own three messages and one caller error, the message |
@@ -538,10 +565,12 @@ positions than the schema file declares, or gives another verdict for a position
 `''` takes the place of a string of a real graph; an option case behaves differently from
 what section 2.5 and the tables that cite it say (the test asserts each statement against the probe and,
 for the arguments a marker rule receives, against a live build); a helper export of section 2.1 returns
-or throws something other than the table says (it is called with the values the table names); the RFC
-cites an option case that is not recorded, or a recorded case is cited nowhere; a section 5.1 tag
-disagrees with the probe that is named; the RFC lacks a required section or a recorded hash; or a file
-listed as owned by T02 sits outside the two T02 directories. It also feeds the drift checks damaged
+or throws something other than the table says (it is called with the values the table names); a `fallback`
+plan item is planned, labeled, scored, verified or reported differently from what sections 2.3, 2.4 and 5.3
+say (the test runs the real builder, plan and shadow run on a repository in which a fallback adapter alone
+recognizes one project); the RFC cites an option case that is not recorded, or a recorded case is cited nowhere;
+a section 5.1 tag disagrees with the probe that is named; the RFC lacks a required section or a recorded hash;
+or a file listed as owned by T02 sits outside the two T02 directories. It also feeds the drift checks damaged
 copies to prove each check can fail: a new kind or error code in a fake source, dropped or invented
 record items, a widened or narrowed schema, a schema tightened until it rejects an accepted option case
 (a marker kind enum, a pattern on adapter ids or paths, an integer `specificity`, a minimum count, a minimum
@@ -571,7 +600,9 @@ pointing at the wrong case.
    Treat every `message` as prose, and scrub it before publishing a graph. [probe: options `vanished_marker`]
    Finding for the T02 owner; this RFC changes no behavior.
 5. **Unattested sources.** A project whose selected adapter has no read set is never source-fresh-checked
-   in shadow mode (section 5.2).
+   in shadow mode (section 5.2). A `fallback` item has no selected adapter, so in a graph the builder wrote it
+   has no read set either, and a project that is not in the plan is not checked at all, its markers included
+   (section 2.4).
 6. **`nested_detections`** keeps one entry per adapter, so it is not a list of nested projects.
 7. **Partial selection.** The winner is chosen among adapters that completed detection
    (section 5.2).

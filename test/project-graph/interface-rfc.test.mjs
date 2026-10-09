@@ -13,6 +13,7 @@ import * as indexModule from '../../scanners/project-graph/index.mjs';
 import * as registeredModule from '../../scanners/project-graph/registered.mjs';
 import * as shadowModule from '../../scanners/project-graph/shadow.mjs';
 import * as sourceRoleModule from '../../scanners/project-graph/source-role.mjs';
+import { runScan } from '../../scanners/index.mjs';
 import { ADAPTERS, LOAD_ERRORS, loadAdapters } from '../../scanners/registry.mjs';
 import { malformedCalls, negativeCases, normalCase, optionCases, registeredCase } from './interface-rfc.cases.mjs';
 import {
@@ -21,7 +22,9 @@ import {
   rejectionProblems, schemaLiteralHits, schemaStringPositions, schemaUnresolvedFields, schemaVocabulary, sectionLines,
   sectionProblems, stringLeaves, stringPositionProblems, tableRows,
 } from './interface-rfc.check.mjs';
-import { canon, cleanup, fixture } from './interface-rfc.fixtures.mjs';
+import {
+  adapter as fakeAdapter, canon, cleanup, fallback as genericFallback, fixture, listJs, scanStub,
+} from './interface-rfc.fixtures.mjs';
 import { ACCEPTED_EDITS, REJECTED_MUTATIONS } from './interface-rfc.mutations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -924,7 +927,7 @@ const ACCEPTED = {
       'The nested scan runs on the project\'s own directory: for each planned project the planned adapter\'s `detect` and `scan` are called once with the absolute project root (the repository itself for `.`), no other adapter of `adapters` is called, `introspectRoutes` is never called, and the report has an `unknowns` entry that starts with `DB not scanned` and neither a `db_schema` nor a `runtime_introspection` key.',
       'A falsy `repoRoot` is `TypeError: repoRoot is required`, and a graph that is not draft-1 is `TypeError: expected sbf.project-graph/draft-1`; `null` in place of the options object is a Node `TypeError`.',
       'A truthy `repoRoot` that is not a string (`5`) is a Node `TypeError` too. A missing graph, `null`, and a graph with another `schema` are the draft-1 error as well, even when they have no `projects` list.',
-      '`terms` (default `[]`) is returned as a copy and handed to every nested scan. It has to be an array: `null`, a string or a `Set` makes the nested scan throw, and that comes back as `PROJECT_PLAN_STALE` (section 5.3) although nothing is stale.',
+      '`terms` (default `[]`) is returned as a copy and handed to every nested scan. It has to be an array: `null`, a non-empty string, a `Set` (an empty one too) or a number makes the nested scan throw, and that comes back as `PROJECT_PLAN_STALE` (section 5.3) although nothing is stale.',
       'With no planned project there is no nested scan, and `terms` is only spread into the returned list: a string gives a list of its characters, a `Set` a list of its members, and `null` or a number is a Node `TypeError`.',
       '`rgAvailable` (default `true`) is handed to it too and comes back as the report\'s `rg_available` as given, not turned into a boolean; a falsy value (`false`, `0`, `null`) adds the `ripgrep` entry to the report\'s `unknowns`.',
       'two entries with one id throw a plain `Error` with no `code` before any project is verified, whether or not the plan uses them. It need not be an array, any iterable of adapters works (a `Set`), and `null` is a Node `TypeError`.',
@@ -1724,6 +1727,251 @@ describe('helper functions (RFC section 2.1)', () => {
     const copy = graph.projects.find((p) => p.root === 'app').facets.http.candidates[0].capabilities;
     assert.notEqual(copy, capabilities);
     assert.equal(copy.nested, nested);
+  });
+});
+
+// ---- RFC sections 2.3, 2.4 and 5.3: a project that only a fallback adapter recognizes --------------------------------------
+// When a `fallback` plan item exists, what `mode` means, when its report is an inventory and when it is scored, which `terms`
+// make the scan throw, and what is checked before the scan are asserted against the real builder, plan and shadow run. The
+// fallback adapter is a fixed one with the registry's id `generic-grep` and no `rg` behind it, so the result does not depend on
+// the machine; the first-class adapter is a stand-in as well.
+describe('fallback items, terms and verdicts in the shadow run (RFC sections 2.3, 2.4 and 5.3)', () => {
+  const inDirs = (...names) => (dir) => (names.includes(path.basename(dir)) ? dir : null);
+  const bare = (module, extra = {}) => ({ module, controllers: [], entities: [], enums: [], dtos: [], ...extra });
+  // `billing` has the name of the term `billing` (score 10, a collision); `misc` only has a controller that the term `invoice`
+  // matches (score 6, adjacent). Any other term finds neither.
+  const SOLO_MODULES = [
+    bare('billing'),
+    bare('misc', { controllers: [{ className: 'InvoiceController', basePath: '/misc', endpoints: [], file: 'misc/InvoiceController.js', line: 1 }] }),
+  ];
+  const soloAdapter = (modules = SOLO_MODULES, extra = {}) => ({ ...genericFallback, scan: () => ({ modules, filesRead: [] }), ...extra });
+  const httpAdapter = (extra = {}) => fakeAdapter('fake-http', 80, inDirs('app', 'inner'), { listReadSet: (dir) => listJs(dir), scan: scanStub, ...extra });
+  const tieAdapters = () => ['tie-a', 'tie-b'].map((id) => fakeAdapter(id, 60, inDirs('tie'), { scan: scanStub }));
+  const FILES = {
+    'app/package.json': '{"name":"app"}', 'app/a.js': '// a\n',
+    'solo/package.json': '{"name":"solo"}', 'solo/s.js': '// s\n',
+    'agg/package.json': '{"name":"agg"}', 'agg/inner/package.json': '{"name":"inner"}', 'agg/inner/i.js': '// i\n',
+    'examples/lib/package.json': '{"name":"lib"}', 'tie/package.json': '{"name":"tie"}',
+  };
+  // A project of every kind that matters: `app` and `agg/inner` have a first-class adapter and a read set; `solo` is recognized by
+  // the fallback alone; `agg` and the root are aggregates that the fallback detects too; `examples/lib` is a reference project that
+  // only the fallback detects; `tie` has two first-class adapters at one specificity.
+  function repo(adapters = [soloAdapter(), httpAdapter(), ...tieAdapters()], files = FILES) {
+    const root = fixture(files);
+    const graph = indexModule.buildProjectGraph({ repoRoot: root, adapters });
+    return { root, adapters, graph, solo: path.join(root, 'solo') };
+  }
+  // `solo` alone: the plan of `includeFallback` has this one item, and the root is an aggregate.
+  const soloRepo = (modules) => repo([soloAdapter(modules)], { 'solo/package.json': FILES['solo/package.json'], 'solo/s.js': FILES['solo/s.js'] });
+  const run = (r, extra = {}) => shadowModule.executeProjectScanPlan({ repoRoot: r.root, graph: r.graph, adapters: r.adapters, ...extra });
+  const scanned = (out) => out.scans.map((s) => `${s.project_root}:${s.mode}`);
+  const itemOf = (out, root) => out.scans.find((s) => s.project_root === root);
+  const failure = (fn) => { try { fn(); } catch (err) { return err; } return null; };
+  const FIRST_CLASS = ['agg/inner:first-class', 'app:first-class'];
+
+  it('the plan gives a fallback item to an active project that has a fallback adapter and is not an aggregate (2.3)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      '`mode` is `first-class` or `fallback`. It only labels how the item came into the plan: the shadow run copies it into `scans[]` and never acts on it (section 2.4).',
+      'two or more first-class adapters tie; nothing is selected, and in a graph the builder wrote nothing is planned, even with `includeFallback` (section 2.3)',
+      'no first-class adapter recognized the root. `fallback_adapter` may name a fallback adapter, which only a plan made with `includeFallback` uses (section 2.3)',
+      'has child project roots and no selected adapter. It may carry a `fallback_adapter`, but never gets a fallback plan item',
+    ]), []);
+    const { graph } = repo();
+    assert.deepEqual(validate(graph), []);
+    // root, kind, role, selected adapter, fallback adapter, and whether the project has a read set
+    assert.deepEqual(graph.projects.map((p) => [p.root, p.kind, p.project_role, p.facets.http.selected_adapter, p.fallback_adapter, p.selected_adapter_read_set !== null]), [
+      ['.', 'aggregate', 'active', null, 'generic-grep', false],
+      ['agg', 'aggregate', 'active', null, 'generic-grep', false],
+      ['agg/inner', 'application', 'active', 'fake-http', null, true],
+      ['app', 'application', 'active', 'fake-http', null, true],
+      ['examples/lib', 'unrecognized', 'reference', null, 'generic-grep', false],
+      ['solo', 'unrecognized', 'active', null, 'generic-grep', false],
+      ['tie', 'ambiguous', 'active', null, null, false],
+    ]);
+    const plan = (flags) => indexModule.buildProjectScanPlan(graph, flags).map((i) => `${i.project_root}:${i.adapter_id}:${i.mode}`);
+    const firstClass = ['agg/inner:fake-http:first-class', 'app:fake-http:first-class'];
+    assert.deepEqual(plan(), firstClass);
+    // The aggregates carry a fallback adapter and get no item, and nor does the tie; `solo` gets one, and the reference project
+    // only when the non-active projects are included as well.
+    assert.deepEqual(plan({ includeFallback: true }), [...firstClass, 'solo:generic-grep:fallback']);
+    assert.deepEqual(plan({ includeFallback: true, includeNonActive: true }), [...firstClass, 'examples/lib:generic-grep:fallback', 'solo:generic-grep:fallback']);
+  });
+
+  it('a project without a selected adapter is scanned only as a fallback item, and is neither scanned nor verified otherwise (2.4, 5.3)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      'Only an active project that has no selected adapter and has a `fallback_adapter` gets one, and an `aggregate` project never does.',
+      'A project without an item is not scanned and not verified, and nothing in the result lists it (section 5.3).',
+      'A project that has no selected adapter is scanned only as a `fallback` item. That takes `includeFallback` and a project that is active, has a `fallback_adapter` and is not an `aggregate` (section 2.3); in a graph the builder wrote, that is an `unrecognized` project.',
+      'Every other project without a selected adapter is not scanned and not verified, and nothing in the result lists it: a project that is missing from `scans` was not scanned, which is not the same as a scan that found nothing.',
+      'A project that is not in the plan is not verified at all, its markers included.',
+    ]), []);
+    const r = repo();
+    const off = run(r);
+    const on = run(r, { includeFallback: true });
+    assert.deepEqual(scanned(off), FIRST_CLASS);
+    assert.deepEqual(scanned(on), [...FIRST_CLASS, 'solo:fallback']);
+    // The shadow run has no `includeNonActive`, so the reference project stays out.
+    assert.deepEqual(scanned(run(r, { includeFallback: true, includeNonActive: true })), scanned(on));
+    // The result has its five keys and does not name a project that was not scanned: `scans` has the planned projects only, and
+    // `notes` is the same three strings for every graph.
+    const notes = run(soloRepo(), { includeFallback: true }).notes;
+    assert.equal(notes.length, 3);
+    for (const [out, left] of [[off, ['.', 'agg', 'examples/lib', 'solo', 'tie']], [on, ['.', 'agg', 'examples/lib', 'tie']]]) {
+      assert.deepEqual(Object.keys(out).sort(), ['graph_schema', 'notes', 'scans', 'schema', 'terms']);
+      assert.deepEqual(out.notes, notes);
+      for (const root of left) assert.ok(!out.scans.some((s) => s.project_root === root || s.project_id === `project:${root}`), root);
+    }
+    // Not verified either: a marker that changed in a project outside the plan is not noticed, and `solo` is verified only when
+    // it is in the plan.
+    for (const dir of ['agg', 'examples/lib', 'tie']) fs.appendFileSync(path.join(r.root, dir, 'package.json'), '\n');
+    assert.deepEqual(scanned(run(r, { includeFallback: true })), scanned(on));
+    fs.appendFileSync(path.join(r.solo, 'package.json'), '\n');
+    assert.deepEqual(scanned(run(r)), FIRST_CLASS);
+    const stale = failure(() => run(r, { includeFallback: true }));
+    assert.deepEqual([stale?.code, stale?.project_id], ['PROJECT_GRAPH_STALE', 'project:solo']);
+  });
+
+  it('`mode` is copied into scans and changes nothing in the scan (2.3, 2.4)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      '`mode` is copied from the plan item and changes nothing in the scan: the report is an inventory (`verdict` `inventory`) when `terms` is empty and a scored report otherwise, for a `first-class` item and for a `fallback` item alike (section 5.3).',
+    ]), []);
+    const r = repo();
+    // The same project as a `first-class` item: the plan sees a selected adapter. The edited graph does not validate, and that is the
+    // point: the shadow run reads the plan item and not the schema.
+    const edited = clone(r.graph);
+    edited.projects.find((p) => p.root === 'solo').facets.http.selected_adapter = 'generic-grep';
+    for (const terms of [[], ['billing'], ['invoice'], ['zzz']]) {
+      const asFallback = itemOf(run(r, { includeFallback: true, terms }), 'solo');
+      const asFirstClass = itemOf(run({ ...r, graph: edited }, { terms }), 'solo');
+      assert.deepEqual([asFallback.mode, asFirstClass.mode], ['fallback', 'first-class']);
+      assert.deepEqual(canon({ ...asFirstClass, mode: null }), canon({ ...asFallback, mode: null }), JSON.stringify(terms));
+    }
+  });
+
+  it('the report of a fallback item is an inventory when terms is empty and scored otherwise, as for a first-class item (5.3)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      '`mode: fallback` says only how the item came into the plan. The nested scan is the same `runScan` call as for a `first-class` item and its report is that call\'s unchanged output, so whether the report is an inventory depends on `terms` and on nothing else.',
+      'With an empty `terms` it is one: `verdict` is `inventory`, `collisions` is empty, the modules carry no `score` or `evidence`, and the first `unknowns` entry says that nothing was scored.',
+      'With a non-empty `terms` every module is scored, `related_modules` lists the modules with a positive `score`, and `verdict` is `greenfield`, `adjacent` or `collision`, as for a `first-class` item. Do not read `mode: fallback` as "inventory only".',
+    ]), []);
+    const r = repo();
+    const cases = [
+      [[], 'inventory', ['billing', 'misc'], []],
+      [['billing'], 'collision', ['billing'], ['billing']],
+      [['invoice'], 'adjacent', ['misc'], []],
+      [['zzz'], 'greenfield', [], []],
+    ];
+    for (const [terms, verdict, related, collisions] of cases) {
+      const out = run(r, { includeFallback: true, terms });
+      const { mode, report } = itemOf(out, 'solo');
+      assert.equal(mode, 'fallback');
+      assert.equal(report.verdict, verdict, JSON.stringify(terms));
+      assert.deepEqual(report.related_modules.map((m) => m.module), related);
+      assert.deepEqual(report.collisions.map((m) => m.module), collisions);
+      // Nothing is added to the legacy report or taken from it: a direct scan with the same adapter gives the same object.
+      const direct = runScan({ repoRoot: r.solo, terms, includeDb: false, dbSchema: null, adapters: [r.adapters[0]], rgAvailable: true, runtimeRoutes: false });
+      assert.deepEqual(canon(report), canon(direct), JSON.stringify(terms));
+      const inventory = terms.length === 0;
+      // `terms` defaults to the empty list: leaving it out gives the result of passing `[]`.
+      if (inventory) assert.deepEqual(canon(run(r, { includeFallback: true })), canon(out));
+      const keys = inventory ? ['controllers', 'dtos', 'entities', 'enums', 'module'] : ['capped_signals', 'controllers', 'dtos', 'entities', 'enums', 'evidence', 'module', 'score'];
+      assert.deepEqual(report.related_modules.map((m) => Object.keys(m).sort()), related.map(() => keys));
+      assert.equal(report.unknowns[0].startsWith('this is an unscored inventory of every module this adapter found'), inventory);
+      // The first-class project follows the same rule: its one module is named `app`.
+      const app = itemOf(out, 'app').report;
+      assert.deepEqual([app.verdict, app.related_modules.map((m) => m.module)], inventory ? ['inventory', ['app']] : ['greenfield', []]);
+    }
+    const named = itemOf(run(r, { terms: ['app'] }), 'app').report;
+    assert.deepEqual([named.verdict, named.related_modules.map((m) => m.module)], ['collision', ['app']]);
+  });
+
+  it('terms that is not an array makes the scan throw when it has a text to score, and an empty string is an inventory (2.4)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      '`null`, a non-empty string, a `Set` (an empty one too) or a number makes the nested scan throw, and that comes back as `PROJECT_PLAN_STALE` (section 5.3) although nothing is stale.',
+      '`null` throws whatever the scan reports; the others throw only when the scan has a text with an ASCII letter or digit to score, such as a module name.',
+      'An empty string has length 0: the scan runs it as an inventory and the returned `terms` is `[]`.',
+      'The spread also follows every nested scan that did not throw, so when the scan has nothing to score, a string or a `Set` returns a report and a number fails with that `TypeError` instead of `PROJECT_PLAN_STALE`.',
+      'or `terms` is `null` or a non-array that the scan has to score (section 2.4)',
+    ]), []);
+    const planStale = (err) => [err?.code, err?.project_id, err?.adapter_id, err?.cause instanceof TypeError];
+    const STALE = ['PROJECT_PLAN_STALE', 'project:solo', 'generic-grep', true];
+    // A scan that scores the module names `billing` and `misc`.
+    const scoring = soloRepo();
+    const notArrays = { null: null, 'a string': 'billing', 'a Set': new Set(['billing']), 'an empty Set': new Set(), 'a number': 5 };
+    for (const [label, terms] of Object.entries(notArrays)) {
+      assert.deepEqual(planStale(failure(() => run(scoring, { includeFallback: true, terms }))), STALE, label);
+    }
+    // The empty string has length 0 and runs as the empty list; only the nested report keeps what was passed.
+    const empty = run(scoring, { includeFallback: true, terms: '' });
+    assert.deepEqual([empty.terms, itemOf(empty, 'solo').report.verdict, itemOf(empty, 'solo').report.terms], [[], 'inventory', '']);
+    // A digit is a text to score, as a letter is.
+    assert.deepEqual(planStale(failure(() => run(soloRepo([bare('v2')]), { includeFallback: true, terms: 'billing' }))), STALE);
+    // Nothing to score: no module, or only names without an ASCII letter or digit. `null` still throws; a string and a `Set` return
+    // a report; a number fails afterwards, in the plain `TypeError` of the spread that builds the returned `terms`.
+    for (const modules of [[], [bare('청구'), bare('--')]]) {
+      const idle = soloRepo(modules);
+      const nothing = failure(() => run(idle, { includeFallback: true, terms: null }));
+      assert.deepEqual([nothing?.code, nothing?.project_id], ['PROJECT_PLAN_STALE', 'project:solo']);
+      const text = run(idle, { includeFallback: true, terms: 'billing' });
+      assert.deepEqual([itemOf(text, 'solo').report.verdict, text.terms], ['greenfield', [...'billing']]);
+      const set = run(idle, { includeFallback: true, terms: new Set(['billing']) });
+      assert.deepEqual([itemOf(set, 'solo').report.verdict, set.terms], ['greenfield', ['billing']]);
+      assert.equal(itemOf(run(idle, { includeFallback: true, terms: new Set() }), 'solo').report.verdict, 'greenfield');
+      const number = failure(() => run(idle, { includeFallback: true, terms: 5 }));
+      assert.deepEqual([number instanceof TypeError, number?.code], [true, undefined]);
+    }
+  });
+
+  it('a fallback item has no read set: its markers are re-hashed and its source files are not checked (2.4, limit 5)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      'Before each planned project it re-hashes every marker and, when the graph carries a read set for that project,',
+      'The builder captures a read set only for a selected adapter, so in a graph it wrote a `fallback` item has none: its markers are re-hashed and its source files are not checked.',
+      'A `fallback` item has no selected adapter, so in a graph the builder wrote it has no read set either, and a project that is not in the plan is not checked at all, its markers included (section 2.4).',
+    ]), []);
+    const r = repo();
+    const read = (root) => r.graph.projects.find((p) => p.root === root).selected_adapter_read_set;
+    assert.equal(read('solo'), null);
+    assert.notEqual(read('app'), null);
+    // A changed, an added and a removed source file of `solo` pass ...
+    fs.writeFileSync(path.join(r.solo, 's.js'), '// changed\n');
+    fs.writeFileSync(path.join(r.solo, 'added.js'), '// added\n');
+    assert.deepEqual(scanned(run(r, { includeFallback: true })), [...FIRST_CLASS, 'solo:fallback']);
+    fs.rmSync(path.join(r.solo, 's.js'));
+    assert.deepEqual(scanned(run(r, { includeFallback: true })), [...FIRST_CLASS, 'solo:fallback']);
+    // ... and the same edit in `app`, which has a read set, fails.
+    fs.writeFileSync(path.join(r.root, 'app', 'a.js'), '// changed\n');
+    const err = failure(() => run(r, { includeFallback: true }));
+    assert.deepEqual([err?.code, err?.stale_kind, err?.project_id], ['PROJECT_GRAPH_STALE', 'adapter-read-set', 'project:app']);
+  });
+
+  it('confidence and verification_basis: a candidate keeps both, a fallback adapter leaves its id, the report has the confidence only (5.3)', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      'T02 passes adapter `confidence` and `verification_basis` through as declared and never upgrades them: for a first-class candidate the graph records both (section 4); for a fallback adapter the graph records only its id, and the report carries the adapter\'s `confidence` as declared and has no `verification_basis`.',
+    ]), []);
+    const candidates = (r, root) => r.graph.projects.find((p) => p.root === root).facets.http.candidates.map((c) => [c.adapter_id, c.confidence, c.verification_basis]);
+    const declared = repo([soloAdapter(SOLO_MODULES, { confidence: 'medium', verificationBasis: 'declared-by-test' }), httpAdapter({ confidence: 'high', verificationBasis: 'basis-of-app' })]);
+    assert.deepEqual(candidates(declared, 'app'), [['fake-http', 'high', 'basis-of-app']]);
+    assert.equal(declared.graph.projects.find((p) => p.root === 'solo').fallback_adapter, 'generic-grep');
+    const out = run(declared, { includeFallback: true });
+    const reports = Object.fromEntries(out.scans.map((s) => [s.project_root, s.report]));
+    assert.deepEqual([reports.solo.confidence, reports.app.confidence], ['medium', 'high']);
+    assert.ok(Object.values(reports).every((report) => !('verification_basis' in report)));
+    for (const text of ['declared-by-test', 'medium']) assert.ok(!JSON.stringify(declared.graph).includes(text), `graph: ${text}`);
+    for (const text of ['declared-by-test', 'basis-of-app']) assert.ok(!JSON.stringify(out).includes(text), `shadow output: ${text}`);
+    // An adapter that declares nothing is recorded as `unknown`, and its report has no confidence: nothing is filled in.
+    const none = { confidence: undefined, verificationBasis: undefined };
+    const plain = repo([soloAdapter(SOLO_MODULES, none), httpAdapter(none)]);
+    assert.deepEqual(candidates(plain, 'app'), [['fake-http', 'unknown', 'unknown']]);
+    const plainOut = run(plain, { includeFallback: true });
+    assert.deepEqual([itemOf(plainOut, 'solo').report.confidence, itemOf(plainOut, 'app').report.confidence], [undefined, undefined]);
+  });
+
+  it('the RFC lists these tests in sections 7.3 and 7.4', () => {
+    assert.deepEqual(missingFragments(rfc, [
+      'a `fallback` plan item is planned, labeled, scored, verified or reported differently from what sections 2.3, 2.4 and 5.3 say',
+    ]), []);
+    const rows = tableRows(sectionLines(rfc, '### 7.3')).filter((row) => row[1] === 'the fallback tests in `test/project-graph/interface-rfc.test.mjs`');
+    assert.deepEqual(rows.map((row) => row[0]), ['normal']);
   });
 });
 
