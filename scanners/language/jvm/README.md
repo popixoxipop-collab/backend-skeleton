@@ -97,3 +97,9 @@ The corpus covers interface mappings, composed annotation cycles, generic record
 mapped-superclass inheritance, multiple top-level declarations, UTF-8 byte spans, conservative JPA
 facts, Spring shadow parity, framework-profile admission, and the T20/T16 helper-authorization
 boundary.
+
+## Baseline record
+
+`BASELINE.json` (schema `bskel.track-baseline-record/2`, provisional) fixes the behavior of this layer at one exact revision: the origin/main commit the pull request was based on (`base_commit`), the size, SHA-256 and Git blob id of every pinned source, test, fixture, external-dependency and runner file, the two commands that were run (the direct `node --test` run and `node scripts/run-next-nested-tests.mjs T05`) with their exit codes and counts, the pinned normal and negative fixtures with the SHA-256 of each full result, and the remaining limits. It is a baseline and not a support claim: Kotlin/Ktor and a real JavaParser or JDK run are recorded as BLOCKED, and every observed defect is recorded as UNSUPPORTED.
+
+`test/language-jvm/baseline-record.test.mjs` recomputes all of it instead of reading it back: file sizes and digests (from the checkout and from the blobs of the pinned commit), per-file and total test counts, both commands (re-run in an extracted copy of the base commit with a pinned environment), every fixture output hash and expected value, and the files outside this layer that mention it. A damaged record fails; a tree that has moved on skips the live replays and the pinned commit decides. The base commit is fetched once when a shallow checkout lacks it, a shallow checkout is deepened with `git fetch --no-tags --unshallow origin` for the ancestry check, and an unavailable commit fails the test. `BASELINE_ALLOW_UNVERIFIED=1` is the single explicit opt-out and skips those pinned-commit checks visibly. The `ci_observations` and `environment` fields are the only values the test does not recompute.
