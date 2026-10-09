@@ -12,7 +12,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { findPythonRuntime } from '../../scanners/language/python/analyzer.mjs';
 import { STATIC_LAYERS, runStatic, serializeStatic } from '../../adapters/http-wave-a/python-scope/static-runner.mjs';
 import {
-  REPO_ROOT, SCOPE_TARGETS, derivePartition, loadRecord, recordDir, sealRecord, verifyLiveTree, verifyScopeRecord, verifyStoredRecord,
+  REPO_ROOT, SCOPE_TARGETS, derivePartition, loadRecord, recordDir, sealRecord, verifyItems, verifyLiveTree, verifyScopeRecord, verifyStoredRecord,
 } from '../../adapters/http-wave-a/python-scope/verify.mjs';
 
 const ITEMS = ['HTTP-python-fastapi-01', 'HTTP-python-flask-01', 'HTTP-python-django-01', 'HTTP-python-starlette-01', 'HTTP-python-litestar-01'];
@@ -184,6 +184,19 @@ const editFile = (file, edit) => {
   return after;
 };
 
+// Replaces a stored result and keeps every recorded hash and byte count consistent with the new content, so that
+// only the readability or the shape of that content can make the verifier object.
+const rewriteStored = ({ dir, record }, rel, text) => {
+  fs.writeFileSync(path.join(dir, rel), text);
+  for (const cmd of record.executed_commands.filter((x) => x.stored_as === rel)) { cmd.stdout_sha256 = sha256(text); cmd.stdout_bytes = Buffer.byteLength(text); }
+  if (rel === 'results/registry.json') record.pin.registry.extract_sha256 = sha256(text);
+};
+const editStoredJson = (ctx, rel, edit) => {
+  const doc = JSON.parse(fs.readFileSync(path.join(ctx.dir, rel), 'utf8'));
+  edit(doc);
+  rewriteStored(ctx, rel, `${JSON.stringify(doc, null, 2)}\n`);
+};
+
 const syntheticRoot = (ctx, extraFile) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-scope-root-'));
   ctx.cleanup.push(root);
@@ -212,6 +225,29 @@ const CASES = [
     mutate: ({ dir }) => editFile(path.join(dir, 'results/oracle.json'), (t) => t.replace('"GET"', '"PUT"')) },
   { name: 'a stored evidence file is deleted', item: 'HTTP-python-django-01', mode: 'stored', expect: 'result-hash',
     mutate: ({ dir }) => fs.rmSync(path.join(dir, 'results/environment.txt')) },
+  // stored results that are missing, unparseable or wrongly shaped must end in a structured problem, never in an
+  // exception (an exception would end the CLI without a report); hashes are kept consistent so only the content objects
+  { name: 'results/static.json is deleted', item: 'HTTP-python-flask-01', mode: 'full', expect: 'result-set',
+    mutate: ({ dir }) => fs.rmSync(path.join(dir, 'results/static.json')),
+    check: (problems) => assert.ok(problems.some((p) => p.code === 'result-set' && /stored results cannot be read/.test(p.message))) },
+  { name: 'results/static.json is not JSON, hashes kept consistent', item: 'HTTP-python-fastapi-01', mode: 'stored', expect: 'result-set',
+    mutate: (ctx) => rewriteStored(ctx, 'results/static.json', '{not json\n'),
+    check: (problems) => assert.deepEqual([...new Set(problems.map((p) => p.code))], ['result-set'], 'only the unreadable document may object') },
+  { name: 'results/static.json parses to null, hashes kept consistent', item: 'HTTP-python-django-01', mode: 'stored', expect: 'result-set',
+    mutate: (ctx) => rewriteStored(ctx, 'results/static.json', 'null\n'),
+    check: (problems) => assert.deepEqual([...new Set(problems.map((p) => p.code))], ['result-set'], 'only the wrongly shaped document may object') },
+  { name: 'a layer of results/static.json has no routes list, hashes kept consistent', item: 'HTTP-python-flask-01', mode: 'stored', expect: 'result-set',
+    mutate: (ctx) => editStoredJson(ctx, 'results/static.json', (doc) => { delete Object.values(Object.values(doc.fixtures)[0].layers)[0].routes; }) },
+  { name: 'results/oracle.json parses to an object without fixtures, hashes kept consistent', item: 'HTTP-python-starlette-01', mode: 'stored', expect: 'result-set',
+    mutate: (ctx) => rewriteStored(ctx, 'results/oracle.json', '{}\n') },
+  { name: 'an oracle fixture entry has routes that are not a list, hashes kept consistent', item: 'HTTP-python-litestar-01', mode: 'stored', expect: 'result-set',
+    mutate: (ctx) => editStoredJson(ctx, 'results/oracle.json', (doc) => { Object.values(doc.fixtures)[0].routes = {}; }) },
+  { name: 'results/registry.json lists the later releases as text, hash kept consistent', item: 'HTTP-python-flask-01', mode: 'stored', expect: 'result-set',
+    mutate: (ctx) => editStoredJson(ctx, 'results/registry.json', (doc) => { Object.values(doc.projects)[0].released_after_pin = 'none'; }) },
+  { name: 'a stored result is replaced by a directory', item: 'HTTP-python-django-01', mode: 'stored', expect: 'result-set',
+    mutate: ({ dir }) => { fs.rmSync(path.join(dir, 'results/environment.txt')); fs.mkdirSync(path.join(dir, 'results/environment.txt')); } },
+  { name: 'the fixtures directory is removed', item: 'HTTP-python-flask-01', mode: 'live', expect: 'fixture-set',
+    mutate: ({ dir }) => fs.rmSync(path.join(dir, 'fixtures'), { recursive: true }) },
   { name: 'a recorded exit code is changed', item: 'HTTP-python-django-01', mode: 'stored', expect: 'executed-command',
     mutate: ({ record }) => { record.executed_commands.find((c) => c.id === 'oracle-1').exit_code = 1; } },
   { name: 'a declared outcome is upgraded to caught', item: 'HTTP-python-flask-01', mode: 'stored', expect: 'must-catch',
@@ -310,3 +346,55 @@ for (const c of CASES) {
     c.check?.(problems);
   });
 }
+
+// verifyItems is the body of `node verify.mjs`. It runs here against throwaway repository roots (one record
+// directory plus the files its live checks read), so a broken input can be applied without touching the tree.
+function miniRoot(item) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-scope-cli-'));
+  const record = loadRecord(item);
+  const dir = path.join(root, SCOPE_TARGETS[item].dir);
+  fs.cpSync(recordDir(item), dir, { recursive: true });
+  for (const rel of [record.oracle_tool.path, ...record.layers.map((l) => l.source)]) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.copyFileSync(path.join(REPO_ROOT, rel), path.join(root, rel));
+  }
+  return { root, dir };
+}
+
+const CLI_CASES = [
+  { name: 'results/static.json is missing', item: 'HTTP-python-flask-01', line: /^ {2}\[result-set\] results: stored results cannot be read: /,
+    mutate: (dir) => fs.rmSync(path.join(dir, 'results/static.json')) },
+  { name: 'results/static.json is not JSON', item: 'HTTP-python-fastapi-01', line: /^ {2}\[result-set\] results: stored results cannot be read: .*JSON/,
+    mutate: (dir) => fs.writeFileSync(path.join(dir, 'results/static.json'), '{not json') },
+  { name: 'results/static.json parses to null', item: 'HTTP-python-django-01', line: /^ {2}\[result-set\] results\/static\.json: the document is missing or has the wrong type/,
+    mutate: (dir) => fs.writeFileSync(path.join(dir, 'results/static.json'), 'null') },
+  { name: 'results/oracle.json parses to an empty object', item: 'HTTP-python-litestar-01', line: /^ {2}\[result-set\] results\/oracle\.json: fixtures is missing or has the wrong type/,
+    mutate: (dir) => fs.writeFileSync(path.join(dir, 'results/oracle.json'), '{}') },
+  { name: 'the fixtures directory is missing', item: 'HTTP-python-flask-01', line: /^ {2}\[fixture-set\] fixtures: /,
+    mutate: (dir) => fs.rmSync(path.join(dir, 'fixtures'), { recursive: true }) },
+  { name: 'SCOPE.json is missing', item: 'HTTP-python-starlette-01', line: /^ {2}\[schema\] SCOPE\.json: the record cannot be read: /,
+    mutate: (dir) => fs.rmSync(path.join(dir, 'SCOPE.json')) },
+];
+
+test('the CLI body prints a structured failure for missing, unparseable and wrongly shaped inputs instead of throwing', () => {
+  const run = (item, mutate) => {
+    const { root, dir } = miniRoot(item);
+    try {
+      mutate?.(dir);
+      const out = [];
+      return { failed: verifyItems([item], { root, log: (line) => out.push(line) }), out };
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  };
+  assert.deepEqual(run('HTTP-python-flask-01'), { failed: 0, out: ['HTTP-python-flask-01: ok'] }, 'the untouched throwaway root must verify cleanly before it is broken');
+  for (const c of CLI_CASES) {
+    const { failed, out } = run(c.item, c.mutate); // an exception here would fail the test with its stack
+    assert.ok(failed > 0, c.name);
+    assert.equal(out[0], `${c.item}: FAIL`, c.name);
+    assert.ok(out.some((line) => c.line.test(line)), `${c.name}: expected a line matching ${c.line}, got ${JSON.stringify(out)}`);
+  }
+  const unknown = [];
+  assert.equal(verifyItems(['HTTP-python-nope-01'], { log: (line) => unknown.push(line) }), 1);
+  assert.match(unknown.join('\n'), /\[schema\] item: HTTP-python-nope-01 is not one of /);
+});
