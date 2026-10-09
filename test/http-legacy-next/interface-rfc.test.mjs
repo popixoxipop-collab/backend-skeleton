@@ -88,7 +88,7 @@ function sourceProblems(v, extraSources = [], from = emitted) {
     eq('gate order', v.cutover_gates.map((g) => g.gate), Object.keys(ten(v, false).checks)); eq('blockers in gate order', v.cutover_gates.map((g) => g.blocker), ten(v, false).blockers); shape('cutover_readiness', [ten(v, true), ten(v, false)]);
     for (const g of v.cutover_gates) eq(`blocker of ${g.gate}`, [[g.blocker], false], ((r) => [r.blockers, r.ready_for_t00_integration])(ten(v, true, g.gate)));
   } catch (e) { out.push(`cutover call failed: ${e.message}`); }
-  const loads = srcs.map(lib.importsOf); eq('imports', sorted(v.imports), sorted(new Set(loads.flatMap((l) => l.specs)))); eq('computed import() or require that cannot be listed', [], loads.flatMap((l) => l.opaque)); eq('owned files', sorted(v.owned_files), sorted(fs.readdirSync(path.join(ROOT, DIR))));
+  const loads = srcs.map(lib.importsOf); eq('imports', sorted(v.imports), sorted(new Set(loads.flatMap((l) => l.specs)))); eq('computed import() or require that cannot be listed', [], loads.flatMap((l) => l.opaque)); eq('owned files', sorted(v.owned_files), sorted(fs.readdirSync(path.join(ROOT, DIR), { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name)));
   for (const f of [...v.foreign_schemas, ...v.foreign_keys]) if (all.some((e) => JSON.stringify([e.bridge, e.snapshot, e.shadow]).includes(f))) out.push(`${f} must not appear in any T11 output`);
   for (const p of v.ownership.flatMap((o) => o.paths)) if (!fs.existsSync(path.join(ROOT, p))) out.push(`ownership path ${p} does not exist`);
   const { full, verified, partial, truncated, unsupported } = checkouts; const more = (mode) => v.checkout_conditional_keys[mode] ?? [];
