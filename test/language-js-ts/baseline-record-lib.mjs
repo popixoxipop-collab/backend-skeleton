@@ -423,11 +423,49 @@ export function declaredUnverifiedCommits(r) {
   return [...found].sort();
 }
 
-// Each distinct repository is fetched once (`--depth=1`, by commit id) into a throw-away repository and every pin is
-// compared with the blob id that the fetched commit really has at that path. A fetch that fails is `fail`, never a
-// silent skip, unless BASELINE_ALLOW_UNVERIFIED=1 turns it into an explicit `unverified`; a blob that differs, or a
-// malformed pin, is always `fail`.
-export function externalPinVerdict(r, { env = process.env, urlFor = (repository) => `https://github.com/${repository}.git` } = {}) {
+// A throw-away repository does not inherit the checkout's local config, and actions/checkout keeps its token there as
+// http.<server>/.extraheader, so a plain fetch would be rejected by a private repository. The credentials for such a fetch are
+// (1) the checkout's own URL-scoped http.*.extraheader entries (git sends them only to the URLs they are scoped to), else
+// (2) GITHUB_TOKEN or GH_TOKEN, sent only to the origin of GITHUB_SERVER_URL (default https://github.com), else (3) none, so a
+// public repository is fetched unauthenticated exactly as before. They travel in GIT_CONFIG_* variables (git 2.31 or newer),
+// never on a command line.
+export function fetchCredentials(root, url, env = process.env) {
+  const res = git(root, ['config', '--local', '--includes', '-z', '--get-regexp', '^http\\..*extraheader$']);
+  const entries = res.status === 0 ? res.stdout.split('\0').filter((e) => e.includes('\n')).map((e) => [e.slice(0, e.indexOf('\n')), e.slice(e.indexOf('\n') + 1)]) : [];
+  const config = entries.filter(([key]) => /^http\..+\.extraheader$/.test(key));
+  if (config.length > 0) return { source: 'checkout', config };
+  const token = env.GITHUB_TOKEN || env.GH_TOKEN;
+  const origin = new URL(env.GITHUB_SERVER_URL || 'https://github.com').origin;
+  if (token && URL.canParse(url) && new URL(url).origin === origin) {
+    return { source: 'token', config: [[`http.${origin}/.extraheader`, `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`]] };
+  }
+  return { source: 'none', config: [] };
+}
+
+function gitConfigEnv(config) {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  let n = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10);
+  if (!Number.isInteger(n) || n < 0) n = 0;
+  for (const [key, value] of config) {
+    env[`GIT_CONFIG_KEY_${n}`] = key;
+    env[`GIT_CONFIG_VALUE_${n}`] = value;
+    n += 1;
+  }
+  env.GIT_CONFIG_COUNT = String(n);
+  return env;
+}
+
+function redact(text, config) {
+  let out = text;
+  for (const [, value] of config) for (const secret of [value, value.split(/\s+/).pop()]) if (secret) out = out.split(secret).join('***');
+  return out;
+}
+
+// Each distinct repository is fetched once (`--depth=1`, by commit id) into a throw-away repository, with the credentials of
+// fetchCredentials(root, ...), and every pin is compared with the blob id that the fetched commit really has at that path. A
+// fetch that fails is `fail`, never a silent skip, unless BASELINE_ALLOW_UNVERIFIED=1 turns it into an explicit `unverified`;
+// a blob that differs, or a malformed pin, is always `fail`.
+export function externalPinVerdict(r, { env = process.env, root = REPO_ROOT, urlFor = (repository) => `https://github.com/${repository}.git` } = {}) {
   const pins = externalBlobPins(r);
   const malformed = pins.filter((p) => !REPOSITORY.test(p.repository ?? '') || !SHA1.test(p.commit ?? '') || !SHA1.test(p.git_blob_sha1 ?? '') || typeof p.path !== 'string' || p.path === '');
   if (malformed.length > 0) return { verdict: 'fail', message: `malformed external pin: ${malformed.map((p) => p.label).join(', ')}` };
@@ -438,11 +476,13 @@ export function externalPinVerdict(r, { env = process.env, urlFor = (repository)
   for (const [repository, group] of byRepository) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'baseline-pins-'));
     try {
-      const args = ['fetch', '--no-tags', '--depth=1', urlFor(repository), ...new Set(group.map((p) => p.commit))];
+      const url = urlFor(repository);
+      const auth = fetchCredentials(root, url, env);
+      const args = ['fetch', '--no-tags', '--depth=1', url, ...new Set(group.map((p) => p.commit))];
       const init = git(dir, ['init', '-q']);
-      const res = init.status === 0 ? git(dir, args, { timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }) : init;
+      const res = init.status === 0 ? git(dir, args, { timeout: 120000, env: gitConfigEnv(auth.config) }) : init;
       if (res.status !== 0) {
-        unavailable.push(`\`git ${args.join(' ')}\` failed (${res.error ? res.error.message : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n')[0]}`})`);
+        unavailable.push(redact(`\`git ${args.join(' ')}\` failed (${res.error ? res.error.message : `exit ${res.status}: ${(res.stderr ?? '').trim().split('\n')[0]}`})`, auth.config));
         continue;
       }
       for (const p of group) {

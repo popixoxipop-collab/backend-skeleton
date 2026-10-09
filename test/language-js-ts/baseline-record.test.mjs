@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { SUITES, inspectSuite } from '../../scripts/run-next-nested-tests.mjs';
 import * as lib from './baseline-record-lib.mjs';
@@ -14,7 +14,8 @@ import * as lib from './baseline-record-lib.mjs';
 // pinned commit decides every case, so it is mandatory: a checkout that lacks it fetches it once, and the git: tests
 // fail with "pinned commit unavailable" when that is impossible unless BASELINE_ALLOW_UNVERIFIED=1 skips them aloud.
 // External pins (the Legacy A fixture files) are resolved the same way: each is fetched from the repository it names and
-// its blob id compared. The Legacy A commits that carry no blob are declared-not-verified in the limits, not resolved.
+// its blob id compared, with the credentials of the checkout (a private-repository run keeps its token only there).
+// The Legacy A commits that carry no blob are declared-not-verified in the limits, not resolved.
 
 const root = lib.REPO_ROOT;
 const record = lib.readRecord(root);
@@ -366,6 +367,84 @@ test('negative: an external pin must have its blob in the named repository; a wr
   const malformed = verdict({ repository: '--upload-pack=x' }, { BASELINE_ALLOW_UNVERIFIED: '1' });
   assert.equal(malformed.verdict, 'fail');
   assert.match(malformed.message, /malformed external pin/);
+});
+
+const gitRepo = (dir, name, ...config) => {
+  const repo = path.join(dir, name);
+  fs.mkdirSync(repo);
+  spawnSync('git', ['init', '-q'], { cwd: repo });
+  for (const [key, value] of config) assert.equal(spawnSync('git', ['config', '--local', '--add', key, value], { cwd: repo }).status, 0, key);
+  return repo;
+};
+
+test('credentials: the pin fetch takes the checkout http extraheader, else a token for the server origin only, else none', (t) => {
+  const dir = tmpDir(t, 'baseline-record-auth-');
+  const url = 'https://github.com/owner/repo.git';
+  const scoped = ['http.https://github.com/.extraheader', 'AUTHORIZATION: basic Y2hlY2tvdXQ='];
+  const withHeader = gitRepo(dir, 'with-header', scoped);
+  assert.deepEqual(lib.fetchCredentials(withHeader, url, {}), { source: 'checkout', config: [scoped] });
+  assert.equal(lib.fetchCredentials(withHeader, url, { GITHUB_TOKEN: 'tok' }).source, 'checkout', 'the checkout header wins, so a request never carries two Authorization headers');
+
+  fs.writeFileSync(path.join(dir, 'persisted.config'), '[http "https://github.com/"]\n\textraheader = AUTHORIZATION: basic aW5jbHVkZWQ=\n');
+  const included = gitRepo(dir, 'included', ['include.path', path.join(dir, 'persisted.config')]);
+  assert.deepEqual(lib.fetchCredentials(included, url, {}).config, [['http.https://github.com/.extraheader', 'AUTHORIZATION: basic aW5jbHVkZWQ=']], 'a header persisted in an included file is found');
+
+  const bare = gitRepo(dir, 'bare');
+  const basic = `AUTHORIZATION: basic ${Buffer.from('x-access-token:tok').toString('base64')}`;
+  assert.deepEqual(lib.fetchCredentials(bare, url, { GITHUB_TOKEN: 'tok' }), { source: 'token', config: [['http.https://github.com/.extraheader', basic]] });
+  assert.equal(lib.fetchCredentials(bare, url, { GH_TOKEN: 'tok' }).source, 'token');
+  assert.equal(lib.fetchCredentials(bare, 'https://elsewhere.invalid/owner/repo.git', { GITHUB_TOKEN: 'tok' }).source, 'none', 'a token is never sent to another host');
+  assert.equal(lib.fetchCredentials(bare, 'file:///tmp/upstream', { GITHUB_TOKEN: 'tok' }).source, 'none');
+  assert.equal(lib.fetchCredentials(bare, url, { GITHUB_TOKEN: 'tok', GITHUB_SERVER_URL: 'https://ghe.invalid' }).source, 'none', 'the token belongs to GITHUB_SERVER_URL');
+  assert.equal(lib.fetchCredentials(bare, url, {}).source, 'none', 'a public repository is fetched unauthenticated');
+  assert.equal(lib.fetchCredentials(gitRepo(dir, 'unscoped', ['http.extraheader', 'AUTHORIZATION: basic eA==']), url, {}).source, 'none', 'an unscoped header would reach every host');
+  assert.equal(lib.fetchCredentials(path.join(dir, 'not-a-repository'), url, {}).source, 'none');
+});
+
+// spawnSync blocks this process, so the server that records the Authorization header of every request lives in a child.
+const RECORDING_SERVER = "const http = require('node:http'), fs = require('node:fs'); http.createServer((q, s) => { fs.appendFileSync(process.argv[1], JSON.stringify(q.headers.authorization ?? null) + '\\n'); s.writeHead(404); s.end(); }).listen(0, '127.0.0.1', function () { console.log(this.address().port); });";
+
+test('credentials on the wire: the pin fetch sends the credentials only to the server they are scoped to and never prints them', async (t) => {
+  for (const key of ['NO_PROXY', 'no_proxy']) {
+    const was = process.env[key];
+    process.env[key] = '127.0.0.1';
+    t.after(() => (was === undefined ? delete process.env[key] : (process.env[key] = was)));
+  }
+  const dir = tmpDir(t, 'baseline-record-wire-');
+  const log = path.join(dir, 'authorization.log');
+  const server = spawn(process.execPath, ['-e', RECORDING_SERVER, log], { stdio: ['ignore', 'pipe', 'inherit'] });
+  t.after(() => server.kill());
+  const port = await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.stdout.once('data', (chunk) => resolve(Number(String(chunk).trim())));
+  });
+  const origin = `http://127.0.0.1:${port}`;
+  const pin = { repository: 'owner/repo', commit: 'a'.repeat(40), path: 'docs/a.txt', git_blob_sha1: 'b'.repeat(40) };
+  let n = 0;
+  const attempt = (config, env) => {
+    fs.rmSync(log, { force: true });
+    const repo = gitRepo(dir, `checkout-${n++}`, ...config);
+    const verdict = lib.externalPinVerdict({ fixtures: [{ id: 'X', origin_pin: pin }] }, { root: repo, env, urlFor: () => `${origin}/owner/repo.git` });
+    const headers = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : [];
+    assert.ok(headers.length > 0, 'the server was reached');
+    assert.equal(verdict.verdict, 'fail', 'the server has no repository, so the fetch fails and is reported');
+    assert.match(verdict.message, /external pin unavailable/);
+    return { headers, message: verdict.message };
+  };
+  const everyRequest = (found, expected) => assert.deepEqual([...new Set(found.headers)], [expected]);
+
+  const fromCheckout = attempt([[`http.${origin}/.extraheader`, 'AUTHORIZATION: basic c2VjcmV0']], {});
+  everyRequest(fromCheckout, 'basic c2VjcmV0');
+  assert.ok(!fromCheckout.message.includes('c2VjcmV0'), 'the credential is never printed');
+
+  const encoded = Buffer.from('x-access-token:ghs_TESTTOKEN0123').toString('base64');
+  const fromToken = attempt([], { GITHUB_TOKEN: 'ghs_TESTTOKEN0123', GITHUB_SERVER_URL: origin });
+  everyRequest(fromToken, `basic ${encoded}`);
+  assert.ok(!fromToken.message.includes('ghs_TESTTOKEN0123') && !fromToken.message.includes(encoded), 'the token is never printed');
+
+  everyRequest(attempt([['http.https://github.com/.extraheader', 'AUTHORIZATION: basic b3RoZXI=']], {}), null);
+  everyRequest(attempt([], { GITHUB_TOKEN: 'ghs_TESTTOKEN0123' }), null);
+  everyRequest(attempt([], {}), null);
 });
 
 test('negative: a same-length tampered sha256, a wrong byte count or a wrong blob id fails the recomputation', (t) => {
