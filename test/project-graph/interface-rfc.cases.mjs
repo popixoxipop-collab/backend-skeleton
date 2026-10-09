@@ -154,12 +154,17 @@ const adapterDefaults = () => build({ 'app/package.json': '{}' }, { adapters: [b
 function adapterValues() {
   const only = (id, dir, specificity, extra) => adapter(id, specificity, inDirs(dir), extra);
   const dirs = ['nan', 'text', 'infinity', 'negative', 'fraction', 'tied', 'described', 'odd-id',
-    'null-fields', 'blank-fields', 'list-capabilities', 'text-capabilities', 'number-capabilities'];
+    'null-fields', 'blank-fields', 'list-capabilities', 'text-capabilities', 'number-capabilities',
+    'zero-text', 'empty-text', 'false-value'];
   const files = Object.fromEntries(dirs.map((dir) => [`${dir}/package.json`, '{}']));
   return build(files, {
     adapters: [
       only('nan-http', 'nan', Number.NaN),
       only('text-http', 'text', '5'),
+      // Equal to 0 once converted, but not the number 0: candidates that record 0, never fallbacks.
+      only('zero-text-http', 'zero-text', '0'),
+      only('empty-text-http', 'empty-text', ''),
+      only('false-http', 'false-value', false),
       only('infinity-http', 'infinity', Number.POSITIVE_INFINITY),
       only('negative-http', 'negative', -5),
       only('fraction-http', 'fraction', 1.5),
@@ -982,6 +987,34 @@ const duplicateAdapterIds = () => build({ 'app/package.json': '{}' }, {
   adapters: [adapter('twin-http', 50, inDirs('app')), adapter('twin-http', 50, inDirs('app'))],
 });
 
+// The same ids on the fallback path. A fallback adapter adds only its id to the graph, as `fallback_adapter` of each
+// project it recognizes, and no candidate holds it, so the candidate rules of the schema never see it.
+// An empty id is falsy: the plan never gives the project a `fallback` item, although the build reported no problem.
+const emptyFallbackAdapterId = () => {
+  const built = build({ 'app/package.json': '{}' }, { adapters: [bare('', { detect: inDirs('app'), specificity: 0 })] });
+  return { ...built, extra: { fallback_plan: buildProjectScanPlan(built.graph, { includeFallback: true }) } };
+};
+
+// `NaN` and `Infinity` are numbers too. JSON writes both as `null`, which is the value of no fallback, so the only
+// trace of them is the in-memory graph: `extra` keeps their text because the probe prints JSON.
+const numericFallbackAdapterId = () => {
+  const built = build({ 'app/package.json': '{}', 'inf/package.json': '{}', 'nan/package.json': '{}' }, {
+    adapters: [
+      bare(7, { detect: inDirs('app'), specificity: 0 }),
+      bare(Infinity, { detect: inDirs('inf'), specificity: 0 }),
+      bare(NaN, { detect: inDirs('nan'), specificity: 0 }),
+    ],
+  });
+  const inMemory = Object.fromEntries(built.graph.projects.map((p) => [p.root, String(p.fallback_adapter)]));
+  return { ...built, extra: { in_memory_fallback_ids: inMemory } };
+};
+
+// No `id` (or a `null` one) on a fallback adapter leaves `null`, which is what no fallback looks like: the graph is valid
+// and nothing in it shows the adapter. A first-class adapter with no `id` is the case above that the schema rejects.
+const missingFallbackAdapterId = () => build({ 'no-id/package.json': '{}', 'null-id/package.json': '{}' }, {
+  adapters: [{ detect: inDirs('no-id'), specificity: 0 }, bare(null, { detect: inDirs('null-id'), specificity: 0 })],
+});
+
 export function optionCases() {
   return {
     accepted: {
@@ -1001,6 +1034,7 @@ export function optionCases() {
       adapter_removed_during_build: adapterRemovedDuringBuild(),
       adapter_order: adapterOrder(),
       adapter_calls: adapterCalls(),
+      missing_fallback_adapter_id: missingFallbackAdapterId(),
       nested_projects: nestedProjects(),
       short_root_names: shortRootNames(),
       package_owners: packageOwners(),
@@ -1027,6 +1061,8 @@ export function optionCases() {
       numeric_adapter_id: numericAdapterId(),
       missing_adapter_id: missingAdapterId(),
       duplicate_adapter_ids: duplicateAdapterIds(),
+      empty_fallback_adapter_id: emptyFallbackAdapterId(),
+      numeric_fallback_adapter_id: numericFallbackAdapterId(),
     },
   };
 }

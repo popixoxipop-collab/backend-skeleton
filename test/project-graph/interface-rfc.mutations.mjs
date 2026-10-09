@@ -40,6 +40,9 @@ export const REJECTED_MUTATIONS = [
   // an empty or non-string value does not.
   edit('marker kind that is empty', 'normal', 'minLength', (g) => { project(g, 'services/api').markers[0].kind = ''; }),
   edit('marker kind that is not a string', 'normal', 'type', (g) => { project(g, 'services/api').markers[0].kind = 42; }),
+  // The id of a fallback adapter is copied into `fallback_adapter` of the project, where only the project rules see it.
+  edit('fallback adapter that is empty', 'normal', 'minLength', (g) => { project(g, '.').fallback_adapter = ''; }),
+  edit('fallback adapter that is not a string', 'normal', 'type', (g) => { project(g, '.').fallback_adapter = 7; }),
   edit('digest with another algorithm', 'normal', 'pattern', (g) => { project(g, 'services/api').markers[0].digest = `sha1:${'a'.repeat(40)}`; }),
   edit('uppercase digest', 'normal', 'pattern', (g) => { project(g, 'services/api').markers[0].digest = sha('A', 64); }),
   edit('unknown edge kind', 'normal', 'const', (g) => { g.project_edges[0].kind = 'depends-on'; }),

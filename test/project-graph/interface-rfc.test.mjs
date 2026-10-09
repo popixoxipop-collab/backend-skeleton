@@ -537,7 +537,7 @@ const ACCEPTED = {
     says: [
       'an omitted or `null` field takes its default (`title` the adapter\'s `id`, `confidence` and `verification_basis` `unknown`, `capabilities` `{}`, `specificity` `0`)',
       'An omitted (`undefined` or `null`) `title` is recorded as the id, an omitted `confidence` or `verificationBasis` as the string `unknown`, and omitted `capabilities` as `{}`',
-      'An adapter whose specificity is omitted, `NaN` or `Infinity` is therefore first-class although it records `0`',
+      "An adapter whose specificity is omitted, `NaN`, `Infinity`, `'0'`, `''` or `false` is therefore first-class although it records `0`",
     ],
     check({ graph }) {
       assert.deepEqual(project(graph, 'app').http.candidates, [{
@@ -559,17 +559,20 @@ const ACCEPTED = {
       const candidate = (root) => project(graph, root).http.candidates[0];
       const specificity = Object.fromEntries(graph.projects.filter((p) => p.root !== '.').map((p) => [p.root, p.http.candidates[0].specificity]));
       assert.deepEqual(specificity, {
-        'blank-fields': 5, described: 5, fraction: 1.5, infinity: 0, 'list-capabilities': 5, nan: 0, negative: -5,
-        'null-fields': 0, 'number-capabilities': 5, 'odd-id': 5, text: 0, 'text-capabilities': 5, tied: 0,
+        'blank-fields': 5, described: 5, 'empty-text': 0, 'false-value': 0, fraction: 1.5, infinity: 0, 'list-capabilities': 5,
+        nan: 0, negative: -5, 'null-fields': 0, 'number-capabilities': 5, 'odd-id': 5, text: 0, 'text-capabilities': 5, tied: 0,
+        'zero-text': 0,
       });
       assert.deepEqual(project(graph, 'tied').http, {
         ambiguous: ['tied-infinity-http', 'tied-nan-http'], candidates: project(graph, 'tied').http.candidates,
         reason: 'specificity-tie', selected: null,
       });
       assert.equal(project(graph, 'tied').kind, 'ambiguous');
-      // `NaN`, `Infinity` and a numeric string record 0 without being the number 0: candidates, not fallbacks.
-      assert.deepEqual(['nan', 'infinity', 'text'].map((root) => [project(graph, root).http.selected, project(graph, root).fallback]),
-        [['nan-http', null], ['infinity-http', null], ['text-http', null]]);
+      // `NaN`, `Infinity`, a numeric string and the values `'0'`, `''` and `false` (equal to 0 only after a conversion) record 0
+      // without being the number 0: candidates, not fallbacks.
+      assert.deepEqual(['nan', 'infinity', 'text', 'zero-text', 'empty-text', 'false-value']
+        .map((root) => [project(graph, root).http.selected, project(graph, root).fallback]),
+      [['nan-http', null], ['infinity-http', null], ['text-http', null], ['zero-text-http', null], ['empty-text-http', null], ['false-http', null]]);
       assert.deepEqual(candidate('described'), {
         adapter_id: 'described-http', capabilities: { http: true, nested: { depth: 1 } }, confidence: 'medium', specificity: 5,
         title: 'Described', verification_basis: 'custom-basis',
@@ -596,6 +599,21 @@ const ACCEPTED = {
       assert.deepEqual(fallbackOf(graph), { '.': null, app: 'zeta-inventory' });
       assert.equal(project(graph, 'app').http.reason, 'no-first-class-adapter');
       assert.equal(project(graph, 'app').kind, 'unrecognized');
+    },
+  },
+  missing_fallback_adapter_id: {
+    says: [
+      'A fallback adapter (section 4) adds only its id to the graph, as `fallback_adapter` of each project it recognizes, and is never a candidate. There the schema asks for a non-empty string, or `null` for none.',
+      'An adapter with no `id`, or a `null` one, leaves `null`, which is what no fallback looks like: the graph is valid and nothing in it shows the adapter.',
+    ],
+    check({ graph }) {
+      // Both adapters detect their project and are fallbacks (specificity 0); the graph shows neither of them.
+      assert.deepEqual(fallbackOf(graph), { '.': null, 'no-id': null, 'null-id': null });
+      for (const root of ['no-id', 'null-id']) {
+        const { http, kind } = project(graph, root);
+        assert.deepEqual([kind, http.reason, http.candidates, http.selected], ['unrecognized', 'no-first-class-adapter', [], null], root);
+      }
+      assert.deepEqual(graph.unresolved, []);
     },
   },
   detect_failures: {
@@ -949,7 +967,7 @@ const ACCEPTED = {
       'The caller\'s `adapters` array is sorted as a copy and is never reordered.',
       'The asking order decides the order of the adapter diagnostics of one project root in `unresolved` (section 5.1) and which of several fallbacks is recorded; it does not change the candidates, `nested_detections` or the selection.',
       'When two adapters share an `id`, the read set is captured from the first element of the array that has that `id`, which need not be the adapter that detected.',
-      'two adapters with one id can tie (the read set comes from the first of them in the array, section 4)',
+      'Two adapters with one id and different specificities do not tie: both are candidates, the graph is valid, and the read set comes from the first of them in the array (section 4).',
       '`[{adapter_id, detected_root}]`, sorted by `adapter_id`, then `detected_root`',
     ],
     check({ graph, extra }) {
@@ -1129,6 +1147,28 @@ const UNCHECKED = {
       assert.deepEqual([http.ambiguous, http.reason, http.selected, http.candidates.length, kind], [['twin-http', 'twin-http'], 'specificity-tie', null, 2, 'ambiguous']);
     },
   },
+  empty_fallback_adapter_id: {
+    says: ["An empty id is copied as `''`, which is falsy, so the plan never gives that project a `fallback` item"],
+    check({ graph, extra }) {
+      // The adapter detects `app` and is a fallback (specificity 0): no candidate holds its id, only `fallback_adapter` does.
+      const { fallback, http, kind } = project(graph, 'app');
+      assert.deepEqual([fallback, http.candidates, http.selected, http.reason, kind], ['', [], null, 'no-first-class-adapter', 'unrecognized']);
+      // `includeFallback` was set, and still no project got a `fallback` item, because `''` is falsy (section 2.3).
+      assert.deepEqual(extra.fallback_plan, []);
+      assert.deepEqual(graph.unresolved, []);
+    },
+  },
+  numeric_fallback_adapter_id: {
+    says: [
+      'and a numeric id is copied as given; the schema rejects both (`minLength`, `type`)',
+      'The schema rejects `NaN` and `Infinity` in memory, where they are numbers, but accepts the graph after `JSON.stringify`, which writes them as `null`.',
+    ],
+    check({ graph, extra }) {
+      // The probe prints JSON, so `NaN` and `Infinity` read `null` in `graph`; `extra` holds what the builder put in memory.
+      assert.deepEqual(fallbackOf(graph), { '.': null, app: 7, inf: null, nan: null });
+      assert.deepEqual(extra.in_memory_fallback_ids, { '.': 'null', app: '7', inf: 'Infinity', nan: 'NaN' });
+    },
+  },
 };
 
 // Calls that throw. The class is always recorded; the message only where the builder wrote it, because the
@@ -1205,7 +1245,8 @@ describe('option cases (RFC section 2.5)', () => {
   for (const [name, entry] of Object.entries(UNCHECKED)) {
     it(`unchecked: ${name} is copied and the schema rejects it`, () => {
       assert.deepEqual(missingFragments(rfc, entry.says), [], 'statements the RFC no longer makes');
-      entry.check({ graph: probeJson('options').unchecked[name].graph });
+      const printed = probeJson('options').unchecked[name];
+      entry.check({ graph: printed.graph, extra: printed.extra });
       assert.ok(rfc.includes(`\`${recorded.unchecked[name]}\``), `the RFC does not name the keyword ${recorded.unchecked[name]}`);
     });
   }
@@ -1214,6 +1255,19 @@ describe('option cases (RFC section 2.5)', () => {
     const order = ['empty_adapter_id', 'numeric_adapter_id', 'duplicate_adapter_ids', 'missing_adapter_id'];
     const keywords = order.map((name) => `\`${recorded.unchecked[name]}\``).join(', ');
     assert.deepEqual(missingFragments(rfc, [`The schema rejects those four (${keywords})`]), []);
+    const onFallback = ['empty_fallback_adapter_id', 'numeric_fallback_adapter_id'].map((name) => `\`${recorded.unchecked[name]}\``).join(', ');
+    assert.deepEqual(missingFragments(rfc, [`the schema rejects both (${onFallback})`]), []);
+  });
+
+  it('a fallback adapter id of NaN or Infinity fails the schema in memory and is null once serialized', () => {
+    // The case holds `7`, `Infinity` and `NaN`; without the `7` nothing is left that JSON does not change.
+    const inMemory = structuredClone(options().unchecked.numeric_fallback_adapter_id.graph);
+    const serialized = clone(inMemory);
+    for (const graph of [inMemory, serialized]) project(graph, 'app').fallback_adapter = null;
+    assert.deepEqual([project(inMemory, 'inf').fallback_adapter, project(inMemory, 'nan').fallback_adapter], [Infinity, NaN]);
+    assert.deepEqual([project(serialized, 'inf').fallback_adapter, project(serialized, 'nan').fallback_adapter], [null, null]);
+    assert.deepEqual(sorted(new Set(validate(inMemory).map((error) => error.keyword))), ['type']);
+    assert.deepEqual(validate(serialized), []);
   });
 
   it('the schema accepts every accepted graph, live and after a JSON round trip', () => {
@@ -1888,7 +1942,7 @@ describe('the option checks can fail', () => {
       props.confidence = {};
       props.verification_basis = {};
     }],
-    ['no minLength anywhere', ['empty_adapter_id'], (d) => dropEverywhere(d, 'minLength')],
+    ['no minLength anywhere', ['empty_adapter_id', 'empty_fallback_adapter_id'], (d) => dropEverywhere(d, 'minLength')],
     // Without its minLength the empty id also fails for other keywords only, so that case is reported too.
     ['an adapter id of any type', ['empty_adapter_id', 'numeric_adapter_id'], (d) => {
       const facet = d.$defs.httpFacet;
@@ -1896,6 +1950,16 @@ describe('the option checks can fail', () => {
       d.$defs.candidate.properties.title = {};
       facet.properties.selected_adapter = {};
       facet.allOf[0].then.properties.selected_adapter = {};
+    }],
+    // The id of a fallback adapter is checked by `fallback_adapter` of the project, not by the candidate rules above.
+    ['a fallback adapter id that may be empty', ['empty_fallback_adapter_id'], (d) => { delete d.$defs.project.properties.fallback_adapter.minLength; }],
+    // Ajv strict mode rejects a union type that is not "T or null", so the number is added as another branch.
+    ['a fallback adapter id that may be a number', ['numeric_fallback_adapter_id'], (d) => {
+      const props = d.$defs.project.properties;
+      props.fallback_adapter = { anyOf: [props.fallback_adapter, { type: 'number' }] };
+    }],
+    ['a fallback adapter id of any type', ['empty_fallback_adapter_id', 'numeric_fallback_adapter_id'], (d) => {
+      d.$defs.project.properties.fallback_adapter = {};
     }],
     ['no required anywhere', ['missing_adapter_id'], (d) => dropEverywhere(d, 'required')],
     ['no uniqueItems anywhere', ['duplicate_adapter_ids'], (d) => dropEverywhere(d, 'uniqueItems')],

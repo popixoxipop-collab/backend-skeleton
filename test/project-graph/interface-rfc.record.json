@@ -4,7 +4,7 @@
   "rfc": "scanners/project-graph/INTERFACE_RFC.md",
   "readme": "scanners/project-graph/README.md",
   "schema_file": "scanners/project-graph/schemas/project-graph.draft-1.schema.json",
-  "schema_canonical_sha256": "d0a3e99a6da861b7cac6b4ecde5c420a2bf34abfe2334db57c6ed63d357f7470",
+  "schema_canonical_sha256": "6809d8eccc1a9fa1dd9b6f5ded80bddb68b0dfaddb6ee020d1008117906ec2ee",
   "environment": { "os": "macOS", "node": "v24.19.0" },
   "commands": [
     {
@@ -33,7 +33,7 @@
       "command": "node test/project-graph/interface-rfc.probe.mjs options",
       "exit": 0,
       "pinned": true,
-      "stdout_sha256": "d9c8661b3e368aba994f7ebad6abbd1573bd444be1108ad513f1703af1e8e9af"
+      "stdout_sha256": "c1e49606b0c4810c16790f9fb1897bcd3eb99ca0887161c9c2962749f68611f5"
     },
     {
       "id": "probe-registered",
@@ -206,6 +206,7 @@
       "fallback_adapters",
       "file_as_repo_root",
       "ignored_directories",
+      "missing_fallback_adapter_id",
       "missing_repo_root",
       "nested_projects",
       "no_adapters",
@@ -227,10 +228,12 @@
     "unchecked": {
       "duplicate_adapter_ids": "uniqueItems",
       "empty_adapter_id": "minLength",
+      "empty_fallback_adapter_id": "minLength",
       "missing_adapter_id": "required",
       "non_string_adapter_fields": "type",
       "non_string_marker_kinds": "type",
-      "numeric_adapter_id": "type"
+      "numeric_adapter_id": "type",
+      "numeric_fallback_adapter_id": "type"
     },
     "malformed": [
       "adapters_missing",

@@ -138,7 +138,11 @@
           "required": ["http"],
           "properties": { "http": { "$ref": "#/$defs/httpFacet" } }
         },
-        "fallback_adapter": { "type": ["string", "null"] },
+        "fallback_adapter": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The id of the fallback adapter that detected a project with no candidate, or null. A non-null value is a non-empty string, as for a candidate adapter_id. A fallback adapter that has no id is recorded as null, which no schema can tell from no fallback; see ../INTERFACE_RFC.md section 2.5."
+        },
         "selected_adapter_read_set": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/readSet" }] },
         "child_project_roots": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/relPath" } },
         "nested_detections": {
