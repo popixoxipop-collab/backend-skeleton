@@ -193,22 +193,22 @@
       "vector_id": "NEG-TRUST-03",
       "critical": true,
       "file": "lib/trust-next/enforcement-gate.mjs",
-      "find": "(h[1] < 0x0200 || h[1] === 0x0db8)",
-      "replace": "(h[1] === 0 || h[1] === 0x0db8)",
-      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "find": "const IPV6_ALLOCATED = [\n  '2001:200::/23',",
+      "replace": "const IPV6_ALLOCATED = [\n  '2001::/23', '2001:200::/23',",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs", "test/trust-next/enforcement-gate.test.mjs"],
       "timeout_ms": 110000,
-      "invariant": "An IPv6 address inside 2001::/23 (benchmarking, Teredo and the other IETF protocol assignments) is never public; only 2001::/32 and 2001:db8::/32 are not enough."
+      "invariant": "An IPv6 address inside 2001::/23 (benchmarking, Teredo and the other IETF protocol assignments) is never public: the block is special-purpose space and not an allocation."
     },
     {
       "id": "PMUT-GATE-IPV6-3FFF-PUBLIC",
       "vector_id": "NEG-TRUST-03",
       "critical": true,
       "file": "lib/trust-next/enforcement-gate.mjs",
-      "find": "(h[0] === 0x3fff && h[1] < 0x1000)",
-      "replace": "false",
-      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "find": "'2c00::/12',\n];",
+      "replace": "'2c00::/12', '3fff::/20',\n];",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs", "test/trust-next/enforcement-gate.test.mjs"],
       "timeout_ms": 110000,
-      "invariant": "An IPv6 address inside 3fff::/20 (documentation, RFC 9637) is never public."
+      "invariant": "An IPv6 address inside 3fff::/20 (documentation, RFC 9637; IANA lists it as reserved) is never public."
     },
     {
       "id": "PMUT-GATE-IPV6-6TO4-PUBLIC",
@@ -259,11 +259,11 @@
       "vector_id": "NEG-TRUST-03",
       "critical": true,
       "file": "lib/trust-next/enforcement-gate.mjs",
-      "find": "(h[0] & 0xe000) !== 0x2000 || special",
-      "replace": "special",
-      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "find": "!inAllocatedIPv6Block(h)",
+      "replace": "(h[0] & 0xe000) !== 0x2000",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs", "test/trust-next/enforcement-gate.test.mjs"],
       "timeout_ms": 110000,
-      "invariant": "An IPv6 address outside 2000::/3 (5f00::/16, 100::/64, 64:ff9b:1::/48 and every unassigned range) is never public."
+      "invariant": "An IPv6 address inside 2000::/3 that IANA has not allocated (2d00::/8 up to 3ffe::/16 are reserved, 2000::/16 and the gaps between allocations are unassigned) is never public."
     },
     {
       "id": "PMUT-GATE-SHADOW-CONNECT-WITHOUT-ADDRESS",
@@ -363,6 +363,61 @@
       "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
       "timeout_ms": 110000,
       "invariant": "A refusal that surfaces inside an allowed request still closes that request with a failed outcome."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-DOC-BLOCK-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "(h[0] === 0x2001 && h[1] === 0x0db8)",
+      "replace": "false",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs", "test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "The documentation block 2001:db8::/32 sits inside the allocated block 2001:c00::/23 and is still never public."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-PREFIX-TOO-WIDE",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "Math.floor(top / 2 ** (32 - block.bits)) === Math.floor(block.top / 2 ** (32 - block.bits))",
+      "replace": "Math.floor(top / 2 ** (33 - block.bits)) === Math.floor(block.top / 2 ** (33 - block.bits))",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An allocated block covers exactly its prefix: the neighbour that differs only in the last prefix bit (2001::/23 beside 2001:200::/23) is not public."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-ALLOCATED-BLOCK-DROPPED",
+      "vector_id": "NEG-TRUST-03",
+      "critical": false,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "'2a10::/12', '2c00::/12',",
+      "replace": "'2a10::/12',",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs", "test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "Every block IANA has allocated is public, so the last allocation 2c00::/12 is not refused; an over-refusal is a reliability fault and not a safety hole."
+    },
+    {
+      "id": "PMUT-GATE-IPV4-6TO4-RELAY-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "(a === 192 && b === 88 && c === 99) || ",
+      "replace": "(false) || ",
+      "test_files": ["test/trust-next/enforcement-gate-addresses.test.mjs", "test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "The deprecated 6to4 relay anycast block 192.88.99.0/24 has no flags in the IANA registry and is never public."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-DUPLICATE-OUTCOME-ACCEPTED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "} else if (settled.has(entry.decision_seq)) {",
+      "replace": "} else if (false) {",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A decision has exactly one outcome entry: a second outcome for it is reported even when it agrees with the first."
     }
   ]
 }

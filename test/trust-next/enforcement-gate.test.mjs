@@ -163,6 +163,7 @@ test('address classification covers IPv4, IPv6, mapped, translated and malformed
     ['93.184.216.34', 'public'], ['8.8.8.8', 'public'], ['172.32.0.1', 'public'], ['127.0.0.1', 'loopback'], ['127.255.255.254', 'loopback'],
     ['10.1.2.3', 'private'], ['172.16.0.1', 'private'], ['192.168.1.1', 'private'], ['100.64.0.1', 'private'], ['169.254.169.254', 'link-local'],
     ['0.0.0.0', 'unspecified'], ['224.0.0.1', 'multicast'], ['255.255.255.255', 'reserved'], ['192.0.2.1', 'reserved'],
+    ['192.88.99.1', 'reserved'], ['192.88.98.255', 'public'], ['192.88.100.0', 'public'], ['192.175.48.1', 'public'],
     ['::1', 'loopback'], ['::', 'unspecified'], ['::ffff:127.0.0.1', 'loopback'], ['::ffff:10.0.0.1', 'private'], ['::ffff:8.8.8.8', 'reserved'],
     ['fe80::1', 'link-local'], ['fc00::1', 'private'], ['fd12:3456::1', 'private'], ['ff02::1', 'multicast'], ['2001:db8::1', 'reserved'],
     ['2606:4700:4700::1111', 'public'], ['64:ff9b::7f00:1', 'loopback'], ['2002:7f00:1::', 'loopback'],
@@ -190,50 +191,49 @@ const IPV6_NOT_PUBLIC = [
   ['2002::/16 6to4 with a private IPv4 inside', '2002:a00:1::', 'private'],
   ['3fff::/20 documentation, first address', '3fff::1', 'reserved'],
   ['3fff::/20 last address', '3fff:fff:ffff:ffff:ffff:ffff:ffff:ffff', 'reserved'],
+  ['3ffe::/16 IANA reserved (the returned 6bone block)', '3ffe::1', 'reserved'],
+  ['3f00::/9 IANA reserved', '3f00::1', 'reserved'],
+  ['2d00::/8 IANA reserved, the first block after the last allocation', '2d00::1', 'reserved'],
+  ['2000::/16 below the first allocation', '2000::1', 'reserved'],
+  ['2001:6000::/19 gap between 2001:5000::/20 and 2001:8000::/19', '2001:6000::1', 'reserved'],
+  ['2a20::/12 unallocated, between 2a10::/12 and 2c00::/12', '2a20::1', 'reserved'],
+  ['::/8 IPv4-compatible form is not an allocation', '::808:808', 'reserved'],
+  ['4000::/2 outside 2000::/3', '4000::1', 'reserved'],
   ['5f00::/16 segment routing SIDs', '5f00::1', 'reserved'],
   ['fc00::/7 unique local', 'fc00::1', 'private'],
   ['fe80::/10 link-local', 'fe80::1', 'link-local'],
   ['ff00::/8 multicast', 'ff02::1', 'multicast'],
 ];
-// Global unicast: published resolver addresses and the first address after each special-purpose block that sits inside
-// 2000::/3.
+// Global unicast in blocks IANA has ALLOCATED to a registry: published resolver addresses, the first address after each
+// special-purpose block that sits inside the allocated space, and the last address of the last allocation.
 const IPV6_PUBLIC = [
   ['Cloudflare public DNS', '2606:4700:4700::1111'],
   ['Google public DNS', '2001:4860:4860::8888'],
   ['Quad9', '2620:fe::fe'],
-  ['first address after 2001::/23', '2001:200::1'],
-  ['next /32 after 2001:db8::/32', '2001:db9::1'],
-  ['first address after 3fff::/20', '3fff:1000::1'],
+  ['first address after 2001::/23 (APNIC)', '2001:200::1'],
+  ['next /32 after 2001:db8::/32 (inside APNIC 2001:c00::/23)', '2001:db9::1'],
+  ['last address of 2001:5000::/20', '2001:5fff:ffff:ffff:ffff:ffff:ffff:ffff'],
+  ['first address of 2001:8000::/19, after the gap', '2001:8000::1'],
+  ['AS112 direct delegation 2620:4f:8000::/48, a globally reachable special-purpose row inside ARIN space', '2620:4f:8000::1'],
+  ['last address of the last allocation 2c00::/12 (AFRINIC)', '2c0f:ffff:ffff:ffff:ffff:ffff:ffff:ffff'],
 ];
 
-test('IPv6 is public only inside 2000::/3 and outside every special-purpose block: one address per block', () => {
+test('IPv6 is public only inside an allocated unicast block and outside every special-purpose block: one address per block', () => {
   for (const [block, address, expected] of IPV6_NOT_PUBLIC) assert.equal(classifyAddress(address), expected, `${block}: ${address}`);
   for (const [name, address] of IPV6_PUBLIC) assert.equal(classifyAddress(address), 'public', `${name}: ${address}`);
 });
 
-test('IPv6 classification is deny-by-default: every first group and every boundary of the blocks inside 2000::/3 is swept', () => {
-  // Outside 2000::/3 nothing is public. Inside it, 2001, 2002 and 3fff hold special-purpose blocks and are checked below.
-  for (let group = 0; group <= 0xffff; group += 1) {
-    const address = `${group.toString(16)}::1`;
-    const expected = group >= 0x2000 && group <= 0x3fff && group !== 0x2001 && group !== 0x2002 && group !== 0x3fff;
-    assert.equal(classifyAddress(address) === 'public', expected, address);
-  }
-  // 2001::/23 ends at 2001:1ff, 2001:db8::/32 is one second group, 3fff::/20 ends at 3fff:fff.
-  for (let second = 0; second <= 0xffff; second += 1) {
-    const hex = second.toString(16);
-    assert.equal(classifyAddress(`2001:${hex}::1`) === 'public', second >= 0x200 && second !== 0xdb8, `2001:${hex}::1`);
-    assert.equal(classifyAddress(`3fff:${hex}::1`) === 'public', second >= 0x1000, `3fff:${hex}::1`);
-  }
-  // 6to4, IPv4-mapped and NAT64 addresses are never public, whatever IPv4 address they wrap; a non-public wrapped address names the class.
-  for (const [inner, expected] of [['808:808', 'reserved'], ['a00:1', 'private'], ['7f00:1', 'loopback'], ['c0a8:1', 'private'], ['a9fe:a9fe', 'link-local']]) {
+test('6to4, IPv4-mapped and NAT64 addresses are never public, whatever IPv4 address they wrap; a non-public wrapped address names the class', () => {
+  for (const [inner, expected] of [['808:808', 'reserved'], ['a00:1', 'private'], ['7f00:1', 'loopback'], ['c0a8:1', 'private'], ['a9fe:a9fe', 'link-local'], ['c058:6301', 'reserved']]) {
     assert.equal(classifyAddress(`2002:${inner}::`), expected, `2002:${inner}::`);
     assert.equal(classifyAddress(`::ffff:${inner}`), expected, `::ffff:${inner}`);
     assert.equal(classifyAddress(`64:ff9b::${inner}`), expected, `64:ff9b::${inner}`);
   }
 });
 
-test('a granted name that resolves to an IPv6 special-purpose address is refused, and granting that exact literal allows it', async () => {
-  const cases = ['2001::1', '2001:2::1', '2001:db8::1', '2002:808:808::', '3fff::1', '5f00::1', '100::1', '64:ff9b:1::1'];
+test('a granted name that resolves to a special-purpose, reserved or unallocated address is refused, and granting that exact literal allows it', async () => {
+  const cases = ['2001::1', '2001:2::1', '2001:db8::1', '2002:808:808::', '3fff::1', '5f00::1', '100::1', '64:ff9b:1::1',
+    '3f00::1', '3ffe::1', '2d00::1', '2001:6000::1', '::808:808', '192.88.99.1'];
   const dns = {};
   const allow = cases.map((address, index) => {
     dns[`v6-${index}.example.com`] = [[address]];

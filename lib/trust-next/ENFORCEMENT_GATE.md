@@ -40,13 +40,30 @@ The default mode is `enforce`: a denied request throws `EnforcementDenied` (`cod
 
 ### Public addresses
 
-`classifyAddress` returns `public` only for global unicast and refuses everything else by default.
+`classifyAddress` returns `public` only for global unicast that a registry has handed out, and refuses everything else by default.
 
-- IPv4 is public unless it is in a private, shared (100.64.0.0/10), loopback, link-local, documentation, benchmarking, multicast or reserved block.
-- IPv6 is public only inside `2000::/3` and outside the special-purpose blocks that sit in it: `2001::/23` (all of it, although a few
-  sub-blocks of it are globally reachable), `2001:db8::/32`, `2002::/16` and `3fff::/20`. Nothing outside `2000::/3` is public, so
-  `::/128`, `::1/128`, `::ffff:0:0/96`, `64:ff9b::/96`, `64:ff9b:1::/48`, `100::/64`, `5f00::/16`, `fc00::/7`, `fe80::/10`, `ff00::/8`
-  and every range that is unassigned or assigned later are refused until the manifest names the literal address.
+- IPv4 is public unless it is in a private, shared (`100.64.0.0/10`), loopback, link-local, multicast (`224.0.0.0/4`) or reserved block, or
+  in a row of the IANA IPv4 Special-Purpose Address Registry that is not globally reachable: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10`,
+  `127.0.0.0/8`, `169.254.0.0/16`, `172.16.0.0/12`, `192.0.0.0/24`, `192.0.2.0/24`, `192.88.99.0/24`, `192.168.0.0/16`, `198.18.0.0/15`,
+  `198.51.100.0/24`, `203.0.113.0/24`, `240.0.0.0/4` and `255.255.255.255/32`. `192.88.99.0/24` (the deprecated 6to4 relay anycast block)
+  has no flags at all in the registry, so it is not treated as reachable. The globally reachable rows `192.31.196.0/24`, `192.52.193.0/24`
+  and `192.175.48.0/24` stay public.
+- IPv6 is public only inside a block that the IANA IPv6 Global Unicast Address Assignments registry lists as `ALLOCATED` (the table
+  `IPV6_ALLOCATED` in the gate) and outside the special-purpose space. Two `ALLOCATED` rows are special-purpose space and are not in the
+  table: `2001::/23` (all of it) and `2002::/16`; `2001:db8::/32` (documentation) lies inside the APNIC block `2001:c00::/23` and is
+  removed from it. Everything else is refused: the rows IANA lists as `RESERVED` (`2d00::/8` up to `3ffe::/16`, and `3fff::/20`), the
+  ranges the registry does not list (`2000::/16`, the gaps between allocations, the space after the last allocation) and everything
+  outside `2000::/3`, such as `::/128`, `::1/128`, `::ffff:0:0/96`, `64:ff9b::/96`, `64:ff9b:1::/48`, `100::/64`, `5f00::/16`, `fc00::/7`,
+  `fe80::/10` and `ff00::/8`. An unknown range is never public by default.
+- The IPv6 table is a dated snapshot, not a live lookup: the registry file downloaded on 2026-10-09 (its sha256 is cited in the gate). A
+  block IANA allocates later is refused until the table is refreshed (the gate fails closed) or the manifest names the literal address.
+  Refreshing means downloading the three registry files again, replacing them under `test/trust-next/iana-registries/`, updating their
+  pins in `enforcement-gate-addresses.test.mjs` and the table in the gate; that test fails until the table agrees with the registry.
+- The gate does not follow the registry's "globally reachable" flag where the row sits in space it refuses. IANA lists `64:ff9b::/96`,
+  and inside `2001::/23` the rows `2001:1::1/128`, `2001:1::2/128`, `2001:1::3/128`, `2001:3::/32`, `2001:4:112::/48`, `2001:20::/28` and
+  `2001:30::/28`, and for IPv4 `192.0.0.9/32` and `192.0.0.10/32` (inside `192.0.0.0/24`), as globally reachable. Those stay refused; a
+  program that needs one of them is granted the exact literal address. The globally reachable IPv6 row `2620:4f:8000::/48` lies inside an
+  allocated block and is public.
 - An IPv6 address that only wraps an IPv4 address (IPv4-mapped, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`) is never public, even when the
   wrapped IPv4 address is. Its class is the class of the wrapped address when that is not public (`private`, `loopback`, ...) and
   `reserved` otherwise. IANA lists `64:ff9b::/96` as globally reachable; the gate does not follow that flag, because where a translator
@@ -90,8 +107,9 @@ write, connect, listen, spawn, secret, device) never starts without its outcome 
 `AUDIT_FULL` refusal is itself not recorded when no slot is left. `maxAuditEntries` is at least 2.
 
 `verifyAuditLog(entries, { manifestDigest, expectedEntries, expectedHeadSha256, inFlight })` recomputes the chain and reports
-tampering, truncation, a wrong head, a wrong seed, orphan outcomes and a missing outcome (`AUDIT_OUTCOME_MISSING`): every `allow` or
-`would-deny` decision except an environment read must be followed by its outcome. `inFlight` lists the decision numbers the caller
+tampering, truncation, a wrong head, a wrong seed, orphan outcomes, a missing outcome (`AUDIT_OUTCOME_MISSING`) and a repeated one
+(`AUDIT_OUTCOME_DUPLICATE`): every `allow` or `would-deny` decision except an environment read must be followed by its outcome, and by
+exactly one; a second outcome entry for the same decision is reported whether it agrees with the first or not. `inFlight` lists the decision numbers the caller
 knows are still running. `gate.verifyAudit()` passes the decisions the gate is awaiting, and `report().audit.in_flight` is their
 number; an exported log checked without `inFlight` must be complete. A decision whose outcome could not be written (a clock that
 fails, for example) is no longer awaited and is reported as missing. The verifier takes `inFlight` on trust, so it proves a log
@@ -124,12 +142,15 @@ The log proves consistency of what the gate recorded; it does not prove that the
 
 - `test/trust-next/enforcement-gate.test.mjs`: policy decisions with a recording host (default deny,
   canonical paths, traversal, exact network rules, DNS rebinding, non-public addresses with a table of
-  one IPv6 address per special-purpose block and a sweep of the IPv6 space, listener rules, spawn rules,
+  one IPv6 address per special-purpose, reserved or unallocated block, listener rules, spawn rules,
   shadow semantics including shadow connect without an address, hosts that do not affirm a connection,
   unknown operations).
+- `test/trust-next/enforcement-gate-addresses.test.mjs`: the address classes checked against the three IANA registry files in
+  `test/trust-next/iana-registries/` (pinned by hash): every row boundary, a sweep of the IPv6 and IPv4 space, and the globally
+  reachable rows that stay refused. The expectations are computed from the registry rows, not from the gate's table.
 - `test/trust-next/enforcement-gate-limits.test.mjs`: concurrency, output and wall limits, secrets,
   audit chain recomputation and tamper cases, audit capacity (no host call without two free slots,
-  reservations held by running requests, outcomes removed from a log), report honesty, digest sensitivity.
+  reservations held by running requests, outcomes removed from or repeated in a log), report honesty, digest sensitivity.
 - `test/trust-next/enforcement-gate-real.test.mjs`: real symbolic links, loopback sockets and child
   processes behind the gate, including positive controls.
 - `test/trust-next/enforcement-gate-mutations.json`: executable mutants for the trust negative vectors,

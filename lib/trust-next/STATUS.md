@@ -51,7 +51,7 @@ None of the above is an OS sandbox or execution engine. The gate controls what i
 
 ## Tests that back the gate
 
-All under `test/trust-next/`: `enforcement-gate.test.mjs` (decisions), `enforcement-gate-limits.test.mjs` (limits, audit, report), `enforcement-gate-output.test.mjs` (cumulative output cap), `enforcement-gate-real.test.mjs` (real links, loopback sockets and children), `enforcement-gate-mutations.test.mjs` (guards the mutation catalog `enforcement-gate-mutations.json`). The catalog is applied by `test/conformance-next/product-mutation-runner.mjs`; a campaign result is a local run, recorded in the pull request that introduced it, not an attestation.
+All under `test/trust-next/`: `enforcement-gate.test.mjs` (decisions), `enforcement-gate-limits.test.mjs` (limits, audit, report), `enforcement-gate-addresses.test.mjs` (address classes checked against pinned IANA registry files in `iana-registries/`), `enforcement-gate-output.test.mjs` (cumulative output cap), `enforcement-gate-real.test.mjs` (real links, loopback sockets and children), `enforcement-gate-mutations.test.mjs` (guards the mutation catalog `enforcement-gate-mutations.json`). The catalog is applied by `test/conformance-next/product-mutation-runner.mjs`; a campaign result is a local run, recorded in the pull request that introduced it, not an attestation.
 
 ## Historical note
 

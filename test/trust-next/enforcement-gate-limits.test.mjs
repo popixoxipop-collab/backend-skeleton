@@ -371,6 +371,27 @@ test('a shadow-mode would-deny and an allow that lost its outcome are both repor
   assert.deepEqual(strict(env, { expectedEntries: 1 }), { ok: true, errors: [] });
 });
 
+test('a decision has exactly one outcome: a second outcome entry for it is reported, whether it agrees with the first or contradicts it', async () => {
+  const sample = await sampleGate();
+  const entries = JSON.parse(JSON.stringify(sample.audit()));
+  const codes = (list, digest = sample.permissionDigest) => verifyAuditLog(list, { manifestDigest: digest }).errors.map((error) => `${error.code}@${error.seq}`);
+  // sampleGate: 0 read allow, 1 read outcome, 2 read deny, 3 write allow, 4 write outcome, 5 connect allow, 6 connect outcome, 7 spawn deny
+  assert.deepEqual(codes(entries), []);
+  assert.deepEqual(codes(rechain([...entries, { ...entries[4] }], sample.permissionDigest)), ['AUDIT_OUTCOME_DUPLICATE@8']);
+  assert.deepEqual(codes(rechain([...entries, { ...entries[4], ok: false, error_code: 'EIO' }], sample.permissionDigest)), ['AUDIT_OUTCOME_DUPLICATE@8']);
+  assert.deepEqual(codes(rechain([...entries, { ...entries[1] }, { ...entries[6] }], sample.permissionDigest)), ['AUDIT_OUTCOME_DUPLICATE@8', 'AUDIT_OUTCOME_DUPLICATE@9']);
+  // A would-deny decision of shadow mode owes one outcome as well.
+  const shadow = createEnforcementGate({ manifest: manifest(), host: createRecordingHost({ files: { 'src/a.txt': 'alpha' } }), mode: 'shadow' });
+  await shadow.read('secret/x').catch(() => {});
+  const shadowEntries = JSON.parse(JSON.stringify(shadow.audit()));
+  assert.deepEqual(layout(shadow), ['decision:read:would-deny', 'outcome:read:failed']);
+  assert.deepEqual(codes(shadowEntries, shadow.permissionDigest), []);
+  assert.deepEqual(codes(rechain([...shadowEntries, { ...shadowEntries[1], ok: true, error_code: undefined }], shadow.permissionDigest), shadow.permissionDigest), ['AUDIT_OUTCOME_DUPLICATE@2']);
+  // Neither the live log of a gate nor an outcome for a decision that was refused is ever a duplicate.
+  assert.deepEqual(sample.verifyAudit(), { ok: true, errors: [] });
+  assert.deepEqual(codes(rechain([...entries, { ...entries[1], decision_seq: 2 }], sample.permissionDigest)), ['AUDIT_OUTCOME_ORPHAN@8']);
+});
+
 test('when the outcome entry itself cannot be written the decision is reported as missing its outcome, not excused as running', async () => {
   let broken = false;
   const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' } });
