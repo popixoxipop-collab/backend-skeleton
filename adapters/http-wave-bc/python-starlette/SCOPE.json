@@ -134,16 +134,17 @@
     },
     {
       "id": "generated-routes",
-      "construct": "Mount(\"/static\", app=StaticFiles(...)): a mount of a framework-provided ASGI app; the route table shows only the prefix and no methods",
+      "construct": "Mount(\"/static\", app=StaticFiles(...)): a mount of an ASGI app the framework ships; the route table shows only the prefix and no methods, and oracle.py reports it as generated because the app it serves is a framework class",
       "fixture": "counterexamples/generated-routes",
       "minimal_counterexample": "app.py",
       "rule": "catch-generated",
       "expected": {
         "routes": [
-          "- /static",
           "GET /ping"
         ],
-        "generated": []
+        "generated": [
+          "- /static"
+        ]
       },
       "layers": {}
     },
@@ -212,7 +213,7 @@
   },
   "oracle_tool": {
     "path": "adapters/http-wave-a/python-scope/oracle.py",
-    "sha256": "bb61a5ae49f6d737d8ff7f32579eda826bef488ec11db94329ca066d157b87d6"
+    "sha256": "8b92d4f59f922afc97ad113205df27083d757730045e45ce9a42e0a843808ded"
   },
   "oracle_range": {
     "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
@@ -288,16 +289,16 @@
       "id": "oracle-1",
       "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py starlette adapters/http-wave-bc/python-starlette/fixtures",
       "exit_code": 0,
-      "stdout_sha256": "2f5f79a8d7d076211cdfb7eae2716fc611084481d4538574f742addf0599b809",
-      "stdout_bytes": 2601,
+      "stdout_sha256": "667892f67a5cb4c4c14e74d81cc5c8695dc665b92f7661f8e10392d59b6e8b3d",
+      "stdout_bytes": 2600,
       "stored_as": "results/oracle.json"
     },
     {
       "id": "oracle-2",
       "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py starlette adapters/http-wave-bc/python-starlette/fixtures",
       "exit_code": 0,
-      "stdout_sha256": "2f5f79a8d7d076211cdfb7eae2716fc611084481d4538574f742addf0599b809",
-      "stdout_bytes": 2601,
+      "stdout_sha256": "667892f67a5cb4c4c14e74d81cc5c8695dc665b92f7661f8e10392d59b6e8b3d",
+      "stdout_bytes": 2600,
       "stored_as": "results/oracle.json"
     }
   ],
@@ -307,11 +308,11 @@
     "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails when a scanner or adapter file named after the framework appears (adapter-appeared), so this record cannot outlive a new adapter unnoticed.",
     "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
     "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
-    "Mount of a non-route ASGI app (StaticFiles) appears in the oracle as a row with methods unknown (method \"-\"); a future scanner must keep it as unknown-method instead of inventing methods."
+    "A Mount of an ASGI app the framework ships (StaticFiles) appears in the oracle as a generated pair with an unknown method (\"-\"); a future scanner must keep it as unknown-method instead of inventing methods. oracle.py classifies a Mount or Host that has no child routes by the class of the app it serves: a framework class is generated, an app defined in the fixture is an ordinary route. A fixture that mounts an empty Router or Starlette is therefore reported as generated too."
   ],
   "plan": [
     "HTTP-python-starlette-02 (not started): T06 needs Route/Mount/decorator facts and a T13 adapter before any static comparison; the expected pairs stored per must-catch entry are the acceptance baseline. Until then the target stays unsupported.",
     "HTTP-python-starlette-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
   ],
-  "record_digest": "82bf4482e49e1e959dac3a0d4ab999de81ded2a1cad7a2d93ecb8b56140928a9"
+  "record_digest": "7f4ebc8c30c1d2d1912bc19e8ab42491251d24b808fcdde2749c066a1f003564"
 }

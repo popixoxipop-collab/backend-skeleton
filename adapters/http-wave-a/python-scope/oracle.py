@@ -23,7 +23,8 @@ GENERATED_MODULES = {
     "fastapi": ("fastapi", "starlette"),
     "starlette": ("starlette",),
     "litestar": ("litestar",),
-    "django": ("django.contrib.admin", "rest_framework"),
+    # admin, the static() / staticfiles file-serving views, and the DRF-owned views
+    "django": ("django.contrib.admin", "django.contrib.staticfiles", "django.views.static", "rest_framework"),
 }
 
 
@@ -39,6 +40,19 @@ def is_generated(framework, obj):
 def methods_of(route):
     methods = getattr(route, "methods", None)
     return sorted(methods) if methods else None
+
+
+def route_generated(framework, route, endpoint):
+    # A Mount/Host with no child routes serves an ASGI app and has no endpoint, so the endpoint test below never
+    # applies to it. The class of the app it serves decides instead: a class the framework ships (StaticFiles) is
+    # framework-provided and therefore generated, an app defined in the fixture is not. Mount keeps the app it was
+    # given in _base_app (route.app is wrapped in the mount's middleware); Host has only .app.
+    if type(route).__name__ in ("Mount", "Host"):
+        served = getattr(route, "_base_app", None)
+        if served is None:
+            served = getattr(route, "app", None)
+        return is_generated(framework, served)
+    return is_generated(framework, endpoint)
 
 
 def flask_rows(module):
@@ -61,25 +75,30 @@ def starlette_rows(framework, routes, prefix=""):
             continue
         rows.append({"kind": kind, "path": path or "/", "methods": methods_of(route),
                      "name": getattr(route, "name", None),
-                     "generated": is_generated(framework, getattr(route, "endpoint", None))})
+                     "generated": route_generated(framework, route, getattr(route, "endpoint", None))})
     return rows
 
 
 def fastapi_rows(app):
-    # FastAPI >= 0.143 keeps include_router() as a lazy _IncludedRouter in app.routes; its own public
-    # iter_route_contexts() is the framework's flattened view (effective prefix, methods, endpoint).
+    # FastAPI >= 0.143 keeps include_router() as a lazy _IncludedRouter in app.routes, and in the routes of a
+    # mounted FastAPI sub-app too; its own public iter_route_contexts() is the framework's flattened view
+    # (effective prefix, methods, endpoint), so every level of Mount nesting is walked through it.
     from fastapi.routing import iter_route_contexts
-    rows = []
-    for context in iter_route_contexts(app.routes):
-        route = context.original_route
-        path = context.path or ""
-        children = list(getattr(route, "routes", None) or [])
-        if type(route).__name__ in ("Mount", "Host") and children:
-            rows.extend(starlette_rows("fastapi", children, path))
-            continue
-        rows.append({"kind": type(route).__name__, "path": path or "/", "methods": methods_of(context),
-                     "name": context.name, "generated": is_generated("fastapi", context.endpoint)})
-    return rows
+
+    def walk(routes, prefix):
+        rows = []
+        for context in iter_route_contexts(routes):
+            route = context.original_route
+            path = prefix + (context.path or "")
+            children = list(getattr(route, "routes", None) or [])
+            if type(route).__name__ in ("Mount", "Host") and children:
+                rows.extend(walk(children, path))
+                continue
+            rows.append({"kind": type(route).__name__, "path": path or "/", "methods": methods_of(context),
+                         "name": context.name, "generated": route_generated("fastapi", route, context.endpoint)})
+        return rows
+
+    return walk(app.routes, "")
 
 
 def litestar_rows(module):
@@ -94,7 +113,10 @@ def litestar_rows(module):
                              "name": getattr(handler, "handler_name", None),
                              "generated": is_generated("litestar", getattr(handler, "fn", None))})
         else:
-            rows.append({"kind": kind, "path": route.path, "methods": None, "name": None, "generated": False})
+            # ASGI and WebSocket routes carry one handler; a framework-registered one (ChannelsPlugin) is generated
+            handler = getattr(route, "route_handler", None)
+            rows.append({"kind": kind, "path": route.path, "methods": None, "name": None,
+                         "generated": is_generated("litestar", getattr(handler, "fn", None))})
     return rows
 
 

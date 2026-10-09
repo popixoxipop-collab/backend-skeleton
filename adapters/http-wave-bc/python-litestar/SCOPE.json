@@ -294,7 +294,7 @@
   },
   "oracle_tool": {
     "path": "adapters/http-wave-a/python-scope/oracle.py",
-    "sha256": "bb61a5ae49f6d737d8ff7f32579eda826bef488ec11db94329ca066d157b87d6"
+    "sha256": "8b92d4f59f922afc97ad113205df27083d757730045e45ce9a42e0a843808ded"
   },
   "oracle_range": {
     "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
@@ -396,5 +396,5 @@
     "HTTP-python-litestar-02 (not started): T06 needs decorator/Router/Controller facts and a T13 adapter before any static comparison; the expected pairs stored per must-catch entry are the acceptance baseline. Until then the target stays unsupported.",
     "HTTP-python-litestar-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
   ],
-  "record_digest": "274672080ca8a907ae13a8f279c968fcbafa25e222cc539aff99acb29a634908"
+  "record_digest": "6f1232abfd9948a8f0872b076d7bf459d639ad395ccb3066dd99a98a822af8e4"
 }

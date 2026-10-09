@@ -193,8 +193,8 @@
       "properties": {
         "kind": { "$ref": "#/$defs/text" },
         "platform": { "type": "object" },
-        "can_verify": { "$ref": "#/$defs/strings" },
-        "cannot_verify": { "$ref": "#/$defs/strings" }
+        "can_verify": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } },
+        "cannot_verify": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } }
       }
     },
     "executed_commands": {

@@ -57,7 +57,7 @@
      "path": "/ping"
     },
     {
-     "generated": false,
+     "generated": true,
      "kind": "Mount",
      "methods": null,
      "name": "static",

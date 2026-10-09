@@ -22,6 +22,15 @@ export const STATIC_LAYERS = {
   fastapi: ['legacy-adapter', 't06-fastapi-shadow'],
   django: ['t06-django-shadow', 't12-django-drf-leaf'],
 };
+// The in-repo file each layer id runs (the imports above); verify.mjs holds a record's layers[].source to this table.
+export const STATIC_LAYER_SOURCES = {
+  'legacy-adapter': 'scanners/adapters/python-fastapi.mjs',
+  't06-fastapi-shadow': 'scanners/language/python/fastapi-shadow.mjs',
+  't06-flask-shadow': 'scanners/language/python/flask-shadow.mjs',
+  't12-flask-leaf': 'adapters/http-wave-a/flask.mjs',
+  't06-django-shadow': 'scanners/language/python/django-shadow.mjs',
+  't12-django-drf-leaf': 'adapters/http-wave-a/django-drf.mjs',
+};
 
 export function walk(dir, rel = '') {
   return fs.readdirSync(path.join(dir, rel), { withFileTypes: true })
